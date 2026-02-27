@@ -1,14 +1,16 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #09090b;
-  --color-foreground: #fafafa;
-  --color-primary: #6d28d9;
-  --color-primary-light: #8b5cf6;
-  --color-muted: #a1a1aa;
-  --color-border: #27272a;
-  --color-card: #18181b;
-  --color-card-hover: #1f1f23;
+  --color-background: #ffffff;
+  --color-foreground: #111827;
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-light: #3b82f6;
+  --color-muted: #6b7280;
+  --color-muted-light: #9ca3af;
+  --color-border: #e5e7eb;
+  --color-surface: #f9fafb;
+  --color-surface-dark: #f3f4f6;
   --font-sans: var(--font-inter);
 }
 
@@ -18,7 +20,6 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* 平滑滚动 */
 html {
   scroll-behavior: smooth;
 }
