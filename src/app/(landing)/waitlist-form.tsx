@@ -48,10 +48,10 @@ export function WaitlistForm() {
 
   if (status === "success") {
     return (
-      <div className="mt-8 flex flex-col items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-7">
-        <CheckCircle2 className="h-9 w-9 text-primary" />
-        <p className="text-lg font-semibold">You&apos;re on the list!</p>
-        <p className="text-sm text-muted">
+      <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-7">
+        <CheckCircle2 className="h-9 w-9 text-blue-400" />
+        <p className="text-lg font-semibold text-white">You&apos;re on the list!</p>
+        <p className="text-sm text-gray-400">
           We&apos;ll send you an invite link when a spot opens up.
         </p>
       </div>
@@ -67,28 +67,25 @@ export function WaitlistForm() {
           placeholder="you@company.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="flex-1 rounded-lg border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm text-white placeholder:text-gray-500 focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 backdrop-blur-sm"
         />
         <button
           type="submit"
           disabled={status === "loading"}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(37,99,235,0.3)] disabled:opacity-50"
         >
           {status === "loading" ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
-              Request <ArrowRight className="h-4 w-4" />
+              Get Access <ArrowRight className="h-4 w-4" />
             </>
           )}
         </button>
       </div>
       {status === "error" && (
-        <p className="mt-3 text-sm text-red-500">{errorMsg}</p>
+        <p className="mt-3 text-sm text-red-400">{errorMsg}</p>
       )}
-      <p className="mt-4 text-xs text-muted-light">
-        No spam — just one email when your invite is ready.
-      </p>
     </form>
   );
 }
