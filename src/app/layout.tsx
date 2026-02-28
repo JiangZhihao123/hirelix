@@ -38,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
+      <body className={`${inter.variable} antialiased`}>
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-17R1B6K2BK"
           strategy="afterInteractive"
@@ -51,8 +51,6 @@ export default function RootLayout({
             gtag('config', 'G-17R1B6K2BK');
           `}
         </Script>
-      </head>
-      <body className={`${inter.variable} antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
