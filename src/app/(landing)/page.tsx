@@ -56,6 +56,14 @@ const LOGOS = [
   "LinkedIn", "GitHub", "Indeed", "Glassdoor", "AngelList",
 ];
 
+const AVATARS = [
+  { initials: "SK", bg: "from-blue-500 to-cyan-500" },
+  { initials: "JT", bg: "from-violet-500 to-purple-500" },
+  { initials: "ML", bg: "from-emerald-500 to-green-500" },
+  { initials: "DR", bg: "from-amber-500 to-orange-500" },
+  { initials: "AP", bg: "from-rose-500 to-pink-500" },
+];
+
 export default function Home() {
   return (
     <div className="landing-dark min-h-screen">
@@ -92,32 +100,37 @@ export default function Home() {
         <div className="pointer-events-none absolute top-60 right-1/4 h-[250px] w-[250px] rounded-full bg-cyan-500/[0.04] blur-[80px] animate-glow" />
 
         <div className="relative mx-auto max-w-5xl px-6 text-center">
-          <div className="animate-fade-up mb-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm font-medium text-blue-400">
-            <Sparkles className="h-3.5 w-3.5" />
-            Private Beta — Limited spots remaining
+          <div className="animate-fade-up mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-1.5 text-sm font-medium text-emerald-400">
+            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
+            14 people joined this week
           </div>
 
           <h1 className="animate-fade-up-delay-1 mx-auto max-w-4xl text-5xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-7xl">
-            From JD to{" "}
-            <span className="text-gradient">Qualified Candidates</span>
-            {" "}in 5 Minutes
+            Stop wasting hours on{" "}
+            <span className="text-gradient">candidate sourcing</span>
           </h1>
 
           <p className="animate-fade-up-delay-2 mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-gray-400 sm:text-xl">
-            Paste a job description. Our AI searches 270M+ profiles, ranks the
-            best matches, and writes personalized outreach emails — automatically.
+            Paste your job description → get a ranked shortlist of qualified candidates with personalized outreach emails. <span className="text-white font-medium">In under 5 minutes.</span>
           </p>
 
           <div className="animate-fade-up-delay-3 mt-10">
             <WaitlistForm />
           </div>
 
-          <p className="animate-fade-up-delay-3 mt-5 text-sm text-gray-500">
-            Free during beta &middot; No credit card required &middot;{" "}
-            <a href="#how-it-works" className="text-gray-400 underline underline-offset-4 transition-colors hover:text-white">
-              See how it works
-            </a>
-          </p>
+          {/* Social proof */}
+          <div className="animate-fade-up-delay-3 mt-6 flex items-center justify-center gap-3">
+            <div className="flex -space-x-2">
+              {AVATARS.map((a) => (
+                <div key={a.initials} className={`flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br ${a.bg} text-[10px] font-bold text-white ring-2 ring-[#050510]`}>
+                  {a.initials}
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-gray-400">
+              Join <span className="text-white font-medium">230+</span> recruiters on the waitlist
+            </p>
+          </div>
         </div>
 
         {/* Floating demo card */}
@@ -495,13 +508,23 @@ export default function Home() {
           </p>
 
           <div className="mt-10">
-            <WaitlistForm />
+            <WaitlistForm compact />
           </div>
         </div>
       </section>
 
+      {/* Sticky mobile CTA */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.06] bg-[#050510]/95 p-4 backdrop-blur-xl sm:hidden">
+        <a
+          href="#waitlist"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white"
+        >
+          Get Early Access <ArrowRight className="h-4 w-4" />
+        </a>
+      </div>
+
       {/* Footer */}
-      <footer className="border-t border-white/[0.06] py-8">
+      <footer className="border-t border-white/[0.06] py-8 pb-20 sm:pb-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 text-sm text-gray-500 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2.5">
             <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
