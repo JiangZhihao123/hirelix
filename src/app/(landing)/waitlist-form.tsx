@@ -29,11 +29,15 @@ export function WaitlistForm() {
 
       setStatus("success");
       setEmail("");
-      // Fire Google Analytics conversion event
+      // Fire Google Analytics + Google Ads conversion events
       if (typeof window !== "undefined" && "gtag" in window) {
-        (window as unknown as { gtag: (...args: unknown[]) => void }).gtag("event", "sign_up", {
+        const gtag = (window as unknown as { gtag: (...args: unknown[]) => void }).gtag;
+        gtag("event", "sign_up", {
           event_category: "waitlist",
           event_label: "waitlist_submission",
+        });
+        gtag("event", "conversion", {
+          send_to: "AW-16927084361/ZU0bCOvlyYAcEMmeu4c_",
         });
       }
     } catch (err) {
