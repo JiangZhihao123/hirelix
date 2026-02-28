@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
+import Script from "next/script";
 import "./globals.css";
+import { AuthProvider } from "@/components/AuthProvider";
 
-const inter = Inter({
+const inter = localFont({
+  src: [
+    { path: "./fonts/InterVariable.woff2", style: "normal" },
+  ],
   variable: "--font-inter",
-  subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica", "Arial", "sans-serif"],
 });
 
 export const metadata: Metadata = {
@@ -32,7 +38,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased`}>{children}</body>
+      <head>
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-17R1B6K2BK"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-17R1B6K2BK');
+          `}
+        </Script>
+      </head>
+      <body className={`${inter.variable} antialiased`}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

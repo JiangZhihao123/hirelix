@@ -13,6 +13,7 @@ import {
   Star,
 } from "lucide-react";
 import { WaitlistForm } from "./waitlist-form";
+import Link from "next/link";
 
 const TESTIMONIALS = [
   {
@@ -58,12 +59,12 @@ export default function Home() {
             <a href="#testimonials" className="hidden text-sm text-muted hover:text-foreground sm:block">
               Testimonials
             </a>
-            <a
-              href="#waitlist"
+            <Link
+              href="/app"
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-dark"
             >
-              Request Invite
-            </a>
+              Sign In
+            </Link>
           </div>
         </div>
       </nav>

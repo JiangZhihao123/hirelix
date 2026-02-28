@@ -29,6 +29,13 @@ export function WaitlistForm() {
 
       setStatus("success");
       setEmail("");
+      // Fire Google Analytics conversion event
+      if (typeof window !== "undefined" && "gtag" in window) {
+        (window as unknown as { gtag: (...args: unknown[]) => void }).gtag("event", "sign_up", {
+          event_category: "waitlist",
+          event_label: "waitlist_submission",
+        });
+      }
     } catch (err) {
       setStatus("error");
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
