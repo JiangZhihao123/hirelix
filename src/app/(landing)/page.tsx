@@ -5,7 +5,6 @@ import {
   Mail,
   Clock,
   Users,
-  ArrowRight,
   CheckCircle2,
   Target,
   Zap,
@@ -87,23 +86,10 @@ export default function Home() {
             emails — so you can focus on conversations, not searching.
           </p>
 
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <a
-              href="#waitlist"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-7 py-3 text-base font-semibold text-white transition-colors hover:bg-primary-dark"
-            >
-              Request Early Access <ArrowRight className="h-4 w-4" />
-            </a>
-            <a
-              href="#how-it-works"
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-7 py-3 text-base font-medium text-muted transition-colors hover:border-muted-light hover:text-foreground"
-            >
-              See How It Works
-            </a>
-          </div>
+          <WaitlistForm />
 
-          <p className="mt-6 text-sm text-muted-light">
-            Free during private beta &middot; Invite only &middot; No credit card
+          <p className="mt-4 text-sm text-muted-light">
+            Free during private beta &middot; No credit card &middot; <a href="#how-it-works" className="underline hover:text-foreground">See how it works</a>
           </p>
         </div>
       </section>
