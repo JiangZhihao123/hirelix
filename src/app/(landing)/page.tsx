@@ -52,6 +52,10 @@ const STATS = [
   { value: "85%", label: "Time Saved vs Manual" },
 ];
 
+const LOGOS = [
+  "LinkedIn", "GitHub", "Indeed", "Glassdoor", "AngelList",
+];
+
 export default function Home() {
   return (
     <div className="landing-dark min-h-screen">
@@ -117,38 +121,87 @@ export default function Home() {
         </div>
 
         {/* Floating demo card */}
-        <div className="relative mx-auto mt-16 max-w-3xl px-6 sm:mt-20">
+        <div className="relative mx-auto mt-16 max-w-4xl px-6 sm:mt-20">
           <div className="glass-strong glow-blue rounded-2xl p-1 animate-fade-in">
             <div className="rounded-xl bg-[#0a0a1a] p-6 sm:p-8">
-              <div className="flex items-center gap-3 text-sm text-gray-500">
-                <div className="flex gap-1.5">
-                  <span className="h-3 w-3 rounded-full bg-red-500/60" />
-                  <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
-                  <span className="h-3 w-3 rounded-full bg-green-500/60" />
+              <div className="flex items-center justify-between text-sm text-gray-500">
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-red-500/60" />
+                    <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
+                    <span className="h-3 w-3 rounded-full bg-green-500/60" />
+                  </div>
+                  <span>Hirelix — Search Results</span>
                 </div>
-                <span>Hirelix — Search Results</span>
+                <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">
+                  <span className="rounded-md bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-400">Candidates</span>
+                  <span className="rounded-md px-3 py-1 text-xs text-gray-500">Emails</span>
+                </div>
               </div>
-              <div className="mt-5 space-y-3">
-                {[
-                  { name: "Alex Chen", role: "Senior Frontend Engineer at Stripe", score: 95, color: "bg-emerald-500" },
-                  { name: "Sarah Kim", role: "Staff Engineer at Vercel", score: 92, color: "bg-emerald-500" },
-                  { name: "Marcus Johnson", role: "Frontend Lead at Notion", score: 88, color: "bg-blue-500" },
-                ].map((c) => (
-                  <div key={c.name} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-white">{c.name}</p>
-                      <p className="text-xs text-gray-500">{c.role}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/[0.06]">
-                        <div className={`h-full rounded-full ${c.color}`} style={{ width: `${c.score}%` }} />
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-5">
+                {/* Candidate list */}
+                <div className="space-y-2.5 sm:col-span-3">
+                  {[
+                    { name: "Alex Chen", role: "Sr. Frontend Engineer", company: "Stripe", score: 95, color: "bg-emerald-500", skills: ["React", "TypeScript", "Node.js"] },
+                    { name: "Sarah Kim", role: "Staff Engineer", company: "Vercel", score: 92, color: "bg-emerald-500", skills: ["Next.js", "React", "Go"] },
+                    { name: "Marcus Johnson", role: "Frontend Lead", company: "Notion", score: 88, color: "bg-blue-500", skills: ["React", "GraphQL", "Rust"] },
+                  ].map((c) => (
+                    <div key={c.name} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3 transition-colors hover:bg-white/[0.04]">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-xs font-bold text-blue-400">
+                          {c.name.split(" ").map(n => n[0]).join("")}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">{c.name}</p>
+                          <p className="text-xs text-gray-500">{c.role} · {c.company}</p>
+                        </div>
                       </div>
-                      <span className="text-xs font-bold text-white">{c.score}%</span>
+                      <div className="flex items-center gap-3">
+                        <div className="hidden sm:flex gap-1">
+                          {c.skills.map((s) => (
+                            <span key={s} className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] text-gray-400">{s}</span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.06]">
+                            <div className={`h-full rounded-full ${c.color}`} style={{ width: `${c.score}%` }} />
+                          </div>
+                          <span className="text-xs font-bold text-white w-8 text-right">{c.score}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Email preview */}
+                <div className="hidden sm:block sm:col-span-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3 mb-3">
+                    <Mail className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-xs font-medium text-gray-400">Outreach Draft</span>
+                  </div>
+                  <div className="space-y-2 text-[11px] leading-relaxed text-gray-500">
+                    <p><span className="text-gray-400">To:</span> alex.chen@stripe.com</p>
+                    <p><span className="text-gray-400">Subject:</span> <span className="text-gray-300">Your React work at Stripe caught my eye</span></p>
+                    <div className="mt-3 rounded-md bg-white/[0.03] p-3 text-gray-400">
+                      <p>Hi Alex,</p>
+                      <p className="mt-2">I noticed your contributions to Stripe&apos;s payment UI components and your TypeScript expertise. We&apos;re building something similar at scale and think you&apos;d be a great fit...</p>
+                      <p className="mt-2 text-blue-400/60">— Personalized by Hirelix AI</p>
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Logo cloud */}
+        <div className="mx-auto mt-16 max-w-3xl px-6 text-center">
+          <p className="mb-5 text-xs font-medium tracking-widest text-gray-600 uppercase">Aggregating data from</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
+            {LOGOS.map((name) => (
+              <span key={name} className="text-sm font-semibold text-gray-600 transition-colors hover:text-gray-400">{name}</span>
+            ))}
           </div>
         </div>
       </section>
@@ -183,32 +236,45 @@ export default function Home() {
                 icon: FileText,
                 title: "Paste Your JD",
                 desc: "Drop in a job description or describe your ideal candidate. Our AI extracts every requirement — skills, seniority, location, culture fit.",
+                accent: "from-blue-500/20 to-blue-600/5",
               },
               {
                 step: "02",
                 icon: Search,
                 title: "AI Searches & Ranks",
                 desc: "Searches 270M+ professional profiles. Analyzes skills, experience, GitHub contributions. Returns a ranked shortlist with match scores.",
+                accent: "from-violet-500/20 to-violet-600/5",
               },
               {
                 step: "03",
                 icon: Mail,
                 title: "Review & Reach Out",
                 desc: "Get verified emails and personalized outreach drafts for every candidate. Edit, copy, send. Your pipeline is ready.",
+                accent: "from-emerald-500/20 to-emerald-600/5",
               },
-            ].map((item) => (
+            ].map((item, idx) => (
               <div
                 key={item.step}
-                className="group glass rounded-2xl p-7 transition-all duration-300 hover:border-blue-500/20 hover:bg-white/[0.04]"
+                className="group relative glass rounded-2xl p-7 transition-all duration-300 hover:border-blue-500/20 hover:bg-white/[0.04]"
               >
-                <div className="mb-5 flex items-center gap-3">
-                  <span className="text-3xl font-black text-white/10">{item.step}</span>
-                  <item.icon className="h-5 w-5 text-blue-400 transition-transform duration-300 group-hover:scale-110" />
+                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-b ${item.accent} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
+                <div className="relative">
+                  <div className="mb-5 flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.06] text-lg font-black text-white/20 transition-all duration-300 group-hover:bg-blue-500/20 group-hover:text-blue-400">
+                      {item.step}
+                    </div>
+                    <item.icon className="h-5 w-5 text-blue-400 transition-transform duration-300 group-hover:scale-110" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="text-sm leading-relaxed text-gray-400">
+                    {item.desc}
+                  </p>
                 </div>
-                <h3 className="mb-2 text-lg font-semibold text-white">{item.title}</h3>
-                <p className="text-sm leading-relaxed text-gray-400">
-                  {item.desc}
-                </p>
+                {idx < 2 && (
+                  <div className="absolute -right-3 top-1/2 z-10 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-white/[0.06] bg-[#0a0a1a] sm:flex">
+                    <ArrowRight className="h-3 w-3 text-gray-600" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -412,17 +478,23 @@ export default function Home() {
       </section>
 
       {/* Final CTA */}
-      <section id="waitlist" className="relative overflow-hidden border-t border-white/[0.06] py-20 sm:py-28">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-blue-600/[0.04] to-transparent" />
+      <section id="waitlist" className="relative overflow-hidden border-t border-white/[0.06] py-24 sm:py-32">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-blue-600/[0.06] via-purple-600/[0.03] to-transparent" />
+        <div className="pointer-events-none absolute bottom-0 left-1/2 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-blue-600/[0.06] blur-[120px]" />
         <div className="relative mx-auto max-w-2xl px-6 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Ready to stop sourcing manually?
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm font-medium text-blue-400">
+            <Zap className="h-3.5 w-3.5" />
+            86 spots remaining
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
+            Ready to stop sourcing{" "}
+            <span className="text-gradient">manually</span>?
           </h2>
-          <p className="mt-4 text-base text-gray-400">
-            Drop your email. We&apos;ll send an invite when a spot opens up.
+          <p className="mt-4 text-lg text-gray-400">
+            Join the waitlist. Get early access. Start hiring smarter.
           </p>
 
-          <div className="mt-8">
+          <div className="mt-10">
             <WaitlistForm />
           </div>
         </div>
