@@ -17,17 +17,35 @@ export const metadata: Metadata = {
   title: "Hirelix — From JD to Candidates in 5 Minutes",
   description:
     "AI-powered recruiting agent that turns your job description into a shortlist of qualified candidates with personalized outreach emails. Stop spending hours on sourcing.",
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     title: "Hirelix — From JD to Candidates in 5 Minutes",
     description:
       "AI-powered recruiting agent that turns your job description into a shortlist of qualified candidates with personalized outreach emails.",
     type: "website",
+    url: "https://hirelix.online",
+    siteName: "Hirelix",
+    images: [
+      {
+        url: "https://hirelix.online/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Hirelix — AI-Powered Candidate Sourcing",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Hirelix — From JD to Candidates in 5 Minutes",
     description:
       "AI-powered recruiting agent that turns your job description into a shortlist of qualified candidates with personalized outreach emails.",
+    images: ["https://hirelix.online/og-image.png"],
   },
 };
 
