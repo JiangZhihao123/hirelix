@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { JD_PARSE_PROMPT } from "@/lib/prompts";
 import { buildPDLQuery, searchPeople, pdlPersonToCandidate } from "@/lib/pdl";
+
+export const maxDuration = 60;
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,9 +66,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse JD with Claude (async, don't block response)
-    parseAndGenerate(search.id, jd_text.trim()).catch((err) => {
-      console.error("parseAndGenerate error:", err);
+    // Use after() to keep serverless function alive for background work
+    after(async () => {
+      try {
+        await parseAndGenerate(search.id, jd_text.trim());
+      } catch (err) {
+        console.error("parseAndGenerate error:", err);
+      }
     });
 
     return NextResponse.json({ id: search.id });
