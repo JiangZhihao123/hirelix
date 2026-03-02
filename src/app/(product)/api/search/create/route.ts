@@ -8,6 +8,13 @@ import { buildPDLQuery, searchPeople, pdlPersonToCandidate } from "@/lib/pdl";
 
 export const maxDuration = 60;
 
+/** Strip markdown code fences from Claude responses */
+function extractJSON(text: string): string {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) return fenced[1].trim();
+  return text.trim();
+}
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -113,7 +120,7 @@ async function parseAndGenerate(searchId: string, jdText: string) {
 
     let parsed;
     try {
-      parsed = JSON.parse(parsedJson);
+      parsed = JSON.parse(extractJSON(parsedJson));
     } catch {
       parsed = { title: "Untitled Role", required_skills: [], experience_years_min: 0 };
     }
@@ -174,7 +181,7 @@ Return ONLY valid JSON array, no markdown.`;
         });
 
         try {
-          const scores = JSON.parse(scoringJson);
+          const scores = JSON.parse(extractJSON(scoringJson));
           for (const s of scores) {
             const idx = typeof s.index === "number" ? s.index : parseInt(s.index);
             if (idx >= 0 && idx < candidates.length) {
@@ -203,7 +210,7 @@ Return ONLY valid JSON array, no markdown.`;
       });
 
       try {
-        candidates = JSON.parse(candidatesJson);
+        candidates = JSON.parse(extractJSON(candidatesJson));
       } catch {
         candidates = [];
       }
