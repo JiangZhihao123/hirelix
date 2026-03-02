@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { after } from "next/server";
+// import { after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -73,14 +73,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use after() to keep serverless function alive for background work
-    after(async () => {
-      try {
-        await parseAndGenerate(search.id, jd_text.trim());
-      } catch (err) {
-        console.error("parseAndGenerate error:", err);
-      }
-    });
+    // Await the full pipeline before returning — maxDuration=60 gives enough time
+    await parseAndGenerate(search.id, jd_text.trim());
 
     return NextResponse.json({ id: search.id });
   } catch (err) {
@@ -105,18 +99,23 @@ async function parseAndGenerate(searchId: string, jdText: string) {
   }
 
   try {
+    console.log(`[parseAndGenerate] Starting for search ${searchId}`);
+    console.log(`[parseAndGenerate] Config: baseUrl=${anthropicBaseUrl}, model=${anthropicModel}, hasPDL=${!!pdlApiKey}`);
+
     const anthropic = createAnthropic({
       apiKey: anthropicApiKey,
       ...(anthropicBaseUrl ? { baseURL: anthropicBaseUrl } : {}),
     });
 
     // Step 1: Parse JD with Claude
+    console.log(`[parseAndGenerate] Step 1: Parsing JD...`);
     const { text: parsedJson } = await generateText({
       model: anthropic(anthropicModel),
       system: JD_PARSE_PROMPT,
       prompt: jdText,
       maxOutputTokens: 2000,
     });
+    console.log(`[parseAndGenerate] Step 1 done, raw length: ${parsedJson.length}`);
 
     let parsed;
     try {
@@ -256,7 +255,8 @@ Return ONLY valid JSON array, no markdown.`;
       .update({ status: "done", updated_at: new Date().toISOString() })
       .eq("id", searchId);
   } catch (err) {
-    console.error("parseAndGenerate error:", err);
+    console.error("[parseAndGenerate] FAILED at some step:", err instanceof Error ? err.message : String(err));
+    console.error("[parseAndGenerate] Stack:", err instanceof Error ? err.stack : "no stack");
     await supabaseAdmin
       .from("hirelix_searches")
       .update({ status: "error", updated_at: new Date().toISOString() })
