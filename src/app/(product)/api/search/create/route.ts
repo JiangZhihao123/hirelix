@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
 
 async function parseAndGenerate(searchId: string, jdText: string) {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
+  const anthropicModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
   const pdlApiKey = process.env.PDL_API_KEY;
 
   if (!anthropicApiKey) {
@@ -89,11 +91,14 @@ async function parseAndGenerate(searchId: string, jdText: string) {
   }
 
   try {
-    const anthropic = createAnthropic({ apiKey: anthropicApiKey });
+    const anthropic = createAnthropic({
+      apiKey: anthropicApiKey,
+      ...(anthropicBaseUrl ? { baseURL: anthropicBaseUrl } : {}),
+    });
 
     // Step 1: Parse JD with Claude
     const { text: parsedJson } = await generateText({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: anthropic(anthropicModel),
       system: JD_PARSE_PROMPT,
       prompt: jdText,
       maxOutputTokens: 2000,
@@ -156,7 +161,7 @@ For each candidate (by number), return a JSON array with objects containing:
 Return ONLY valid JSON array, no markdown.`;
 
         const { text: scoringJson } = await generateText({
-          model: anthropic("claude-sonnet-4-20250514"),
+          model: anthropic(anthropicModel),
           prompt: scoringPrompt,
           maxOutputTokens: 3000,
         });
@@ -184,7 +189,7 @@ Return ONLY valid JSON array, no markdown.`;
     } else {
       // --- No PDL key: AI-generated fake candidates ---
       const { text: candidatesJson } = await generateText({
-        model: anthropic("claude-sonnet-4-20250514"),
+        model: anthropic(anthropicModel),
         system: `You are a recruiting AI. Generate 10 realistic candidate profiles matching these requirements. Return ONLY a JSON array.`,
         prompt: `Job Requirements:\n${JSON.stringify(parsed, null, 2)}\n\nGenerate 10 candidates with fields: name, headline, location, skills (array), experience_years, match_score (0-100), match_reasons (array), profile_url, email. Make them diverse in match quality and background.`,
         maxOutputTokens: 8000,
@@ -201,7 +206,7 @@ Return ONLY valid JSON array, no markdown.`;
     for (const c of candidates) {
       try {
         const { text: emailDraft } = await generateText({
-          model: anthropic("claude-sonnet-4-20250514"),
+          model: anthropic(anthropicModel),
           system: `Write a short personalized recruiting outreach email (under 150 words). Sound human, reference the candidate's background, state the opportunity clearly. Return ONLY the email text starting with "Hi [Name],".`,
           prompt: `Role: ${parsed.title}${parsed.company ? ` at ${parsed.company}` : ""}\nCandidate: ${c.name}, ${c.headline || "Professional"}\nSkills: ${c.skills.slice(0, 8).join(", ")}\nExperience: ${c.experience_years || "N/A"} years\nMatch reasons: ${c.match_reasons.join("; ") || "General fit"}`,
           maxOutputTokens: 500,
