@@ -148,6 +148,7 @@ async function parseAndGenerate(searchId: string, jdText: string) {
 
     if (pdlApiKey) {
       // --- Real candidates from People Data Labs ---
+      console.log(`[parseAndGenerate] Step 2: PDL search...`);
       const pdlQuery = buildPDLQuery(parsed);
       console.log("[PDL] Query:", JSON.stringify(pdlQuery));
 
@@ -155,6 +156,7 @@ async function parseAndGenerate(searchId: string, jdText: string) {
       console.log(`[PDL] Found ${pdlResult.total} total, returned ${pdlResult.data.length}`);
 
       candidates = pdlResult.data.map((p) => pdlPersonToCandidate(p));
+      console.log(`[parseAndGenerate] Step 2 done, ${candidates.length} candidates mapped`);
 
       // Use Claude to score & rank the real candidates
       if (candidates.length > 0) {
@@ -216,6 +218,7 @@ Return ONLY valid JSON array, no markdown.`;
     }
 
     // Step 3: Generate personalized outreach emails for each candidate
+    console.log(`[parseAndGenerate] Step 3: Generating ${candidates.length} outreach emails...`);
     for (const c of candidates) {
       try {
         const { text: emailDraft } = await generateText({
@@ -231,6 +234,7 @@ Return ONLY valid JSON array, no markdown.`;
       }
     }
 
+    console.log(`[parseAndGenerate] Step 3 done. Inserting ${candidates.length} candidates into DB...`);
     // Insert candidates into DB
     if (candidates.length > 0) {
       const rows = candidates.map((c) => ({

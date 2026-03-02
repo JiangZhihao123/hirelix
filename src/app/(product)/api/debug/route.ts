@@ -1,18 +1,22 @@
 import { NextResponse } from "next/server";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
+import { buildPDLQuery, searchPeople, pdlPersonToCandidate } from "@/lib/pdl";
+
+export const maxDuration = 60;
 
 export async function GET() {
-  const env = {
+  const results: Record<string, unknown> = {};
+
+  // 1. Env check
+  results.env = {
     ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || "NOT SET",
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? "SET (length=" + process.env.ANTHROPIC_API_KEY.length + ")" : "NOT SET",
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? `SET (len=${process.env.ANTHROPIC_API_KEY.length})` : "NOT SET",
     ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || "NOT SET",
-    PDL_API_KEY: process.env.PDL_API_KEY ? "SET (length=" + process.env.PDL_API_KEY.length + ")" : "NOT SET",
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "SET" : "NOT SET",
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || "NOT SET",
+    PDL_API_KEY: process.env.PDL_API_KEY ? `SET (len=${process.env.PDL_API_KEY.length})` : "NOT SET",
   };
 
-  let claudeTest = "not tested";
+  // 2. Claude test
   try {
     const anthropic = createAnthropic({
       apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -23,10 +27,25 @@ export async function GET() {
       prompt: "Say OK",
       maxOutputTokens: 5,
     });
-    claudeTest = `OK: "${text}"`;
+    results.claude = `OK: "${text}"`;
   } catch (err) {
-    claudeTest = `FAILED: ${err instanceof Error ? err.message : String(err)}`;
+    results.claude = `FAILED: ${err instanceof Error ? err.message : String(err)}`;
   }
 
-  return NextResponse.json({ env, claudeTest });
+  // 3. PDL test
+  try {
+    const parsed = { title: "Frontend Engineer", required_skills: ["react", "typescript"], experience_years_min: 3, seniority: "Senior" };
+    const pdlQuery = buildPDLQuery(parsed);
+    results.pdlQuery = pdlQuery;
+    const pdlResult = await searchPeople(process.env.PDL_API_KEY!, pdlQuery, 2);
+    results.pdl = `OK: total=${pdlResult.total}, returned=${pdlResult.data.length}`;
+    if (pdlResult.data[0]) {
+      const c = pdlPersonToCandidate(pdlResult.data[0]);
+      results.pdlSample = { name: c.name, headline: c.headline, skills: c.skills.slice(0, 5) };
+    }
+  } catch (err) {
+    results.pdl = `FAILED: ${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  return NextResponse.json(results);
 }
