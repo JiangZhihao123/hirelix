@@ -154,11 +154,14 @@ export function pdlPersonToCandidate(person: PDLPerson) {
     }
   }
 
-  // Get primary email
-  const primaryEmail =
-    person.emails?.find((e) => e.type === "professional")?.address ||
-    person.emails?.[0]?.address ||
-    null;
+  // Get primary email (PDL resume dataset may return boolean instead of array)
+  let primaryEmail: string | null = null;
+  if (Array.isArray(person.emails) && person.emails.length > 0) {
+    primaryEmail =
+      person.emails.find((e) => e.type === "professional")?.address ||
+      person.emails[0]?.address ||
+      null;
+  }
 
   // Build headline
   const headline = [person.job_title, person.job_company_name]
