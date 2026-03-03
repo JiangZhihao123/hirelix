@@ -3,63 +3,18 @@ import {
   FileText,
   Search,
   Mail,
-  Clock,
-  Users,
-  CheckCircle2,
-  Target,
-  Zap,
-  DollarSign,
-  Star,
   ArrowRight,
-  Globe,
+  Zap,
+  Database,
+  Brain,
+  MousePointerClick,
+  CheckCircle2,
+  Copy,
+  Star,
+  Download,
+  Filter,
 } from "lucide-react";
 import Link from "next/link";
-
-const TESTIMONIALS = [
-  {
-    name: "Sarah K.",
-    role: "Technical Recruiter, Series B Startup",
-    text: "I used to spend half my day just finding candidates on LinkedIn. With Hirelix, I paste the JD and get a solid shortlist in minutes. The outreach emails actually sound human too.",
-    rating: 5,
-  },
-  {
-    name: "James T.",
-    role: "Engineering Manager",
-    text: "We don't have a dedicated recruiter, so I was doing sourcing myself. Hirelix saved me probably 4-5 hours a week. It actually understands what a strong engineering profile looks like.",
-    rating: 5,
-  },
-  {
-    name: "Maria L.",
-    role: "Freelance Recruiter",
-    text: "Tested it on a tough ML engineer search. The candidate matches were surprisingly good — found a few people I hadn't seen on other platforms.",
-    rating: 4,
-  },
-  {
-    name: "David R.",
-    role: "Head of Talent, Fintech",
-    text: "The personalized emails are the killer feature. My old workflow was: search, export to spreadsheet, write emails manually. Now it's one step.",
-    rating: 4,
-  },
-];
-
-const STATS = [
-  { value: "270M+", label: "Professional Profiles" },
-  { value: "5 min", label: "Average Time to Shortlist" },
-  { value: "3x", label: "Better Response Rates" },
-  { value: "85%", label: "Time Saved vs Manual" },
-];
-
-const LOGOS = [
-  "LinkedIn", "GitHub", "Indeed", "Glassdoor", "AngelList",
-];
-
-const AVATARS = [
-  { initials: "SK", bg: "from-blue-500 to-cyan-500" },
-  { initials: "JT", bg: "from-violet-500 to-purple-500" },
-  { initials: "ML", bg: "from-emerald-500 to-green-500" },
-  { initials: "DR", bg: "from-amber-500 to-orange-500" },
-  { initials: "AP", bg: "from-rose-500 to-pink-500" },
-];
 
 export default function Home() {
   return (
@@ -75,224 +30,154 @@ export default function Home() {
             <a href="#how-it-works" className="hidden text-sm text-gray-400 transition-colors hover:text-white sm:block">
               How It Works
             </a>
-            <a href="#testimonials" className="hidden text-sm text-gray-400 transition-colors hover:text-white sm:block">
-              Reviews
+            <a href="#product" className="hidden text-sm text-gray-400 transition-colors hover:text-white sm:block">
+              Product
             </a>
             <Link
               href="/app"
-              className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm transition-all hover:bg-white/20"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-500"
             >
-              Sign In
+              Try It Free
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden pt-28 pb-20 sm:pt-40 sm:pb-32">
-        {/* Background effects */}
+      {/* ═══════════════════════════════════════════════
+          HERO — One sentence. One button. One demo.
+          ═══════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden pt-28 pb-16 sm:pt-40 sm:pb-24">
         <div className="hero-grid pointer-events-none absolute inset-0" />
         <div className="pointer-events-none absolute top-20 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-blue-600/[0.07] blur-[120px]" />
         <div className="pointer-events-none absolute top-40 left-1/4 h-[300px] w-[300px] rounded-full bg-purple-600/[0.05] blur-[100px] animate-glow" />
-        <div className="pointer-events-none absolute top-60 right-1/4 h-[250px] w-[250px] rounded-full bg-cyan-500/[0.04] blur-[80px] animate-glow" />
 
         <div className="relative mx-auto max-w-5xl px-6 text-center">
-          <div className="animate-fade-up mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-1.5 text-sm font-medium text-emerald-400">
-            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
-            Now available — start sourcing instantly
-          </div>
-
-          <h1 className="animate-fade-up-delay-1 mx-auto max-w-4xl text-5xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-7xl">
-            Stop wasting hours on{" "}
-            <span className="text-gradient">candidate sourcing</span>
+          <h1 className="animate-fade-up mx-auto max-w-4xl text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-6xl lg:text-7xl">
+            Paste a JD.{" "}
+            <span className="text-gradient">Get candidates.</span>
           </h1>
 
-          <p className="animate-fade-up-delay-2 mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-gray-400 sm:text-xl">
-            Paste your job description → get a ranked shortlist of qualified candidates with personalized outreach emails. <span className="text-white font-medium">In under 5 minutes.</span>
+          <p className="animate-fade-up-delay-1 mx-auto mt-6 max-w-xl text-lg leading-relaxed text-gray-400">
+            AI reads your job description, searches 270M+ real profiles, scores every match, and writes personalized outreach emails — in under 5 minutes.
           </p>
 
-          <div className="animate-fade-up-delay-3 mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+          <div className="animate-fade-up-delay-2 mt-10">
             <Link
               href="/app"
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-base font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-[0_0_24px_rgba(37,99,235,0.35)]"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-base font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]"
             >
-              Get Started Free <ArrowRight className="h-4 w-4" />
+              Start Sourcing — It&apos;s Free <ArrowRight className="h-4 w-4" />
             </Link>
-            <a
-              href="#how-it-works"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-8 py-4 text-base font-medium text-gray-300 transition-all hover:bg-white/[0.08] hover:text-white"
-            >
-              See How It Works
-            </a>
-          </div>
-
-          {/* Social proof */}
-          <div className="animate-fade-up-delay-3 mt-6 flex items-center justify-center gap-3">
-            <div className="flex -space-x-2">
-              {AVATARS.map((a) => (
-                <div key={a.initials} className={`flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br ${a.bg} text-[10px] font-bold text-white ring-2 ring-[#050510]`}>
-                  {a.initials}
-                </div>
-              ))}
-            </div>
-            <p className="text-sm text-gray-400">
-              Trusted by <span className="text-white font-medium">recruiters</span> at top companies
-            </p>
+            <p className="mt-3 text-xs text-gray-500">No credit card. No setup. Just paste and go.</p>
           </div>
         </div>
 
-        {/* Floating demo card */}
-        <div className="relative mx-auto mt-16 max-w-4xl px-6 sm:mt-20">
-          <div className="glass-strong glow-blue rounded-2xl p-1 animate-fade-in">
-            <div className="rounded-xl bg-[#0a0a1a] p-6 sm:p-8">
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-1.5">
-                    <span className="h-3 w-3 rounded-full bg-red-500/60" />
-                    <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
-                    <span className="h-3 w-3 rounded-full bg-green-500/60" />
-                  </div>
-                  <span>Hirelix — Search Results</span>
+        {/* Live product demo */}
+        <div className="relative mx-auto mt-14 max-w-4xl px-6 sm:mt-20 animate-fade-up-delay-3">
+          <div className="glass-strong glow-blue rounded-2xl p-1">
+            <div className="rounded-xl bg-[#0a0a1a] p-5 sm:p-8">
+              {/* Browser chrome */}
+              <div className="flex items-center gap-3 text-sm text-gray-500 mb-5">
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-red-500/60" />
+                  <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
+                  <span className="h-3 w-3 rounded-full bg-green-500/60" />
                 </div>
-                <div className="flex gap-1 rounded-lg bg-white/[0.04] p-0.5">
-                  <span className="rounded-md bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-400">Candidates</span>
-                  <span className="rounded-md px-3 py-1 text-xs text-gray-500">Emails</span>
-                </div>
+                <span className="text-xs">hirelix.online/app/search/results</span>
               </div>
 
-              <div className="mt-5 grid gap-4 sm:grid-cols-5">
-                {/* Candidate list */}
-                <div className="space-y-2.5 sm:col-span-3">
-                  {[
-                    { name: "Alex Chen", role: "Sr. Frontend Engineer", company: "Stripe", score: 95, color: "bg-emerald-500", skills: ["React", "TypeScript", "Node.js"] },
-                    { name: "Sarah Kim", role: "Staff Engineer", company: "Vercel", score: 92, color: "bg-emerald-500", skills: ["Next.js", "React", "Go"] },
-                    { name: "Marcus Johnson", role: "Frontend Lead", company: "Notion", score: 88, color: "bg-blue-500", skills: ["React", "GraphQL", "Rust"] },
-                  ].map((c) => (
-                    <div key={c.name} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3 transition-colors hover:bg-white/[0.04]">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500/20 to-violet-500/20 text-xs font-bold text-blue-400">
-                          {c.name.split(" ").map(n => n[0]).join("")}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-white">{c.name}</p>
-                          <p className="text-xs text-gray-500">{c.role} · {c.company}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex gap-1">
-                          {c.skills.map((s) => (
-                            <span key={s} className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] text-gray-400">{s}</span>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.06]">
-                            <div className={`h-full rounded-full ${c.color}`} style={{ width: `${c.score}%` }} />
-                          </div>
-                          <span className="text-xs font-bold text-white w-8 text-right">{c.score}%</span>
-                        </div>
-                      </div>
-                    </div>
+              {/* Search header */}
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-white">Senior Frontend Engineer</span>
+                <span className="text-xs text-gray-500">·</span>
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Done</span>
+                <div className="ml-auto hidden sm:flex gap-1.5">
+                  {["React", "TypeScript", "Next.js"].map((s) => (
+                    <span key={s} className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">{s}</span>
                   ))}
                 </div>
+              </div>
+              <div className="mb-4 text-[11px] text-gray-500">5 candidates found · Avg: 74% · Range: 62–88%</div>
 
-                {/* Email preview */}
-                <div className="hidden sm:block sm:col-span-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
-                  <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3 mb-3">
-                    <Mail className="h-3.5 w-3.5 text-blue-400" />
-                    <span className="text-xs font-medium text-gray-400">Outreach Draft</span>
-                  </div>
-                  <div className="space-y-2 text-[11px] leading-relaxed text-gray-500">
-                    <p><span className="text-gray-400">To:</span> alex.chen@stripe.com</p>
-                    <p><span className="text-gray-400">Subject:</span> <span className="text-gray-300">Your React work at Stripe caught my eye</span></p>
-                    <div className="mt-3 rounded-md bg-white/[0.03] p-3 text-gray-400">
-                      <p>Hi Alex,</p>
-                      <p className="mt-2">I noticed your contributions to Stripe&apos;s payment UI components and your TypeScript expertise. We&apos;re building something similar at scale and think you&apos;d be a great fit...</p>
-                      <p className="mt-2 text-blue-400/60">— Personalized by Hirelix AI</p>
+              {/* Candidate rows */}
+              <div className="space-y-2">
+                {[
+                  { initials: "JL", name: "James Liu", role: "Senior Frontend Engineer at Shopify", score: 88, color: "from-blue-500 to-cyan-500", matched: ["React", "TypeScript", "Next.js"] },
+                  { initials: "AN", name: "Anika Nair", role: "Staff Frontend Developer at Atlassian", score: 79, color: "from-violet-500 to-purple-500", matched: ["React", "GraphQL"] },
+                  { initials: "MR", name: "Marco Rossi", role: "Frontend Lead at Datadog", score: 72, color: "from-emerald-500 to-green-500", matched: ["TypeScript", "React"] },
+                ].map((c) => (
+                  <div key={c.name} className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${c.color} text-[10px] font-bold text-white`}>
+                      {c.initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white">{c.name}</p>
+                      <p className="truncate text-xs text-gray-500">{c.role}</p>
+                    </div>
+                    <div className="hidden items-center gap-1 sm:flex">
+                      {c.matched.map((s) => (
+                        <span key={s} className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[9px] text-blue-400">{s}</span>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-white/[0.06]">
+                        <div className="h-full rounded-full bg-blue-500" style={{ width: `${c.score}%` }} />
+                      </div>
+                      <span className="w-8 text-right text-xs font-bold text-white">{c.score}%</span>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
-
-        {/* Logo cloud */}
-        <div className="mx-auto mt-16 max-w-3xl px-6 text-center">
-          <p className="mb-5 text-xs font-medium tracking-widest text-gray-600 uppercase">Aggregating data from</p>
-          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-            {LOGOS.map((name) => (
-              <span key={name} className="text-sm font-semibold text-gray-600 transition-colors hover:text-gray-400">{name}</span>
-            ))}
-          </div>
-        </div>
       </section>
 
-      {/* Stats bar */}
-      <section className="border-y border-white/[0.06] bg-white/[0.02]">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-px sm:grid-cols-4">
-          {STATS.map((s) => (
-            <div key={s.label} className="px-6 py-8 text-center sm:py-10">
-              <p className="text-3xl font-bold text-white sm:text-4xl">{s.value}</p>
-              <p className="mt-1 text-xs text-gray-500 sm:text-sm">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section id="how-it-works" className="relative py-20 sm:py-28">
+      {/* ═══════════════════════════════════════════════
+          HOW IT WORKS — 3 steps, honest description
+          ═══════════════════════════════════════════════ */}
+      <section id="how-it-works" className="relative border-t border-white/[0.06] py-20 sm:py-28">
         <div className="pointer-events-none absolute right-0 top-1/2 h-[400px] w-[400px] -translate-y-1/2 rounded-full bg-blue-600/[0.04] blur-[100px]" />
-        <div className="relative mx-auto max-w-6xl px-6">
+        <div className="relative mx-auto max-w-5xl px-6">
           <div className="text-center">
-            <p className="mb-3 text-sm font-semibold tracking-widest text-blue-400 uppercase">How It Works</p>
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Three steps. Five minutes. Done.
+              How it works
             </h2>
+            <p className="mt-3 text-base text-gray-400">Three steps. Under five minutes. Real candidates.</p>
           </div>
 
-          <div className="mt-16 grid gap-6 sm:grid-cols-3">
+          <div className="mt-14 grid gap-8 sm:grid-cols-3">
             {[
               {
-                step: "01",
+                step: "1",
                 icon: FileText,
-                title: "Paste Your JD",
-                desc: "Drop in a job description or describe your ideal candidate. Our AI extracts every requirement — skills, seniority, location, culture fit.",
-                accent: "from-blue-500/20 to-blue-600/5",
+                title: "Paste your job description",
+                desc: "Drop in any JD — or just describe what you're looking for. The AI extracts skills, seniority, location, and experience requirements automatically.",
+                accent: "from-blue-500 to-cyan-500",
               },
               {
-                step: "02",
+                step: "2",
                 icon: Search,
-                title: "AI Searches & Ranks",
-                desc: "Searches 270M+ professional profiles. Analyzes skills, experience, GitHub contributions. Returns a ranked shortlist with match scores.",
-                accent: "from-violet-500/20 to-violet-600/5",
+                title: "AI finds real people",
+                desc: "Searches a database of 270M+ professional profiles. Each candidate is scored against your requirements with specific match reasons.",
+                accent: "from-violet-500 to-purple-500",
               },
               {
-                step: "03",
+                step: "3",
                 icon: Mail,
-                title: "Review & Reach Out",
-                desc: "Get verified emails and personalized outreach drafts for every candidate. Edit, copy, send. Your pipeline is ready.",
-                accent: "from-emerald-500/20 to-emerald-600/5",
+                title: "Review and reach out",
+                desc: "Get a ranked shortlist with emails and personalized outreach drafts. Edit them inline, copy, and send. Export to CSV if you prefer.",
+                accent: "from-emerald-500 to-green-500",
               },
             ].map((item, idx) => (
-              <div
-                key={item.step}
-                className="group relative glass rounded-2xl p-7 transition-all duration-300 hover:border-blue-500/20 hover:bg-white/[0.04]"
-              >
-                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-b ${item.accent} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
-                <div className="relative">
-                  <div className="mb-5 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.06] text-lg font-black text-white/20 transition-all duration-300 group-hover:bg-blue-500/20 group-hover:text-blue-400">
-                      {item.step}
-                    </div>
-                    <item.icon className="h-5 w-5 text-blue-400 transition-transform duration-300 group-hover:scale-110" />
-                  </div>
-                  <h3 className="mb-2 text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="text-sm leading-relaxed text-gray-400">
-                    {item.desc}
-                  </p>
+              <div key={item.step} className="relative">
+                <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${item.accent} text-lg font-bold text-white`}>
+                  {item.step}
                 </div>
+                <h3 className="mb-2 text-lg font-semibold text-white">{item.title}</h3>
+                <p className="text-sm leading-relaxed text-gray-400">{item.desc}</p>
                 {idx < 2 && (
-                  <div className="absolute -right-3 top-1/2 z-10 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-white/[0.06] bg-[#0a0a1a] sm:flex">
+                  <div className="absolute -right-4 top-6 z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-white/[0.06] bg-[#0a0a1a] sm:flex">
                     <ArrowRight className="h-3 w-3 text-gray-600" />
                   </div>
                 )}
@@ -302,226 +187,112 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="border-t border-white/[0.06] py-20 sm:py-28">
-        <div className="mx-auto max-w-6xl px-6">
+      {/* ═══════════════════════════════════════════════
+          PRODUCT — What you actually get
+          ═══════════════════════════════════════════════ */}
+      <section id="product" className="border-t border-white/[0.06] py-20 sm:py-28">
+        <div className="mx-auto max-w-5xl px-6">
           <div className="text-center">
-            <p className="mb-3 text-sm font-semibold tracking-widest text-purple-400 uppercase">Features</p>
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Why recruiters switch to Hirelix
+              What you get
             </h2>
-            <p className="mx-auto mt-4 max-w-lg text-base text-gray-400">
-              Built for people who are tired of tab-switching and copy-pasting.
-            </p>
+            <p className="mt-3 text-base text-gray-400">No fluff. These are the actual features.</p>
           </div>
 
-          <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-14 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              {
-                icon: Clock,
-                title: "Hours → Minutes",
-                desc: "What takes 3+ hours of manual searching and filtering is done in under 5 minutes.",
-                accent: "text-blue-400",
-              },
-              {
-                icon: Target,
-                title: "Semantic Matching",
-                desc: "Goes beyond keywords. Understands that 'distributed systems engineer' might be listed as 'backend infrastructure.'",
-                accent: "text-emerald-400",
-              },
-              {
-                icon: Mail,
-                title: "Personalized Outreach",
-                desc: "Each email references the candidate's actual background — not a generic template. Better response rates.",
-                accent: "text-violet-400",
-              },
-              {
-                icon: DollarSign,
-                title: "Fraction of Agency Cost",
-                desc: "Agencies charge 15-25% of salary. Hirelix costs less than a team lunch.",
-                accent: "text-amber-400",
-              },
-              {
-                icon: Globe,
-                title: "270M+ Profiles",
-                desc: "Same data enterprise tools charge thousands for. LinkedIn, GitHub, and more — all in one search.",
-                accent: "text-cyan-400",
-              },
-              {
-                icon: Zap,
-                title: "Built for Tech Roles",
-                desc: "Understands tech stacks, open source contributions, and what makes a strong engineering profile.",
-                accent: "text-rose-400",
-              },
-            ].map((feature) => (
-              <div
-                key={feature.title}
-                className="glass group rounded-2xl p-6 transition-all duration-300 hover:border-white/10 hover:bg-white/[0.04]"
-              >
-                <feature.icon className={`mb-4 h-5 w-5 ${feature.accent} transition-transform duration-300 group-hover:scale-110`} />
-                <h3 className="mb-2 text-base font-semibold text-white">
-                  {feature.title}
-                </h3>
-                <p className="text-sm leading-relaxed text-gray-400">
-                  {feature.desc}
-                </p>
+              { icon: Brain, title: "AI JD Parsing", desc: "Extracts skills, title, location, experience level — no manual input needed." },
+              { icon: Database, title: "270M+ Real Profiles", desc: "Powered by People Data Labs. Real people with real LinkedIn profiles and emails." },
+              { icon: Star, title: "Match Scoring", desc: "Each candidate scored 0–100% with 3–4 specific reasons explaining why they match." },
+              { icon: Mail, title: "Outreach Emails", desc: "AI-written personalized emails referencing each candidate's actual background." },
+              { icon: Copy, title: "Copy & Edit", desc: "Edit subject and body inline. Copy subject, body, or both with one click." },
+              { icon: Download, title: "CSV Export", desc: "Download your entire shortlist as a spreadsheet. Name, email, score, skills — all included." },
+              { icon: Filter, title: "Status Tracking", desc: "Mark candidates as starred, contacted, replied, or rejected. Filter and batch-update." },
+              { icon: MousePointerClick, title: "Batch Actions", desc: "Select multiple candidates, change statuses in bulk. Select all with one click." },
+              { icon: Zap, title: "Under 5 Minutes", desc: "From pasting a JD to having a shortlist with emails. That's the whole product." },
+            ].map((f) => (
+              <div key={f.title} className="glass group rounded-xl p-5 transition-all duration-200 hover:bg-white/[0.04]">
+                <f.icon className="mb-3 h-5 w-5 text-blue-400" />
+                <h3 className="mb-1 text-sm font-semibold text-white">{f.title}</h3>
+                <p className="text-xs leading-relaxed text-gray-400">{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Comparison */}
+      {/* ═══════════════════════════════════════════════
+          HONEST COMPARISON
+          ═══════════════════════════════════════════════ */}
       <section className="border-t border-white/[0.06] py-20 sm:py-28">
-        <div className="mx-auto max-w-4xl px-6">
+        <div className="mx-auto max-w-3xl px-6">
           <div className="text-center">
-            <p className="mb-3 text-sm font-semibold tracking-widest text-cyan-400 uppercase">Comparison</p>
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              The old way vs. Hirelix
+              Manual sourcing takes hours.
             </h2>
+            <p className="mt-3 text-base text-gray-400">Here&apos;s what a typical search looks like with and without Hirelix.</p>
           </div>
 
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
-            <div className="glass rounded-2xl p-7">
-              <h3 className="mb-5 text-base font-semibold text-red-400">
-                Manual Sourcing
-              </h3>
-              {[
-                "Open LinkedIn, Apollo, GitHub in separate tabs",
-                "Try different keyword combos for each",
-                "Copy-paste profiles into a spreadsheet",
-                "Write outreach emails one by one",
-                "3-4 hours per role, every time",
-              ].map((item) => (
-                <div key={item} className="mb-3 flex items-start gap-3">
-                  <span className="mt-0.5 text-sm text-red-400/60">✕</span>
-                  <span className="text-sm text-gray-400">{item}</span>
-                </div>
-              ))}
+            <div className="glass rounded-2xl p-6">
+              <p className="mb-4 text-xs font-semibold tracking-widest text-gray-500 uppercase">Without Hirelix</p>
+              <div className="space-y-3 text-sm text-gray-400">
+                <p>1. Open LinkedIn Recruiter, type keywords</p>
+                <p>2. Scroll through 100+ profiles</p>
+                <p>3. Copy names and emails to a spreadsheet</p>
+                <p>4. Write outreach emails one by one</p>
+                <p>5. Repeat for every role</p>
+              </div>
+              <div className="mt-5 rounded-lg bg-white/[0.03] px-4 py-3 text-center">
+                <span className="text-2xl font-bold text-red-400">3–4 hours</span>
+                <p className="text-xs text-gray-500">per role</p>
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.05] p-7 glow-blue-sm">
-              <h3 className="mb-5 text-base font-semibold text-blue-400">
-                With Hirelix
-              </h3>
-              {[
-                "Paste JD once — agent handles everything",
-                "Semantic understanding of requirements",
-                "Ranked shortlist with match scores",
-                "Personalized emails for each candidate",
-                "Done in under 5 minutes",
-              ].map((item) => (
-                <div key={item} className="mb-3 flex items-start gap-3">
+            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.04] p-6 glow-blue-sm">
+              <p className="mb-4 text-xs font-semibold tracking-widest text-blue-400 uppercase">With Hirelix</p>
+              <div className="space-y-3 text-sm text-gray-300">
+                <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
-                  <span className="text-sm text-gray-200">{item}</span>
+                  <span>Paste the JD</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section id="testimonials" className="border-t border-white/[0.06] py-20 sm:py-28">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="text-center">
-            <p className="mb-3 text-sm font-semibold tracking-widest text-amber-400 uppercase">Testimonials</p>
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              What early users say
-            </h2>
-          </div>
-
-          <div className="mt-12 grid gap-5 sm:grid-cols-2">
-            {TESTIMONIALS.map((t) => (
-              <div
-                key={t.name}
-                className="glass group rounded-2xl p-6 transition-all duration-300 hover:border-white/10"
-              >
-                <div className="mb-3 flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < t.rating
-                          ? "fill-amber-400 text-amber-400"
-                          : "text-white/10"
-                      }`}
-                    />
-                  ))}
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                  <span>Review ranked candidates</span>
                 </div>
-                <p className="mb-4 text-sm leading-relaxed text-gray-300">
-                  &ldquo;{t.text}&rdquo;
-                </p>
-                <div>
-                  <p className="text-sm font-medium text-white">{t.name}</p>
-                  <p className="text-xs text-gray-500">{t.role}</p>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                  <span>Copy emails and send</span>
                 </div>
               </div>
-            ))}
+              <div className="mt-5 rounded-lg bg-blue-500/10 px-4 py-3 text-center">
+                <span className="text-2xl font-bold text-blue-400">&lt; 5 minutes</span>
+                <p className="text-xs text-blue-300/60">same result</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* What You Get */}
-      <section className="border-t border-white/[0.06] py-20 sm:py-28">
-        <div className="mx-auto max-w-3xl px-6 text-center">
-          <p className="mb-3 text-sm font-semibold tracking-widest text-green-400 uppercase">Free to Use</p>
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Everything you need to source smarter
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base text-gray-400">
-            No credit card required. Start sourcing candidates in under 5 minutes.
-          </p>
-
-          <div className="glass mx-auto mt-10 max-w-md rounded-2xl p-7">
-            <ul className="space-y-3 text-left text-sm">
-              {[
-                "AI-powered JD parsing & candidate matching",
-                "Access to 270M+ professional profiles",
-                "Personalized outreach emails for every candidate",
-                "Export candidates to CSV",
-                "Candidate scoring with match reasons",
-                "Batch operations & status tracking",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2.5">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
-                  <span className="text-gray-300">{item}</span>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/app"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white transition-all hover:bg-blue-500"
-            >
-              Start Sourcing Now <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section id="cta" className="relative overflow-hidden border-t border-white/[0.06] py-24 sm:py-32">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-blue-600/[0.06] via-purple-600/[0.03] to-transparent" />
+      {/* ═══════════════════════════════════════════════
+          FINAL CTA
+          ═══════════════════════════════════════════════ */}
+      <section className="relative overflow-hidden border-t border-white/[0.06] py-24 sm:py-32">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-blue-600/[0.06] via-transparent to-transparent" />
         <div className="pointer-events-none absolute bottom-0 left-1/2 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-blue-600/[0.06] blur-[120px]" />
         <div className="relative mx-auto max-w-2xl px-6 text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm font-medium text-blue-400">
-            <Zap className="h-3.5 w-3.5" />
-            Free to use — no credit card needed
-          </div>
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
-            Ready to stop sourcing{" "}
-            <span className="text-gradient">manually</span>?
+            Try it with your next open role.
           </h2>
           <p className="mt-4 text-lg text-gray-400">
-            Paste a job description. Get qualified candidates in minutes.
+            Free. No signup friction. Just paste a JD and see what comes back.
           </p>
-
           <div className="mt-10">
             <Link
               href="/app"
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-10 py-4 text-lg font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-[0_0_24px_rgba(37,99,235,0.35)]"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-10 py-4 text-lg font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-[0_0_30px_rgba(37,99,235,0.4)]"
             >
-              Get Started Free <ArrowRight className="h-5 w-5" />
+              Start Sourcing <ArrowRight className="h-5 w-5" />
             </Link>
           </div>
         </div>
@@ -533,7 +304,7 @@ export default function Home() {
           href="/app"
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white"
         >
-          Get Started Free <ArrowRight className="h-4 w-4" />
+          Start Sourcing — Free <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
 
@@ -544,7 +315,7 @@ export default function Home() {
             <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
             <span className="font-semibold text-white">Hirelix</span>
           </div>
-          <p>&copy; {new Date().getFullYear()} Hirelix. All rights reserved.</p>
+          <p>Candidate data powered by People Data Labs.</p>
         </div>
       </footer>
     </div>
