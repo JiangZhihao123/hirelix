@@ -37,6 +37,7 @@ export type PDLSearchResult = {
 
 /**
  * Build an Elasticsearch query for PDL Person Search from parsed JD requirements.
+ * Uses only simple `term` queries which PDL supports (no `match`, `boost`, etc.).
  */
 export function buildPDLQuery(parsed: {
   required_skills?: string[];
@@ -49,79 +50,48 @@ export function buildPDLQuery(parsed: {
   const must: Record<string, unknown>[] = [];
   const should: Record<string, unknown>[] = [];
 
-  // Match by skills (required)
-  if (parsed.required_skills && parsed.required_skills.length > 0) {
-    for (const skill of parsed.required_skills.slice(0, 8)) {
-      must.push({
-        term: { skills: skill.toLowerCase() },
-      });
-    }
+  // Match by top required skills (use first 3 as must, rest as should)
+  const requiredSkills = (parsed.required_skills || [])
+    .map((s) => s.toLowerCase().trim())
+    .filter((s) => s.length > 1 && !s.includes(" "));
+
+  for (const skill of requiredSkills.slice(0, 3)) {
+    must.push({ term: { skills: skill } });
+  }
+  for (const skill of requiredSkills.slice(3, 6)) {
+    should.push({ term: { skills: skill } });
   }
 
-  // Match by nice-to-have skills (boost, not required)
-  if (parsed.nice_to_have_skills && parsed.nice_to_have_skills.length > 0) {
-    for (const skill of parsed.nice_to_have_skills.slice(0, 5)) {
-      should.push({
-        term: { skills: skill.toLowerCase() },
-      });
-    }
+  // Nice-to-have skills as should
+  const niceSkills = (parsed.nice_to_have_skills || [])
+    .map((s) => s.toLowerCase().trim())
+    .filter((s) => s.length > 1 && !s.includes(" "));
+
+  for (const skill of niceSkills.slice(0, 3)) {
+    should.push({ term: { skills: skill } });
   }
 
-  // Match by job title keywords
+  // Job title role
   if (parsed.title) {
-    // Extract key terms from title for matching
-    const titleTerms = parsed.title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .split(/\s+/)
-      .filter((t) => t.length > 2 && !["the", "and", "for", "with"].includes(t));
-
-    if (titleTerms.length > 0) {
-      should.push({
-        match: {
-          job_title: {
-            query: titleTerms.join(" "),
-            boost: 2,
-          },
-        },
-      });
+    const titleLower = parsed.title.toLowerCase();
+    if (titleLower.includes("engineer") || titleLower.includes("developer")) {
+      must.push({ term: { job_title_role: "engineering" } });
+    } else if (titleLower.includes("design")) {
+      must.push({ term: { job_title_role: "design" } });
+    } else if (titleLower.includes("product")) {
+      must.push({ term: { job_title_role: "product" } });
     }
   }
 
-  // Location filter
-  if (parsed.location && parsed.location.toLowerCase() !== "remote") {
-    should.push({
-      match: {
-        location_name: {
-          query: parsed.location,
-          boost: 1.5,
-        },
-      },
-    });
-  }
-
-  // Seniority — map to job_title_levels if available
-  if (parsed.seniority) {
-    const seniorityMap: Record<string, string> = {
-      junior: "entry",
-      mid: "senior",
-      senior: "senior",
-      staff: "vp",
-      principal: "vp",
-      lead: "director",
-    };
-    const level = seniorityMap[parsed.seniority.toLowerCase()];
-    if (level) {
-      should.push({
-        term: { job_title_levels: level },
-      });
-    }
+  // Fallback: at least require engineering role
+  if (must.length === 0) {
+    must.push({ term: { job_title_role: "engineering" } });
   }
 
   const query: Record<string, unknown> = {
     bool: {
-      ...(must.length > 0 ? { must } : {}),
-      ...(should.length > 0 ? { should, minimum_should_match: 1 } : {}),
+      must,
+      ...(should.length > 0 ? { should } : {}),
     },
   };
 
@@ -133,21 +103,28 @@ export function buildPDLQuery(parsed: {
  */
 export async function searchPeople(
   apiKey: string,
-  query: Record<string, unknown>,
+  query: { sql?: string; query?: unknown },
   size: number = 10,
 ): Promise<PDLSearchResult> {
+  const body: Record<string, unknown> = {
+    size,
+    dataset: "resume",
+    titlecase: true,
+  };
+
+  if (query.sql) {
+    body.sql = query.sql;
+  } else if (query.query) {
+    body.query = query.query;
+  }
+
   const res = await fetch(`${PDL_BASE_URL}/person/search`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Api-Key": apiKey,
     },
-    body: JSON.stringify({
-      query: query.query,
-      size,
-      dataset: "resume",
-      titlecase: true,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
