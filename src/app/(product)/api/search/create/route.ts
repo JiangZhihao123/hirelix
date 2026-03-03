@@ -154,7 +154,7 @@ async function parseAndGenerate(searchId: string, jdText: string) {
       const pdlQuery = buildPDLQuery(parsed);
       console.log("[PDL] Query:", JSON.stringify(pdlQuery));
 
-      const pdlResult = await searchPeople(pdlApiKey, pdlQuery, 10);
+      const pdlResult = await searchPeople(pdlApiKey, pdlQuery, 5);
       console.log(`[PDL] Found ${pdlResult.total} total, returned ${pdlResult.data.length}`);
 
       candidates = pdlResult.data.map((p) => pdlPersonToCandidate(p));
@@ -219,20 +219,49 @@ Return ONLY valid JSON array, no markdown.`;
       }
     }
 
-    // Step 3: Generate personalized outreach emails for each candidate
-    console.log(`[parseAndGenerate] Step 3: Generating ${candidates.length} outreach emails...`);
-    for (const c of candidates) {
+    // Step 3: Batch generate outreach emails in one Claude call
+    console.log(`[parseAndGenerate] Step 3: Batch generating ${candidates.length} outreach emails...`);
+    if (candidates.length > 0) {
       try {
-        const { text: emailDraft } = await generateText({
+        const emailPrompt = `Write personalized recruiting outreach emails for each candidate below. Each email should be under 100 words, sound human, reference the candidate's background, and state the opportunity clearly.
+
+Role: ${parsed.title}${parsed.company ? ` at ${parsed.company}` : ""}
+
+Candidates:
+${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "Professional"}, Skills: ${c.skills.slice(0, 5).join(", ")}, ${c.experience_years || "?"} years exp`).join("\n")}
+
+Return a JSON array where each element has:
+- index: number (0-based)
+- email: string (the email text starting with "Hi [FirstName],")
+
+Return ONLY valid JSON, no markdown.`;
+
+        const { text: emailsJson } = await generateText({
           model: anthropic(anthropicModel),
-          system: `Write a short personalized recruiting outreach email (under 150 words). Sound human, reference the candidate's background, state the opportunity clearly. Return ONLY the email text starting with "Hi [Name],".`,
-          prompt: `Role: ${parsed.title}${parsed.company ? ` at ${parsed.company}` : ""}\nCandidate: ${c.name}, ${c.headline || "Professional"}\nSkills: ${c.skills.slice(0, 8).join(", ")}\nExperience: ${c.experience_years || "N/A"} years\nMatch reasons: ${c.match_reasons.join("; ") || "General fit"}`,
-          maxOutputTokens: 500,
+          prompt: emailPrompt,
+          maxOutputTokens: 4000,
         });
-        c.outreach_draft = emailDraft;
+
+        try {
+          const emails = JSON.parse(extractJSON(emailsJson));
+          for (const e of emails) {
+            const idx = typeof e.index === "number" ? e.index : parseInt(e.index);
+            if (idx >= 0 && idx < candidates.length && e.email) {
+              candidates[idx].outreach_draft = e.email;
+            }
+          }
+        } catch {
+          console.error("[email] Failed to parse batch emails");
+        }
       } catch (emailErr) {
-        console.error(`[email] Failed for ${c.name}:`, emailErr);
-        c.outreach_draft = `Hi ${c.name.split(" ")[0]},\n\nI came across your profile and thought your background would be a great fit for our ${parsed.title} role. Would you be open to a quick chat?\n\nBest regards`;
+        console.error("[email] Batch generation failed:", emailErr);
+      }
+
+      // Fill fallback for any candidates without emails
+      for (const c of candidates) {
+        if (!c.outreach_draft) {
+          c.outreach_draft = `Hi ${c.name.split(" ")[0]},\n\nI came across your profile and thought your background would be a great fit for our ${parsed.title} role. Would you be open to a quick chat?\n\nBest regards`;
+        }
       }
     }
 
