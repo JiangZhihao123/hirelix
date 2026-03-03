@@ -8,8 +8,10 @@ export type PDLPerson = {
   job_title: string | null;
   job_company_name: string | null;
   job_company_website: string | null;
-  location_name: string | null;
-  location_country: string | null;
+  location_name: string | boolean | null;
+  location_locality: string | boolean | null;
+  location_region: string | boolean | null;
+  location_country: string | boolean | null;
   linkedin_url: string | null;
   github_url: string | null;
   skills: string[];
@@ -135,6 +137,24 @@ export async function searchPeople(
   return res.json();
 }
 
+/** Resolve location from PDL person, trying multiple fields (resume dataset returns booleans) */
+function resolveLocation(person: PDLPerson): string | null {
+  // Try location_name first (full string like "San Francisco, California, United States")
+  if (typeof person.location_name === "string" && person.location_name.length > 1) {
+    return person.location_name;
+  }
+  // Fallback: build from locality + region
+  const parts: string[] = [];
+  if (typeof person.location_locality === "string") parts.push(person.location_locality);
+  if (typeof person.location_region === "string") parts.push(person.location_region);
+  if (parts.length > 0) return parts.join(", ");
+  // Last fallback: country
+  if (typeof person.location_country === "string" && person.location_country.length > 1) {
+    return person.location_country;
+  }
+  return null;
+}
+
 /** Ensure profile URLs have https:// prefix */
 function formatProfileUrl(url: string | null | undefined): string | null {
   if (!url || typeof url !== "string") return null;
@@ -178,7 +198,7 @@ export function pdlPersonToCandidate(person: PDLPerson) {
   return {
     name: person.full_name || `${person.first_name} ${person.last_name}`,
     headline: headline || null,
-    location: (typeof person.location_name === "string" ? person.location_name : null),
+    location: resolveLocation(person),
     skills: (person.skills || []).slice(0, 15),
     experience_years: experienceYears || null,
     profile_url: formatProfileUrl(person.linkedin_url) || formatProfileUrl(person.github_url) || null,

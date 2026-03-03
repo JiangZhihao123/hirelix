@@ -25,6 +25,9 @@ import {
   Users,
   Star,
   Send,
+  Download,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 type SearchRow = {
@@ -50,6 +53,26 @@ type CandidateRow = {
   outreach_draft: string | null;
   status: string;
 };
+
+const avatarColors = [
+  "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-amber-500",
+  "bg-pink-500", "bg-teal-500", "bg-indigo-500", "bg-rose-500",
+];
+
+function InitialsAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  const colorIdx = name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % avatarColors.length;
+  return (
+    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${avatarColors[colorIdx]} text-white text-sm font-bold`}>
+      {initials}
+    </div>
+  );
+}
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -90,6 +113,7 @@ function CandidateCard({
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
+    starred: "text-amber-500",
     contacted: "text-blue-600",
     replied: "text-green-600",
     rejected: "text-red-500",
@@ -102,9 +126,7 @@ function CandidateCard({
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-4 p-5 text-left"
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <User className="h-5 w-5 text-primary" />
-        </div>
+        <InitialsAvatar name={candidate.name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <p className="truncate text-sm font-semibold">{candidate.name}</p>
@@ -217,7 +239,7 @@ function CandidateCard({
                   Status
                 </p>
                 <div className="flex gap-2">
-                  {["new", "contacted", "replied", "rejected"].map((s) => (
+                  {["new", "starred", "contacted", "replied", "rejected"].map((s) => (
                     <button
                       key={s}
                       onClick={() => onStatusChange(candidate.id, s)}
@@ -331,6 +353,32 @@ export default function SearchResultPage() {
   const [search, setSearch] = useState<SearchRow | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showJd, setShowJd] = useState(false);
+
+  function exportCSV() {
+    if (candidates.length === 0) return;
+    const headers = ["Name", "Headline", "Location", "Match Score", "Skills", "Experience Years", "Profile URL", "Email", "Status", "Match Reasons"];
+    const rows = candidates.map((c) => [
+      c.name,
+      c.headline || "",
+      c.location || "",
+      c.match_score,
+      c.skills.join("; "),
+      c.experience_years || "",
+      c.profile_url || "",
+      c.email || "",
+      c.status,
+      c.match_reasons.join("; "),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${search?.title || "candidates"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const fetchData = useCallback(async () => {
     if (!user || !id) return;
@@ -412,13 +460,31 @@ export default function SearchResultPage() {
             {search.title || "Untitled Search"}
           </h1>
           {search.status === "done" && (
-            <Link
-              href="/app/search/new"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
-            >
-              <Search className="h-3 w-3" />
-              New Search
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowJd(!showJd)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
+              >
+                {showJd ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {showJd ? "Hide JD" : "View JD"}
+              </button>
+              {candidates.length > 0 && (
+                <button
+                  onClick={exportCSV}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  Export CSV
+                </button>
+              )}
+              <Link
+                href="/app/search/new"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
+              >
+                <Search className="h-3 w-3" />
+                New Search
+              </Link>
+            </div>
           )}
         </div>
         {reqs && (
@@ -446,6 +512,14 @@ export default function SearchResultPage() {
           </div>
         )}
       </div>
+
+      {/* JD original text toggle */}
+      {showJd && search.jd_text && (
+        <div className="mb-6 rounded-xl border border-border bg-surface p-5">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">Original Job Description</p>
+          <pre className="whitespace-pre-wrap text-sm text-muted leading-relaxed">{search.jd_text}</pre>
+        </div>
+      )}
 
       {/* Processing state with step progress */}
       {search.status === "processing" && (

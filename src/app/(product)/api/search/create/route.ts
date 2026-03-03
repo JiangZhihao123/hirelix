@@ -162,18 +162,23 @@ async function parseAndGenerate(searchId: string, jdText: string) {
 
       // Use Claude to score & rank the real candidates
       if (candidates.length > 0) {
-        const scoringPrompt = `You are a recruiting AI. Score each candidate based on how well they match the job requirements.
+        const scoringPrompt = `You are an expert recruiting AI evaluator. Score each candidate based on how well they match the job requirements. Be specific and detailed in your reasoning.
 
 Job Requirements:
-${JSON.stringify(parsed, null, 2)}
+- Title: ${parsed.title || "N/A"}
+- Required Skills: ${(parsed.required_skills || []).join(", ") || "N/A"}
+- Nice-to-have: ${(parsed.nice_to_have_skills || []).join(", ") || "N/A"}
+- Experience: ${parsed.experience_years_min || "?"} years min
+- Location: ${parsed.location || "N/A"}
+- Seniority: ${parsed.seniority || "N/A"}
 
 Candidates:
-${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "N/A"}, Skills: ${c.skills.slice(0, 10).join(", ")}, ${c.experience_years || "?"} years exp, Location: ${c.location || "Unknown"}`).join("\n")}
+${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "N/A"}, Skills: ${c.skills.slice(0, 12).join(", ")}, ${c.experience_years || "?"} years exp, Location: ${c.location || "Unknown"}`).join("\n")}
 
-For each candidate (by number), return a JSON array with objects containing:
+For each candidate, return a JSON array with objects containing:
 - index: number (0-based)
-- match_score: number 0-100
-- match_reasons: string[] (2-3 specific reasons)
+- match_score: number 0-100 (be realistic: 90+ = exceptional match, 70-89 = strong, 50-69 = moderate, <50 = weak)
+- match_reasons: string[] (EXACTLY 3-4 specific reasons, each referencing concrete skills, experience, or role alignment. Example: "5 years of React experience directly matches the required frontend skills")
 
 Return ONLY valid JSON array, no markdown.`;
 
@@ -223,16 +228,17 @@ Return ONLY valid JSON array, no markdown.`;
     console.log(`[parseAndGenerate] Step 3: Batch generating ${candidates.length} outreach emails...`);
     if (candidates.length > 0) {
       try {
-        const emailPrompt = `Write personalized recruiting outreach emails for each candidate below. Each email should be under 100 words, sound human, reference the candidate's background, and state the opportunity clearly.
+        const emailPrompt = `Write personalized recruiting outreach emails for each candidate below. Each email should be under 100 words, sound human, reference the candidate's specific background, and state the opportunity clearly.
 
 Role: ${parsed.title}${parsed.company ? ` at ${parsed.company}` : ""}
 
 Candidates:
-${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "Professional"}, Skills: ${c.skills.slice(0, 5).join(", ")}, ${c.experience_years || "?"} years exp`).join("\n")}
+${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "Professional"}, Skills: ${c.skills.slice(0, 5).join(", ")}, ${c.experience_years || "?"} years exp, Match reasons: ${c.match_reasons.slice(0, 2).join("; ")}`).join("\n")}
 
 Return a JSON array where each element has:
 - index: number (0-based)
-- email: string (the email text starting with "Hi [FirstName],")
+- subject: string (a compelling email subject line, e.g. "Exciting Senior Engineer opportunity" — avoid generic subjects)
+- email: string (the email body starting with "Hi [FirstName],")
 
 Return ONLY valid JSON, no markdown.`;
 
@@ -247,7 +253,7 @@ Return ONLY valid JSON, no markdown.`;
           for (const e of emails) {
             const idx = typeof e.index === "number" ? e.index : parseInt(e.index);
             if (idx >= 0 && idx < candidates.length && e.email) {
-              candidates[idx].outreach_draft = e.email;
+              candidates[idx].outreach_draft = (e.subject ? `Subject: ${e.subject}\n\n` : "") + e.email;
             }
           }
         } catch {
