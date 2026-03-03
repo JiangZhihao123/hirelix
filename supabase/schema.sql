@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.hirelix_candidates (
   match_score INT,
   match_reasons TEXT[],
   profile_url TEXT,
+  github_url TEXT,
   email TEXT,
   outreach_draft TEXT,
   status TEXT DEFAULT 'new',

@@ -198,7 +198,8 @@ export function pdlPersonToCandidate(person: PDLPerson) {
     location: resolveLocation(person),
     skills: (person.skills || []).slice(0, 15),
     experience_years: experienceYears || null,
-    profile_url: formatProfileUrl(person.linkedin_url) || formatProfileUrl(person.github_url) || null,
+    profile_url: formatProfileUrl(person.linkedin_url) || null,
+    github_url: formatProfileUrl(person.github_url) || null,
     email: primaryEmail,
     // These will be filled by AI later
     match_score: 0,

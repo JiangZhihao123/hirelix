@@ -145,6 +145,7 @@ async function parseAndGenerate(searchId: string, jdText: string, candidateCount
       match_score: number;
       match_reasons: string[];
       profile_url: string | null;
+      github_url: string | null;
       email: string | null;
       outreach_draft: string | null;
     }[];
@@ -285,6 +286,7 @@ Return ONLY valid JSON, no markdown.`;
         match_score: c.match_score || 0,
         match_reasons: c.match_reasons || [],
         profile_url: c.profile_url || null,
+        github_url: c.github_url || null,
         email: c.email || null,
         outreach_draft: c.outreach_draft || null,
       }));

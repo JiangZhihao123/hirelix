@@ -28,6 +28,8 @@ import {
   Download,
   Eye,
   EyeOff,
+  Github,
+  ChevronsUp,
 } from "lucide-react";
 
 type SearchRow = {
@@ -49,6 +51,7 @@ type CandidateRow = {
   match_score: number;
   match_reasons: string[];
   profile_url: string | null;
+  github_url: string | null;
   email: string | null;
   outreach_draft: string | null;
   status: string;
@@ -113,16 +116,19 @@ function CandidateCard({
   onToggleSelect?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | false>(false);
   const { subject, body } = parseOutreach(candidate.outreach_draft);
   const [editedSubject, setEditedSubject] = useState(subject);
   const [editedBody, setEditedBody] = useState(body);
 
+  function copyText(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(false), 2000);
+  }
   function copyEmail() {
     const full = editedSubject ? `Subject: ${editedSubject}\n\n${editedBody}` : editedBody;
-    navigator.clipboard.writeText(full);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    copyText(full, "all");
   }
 
   // Normalize required skills for fuzzy matching
@@ -220,13 +226,24 @@ function CandidateCard({
                   )}
                   {candidate.profile_url && (
                     <a
-                      href={candidate.profile_url}
+                      href={candidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-primary hover:underline"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
-                      View Profile
+                      LinkedIn
+                    </a>
+                  )}
+                  {candidate.github_url && (
+                    <a
+                      href={candidate.github_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <Github className="h-3.5 w-3.5" />
+                      GitHub
                     </a>
                   )}
                 </div>
@@ -307,7 +324,7 @@ function CandidateCard({
                   onClick={copyEmail}
                   className="inline-flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-dark hover:text-foreground"
                 >
-                  {copied ? (
+                  {copied === "all" ? (
                     <>
                       <Check className="h-3 w-3 text-green-500" />
                       Copied
@@ -322,7 +339,12 @@ function CandidateCard({
               </div>
               {editedSubject && (
                 <div>
-                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-light">Subject</label>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Subject</label>
+                    <button onClick={() => copyText(editedSubject, "subject")} className="text-[10px] text-muted hover:text-foreground transition-colors">
+                      {copied === "subject" ? "✓ Copied" : "Copy"}
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={editedSubject}
@@ -332,7 +354,12 @@ function CandidateCard({
                 </div>
               )}
               <div>
-                {editedSubject && <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-light">Body</label>}
+                <div className="mb-1 flex items-center justify-between">
+                  {editedSubject && <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Body</label>}
+                  <button onClick={() => copyText(editedBody, "body")} className="text-[10px] text-muted hover:text-foreground transition-colors">
+                    {copied === "body" ? "✓ Copied" : "Copy body"}
+                  </button>
+                </div>
                 <textarea
                   value={editedBody}
                   onChange={(e) => setEditedBody(e.target.value)}
@@ -342,6 +369,13 @@ function CandidateCard({
               </div>
             </div>
           </div>
+          <button
+            onClick={() => setExpanded(false)}
+            className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted hover:bg-surface hover:text-foreground transition-colors"
+          >
+            <ChevronsUp className="h-3 w-3" />
+            Collapse
+          </button>
         </div>
       )}
     </div>
@@ -637,10 +671,17 @@ export default function SearchResultPage() {
       {/* Results */}
       {candidates.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted">
-              {candidates.length} candidates found — sorted by match score
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted">
+                {candidates.length} candidates found
+              </p>
+              <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
+                <span>Avg: {Math.round(candidates.reduce((a, c) => a + c.match_score, 0) / candidates.length)}%</span>
+                <span>·</span>
+                <span>Range: {Math.min(...candidates.map((c) => c.match_score))}–{Math.max(...candidates.map((c) => c.match_score))}%</span>
+              </div>
+            </div>
             {search.status === "done" && (
               <div className="flex items-center gap-2">
                 <button
