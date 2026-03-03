@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { ArrowRight, Loader2, FileText } from "lucide-react";
+import { ArrowRight, Loader2, FileText, Users } from "lucide-react";
 
 export default function NewSearchPage() {
   const { session } = useAuth();
@@ -15,6 +15,7 @@ export default function NewSearchPage() {
     const prefill = searchParams.get("jd");
     if (prefill) setJdText(prefill);
   }, [searchParams]);
+  const [candidateCount, setCandidateCount] = useState(5);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -32,7 +33,7 @@ export default function NewSearchPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ jd_text: jdText.trim() }),
+        body: JSON.stringify({ jd_text: jdText.trim(), candidate_count: candidateCount }),
       });
 
       if (!res.ok) {
@@ -74,12 +75,32 @@ export default function NewSearchPage() {
             className="w-full resize-none rounded-lg border border-border bg-surface p-4 text-sm leading-relaxed text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
 
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-xs text-muted-light">
-              {jdText.length > 0
-                ? `${jdText.split(/\s+/).filter(Boolean).length} words`
-                : "Tip: The more detailed the JD, the better the results."}
-            </p>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-muted-light">
+                {jdText.length > 0
+                  ? `${jdText.split(/\s+/).filter(Boolean).length} words`
+                  : "Tip: The more detailed the JD, the better the results."}
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-muted">
+                <Users className="h-3 w-3" />
+                {[5, 10, 15].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCandidateCount(n)}
+                    className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                      candidateCount === n
+                        ? "bg-primary text-white"
+                        : "bg-surface text-muted hover:bg-surface-dark"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <span className="text-muted-light">candidates</span>
+              </div>
+            </div>
             <button
               type="submit"
               disabled={status === "loading" || jdText.trim().length < 50}

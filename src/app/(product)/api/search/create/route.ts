@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { jd_text } = await req.json();
+    const { jd_text, candidate_count } = await req.json();
+    const maxCandidates = Math.min(Math.max(Number(candidate_count) || 5, 1), 20);
     if (!jd_text || typeof jd_text !== "string" || jd_text.trim().length < 50) {
       return NextResponse.json(
         { error: "Job description is too short (min 50 chars)" },
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     // Return ID immediately, run pipeline in background
     after(async () => {
-      await parseAndGenerate(search.id, jd_text.trim());
+      await parseAndGenerate(search.id, jd_text.trim(), maxCandidates);
     });
 
     return NextResponse.json({ id: search.id });
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function parseAndGenerate(searchId: string, jdText: string) {
+async function parseAndGenerate(searchId: string, jdText: string, candidateCount: number = 5) {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
   const anthropicModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
@@ -154,7 +155,7 @@ async function parseAndGenerate(searchId: string, jdText: string) {
       const pdlQuery = buildPDLQuery(parsed);
       console.log("[PDL] Query:", JSON.stringify(pdlQuery));
 
-      const pdlResult = await searchPeople(pdlApiKey, pdlQuery, 5);
+      const pdlResult = await searchPeople(pdlApiKey, pdlQuery, candidateCount);
       console.log(`[PDL] Found ${pdlResult.total} total, returned ${pdlResult.data.length}`);
 
       candidates = pdlResult.data.map((p) => pdlPersonToCandidate(p));

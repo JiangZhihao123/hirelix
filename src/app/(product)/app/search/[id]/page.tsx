@@ -103,10 +103,14 @@ function CandidateCard({
   candidate,
   onStatusChange,
   requiredSkills,
+  selected,
+  onToggleSelect,
 }: {
   candidate: CandidateRow;
   onStatusChange: (id: string, status: string) => void;
   requiredSkills: string[];
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -139,10 +143,19 @@ function CandidateCard({
   return (
     <div className="rounded-xl border border-border bg-background transition-colors hover:border-muted-light">
       {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-4 p-5 text-left"
-      >
+      <div className="flex w-full items-center gap-4 p-5 text-left">
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={onToggleSelect}
+            className="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-primary/20 cursor-pointer"
+          />
+        )}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex flex-1 items-center gap-4 min-w-0"
+        >
         <InitialsAvatar name={candidate.name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
@@ -173,7 +186,8 @@ function CandidateCard({
             <ChevronDown className="h-4 w-4 text-muted-light" />
           )}
         </div>
-      </button>
+        </button>
+      </div>
 
       {/* Expanded details */}
       {expanded && (
@@ -395,6 +409,32 @@ export default function SearchResultPage() {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showJd, setShowJd] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    if (selectedIds.size === candidates.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(candidates.map((c) => c.id)));
+    }
+  }
+  async function bulkStatusChange(newStatus: string) {
+    const ids = Array.from(selectedIds);
+    setCandidates((prev) =>
+      prev.map((c) => (ids.includes(c.id) ? { ...c, status: newStatus } : c)),
+    );
+    setSelectedIds(new Set());
+    for (const cid of ids) {
+      await supabase.from("hirelix_candidates").update({ status: newStatus }).eq("id", cid);
+    }
+  }
 
   function exportCSV() {
     if (candidates.length === 0) return;
@@ -597,15 +637,43 @@ export default function SearchResultPage() {
       {/* Results */}
       {candidates.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm text-muted">
-            {candidates.length} candidates found — sorted by match score
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted">
+              {candidates.length} candidates found — sorted by match score
+            </p>
+            {search.status === "done" && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleAll}
+                  className="text-xs text-muted hover:text-foreground transition-colors"
+                >
+                  {selectedIds.size === candidates.length ? "Deselect all" : "Select all"}
+                </button>
+                {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted">{selectedIds.size} selected →</span>
+                    {["starred", "contacted", "rejected"].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => bulkStatusChange(s)}
+                        className="rounded-md bg-surface px-2 py-0.5 text-xs font-medium text-muted capitalize hover:bg-surface-dark hover:text-foreground transition-colors"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {candidates.map((c) => (
             <CandidateCard
               key={c.id}
               candidate={c}
               onStatusChange={handleStatusChange}
               requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
+              selected={selectedIds.has(c.id)}
+              onToggleSelect={() => toggleSelect(c.id)}
             />
           ))}
         </div>
