@@ -2,55 +2,100 @@
 
 import { useState, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
-import { ArrowRight, Loader2, CheckCircle2, Mail } from "lucide-react";
+import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 export function LoginForm() {
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">(
-    "idle",
-  );
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-
-    setStatus("loading");
+  async function handleGoogleLogin() {
+    setGoogleLoading(true);
     setErrorMsg("");
-
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (error) throw error;
-      setStatus("sent");
-    } catch (err) {
-      setStatus("error");
-      setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong",
-      );
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      setErrorMsg(error.message);
+      setGoogleLoading(false);
     }
   }
 
-  if (status === "sent") {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-8">
-        <CheckCircle2 className="h-10 w-10 text-primary" />
-        <p className="text-lg font-semibold">Check your email</p>
-        <p className="text-sm text-muted">
-          We sent a magic link to <strong>{email}</strong>. Click it to sign in.
-        </p>
-      </div>
-    );
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !password) return;
+
+    setLoading(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+        if (error) throw error;
+        setSuccessMsg("Check your email to confirm your account, then sign in.");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-sm">
-      <div className="flex flex-col gap-3">
+    <div className="w-full max-w-sm space-y-4">
+      {/* Google OAuth */}
+      <button
+        onClick={handleGoogleLogin}
+        disabled={googleLoading}
+        className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-background py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50"
+      >
+        {googleLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <>
+            <svg className="h-4 w-4" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+            Continue with Google
+          </>
+        )}
+      </button>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs text-muted-light">or</span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      {/* Email + Password form */}
+      <form onSubmit={handleSubmit} className="space-y-3">
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
           <input
@@ -62,23 +107,71 @@ export function LoginForm() {
             className="w-full rounded-lg border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
+          <input
+            type={showPassword ? "text" : "password"}
+            required
+            minLength={6}
+            placeholder={mode === "signup" ? "Create a password (6+ chars)" : "Password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-lg border border-border bg-background py-3 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-light hover:text-foreground"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         <button
           type="submit"
-          disabled={status === "loading"}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+          disabled={loading}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
         >
-          {status === "loading" ? (
+          {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
+          ) : mode === "signup" ? (
+            "Create Account"
           ) : (
-            <>
-              Continue with Email <ArrowRight className="h-4 w-4" />
-            </>
+            "Sign In"
           )}
         </button>
-      </div>
-      {status === "error" && (
-        <p className="mt-3 text-sm text-red-500">{errorMsg}</p>
+      </form>
+
+      {errorMsg && (
+        <p className="text-center text-sm text-red-500">{errorMsg}</p>
       )}
-    </form>
+      {successMsg && (
+        <p className="text-center text-sm text-emerald-600">{successMsg}</p>
+      )}
+
+      {/* Toggle login/signup */}
+      <p className="text-center text-sm text-muted">
+        {mode === "login" ? (
+          <>
+            No account?{" "}
+            <button
+              onClick={() => { setMode("signup"); setErrorMsg(""); setSuccessMsg(""); }}
+              className="font-medium text-primary hover:underline"
+            >
+              Sign up
+            </button>
+          </>
+        ) : (
+          <>
+            Already have an account?{" "}
+            <button
+              onClick={() => { setMode("login"); setErrorMsg(""); setSuccessMsg(""); }}
+              className="font-medium text-primary hover:underline"
+            >
+              Sign in
+            </button>
+          </>
+        )}
+      </p>
+    </div>
   );
 }

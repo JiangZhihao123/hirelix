@@ -6,8 +6,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const token_hash =
     searchParams.get("token_hash") || searchParams.get("token");
-  const type = (searchParams.get("type") || "magiclink") as
-    | "magiclink"
+  const type = (searchParams.get("type") || "email") as
     | "email"
     | "signup";
 

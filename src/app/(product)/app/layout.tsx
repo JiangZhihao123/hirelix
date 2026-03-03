@@ -42,7 +42,7 @@ export default function ProductLayout({
         <div className="text-center">
           <h1 className="text-xl font-semibold">Sign in to continue</h1>
           <p className="mt-2 text-sm text-muted">
-            Enter your email to receive a magic link
+            Use Google or email to get started
           </p>
         </div>
         <LoginForm />
