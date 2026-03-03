@@ -70,7 +70,7 @@ export function LoginForm() {
       <button
         onClick={handleGoogleLogin}
         disabled={googleLoading}
-        className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-background py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50"
+        className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-border bg-background py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50"
       >
         {googleLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -121,7 +121,7 @@ export function LoginForm() {
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-light hover:text-foreground"
+            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted-light hover:text-foreground"
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -129,7 +129,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -155,7 +155,7 @@ export function LoginForm() {
             No account?{" "}
             <button
               onClick={() => { setMode("signup"); setErrorMsg(""); setSuccessMsg(""); }}
-              className="font-medium text-primary hover:underline"
+              className="cursor-pointer font-medium text-primary hover:underline"
             >
               Sign up
             </button>
@@ -165,7 +165,7 @@ export function LoginForm() {
             Already have an account?{" "}
             <button
               onClick={() => { setMode("login"); setErrorMsg(""); setSuccessMsg(""); }}
-              className="font-medium text-primary hover:underline"
+              className="cursor-pointer font-medium text-primary hover:underline"
             >
               Sign in
             </button>
