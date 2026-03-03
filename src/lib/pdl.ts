@@ -53,9 +53,10 @@ export function buildPDLQuery(parsed: {
   const should: Record<string, unknown>[] = [];
 
   // Match by top required skills (use first 3 as must, rest as should)
+  // PDL term queries work with multi-word skills too (e.g. "product design")
   const requiredSkills = (parsed.required_skills || [])
     .map((s) => s.toLowerCase().trim())
-    .filter((s) => s.length > 1 && !s.includes(" "));
+    .filter((s) => s.length > 1 && s.length < 40);
 
   for (const skill of requiredSkills.slice(0, 3)) {
     must.push({ term: { skills: skill } });
@@ -67,25 +68,21 @@ export function buildPDLQuery(parsed: {
   // Nice-to-have skills as should
   const niceSkills = (parsed.nice_to_have_skills || [])
     .map((s) => s.toLowerCase().trim())
-    .filter((s) => s.length > 1 && !s.includes(" "));
+    .filter((s) => s.length > 1 && s.length < 40);
 
   for (const skill of niceSkills.slice(0, 3)) {
     should.push({ term: { skills: skill } });
   }
 
-  // Job title role
+  // Job title role (only for engineering — other roles like "design" have spotty coverage in PDL)
   if (parsed.title) {
     const titleLower = parsed.title.toLowerCase();
     if (titleLower.includes("engineer") || titleLower.includes("developer")) {
       must.push({ term: { job_title_role: "engineering" } });
-    } else if (titleLower.includes("design")) {
-      must.push({ term: { job_title_role: "design" } });
-    } else if (titleLower.includes("product")) {
-      must.push({ term: { job_title_role: "product" } });
     }
   }
 
-  // Fallback: at least require engineering role
+  // Fallback: if no skills and no role matched, require engineering
   if (must.length === 0) {
     must.push({ term: { job_title_role: "engineering" } });
   }
