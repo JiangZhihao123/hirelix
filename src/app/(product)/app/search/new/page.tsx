@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ArrowRight, Loader2, FileText } from "lucide-react";
 
 export default function NewSearchPage() {
   const { session } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [jdText, setJdText] = useState("");
+
+  useEffect(() => {
+    const prefill = searchParams.get("jd");
+    if (prefill) setJdText(prefill);
+  }, [searchParams]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 

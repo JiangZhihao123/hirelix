@@ -92,24 +92,37 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
+function parseOutreach(draft: string | null): { subject: string; body: string } {
+  if (!draft) return { subject: "", body: "" };
+  const match = draft.match(/^Subject:\s*(.+?)\n\n([\s\S]*)$/i);
+  if (match) return { subject: match[1].trim(), body: match[2].trim() };
+  return { subject: "", body: draft };
+}
+
 function CandidateCard({
   candidate,
   onStatusChange,
+  requiredSkills,
 }: {
   candidate: CandidateRow;
   onStatusChange: (id: string, status: string) => void;
+  requiredSkills: string[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [editedEmail, setEditedEmail] = useState(
-    candidate.outreach_draft || "",
-  );
+  const { subject, body } = parseOutreach(candidate.outreach_draft);
+  const [editedSubject, setEditedSubject] = useState(subject);
+  const [editedBody, setEditedBody] = useState(body);
 
   function copyEmail() {
-    navigator.clipboard.writeText(editedEmail);
+    const full = editedSubject ? `Subject: ${editedSubject}\n\n${editedBody}` : editedBody;
+    navigator.clipboard.writeText(full);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
+  // Normalize required skills for matching
+  const reqSet = new Set(requiredSkills.map((s) => s.toLowerCase()));
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -140,7 +153,7 @@ function CandidateCard({
             )}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted">
-            {candidate.headline}
+            {candidate.headline || (candidate.skills.length > 0 ? candidate.skills.slice(0, 3).join(" · ") : "Professional")}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -206,10 +219,20 @@ function CandidateCard({
                   Skills
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {candidate.skills.map((skill) => (
+                  {[...candidate.skills]
+                    .sort((a, b) => {
+                      const aMatch = reqSet.has(a.toLowerCase()) ? 0 : 1;
+                      const bMatch = reqSet.has(b.toLowerCase()) ? 0 : 1;
+                      return aMatch - bMatch;
+                    })
+                    .map((skill) => (
                     <span
                       key={skill}
-                      className="rounded-md bg-surface px-2 py-1 text-xs text-foreground"
+                      className={`rounded-md px-2 py-1 text-xs ${
+                        reqSet.has(skill.toLowerCase())
+                          ? "bg-primary/15 text-primary font-medium ring-1 ring-primary/20"
+                          : "bg-surface text-foreground"
+                      }`}
                     >
                       {skill}
                     </span>
@@ -257,8 +280,8 @@ function CandidateCard({
             </div>
 
             {/* Right: Outreach email */}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
                   Outreach Email
                 </p>
@@ -274,17 +297,31 @@ function CandidateCard({
                   ) : (
                     <>
                       <Copy className="h-3 w-3" />
-                      Copy
+                      Copy All
                     </>
                   )}
                 </button>
               </div>
-              <textarea
-                value={editedEmail}
-                onChange={(e) => setEditedEmail(e.target.value)}
-                rows={12}
-                className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+              {editedSubject && (
+                <div>
+                  <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-light">Subject</label>
+                  <input
+                    type="text"
+                    value={editedSubject}
+                    onChange={(e) => setEditedSubject(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              )}
+              <div>
+                {editedSubject && <label className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-light">Body</label>}
+                <textarea
+                  value={editedBody}
+                  onChange={(e) => setEditedBody(e.target.value)}
+                  rows={10}
+                  className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -455,18 +492,19 @@ export default function SearchResultPage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to searches
         </Link>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
             {search.title || "Untitled Search"}
           </h1>
           {search.status === "done" && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowJd(!showJd)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
               >
                 {showJd ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                {showJd ? "Hide JD" : "View JD"}
+                <span className="hidden sm:inline">{showJd ? "Hide JD" : "View JD"}</span>
+                <span className="sm:hidden">{showJd ? "Hide" : "JD"}</span>
               </button>
               {candidates.length > 0 && (
                 <button
@@ -474,7 +512,8 @@ export default function SearchResultPage() {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
                 >
                   <Download className="h-3 w-3" />
-                  Export CSV
+                  <span className="hidden sm:inline">Export CSV</span>
+                  <span className="sm:hidden">CSV</span>
                 </button>
               )}
               <Link
@@ -562,6 +601,7 @@ export default function SearchResultPage() {
               key={c.id}
               candidate={c}
               onStatusChange={handleStatusChange}
+              requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
             />
           ))}
         </div>
@@ -570,6 +610,13 @@ export default function SearchResultPage() {
       {search.status === "done" && candidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
           <p className="text-muted">No candidates found for this search.</p>
+          <Link
+            href={`/app/search/new?jd=${encodeURIComponent(search.jd_text)}`}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Refine & Retry
+          </Link>
         </div>
       )}
     </div>
