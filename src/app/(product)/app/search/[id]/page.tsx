@@ -121,8 +121,12 @@ function CandidateCard({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // Normalize required skills for matching
-  const reqSet = new Set(requiredSkills.map((s) => s.toLowerCase()));
+  // Normalize required skills for fuzzy matching
+  const reqLower = requiredSkills.map((s) => s.toLowerCase());
+  function isMatchedSkill(skill: string): boolean {
+    const sl = skill.toLowerCase();
+    return reqLower.some((r) => sl.includes(r) || r.includes(sl) || sl.split(" ").some((w) => w.length > 3 && r.includes(w)));
+  }
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -221,15 +225,15 @@ function CandidateCard({
                 <div className="flex flex-wrap gap-1.5">
                   {[...candidate.skills]
                     .sort((a, b) => {
-                      const aMatch = reqSet.has(a.toLowerCase()) ? 0 : 1;
-                      const bMatch = reqSet.has(b.toLowerCase()) ? 0 : 1;
+                      const aMatch = isMatchedSkill(a) ? 0 : 1;
+                      const bMatch = isMatchedSkill(b) ? 0 : 1;
                       return aMatch - bMatch;
                     })
                     .map((skill) => (
                     <span
                       key={skill}
                       className={`rounded-md px-2 py-1 text-xs ${
-                        reqSet.has(skill.toLowerCase())
+                        isMatchedSkill(skill)
                           ? "bg-primary/15 text-primary font-medium ring-1 ring-primary/20"
                           : "bg-surface text-foreground"
                       }`}
