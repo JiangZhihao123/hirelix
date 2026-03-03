@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-// import { after } from "next/server";
+import { after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -73,8 +73,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Await the full pipeline before returning — maxDuration=60 gives enough time
-    await parseAndGenerate(search.id, jd_text.trim());
+    // Return ID immediately, run pipeline in background
+    after(async () => {
+      await parseAndGenerate(search.id, jd_text.trim());
+    });
 
     return NextResponse.json({ id: search.id });
   } catch (err) {
