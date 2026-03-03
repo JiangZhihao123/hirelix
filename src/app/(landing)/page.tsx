@@ -11,11 +11,8 @@ import {
   DollarSign,
   Star,
   ArrowRight,
-  Sparkles,
-  BarChart3,
   Globe,
 } from "lucide-react";
-import { WaitlistForm } from "./waitlist-form";
 import Link from "next/link";
 
 const TESTIMONIALS = [
@@ -102,7 +99,7 @@ export default function Home() {
         <div className="relative mx-auto max-w-5xl px-6 text-center">
           <div className="animate-fade-up mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-1.5 text-sm font-medium text-emerald-400">
             <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>
-            14 people joined this week
+            Now available — start sourcing instantly
           </div>
 
           <h1 className="animate-fade-up-delay-1 mx-auto max-w-4xl text-5xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-7xl">
@@ -114,8 +111,19 @@ export default function Home() {
             Paste your job description → get a ranked shortlist of qualified candidates with personalized outreach emails. <span className="text-white font-medium">In under 5 minutes.</span>
           </p>
 
-          <div className="animate-fade-up-delay-3 mt-10">
-            <WaitlistForm />
+          <div className="animate-fade-up-delay-3 mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-base font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-[0_0_24px_rgba(37,99,235,0.35)]"
+            >
+              Get Started Free <ArrowRight className="h-4 w-4" />
+            </Link>
+            <a
+              href="#how-it-works"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-8 py-4 text-base font-medium text-gray-300 transition-all hover:bg-white/[0.08] hover:text-white"
+            >
+              See How It Works
+            </a>
           </div>
 
           {/* Social proof */}
@@ -128,7 +136,7 @@ export default function Home() {
               ))}
             </div>
             <p className="text-sm text-gray-400">
-              Join <span className="text-white font-medium">230+</span> recruiters on the waitlist
+              Trusted by <span className="text-white font-medium">recruiters</span> at top companies
             </p>
           </div>
         </div>
@@ -454,31 +462,26 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Beta Program */}
+      {/* What You Get */}
       <section className="border-t border-white/[0.06] py-20 sm:py-28">
         <div className="mx-auto max-w-3xl px-6 text-center">
-          <p className="mb-3 text-sm font-semibold tracking-widest text-green-400 uppercase">Beta Program</p>
+          <p className="mb-3 text-sm font-semibold tracking-widest text-green-400 uppercase">Free to Use</p>
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Join the private beta
+            Everything you need to source smarter
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-base text-gray-400">
-            We&apos;re testing with a limited group before public launch. Beta users get free access and help shape the product.
+            No credit card required. Start sourcing candidates in under 5 minutes.
           </p>
 
           <div className="glass mx-auto mt-10 max-w-md rounded-2xl p-7">
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-400">Beta spots filled</span>
-              <span className="text-sm font-bold text-blue-400">14 / 100</span>
-            </div>
-            <div className="mb-6 h-2 overflow-hidden rounded-full bg-white/[0.06]">
-              <div className="h-full w-[14%] rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all" />
-            </div>
             <ul className="space-y-3 text-left text-sm">
               {[
-                "Full access to all features during beta",
-                "Direct line to the team for feedback",
-                "Lock in early-bird pricing at launch",
-                "Help shape the product roadmap",
+                "AI-powered JD parsing & candidate matching",
+                "Access to 270M+ professional profiles",
+                "Personalized outreach emails for every candidate",
+                "Export candidates to CSV",
+                "Candidate scoring with match reasons",
+                "Batch operations & status tracking",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
@@ -486,41 +489,52 @@ export default function Home() {
                 </li>
               ))}
             </ul>
+            <Link
+              href="/app"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white transition-all hover:bg-blue-500"
+            >
+              Start Sourcing Now <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Final CTA */}
-      <section id="waitlist" className="relative overflow-hidden border-t border-white/[0.06] py-24 sm:py-32">
+      <section id="cta" className="relative overflow-hidden border-t border-white/[0.06] py-24 sm:py-32">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-blue-600/[0.06] via-purple-600/[0.03] to-transparent" />
         <div className="pointer-events-none absolute bottom-0 left-1/2 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-blue-600/[0.06] blur-[120px]" />
         <div className="relative mx-auto max-w-2xl px-6 text-center">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm font-medium text-blue-400">
             <Zap className="h-3.5 w-3.5" />
-            86 spots remaining
+            Free to use — no credit card needed
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
             Ready to stop sourcing{" "}
             <span className="text-gradient">manually</span>?
           </h2>
           <p className="mt-4 text-lg text-gray-400">
-            Join the waitlist. Get early access. Start hiring smarter.
+            Paste a job description. Get qualified candidates in minutes.
           </p>
 
           <div className="mt-10">
-            <WaitlistForm compact />
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-10 py-4 text-lg font-semibold text-white transition-all hover:bg-blue-500 hover:shadow-[0_0_24px_rgba(37,99,235,0.35)]"
+            >
+              Get Started Free <ArrowRight className="h-5 w-5" />
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Sticky mobile CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.06] bg-[#050510]/95 p-4 backdrop-blur-xl sm:hidden">
-        <a
-          href="#waitlist"
+        <Link
+          href="/app"
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white"
         >
-          Get Early Access <ArrowRight className="h-4 w-4" />
-        </a>
+          Get Started Free <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
 
       {/* Footer */}
