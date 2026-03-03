@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [searches, setSearches] = useState<SearchRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "done" | "processing" | "error">("all");
 
   useEffect(() => {
     if (!user) return;
@@ -92,7 +93,32 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {searches.map((s) => (
+          {/* Status filter tabs */}
+          <div className="flex gap-1 rounded-lg bg-surface p-1">
+            {(["all", "done", "processing", "error"] as const).map((f) => {
+              const count = f === "all" ? searches.length : searches.filter((s) => s.status === f).length;
+              const labels = { all: "All", done: "Done", processing: "In Progress", error: "Failed" };
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    filter === f
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {labels[f]}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                    filter === f ? "bg-primary/10 text-primary" : "bg-gray-100 text-muted-light"
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {searches.filter((s) => filter === "all" || s.status === filter).map((s) => (
             <Link
               key={s.id}
               href={`/app/search/${s.id}`}
@@ -117,6 +143,11 @@ export default function DashboardPage() {
               </p>
             </Link>
           ))}
+          {searches.filter((s) => filter === "all" || s.status === filter).length === 0 && (
+            <div className="flex items-center justify-center rounded-xl border border-dashed border-border py-10">
+              <p className="text-sm text-muted">No searches with this status.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

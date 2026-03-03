@@ -19,6 +19,12 @@ import {
   ExternalLink,
   AlertCircle,
   User,
+  Search,
+  RotateCcw,
+  FileText,
+  Users,
+  Star,
+  Send,
 } from "lucide-react";
 
 type SearchRow = {
@@ -265,6 +271,59 @@ function CandidateCard({
   );
 }
 
+function ProcessingSteps({ hasTitle, hasCandidates }: { hasTitle: boolean; hasCandidates: boolean }) {
+  const steps = [
+    { icon: FileText, label: "Parsing job description", done: hasTitle },
+    { icon: Users, label: "Searching candidate database", done: hasCandidates },
+    { icon: Star, label: "AI scoring & ranking", done: false },
+    { icon: Send, label: "Generating outreach emails", done: false },
+  ];
+
+  // Determine current active step
+  let activeIdx = 0;
+  for (let i = 0; i < steps.length; i++) {
+    if (steps[i].done) activeIdx = i + 1;
+  }
+
+  return (
+    <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-5">
+      <div className="mb-4 flex items-center gap-2">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        <p className="text-sm font-medium">Processing your search...</p>
+      </div>
+      <div className="space-y-3">
+        {steps.map((step, i) => {
+          const Icon = step.icon;
+          const isDone = i < activeIdx;
+          const isActive = i === activeIdx;
+          return (
+            <div key={i} className="flex items-center gap-3">
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                isDone ? "bg-green-100" : isActive ? "bg-primary/20" : "bg-gray-100"
+              }`}>
+                {isDone ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                ) : isActive ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                ) : (
+                  <Icon className="h-3.5 w-3.5 text-gray-400" />
+                )}
+              </div>
+              <span className={`text-sm ${
+                isDone ? "text-green-700 font-medium" : isActive ? "text-foreground font-medium" : "text-muted-light"
+              }`}>
+                {step.label}
+                {isDone && " ✓"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-4 text-xs text-muted">This usually takes 30-60 seconds.</p>
+    </div>
+  );
+}
+
 export default function SearchResultPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -348,9 +407,20 @@ export default function SearchResultPage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to searches
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight">
-          {search.title || "Untitled Search"}
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold tracking-tight">
+            {search.title || "Untitled Search"}
+          </h1>
+          {search.status === "done" && (
+            <Link
+              href="/app/search/new"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
+            >
+              <Search className="h-3 w-3" />
+              New Search
+            </Link>
+          )}
+        </div>
         {reqs && (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {Array.isArray(reqs.required_skills) &&
@@ -377,34 +447,32 @@ export default function SearchResultPage() {
         )}
       </div>
 
-      {/* Processing state */}
+      {/* Processing state with step progress */}
       {search.status === "processing" && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-5">
-          <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <div>
-            <p className="text-sm font-medium">
-              Finding candidates...
-            </p>
-            <p className="text-xs text-muted">
-              Analyzing your JD and searching for matching profiles. This
-              usually takes 30-60 seconds.
-            </p>
-          </div>
-        </div>
+        <ProcessingSteps hasTitle={!!search.title} hasCandidates={candidates.length > 0} />
       )}
 
       {/* Error state */}
       {search.status === "error" && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-5">
-          <AlertCircle className="h-5 w-5 text-red-500" />
-          <div>
-            <p className="text-sm font-medium text-red-700">
-              Something went wrong
-            </p>
-            <p className="text-xs text-red-600">
-              We couldn&apos;t generate candidates for this search. Please try
-              again.
-            </p>
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-5">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-700">
+                Something went wrong
+              </p>
+              <p className="text-xs text-red-600">
+                We couldn&apos;t generate candidates for this search. Please try
+                again.
+              </p>
+            </div>
+            <Link
+              href="/app/search/new"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Try Again
+            </Link>
           </div>
         </div>
       )}

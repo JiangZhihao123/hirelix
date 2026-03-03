@@ -135,6 +135,13 @@ export async function searchPeople(
   return res.json();
 }
 
+/** Ensure profile URLs have https:// prefix */
+function formatProfileUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `https://${url}`;
+}
+
 /**
  * Convert a PDL person record into our candidate format.
  */
@@ -171,10 +178,10 @@ export function pdlPersonToCandidate(person: PDLPerson) {
   return {
     name: person.full_name || `${person.first_name} ${person.last_name}`,
     headline: headline || null,
-    location: person.location_name || null,
+    location: (typeof person.location_name === "string" ? person.location_name : null),
     skills: (person.skills || []).slice(0, 15),
     experience_years: experienceYears || null,
-    profile_url: person.linkedin_url || person.github_url || null,
+    profile_url: formatProfileUrl(person.linkedin_url) || formatProfileUrl(person.github_url) || null,
     email: primaryEmail,
     // These will be filled by AI later
     match_score: 0,
