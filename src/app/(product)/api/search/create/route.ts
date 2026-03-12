@@ -530,35 +530,7 @@ async function runPipeline(searchId: string, jdText: string, candidateCount: num
           });
         }
 
-        // Layer 5: Email lookup (Apollo → Hunter fallback)
-        if (candidates.length > 0 && (apolloApiKey || hunterApiKey)) {
-          await setStep("enriching");
-          console.log(`[pipeline] Layer 5: Email lookup for ${candidates.length} candidates (Apollo: ${!!apolloApiKey}, Hunter: ${!!hunterApiKey})`);
-          for (let i = 0; i < candidates.length; i++) {
-            const c = candidates[i];
-            const nameParts = (c.name || "").split(" ");
-            const firstName = nameParts[0] || "";
-            const lastName = nameParts.slice(1).join(" ") || "";
-            const company = c.headline?.match(/at\s+(.+)$/i)?.[1]?.trim() || "";
-            if (!firstName || !c.profile_url) continue;
-            try {
-              const emailResult = await findEmail({
-                apolloApiKey,
-                hunterApiKey,
-                firstName,
-                lastName,
-                company,
-                linkedinUrl: c.profile_url,
-              });
-              if (emailResult.email) {
-                c.email = emailResult.email;
-                console.log(`[pipeline] Email found for ${c.name}: ${emailResult.email} (via ${emailResult.source})`);
-              }
-            } catch (emailErr) {
-              console.log(`[pipeline] Email lookup failed for ${c.name}: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`);
-            }
-          }
-        }
+        // Email + outreach are now on-demand (triggered when user clicks "Contact")
       }
     }
 
@@ -595,84 +567,8 @@ async function runPipeline(searchId: string, jdText: string, candidateCount: num
       return;
     }
 
-    // Step 3: Generate outreach emails
-    await setStep("emailing");
-    console.log(`[pipeline] Step 3: Generating ${candidates.length} outreach emails`);
-    if (candidates.length > 0) {
-      try {
-        const hasEmails = candidates.some((c) => c.email && !c.email.includes("***"));
-        const outreachType = hasEmails ? "email and LinkedIn InMail" : "LinkedIn InMail";
-        const emailPrompt = `Write personalized recruiting outreach messages for each candidate below. Each message should be under 100 words, sound human, reference the candidate's specific background, and state the opportunity clearly.
-
-Role: ${parsed.title}${parsed.company ? ` at ${parsed.company}` : ""}
-
-Candidates:
-${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "Professional"}, Skills: ${(Array.isArray(c.skills) ? c.skills : []).slice(0, 5).join(", ")}, ${c.experience_years || "?"} years exp, Match reasons: ${(Array.isArray(c.match_reasons) ? c.match_reasons : []).slice(0, 2).join("; ")}`).join("\n")}
-
-Return a JSON array where each element has:
-- index: number (0-based)
-- subject: string (a compelling subject line)
-- linkedin_message: string (a short LinkedIn InMail message, under 80 words, casual and direct, starting with "Hi [FirstName],")${hasEmails ? '\n- email: string (a slightly more formal email body, under 100 words, starting with "Hi [FirstName],")' : ""}
-
-Return ONLY valid JSON, no markdown.`;
-
-        const { text: emailsJson } = await generateText({
-          model: anthropic(anthropicModel),
-          prompt: emailPrompt,
-          maxOutputTokens: 4000,
-        });
-
-        try {
-          const emails = JSON.parse(extractJSON(emailsJson));
-          for (const e of emails) {
-            const idx = typeof e.index === "number" ? e.index : parseInt(e.index);
-            if (idx >= 0 && idx < candidates.length) {
-              const parts: Record<string, string> = {};
-              if (e.subject) parts.subject = e.subject;
-              if (e.linkedin_message) parts.linkedin = e.linkedin_message;
-              if (e.email) parts.email = e.email;
-              candidates[idx].outreach_draft = JSON.stringify(parts);
-            }
-          }
-        } catch {
-          console.error("[pipeline] Email parse failed");
-        }
-      } catch (emailErr) {
-        console.error("[pipeline] Email generation failed:", emailErr);
-      }
-
-      // Fallback outreach
-      const fallbackMsg = (name: string) => `Hi ${name.split(" ")[0]}, I came across your profile and thought your background would be a great fit for our ${parsed.title} role. Would you be open to a quick chat?`;
-      for (const c of candidates) {
-        if (!c.outreach_draft) {
-          c.outreach_draft = JSON.stringify({
-            subject: `${parsed.title} opportunity`,
-            linkedin: fallbackMsg(c.name),
-            email: fallbackMsg(c.name) + "\n\nBest regards",
-          });
-        }
-      }
-    }
-
-    // Update candidates with outreach drafts
-    if (candidates.length > 0) {
-      const { data: dbCandidates } = await supabaseAdmin
-        .from("hirelix_candidates")
-        .select("id, name")
-        .eq("search_id", searchId)
-        .order("match_score", { ascending: false });
-
-      if (dbCandidates) {
-        for (let i = 0; i < Math.min(candidates.length, dbCandidates.length); i++) {
-          if (candidates[i].outreach_draft) {
-            await supabaseAdmin
-              .from("hirelix_candidates")
-              .update({ outreach_draft: candidates[i].outreach_draft })
-              .eq("id", dbCandidates[i].id);
-          }
-        }
-      }
-    }
+    // Email + outreach drafts are now generated on-demand when user clicks "Contact" on a candidate.
+    // See /api/candidates/[id]/enrich endpoint.
 
     await supabaseAdmin
       .from("hirelix_searches")

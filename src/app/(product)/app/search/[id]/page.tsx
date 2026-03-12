@@ -149,12 +149,53 @@ function CandidateCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
-  const outreach = parseOutreach(candidate.outreach_draft);
-  const hasRealEmail = !!(candidate.email && !candidate.email.includes("***"));
+  const [enriching, setEnriching] = useState(false);
+  const [localCandidate, setLocalCandidate] = useState(candidate);
+  const outreach = parseOutreach(localCandidate.outreach_draft);
+  const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
   const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
   const [editedSubject, setEditedSubject] = useState(outreach.subject);
   const [editedLinkedin, setEditedLinkedin] = useState(outreach.linkedin);
   const [editedEmail, setEditedEmail] = useState(outreach.email);
+  const { session } = useAuth();
+
+  // Sync when candidate prop changes
+  useEffect(() => {
+    setLocalCandidate(candidate);
+  }, [candidate]);
+
+  // Update outreach fields when localCandidate changes
+  useEffect(() => {
+    const o = parseOutreach(localCandidate.outreach_draft);
+    setEditedSubject(o.subject);
+    setEditedLinkedin(o.linkedin);
+    setEditedEmail(o.email);
+    const hasEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
+    setOutreachTab(hasEmail ? "email" : "linkedin");
+  }, [localCandidate.outreach_draft, localCandidate.email]);
+
+  async function handleEnrich() {
+    if (enriching || !session?.access_token) return;
+    setEnriching(true);
+    try {
+      const res = await fetch(`/api/candidates/${candidate.id}/enrich`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLocalCandidate((prev) => ({
+          ...prev,
+          email: data.email || prev.email,
+          outreach_draft: data.outreach_draft || prev.outreach_draft,
+        }));
+      }
+    } catch (err) {
+      console.error("Enrich failed:", err);
+    } finally {
+      setEnriching(false);
+    }
+  }
 
   const activeBody = outreachTab === "linkedin" ? editedLinkedin : editedEmail;
   const setActiveBody = outreachTab === "linkedin" ? setEditedLinkedin : setEditedEmail;
@@ -405,90 +446,142 @@ function CandidateCard({
 
             {/* Right: Outreach */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              {!localCandidate.outreach_draft ? (
+                // On-demand: show "Get Email & Draft" button
+                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
+                  <Mail className="mb-3 h-8 w-8 text-muted-light" />
+                  <p className="mb-1 text-sm font-medium text-foreground">Ready to reach out?</p>
+                  <p className="mb-4 text-xs text-muted">Find their email and generate a personalized outreach message.</p>
                   <button
-                    onClick={() => setOutreachTab("linkedin")}
-                    className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                      outreachTab === "linkedin"
-                        ? "bg-[#0077B5]/10 text-[#0077B5]"
-                        : "text-muted hover:text-foreground"
-                    }`}
+                    onClick={handleEnrich}
+                    disabled={enriching}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    LinkedIn
+                    {enriching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Finding email & drafting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Get Email & Draft
+                      </>
+                    )}
                   </button>
-                  {hasRealEmail && (
-                    <button
-                      onClick={() => setOutreachTab("email")}
-                      className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                        outreachTab === "email"
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted hover:text-foreground"
-                      }`}
+                  {localCandidate.profile_url && (
+                    <a
+                      href={localCandidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors"
                     >
-                      Email
-                    </button>
+                      <ExternalLink className="h-3 w-3" />
+                      Open LinkedIn Profile
+                    </a>
                   )}
                 </div>
-                <button
-                  onClick={copyAll}
-                  className="inline-flex items-center gap-1.5 cursor-pointer rounded-md bg-surface px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-dark hover:text-foreground"
-                >
-                  {copied === "all" ? (
-                    <>
-                      <Check className="h-3 w-3 text-green-500" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3 w-3" />
-                      Copy All
-                    </>
-                  )}
-                </button>
-              </div>
-              {outreachTab === "email" && editedSubject && (
-                <div>
-                  <div className="mb-1 flex items-center justify-between">
-                    <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Subject</label>
-                    <button onClick={() => copyText(editedSubject, "subject")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
-                      {copied === "subject" ? "✓ Copied" : "Copy"}
+              ) : (
+                // Outreach content
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setOutreachTab("linkedin")}
+                        className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                          outreachTab === "linkedin"
+                            ? "bg-[#0077B5]/10 text-[#0077B5]"
+                            : "text-muted hover:text-foreground"
+                        }`}
+                      >
+                        LinkedIn
+                      </button>
+                      {hasRealEmail && (
+                        <button
+                          onClick={() => setOutreachTab("email")}
+                          className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                            outreachTab === "email"
+                              ? "bg-primary/10 text-primary"
+                              : "text-muted hover:text-foreground"
+                          }`}
+                        >
+                          Email
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      onClick={copyAll}
+                      className="inline-flex items-center gap-1.5 cursor-pointer rounded-md bg-surface px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-dark hover:text-foreground"
+                    >
+                      {copied === "all" ? (
+                        <>
+                          <Check className="h-3 w-3 text-green-500" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3" />
+                          Copy All
+                        </>
+                      )}
                     </button>
                   </div>
-                  <input
-                    type="text"
-                    value={editedSubject}
-                    onChange={(e) => setEditedSubject(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-              )}
-              <div>
-                <div className="mb-1 flex items-center justify-between">
-                  <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">
-                    {outreachTab === "linkedin" ? "Message" : "Body"}
-                  </label>
-                  <button onClick={() => copyText(activeBody, "body")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
-                    {copied === "body" ? "✓ Copied" : "Copy"}
-                  </button>
-                </div>
-                <textarea
-                  value={activeBody}
-                  onChange={(e) => setActiveBody(e.target.value)}
-                  rows={8}
-                  className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              {outreachTab === "linkedin" && candidate.profile_url && (
-                <a
-                  href={candidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#0077B5] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#005582]"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Open LinkedIn Profile
-                </a>
+                  {hasRealEmail && localCandidate.email && (
+                    <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2">
+                      <Mail className="h-3.5 w-3.5 text-green-600" />
+                      <span className="text-xs font-medium text-green-700">{localCandidate.email}</span>
+                      <button
+                        onClick={() => copyText(localCandidate.email!, "email-addr")}
+                        className="ml-auto text-[10px] cursor-pointer text-green-600 hover:text-green-800 transition-colors"
+                      >
+                        {copied === "email-addr" ? "✓" : "Copy"}
+                      </button>
+                    </div>
+                  )}
+                  {outreachTab === "email" && editedSubject && (
+                    <div>
+                      <div className="mb-1 flex items-center justify-between">
+                        <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Subject</label>
+                        <button onClick={() => copyText(editedSubject, "subject")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
+                          {copied === "subject" ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={editedSubject}
+                        onChange={(e) => setEditedSubject(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">
+                        {outreachTab === "linkedin" ? "Message" : "Body"}
+                      </label>
+                      <button onClick={() => copyText(activeBody, "body")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
+                        {copied === "body" ? "✓ Copied" : "Copy"}
+                      </button>
+                    </div>
+                    <textarea
+                      value={activeBody}
+                      onChange={(e) => setActiveBody(e.target.value)}
+                      rows={8}
+                      className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  {outreachTab === "linkedin" && localCandidate.profile_url && (
+                    <a
+                      href={localCandidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-[#0077B5] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#005582]"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open LinkedIn Profile
+                    </a>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -506,15 +599,14 @@ function CandidateCard({
 }
 
 // Map pipeline_step values to step index
-const STEP_ORDER = ["parsing", "parsed", "searching", "scoring", "scraping", "enriching", "emailing", "done"];
+const STEP_ORDER = ["parsing", "parsed", "searching", "scoring", "scraping", "done"];
 
 function ProcessingSteps({ pipelineStep, candidateCount }: { pipelineStep: string | null; candidateCount: number }) {
   const stepIdx = STEP_ORDER.indexOf(pipelineStep || "parsing");
   const steps = [
     { icon: FileText, label: "Parsing job description", doneAt: 1 },     // done after "parsed"
     { icon: Users, label: "Searching & screening candidates", doneAt: 3 },// done after "scoring" (pre-screen)
-    { icon: Star, label: "Scraping full profiles & AI scoring", doneAt: 5 }, // done after "enriching" starts
-    { icon: Send, label: "Finding emails & generating outreach", doneAt: 7 }, // done at "done"
+    { icon: Star, label: "Scraping full profiles & AI scoring", doneAt: 5 }, // done at "done"
   ];
 
   // Determine current active step based on pipeline_step
