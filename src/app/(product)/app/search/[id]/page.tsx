@@ -30,6 +30,8 @@ import {
   EyeOff,
   Github,
   ChevronsUp,
+  GraduationCap,
+  Building2,
 } from "lucide-react";
 
 type SearchRow = {
@@ -38,7 +40,22 @@ type SearchRow = {
   jd_text: string;
   parsed_requirements: Record<string, unknown> | null;
   status: string;
+  pipeline_step: string | null;
+  error_message: string | null;
   created_at: string;
+};
+
+type WorkHistoryItem = {
+  title: string | null;
+  company: string | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+type EducationItem = {
+  school: string | null;
+  degree: string | null;
+  major: string | null;
 };
 
 type CandidateRow = {
@@ -55,6 +72,10 @@ type CandidateRow = {
   email: string | null;
   outreach_draft: string | null;
   status: string;
+  metadata: {
+    work_history?: WorkHistoryItem[];
+    education?: EducationItem[];
+  } | null;
 };
 
 const avatarColors = [
@@ -95,11 +116,22 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-function parseOutreach(draft: string | null): { subject: string; body: string } {
-  if (!draft) return { subject: "", body: "" };
-  const match = draft.match(/^Subject:\s*(.+?)\n\n([\s\S]*)$/i);
-  if (match) return { subject: match[1].trim(), body: match[2].trim() };
-  return { subject: "", body: draft };
+function parseOutreach(draft: string | null): { subject: string; linkedin: string; email: string } {
+  if (!draft) return { subject: "", linkedin: "", email: "" };
+  // Try JSON format first (new format)
+  try {
+    const parsed = JSON.parse(draft);
+    return {
+      subject: parsed.subject || "",
+      linkedin: parsed.linkedin || parsed.email || "",
+      email: parsed.email || parsed.linkedin || "",
+    };
+  } catch {
+    // Legacy format: "Subject: ...\n\nBody"
+    const match = draft.match(/^Subject:\s*(.+?)\n\n([\s\S]*)$/i);
+    if (match) return { subject: match[1].trim(), linkedin: match[2].trim(), email: match[2].trim() };
+    return { subject: "", linkedin: draft, email: draft };
+  }
 }
 
 function CandidateCard({
@@ -117,17 +149,25 @@ function CandidateCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
-  const { subject, body } = parseOutreach(candidate.outreach_draft);
-  const [editedSubject, setEditedSubject] = useState(subject);
-  const [editedBody, setEditedBody] = useState(body);
+  const outreach = parseOutreach(candidate.outreach_draft);
+  const hasRealEmail = !!(candidate.email && !candidate.email.includes("***"));
+  const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
+  const [editedSubject, setEditedSubject] = useState(outreach.subject);
+  const [editedLinkedin, setEditedLinkedin] = useState(outreach.linkedin);
+  const [editedEmail, setEditedEmail] = useState(outreach.email);
+
+  const activeBody = outreachTab === "linkedin" ? editedLinkedin : editedEmail;
+  const setActiveBody = outreachTab === "linkedin" ? setEditedLinkedin : setEditedEmail;
 
   function copyText(text: string, label: string) {
     navigator.clipboard.writeText(text);
     setCopied(label);
     setTimeout(() => setCopied(false), 2000);
   }
-  function copyEmail() {
-    const full = editedSubject ? `Subject: ${editedSubject}\n\n${editedBody}` : editedBody;
+  function copyAll() {
+    const full = outreachTab === "email" && editedSubject
+      ? `Subject: ${editedSubject}\n\n${activeBody}`
+      : activeBody;
     copyText(full, "all");
   }
 
@@ -160,7 +200,7 @@ function CandidateCard({
         )}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex flex-1 items-center gap-4 min-w-0"
+          className="flex flex-1 cursor-pointer items-center gap-4 min-w-0"
         >
         <InitialsAvatar name={candidate.name} />
         <div className="min-w-0 flex-1">
@@ -292,6 +332,55 @@ function CandidateCard({
                 </ul>
               </div>
 
+              {/* Work History */}
+              {candidate.metadata?.work_history && candidate.metadata.work_history.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    Work History
+                  </p>
+                  <div className="space-y-2">
+                    {candidate.metadata.work_history.map((job, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-light" />
+                        <div>
+                          <p className="font-medium text-foreground">{job.title || "Unknown Role"}</p>
+                          <p className="text-xs text-muted">
+                            {job.company || "Unknown Company"}
+                            {job.start_date && (
+                              <span className="text-muted-light"> · {job.start_date}{job.end_date ? ` – ${job.end_date}` : " – Present"}</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Education */}
+              {candidate.metadata?.education && candidate.metadata.education.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    Education
+                  </p>
+                  <div className="space-y-2">
+                    {candidate.metadata.education.map((edu, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-light" />
+                        <div>
+                          <p className="font-medium text-foreground">{edu.school}</p>
+                          {(edu.degree || edu.major) && (
+                            <p className="text-xs text-muted">
+                              {[edu.degree, edu.major].filter(Boolean).join(" in ")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
                   Status
@@ -301,7 +390,7 @@ function CandidateCard({
                     <button
                       key={s}
                       onClick={() => onStatusChange(candidate.id, s)}
-                      className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors ${
+                      className={`rounded-md cursor-pointer px-3 py-1 text-xs font-medium capitalize transition-colors ${
                         candidate.status === s
                           ? "bg-primary text-white"
                           : "bg-surface text-muted hover:bg-surface-dark"
@@ -314,15 +403,36 @@ function CandidateCard({
               </div>
             </div>
 
-            {/* Right: Outreach email */}
+            {/* Right: Outreach */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
-                  Outreach Email
-                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setOutreachTab("linkedin")}
+                    className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                      outreachTab === "linkedin"
+                        ? "bg-[#0077B5]/10 text-[#0077B5]"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    LinkedIn
+                  </button>
+                  {hasRealEmail && (
+                    <button
+                      onClick={() => setOutreachTab("email")}
+                      className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                        outreachTab === "email"
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted hover:text-foreground"
+                      }`}
+                    >
+                      Email
+                    </button>
+                  )}
+                </div>
                 <button
-                  onClick={copyEmail}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-dark hover:text-foreground"
+                  onClick={copyAll}
+                  className="inline-flex items-center gap-1.5 cursor-pointer rounded-md bg-surface px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-dark hover:text-foreground"
                 >
                   {copied === "all" ? (
                     <>
@@ -337,11 +447,11 @@ function CandidateCard({
                   )}
                 </button>
               </div>
-              {editedSubject && (
+              {outreachTab === "email" && editedSubject && (
                 <div>
                   <div className="mb-1 flex items-center justify-between">
                     <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Subject</label>
-                    <button onClick={() => copyText(editedSubject, "subject")} className="text-[10px] text-muted hover:text-foreground transition-colors">
+                    <button onClick={() => copyText(editedSubject, "subject")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
                       {copied === "subject" ? "✓ Copied" : "Copy"}
                     </button>
                   </div>
@@ -355,23 +465,36 @@ function CandidateCard({
               )}
               <div>
                 <div className="mb-1 flex items-center justify-between">
-                  {editedSubject && <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Body</label>}
-                  <button onClick={() => copyText(editedBody, "body")} className="text-[10px] text-muted hover:text-foreground transition-colors">
-                    {copied === "body" ? "✓ Copied" : "Copy body"}
+                  <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">
+                    {outreachTab === "linkedin" ? "Message" : "Body"}
+                  </label>
+                  <button onClick={() => copyText(activeBody, "body")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
+                    {copied === "body" ? "✓ Copied" : "Copy"}
                   </button>
                 </div>
                 <textarea
-                  value={editedBody}
-                  onChange={(e) => setEditedBody(e.target.value)}
-                  rows={10}
+                  value={activeBody}
+                  onChange={(e) => setActiveBody(e.target.value)}
+                  rows={8}
                   className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
+              {outreachTab === "linkedin" && candidate.profile_url && (
+                <a
+                  href={candidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#0077B5] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#005582]"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open LinkedIn Profile
+                </a>
+              )}
             </div>
           </div>
           <button
             onClick={() => setExpanded(false)}
-            className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted hover:bg-surface hover:text-foreground transition-colors"
+            className="mt-4 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted hover:bg-surface hover:text-foreground transition-colors"
           >
             <ChevronsUp className="h-3 w-3" />
             Collapse
@@ -382,18 +505,23 @@ function CandidateCard({
   );
 }
 
-function ProcessingSteps({ hasTitle, hasCandidates }: { hasTitle: boolean; hasCandidates: boolean }) {
+// Map pipeline_step values to step index
+const STEP_ORDER = ["parsing", "parsed", "searching", "scoring", "scraping", "enriching", "emailing", "done"];
+
+function ProcessingSteps({ pipelineStep, candidateCount }: { pipelineStep: string | null; candidateCount: number }) {
+  const stepIdx = STEP_ORDER.indexOf(pipelineStep || "parsing");
   const steps = [
-    { icon: FileText, label: "Parsing job description", done: hasTitle },
-    { icon: Users, label: "Searching candidate database", done: hasCandidates },
-    { icon: Star, label: "AI scoring & ranking", done: false },
-    { icon: Send, label: "Generating outreach emails", done: false },
+    { icon: FileText, label: "Parsing job description", doneAt: 1 },     // done after "parsed"
+    { icon: Users, label: "Searching & screening candidates", doneAt: 3 },// done after "scoring" (pre-screen)
+    { icon: Star, label: "Scraping full profiles & AI scoring", doneAt: 5 }, // done after "enriching" starts
+    { icon: Send, label: "Finding emails & generating outreach", doneAt: 7 }, // done at "done"
   ];
 
-  // Determine current active step
+  // Determine current active step based on pipeline_step
   let activeIdx = 0;
   for (let i = 0; i < steps.length; i++) {
-    if (steps[i].done) activeIdx = i + 1;
+    if (stepIdx >= steps[i].doneAt) activeIdx = i + 1;
+    else break;
   }
 
   return (
@@ -430,20 +558,25 @@ function ProcessingSteps({ hasTitle, hasCandidates }: { hasTitle: boolean; hasCa
           );
         })}
       </div>
-      <p className="mt-4 text-xs text-muted">This usually takes 30-60 seconds.</p>
+      {candidateCount > 0 ? (
+        <p className="mt-4 text-xs text-primary font-medium">{candidateCount} candidates found — generating outreach emails...</p>
+      ) : (
+        <p className="mt-4 text-xs text-muted">This usually takes 30-60 seconds.</p>
+      )}
     </div>
   );
 }
 
 export default function SearchResultPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
   const [search, setSearch] = useState<SearchRow | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [retrying, setRetrying] = useState(false);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -516,12 +649,32 @@ export default function SearchResultPage() {
     fetchData();
   }, [fetchData]);
 
-  // Poll while processing
+  // Fast poll while processing (1.5s for near real-time feel)
   useEffect(() => {
     if (search?.status !== "processing") return;
-    const interval = setInterval(fetchData, 3000);
+    const interval = setInterval(fetchData, 1500);
     return () => clearInterval(interval);
   }, [search?.status, fetchData]);
+
+  async function handleRetry() {
+    if (!session?.access_token || !id) return;
+    setRetrying(true);
+    try {
+      const res = await fetch(`/api/search/${id}/retry`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        // Reset local state to show processing
+        setSearch((prev) => prev ? { ...prev, status: "processing", pipeline_step: "queued", error_message: null } : prev);
+        setCandidates([]);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   async function handleStatusChange(candidateId: string, newStatus: string) {
     setCandidates((prev) =>
@@ -578,7 +731,7 @@ export default function SearchResultPage() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowJd(!showJd)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
+                className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
               >
                 {showJd ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                 <span className="hidden sm:inline">{showJd ? "Hide JD" : "View JD"}</span>
@@ -587,7 +740,7 @@ export default function SearchResultPage() {
               {candidates.length > 0 && (
                 <button
                   onClick={exportCSV}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
+                  className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
                 >
                   <Download className="h-3 w-3" />
                   <span className="hidden sm:inline">Export CSV</span>
@@ -640,30 +793,40 @@ export default function SearchResultPage() {
 
       {/* Processing state with step progress */}
       {search.status === "processing" && (
-        <ProcessingSteps hasTitle={!!search.title} hasCandidates={candidates.length > 0} />
+        <ProcessingSteps pipelineStep={search.pipeline_step} candidateCount={candidates.length} />
       )}
 
       {/* Error state */}
       {search.status === "error" && (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-5">
           <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-red-500" />
+            <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium text-red-700">
-                Something went wrong
+                {search.error_message?.includes("API key") ? "PDL API Key Required" : "Something went wrong"}
               </p>
               <p className="text-xs text-red-600">
-                We couldn&apos;t generate candidates for this search. Please try
-                again.
+                {search.error_message || "We couldn\u0027t generate candidates for this search. Please try again."}
               </p>
             </div>
-            <Link
-              href="/app/search/new"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Try Again
-            </Link>
+            <div className="flex shrink-0 items-center gap-2">
+              {search.error_message?.includes("Settings") && (
+                <Link
+                  href="/app/settings"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-hover transition-colors"
+                >
+                  Go to Settings
+                </Link>
+              )}
+              <button
+                onClick={handleRetry}
+                disabled={retrying}
+                className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
+              >
+                {retrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                Retry
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -686,7 +849,7 @@ export default function SearchResultPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={toggleAll}
-                  className="text-xs text-muted hover:text-foreground transition-colors"
+                  className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
                 >
                   {selectedIds.size === candidates.length ? "Deselect all" : "Select all"}
                 </button>
@@ -697,7 +860,7 @@ export default function SearchResultPage() {
                       <button
                         key={s}
                         onClick={() => bulkStatusChange(s)}
-                        className="rounded-md bg-surface px-2 py-0.5 text-xs font-medium text-muted capitalize hover:bg-surface-dark hover:text-foreground transition-colors"
+                        className="rounded-md cursor-pointer bg-surface px-2 py-0.5 text-xs font-medium text-muted capitalize hover:bg-surface-dark hover:text-foreground transition-colors"
                       >
                         {s}
                       </button>
@@ -707,15 +870,20 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {candidates.map((c) => (
-            <CandidateCard
+          {candidates.map((c, idx) => (
+            <div
               key={c.id}
-              candidate={c}
-              onStatusChange={handleStatusChange}
-              requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
-              selected={selectedIds.has(c.id)}
-              onToggleSelect={() => toggleSelect(c.id)}
-            />
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${idx * 100}ms` }}
+            >
+              <CandidateCard
+                candidate={c}
+                onStatusChange={handleStatusChange}
+                requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
+                selected={selectedIds.has(c.id)}
+                onToggleSelect={() => toggleSelect(c.id)}
+              />
+            </div>
           ))}
         </div>
       )}

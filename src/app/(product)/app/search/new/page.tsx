@@ -89,7 +89,7 @@ export default function NewSearchPage() {
                     key={n}
                     type="button"
                     onClick={() => setCandidateCount(n)}
-                    className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                    className={`rounded-md cursor-pointer px-2 py-0.5 text-xs font-medium transition-colors ${
                       candidateCount === n
                         ? "bg-primary text-white"
                         : "bg-surface text-muted hover:bg-surface-dark"
@@ -104,7 +104,7 @@ export default function NewSearchPage() {
             <button
               type="submit"
               disabled={status === "loading" || jdText.trim().length < 50}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+              className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
             >
               {status === "loading" ? (
                 <>

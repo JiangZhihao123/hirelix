@@ -20,6 +20,10 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+button, [role="button"], a, summary, input[type="checkbox"], input[type="radio"], select {
+  cursor: pointer;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -73,6 +77,16 @@ html {
 
 .animate-fade-in {
   animation: fade-in 1s ease-out both;
+}
+
+/* Candidate card streaming animation */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out both;
 }
 
 .animate-glow {

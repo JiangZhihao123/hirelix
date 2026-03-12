@@ -58,7 +58,7 @@ export default function Home() {
           </h1>
 
           <p className="animate-fade-up-delay-1 mx-auto mt-6 max-w-xl text-lg leading-relaxed text-gray-400">
-            AI reads your job description, searches 270M+ real profiles, scores every match, and writes personalized outreach emails — in under 5 minutes.
+            AI reads your job description, finds real LinkedIn candidates, scores every match, and writes personalized outreach emails — in under 5 minutes.
           </p>
 
           <div className="animate-fade-up-delay-2 mt-10">
@@ -159,7 +159,7 @@ export default function Home() {
                 step: "2",
                 icon: Search,
                 title: "AI finds real people",
-                desc: "Searches a database of 270M+ professional profiles. Each candidate is scored against your requirements with specific match reasons.",
+                desc: "Finds real LinkedIn profiles matching your requirements. Each candidate is scored with specific match reasons.",
                 accent: "from-violet-500 to-purple-500",
               },
               {
@@ -202,7 +202,7 @@ export default function Home() {
           <div className="mt-14 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[
               { icon: Brain, title: "AI JD Parsing", desc: "Extracts skills, title, location, experience level — no manual input needed." },
-              { icon: Database, title: "270M+ Real Profiles", desc: "Powered by People Data Labs. Real people with real LinkedIn profiles and emails." },
+              { icon: Database, title: "Real LinkedIn Profiles", desc: "Searches real LinkedIn profiles via Google. Every candidate is a real person you can reach out to." },
               { icon: Star, title: "Match Scoring", desc: "Each candidate scored 0–100% with 3–4 specific reasons explaining why they match." },
               { icon: Mail, title: "Outreach Emails", desc: "AI-written personalized emails referencing each candidate's actual background." },
               { icon: Copy, title: "Copy & Edit", desc: "Edit subject and body inline. Copy subject, body, or both with one click." },
@@ -315,7 +315,7 @@ export default function Home() {
             <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
             <span className="font-semibold text-white">Hirelix</span>
           </div>
-          <p>Candidate data powered by People Data Labs.</p>
+          <p>AI-powered candidate sourcing from real LinkedIn profiles.</p>
         </div>
       </footer>
     </div>

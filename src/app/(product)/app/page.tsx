@@ -15,6 +15,9 @@ import {
   Trash2,
   Users,
   Sparkles,
+  Key,
+  ExternalLink,
+  X,
 } from "lucide-react";
 
 type SearchRow = {
@@ -33,12 +36,14 @@ type CandidateCount = {
 };
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [searches, setSearches] = useState<SearchRow[]>([]);
   const [candidateCounts, setCandidateCounts] = useState<Record<string, CandidateCount>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "done" | "processing" | "error">("all");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [hasPdlKey, setHasPdlKey] = useState<boolean | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -76,6 +81,17 @@ export default function DashboardPage() {
     fetchData();
   }, [fetchData]);
 
+  // Check if user has PDL key configured
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch("/api/settings", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setHasPdlKey(d.has_pdl_key))
+      .catch(() => {});
+  }, [session?.access_token]);
+
   async function deleteSearch(e: React.MouseEvent, searchId: string) {
     e.preventDefault();
     e.stopPropagation();
@@ -102,6 +118,38 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
+      {/* Onboarding banner — show for new users with no searches */}
+      {!loading && searches.length === 0 && !bannerDismissed && (
+        <div className="mb-6 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 to-blue-50 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-primary/10 p-2 mt-0.5">
+                <Key className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">Welcome to Hirelix!</h3>
+                <p className="mt-1 text-xs text-muted">Paste a job description and find real LinkedIn candidates in minutes — powered by AI and Google search.</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Link href="/app/search/new" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-white hover:bg-primary-hover transition-colors">
+                    <Plus className="h-3 w-3" />
+                    Start Your First Search
+                  </Link>
+                  <span className="text-[10px] text-muted-light">Free to use · Real candidate data</span>
+                </div>
+                {hasPdlKey === false && (
+                  <p className="mt-2 text-[10px] text-muted-light">
+                    Want even deeper data? <Link href="/app/settings" className="text-primary hover:underline">Add your own PDL API key</Link> in Settings for premium enrichment.
+                  </p>
+                )}
+              </div>
+            </div>
+            <button onClick={() => setBannerDismissed(true)} className="cursor-pointer shrink-0 text-muted hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Searches</h1>
@@ -150,7 +198,7 @@ export default function DashboardPage() {
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                     filter === f
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted hover:text-foreground"
@@ -211,7 +259,7 @@ export default function DashboardPage() {
                   <button
                     onClick={(e) => deleteSearch(e, s.id)}
                     disabled={deleting === s.id}
-                    className="rounded-md p-1.5 text-muted-light opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                    className="rounded-md p-1.5 cursor-pointer text-muted-light opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
                     title="Delete search"
                   >
                     {deleting === s.id ? (

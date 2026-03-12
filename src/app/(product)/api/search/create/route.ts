@@ -4,15 +4,25 @@ import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { JD_PARSE_PROMPT } from "@/lib/prompts";
-import { buildPDLQuery, searchPeople, pdlPersonToCandidate } from "@/lib/pdl";
+import { buildPDLQuery, searchPeople, pdlPersonToCandidate, pdlPersonToRichProfile, type PDLPerson } from "@/lib/pdl";
+import { serperSearch, buildLinkedInSearchQueries, parseSearchResults, serperCandidateToRichProfile, serperCandidateToDbCandidate, type SerperCandidate } from "@/lib/serper";
+import { scrapeLinkedInProfiles, brightDataProfileToRichText, type BrightDataProfile } from "@/lib/brightdata";
+import { findEmail } from "@/lib/hunter";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
-/** Strip markdown code fences from Claude responses */
+/** Strip markdown code fences from Claude responses and fix truncated JSON */
 function extractJSON(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenced) return fenced[1].trim();
-  return text.trim();
+  let result = fenced ? fenced[1].trim() : text.trim();
+  // Fix truncated JSON arrays
+  if (result.startsWith("[") && !result.endsWith("]")) {
+    const lastBrace = result.lastIndexOf("}");
+    if (lastBrace > 0) {
+      result = result.substring(0, lastBrace + 1) + "]";
+    }
+  }
+  return result;
 }
 
 const supabaseAdmin = createClient(
@@ -62,6 +72,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         jd_text: jd_text.trim(),
         status: "processing",
+        parsed_requirements: { candidate_count: maxCandidates },
       })
       .select("id")
       .single();
@@ -74,9 +85,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Return ID immediately, run pipeline in background
+    // Run pipeline in after() — continues executing after response is sent
+    const userId = user.id;
     after(async () => {
-      await parseAndGenerate(search.id, jd_text.trim(), maxCandidates);
+      await runPipeline(search.id, jd_text.trim(), maxCandidates, userId);
     });
 
     return NextResponse.json({ id: search.id });
@@ -89,36 +101,173 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function parseAndGenerate(searchId: string, jdText: string, candidateCount: number = 5) {
+function buildFilterPrompt(
+  parsed: Record<string, unknown>,
+  richProfiles: string,
+  poolSize: number,
+  candidateCount: number,
+): string {
+  return `You are an expert AI recruiter. Your job is to deeply analyze candidate profiles and select the BEST matches for a role.
+
+## Job Requirements
+Title: ${parsed.title || "N/A"}
+Seniority: ${parsed.seniority || "N/A"}
+Required Skills: ${(Array.isArray(parsed.required_skills) ? parsed.required_skills : []).join(", ") || "N/A"}
+Nice-to-have Skills: ${(Array.isArray(parsed.nice_to_have_skills) ? parsed.nice_to_have_skills : []).join(", ") || "N/A"}
+Min Experience: ${parsed.experience_years_min || "?"} years
+Location: ${parsed.location || "N/A"}
+Key Responsibilities: ${(Array.isArray(parsed.key_responsibilities) ? parsed.key_responsibilities : []).join("; ") || "N/A"}
+
+## Candidate Pool (${poolSize} people)
+${richProfiles}
+
+## Your Task
+Select the TOP ${candidateCount} candidates. For each, return:
+- index: number (the [N] index from the profile)
+- match_score: 0-100
+- match_reasons: string[] (3-4 SPECIFIC reasons referencing their actual experience)
+- skills: string[] (inferred technical skills based on their profile, max 8)
+
+Return a JSON array of exactly ${candidateCount} objects, sorted by match_score descending. Return ONLY valid JSON, no markdown.`;
+}
+
+function buildSerperFilterPrompt(
+  parsed: Record<string, unknown>,
+  richProfiles: string,
+  poolSize: number,
+  candidateCount: number,
+): string {
+  return `You are an expert AI recruiter. You are analyzing LinkedIn profiles found via Google search to select the best candidates for a role.
+
+## Job Requirements
+Title: ${parsed.title || "N/A"}
+Seniority: ${parsed.seniority || "N/A"}
+Required Skills: ${(Array.isArray(parsed.required_skills) ? parsed.required_skills : []).join(", ") || "N/A"}
+Nice-to-have Skills: ${(Array.isArray(parsed.nice_to_have_skills) ? parsed.nice_to_have_skills : []).join(", ") || "N/A"}
+Min Experience: ${parsed.experience_years_min || "?"} years
+Location: ${parsed.location || "N/A"}
+Key Responsibilities: ${(Array.isArray(parsed.key_responsibilities) ? parsed.key_responsibilities : []).join("; ") || "N/A"}
+
+## Candidate Pool (${poolSize} LinkedIn profiles)
+${richProfiles}
+
+## Your Task
+Analyze each candidate based on their LinkedIn headline and Google snippet. Select the TOP ${candidateCount} candidates. For each, return:
+- index: number (the [N] index from the profile)
+- match_score: 0-100 (based on how well their profile matches the job requirements)
+- match_reasons: string[] (3-4 SPECIFIC reasons referencing information from their actual profile)
+- skills: string[] (technical skills you can infer from their headline and snippet, max 8)
+- location: string | null (location if mentioned in snippet)
+- experience_years: number | null (estimated years of experience if inferable)
+
+Return a JSON array of exactly ${candidateCount} objects, sorted by match_score descending. Return ONLY valid JSON, no markdown.`;
+}
+
+function buildDeepScorePrompt(
+  parsed: Record<string, unknown>,
+  richProfiles: string,
+  poolSize: number,
+  candidateCount: number,
+): string {
+  return `You are an expert AI recruiter. You have FULL LinkedIn profile data for each candidate including their complete work history, education, skills, and about section. Use this rich data to make highly accurate assessments.
+
+## Job Requirements
+Title: ${parsed.title || "N/A"}
+Seniority: ${parsed.seniority || "N/A"}
+Required Skills: ${(Array.isArray(parsed.required_skills) ? parsed.required_skills : []).join(", ") || "N/A"}
+Nice-to-have Skills: ${(Array.isArray(parsed.nice_to_have_skills) ? parsed.nice_to_have_skills : []).join(", ") || "N/A"}
+Min Experience: ${parsed.experience_years_min || "?"} years
+Location: ${parsed.location || "N/A"}
+Key Responsibilities: ${(Array.isArray(parsed.key_responsibilities) ? parsed.key_responsibilities : []).join("; ") || "N/A"}
+
+## Candidate Profiles (${poolSize} people — FULL LinkedIn data)
+${richProfiles}
+
+## Your Task
+Deeply analyze each candidate's COMPLETE profile. Select the TOP ${candidateCount} candidates. For each, return:
+- index: number (the [N] index from the profile)
+- match_score: 0-100 (based on their actual experience, skills, and background)
+- match_reasons: string[] (3-4 SPECIFIC reasons referencing their actual work history, skills, and education)
+- skills: string[] (verified technical skills from their profile, max 10)
+- experience_years: number | null (calculated from their work history)
+- location: string | null
+
+Score strictly based on:
+1. Relevant work experience and job titles
+2. Technical skills match (from their skills list AND job descriptions)
+3. Seniority level alignment
+4. Location fit
+5. Education and certifications relevance
+
+Return a JSON array of exactly ${candidateCount} objects, sorted by match_score descending. Return ONLY valid JSON, no markdown.`;
+}
+
+export async function runPipelineForRetry(searchId: string, jdText: string, candidateCount: number, userId: string) {
+  return runPipeline(searchId, jdText, candidateCount, userId);
+}
+
+async function runPipeline(searchId: string, jdText: string, candidateCount: number, userId: string) {
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
   const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
   const anthropicModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
-  const pdlApiKey = process.env.PDL_API_KEY;
+
+  // Fetch user's PDL key from settings
+  let pdlApiKey: string | null = null;
+  try {
+    const { data: settings } = await supabaseAdmin
+      .from("hirelix_user_settings")
+      .select("pdl_api_key")
+      .eq("user_id", userId)
+      .single();
+    if (settings?.pdl_api_key) {
+      pdlApiKey = settings.pdl_api_key;
+      console.log(`[pipeline] Using user's PDL API key`);
+    }
+  } catch {
+    // No user settings
+  }
+
+  // Serper.dev Google Search API (free tier, 2500 searches/month)
+  const serperApiKey = process.env.SERPER_API_KEY || null;
+  // Bright Data LinkedIn scraper
+  const brightdataToken = process.env.BRIGHTDATA_API_TOKEN || null;
+  const brightdataDatasetId = process.env.BRIGHTDATA_DATASET_ID || null;
+  // Email: Apollo → Hunter fallback
+  const apolloApiKey = process.env.APOLLO_API_KEY || null;
+  const hunterApiKey = process.env.HUNTER_API_KEY || null;
+  // Data source priority: PDL (user key) → Serper/Google (platform) → error
+  const dataSource = pdlApiKey ? "pdl" : serperApiKey ? "serper" : null;
+  const hasBrightData = !!(brightdataToken && brightdataDatasetId);
+  console.log(`[pipeline] Data source: ${dataSource || "none"} (PDL: ${!!pdlApiKey}, Serper: ${!!serperApiKey}, BrightData: ${hasBrightData}, Apollo: ${!!apolloApiKey}, Hunter: ${!!hunterApiKey})`);
+
+  async function setStep(step: string) {
+    await supabaseAdmin
+      .from("hirelix_searches")
+      .update({ pipeline_step: step, updated_at: new Date().toISOString() })
+      .eq("id", searchId);
+  }
 
   if (!anthropicApiKey) {
-    // No API key: use mock data for development
-    await mockGenerate(searchId, jdText);
+    await setStep("error");
+    await supabaseAdmin.from("hirelix_searches").update({ status: "error" }).eq("id", searchId);
     return;
   }
 
   try {
-    console.log(`[parseAndGenerate] Starting for search ${searchId}`);
-    console.log(`[parseAndGenerate] Config: baseUrl=${anthropicBaseUrl}, model=${anthropicModel}, hasPDL=${!!pdlApiKey}`);
-
     const anthropic = createAnthropic({
       apiKey: anthropicApiKey,
       ...(anthropicBaseUrl ? { baseURL: anthropicBaseUrl } : {}),
     });
 
-    // Step 1: Parse JD with Claude
-    console.log(`[parseAndGenerate] Step 1: Parsing JD...`);
+    // Step 1: Parse JD
+    await setStep("parsing");
+    console.log(`[pipeline] Step 1: Parsing JD for ${searchId}`);
     const { text: parsedJson } = await generateText({
       model: anthropic(anthropicModel),
       system: JD_PARSE_PROMPT,
       prompt: jdText,
       maxOutputTokens: 2000,
     });
-    console.log(`[parseAndGenerate] Step 1 done, raw length: ${parsedJson.length}`);
 
     let parsed;
     try {
@@ -127,15 +276,19 @@ async function parseAndGenerate(searchId: string, jdText: string, candidateCount
       parsed = { title: "Untitled Role", required_skills: [], experience_years_min: 0 };
     }
 
+    parsed.candidate_count = candidateCount;
     await supabaseAdmin
       .from("hirelix_searches")
       .update({
         title: parsed.title || "Untitled Role",
         parsed_requirements: parsed,
+        pipeline_step: "parsed",
+        updated_at: new Date().toISOString(),
       })
       .eq("id", searchId);
+    console.log(`[pipeline] Parsed: ${parsed.title}`);
 
-    // Step 2: Search for real candidates via PDL, or fall back to AI-generated
+    // Step 2: Search candidates
     let candidates: {
       name: string;
       headline: string | null;
@@ -148,99 +301,318 @@ async function parseAndGenerate(searchId: string, jdText: string, candidateCount
       github_url: string | null;
       email: string | null;
       outreach_draft: string | null;
-    }[];
+    }[] = [];
 
-    if (pdlApiKey) {
-      // --- Real candidates from People Data Labs ---
-      console.log(`[parseAndGenerate] Step 2: PDL search...`);
-      const pdlQuery = buildPDLQuery(parsed);
-      console.log("[PDL] Query:", JSON.stringify(pdlQuery));
+    // ── Step 2: Search candidates (PDL → Google/Serper → error) ──
+    let usedDataSource = false;
+    const candidateMetadata: Record<string, unknown>[] = [];
 
-      const pdlResult = await searchPeople(pdlApiKey, pdlQuery, candidateCount);
-      console.log(`[PDL] Found ${pdlResult.total} total, returned ${pdlResult.data.length}`);
+    if (dataSource === "pdl" && pdlApiKey) {
+      // ─── PDL path (user's own key) ───
+      await setStep("searching");
+      const poolSize = Math.min(candidateCount * 5, 50);
+      console.log(`[pipeline] Step 2a: PDL wide search (pool=${poolSize})`);
+      let pdlResult: { total: number; data: PDLPerson[] } = { total: 0, data: [] };
+      try {
+        const pdlQuery = buildPDLQuery(parsed);
+        pdlResult = await searchPeople(pdlApiKey, pdlQuery, poolSize);
+        console.log(`[pipeline] PDL returned ${pdlResult.data.length} results`);
+      } catch (pdlErr) {
+        console.error("[pipeline] PDL search failed:", pdlErr instanceof Error ? pdlErr.message : String(pdlErr));
+      }
 
-      candidates = pdlResult.data.map((p) => pdlPersonToCandidate(p));
-      console.log(`[parseAndGenerate] Step 2 done, ${candidates.length} candidates mapped`);
+      if (pdlResult.data.length > 0) {
+        usedDataSource = true;
+        await setStep("scoring");
+        const richProfiles = pdlResult.data.map((p, i) => pdlPersonToRichProfile(p, i)).join("\n\n");
+        const filterPrompt = buildFilterPrompt(parsed, richProfiles, pdlResult.data.length, candidateCount);
 
-      // Use Claude to score & rank the real candidates
-      if (candidates.length > 0) {
-        const scoringPrompt = `You are an expert recruiting AI evaluator. Score each candidate based on how well they match the job requirements. Be specific and detailed in your reasoning.
+        console.log(`[pipeline] Step 2b: AI filtering ${pdlResult.data.length} → top ${candidateCount}`);
+        const { text: filterJson } = await generateText({ model: anthropic(anthropicModel), prompt: filterPrompt, maxOutputTokens: 4000 });
 
-Job Requirements:
-- Title: ${parsed.title || "N/A"}
-- Required Skills: ${(parsed.required_skills || []).join(", ") || "N/A"}
-- Nice-to-have: ${(parsed.nice_to_have_skills || []).join(", ") || "N/A"}
-- Experience: ${parsed.experience_years_min || "?"} years min
-- Location: ${parsed.location || "N/A"}
-- Seniority: ${parsed.seniority || "N/A"}
-
-Candidates:
-${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "N/A"}, Skills: ${c.skills.slice(0, 12).join(", ")}, ${c.experience_years || "?"} years exp, Location: ${c.location || "Unknown"}`).join("\n")}
-
-For each candidate, return a JSON array with objects containing:
-- index: number (0-based)
-- match_score: number 0-100 (be realistic: 90+ = exceptional match, 70-89 = strong, 50-69 = moderate, <50 = weak)
-- match_reasons: string[] (EXACTLY 3-4 specific reasons, each referencing concrete skills, experience, or role alignment. Example: "5 years of React experience directly matches the required frontend skills")
-
-Return ONLY valid JSON array, no markdown.`;
-
-        const { text: scoringJson } = await generateText({
-          model: anthropic(anthropicModel),
-          prompt: scoringPrompt,
-          maxOutputTokens: 3000,
-        });
-
+        const candidatePdlMap: PDLPerson[] = [];
         try {
-          const scores = JSON.parse(extractJSON(scoringJson));
-          for (const s of scores) {
+          const selected = JSON.parse(extractJSON(filterJson));
+          candidates = [];
+          for (const s of selected) {
             const idx = typeof s.index === "number" ? s.index : parseInt(s.index);
-            if (idx >= 0 && idx < candidates.length) {
-              candidates[idx].match_score = s.match_score || 50;
-              candidates[idx].match_reasons = s.match_reasons || [];
+            if (idx >= 0 && idx < pdlResult.data.length) {
+              const c = pdlPersonToCandidate(pdlResult.data[idx]);
+              c.match_score = s.match_score || 50;
+              c.match_reasons = s.match_reasons || [];
+              if (Array.isArray(s.skills) && s.skills.length > 0 && c.skills.length === 0) c.skills = s.skills;
+              candidates.push(c);
+              candidatePdlMap.push(pdlResult.data[idx]);
             }
           }
+          candidates.sort((a, b) => b.match_score - a.match_score);
         } catch {
-          // If scoring fails, assign default scores based on position
-          candidates.forEach((c, i) => {
-            c.match_score = Math.max(50, 95 - i * 5);
+          console.error("[pipeline] AI filter parse failed, using PDL fallback");
+          candidates = pdlResult.data.slice(0, candidateCount).map((p) => {
+            const c = pdlPersonToCandidate(p);
+            c.match_score = 50;
             c.match_reasons = ["Profile matches required skills"];
+            candidatePdlMap.push(p);
+            return c;
           });
         }
 
-        // Sort by match score descending
-        candidates.sort((a, b) => b.match_score - a.match_score);
-      }
-    } else {
-      // --- No PDL key: AI-generated fake candidates ---
-      const { text: candidatesJson } = await generateText({
-        model: anthropic(anthropicModel),
-        system: `You are a recruiting AI. Generate 10 realistic candidate profiles matching these requirements. Return ONLY a JSON array.`,
-        prompt: `Job Requirements:\n${JSON.stringify(parsed, null, 2)}\n\nGenerate 10 candidates with fields: name, headline, location, skills (array), experience_years, match_score (0-100), match_reasons (array), profile_url, email. Make them diverse in match quality and background.`,
-        maxOutputTokens: 8000,
-      });
-
-      try {
-        candidates = JSON.parse(extractJSON(candidatesJson));
-      } catch {
-        candidates = [];
+        // Build metadata from PDL data
+        for (let i = 0; i < candidates.length; i++) {
+          const pdlPerson = candidatePdlMap[i];
+          const meta: Record<string, unknown> = { source: "pdl" };
+          if (pdlPerson?.experience?.length) {
+            meta.work_history = pdlPerson.experience
+              .filter((e) => e.title?.name || e.company?.name)
+              .slice(0, 5)
+              .map((e) => ({ title: e.title?.name || null, company: e.company?.name || null, start_date: e.start_date || null, end_date: e.end_date || null }));
+          }
+          if (pdlPerson?.education?.length) {
+            meta.education = pdlPerson.education
+              .filter((e) => e.school?.name)
+              .slice(0, 3)
+              .map((e) => ({ school: e.school?.name || null, degree: e.degrees?.[0] || null, major: e.majors?.[0] || null }));
+          }
+          candidateMetadata.push(meta);
+        }
       }
     }
 
-    // Step 3: Batch generate outreach emails in one Claude call
-    console.log(`[parseAndGenerate] Step 3: Batch generating ${candidates.length} outreach emails...`);
+    if (!usedDataSource && dataSource === "serper" && serperApiKey) {
+      // ─── 5-Layer Pipeline: Serper → AI Pre-screen → Bright Data → AI Deep Score → Email ───
+
+      // Layer 1: Serper search for LinkedIn URLs
+      await setStep("searching");
+      const searchQueries = buildLinkedInSearchQueries(parsed);
+      const targetPool = Math.min(candidateCount * 4, 20);
+      console.log(`[pipeline] Layer 1: Google/Serper search (target=${targetPool}, queries=${searchQueries.length})`);
+
+      let serperCandidates: SerperCandidate[] = [];
+      const seenUrls = new Set<string>();
+      try {
+        for (const query of searchQueries) {
+          if (serperCandidates.length >= targetPool) break;
+          const needed = targetPool - serperCandidates.length;
+          console.log(`[pipeline] Serper query: "${query}" (need ${needed} more)`);
+          const results = await serperSearch(serperApiKey, query, Math.min(needed + 5, 20));
+          const parsed2 = parseSearchResults(results);
+          for (const c of parsed2) {
+            const url = c.linkedin_url.toLowerCase();
+            if (!seenUrls.has(url)) {
+              seenUrls.add(url);
+              serperCandidates.push(c);
+            }
+          }
+          console.log(`[pipeline] After query: ${serperCandidates.length} unique candidates`);
+        }
+      } catch (serperErr) {
+        console.error("[pipeline] Serper search failed:", serperErr instanceof Error ? serperErr.message : String(serperErr));
+      }
+
+      if (serperCandidates.length > 0) {
+        usedDataSource = true;
+
+        // Layer 2: AI pre-screen (filter out obviously bad matches before expensive scraping)
+        await setStep("scoring");
+        const richProfiles = serperCandidates.map((p, i) => serperCandidateToRichProfile(p, i)).join("\n\n");
+        // Ask AI to select more candidates than needed — Bright Data + deep scoring will refine
+        const preScreenCount = hasBrightData ? Math.min(serperCandidates.length, candidateCount * 2) : candidateCount;
+        const filterPrompt = buildSerperFilterPrompt(parsed, richProfiles, serperCandidates.length, preScreenCount);
+
+        console.log(`[pipeline] Layer 2: AI pre-screening ${serperCandidates.length} → top ${preScreenCount}`);
+        const { text: filterJson } = await generateText({ model: anthropic(anthropicModel), prompt: filterPrompt, maxOutputTokens: 4000 });
+
+        let preScreened: { idx: number; serperCandidate: SerperCandidate; preScore: number; preReasons: string[]; preSkills: string[]; preLocation: string | null; preYears: number | null }[] = [];
+        try {
+          const selected = JSON.parse(extractJSON(filterJson));
+          for (const s of selected) {
+            const idx = typeof s.index === "number" ? s.index : parseInt(s.index);
+            if (idx >= 0 && idx < serperCandidates.length) {
+              preScreened.push({
+                idx,
+                serperCandidate: serperCandidates[idx],
+                preScore: s.match_score || 50,
+                preReasons: s.match_reasons || [],
+                preSkills: Array.isArray(s.skills) ? s.skills : [],
+                preLocation: s.location || null,
+                preYears: s.experience_years || null,
+              });
+            }
+          }
+          preScreened.sort((a, b) => b.preScore - a.preScore);
+        } catch {
+          console.error("[pipeline] AI pre-screen parse failed, using all serper results");
+          preScreened = serperCandidates.slice(0, preScreenCount).map((c, i) => ({
+            idx: i, serperCandidate: c, preScore: 50, preReasons: ["Profile matches search criteria"], preSkills: [], preLocation: null, preYears: null,
+          }));
+        }
+        console.log(`[pipeline] Pre-screened: ${preScreened.length} candidates passed`);
+
+        // Layer 3: Bright Data scrape (only pre-screened candidates)
+        let brightDataProfiles: BrightDataProfile[] = [];
+        if (hasBrightData && preScreened.length > 0) {
+          await setStep("scraping");
+          const urlsToScrape = preScreened.map((p) => p.serperCandidate.linkedin_url);
+          console.log(`[pipeline] Layer 3: Bright Data scraping ${urlsToScrape.length} profiles...`);
+          try {
+            brightDataProfiles = await scrapeLinkedInProfiles(brightdataToken!, brightdataDatasetId!, urlsToScrape);
+            console.log(`[pipeline] Bright Data returned ${brightDataProfiles.length} profiles`);
+          } catch (bdErr) {
+            console.error("[pipeline] Bright Data scraping failed:", bdErr instanceof Error ? bdErr.message : String(bdErr));
+          }
+        }
+
+        // Layer 4: AI deep scoring with full profile data OR fallback to pre-screen scores
+        if (brightDataProfiles.length > 0) {
+          await setStep("scoring");
+          const deepProfileTexts = brightDataProfiles.map((p, i) => brightDataProfileToRichText(p, i)).join("\n\n");
+          const deepScorePrompt = buildDeepScorePrompt(parsed, deepProfileTexts, brightDataProfiles.length, candidateCount);
+
+          console.log(`[pipeline] Layer 4: AI deep scoring ${brightDataProfiles.length} profiles → top ${candidateCount}`);
+          const { text: deepJson } = await generateText({ model: anthropic(anthropicModel), prompt: deepScorePrompt, maxOutputTokens: 4000 });
+
+          try {
+            const deepScored = JSON.parse(extractJSON(deepJson));
+            candidates = [];
+            for (const s of deepScored) {
+              const idx = typeof s.index === "number" ? s.index : parseInt(s.index);
+              if (idx >= 0 && idx < brightDataProfiles.length) {
+                const bdProfile = brightDataProfiles[idx];
+                const c = {
+                  name: bdProfile.name || "Unknown",
+                  headline: bdProfile.current_company ? `${bdProfile.current_company.title || ""} at ${bdProfile.current_company.name || ""}`.trim() : null,
+                  location: [bdProfile.city, bdProfile.country_code].filter(Boolean).join(", ") || null,
+                  skills: Array.isArray(s.skills) ? s.skills : (bdProfile.skills || []).slice(0, 10),
+                  experience_years: s.experience_years || null,
+                  match_score: s.match_score || 50,
+                  match_reasons: s.match_reasons || [],
+                  profile_url: bdProfile.url || bdProfile.input?.url || null,
+                  github_url: null as string | null,
+                  email: null as string | null,
+                  outreach_draft: null as string | null,
+                };
+                candidates.push(c);
+                // Store rich metadata from Bright Data
+                const meta: Record<string, unknown> = { source: "brightdata" };
+                if (bdProfile.experience?.length) {
+                  meta.work_history = bdProfile.experience.slice(0, 5).map((e) => ({
+                    title: e.title, company: e.company, duration: e.duration, description: e.description?.substring(0, 200),
+                  }));
+                }
+                if (bdProfile.education?.length) {
+                  meta.education = bdProfile.education.slice(0, 3).map((e) => ({
+                    school: e.subtitle, degree: e.degree, field: e.field_of_study,
+                  }));
+                }
+                if (bdProfile.about) meta.about = bdProfile.about.substring(0, 500);
+                candidateMetadata.push(meta);
+              }
+            }
+            candidates.sort((a, b) => b.match_score - a.match_score);
+          } catch {
+            console.error("[pipeline] AI deep score parse failed, falling back to pre-screen data");
+            brightDataProfiles = []; // trigger fallback below
+          }
+        }
+
+        // Fallback: use pre-screen data if Bright Data unavailable or failed
+        if (candidates.length === 0) {
+          console.log(`[pipeline] Using pre-screen results (no Bright Data or deep scoring failed)`);
+          candidates = preScreened.slice(0, candidateCount).map((p) => {
+            const c = serperCandidateToDbCandidate(p.serperCandidate);
+            c.match_score = p.preScore;
+            c.match_reasons = p.preReasons;
+            if (p.preSkills.length > 0) c.skills = p.preSkills;
+            if (p.preLocation) c.location = p.preLocation;
+            if (p.preYears) c.experience_years = p.preYears;
+            candidateMetadata.push({ source: "google" });
+            return c;
+          });
+        }
+
+        // Layer 5: Email lookup (Apollo → Hunter fallback)
+        if (candidates.length > 0 && (apolloApiKey || hunterApiKey)) {
+          await setStep("enriching");
+          console.log(`[pipeline] Layer 5: Email lookup for ${candidates.length} candidates (Apollo: ${!!apolloApiKey}, Hunter: ${!!hunterApiKey})`);
+          for (let i = 0; i < candidates.length; i++) {
+            const c = candidates[i];
+            const nameParts = (c.name || "").split(" ");
+            const firstName = nameParts[0] || "";
+            const lastName = nameParts.slice(1).join(" ") || "";
+            const company = c.headline?.match(/at\s+(.+)$/i)?.[1]?.trim() || "";
+            if (!firstName || !c.profile_url) continue;
+            try {
+              const emailResult = await findEmail({
+                apolloApiKey,
+                hunterApiKey,
+                firstName,
+                lastName,
+                company,
+                linkedinUrl: c.profile_url,
+              });
+              if (emailResult.email) {
+                c.email = emailResult.email;
+                console.log(`[pipeline] Email found for ${c.name}: ${emailResult.email} (via ${emailResult.source})`);
+              }
+            } catch (emailErr) {
+              console.log(`[pipeline] Email lookup failed for ${c.name}: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`);
+            }
+          }
+        }
+      }
+    }
+
+    // Insert candidates to DB
+    if (usedDataSource && candidates.length > 0) {
+      const scoredRows = candidates.map((c, i) => ({
+        search_id: searchId,
+        name: c.name || "Unknown",
+        headline: c.headline || null,
+        location: c.location || null,
+        skills: Array.isArray(c.skills) ? c.skills : [],
+        experience_years: c.experience_years || null,
+        match_score: c.match_score || 0,
+        match_reasons: Array.isArray(c.match_reasons) ? c.match_reasons : [],
+        profile_url: c.profile_url || null,
+        github_url: c.github_url || null,
+        email: c.email || null,
+        outreach_draft: null,
+        metadata: candidateMetadata[i] || {},
+      }));
+      await supabaseAdmin.from("hirelix_candidates").insert(scoredRows);
+      console.log(`[pipeline] Inserted ${scoredRows.length} candidates (source: ${dataSource})`);
+    }
+
+    if (!usedDataSource) {
+      const reason = !dataSource
+        ? "No data source available. Please contact the administrator or add your own PDL API key in Settings."
+        : `${dataSource === "pdl" ? "PDL" : "Google"} search failed or returned no results. Please try again later.`;
+      console.log(`[pipeline] No candidates: ${reason}`);
+      await supabaseAdmin
+        .from("hirelix_searches")
+        .update({ status: "error", pipeline_step: "error", error_message: reason, updated_at: new Date().toISOString() })
+        .eq("id", searchId);
+      return;
+    }
+
+    // Step 3: Generate outreach emails
+    await setStep("emailing");
+    console.log(`[pipeline] Step 3: Generating ${candidates.length} outreach emails`);
     if (candidates.length > 0) {
       try {
-        const emailPrompt = `Write personalized recruiting outreach emails for each candidate below. Each email should be under 100 words, sound human, reference the candidate's specific background, and state the opportunity clearly.
+        const hasEmails = candidates.some((c) => c.email && !c.email.includes("***"));
+        const outreachType = hasEmails ? "email and LinkedIn InMail" : "LinkedIn InMail";
+        const emailPrompt = `Write personalized recruiting outreach messages for each candidate below. Each message should be under 100 words, sound human, reference the candidate's specific background, and state the opportunity clearly.
 
 Role: ${parsed.title}${parsed.company ? ` at ${parsed.company}` : ""}
 
 Candidates:
-${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "Professional"}, Skills: ${c.skills.slice(0, 5).join(", ")}, ${c.experience_years || "?"} years exp, Match reasons: ${c.match_reasons.slice(0, 2).join("; ")}`).join("\n")}
+${candidates.map((c, i) => `${i + 1}. ${c.name} — ${c.headline || "Professional"}, Skills: ${(Array.isArray(c.skills) ? c.skills : []).slice(0, 5).join(", ")}, ${c.experience_years || "?"} years exp, Match reasons: ${(Array.isArray(c.match_reasons) ? c.match_reasons : []).slice(0, 2).join("; ")}`).join("\n")}
 
 Return a JSON array where each element has:
 - index: number (0-based)
-- subject: string (a compelling email subject line, e.g. "Exciting Senior Engineer opportunity" — avoid generic subjects)
-- email: string (the email body starting with "Hi [FirstName],")
+- subject: string (a compelling subject line)
+- linkedin_message: string (a short LinkedIn InMail message, under 80 words, casual and direct, starting with "Hi [FirstName],")${hasEmails ? '\n- email: string (a slightly more formal email body, under 100 words, starting with "Hi [FirstName],")' : ""}
 
 Return ONLY valid JSON, no markdown.`;
 
@@ -254,104 +626,65 @@ Return ONLY valid JSON, no markdown.`;
           const emails = JSON.parse(extractJSON(emailsJson));
           for (const e of emails) {
             const idx = typeof e.index === "number" ? e.index : parseInt(e.index);
-            if (idx >= 0 && idx < candidates.length && e.email) {
-              candidates[idx].outreach_draft = (e.subject ? `Subject: ${e.subject}\n\n` : "") + e.email;
+            if (idx >= 0 && idx < candidates.length) {
+              const parts: Record<string, string> = {};
+              if (e.subject) parts.subject = e.subject;
+              if (e.linkedin_message) parts.linkedin = e.linkedin_message;
+              if (e.email) parts.email = e.email;
+              candidates[idx].outreach_draft = JSON.stringify(parts);
             }
           }
         } catch {
-          console.error("[email] Failed to parse batch emails");
+          console.error("[pipeline] Email parse failed");
         }
       } catch (emailErr) {
-        console.error("[email] Batch generation failed:", emailErr);
+        console.error("[pipeline] Email generation failed:", emailErr);
       }
 
-      // Fill fallback for any candidates without emails
+      // Fallback outreach
+      const fallbackMsg = (name: string) => `Hi ${name.split(" ")[0]}, I came across your profile and thought your background would be a great fit for our ${parsed.title} role. Would you be open to a quick chat?`;
       for (const c of candidates) {
         if (!c.outreach_draft) {
-          c.outreach_draft = `Hi ${c.name.split(" ")[0]},\n\nI came across your profile and thought your background would be a great fit for our ${parsed.title} role. Would you be open to a quick chat?\n\nBest regards`;
+          c.outreach_draft = JSON.stringify({
+            subject: `${parsed.title} opportunity`,
+            linkedin: fallbackMsg(c.name),
+            email: fallbackMsg(c.name) + "\n\nBest regards",
+          });
         }
       }
     }
 
-    console.log(`[parseAndGenerate] Step 3 done. Inserting ${candidates.length} candidates into DB...`);
-    // Insert candidates into DB
+    // Update candidates with outreach drafts
     if (candidates.length > 0) {
-      const rows = candidates.map((c) => ({
-        search_id: searchId,
-        name: c.name || "Unknown",
-        headline: c.headline || null,
-        location: c.location || null,
-        skills: c.skills || [],
-        experience_years: c.experience_years || null,
-        match_score: c.match_score || 0,
-        match_reasons: c.match_reasons || [],
-        profile_url: c.profile_url || null,
-        github_url: c.github_url || null,
-        email: c.email || null,
-        outreach_draft: c.outreach_draft || null,
-      }));
+      const { data: dbCandidates } = await supabaseAdmin
+        .from("hirelix_candidates")
+        .select("id, name")
+        .eq("search_id", searchId)
+        .order("match_score", { ascending: false });
 
-      await supabaseAdmin.from("hirelix_candidates").insert(rows);
+      if (dbCandidates) {
+        for (let i = 0; i < Math.min(candidates.length, dbCandidates.length); i++) {
+          if (candidates[i].outreach_draft) {
+            await supabaseAdmin
+              .from("hirelix_candidates")
+              .update({ outreach_draft: candidates[i].outreach_draft })
+              .eq("id", dbCandidates[i].id);
+          }
+        }
+      }
     }
 
     await supabaseAdmin
       .from("hirelix_searches")
-      .update({ status: "done", updated_at: new Date().toISOString() })
+      .update({ status: "done", pipeline_step: "done", updated_at: new Date().toISOString() })
       .eq("id", searchId);
+    console.log(`[pipeline] Done for search ${searchId}`);
   } catch (err) {
-    console.error("[parseAndGenerate] FAILED at some step:", err instanceof Error ? err.message : String(err));
-    console.error("[parseAndGenerate] Stack:", err instanceof Error ? err.stack : "no stack");
+    console.error(`[pipeline] FAILED for ${searchId}:`, err instanceof Error ? err.message : String(err));
+    console.error("[pipeline] Stack:", err instanceof Error ? err.stack : "no stack");
     await supabaseAdmin
       .from("hirelix_searches")
-      .update({ status: "error", updated_at: new Date().toISOString() })
+      .update({ status: "error", pipeline_step: "error", updated_at: new Date().toISOString() })
       .eq("id", searchId);
   }
-}
-
-async function mockGenerate(searchId: string, jdText: string) {
-  // Extract a rough title from the first line
-  const firstLine = jdText.split("\n")[0].trim();
-  const title = firstLine.length > 80 ? firstLine.slice(0, 80) : firstLine;
-
-  await supabaseAdmin
-    .from("hirelix_searches")
-    .update({
-      title: title || "Untitled Role",
-      parsed_requirements: {
-        title,
-        required_skills: ["React", "TypeScript", "Node.js"],
-        experience_years_min: 3,
-        seniority: "Senior",
-      },
-      status: "processing",
-    })
-    .eq("id", searchId);
-
-  // Simulate some delay
-  await new Promise((r) => setTimeout(r, 2000));
-
-  const mockCandidates = [
-    { name: "Alex Chen", headline: "Senior Frontend Engineer at Stripe", location: "San Francisco, CA", skills: ["React", "TypeScript", "GraphQL", "Node.js"], experience_years: 6, match_score: 95, match_reasons: ["Strong React/TS experience", "Built payment UIs at scale", "Open source contributor"], profile_url: "https://linkedin.com/in/alex-chen", email: "alex.chen@example.com", outreach_draft: "Hi Alex,\n\nI came across your work at Stripe and was impressed by your experience building complex payment interfaces with React and TypeScript.\n\nWe're building Hirelix, an AI-powered recruiting tool, and are looking for a Senior Frontend Engineer to help shape our product. Given your background in building polished, user-facing products, I think you'd be a great fit.\n\nWould you be open to a quick 15-minute chat this week?\n\nBest,\n[Your Name]" },
-    { name: "Sarah Kim", headline: "Staff Engineer at Vercel", location: "Remote", skills: ["Next.js", "React", "TypeScript", "Tailwind CSS"], experience_years: 8, match_score: 92, match_reasons: ["Deep Next.js expertise", "Staff-level engineering", "Full-stack capable"], profile_url: "https://linkedin.com/in/sarah-kim", email: "sarah.kim@example.com", outreach_draft: "Hi Sarah,\n\nYour work on the Vercel platform caught my eye — especially your contributions to the Next.js ecosystem.\n\nWe're hiring a Senior Frontend Engineer at Hirelix to build our AI-powered recruiting product. Your experience with Next.js and modern React patterns would be incredibly valuable here.\n\nWould you have 15 minutes for a quick conversation?\n\nBest,\n[Your Name]" },
-    { name: "Marcus Johnson", headline: "Frontend Lead at Notion", location: "New York, NY", skills: ["React", "TypeScript", "CSS", "Performance Optimization"], experience_years: 7, match_score: 88, match_reasons: ["Led frontend team", "Performance optimization expert", "Product-minded engineer"], profile_url: "https://linkedin.com/in/marcus-johnson", email: "marcus.j@example.com", outreach_draft: "Hi Marcus,\n\nI noticed your work leading the frontend team at Notion — the attention to performance and UX detail really stands out.\n\nWe're looking for a Senior Frontend Engineer at Hirelix who can bring that same craft to our AI recruiting product. It's an early-stage opportunity with a lot of ownership.\n\nWould you be open to learning more?\n\nBest,\n[Your Name]" },
-    { name: "Priya Patel", headline: "Senior Software Engineer at Figma", location: "San Francisco, CA", skills: ["React", "TypeScript", "WebGL", "Node.js", "Python"], experience_years: 5, match_score: 85, match_reasons: ["Complex UI engineering", "Real-time collaboration experience", "Strong CS fundamentals"], profile_url: "https://linkedin.com/in/priya-patel", email: "priya.patel@example.com", outreach_draft: "Hi Priya,\n\nYour experience building Figma's collaborative interfaces is really impressive — the real-time UI challenges you've tackled are exactly the kind of problems we're solving.\n\nAt Hirelix, we're building an AI recruiting agent and need a Senior Frontend Engineer. I think your background would translate perfectly.\n\nInterested in a quick chat?\n\nBest,\n[Your Name]" },
-    { name: "David Nguyen", headline: "Full Stack Developer at Shopify", location: "Toronto, Canada", skills: ["React", "Ruby on Rails", "TypeScript", "PostgreSQL"], experience_years: 4, match_score: 78, match_reasons: ["Full-stack capability", "E-commerce product experience", "Fast learner"], profile_url: "https://linkedin.com/in/david-nguyen", email: "d.nguyen@example.com", outreach_draft: "Hi David,\n\nI came across your profile and was drawn to your full-stack experience at Shopify, particularly your work on merchant-facing tools.\n\nWe're building Hirelix — an AI tool that helps recruiters find candidates faster. We're looking for a Senior Frontend Engineer, and your product-building experience would be a great fit.\n\nWould you be open to a brief conversation?\n\nBest,\n[Your Name]" },
-    { name: "Emily Rodriguez", headline: "React Developer at Airbnb", location: "Los Angeles, CA", skills: ["React", "TypeScript", "Testing", "Accessibility"], experience_years: 5, match_score: 82, match_reasons: ["Strong React expertise", "Accessibility focus", "Large-scale app experience"], profile_url: "https://linkedin.com/in/emily-rodriguez", email: "emily.r@example.com", outreach_draft: "Hi Emily,\n\nYour focus on accessibility and quality at Airbnb really stood out to me — it's rare to find engineers who prioritize inclusive design from the start.\n\nWe're hiring a Senior Frontend Engineer at Hirelix to build our AI recruiting platform. We'd love someone who brings that same attention to craft.\n\nWould you have time for a quick call?\n\nBest,\n[Your Name]" },
-    { name: "James Wright", headline: "Frontend Engineer at Linear", location: "Remote (Europe)", skills: ["React", "TypeScript", "Tailwind", "Framer Motion"], experience_years: 4, match_score: 80, match_reasons: ["Fast-paced startup experience", "Beautiful UI craft", "Modern stack alignment"], profile_url: "https://linkedin.com/in/james-wright", email: "james.w@example.com", outreach_draft: "Hi James,\n\nLinear's UI is one of the best in SaaS — and knowing you've been part of building that says a lot about your craft.\n\nWe're looking for a Senior Frontend Engineer at Hirelix to help build an AI recruiting tool. The role involves a lot of the same attention to detail and speed that Linear is known for.\n\nWould you be interested in chatting?\n\nBest,\n[Your Name]" },
-    { name: "Lisa Chang", headline: "Senior UI Engineer at Databricks", location: "Seattle, WA", skills: ["React", "TypeScript", "D3.js", "Data Visualization"], experience_years: 6, match_score: 75, match_reasons: ["Data visualization skills", "Enterprise UI experience", "TypeScript expertise"], profile_url: "https://linkedin.com/in/lisa-chang", email: "lisa.chang@example.com", outreach_draft: "Hi Lisa,\n\nYour work on data visualization at Databricks is impressive — especially the complex dashboards you've built with React and D3.\n\nAt Hirelix, we're building an AI recruiting tool where data presentation is key. We're looking for a Senior Frontend Engineer, and your visualization expertise would be a unique asset.\n\nWould you be open to learning more?\n\nBest,\n[Your Name]" },
-    { name: "Tom Anderson", headline: "Software Engineer at GitHub", location: "Remote", skills: ["React", "Ruby", "TypeScript", "Git"], experience_years: 3, match_score: 72, match_reasons: ["Developer tool experience", "Open source mindset", "Growing skill set"], profile_url: "https://linkedin.com/in/tom-anderson", email: "tom.a@example.com", outreach_draft: "Hi Tom,\n\nYour work at GitHub and your contributions to open source projects caught my attention.\n\nWe're building Hirelix, an AI recruiting tool, and looking for a frontend engineer who understands developer tools. Your experience building for a technical audience would be really valuable.\n\nWould you be up for a quick conversation?\n\nBest,\n[Your Name]" },
-    { name: "Nina Volkov", headline: "Frontend Developer at Wise", location: "London, UK", skills: ["React", "TypeScript", "Micro-frontends", "CI/CD"], experience_years: 5, match_score: 68, match_reasons: ["Fintech product experience", "Micro-frontend architecture", "International team experience"], profile_url: "https://linkedin.com/in/nina-volkov", email: "nina.v@example.com", outreach_draft: "Hi Nina,\n\nYour experience building fintech products at Wise — especially the micro-frontend architecture — is really interesting.\n\nWe're looking for a Senior Frontend Engineer at Hirelix to help build our AI recruiting platform. The architectural challenges are similar to what you've tackled at Wise.\n\nWould you have time for a brief chat?\n\nBest,\n[Your Name]" },
-  ];
-
-  const rows = mockCandidates.map((c) => ({
-    search_id: searchId,
-    ...c,
-  }));
-
-  await supabaseAdmin.from("hirelix_candidates").insert(rows);
-
-  await supabaseAdmin
-    .from("hirelix_searches")
-    .update({ status: "done", updated_at: new Date().toISOString() })
-    .eq("id", searchId);
 }

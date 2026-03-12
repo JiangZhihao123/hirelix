@@ -41,6 +41,49 @@ export type PDLSearchResult = {
  * Build an Elasticsearch query for PDL Person Search from parsed JD requirements.
  * Uses only simple `term` queries which PDL supports (no `match`, `boost`, etc.).
  */
+/** Map seniority from Claude-parsed JD to PDL job_title_levels values */
+const SENIORITY_TO_PDL_LEVELS: Record<string, string[]> = {
+  junior: ["entry", "training"],
+  entry: ["entry", "training"],
+  mid: ["senior"], // PDL doesn't have "mid", senior is closest
+  senior: ["senior"],
+  staff: ["senior"],
+  principal: ["senior", "director"],
+  lead: ["senior", "manager"],
+  manager: ["manager"],
+  director: ["director"],
+  vp: ["vp"],
+  "c-level": ["cxo"],
+};
+
+/** Map job title keywords to PDL job_title_sub_role values */
+function inferSubRoles(title: string): string[] {
+  const t = title.toLowerCase();
+  if (t.includes("frontend") || t.includes("front-end") || t.includes("front end") || t.includes("ui "))
+    return ["web", "software"];
+  if (t.includes("backend") || t.includes("back-end") || t.includes("back end"))
+    return ["software"];
+  if (t.includes("fullstack") || t.includes("full-stack") || t.includes("full stack"))
+    return ["software", "web"];
+  if (t.includes("devops") || t.includes("sre") || t.includes("infrastructure") || t.includes("platform"))
+    return ["devops"];
+  if (t.includes("data engineer"))
+    return ["data_engineering"];
+  if (t.includes("data scien"))
+    return ["data_science"];
+  if (t.includes("machine learning") || t.includes("ml ") || t.includes("ai "))
+    return ["data_science"];
+  if (t.includes("qa") || t.includes("quality") || t.includes("test"))
+    return ["qa_engineering"];
+  if (t.includes("product manag"))
+    return ["product_management"];
+  if (t.includes("product design") || t.includes("ux") || t.includes("ui design"))
+    return ["product_design"];
+  if (t.includes("software") || t.includes("engineer") || t.includes("developer"))
+    return ["software"];
+  return [];
+}
+
 export function buildPDLQuery(parsed: {
   required_skills?: string[];
   nice_to_have_skills?: string[];
@@ -51,38 +94,84 @@ export function buildPDLQuery(parsed: {
 }): Record<string, unknown> {
   const must: Record<string, unknown>[] = [];
   const should: Record<string, unknown>[] = [];
+  const filter: Record<string, unknown>[] = [];
 
-  // Match by top required skills (use first 3 as must, rest as should)
-  // PDL term queries work with multi-word skills too (e.g. "product design")
+  // --- Wide search strategy: minimal must, maximize should for broad candidate pool ---
+  // AI will do the real filtering in Step 2, so PDL just needs a diverse pool
+
   const requiredSkills = (parsed.required_skills || [])
     .map((s) => s.toLowerCase().trim())
     .filter((s) => s.length > 1 && s.length < 40);
 
-  for (const skill of requiredSkills.slice(0, 3)) {
-    must.push({ term: { skills: skill } });
+  // Only top 1 skill as must (to ensure some relevance), rest as should
+  if (requiredSkills.length > 0) {
+    must.push({ term: { skills: requiredSkills[0] } });
   }
-  for (const skill of requiredSkills.slice(3, 6)) {
+  for (const skill of requiredSkills.slice(1, 8)) {
     should.push({ term: { skills: skill } });
   }
 
-  // Nice-to-have skills as should
   const niceSkills = (parsed.nice_to_have_skills || [])
     .map((s) => s.toLowerCase().trim())
     .filter((s) => s.length > 1 && s.length < 40);
 
-  for (const skill of niceSkills.slice(0, 3)) {
+  for (const skill of niceSkills.slice(0, 5)) {
     should.push({ term: { skills: skill } });
   }
 
-  // Job title role (only for engineering — other roles like "design" have spotty coverage in PDL)
+  // --- Job title sub_role: as should (soft signal, not hard filter) ---
+  if (parsed.title) {
+    const subRoles = inferSubRoles(parsed.title);
+    for (const r of subRoles) {
+      should.push({ term: { job_title_sub_role: r } });
+    }
+  }
+
+  // --- Job title role: keep as must for basic relevance ---
   if (parsed.title) {
     const titleLower = parsed.title.toLowerCase();
-    if (titleLower.includes("engineer") || titleLower.includes("developer")) {
+    if (titleLower.includes("engineer") || titleLower.includes("developer") || titleLower.includes("software")) {
       must.push({ term: { job_title_role: "engineering" } });
     }
   }
 
-  // Fallback: if no skills and no role matched, require engineering
+  // --- Seniority: exclude executives (hard filter) but target level as soft signal ---
+  if (parsed.seniority) {
+    const seniorityLower = parsed.seniority.toLowerCase();
+    const levels = SENIORITY_TO_PDL_LEVELS[seniorityLower];
+    if (levels && levels.length > 0) {
+      const excludeLevels = seniorityLower === "vp" || seniorityLower === "c-level" ? [] : ["cxo", "owner"];
+      for (const lvl of excludeLevels) {
+        filter.push({ bool: { must_not: [{ term: { job_title_levels: lvl } }] } });
+      }
+      for (const l of levels) {
+        should.push({ term: { job_title_levels: l } });
+      }
+    }
+  }
+
+  // --- Experience years: relaxed range (allow wider pool) ---
+  if (parsed.experience_years_min && parsed.experience_years_min > 2) {
+    filter.push({
+      range: {
+        inferred_years_experience: { gte: Math.max(parsed.experience_years_min - 3, 0) },
+      },
+    });
+  }
+
+  // --- Location: soft preference ---
+  if (parsed.location && parsed.location.toLowerCase() !== "remote") {
+    const loc = parsed.location.toLowerCase().trim();
+    const parts = loc.split(",").map((p) => p.trim());
+    if (parts.length >= 1 && parts[0]) {
+      should.push({ term: { location_locality: parts[0] } });
+    }
+    if (parts.length >= 2 && parts[1]) {
+      should.push({ term: { location_region: parts[1] } });
+    }
+  }
+
+  // Fallback: if no must conditions, require engineering role
   if (must.length === 0) {
     must.push({ term: { job_title_role: "engineering" } });
   }
@@ -91,6 +180,7 @@ export function buildPDLQuery(parsed: {
     bool: {
       must,
       ...(should.length > 0 ? { should } : {}),
+      ...(filter.length > 0 ? { filter } : {}),
     },
   };
 
@@ -206,4 +296,59 @@ export function pdlPersonToCandidate(person: PDLPerson) {
     match_reasons: [] as string[],
     outreach_draft: null as string | null,
   };
+}
+
+/**
+ * Generate a rich text profile summary for AI analysis.
+ * Includes work history, education, skills — much more context than just name + headline.
+ */
+export function pdlPersonToRichProfile(person: PDLPerson, index: number): string {
+  const lines: string[] = [];
+  const name = person.full_name || `${person.first_name} ${person.last_name}`;
+  const headline = [person.job_title, person.job_company_name].filter(Boolean).join(" at ");
+  const location = resolveLocation(person);
+
+  lines.push(`[${index}] ${name}`);
+  if (headline) lines.push(`  Current: ${headline}`);
+  if (location) lines.push(`  Location: ${location}`);
+
+  // Work history (top 4 most recent)
+  if (person.experience && person.experience.length > 0) {
+    const jobs = person.experience
+      .filter((e) => e.title?.name || e.company?.name)
+      .slice(0, 4);
+    if (jobs.length > 0) {
+      lines.push("  Work History:");
+      for (const job of jobs) {
+        const title = job.title?.name || "Unknown Role";
+        const company = job.company?.name || "Unknown Company";
+        const dates = [job.start_date, job.end_date || "present"].filter(Boolean).join(" → ");
+        lines.push(`    - ${title} at ${company} (${dates})`);
+      }
+    }
+  }
+
+  // Skills (up to 15)
+  const skills = (person.skills || []).slice(0, 15);
+  if (skills.length > 0) {
+    lines.push(`  Skills: ${skills.join(", ")}`);
+  }
+
+  // Education
+  if (person.education && person.education.length > 0) {
+    const edu = person.education
+      .filter((e) => e.school?.name)
+      .slice(0, 2);
+    if (edu.length > 0) {
+      lines.push("  Education:");
+      for (const e of edu) {
+        const degree = e.degrees?.[0] || "";
+        const major = e.majors?.[0] || "";
+        const school = e.school?.name || "";
+        lines.push(`    - ${[degree, major].filter(Boolean).join(" in ")}${school ? ` @ ${school}` : ""}`);
+      }
+    }
+  }
+
+  return lines.join("\n");
 }

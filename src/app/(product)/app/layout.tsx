@@ -9,6 +9,7 @@ import { LoginForm } from "@/components/LoginForm";
 import {
   Search,
   Plus,
+  Settings,
   LogOut,
   Loader2,
   Menu,
@@ -60,7 +61,7 @@ export default function ProductLayout({
           <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
           <span className="text-lg font-bold tracking-tight">Hirelix</span>
         </div>
-        <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-muted hover:text-foreground">
+        <button onClick={() => setSidebarOpen(false)} className="lg:hidden cursor-pointer text-muted hover:text-foreground">
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -82,6 +83,14 @@ export default function ProductLayout({
           <Plus className="h-4 w-4" />
           New Search
         </Link>
+        <Link
+          href="/app/settings"
+          onClick={() => setSidebarOpen(false)}
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-background hover:text-foreground"
+        >
+          <Settings className="h-4 w-4" />
+          Settings
+        </Link>
       </nav>
 
       <div className="border-t border-border p-3">
@@ -90,7 +99,7 @@ export default function ProductLayout({
         </div>
         <button
           onClick={() => signOut().then(() => router.push("/"))}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-background hover:text-foreground"
+          className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-background hover:text-foreground"
         >
           <LogOut className="h-4 w-4" />
           Sign Out
@@ -107,7 +116,7 @@ export default function ProductLayout({
           <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
           <span className="text-lg font-bold tracking-tight">Hirelix</span>
         </div>
-        <button onClick={() => setSidebarOpen(true)} className="text-muted hover:text-foreground">
+        <button onClick={() => setSidebarOpen(true)} className="cursor-pointer text-muted hover:text-foreground">
           <Menu className="h-5 w-5" />
         </button>
       </div>
