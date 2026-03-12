@@ -37,6 +37,15 @@ export async function POST(
   }
 
   try {
+    // Get user ID from token to fetch company profile
+    const token = auth.slice(7);
+    const supabaseUser = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } },
+    );
+    const { data: { user } } = await supabaseUser.auth.getUser();
+
     // Get candidate + parent search
     const { data: candidate, error: candErr } = await supabaseAdmin
       .from("hirelix_candidates")
@@ -46,6 +55,19 @@ export async function POST(
 
     if (candErr || !candidate) {
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+    }
+
+    // Get company profile from user settings
+    let companyProfile: Record<string, string> | null = null;
+    if (user) {
+      const { data: settings } = await supabaseAdmin
+        .from("hirelix_user_settings")
+        .select("company_profile")
+        .eq("user_id", user.id)
+        .single();
+      if (settings?.company_profile && typeof settings.company_profile === "object") {
+        companyProfile = settings.company_profile as Record<string, string>;
+      }
     }
 
     const apolloApiKey = process.env.APOLLO_API_KEY || null;
@@ -94,12 +116,29 @@ export async function POST(
       const roleTitle = parsed.title || "this role";
       const email = updates.email || candidate.email;
       const hasEmail = !!email;
+      const firstName = (candidate.name || "").split(" ")[0];
 
-      const prompt = `Write a personalized recruiting outreach for this candidate. Sound human, not templated.
+      // Build company context section
+      let companySection = "";
+      if (companyProfile && companyProfile.name) {
+        const parts: string[] = [];
+        if (companyProfile.name) parts.push(`Company: ${companyProfile.name}`);
+        if (companyProfile.industry) parts.push(`Industry: ${companyProfile.industry}`);
+        if (companyProfile.size) parts.push(`Size: ${companyProfile.size}`);
+        if (companyProfile.mission) parts.push(`Mission: ${companyProfile.mission}`);
+        if (companyProfile.culture) parts.push(`Culture: ${companyProfile.culture}`);
+        if (companyProfile.benefits) parts.push(`Benefits: ${companyProfile.benefits}`);
+        if (companyProfile.tech_stack) parts.push(`Tech stack: ${companyProfile.tech_stack}`);
+        if (companyProfile.selling_points) parts.push(`Why join: ${companyProfile.selling_points}`);
+        companySection = `\n## Hiring Company\n${parts.join("\n")}\n`;
+      }
 
-## Role
-${roleTitle}${parsed.company ? ` at ${parsed.company}` : ""}
+      const prompt = `Write a highly personalized recruiting outreach for this candidate. The message must feel genuinely crafted for THIS specific person, referencing their actual background and connecting it to what the company offers.
 
+## Job Description
+Role: ${roleTitle}${parsed.company ? ` at ${parsed.company}` : ""}
+${parsed.required_skills ? `Key skills: ${parsed.required_skills.join(", ")}` : ""}
+${companySection}
 ## Candidate
 Name: ${candidate.name}
 Headline: ${candidate.headline || "Professional"}
@@ -108,10 +147,17 @@ Experience: ${candidate.experience_years || "?"} years
 Match reasons: ${(Array.isArray(candidate.match_reasons) ? candidate.match_reasons : []).slice(0, 3).join("; ")}
 Location: ${candidate.location || "N/A"}
 
+## Guidelines
+- Reference something SPECIFIC from the candidate's background (a skill, company, or achievement)
+- If company info is provided, mention 1-2 compelling things about the company (mission, growth, tech stack, culture)
+- Connect the candidate's experience to WHY they'd be excited about this opportunity
+- Sound like a real person, not a template. No buzzwords.
+- Be concise and direct.
+
 ## Return JSON with:
-- subject: string (compelling subject line, under 10 words)
-- linkedin: string (LinkedIn InMail, under 80 words, casual, starts with "Hi ${(candidate.name || "").split(" ")[0]},")
-${hasEmail ? `- email: string (email body, under 100 words, slightly more formal, starts with "Hi ${(candidate.name || "").split(" ")[0]},")` : ""}
+- subject: string (compelling subject line, under 10 words, personalized to THIS candidate)
+- linkedin: string (LinkedIn InMail, under 80 words, casual, starts with "Hi ${firstName},")
+${hasEmail ? `- email: string (email body, under 100 words, slightly more formal, starts with "Hi ${firstName},")` : ""}
 
 Return ONLY valid JSON, no markdown.`;
 

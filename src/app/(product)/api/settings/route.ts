@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   const { data } = await supabaseAdmin
     .from("hirelix_user_settings")
-    .select("pdl_api_key")
+    .select("pdl_api_key, company_profile")
     .eq("user_id", user.id)
     .single();
 
@@ -40,7 +40,11 @@ export async function GET(req: NextRequest) {
     ? data.pdl_api_key.slice(0, 6) + "..." + data.pdl_api_key.slice(-4)
     : null;
 
-  return NextResponse.json({ has_pdl_key: hasKey, pdl_api_key_masked: masked });
+  return NextResponse.json({
+    has_pdl_key: hasKey,
+    pdl_api_key_masked: masked,
+    company_profile: data?.company_profile || null,
+  });
 }
 
 /** POST /api/settings — save user settings */
@@ -48,24 +52,26 @@ export async function POST(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { pdl_api_key } = await req.json();
+  const body = await req.json();
+  const updates: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() };
 
-  if (pdl_api_key !== undefined) {
-    const keyValue = typeof pdl_api_key === "string" && pdl_api_key.trim().length > 0
-      ? pdl_api_key.trim()
+  if (body.pdl_api_key !== undefined) {
+    updates.pdl_api_key = typeof body.pdl_api_key === "string" && body.pdl_api_key.trim().length > 0
+      ? body.pdl_api_key.trim()
       : null;
+  }
 
-    const { error } = await supabaseAdmin
-      .from("hirelix_user_settings")
-      .upsert(
-        { user_id: user.id, pdl_api_key: keyValue, updated_at: new Date().toISOString() },
-        { onConflict: "user_id" },
-      );
+  if (body.company_profile !== undefined) {
+    updates.company_profile = body.company_profile;
+  }
 
-    if (error) {
-      console.error("Save settings error:", error);
-      return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
-    }
+  const { error } = await supabaseAdmin
+    .from("hirelix_user_settings")
+    .upsert(updates, { onConflict: "user_id" });
+
+  if (error) {
+    console.error("Save settings error:", error);
+    return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
