@@ -248,6 +248,14 @@ function CandidateCard({
           <div className="flex items-center gap-2.5">
             <p className="truncate text-sm font-semibold">{candidate.name}</p>
             <ScoreBadge score={candidate.match_score} />
+            {!candidate.email && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+                </svg>
+                LinkedIn only
+              </span>
+            )}
             {candidate.status !== "new" && (
               <span
                 className={`text-xs font-medium capitalize ${statusColors[candidate.status] || ""}`}
@@ -669,6 +677,7 @@ export default function SearchResultPage() {
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
+  const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -733,7 +742,16 @@ export default function SearchResultPage() {
     ]);
 
     if (searchData) setSearch(searchData);
-    if (candidatesData) setCandidates(candidatesData);
+    if (candidatesData) {
+      // Sort: candidates with email first, then by match score
+      const sorted = candidatesData.sort((a, b) => {
+        const aHasEmail = !!a.email;
+        const bHasEmail = !!b.email;
+        if (aHasEmail !== bHasEmail) return bHasEmail ? 1 : -1;
+        return b.match_score - a.match_score;
+      });
+      setCandidates(sorted);
+    }
     setLoading(false);
   }, [user, id]);
 
@@ -929,16 +947,27 @@ export default function SearchResultPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted">
-                {candidates.length} candidates found
+                {showOnlyWithEmail 
+                  ? `${candidates.filter(c => c.email).length} candidates with email`
+                  : `${candidates.length} candidates found`}
               </p>
               <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
                 <span>Avg: {Math.round(candidates.reduce((a, c) => a + c.match_score, 0) / candidates.length)}%</span>
                 <span>·</span>
                 <span>Range: {Math.min(...candidates.map((c) => c.match_score))}–{Math.max(...candidates.map((c) => c.match_score))}%</span>
+                <span>·</span>
+                <span>{candidates.filter(c => c.email).length}/{candidates.length} with email</span>
               </div>
             </div>
             {search.status === "done" && (
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowOnlyWithEmail(!showOnlyWithEmail)}
+                  className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
+                >
+                  {showOnlyWithEmail ? "Show all" : "Only with email"}
+                </button>
+                <span className="text-muted-light">·</span>
                 <button
                   onClick={toggleAll}
                   className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
@@ -962,21 +991,23 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {candidates.map((c, idx) => (
-            <div
-              key={c.id}
-              className="animate-fade-in-up"
-              style={{ animationDelay: `${idx * 100}ms` }}
-            >
-              <CandidateCard
-                candidate={c}
-                onStatusChange={handleStatusChange}
-                requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
-                selected={selectedIds.has(c.id)}
-                onToggleSelect={() => toggleSelect(c.id)}
-              />
-            </div>
-          ))}
+          {candidates
+            .filter(c => !showOnlyWithEmail || c.email)
+            .map((c, idx) => (
+              <div
+                key={c.id}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${idx * 100}ms` }}
+              >
+                <CandidateCard
+                  candidate={c}
+                  onStatusChange={handleStatusChange}
+                  requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
+                  selected={selectedIds.has(c.id)}
+                  onToggleSelect={() => toggleSelect(c.id)}
+                />
+              </div>
+            ))}
         </div>
       )}
 
