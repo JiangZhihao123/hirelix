@@ -83,7 +83,6 @@ export async function POST(
       const nameParts = (candidate.name || "").split(" ");
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
-      const company = candidate.headline?.match(/at\s+(.+)$/i)?.[1]?.trim() || "";
 
       if (firstName && candidate.profile_url) {
         try {
@@ -92,8 +91,9 @@ export async function POST(
             hunterApiKey,
             firstName,
             lastName,
-            company,
             linkedinUrl: candidate.profile_url,
+            metadata: (candidate.metadata as Record<string, unknown>) || {},
+            headline: candidate.headline,
           });
           if (emailResult.email) {
             updates.email = emailResult.email;
