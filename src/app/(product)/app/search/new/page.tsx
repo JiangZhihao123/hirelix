@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import {
+  ANALYTICS_EVENTS,
+  getAnalyticsContextFromParams,
+  trackEvent,
+} from "@/lib/analytics";
 import { ArrowRight, Loader2, FileText, Users } from "lucide-react";
 
 export default function NewSearchPage() {
@@ -10,6 +15,7 @@ export default function NewSearchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [jdText, setJdText] = useState("");
+  const hasTrackedViewRef = useRef(false);
 
   useEffect(() => {
     const prefill = searchParams.get("jd");
@@ -18,6 +24,16 @@ export default function NewSearchPage() {
   const [candidateCount, setCandidateCount] = useState(5);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    if (hasTrackedViewRef.current) return;
+
+    hasTrackedViewRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.newSearchView, {
+      ...getAnalyticsContextFromParams(searchParams),
+      has_prefilled_jd: Boolean(searchParams.get("jd")),
+    });
+  }, [searchParams]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -42,6 +58,12 @@ export default function NewSearchPage() {
       }
 
       const { id } = await res.json();
+      trackEvent(ANALYTICS_EVENTS.searchCreateSuccess, {
+        ...getAnalyticsContextFromParams(searchParams),
+        candidate_count: candidateCount,
+        jd_word_count: jdText.trim().split(/\s+/).filter(Boolean).length,
+        search_id: id,
+      });
       router.push(`/app/search/${id}`);
     } catch (err) {
       setStatus("error");

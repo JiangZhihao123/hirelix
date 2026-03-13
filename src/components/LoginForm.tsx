@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
+import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
 import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 export function LoginForm() {
@@ -14,13 +15,17 @@ export function LoginForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
+  function getCurrentPath() {
+    return `${window.location.pathname}${window.location.search}`;
+  }
+
   async function handleGoogleLogin() {
     setGoogleLoading(true);
     setErrorMsg("");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/app`,
+        redirectTo: `${window.location.origin}${getCurrentPath()}`,
       },
     });
     if (error) {
@@ -43,10 +48,14 @@ export function LoginForm() {
           email: email.trim(),
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(getCurrentPath())}`,
           },
         });
         if (error) throw error;
+        trackEvent(ANALYTICS_EVENTS.signupSuccess, {
+          ...getAnalyticsContextFromBrowser(),
+          auth_method: "email",
+        });
         setSuccessMsg("Check your email to confirm your account, then sign in.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({

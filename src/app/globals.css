@@ -108,7 +108,7 @@ html {
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #a78bfa 100%);
+  background: linear-gradient(135deg, #8ec5ff 0%, #63a8ff 38%, #80d8ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -122,23 +122,23 @@ html {
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.045);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-strong {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .glow-blue {
-  box-shadow: 0 0 60px rgba(37, 99, 235, 0.15), 0 0 120px rgba(37, 99, 235, 0.05);
+  box-shadow: 0 0 80px rgba(56, 189, 248, 0.18), 0 0 140px rgba(37, 99, 235, 0.08);
 }
 
 .glow-blue-sm {
-  box-shadow: 0 0 30px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 36px rgba(56, 189, 248, 0.14);
 }
 
 .hero-grid {
@@ -150,6 +150,9 @@ html {
 }
 
 .landing-dark {
-  background: #050510;
+  background:
+    radial-gradient(circle at top center, rgba(34, 211, 238, 0.12), transparent 28%),
+    radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.14), transparent 24%),
+    linear-gradient(180deg, #08111f 0%, #07101d 42%, #09111f 100%);
   color: #e5e7eb;
 }

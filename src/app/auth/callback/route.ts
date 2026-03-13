@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const token_hash =
     searchParams.get("token_hash") || searchParams.get("token");
+  const next = searchParams.get("next");
   const type = (searchParams.get("type") || "email") as
     | "email"
     | "signup";
@@ -44,7 +45,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  const redirectUrl = new URL("/app", request.url);
+  const safeNext = next && next.startsWith("/") ? next : "/app";
+  const redirectUrl = new URL(safeNext, request.url);
   redirectUrl.hash = `access_token=${session.access_token}&refresh_token=${session.refresh_token}&expires_in=${session.expires_in}&token_type=bearer&type=${type}`;
 
   return NextResponse.redirect(redirectUrl);

@@ -3,29 +3,28 @@ import { test, expect } from "@playwright/test";
 test.describe("Responsive - Landing Page", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test("should show sticky mobile CTA on small screens", async ({ page }) => {
+  test("should show the mobile desktop-first guidance card", async ({ page }) => {
     await page.goto("/");
-    // Sticky mobile CTA at the bottom
+    await expect(page.getByText("Best experienced on desktop")).toBeVisible();
+    await expect(page.getByTestId("mobile-sample-cta")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Sign in on this device/i })).toBeVisible();
+  });
+
+  test("should hide the desktop-only hero form and shortlist demo on mobile", async ({ page }) => {
+    await page.goto("/");
     await expect(
-      page.getByRole("link", { name: /Start Sourcing — Free/i })
-    ).toBeVisible();
+      page.getByPlaceholder("Paste the full JD here. We will keep it ready for you on the next step."),
+    ).toBeHidden();
+    await expect(page.getByText("James Liu")).toBeHidden();
+    await expect(page.getByRole("link", { name: "Sign In" }).first()).toBeVisible();
   });
 
-  test("should hide desktop-only nav links on mobile", async ({ page }) => {
-    await page.goto("/");
-    // "How It Works" and "Product" nav links should be hidden (sm:block)
-    await expect(page.locator("nav a[href='#how-it-works']")).toBeHidden();
-    await expect(page.locator("nav a[href='#product']")).toBeHidden();
-    // But Try It Free should still be visible
-    await expect(page.getByRole("link", { name: "Try It Free" })).toBeVisible();
-  });
-
-  test("should still render all major sections on mobile", async ({ page }) => {
+  test("should still render the major conversion sections on mobile", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /Paste a JD/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "How it works" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "What you get" })).toBeVisible();
-    await expect(page.getByText("Manual sourcing takes hours.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What happens after the click" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Why teams switch from manual sourcing" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Objections answered up front" })).toBeVisible();
   });
 });
 

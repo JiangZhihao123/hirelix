@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { LoginForm } from "@/components/LoginForm";
+import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
 import {
   Search,
   Plus,
@@ -23,7 +24,30 @@ export default function ProductLayout({
 }) {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const hasTrackedSigninViewRef = useRef(false);
+  const pendingJd = useSyncExternalStore(
+    () => () => {},
+    () => {
+      if (typeof window === "undefined") return "";
+      const params = new URLSearchParams(window.location.search);
+      return params.get("jd")?.trim() || "";
+    },
+    () => "",
+  );
+  const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
+
+  useEffect(() => {
+    if (loading || user || hasTrackedSigninViewRef.current) return;
+
+    hasTrackedSigninViewRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.signinView, {
+      ...getAnalyticsContextFromBrowser(),
+      route: pathname,
+      has_prefilled_jd: isSearchIntent,
+    });
+  }, [isSearchIntent, loading, pathname, user]);
 
   if (loading) {
     return (
@@ -41,11 +65,25 @@ export default function ProductLayout({
           <span className="text-2xl font-bold tracking-tight">Hirelix</span>
         </div>
         <div className="text-center">
-          <h1 className="text-xl font-semibold">Sign in to continue</h1>
+          <h1 className="text-xl font-semibold">
+            {isSearchIntent ? "Your job description is ready" : "Sign in to continue"}
+          </h1>
           <p className="mt-2 text-sm text-muted">
-            Use Google or email to get started
+            {isSearchIntent
+              ? "Sign in to run this search and keep your pasted JD."
+              : "Use Google or email to get started"}
           </p>
         </div>
+        {isSearchIntent && (
+          <div className="w-full max-w-xl rounded-xl border border-border bg-surface p-4 text-left">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-light">
+              Ready to analyze
+            </p>
+            <p className="mt-2 max-h-32 overflow-hidden whitespace-pre-wrap text-sm text-foreground">
+              {pendingJd}
+            </p>
+          </div>
+        )}
         <LoginForm />
         <Link href="/" className="text-sm text-muted hover:text-foreground">
           &larr; Back to homepage

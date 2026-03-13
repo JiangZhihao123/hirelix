@@ -1,22 +1,28 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("New Search Page (unauthenticated)", () => {
-  test("should redirect to login when accessing /app/search/new", async ({ page }) => {
+  test("should show the auth gate when accessing /app/search/new directly", async ({ page }) => {
     await page.goto("/app/search/new");
-    // Should show login because user is not authenticated
     await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+  });
+
+  test("should preserve a prefilled JD at the auth gate", async ({ page }) => {
+    await page.goto("/app/search/new?jd=Senior%20Frontend%20Engineer&intent_path=sample");
+    await expect(page.getByRole("heading", { name: "Your job description is ready" })).toBeVisible();
+    await expect(page.getByText("Senior Frontend Engineer")).toBeVisible();
   });
 });
 
 test.describe("New Search Page UI", () => {
-  // These tests verify the page structure by checking what loads at /app
-  // Since auth is required, we can only test the login gate
-
   test("should show auth gate for all product routes", async ({ page }) => {
     const routes = ["/app", "/app/search/new"];
     for (const route of routes) {
       await page.goto(route);
-      await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+      const expectedHeading =
+        route === "/app"
+          ? "Sign in to continue"
+          : "Sign in to continue";
+      await expect(page.getByRole("heading", { name: expectedHeading })).toBeVisible();
     }
   });
 });
