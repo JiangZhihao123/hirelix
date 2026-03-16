@@ -24,8 +24,9 @@ function extractJSON(text: string): string {
 /**
  * POST /api/candidates/[id]/enrich
  *
- * On-demand: find email + generate personalized outreach for a single candidate.
- * Called when user clicks "Contact" or "Get Email" on a candidate card.
+ * On-demand: find email/contact details for a single candidate.
+ * Draft generation normally happens in the main search pipeline; this route
+ * only backfills a draft when one is unexpectedly missing.
  */
 export async function POST(
   req: NextRequest,
@@ -63,8 +64,9 @@ export async function POST(
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
     }
 
-    const needsEnrich = !candidate.outreach_draft;
-    if (needsEnrich && billing.usage.enrichesRemaining <= 0) {
+    const needsContactLookup = !candidate.email;
+    const needsDraftBackfill = !candidate.outreach_draft;
+    if (needsContactLookup && billing.usage.enrichesRemaining <= 0) {
       return NextResponse.json(
         {
           error:
@@ -98,7 +100,7 @@ export async function POST(
     const updates: Record<string, unknown> = {};
 
     // ── Step 1: Find email (if not already found) ──
-    if (!candidate.email && (apolloApiKey || hunterApiKey)) {
+    if (needsContactLookup && (apolloApiKey || hunterApiKey)) {
       const nameParts = (candidate.name || "").split(" ");
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
@@ -125,7 +127,7 @@ export async function POST(
     }
 
     // ── Step 2: Generate outreach draft (if not already generated) ──
-    if (!candidate.outreach_draft && anthropicApiKey) {
+    if (needsDraftBackfill && anthropicApiKey) {
       const anthropic = createAnthropic({
         apiKey: anthropicApiKey,
         ...(anthropicBaseUrl ? { baseURL: anthropicBaseUrl } : {}),
@@ -204,7 +206,7 @@ Return ONLY valid JSON, no markdown.`;
 
     // ── Update DB ──
     if (Object.keys(updates).length > 0) {
-      if (!candidate.enriched_at && needsEnrich) {
+      if (!candidate.enriched_at && needsContactLookup) {
         updates.enriched_at = new Date().toISOString();
       }
       await supabaseAdmin
@@ -213,7 +215,7 @@ Return ONLY valid JSON, no markdown.`;
         .eq("id", id);
     }
 
-    if (!candidate.enriched_at && needsEnrich) {
+    if (!candidate.enriched_at && needsContactLookup) {
       await supabaseAdmin.from("hirelix_usage_events").insert({
         user_id: user.id,
         event_type: "candidate_enriched",

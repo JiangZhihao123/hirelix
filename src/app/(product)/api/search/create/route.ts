@@ -4,6 +4,8 @@ import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { enqueueSearchJob, kickSearchJobRunner } from "@/lib/search-jobs";
 
 export const maxDuration = 30;
+const DEFAULT_HIGHLIGHT_COUNT = 5;
+const DEFAULT_CANDIDATE_TARGET = 25;
 const DEFAULT_OUTREACH_POOL_TARGET = 25;
 
 const supabaseAdmin = createClient(
@@ -39,11 +41,8 @@ export async function POST(req: NextRequest) {
   try {
     const { jd_text, candidate_count } = await req.json();
     const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
-    const requestedCandidates = Math.min(Math.max(Number(candidate_count) || 5, 1), 20);
-    const maxCandidates = Math.min(
-      requestedCandidates,
-      billing.usage.candidateLimitPerSearch,
-    );
+    const requestedCandidates = Math.min(Math.max(Number(candidate_count) || DEFAULT_HIGHLIGHT_COUNT, 1), 20);
+    const maxCandidates = DEFAULT_CANDIDATE_TARGET;
 
     if (billing.usage.searchesRemaining <= 0) {
       return NextResponse.json(
@@ -52,15 +51,6 @@ export async function POST(req: NextRequest) {
             billing.plan.code === "free"
               ? "You have used all 3 free searches for this month. Upgrade to Pro to unlock 30 searches and email outreach."
               : "You have reached this month's search limit. Add a Search Pack or wait for your next billing cycle.",
-        },
-        { status: 403 },
-      );
-    }
-
-    if (requestedCandidates > billing.usage.candidateLimitPerSearch) {
-      return NextResponse.json(
-        {
-          error: `Your ${billing.plan.name} plan supports up to ${billing.usage.candidateLimitPerSearch} candidates per search.`,
         },
         { status: 403 },
       );
@@ -86,6 +76,8 @@ export async function POST(req: NextRequest) {
         parsed_requirements: {
           candidate_count: maxCandidates,
           display_count: maxCandidates,
+          highlight_count: DEFAULT_HIGHLIGHT_COUNT,
+          requested_candidate_count: requestedCandidates,
           outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
         },
         queued_at: timestamp,
@@ -113,6 +105,8 @@ export async function POST(req: NextRequest) {
         plan_code: billing.plan.code,
         candidate_count: maxCandidates,
         display_count: maxCandidates,
+        highlight_count: DEFAULT_HIGHLIGHT_COUNT,
+        requested_candidate_count: requestedCandidates,
         outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
       },
     });

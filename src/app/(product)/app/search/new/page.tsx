@@ -14,11 +14,12 @@ import {
   ArrowRight,
   Loader2,
   FileText,
-  Users,
   Clock3,
   CheckCircle2,
   Sparkles,
 } from "lucide-react";
+
+const FIXED_CANDIDATE_COUNT = 25;
 
 export default function NewSearchPage() {
   const { session } = useAuth();
@@ -37,7 +38,6 @@ export default function NewSearchPage() {
     const prefill = searchParams.get("jd");
     if (prefill) setJdText(prefill);
   }, [searchParams]);
-  const [candidateCount, setCandidateCount] = useState(5);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -62,13 +62,6 @@ export default function NewSearchPage() {
     });
   }, [analyticsContext, isFocusedFlow, prefilledJd]);
 
-  useEffect(() => {
-    if (!billing) return;
-    if (candidateCount > billing.usage.candidateLimitPerSearch) {
-      setCandidateCount(billing.usage.candidateLimitPerSearch);
-    }
-  }, [billing, candidateCount]);
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!jdText.trim() || !session) return;
@@ -80,7 +73,7 @@ export default function NewSearchPage() {
 
     trackEvent(ANALYTICS_EVENTS.primaryProductCtaClick, {
       ...analyticsContext,
-      candidate_count: candidateCount,
+      candidate_count: FIXED_CANDIDATE_COUNT,
       jd_word_count: jdText.trim().split(/\s+/).filter(Boolean).length,
       plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
       cta_surface: isFocusedFlow ? "new_search_focused" : "new_search",
@@ -97,7 +90,7 @@ export default function NewSearchPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ jd_text: jdText.trim(), candidate_count: candidateCount }),
+        body: JSON.stringify({ jd_text: jdText.trim(), candidate_count: FIXED_CANDIDATE_COUNT }),
       });
 
       if (!res.ok) {
@@ -109,12 +102,12 @@ export default function NewSearchPage() {
       void refresh();
       trackEvent(ANALYTICS_EVENTS.searchJobEnqueued, {
         ...analyticsContext,
-        candidate_count: candidateCount,
+        candidate_count: FIXED_CANDIDATE_COUNT,
         search_id: id,
       });
       trackEvent(ANALYTICS_EVENTS.searchCreateSuccess, {
         ...analyticsContext,
-        candidate_count: candidateCount,
+        candidate_count: FIXED_CANDIDATE_COUNT,
         jd_word_count: jdText.trim().split(/\s+/).filter(Boolean).length,
         search_id: id,
       });
@@ -255,33 +248,8 @@ export default function NewSearchPage() {
                   ? `${jdText.split(/\s+/).filter(Boolean).length} words`
                   : "Tip: paste the full JD, not just the title, for stronger matches."}
               </p>
-              <div className="flex items-center gap-1.5 text-xs text-muted">
-                <Users className="h-3 w-3" />
-                {[5, 10].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setCandidateCount(n)}
-                    disabled={billing ? n > billing.usage.candidateLimitPerSearch : false}
-                    className={`rounded-md cursor-pointer px-2 py-0.5 text-xs font-medium transition-colors ${
-                      candidateCount === n
-                        ? "bg-primary text-white"
-                        : "bg-surface text-muted hover:bg-surface-dark"
-                    } disabled:cursor-not-allowed disabled:opacity-40`}
-                    title={
-                      billing && n > billing.usage.candidateLimitPerSearch
-                        ? `Your current plan supports up to ${billing.usage.candidateLimitPerSearch} candidates per shortlist.`
-                        : undefined
-                    }
-                  >
-                    {n === 5 ? "5 focused" : "10 broader"}
-                  </button>
-                ))}
-              </div>
-              <p className="w-full text-xs text-muted">
-                {candidateCount === 5
-                  ? "Recommended for the first aha moment: get the strongest matches faster."
-                  : "Use broader mode when you want more coverage after the first shortlist."}
+              <p className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700">
+                Returns 25 candidates, with the top 5 highlighted first
               </p>
             </div>
             <button
@@ -302,26 +270,20 @@ export default function NewSearchPage() {
             </button>
           </div>
 
-          {billing && candidateCount >= billing.usage.candidateLimitPerSearch && billing.usage.candidateLimitPerSearch < 10 && (
-            <p className="mt-3 text-xs text-muted">
-              Your current plan supports up to {billing.usage.candidateLimitPerSearch} candidates per shortlist.
-            </p>
-          )}
-
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
             <div className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
               <div className="text-sm text-slate-700">
                 <p className="font-medium text-slate-900">What happens next</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                  {["Read role", "Search pool", "Rank best matches", "Review shortlist"].map((step) => (
+                  {["Read role", "Search pool", "Score 25 candidates", "Review full list"].map((step) => (
                     <span key={step} className="rounded-full border border-slate-200 bg-white px-3 py-1">
                       {step}
                     </span>
                   ))}
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-slate-600">
-                  Hirelix reads the role, expands the candidate pool across LinkedIn, compares fit signals, and ranks the strongest candidates before showing your shortlist.
+                  Hirelix reads the role, expands the candidate pool across LinkedIn, scores the strongest candidates, and returns a full 25-candidate list with the top 5 highlighted first.
                 </p>
               </div>
             </div>

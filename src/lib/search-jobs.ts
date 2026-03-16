@@ -121,6 +121,11 @@ const OUTREACH_POOL_TARGET = getConfiguredPositiveInt(
   25,
   { max: 100 },
 );
+const HIGHLIGHT_CANDIDATE_COUNT = getConfiguredPositiveInt(
+  "SEARCH_HIGHLIGHT_COUNT",
+  5,
+  { max: 25 },
+);
 const SHORTLIST_MIN_SCORE = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_MIN_SCORE",
   60,
@@ -310,6 +315,7 @@ type PipelineContext = {
   userId: string;
   jdText: string;
   candidateCount: number;
+  highlightCount: number;
   outreachPoolTarget: number;
 };
 
@@ -874,6 +880,105 @@ function createAIClient() {
       ? { baseURL: process.env.ANTHROPIC_BASE_URL }
       : {}),
   });
+}
+
+function buildSearchOutreachPrompt(
+  parsed: Record<string, unknown>,
+  jdText: string,
+  candidate: CandidateRowInput,
+) {
+  const firstName = candidate.name.split(/\s+/).filter(Boolean)[0] || "there";
+  const roleTitle = normalizeNullableString(parsed.title) || "this role";
+  const skills = candidate.skills.slice(0, 8).join(", ");
+  const matchReasons = candidate.match_reasons.slice(0, 3).join("; ");
+
+  return `Write tailored recruiting outreach drafts for this candidate.
+
+## Job Description
+${truncateForPrompt(jdText.trim(), 4000)}
+
+## Role Summary
+Title: ${roleTitle}
+
+## Candidate
+Name: ${candidate.name}
+Headline: ${candidate.headline || "Professional"}
+Location: ${candidate.location || "Unknown"}
+Skills: ${skills || "Unknown"}
+Match reasons: ${matchReasons || "Strong fit for the role"}
+
+## Task
+Return ONLY valid JSON with this exact shape:
+{
+  "subject": "string",
+  "linkedin": "string",
+  "email": "string"
+}
+
+Rules:
+- Make both drafts specific to this person and this role.
+- Keep the LinkedIn InMail under 80 words and casual.
+- Keep the email body under 120 words and slightly more formal.
+- Both drafts must start with "Hi ${firstName},"
+- No markdown. No code fences. No extra keys.`;
+}
+
+async function generateOutreachDraftsForRows(
+  context: PipelineContext,
+  parsed: Record<string, unknown>,
+  rows: CandidateRowInput[],
+) {
+  if (rows.length === 0) return rows;
+
+  const aiClient = createAIClient();
+  const draftedRows = await Promise.all(
+    rows.map(async (row) => {
+      if (row.outreach_draft) return row;
+
+      try {
+        const { text } = await withTimeout(
+          generateText({
+            model: aiClient(getHaikuModel()),
+            prompt: buildSearchOutreachPrompt(parsed, context.jdText, row),
+            maxOutputTokens: 700,
+          }),
+          60000,
+          `Outreach draft for ${row.name}`,
+        );
+
+        const parsedDraft = JSON.parse(extractJSON(text));
+        return {
+          ...row,
+          outreach_draft: JSON.stringify({
+            subject: normalizeNullableString(parsedDraft.subject) || `${normalizeNullableString(parsed.title) || "Opportunity"} opportunity`,
+            linkedin:
+              normalizeNullableString(parsedDraft.linkedin) ||
+              `Hi ${row.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?`,
+            email:
+              normalizeNullableString(parsedDraft.email) ||
+              `Hi ${row.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?\n\nBest regards`,
+          }),
+        };
+      } catch (error) {
+        logSearchEvent("search_outreach_draft_fallback", {
+          search_id: context.searchId,
+          candidate: row.name,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        const firstName = row.name.split(/\s+/).filter(Boolean)[0] || "there";
+        return {
+          ...row,
+          outreach_draft: JSON.stringify({
+            subject: `${normalizeNullableString(parsed.title) || "Opportunity"} opportunity`,
+            linkedin: `Hi ${firstName}, I came across your profile and thought your background looked relevant for our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?`,
+            email: `Hi ${firstName}, I came across your background and thought it looked relevant for our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?\n\nBest regards`,
+          }),
+        };
+      }
+    }),
+  );
+
+  return draftedRows;
 }
 
 export function kickSearchJobRunner(
@@ -1780,10 +1885,10 @@ function mergeJudgeResults(
 function tagPoolRows(
   primaryRows: CandidateRowInput[],
   supplementalRows: CandidateRowInput[],
-  displayCount: number,
-  outreachPoolCount: number,
+  highlightCount: number,
+  candidateLimit: number,
 ) {
-  const finalRows = mergeCandidateRows(primaryRows, supplementalRows, outreachPoolCount).sort(
+  const finalRows = mergeCandidateRows(primaryRows, supplementalRows, candidateLimit).sort(
     (left, right) => {
       const rightPreliminary = right.metadata?.preliminary === true ? 1 : 0;
       const leftPreliminary = left.metadata?.preliminary === true ? 1 : 0;
@@ -1797,7 +1902,7 @@ function tagPoolRows(
     ...row,
     metadata: {
       ...row.metadata,
-      pool_type: index < displayCount ? "top_pick" : "outreach_pool",
+      pool_type: index < highlightCount ? "top_pick" : "outreach_pool",
     },
   }));
 }
@@ -1935,6 +2040,8 @@ async function parseJobDescription(
   parsed.title = normalizeNullableString(parsed.title) || "Untitled Role";
   parsed.candidate_count = context.candidateCount;
   parsed.display_count = context.candidateCount;
+  parsed.highlight_count =
+    Number(existingParsed?.highlight_count) || context.highlightCount;
   parsed.outreach_pool_target =
     Number(existingParsed?.outreach_pool_target) || context.outreachPoolTarget;
   parsed.recall_provider = SEARCH_RECALL_PROVIDER;
@@ -2512,7 +2619,7 @@ async function lightScoreAllProfiles(
 
   const batchResults = await runWithConcurrency(
     batches,
-    resolveStageConcurrency(DEEP_SCORING_CONCURRENCY, batches.length),
+    batches.length,
     async (batchIdxs) => {
       try {
         return await lightScoreBatch(aiClient, parsed, jdText, profileTexts, batchIdxs, totalPoolSize);
@@ -2570,19 +2677,17 @@ async function deepScoreSelectedProfiles(
   if (!selectedIndexes.length) return [];
 
   // Each candidate spawns two judge calls and occasionally an arbiter call.
-  // Cap worker fan-out here so we still score every profile without overwhelming the model backend.
-  const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, selectedIndexes.length);
+  // Fan out every candidate-level review task concurrently.
+  const workerCount = selectedIndexes.length;
   const assessments = await runWithConcurrency(
     selectedIndexes,
     workerCount,
     async (selectedIndex) => {
       const judgeBatch = [selectedIndex];
-      const judgeAResults = await Promise.allSettled([
+      const [judgeAResults, judgeBResults] = await Promise.allSettled([
         judgeScoreBatch(aiClient, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge A"),
-      ]).then((results) => results[0]);
-      const judgeBResults = await Promise.allSettled([
         judgeScoreBatch(aiClient, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge B"),
-      ]).then((results) => results[0]);
+      ]);
 
       const judgeA = judgeAResults.status === "fulfilled" ? judgeAResults.value[0] : null;
       const judgeB = judgeBResults.status === "fulfilled" ? judgeBResults.value[0] : null;
@@ -2712,31 +2817,31 @@ async function scoreBrightDataProfiles(
   const deepTopPickRows = buildBrightDataCandidateRows(
     brightProfiles,
     qualifiedAssessments,
-    context.candidateCount,
+    context.highlightCount,
     "top_pick",
   );
   const deepPoolRows = buildBrightDataCandidateRows(
     brightProfiles,
-    qualifiedAssessments.slice(context.candidateCount),
-    Math.max(outreachPoolCount - context.candidateCount, 0),
+    qualifiedAssessments.slice(context.highlightCount),
+    Math.max(outreachPoolCount - context.highlightCount, 0),
     "outreach_pool",
   );
   const lightTopPickRows = buildBrightDataLightCandidateRows(
     brightProfiles,
     lightQualified,
-    context.candidateCount,
+    context.highlightCount,
     "top_pick",
   );
   const lightPoolRows = buildBrightDataLightCandidateRows(
     brightProfiles,
-    lightQualified.slice(context.candidateCount),
-    Math.max(outreachPoolCount - context.candidateCount, 0),
+    lightQualified.slice(context.highlightCount),
+    Math.max(outreachPoolCount - context.highlightCount, 0),
     "outreach_pool",
   );
   const finalRows = tagPoolRows(
     [...deepTopPickRows, ...deepPoolRows],
     [...lightTopPickRows, ...lightPoolRows],
-    context.candidateCount,
+    context.highlightCount,
     outreachPoolCount,
   );
   const shortlistRows = finalRows.filter((row) => row.metadata?.pool_type === "top_pick");
@@ -2745,11 +2850,11 @@ async function scoreBrightDataProfiles(
   let warningMessage: string | null = null;
   if (finalRows.length === 0) {
     warningMessage = "No candidates met the current outreach threshold for this role.";
-  } else if (shortlistRows.length < context.candidateCount) {
-    warningMessage = `Only ${shortlistRows.length} candidate${shortlistRows.length === 1 ? "" : "s"} met the current outreach threshold.`;
+  } else if (shortlistRows.length < context.highlightCount) {
+    warningMessage = `Only ${shortlistRows.length} highlighted candidate${shortlistRows.length === 1 ? "" : "s"} met the current outreach threshold.`;
   } else if (fullDetailIncomplete) {
     warningMessage =
-      "Some advanced profile scoring did not finish, but your top picks and outreach pool are ready to review.";
+      "Some advanced profile scoring did not finish, but the current 25 candidates are ready to review.";
   }
 
   return {
@@ -2761,7 +2866,7 @@ async function scoreBrightDataProfiles(
       deep_review_completed_count: allAssessments.length,
       qualified_count: qualifiedRowCount,
       outreach_pool_count: finalRows.length,
-      shortlist_count: shortlistRows.length,
+      shortlist_count: finalRows.length,
     }),
   };
 }
@@ -2804,15 +2909,10 @@ async function refineSerperCandidates(
     step: "deep_scoring",
     provider: "brightdata",
     batch_size: BRIGHTDATA_BATCH_SIZE,
-    batch_concurrency: resolveStageConcurrency(
-      BRIGHTDATA_BATCH_CONCURRENCY,
-      Math.ceil(preScreened.length / BRIGHTDATA_BATCH_SIZE),
-    ),
+    batch_concurrency: Math.ceil(preScreened.length / BRIGHTDATA_BATCH_SIZE),
     deep_scoring_batch_size: DEEP_SCORING_BATCH_SIZE,
-    deep_scoring_concurrency: resolveStageConcurrency(
-      DEEP_SCORING_CONCURRENCY,
-      Math.ceil(preScreened.length / DEEP_SCORING_BATCH_SIZE),
-    ),
+    deep_scoring_concurrency: Math.ceil(preScreened.length / DEEP_SCORING_BATCH_SIZE),
+    deep_review_concurrency: preScreened.length,
     full_stage_parallelism: FULL_STAGE_PARALLELISM,
     job_id: context.jobId,
   });
@@ -2822,10 +2922,7 @@ async function refineSerperCandidates(
     const brightProfiles = await withTimeout(
       scrapeLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
         batchSize: BRIGHTDATA_BATCH_SIZE,
-        concurrency: resolveStageConcurrency(
-          BRIGHTDATA_BATCH_CONCURRENCY,
-          Math.ceil(urlsToScrape.length / BRIGHTDATA_BATCH_SIZE),
-        ),
+        concurrency: Math.ceil(urlsToScrape.length / BRIGHTDATA_BATCH_SIZE),
         allowPartial: true,
       }),
       300000,
@@ -2885,8 +2982,13 @@ async function completeSearch(
   displayStats: SearchDisplayStats,
   warningMessage?: string | null,
 ) {
-  if (finalRows.length > 0) {
-    await upsertCandidatesForSearch(context.searchId, finalRows, {
+  const draftedRows =
+    finalRows.length > 0
+      ? await generateOutreachDraftsForRows(context, parsed, finalRows)
+      : finalRows;
+
+  if (draftedRows.length > 0) {
+    await upsertCandidatesForSearch(context.searchId, draftedRows, {
       replaceMissing: true,
     });
   }
@@ -2900,7 +3002,7 @@ async function completeSearch(
 
   logSearchEvent(warningMessage ? "search_degraded" : "search_done", {
     search_id: context.searchId,
-    candidate_count: finalRows.length,
+    candidate_count: draftedRows.length,
     warning_message: warningMessage ?? null,
     job_id: context.jobId,
   });
@@ -2938,6 +3040,9 @@ async function runSearchPipeline(job: SearchJobRow) {
     userId: job.user_id,
     jdText: job.jd_text || (search as SearchRow).jd_text,
     candidateCount: job.candidate_count || Number((search as SearchRow).parsed_requirements?.candidate_count) || 5,
+    highlightCount:
+      Number((search as SearchRow).parsed_requirements?.highlight_count) ||
+      HIGHLIGHT_CANDIDATE_COUNT,
     outreachPoolTarget:
       Number((search as SearchRow).parsed_requirements?.outreach_pool_target) ||
       OUTREACH_POOL_TARGET,
@@ -2948,6 +3053,9 @@ async function runSearchPipeline(job: SearchJobRow) {
       ...((search as SearchRow).parsed_requirements || {}),
       candidate_count: context.candidateCount,
       display_count: context.candidateCount,
+      highlight_count:
+        Number((search as SearchRow).parsed_requirements?.highlight_count) ||
+        context.highlightCount,
       outreach_pool_target:
         Number((search as SearchRow).parsed_requirements?.outreach_pool_target) ||
         context.outreachPoolTarget,

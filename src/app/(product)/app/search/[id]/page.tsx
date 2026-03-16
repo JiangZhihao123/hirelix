@@ -180,15 +180,6 @@ function ScoreBadge({ score }: { score: number }) {
 function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
   const actionability = candidate.metadata?.suitability?.actionability;
   const fitDecision = candidate.metadata?.suitability?.fit_decision;
-  const poolType = candidate.metadata?.pool_type;
-
-  if (poolType === "outreach_pool" || poolType === "extended") {
-    return (
-      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-        Outreach pool
-      </span>
-    );
-  }
 
   if (fitDecision === "risky_fit" || actionability === "not_actionable") {
     return (
@@ -264,6 +255,7 @@ function CandidateCard({
   enrichesRemaining,
   refreshBilling,
   onUpgradeClick,
+  highlighted,
 }: {
   candidate: CandidateRow;
   onStatusChange: (id: string, status: string) => void;
@@ -275,6 +267,7 @@ function CandidateCard({
   enrichesRemaining: number;
   refreshBilling: () => Promise<void>;
   onUpgradeClick: (surface: string) => void;
+  highlighted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
@@ -377,7 +370,13 @@ function CandidateCard({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-background transition-colors hover:border-muted-light">
+    <div
+      className={`rounded-xl border bg-background transition-colors hover:border-muted-light ${
+        highlighted
+          ? "border-amber-300 ring-1 ring-amber-200 shadow-[0_12px_30px_rgba(245,158,11,0.10)]"
+          : "border-border"
+      }`}
+    >
       {/* Header */}
       <div className="flex w-full items-center gap-4 p-5 text-left">
         {onToggleSelect && (
@@ -396,6 +395,11 @@ function CandidateCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <p className="truncate text-sm font-semibold">{candidate.name}</p>
+            {highlighted && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                Top pick
+              </span>
+            )}
             <ActionabilityBadge candidate={candidate} />
             <ScoreBadge score={candidate.match_score} />
             {!candidate.email && (
@@ -551,14 +555,13 @@ function CandidateCard({
                 </div>
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
-                    {candidate.metadata?.pool_type === "outreach_pool" ||
-                    candidate.metadata?.pool_type === "extended"
-                      ? "Why this candidate is in the outreach pool"
-                      : "Why this candidate made the shortlist"}
-                  </p>
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
+                      {highlighted
+                        ? "Why this candidate is a top pick"
+                        : "Why this candidate is in the final 25"}
+                    </p>
                   {candidate.metadata?.preliminary && (
                     <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
                       Preliminary
@@ -681,14 +684,14 @@ function CandidateCard({
             {/* Right: Outreach */}
             <div className="space-y-3">
               {!localCandidate.outreach_draft ? (
-                // On-demand: show "Get Email & Draft" button
+                // Fallback if the main pipeline did not persist outreach copy
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
                   <Mail className="mb-3 h-8 w-8 text-muted-light" />
-                  <p className="mb-1 text-sm font-medium text-foreground">Ready to turn this shortlist into outreach?</p>
+                  <p className="mb-1 text-sm font-medium text-foreground">Ready to unlock contact details for this candidate?</p>
                   <p className="mb-4 text-xs text-muted">
                     {billingPlanCode === "free"
-                      ? "You have already seen the ranked shortlist. Upgrade only when you want email lookup and personalized outreach drafts for the finalists you want to contact."
-                      : "Find their email and generate a personalized outreach message."}
+                      ? "You already have the ranked candidate list and draft copy. Upgrade only when you want contact lookup for the people you decide to reach out to."
+                      : "The outreach copy is ready. Find contact details when you are ready to act on this candidate."}
                   </p>
                   {billingPlanCode === "free" ? (
                     <PaddleCheckoutButton
@@ -715,12 +718,12 @@ function CandidateCard({
                       {enriching ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Finding email & drafting...
+                          Finding contact info...
                         </>
                       ) : (
                         <>
                           <Send className="h-4 w-4" />
-                          Get Email & Draft
+                          Find Email
                         </>
                       )}
                     </button>
@@ -877,8 +880,8 @@ function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
       : pipelineStep === "searching"
         ? "Searching a broad candidate pool..."
         : pipelineStep === "screening"
-          ? "Ranking top picks and building the outreach pool..."
-          : "Ranking top picks and building the outreach pool...";
+          ? "Scoring the final 25 candidates..."
+          : "Scoring the final 25 candidates...";
 
   return (
     <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
@@ -890,7 +893,7 @@ function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
         <p className="text-sm font-medium">{progressTitle}</p>
       </div>
       <p className="mb-4 max-w-2xl text-sm leading-relaxed text-slate-600">
-        Hirelix is reading the role, searching broadly across LinkedIn profile data, and turning the result into top picks plus a workable outreach pool.
+        Hirelix is reading the role, searching broadly across LinkedIn profile data, and turning the result into a ranked 25-candidate list with the strongest 5 highlighted first.
       </p>
       <div className="space-y-3">
         {steps.map((step, i) => {
@@ -923,7 +926,7 @@ function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
       <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Usually under 5 minutes</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Safe to leave and come back</span>
-        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">You will review usable candidates, not raw results</span>
+        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Top 5 highlighted, full 25 ready to review</span>
       </div>
       <p className="mt-4 text-xs text-muted">
         You can leave this page and come back. Most shortlist runs are ready in a few minutes, and partial progress becomes reviewable as soon as it is useful.
@@ -944,7 +947,6 @@ export default function SearchResultPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
-  const [showAlternatives, setShowAlternatives] = useState(false);
   const hasTrackedProcessingViewRef = useRef(false);
   const hasTrackedResultsViewRef = useRef(false);
   const hasTrackedDoneRef = useRef(false);
@@ -1305,34 +1307,22 @@ export default function SearchResultPage() {
   const displayTarget =
     positiveInt(reqs?.display_count) ??
     positiveInt(reqs?.candidate_count) ??
-    5;
-  const outreachPoolTarget =
-    positiveInt(reqs?.outreach_pool_target) ??
     25;
-  const mainCandidates = candidates.filter((candidate) => {
-    const poolType = candidate.metadata?.pool_type || "top_pick";
-    return poolType === "top_pick" || poolType === "main";
-  });
-  const alternativeCandidates = candidates.filter((candidate) => {
-    const poolType = candidate.metadata?.pool_type;
-    return poolType === "outreach_pool" || poolType === "extended";
-  });
-  const reviewCandidates = showOnlyWithEmail
-    ? mainCandidates.filter((candidate) => candidate.email)
-    : mainCandidates;
-  const visibleAlternativeCandidates = showOnlyWithEmail
-    ? alternativeCandidates.filter((candidate) => candidate.email)
-    : alternativeCandidates;
-  const visibleCandidates = showAlternatives
-    ? [
-        ...reviewCandidates,
-        ...visibleAlternativeCandidates,
-      ]
-    : reviewCandidates;
-  const averageMatch = mainCandidates.length
+  const highlightCount =
+    positiveInt(reqs?.highlight_count) ??
+    5;
+  const allCandidates = [...candidates].sort((left, right) => right.match_score - left.match_score);
+  const highlightedIds = new Set(
+    allCandidates.slice(0, highlightCount).map((candidate) => candidate.id),
+  );
+  const visibleCandidates = showOnlyWithEmail
+    ? allCandidates.filter((candidate) => candidate.email)
+    : allCandidates;
+  const highlightedCandidates = allCandidates.slice(0, Math.min(highlightCount, allCandidates.length));
+  const averageMatch = highlightedCandidates.length
     ? Math.round(
-        mainCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
-          mainCandidates.length,
+        highlightedCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
+          highlightedCandidates.length,
       )
     : 0;
   const rawDisplayStats =
@@ -1341,27 +1331,28 @@ export default function SearchResultPage() {
       : null;
   const retrievalCount =
     positiveInt(rawDisplayStats?.retrieval_count) ??
-    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+    Math.max(allCandidates.length, 0);
   const deepReviewRequestedCount =
     positiveInt(rawDisplayStats?.deep_review_requested_count) ??
     positiveInt(rawDisplayStats?.deep_review_count) ??
-    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+    Math.max(allCandidates.length, 0);
   const deepReviewCompletedCount =
     positiveInt(rawDisplayStats?.deep_review_completed_count) ??
     positiveInt(rawDisplayStats?.deep_review_count) ??
-    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+    Math.max(allCandidates.length, 0);
   const qualifiedCount =
     positiveInt(rawDisplayStats?.qualified_count) ??
-    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
-  const outreachPoolCount =
-    positiveInt(rawDisplayStats?.outreach_pool_count) ??
-    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+    Math.max(allCandidates.length, 0);
+  const outreachPoolCount = Math.min(
+    positiveInt(rawDisplayStats?.outreach_pool_count) ?? Math.max(allCandidates.length, 0),
+    displayTarget,
+  );
   const shortlistReadyCount =
-    positiveInt(rawDisplayStats?.shortlist_count) ?? mainCandidates.length;
-  const readyToActCount = mainCandidates.filter(
+    positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
+  const readyToActCount = allCandidates.filter(
     (candidate) => candidate.metadata?.suitability?.actionability === "ready_to_act",
   ).length;
-  const withContactCount = mainCandidates.filter((candidate) => Boolean(candidate.email)).length;
+  const withContactCount = allCandidates.filter((candidate) => Boolean(candidate.email)).length;
   const entryQuery =
     analyticsContext.entry_mode === "workspace"
       ? ""
@@ -1393,10 +1384,10 @@ export default function SearchResultPage() {
                 <span className="hidden sm:inline">{showJd ? "Hide JD" : "View JD"}</span>
                 <span className="sm:hidden">{showJd ? "Hide" : "JD"}</span>
               </button>
-              {mainCandidates.length > 0 &&
+              {allCandidates.length > 0 &&
                 (billing?.usage.exportEnabled ? (
                   <button
-                    onClick={() => exportCSV(mainCandidates)}
+                    onClick={() => exportCSV(allCandidates)}
                     className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
                   >
                     <Download className="h-3 w-3" />
@@ -1455,10 +1446,10 @@ export default function SearchResultPage() {
             Building your shortlist
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Building top picks and an outreach-ready pool
+            Building your 25-candidate list
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Hirelix is reading the role, searching broadly across LinkedIn profile data, and preparing a funnel you can actually work from.
+            Hirelix is reading the role, searching broadly across LinkedIn profile data, and preparing the final 25 candidates with the top 5 highlighted first.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
@@ -1470,7 +1461,7 @@ export default function SearchResultPage() {
         </div>
       )}
 
-      {isReviewable && (mainCandidates.length > 0 || alternativeCandidates.length > 0) && (
+      {isReviewable && allCandidates.length > 0 && (
         <div className="mb-6 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -1479,29 +1470,29 @@ export default function SearchResultPage() {
                   ? "Ready with a warning"
                   : isImprovingInBackground
                     ? "Usable now, still refining"
-                    : "Top picks ready"}
+                    : "Candidates ready"}
               </p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">
                 {isReadyWithWarning
-                  ? "Your top picks are ready with a warning"
+                  ? "Your candidate list is ready with a warning"
                   : isImprovingInBackground
-                    ? "Your top picks are already usable now"
-                    : "Your top picks are ready"}
+                    ? "Your candidates are already usable now"
+                    : "Your 25 candidates are ready"}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 {search.warning_message
                   ? search.warning_message
-                  : "Hirelix searched across a broad LinkedIn candidate pool, ranked the strongest matches, and prepared a deeper outreach-ready pool behind the top picks shown here."}
+                  : "Hirelix searched across a broad LinkedIn candidate pool, ranked the strongest matches, and prepared a full 25-candidate review list with the top 5 highlighted."}
               </p>
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <span className="inline-flex h-2 w-2 rounded-full bg-sky-500" />
-                  Background refinement is still tightening fit reasons and ranking, but these candidates are already reviewable
+                  Background refinement is still tightening fit reasons and ranking, but the full candidate list is already reviewable
                 </div>
               )}
               {!search.warning_message && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
-                  Start with the current top picks. The broader outreach pool is prepared separately so you are not blocked on reply-rate math.
+                  Start with the highlighted top 5, then work through the rest of the 25-candidate list for real outbound coverage.
                 </p>
               )}
             </div>
@@ -1527,10 +1518,10 @@ export default function SearchResultPage() {
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top picks shown</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{shortlistReadyCount}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{Math.min(highlightCount, allCandidates.length)}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {outreachPoolCount > shortlistReadyCount
-                    ? `${outreachPoolCount} prepared for outreach`
+                  {outreachPoolCount > 0
+                    ? `${outreachPoolCount} candidates returned`
                     : "Immediate top picks to review"}
                 </p>
               </div>
@@ -1601,46 +1592,46 @@ export default function SearchResultPage() {
       )}
 
       {/* Results */}
-      {(mainCandidates.length > 0 || alternativeCandidates.length > 0) && (
+      {allCandidates.length > 0 && (
         <div className="space-y-3">
           <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-4 py-4 text-sm text-slate-600 shadow-sm">
-            {mainCandidates.length === 0 ? (
+            {allCandidates.length === 0 ? (
               "No candidates met the current outreach threshold yet. Refine the role or widen the search to unlock more viable outreach targets."
             ) : isImprovingInBackground ? (
               <>
-                <span className="font-semibold text-slate-950">Your top picks are reviewable now.</span>
-                {" "}Hirelix is still refining the broader outreach pool in the background.
+                <span className="font-semibold text-slate-950">Your candidate list is reviewable now.</span>
+                {" "}Hirelix is still refining the remaining scores in the background.
               </>
             ) : isReadyWithWarning ? (
               <>
                 <span className="font-semibold text-slate-950">
-                  {shortlistReadyCount} top pick{shortlistReadyCount === 1 ? "" : "s"} ready to review
+                  {shortlistReadyCount} candidate{shortlistReadyCount === 1 ? "" : "s"} ready to review
                 </span>
-                {' '}— with {Math.min(outreachPoolCount, outreachPoolTarget)} outreach-ready candidate{Math.min(outreachPoolCount, outreachPoolTarget) === 1 ? "" : "s"} prepared
+                {' '}— top {Math.min(highlightCount, allCandidates.length)} are highlighted first
               </>
             ) : (
               <>
-                <span className="font-semibold text-slate-950">This funnel is worth working from now</span>
-                {' '}— {shortlistReadyCount} of {displayTarget} top pick{displayTarget === 1 ? "" : "s"} are shown now, {Math.min(outreachPoolCount, outreachPoolTarget)} candidate{Math.min(outreachPoolCount, outreachPoolTarget) === 1 ? "" : "s"} are prepared for outreach, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the current top picks already have clear fit signals"}
+                <span className="font-semibold text-slate-950">This list is worth working from now</span>
+                {' '}— {shortlistReadyCount} candidate{shortlistReadyCount === 1 ? "" : "s"} are shown, the top {Math.min(highlightCount, allCandidates.length)} are highlighted, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the leading candidates already have clear fit signals"}
               </>
             )}
           </div>
-          {billing?.plan.code === "free" && mainCandidates.length > 0 && (
+          {billing?.plan.code === "free" && allCandidates.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
                 Capability unlock
               </p>
               <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                Review the top picks first. Unlock contact details when you are ready to work the outreach pool.
+                Review the highlighted top 5 first. Unlock contact details when you are ready to work the full 25-candidate list.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                You can already inspect the ranked top picks and see how large the outreach-ready pool is. Upgrade when you want email lookup, editable outreach drafts, or export for the candidates you actually want to contact.
+                You can already inspect all returned candidates and read the outreach drafts. Upgrade when you want real contact lookup or export for the candidates you actually want to contact.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistReadyCount} top picks shown</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{Math.min(outreachPoolCount, outreachPoolTarget)} outreach-ready candidates prepared</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{withContactCount}/{mainCandidates.length} already show contact info</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">Unlock outreach when needed</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{Math.min(highlightCount, allCandidates.length)} highlighted first</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{outreachPoolCount} candidates returned</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{withContactCount}/{allCandidates.length} already show contact info</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">Drafts included for all returned candidates</span>
               </div>
             </div>
           )}
@@ -1648,26 +1639,22 @@ export default function SearchResultPage() {
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted">
                 {showOnlyWithEmail
-                  ? `${reviewCandidates.length} candidates with contact info`
-                  : mainCandidates.length > 0
-                    ? `${shortlistReadyCount} top picks ready to review`
-                    : `${alternativeCandidates.length} outreach-pool candidates available`}
+                  ? `${visibleCandidates.length} candidates with contact info`
+                  : `${allCandidates.length} candidates ready to review`}
               </p>
               <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
-                {mainCandidates.length > 0 && (
+                {highlightedCandidates.length > 0 && (
                   <>
                     <span>Avg: {averageMatch}%</span>
                     <span>·</span>
-                    <span>Range: {Math.min(...mainCandidates.map((c) => c.match_score))}–{Math.max(...mainCandidates.map((c) => c.match_score))}%</span>
+                    <span>Range: {Math.min(...highlightedCandidates.map((c) => c.match_score))}–{Math.max(...highlightedCandidates.map((c) => c.match_score))}%</span>
                   </>
                 )}
                 {billing?.usage.exportEnabled ? (
                   <>
                     <span>·</span>
                     <span>
-                      {mainCandidates.length > 0
-                        ? `${mainCandidates.filter((candidate) => candidate.email).length}/${mainCandidates.length} with contact info`
-                        : `${alternativeCandidates.filter((candidate) => candidate.email).length}/${alternativeCandidates.length || 0} with contact info`}
+                      {`${allCandidates.filter((candidate) => candidate.email).length}/${allCandidates.length} with contact info`}
                     </span>
                   </>
                 ) : (
@@ -1676,34 +1663,19 @@ export default function SearchResultPage() {
                     <span>Profiles sourced from LinkedIn</span>
                   </>
                 )}
-                {alternativeCandidates.length > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>{alternativeCandidates.length} more in outreach pool</span>
-                  </>
-                )}
+                <span>·</span>
+                <span>Top {Math.min(highlightCount, allCandidates.length)} highlighted first</span>
               </div>
             </div>
             {isReviewable && (
               <div className="flex items-center gap-2">
-                {billing?.usage.exportEnabled && mainCandidates.some((candidate) => candidate.email) && (
+                {billing?.usage.exportEnabled && allCandidates.some((candidate) => candidate.email) && (
                   <>
                     <button
                       onClick={() => setShowOnlyWithEmail(!showOnlyWithEmail)}
                       className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
                     >
                       {showOnlyWithEmail ? "Show all" : "Only with contact info"}
-                    </button>
-                    <span className="text-muted-light">·</span>
-                  </>
-                )}
-                {alternativeCandidates.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => setShowAlternatives((current) => !current)}
-                      className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
-                    >
-                      {showAlternatives ? "Hide outreach pool" : "Show outreach pool"}
                     </button>
                     <span className="text-muted-light">·</span>
                   </>
@@ -1733,7 +1705,7 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {reviewCandidates.map((c, idx) => (
+          {visibleCandidates.map((c, idx) => (
               <div
                 key={c.id}
                 className="animate-fade-in-up"
@@ -1750,45 +1722,14 @@ export default function SearchResultPage() {
                   enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
                   refreshBilling={refreshBilling}
                   onUpgradeClick={handleUpgradeClick}
+                  highlighted={highlightedIds.has(c.id)}
                 />
               </div>
             ))}
-          {showAlternatives && visibleAlternativeCandidates.length > 0 && (
-            <div className="pt-2">
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                <p className="font-medium">Outreach pool</p>
-                <p className="mt-1 text-xs leading-relaxed text-amber-800">
-                  These candidates cleared the outreach threshold, but they rank behind the top picks above. Use this pool when you need enough volume to support real outbound conversion.
-                </p>
-              </div>
-              <div className="mt-3 space-y-3">
-                {visibleAlternativeCandidates.map((c, idx) => (
-                  <div
-                    key={c.id}
-                    className="animate-fade-in-up"
-                    style={{ animationDelay: `${(reviewCandidates.length + idx) * 100}ms` }}
-                  >
-                    <CandidateCard
-                      candidate={c}
-                      onStatusChange={handleStatusChange}
-                      onExpand={handleCandidateExpand}
-                      requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
-                      selected={selectedIds.has(c.id)}
-                      onToggleSelect={() => toggleSelect(c.id)}
-                      billingPlanCode={billing?.subscription.planCode || "free"}
-                      enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
-                      refreshBilling={refreshBilling}
-                      onUpgradeClick={handleUpgradeClick}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {isReviewable && mainCandidates.length === 0 && alternativeCandidates.length === 0 && (
+      {isReviewable && allCandidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
           <p className="text-muted">No candidates met the current outreach threshold yet.</p>
           <p className="mt-2 max-w-md text-center text-sm text-muted">
