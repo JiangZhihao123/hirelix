@@ -1379,9 +1379,9 @@ Rules:
 - join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity.
 - Strongly penalize obvious overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
 - Do not reward prestige alone.
-- Keep short_reasons concrete and short. Max 3 items.
-- Keep join_likelihood_reasons concrete and evidence-based. Max 3 items.
-- Keep risk_flags concrete and short. Max 4 items.
+- Keep short_reasons concrete and short. Max 3 items, each under 14 words.
+- Keep join_likelihood_reasons concrete and evidence-based. Max 3 items, each under 16 words.
+- Keep risk_flags concrete and short. Max 3 items, each under 10 words.
 - Do not speculate about relocation or work authorization.
 - Return ONLY valid JSON. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json or \`\`\`). Return raw JSON directly.`;
 }
@@ -1422,6 +1422,7 @@ Rules:
 - Return tri-scores, not a free-form final verdict.
 - The final result must be conservative on join likelihood when evidence is weak.
 - Explain the candidate's strengths, join-likelihood evidence, and what still needs verification.
+- Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
 [
   {
@@ -1937,6 +1938,29 @@ function selectQualifiedAssessments(
 
 function selectQualifiedLightAssessments(assessments: LightCandidateAssessment[]) {
   return assessments.filter((assessment) => assessment.match_score >= 60);
+}
+
+function selectDeepReviewIndexes(
+  assessments: LightCandidateAssessment[],
+  maxCount: number = DEEP_REVIEW_TARGET,
+) {
+  if (maxCount <= 0 || assessments.length === 0) return [];
+
+  const cap = Math.min(maxCount, assessments.length);
+  const selected = new Set<number>();
+
+  for (const assessment of assessments) {
+    if (assessment.match_score < 60) continue;
+    selected.add(assessment.index);
+    if (selected.size >= cap) return Array.from(selected);
+  }
+
+  for (const assessment of assessments) {
+    selected.add(assessment.index);
+    if (selected.size >= cap) break;
+  }
+
+  return Array.from(selected);
 }
 
 function getActionabilityRank(value: CandidateSuitability["actionability"]) {
@@ -2670,7 +2694,7 @@ async function judgeScoreBatch(
   judgeLabel: "Judge A" | "Judge B",
 ): Promise<JudgeScoreResult[]> {
   const profilesText = batchIndexes
-    .map((idx) => profileTexts[idx])
+    .map((idx) => truncateForPrompt(profileTexts[idx], 2800))
     .join("\n\n");
   const prompt = buildJudgeScorePrompt(
     parsed,
@@ -2680,40 +2704,71 @@ async function judgeScoreBatch(
     judgeLabel,
   );
   const judgeModel = getJudgeModel();
-  const { text } = await withTimeout(
-    generateText({
-      model: aiClient(judgeModel),
-      prompt,
-      maxOutputTokens: 1400,
-    }),
-    JUDGE_SCORING_TIMEOUT_MS,
-    `${judgeLabel} scoring`,
-  );
+  const maxAttempts = 2;
+  let lastError: Error | null = null;
 
-  let judgeResult;
-  try {
-    const extracted = extractJSON(text);
-    judgeResult = JSON.parse(extracted);
-  } catch (error) {
-    console.error(`[search:judge_json_parse_error] Failed to parse JSON from ${judgeLabel}:`, {
-      error: error instanceof Error ? error.message : String(error),
-      raw_text: text.substring(0, 500),
-      extracted_attempt: (() => {
-        try {
-          return extractJSON(text).substring(0, 500);
-        } catch {
-          return null;
-        }
-      })(),
-    });
-    throw new Error(`${judgeLabel} returned invalid JSON`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const { text } = await withTimeout(
+        generateText({
+          model: aiClient(judgeModel),
+          prompt,
+          maxOutputTokens: 700,
+        }),
+        JUDGE_SCORING_TIMEOUT_MS,
+        `${judgeLabel} scoring (attempt ${attempt})`,
+      );
+
+      let judgeResult;
+      try {
+        const extracted = extractJSON(text);
+        judgeResult = JSON.parse(extracted);
+      } catch (error) {
+        console.error(`[search:judge_json_parse_error] Failed to parse JSON from ${judgeLabel}:`, {
+          attempt,
+          error: error instanceof Error ? error.message : String(error),
+          raw_text: text.substring(0, 500),
+          extracted_attempt: (() => {
+            try {
+              return extractJSON(text).substring(0, 500);
+            } catch {
+              return null;
+            }
+          })(),
+        });
+        throw new Error(`${judgeLabel} returned invalid JSON`);
+      }
+
+      const parsed = parseJudgeScoreResults(
+        judgeResult,
+        totalPoolSize,
+        batchIndexes,
+      ).filter((assessment) => batchIndexes.includes(assessment.index));
+
+      if (parsed.length > 0) return parsed;
+      throw new Error(`${judgeLabel} returned no valid scores`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const shouldRetry = attempt < maxAttempts && (
+        message.includes("invalid JSON") ||
+        message.includes("timed out") ||
+        message.includes("429")
+      );
+      lastError = error instanceof Error ? error : new Error(message);
+
+      logSearchEvent("judge_scoring_attempt_failed", {
+        judge: judgeLabel,
+        attempt,
+        retrying: shouldRetry,
+        error: message,
+      });
+
+      if (!shouldRetry) break;
+      await sleep(300 * attempt);
+    }
   }
-  
-  return parseJudgeScoreResults(
-    judgeResult,
-    totalPoolSize,
-    batchIndexes,
-  ).filter((assessment) => batchIndexes.includes(assessment.index));
+
+  throw lastError || new Error(`${judgeLabel} scoring failed`);
 }
 
 async function lightScoreAllProfiles(
@@ -2762,29 +2817,64 @@ async function arbitrateCandidateScore(
   judgeB: JudgeScoreResult,
   totalPoolSize: number,
 ): Promise<ScoredCandidateAssessment | null> {
-  const prompt = buildArbiterPrompt(parsed, jdText, profileText, judgeA, judgeB);
-  const { text } = await withTimeout(
-    generateText({
-      model: aiClient(getArbiterModel()),
-      prompt,
-      maxOutputTokens: 800,
-    }),
-    ARBITER_SCORING_TIMEOUT_MS,
-    "Arbiter scoring",
+  const prompt = buildArbiterPrompt(
+    parsed,
+    jdText,
+    truncateForPrompt(profileText, 3000),
+    judgeA,
+    judgeB,
   );
+  const maxAttempts = 2;
+  let lastError: Error | null = null;
 
-  const assessment = parseScoredAssessments(JSON.parse(extractJSON(text)), totalPoolSize)[0];
-  if (!assessment) return null;
-  return {
-    ...assessment,
-    scoring_method: "dual_review_arbitrated",
-    judge_delta: Math.max(
-      Math.abs(judgeA.capability_score - judgeB.capability_score),
-      Math.abs(judgeA.relevance_score - judgeB.relevance_score),
-      Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
-    ),
-    judge_conflict: true,
-  };
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const { text } = await withTimeout(
+        generateText({
+          model: aiClient(getArbiterModel()),
+          prompt,
+          maxOutputTokens: 500,
+        }),
+        ARBITER_SCORING_TIMEOUT_MS,
+        `Arbiter scoring (attempt ${attempt})`,
+      );
+
+      const assessment = parseScoredAssessments(
+        JSON.parse(extractJSON(text)),
+        totalPoolSize,
+      )[0];
+      if (!assessment) {
+        throw new Error("Arbiter returned no valid assessment");
+      }
+      return {
+        ...assessment,
+        scoring_method: "dual_review_arbitrated",
+        judge_delta: Math.max(
+          Math.abs(judgeA.capability_score - judgeB.capability_score),
+          Math.abs(judgeA.relevance_score - judgeB.relevance_score),
+          Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
+        ),
+        judge_conflict: true,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const shouldRetry = attempt < maxAttempts && (
+        message.includes("timed out") ||
+        message.includes("invalid JSON") ||
+        message.includes("Expected")
+      );
+      lastError = error instanceof Error ? error : new Error(message);
+      logSearchEvent("arbiter_attempt_failed", {
+        attempt,
+        retrying: shouldRetry,
+        error: message,
+      });
+      if (!shouldRetry) break;
+      await sleep(400 * attempt);
+    }
+  }
+
+  throw lastError || new Error("Arbiter scoring failed");
 }
 
 async function deepScoreSelectedProfiles(
@@ -2907,7 +2997,7 @@ async function scoreBrightDataProfiles(
     brightProfiles.length,
   );
   const lightQualified = selectQualifiedLightAssessments(lightAssessments);
-  const selectedIndexes = lightAssessments.map((assessment) => assessment.index);
+  const selectedIndexes = selectDeepReviewIndexes(lightAssessments);
 
   const allAssessments = await deepScoreSelectedProfiles(
     aiClient,
@@ -3060,6 +3150,8 @@ async function refineSerperCandidates(
     let deepRequestedCount = 0;
     let deepCompletedCount = 0;
     let batchNumber = 0;
+    let remainingDeepBudget = Math.min(DEEP_REVIEW_TARGET, urlsToScrape.length);
+    let remainingProfilesEstimate = urlsToScrape.length;
 
     const profileStream = streamLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
       batchSize: BRIGHTDATA_BATCH_SIZE,
@@ -3115,7 +3207,23 @@ async function refineSerperCandidates(
         ),
       );
 
-      const selectedIndexes = lightAssessments.map((assessment) => assessment.index);
+      const proportionalBudget =
+        remainingDeepBudget <= 0
+          ? 0
+          : Math.ceil(
+            (profileBatch.length / Math.max(remainingProfilesEstimate, 1)) *
+              remainingDeepBudget,
+          );
+      const batchDeepBudget = Math.min(
+        remainingDeepBudget,
+        Math.max(0, proportionalBudget),
+      );
+      const selectedIndexes = selectDeepReviewIndexes(lightAssessments, batchDeepBudget);
+      remainingDeepBudget = Math.max(0, remainingDeepBudget - selectedIndexes.length);
+      remainingProfilesEstimate = Math.max(
+        0,
+        remainingProfilesEstimate - profileBatch.length,
+      );
       deepRequestedCount += selectedIndexes.length;
 
       const deepAssessments = await deepScoreSelectedProfiles(
