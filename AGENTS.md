@@ -143,11 +143,16 @@ PGPASSWORD='<DB_PASSWORD>' /opt/homebrew/opt/libpq/bin/psql \
   -Atqc "SELECT now();"
 ```
 
-**密码来源建议：**
+**密码配置：**
 
-- 优先使用项目已有的安全存放位置，例如本地 `.env`、团队密码管理器、一次性 shell 环境变量
-- 如果仓库里已经有明确的本地运维脚本或连接文件，可先从这些地方确认当前项目实际在用的连接参数
-- 不要把明文密码再次写入 `AGENTS.md`
+本项目数据库密码：`jiangzhihao123`
+
+使用方式：
+```bash
+PGPASSWORD='jiangzhihao123' /opt/homebrew/opt/libpq/bin/psql \
+  'postgresql://postgres.orftlxqgxsezreyzsnot@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require' \
+  -Atqc "SELECT 1;"
+```
 
 ### 项目参数
 
