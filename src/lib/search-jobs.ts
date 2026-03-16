@@ -2646,7 +2646,8 @@ async function judgeScoreBatch(
     batchIndexes.length,
     judgeLabel,
   );
-  const text = await withTimeout(
+  const judgeModel = getJudgeModel();
+  const { text } = await withTimeout(
     aiClient.generateText({
       model: judgeModel,
       messages: [{ role: "user", content: prompt }],
@@ -2663,10 +2664,16 @@ async function judgeScoreBatch(
   } catch (error) {
     console.error(`[search:judge_json_parse_error] Failed to parse JSON from ${judgeLabel}:`, {
       error: error instanceof Error ? error.message : String(error),
-      textLength: text.length,
-      textPreview: text.substring(0, 200),
+      raw_text: text.substring(0, 500),
+      extracted_attempt: (() => {
+        try {
+          return extractJSON(text).substring(0, 500);
+        } catch {
+          return null;
+        }
+      })(),
     });
-    throw error;
+    throw new Error(`${judgeLabel} returned invalid JSON`);
   }
   
   return parseJudgeScoreResults(
@@ -3006,44 +3013,27 @@ async function refineSerperCandidates(
   try {
     const urlsToScrape = preScreened.map((c) => c.serperCandidate.linkedin_url);
     
-    // 流水线模式：边抓取边评分边存储
-    const aiClient = createAIClient();
-    const allCandidates: CandidateRowInput[] = [];
-    let totalScraped = 0;
-    
-    const profileStream = streamLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
-      batchSize: BRIGHTDATA_BATCH_SIZE,
-      allowPartial: true,
-    });
-    
-    for await (const profileBatch of profileStream) {
-      totalScraped += profileBatch.length;
-      console.log(`[pipeline] Processing batch: ${profileBatch.length} profiles (total: ${totalScraped}/${urlsToScrape.length})`);
-      
-      // 立即评分这一批
-      const renderProfileEntries = profileBatch.map((profile, index) =>
-        brightDataProfileToRichText(profile, index),
-      );
-      
-      const lightAssessments = await lightScoreAllProfiles(
-        aiClient,
-        parsed,
-        context.jdText,
-        renderProfileEntries,
-        profileBatch.length,
-      );
-      
-      const lightQualified = selectQualifiedLightAssessments(lightAssessments);
-      const selectedIndexes = lightAssessments.map((assessment) => assessment.index);
-      
-      const deepAssessments = await deepScoreSelectedProfiles(
-        aiClient,
-        parsed,
-        context.jdText,
-        renderProfileEntries,
-        selectedIndexes,
-        profileBatch.length,
-      );
+    // 使用原有的批量处理方式，不使用流水线
+    const brightProfiles = await withTimeout(
+      scrapeLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
+        batchSize: BRIGHTDATA_BATCH_SIZE,
+        concurrency: Math.ceil(urlsToScrape.length / BRIGHTDATA_BATCH_SIZE),
+        allowPartial: true,
+      }),
+      300000,
+      "Bright Data scrape",
+    );
+
+    if (!brightProfiles.length) {
+      throw new Error("Bright Data returned no profiles");
+    }
+
+    const scored = await scoreBrightDataProfiles(
+      context,
+      parsed,
+      brightProfiles,
+      retrievalCount,
+    );
       
       const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
       const qualifiedAssessments = selectQualifiedAssessments(deepAssessments, hiringBrief);
