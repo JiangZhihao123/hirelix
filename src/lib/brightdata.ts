@@ -162,6 +162,82 @@ function buildDuration(startDate: string | null, endDate: string | null) {
   return null;
 }
 
+function splitTextList(value: string, maxItems: number) {
+  const deduped = new Set<string>();
+  for (const part of value
+    .split(/[\n,;|•]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)) {
+    deduped.add(part);
+    if (deduped.size >= maxItems) break;
+  }
+  return Array.from(deduped);
+}
+
+const INFERABLE_SKILLS = [
+  "python",
+  "node.js",
+  "node",
+  "next.js",
+  "nextjs",
+  "react",
+  "typescript",
+  "javascript",
+  "golang",
+  "go",
+  "rust",
+  "java",
+  "c#",
+  "kotlin",
+  "swift",
+  "aws",
+  "gcp",
+  "azure",
+  "postgresql",
+  "mongodb",
+  "redis",
+  "graphql",
+  "rest",
+  "docker",
+  "kubernetes",
+  "llm",
+  "ai",
+  "machine learning",
+  "langchain",
+];
+
+function inferSkillsFromText(texts: Array<string | null | undefined>, maxItems = 12) {
+  const merged = texts
+    .filter((text): text is string => typeof text === "string" && text.trim().length > 0)
+    .join(" ")
+    .toLowerCase();
+  if (!merged) return [];
+
+  const deduped = new Set<string>();
+  for (const token of INFERABLE_SKILLS) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${escaped}\\b`, "i");
+    if (re.test(merged)) {
+      deduped.add(token);
+      if (deduped.size >= maxItems) break;
+    }
+  }
+  return Array.from(deduped);
+}
+
+function mapEducationFromDetails(value: unknown) {
+  const details = asString(value);
+  if (!details) return [];
+  return splitTextList(details, 4).map((school) => ({
+    title: null,
+    subtitle: school,
+    field_of_study: null,
+    degree: null,
+    start_year: null,
+    end_year: null,
+  }));
+}
+
 function mapDatasetExperienceEntry(value: unknown): BrightDataExperience[] {
   if (!value || typeof value !== "object") return [];
   const entry = value as BrightDataDatasetExperience;
@@ -258,6 +334,23 @@ function hasMeaningfulProfileSignal(profile: BrightDataProfile) {
       profile.skills.length > 0 ||
       profile.education.length > 0,
   );
+}
+
+function buildFallbackExperienceFromCurrentCompany(
+  currentCompany: BrightDataProfile["current_company"],
+): BrightDataExperience[] {
+  if (!currentCompany) return [];
+  if (!currentCompany.title && !currentCompany.name) return [];
+  return [
+    {
+      title: currentCompany.title,
+      company: currentCompany.name,
+      company_id: currentCompany.company_id,
+      location: currentCompany.location,
+      duration: null,
+      description: null,
+    },
+  ];
 }
 
 function chunkArray<T>(items: T[], batchSize: number) {
@@ -735,27 +828,47 @@ export function adaptDatasetRecordToBrightDataProfile(
   const currentCompany =
     mapDatasetCompany(record.current_company) ||
     getCurrentCompanyFromFallbackFields(record);
-  const experience = Array.isArray(record.experience)
+  const mappedExperience = Array.isArray(record.experience)
     ? record.experience.flatMap((entry) => mapDatasetExperienceEntry(entry))
     : [];
-  const education = Array.isArray(record.education)
+  const experience =
+    mappedExperience.length > 0
+      ? mappedExperience
+      : buildFallbackExperienceFromCurrentCompany(currentCompany);
+
+  const mappedEducation = Array.isArray(record.education)
     ? record.education
       .map((entry) => mapDatasetEducationEntry(entry))
       .filter((entry): entry is BrightDataEducation => Boolean(entry))
     : [];
+  const education =
+    mappedEducation.length > 0
+      ? mappedEducation
+      : mapEducationFromDetails(record.educations_details);
+  const about = asString(record.about);
+  const explicitSkills = asStringArray(record.skills);
+  const skills =
+    explicitSkills.length > 0
+      ? explicitSkills
+      : inferSkillsFromText([
+        about,
+        asString(record.headline),
+        currentCompany?.title || null,
+        currentCompany?.name || null,
+      ]);
 
   return {
     name: asString(record.name) || "Unknown",
     first_name: asString(record.first_name),
     last_name: asString(record.last_name),
     linkedin_id: asString(record.linkedin_id) || asString(record.id),
-    about: asString(record.about),
+    about,
     city: asString(record.city) || asString(record.location),
     country_code: asString(record.country_code),
     current_company: currentCompany,
     experience,
     education,
-    skills: asStringArray(record.skills),
+    skills,
     connections:
       typeof record.connections === "number" && Number.isFinite(record.connections)
         ? record.connections
