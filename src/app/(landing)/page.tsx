@@ -111,7 +111,7 @@ const candidateRows = [
 
 const heroSearchStats = [
   { label: "Profiles scanned", value: "2,400+" },
-  { label: "Deep review", value: "126" },
+  { label: "Deep review", value: "326" },
   { label: "AI-ranked shortlist", value: "Top 5" },
 ];
 
@@ -539,7 +539,7 @@ export default function Home() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="rounded-full border border-emerald-300/18 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-medium text-emerald-200">
-                      5 candidates found
+                      25 candidates found
                     </span>
                     <span className="rounded-full border border-sky-300/16 bg-sky-400/10 px-2.5 py-1 text-[10px] font-medium text-sky-100">
                     AI ranked from large-scale search
@@ -556,7 +556,7 @@ export default function Home() {
                       <span className="mt-1 block text-base font-semibold text-white">Senior Software Engineer</span>
                     </div>
                     <span className="rounded-full border border-emerald-300/18 bg-emerald-400/14 px-2.5 py-1 text-[11px] font-medium text-emerald-200">
-                      5 candidates found
+                      25 candidates found
                     </span>
                   </div>
                   <p className="mt-3 text-xs text-slate-100/88">
