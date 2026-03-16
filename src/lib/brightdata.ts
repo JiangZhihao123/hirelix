@@ -122,6 +122,10 @@ type BrightDataDatasetEducation = {
   end_year?: unknown;
 };
 
+type BrightDataInputPayload = {
+  url?: unknown;
+};
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -226,6 +230,34 @@ function mapDatasetCompany(value: unknown): BrightDataProfile["current_company"]
   };
   if (!mapped.name && !mapped.title && !mapped.location) return null;
   return mapped;
+}
+
+function getInputUrl(record: Record<string, unknown>) {
+  const nested =
+    record.input && typeof record.input === "object"
+      ? asString((record.input as BrightDataInputPayload).url)
+      : null;
+  return nested || asString(record.input_url) || asString(record.url);
+}
+
+function getCurrentCompanyFromFallbackFields(record: Record<string, unknown>) {
+  return mapDatasetCompany({
+    name: record.current_company_name,
+    company_id: record.current_company_company_id,
+    title: record.current_company_title,
+    location: record.location,
+  });
+}
+
+function hasMeaningfulProfileSignal(profile: BrightDataProfile) {
+  return Boolean(
+    profile.about ||
+      (profile.current_company &&
+        (profile.current_company.name || profile.current_company.title)) ||
+      profile.experience.length > 0 ||
+      profile.skills.length > 0 ||
+      profile.education.length > 0,
+  );
 }
 
 function chunkArray<T>(items: T[], batchSize: number) {
@@ -454,8 +486,44 @@ export async function pollSnapshot(
 
     // Data is ready
     if (Array.isArray(data)) {
-      console.log(`[brightdata] Got ${data.length} profiles`);
-      return data as BrightDataProfile[];
+      const records = data as Record<string, unknown>[];
+      const profiles: BrightDataProfile[] = [];
+      const errorCodes = new Map<string, number>();
+      let droppedErrorRecords = 0;
+      let droppedThinRecords = 0;
+
+      for (const record of records) {
+        const errorText = asString(record.error);
+        if (errorText) {
+          droppedErrorRecords += 1;
+          const code = asString(record.error_code) || "unknown_error";
+          errorCodes.set(code, (errorCodes.get(code) || 0) + 1);
+          continue;
+        }
+
+        const profile = adaptDatasetRecordToBrightDataProfile(record);
+        if (!hasMeaningfulProfileSignal(profile)) {
+          droppedThinRecords += 1;
+          continue;
+        }
+
+        profiles.push(profile);
+      }
+
+      if (droppedErrorRecords > 0 || droppedThinRecords > 0) {
+        console.warn(
+          `[brightdata] Filtered ${droppedErrorRecords} error record(s) and ${droppedThinRecords} thin record(s) from snapshot ${snapshotId}.`,
+        );
+      }
+      if (errorCodes.size > 0) {
+        console.warn(
+          `[brightdata] Error code distribution: ${Array.from(errorCodes.entries())
+            .map(([code, count]) => `${code}=${count}`)
+            .join(", ")}`,
+        );
+      }
+      console.log(`[brightdata] Got ${profiles.length} usable profile(s)`);
+      return profiles;
     }
 
     // Unexpected format
@@ -664,7 +732,9 @@ export async function scrapeLinkedInProfiles(
 export function adaptDatasetRecordToBrightDataProfile(
   record: Record<string, unknown>,
 ): BrightDataProfile {
-  const currentCompany = mapDatasetCompany(record.current_company);
+  const currentCompany =
+    mapDatasetCompany(record.current_company) ||
+    getCurrentCompanyFromFallbackFields(record);
   const experience = Array.isArray(record.experience)
     ? record.experience.flatMap((entry) => mapDatasetExperienceEntry(entry))
     : [];
@@ -694,7 +764,7 @@ export function adaptDatasetRecordToBrightDataProfile(
       typeof record.followers === "number" && Number.isFinite(record.followers)
         ? record.followers
         : null,
-    url: asString(record.url) || asString(record.input_url),
+    url: asString(record.url) || getInputUrl(record),
     avatar: asString(record.avatar),
     languages: asStringArray(record.languages, 10),
     certifications:
@@ -717,7 +787,7 @@ export function adaptDatasetRecordToBrightDataProfile(
         ? record.recommendations_count
         : null,
     input: {
-      url: asString(record.input_url) || asString(record.url) || "",
+      url: getInputUrl(record) || "",
     },
   };
 }
