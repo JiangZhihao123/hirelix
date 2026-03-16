@@ -468,6 +468,69 @@ export async function pollSnapshot(
 
 // ──────────────────── Convenience: scrape and wait ────────────────────
 
+export async function* streamLinkedInProfiles(
+  apiToken: string,
+  datasetId: string,
+  linkedinUrls: string[],
+  options: BrightDataScrapeOptions = {},
+): AsyncGenerator<BrightDataProfile[], void, unknown> {
+  if (linkedinUrls.length === 0) return;
+
+  const batchSize = Math.max(1, options.batchSize ?? linkedinUrls.length);
+  const maxAttempts = options.maxAttempts ?? 12;
+  const intervalMs = options.intervalMs ?? 10000;
+  const allowPartial = options.allowPartial ?? false;
+
+  const batches = chunkArray(linkedinUrls, batchSize);
+  console.log(
+    `[brightdata:stream] Starting stream for ${linkedinUrls.length} profiles in ${batches.length} batches...`,
+  );
+
+  // 并发触发所有批次
+  const snapshotPromises = batches.map(async (urls, batchIndex) => {
+    const label = `batch ${batchIndex + 1}/${batches.length}`;
+    try {
+      console.log(`[brightdata:stream] Triggering ${label} for ${urls.length} profiles...`);
+      const snapshotId = await triggerScrape(apiToken, datasetId, urls);
+      console.log(`[brightdata:stream] ${label} snapshot ID: ${snapshotId}`);
+      return { snapshotId, batchIndex, urls, label, error: null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[brightdata:stream] ${label} trigger failed: ${message}`);
+      if (!allowPartial) throw error;
+      return { snapshotId: null, batchIndex, urls, label, error: message };
+    }
+  });
+
+  // 等待所有触发完成
+  const snapshots = await Promise.all(snapshotPromises);
+
+  // 边轮询边 yield
+  for (const snapshot of snapshots) {
+    if (snapshot.error || !snapshot.snapshotId) {
+      console.log(`[brightdata:stream] Skipping ${snapshot.label} due to trigger error`);
+      continue;
+    }
+
+    try {
+      const profiles = await pollSnapshot(
+        apiToken,
+        snapshot.snapshotId,
+        maxAttempts,
+        intervalMs,
+      );
+      console.log(`[brightdata:stream] ${snapshot.label} completed with ${profiles.length} profiles`);
+      yield profiles; // 立即返回这一批
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[brightdata:stream] ${snapshot.label} poll failed: ${message}`);
+      if (!allowPartial) throw error;
+    }
+  }
+
+  console.log(`[brightdata:stream] Stream completed`);
+}
+
 export async function scrapeLinkedInProfiles(
   apiToken: string,
   datasetId: string,

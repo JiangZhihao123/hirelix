@@ -16,6 +16,7 @@ import {
 } from "@/lib/serper";
 import {
   scrapeLinkedInProfiles,
+  streamLinkedInProfiles,
   brightDataProfileToRichText,
   filterDatasetProfiles,
   triggerDatasetFilter,
