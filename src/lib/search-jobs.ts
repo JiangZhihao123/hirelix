@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { fetch as undiciFetch, ProxyAgent } from "undici";
 import {
   CANDIDATE_SUITABILITY_PROMPT,
@@ -15,7 +16,6 @@ import {
   type SerperCandidate,
 } from "@/lib/serper";
 import {
-  scrapeLinkedInProfiles,
   streamLinkedInProfiles,
   brightDataProfileToRichText,
   filterDatasetProfiles,
@@ -997,14 +997,14 @@ function createAIClient() {
 
     if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
       const proxyAgent = new ProxyAgent(process.env.HTTP_PROXY);
-      
-      config.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-        // @ts-ignore - undici fetch supports dispatcher
-        return undiciFetch(input, {
-          ...init,
+
+      config.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        const requestInit = (init ?? {}) as Record<string, unknown>;
+        return undiciFetch(input as never, {
+          ...requestInit,
           dispatcher: proxyAgent,
-        });
-      };
+        } as never) as unknown as Promise<Response>;
+      }) as typeof fetch;
     }
 
     return createOpenAI(config);
@@ -1014,7 +1014,6 @@ function createAIClient() {
   if (!anthropicApiKey) {
     throw new Error("ANTHROPIC_API_KEY is missing");
   }
-  const { createAnthropic } = require("@ai-sdk/anthropic");
   return createAnthropic({
     apiKey: anthropicApiKey,
     ...(process.env.ANTHROPIC_BASE_URL
@@ -2648,10 +2647,10 @@ async function judgeScoreBatch(
   );
   const judgeModel = getJudgeModel();
   const { text } = await withTimeout(
-    aiClient.generateText({
-      model: judgeModel,
-      messages: [{ role: "user", content: prompt }],
-      maxTokens: 16000,
+    generateText({
+      model: aiClient(judgeModel),
+      prompt,
+      maxOutputTokens: 1400,
     }),
     JUDGE_SCORING_TIMEOUT_MS,
     `${judgeLabel} scoring`,
@@ -2703,7 +2702,7 @@ async function lightScoreAllProfiles(
 
   const batchResults = await runWithConcurrency(
     batches,
-    batches.length,
+    Math.min(DEEP_SCORING_CONCURRENCY, batches.length),
     async (batchIdxs) => {
       try {
         return await lightScoreBatch(aiClient, parsed, jdText, profileTexts, batchIdxs, totalPoolSize);
@@ -2765,8 +2764,8 @@ async function deepScoreSelectedProfiles(
   if (!selectedIndexes.length) return [];
 
   // Each candidate spawns two judge calls and occasionally an arbiter call.
-  // Fan out every candidate-level review task concurrently.
-  const workerCount = selectedIndexes.length;
+  // Hard cap concurrency to avoid judge/arbiter API saturation.
+  const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, selectedIndexes.length);
   const assessments = await runWithConcurrency(
     selectedIndexes,
     workerCount,
@@ -2997,95 +2996,186 @@ async function refineSerperCandidates(
   }
 
   await setSearchStatus(context.searchId, "deep_scoring");
+  const brightDataBatchCount = Math.ceil(preScreened.length / BRIGHTDATA_BATCH_SIZE);
+  const scrapeBatchConcurrency = Math.min(BRIGHTDATA_BATCH_CONCURRENCY, brightDataBatchCount);
+  const deepScoringBatchCount = Math.ceil(preScreened.length / DEEP_SCORING_BATCH_SIZE);
+  const deepScoringConcurrency = Math.min(DEEP_SCORING_CONCURRENCY, deepScoringBatchCount);
+  const deepReviewConcurrency = Math.min(DEEP_REVIEW_CONCURRENCY, preScreened.length);
+
   logSearchEvent("search_step_started", {
     search_id: context.searchId,
     step: "deep_scoring",
     provider: "brightdata",
     batch_size: BRIGHTDATA_BATCH_SIZE,
-    batch_concurrency: Math.ceil(preScreened.length / BRIGHTDATA_BATCH_SIZE),
+    batch_concurrency: scrapeBatchConcurrency,
     deep_scoring_batch_size: DEEP_SCORING_BATCH_SIZE,
-    deep_scoring_concurrency: Math.ceil(preScreened.length / DEEP_SCORING_BATCH_SIZE),
-    deep_review_concurrency: preScreened.length,
-    full_stage_parallelism: FULL_STAGE_PARALLELISM,
+    deep_scoring_concurrency: deepScoringConcurrency,
+    deep_review_concurrency: deepReviewConcurrency,
     job_id: context.jobId,
   });
 
   try {
     const urlsToScrape = preScreened.map((c) => c.serperCandidate.linkedin_url);
-    
-    // 使用原有的批量处理方式，不使用流水线
-    const brightProfiles = await withTimeout(
-      scrapeLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
-        batchSize: BRIGHTDATA_BATCH_SIZE,
-        concurrency: Math.ceil(urlsToScrape.length / BRIGHTDATA_BATCH_SIZE),
-        allowPartial: true,
-      }),
-      300000,
-      "Bright Data scrape",
-    );
 
-    if (!brightProfiles.length) {
+    // 流水线模式：边抓取边评分边落库
+    const aiClient = createAIClient();
+    const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+    const allDeepRows: CandidateRowInput[] = [];
+    const allLightRows: CandidateRowInput[] = [];
+    let totalScraped = 0;
+    let deepRequestedCount = 0;
+    let deepCompletedCount = 0;
+    let batchNumber = 0;
+
+    const profileStream = streamLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
+      batchSize: BRIGHTDATA_BATCH_SIZE,
+      concurrency: scrapeBatchConcurrency,
+      allowPartial: true,
+    });
+
+    for await (const profileBatch of profileStream) {
+      batchNumber += 1;
+      totalScraped += profileBatch.length;
+      logSearchEvent("search_pipeline_batch_started", {
+        search_id: context.searchId,
+        batch: batchNumber,
+        batch_size: profileBatch.length,
+        scraped_so_far: totalScraped,
+        total_requested: urlsToScrape.length,
+        job_id: context.jobId,
+      });
+
+      const renderProfileEntries = profileBatch.map((profile, index) =>
+        brightDataProfileToRichText(profile, index),
+      );
+
+      const fallbackLightAssessments: LightCandidateAssessment[] = profileBatch.map((_, index) => ({
+        index,
+        match_score: 0,
+        reason: "Ranking pass failed for this profile batch.",
+      }));
+
+      const lightAssessments = await lightScoreAllProfiles(
+        aiClient,
+        parsed,
+        context.jdText,
+        renderProfileEntries,
+        profileBatch.length,
+      ).catch((error) => {
+        logSearchEvent("search_pipeline_light_scoring_failed", {
+          search_id: context.searchId,
+          batch: batchNumber,
+          error: error instanceof Error ? error.message : String(error),
+          job_id: context.jobId,
+        });
+        return fallbackLightAssessments;
+      });
+
+      const lightQualified = selectQualifiedLightAssessments(lightAssessments);
+      allLightRows.push(
+        ...buildBrightDataLightCandidateRows(
+          profileBatch,
+          lightQualified,
+          lightQualified.length,
+          "outreach_pool",
+        ),
+      );
+
+      const selectedIndexes = lightAssessments.map((assessment) => assessment.index);
+      deepRequestedCount += selectedIndexes.length;
+
+      const deepAssessments = await deepScoreSelectedProfiles(
+        aiClient,
+        parsed,
+        context.jdText,
+        renderProfileEntries,
+        selectedIndexes,
+        profileBatch.length,
+      ).catch((error) => {
+        logSearchEvent("search_pipeline_deep_scoring_failed", {
+          search_id: context.searchId,
+          batch: batchNumber,
+          error: error instanceof Error ? error.message : String(error),
+          job_id: context.jobId,
+        });
+        return [] as ScoredCandidateAssessment[];
+      });
+
+      deepCompletedCount += deepAssessments.length;
+      const qualifiedAssessments = selectQualifiedAssessments(deepAssessments, hiringBrief);
+      allDeepRows.push(
+        ...buildBrightDataCandidateRows(
+          profileBatch,
+          qualifiedAssessments,
+          qualifiedAssessments.length,
+          "outreach_pool",
+        ),
+      );
+
+      const previewLimit = Math.max(allDeepRows.length, allLightRows.length);
+      if (previewLimit > 0) {
+        const previewRows = tagPoolRows(
+          allDeepRows,
+          allLightRows,
+          context.highlightCount,
+          previewLimit,
+        );
+        await upsertCandidatesForSearch(context.searchId, previewRows);
+      }
+
+      logSearchEvent("search_pipeline_batch_completed", {
+        search_id: context.searchId,
+        batch: batchNumber,
+        light_qualified_count: lightQualified.length,
+        deep_completed_count: deepAssessments.length,
+        deep_qualified_count: qualifiedAssessments.length,
+        total_candidates_so_far: Math.max(allDeepRows.length, allLightRows.length),
+        job_id: context.jobId,
+      });
+    }
+
+    if (!totalScraped) {
       throw new Error("Bright Data returned no profiles");
     }
 
-    const scored = await scoreBrightDataProfiles(
-      context,
-      parsed,
-      brightProfiles,
-      retrievalCount,
-    );
-      
-      const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-      const qualifiedAssessments = selectQualifiedAssessments(deepAssessments, hiringBrief);
-      
-      // 构建候选人行
-      const batchCandidates = buildBrightDataCandidateRows(
-        profileBatch,
-        qualifiedAssessments,
-        qualifiedAssessments.length,
-        "outreach_pool",
-      );
-      
-      // 立即存储到数据库
-      if (batchCandidates.length > 0) {
-        const { error } = await supabaseAdmin
-          .from("hirelix_candidates")
-          .insert(batchCandidates.map(c => ({
-            ...c,
-            search_id: context.searchId,
-            user_id: context.userId,
-          })));
-        
-        if (error) {
-          console.error(`[pipeline] Failed to save candidates:`, error);
-        } else {
-          allCandidates.push(...batchCandidates);
-          console.log(`[pipeline] Saved ${batchCandidates.length} candidates (total: ${allCandidates.length})`);
-        }
-      }
-    }
-    
-    if (allCandidates.length === 0) {
+    const finalLimit = Math.max(allDeepRows.length, allLightRows.length);
+    const finalRows =
+      finalLimit > 0
+        ? tagPoolRows(allDeepRows, allLightRows, context.highlightCount, finalLimit)
+        : [];
+    if (!finalRows.length) {
       throw new Error("No qualified candidates found");
     }
-    
-    const scored = {
-      finalRows: allCandidates,
-      warningMessage: null,
+
+    const topPickCount = finalRows.filter(
+      (row) => row.metadata?.pool_type === "top_pick",
+    ).length;
+    let warningMessage: string | null = null;
+    if (topPickCount < context.highlightCount) {
+      warningMessage = `Only ${topPickCount} highlighted candidate${topPickCount === 1 ? "" : "s"} met the current outreach threshold.`;
+    }
+    if (deepCompletedCount < deepRequestedCount) {
+      warningMessage =
+        "Some advanced profile scoring did not finish, but the current candidate pool is ready to review.";
+    }
+
+    const scored: SearchPipelineResult = {
+      finalRows,
+      warningMessage,
       displayStats: buildSearchDisplayStats({
         retrieval_count: retrievalCount,
-        deep_review_requested_count: totalScraped,
-        deep_review_completed_count: totalScraped,
-        qualified_count: allCandidates.length,
-        outreach_pool_count: allCandidates.length,
-        shortlist_count: Math.min(allCandidates.length, context.highlightCount),
+        deep_review_requested_count: deepRequestedCount,
+        deep_review_completed_count: deepCompletedCount,
+        qualified_count: finalRows.length,
+        outreach_pool_count: finalRows.length,
+        shortlist_count: finalRows.length,
       }),
     };
 
     logSearchEvent("search_step_completed", {
       search_id: context.searchId,
       step: "deep_scoring",
-      provider: "brightdata_pipeline",
+      provider: "brightdata",
       result_count: scored.finalRows.length,
       scraped_count: totalScraped,
       shortlist_count: scored.displayStats.shortlist_count,
