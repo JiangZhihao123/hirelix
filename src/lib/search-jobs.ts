@@ -1920,7 +1920,7 @@ function selectQualifiedAssessments(
     hiringBrief.location_flexibility === "strict";
 
   return assessments.filter((assessment) => {
-    if (assessment.suitability.match_score < 65) return false;
+    if (assessment.suitability.match_score < 60) return false;
     if (assessment.suitability.scoring_breakdown.relevance_score < 60) return false;
     if (assessment.suitability.scoring_breakdown.join_likelihood_score < 40) return false;
     if (assessment.suitability.actionability === "not_actionable") return false;
@@ -1933,7 +1933,7 @@ function selectQualifiedAssessments(
 }
 
 function selectQualifiedLightAssessments(assessments: LightCandidateAssessment[]) {
-  return assessments.filter((assessment) => assessment.match_score >= 65);
+  return assessments.filter((assessment) => assessment.match_score >= 60);
 }
 
 function getActionabilityRank(value: CandidateSuitability["actionability"]) {
@@ -2898,10 +2898,8 @@ async function scoreBrightDataProfiles(
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const qualifiedAssessments = selectQualifiedAssessments(allAssessments, hiringBrief);
   const qualifiedCount = qualifiedAssessments.length;
-  const outreachPoolCount = Math.min(
-    context.outreachPoolTarget,
-    Math.max(qualifiedCount, Math.min(lightQualified.length, context.outreachPoolTarget)),
-  );
+  // 流水线模式：返回所有合格候选人，不限制数量
+  const outreachPoolCount = qualifiedCount;
   const deepTopPickRows = buildBrightDataCandidateRows(
     brightProfiles,
     qualifiedAssessments,
@@ -2911,7 +2909,7 @@ async function scoreBrightDataProfiles(
   const deepPoolRows = buildBrightDataCandidateRows(
     brightProfiles,
     qualifiedAssessments.slice(context.highlightCount),
-    Math.max(outreachPoolCount - context.highlightCount, 0),
+    qualifiedCount - context.highlightCount,
     "outreach_pool",
   );
   const lightTopPickRows = buildBrightDataLightCandidateRows(
@@ -2923,7 +2921,7 @@ async function scoreBrightDataProfiles(
   const lightPoolRows = buildBrightDataLightCandidateRows(
     brightProfiles,
     lightQualified.slice(context.highlightCount),
-    Math.max(outreachPoolCount - context.highlightCount, 0),
+    lightQualified.length - context.highlightCount,
     "outreach_pool",
   );
   const finalRows = tagPoolRows(
