@@ -1043,12 +1043,22 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
 function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecision | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
+  const keep = item.keep === true;
+  let matchScore =
+    typeof item.match_score === "number" && Number.isFinite(item.match_score)
+      ? Math.max(0, Math.min(100, Math.round(item.match_score)))
+      : 0;
+
+  // Enforce keep/score consistency so downstream thresholding is stable.
+  if (keep && matchScore < PRE_SCREEN_PASS_SCORE) {
+    matchScore = PRE_SCREEN_PASS_SCORE;
+  } else if (!keep && matchScore >= PRE_SCREEN_PASS_SCORE) {
+    matchScore = PRE_SCREEN_PASS_SCORE - 1;
+  }
+
   return {
-    keep: item.keep === true,
-    match_score:
-      typeof item.match_score === "number" && Number.isFinite(item.match_score)
-        ? Math.max(0, Math.min(100, Math.round(item.match_score)))
-        : 0,
+    keep,
+    match_score: matchScore,
     reason:
       normalizeNullableString(item.reason) ||
       "Potential fit based on title, snippet, and keyword overlap.",
@@ -1448,10 +1458,20 @@ Return ONLY valid JSON with this exact shape:
 }
 
 Rules:
-- "keep" should be true only if this candidate is plausibly worth a deeper look.
-- Use match_score as a coarse ranking score, not a final evaluation.
+- This is a snippet-level decision, not a full-profile decision. Do not over-penalize missing details.
+- Keep should represent scrape-worthiness for deeper review.
+- Keep/score consistency is mandatory:
+  - If keep=true, match_score MUST be >= ${PRE_SCREEN_PASS_SCORE}.
+  - If keep=false, match_score MUST be <= ${PRE_SCREEN_PASS_SCORE - 1}.
+- Use this score rubric:
+  - 85-100: clear strong relevance from title/headline/snippet (role + stack + likely location fit).
+  - 70-84: strong likely fit with enough evidence to prioritize.
+  - ${PRE_SCREEN_PASS_SCORE}-69: plausible fit worth scraping even if evidence is partial.
+  - 40-59: weak/uncertain fit; not worth scraping now.
+  - 0-39: clear mismatch, non-engineering role, or obvious hard-constraint conflict.
+- For strict onsite/hybrid roles, apply location/work-model constraints when explicit conflicts appear.
 - Keep reason under 20 words.
-- Do not return any extra fields.`;
+- Return raw JSON only. No markdown fences. Do not return extra fields.`;
 }
 
 function buildDeepScorePrompt(
