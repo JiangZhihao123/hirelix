@@ -2670,7 +2670,7 @@ async function judgeScoreBatch(
   }
   
   return parseJudgeScoreResults(
-    parsed,
+    judgeResult,
     totalPoolSize,
     batchIndexes,
   ).filter((assessment) => batchIndexes.includes(assessment.index));
