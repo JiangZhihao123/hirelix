@@ -88,13 +88,13 @@ const PRE_SCREEN_CONCURRENCY = getConfiguredPositiveInt(
 );
 const BRIGHTDATA_BATCH_SIZE = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_BATCH_SIZE",
-  20,
-  { max: 50 },
+  50,
+  { max: 100 },
 );
 const BRIGHTDATA_BATCH_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_BATCH_CONCURRENCY",
-  12,
-  { max: 40 },
+  20,
+  { max: 50 },
 );
 const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_BATCH_SIZE",
