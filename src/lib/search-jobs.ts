@@ -188,7 +188,7 @@ const LIGHT_PASS_RATE_MIN = getConfiguredNumber(
 );
 const LIGHT_PASS_RATE_MAX = getConfiguredNumber(
   "SEARCH_LIGHT_PASS_RATE_MAX",
-  0.35,
+  0.12,
   { min: 0, max: 1 },
 );
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
