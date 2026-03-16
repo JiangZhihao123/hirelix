@@ -17,13 +17,11 @@ import {
   type SerperCandidate,
 } from "@/lib/serper";
 import {
-  streamLinkedInProfiles,
+  scrapeLinkedInProfiles,
   brightDataProfileToRichText,
-  filterDatasetProfiles,
   triggerDatasetFilter,
   waitForDatasetSnapshot,
   type BrightDataDatasetFilterRequest,
-  type BrightDataFilterRule,
   type BrightDataProfile,
 } from "@/lib/brightdata";
 
@@ -91,11 +89,6 @@ const SERPER_PAGES_PER_QUERY = getConfiguredPositiveInt(
   4,
   { max: 10 },
 );
-const PRE_SCREEN_BATCH_SIZE = getConfiguredPositiveInt(
-  "SEARCH_PRE_SCREEN_BATCH_SIZE",
-  1,
-  { max: 200 },
-);
 const PRE_SCREEN_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_CONCURRENCY",
   20,
@@ -120,11 +113,6 @@ const DEEP_SCORING_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_CONCURRENCY",
   64,
   { max: 200 },
-);
-const DEEP_REVIEW_TARGET = getConfiguredPositiveInt(
-  "SEARCH_DEEP_REVIEW_TARGET",
-  40,
-  { max: 100 },
 );
 const DEEP_REVIEW_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_REVIEW_CONCURRENCY",
@@ -151,20 +139,10 @@ const HIGHLIGHT_CANDIDATE_COUNT = getConfiguredPositiveInt(
   5,
   { max: 25 },
 );
-const SHORTLIST_MIN_SCORE = getConfiguredPositiveInt(
-  "SEARCH_SHORTLIST_MIN_SCORE",
-  60,
-  { min: 1, max: 100 },
-);
 const PRE_SCREEN_TARGET = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_TARGET",
   250,
   { min: 25, max: 1000 },
-);
-const PRE_SCREEN_PASS_SCORE = getConfiguredPositiveInt(
-  "SEARCH_PRE_SCREEN_PASS_SCORE",
-  60,
-  { min: 1, max: 100 },
 );
 const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
   "SEARCH_SOURCE_RULE_PASS_SCORE",
@@ -173,23 +151,28 @@ const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
 );
 const TARGET_SCRAPE_COUNT = getConfiguredPositiveInt(
   "SEARCH_TARGET_SCRAPE_COUNT",
-  120,
-  { min: 1, max: 1000 },
+  2500,
+  { min: 1, max: 5000 },
 );
 const STOP_MIN_GAIN_RATIO = getConfiguredNumber(
   "SEARCH_STOP_MIN_GAIN_RATIO",
   0.08,
   { min: 0, max: 1 },
 );
-const LIGHT_PASS_RATE_MIN = getConfiguredNumber(
-  "SEARCH_LIGHT_PASS_RATE_MIN",
-  0.08,
-  { min: 0, max: 1 },
+const LIGHT_STAGE_TOP_RATIO = getConfiguredNumber(
+  "SEARCH_LIGHT_STAGE_TOP_RATIO",
+  0.1,
+  { min: 0.01, max: 1 },
 );
-const LIGHT_PASS_RATE_MAX = getConfiguredNumber(
-  "SEARCH_LIGHT_PASS_RATE_MAX",
-  0.12,
-  { min: 0, max: 1 },
+const DEEP_STAGE_TOP_RATIO = getConfiguredNumber(
+  "SEARCH_DEEP_STAGE_TOP_RATIO",
+  0.1,
+  { min: 0.01, max: 1 },
+);
+const FINAL_RESULT_CAP = getConfiguredPositiveInt(
+  "SEARCH_FINAL_RESULT_CAP",
+  25,
+  { min: 1, max: 250 },
 );
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
   "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
@@ -328,22 +311,6 @@ type CandidateSuitability = {
   why_this_candidate: string[];
   why_not_higher: string[];
   evidence_quality: "high" | "medium" | "low";
-};
-
-type CanonicalWorkHistoryItem = {
-  title: string | null;
-  company: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  summary: string | null;
-};
-
-type CanonicalEducationItem = {
-  school: string | null;
-  degree: string | null;
-  major: string | null;
-  start_year: string | null;
-  end_year: string | null;
 };
 
 type SerperPreScreenDecision = {
@@ -544,27 +511,6 @@ function normalizeStringArray(value: unknown, maxItems: number) {
   return Array.from(deduped);
 }
 
-function normalizeSearchQueries(value: unknown, maxItems: number) {
-  if (!Array.isArray(value)) return [];
-
-  const deduped = new Set<string>();
-  for (const item of value) {
-    if (typeof item !== "string") continue;
-
-    const cleaned = item.trim().replace(/\s+/g, " ");
-    if (!cleaned) continue;
-
-    const withLinkedInScope = /site:linkedin\.com\/in/i.test(cleaned)
-      ? cleaned
-      : `site:linkedin.com/in ${cleaned}`;
-
-    deduped.add(withLinkedInScope);
-    if (deduped.size >= maxItems) break;
-  }
-
-  return Array.from(deduped);
-}
-
 function normalizeCountryCode(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().toUpperCase();
@@ -759,54 +705,6 @@ function truncateForPrompt(text: string, maxChars: number) {
   return `${text.slice(0, maxChars)}\n\n[Job description truncated for prompt length]`;
 }
 
-
-function normalizeCanonicalWorkHistory(value: unknown): CanonicalWorkHistoryItem[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") return null;
-      const item = entry as Record<string, unknown>;
-      const title = normalizeNullableString(item.title);
-      const company = normalizeNullableString(item.company);
-      const start_date = normalizeNullableString(item.start_date);
-      const end_date = normalizeNullableString(item.end_date);
-      const summary = normalizeNullableString(item.summary);
-      if (!title && !company && !summary) return null;
-      return {
-        title,
-        company,
-        start_date,
-        end_date,
-        summary,
-      };
-    })
-    .filter((entry): entry is CanonicalWorkHistoryItem => Boolean(entry))
-    .slice(0, 5);
-}
-
-function normalizeCanonicalEducation(value: unknown): CanonicalEducationItem[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") return null;
-      const item = entry as Record<string, unknown>;
-      const school = normalizeNullableString(item.school);
-      const degree = normalizeNullableString(item.degree);
-      const major = normalizeNullableString(item.major);
-      const start_year = normalizeNullableString(item.start_year);
-      const end_year = normalizeNullableString(item.end_year);
-      if (!school && !degree && !major) return null;
-      return {
-        school,
-        degree,
-        major,
-        start_year,
-        end_year,
-      };
-    })
-    .filter((entry): entry is CanonicalEducationItem => Boolean(entry))
-    .slice(0, 3);
-}
 
 function normalizeEnumValue<T extends string>(
   value: unknown,
@@ -1381,63 +1279,6 @@ export async function enqueueSearchJob(input: {
   return data;
 }
 
-function buildFilterPrompt(
-  parsed: Record<string, unknown>,
-  jdText: string,
-  richProfiles: string,
-  poolSize: number,
-  candidateCount: number,
-) {
-  return `You are an expert AI recruiter. Your job is to deeply analyze candidate profiles and select the BEST matches for a role.
-
-## Original Job Description
-${truncateForPrompt(jdText.trim(), 4000)}
-
-## Search Intent
-${buildPromptSearchContext(parsed)}
-
-## Candidate Pool (${poolSize} people)
-${richProfiles}
-
-## Your Task
-Select the TOP ${candidateCount} candidates. For each, return:
-- index: number (the [N] index from the profile)
-- match_score: 0-100
-- match_reasons: string[] (3-4 SPECIFIC reasons referencing their actual experience)
-- skills: string[] (inferred technical skills based on their profile, max 8)
-
-Return a JSON array of exactly ${candidateCount} objects, sorted by match_score descending. Return ONLY valid JSON, no markdown.`;
-}
-
-function buildSerperFilterPrompt(
-  parsed: Record<string, unknown>,
-  jdText: string,
-  richProfiles: string,
-  poolSize: number,
-  candidateCount: number,
-) {
-  return `${CANDIDATE_SUITABILITY_PROMPT}
-
-## Original Job Description
-${truncateForPrompt(jdText.trim(), 5000)}
-
-## Search Intent
-${buildPromptSearchContext(parsed)}
-
-## Candidate Pool (${poolSize} candidates)
-Review the following LinkedIn search results and assess each candidate for real-world shortlist actionability.
-
-${richProfiles}
-
-## Your Task
-Return exactly ${candidateCount} candidate assessments for the best people. Prioritize realistic viability over raw resume strength.
-
-For location-sensitive roles:
-- Candidates outside the practical target geography should not become strong_fit unless the profile explicitly proves they can work in the target location.
-- Do not speculate about relocation.
-`;
-}
-
 function buildSerperSingleCandidatePrompt(
   parsed: Record<string, unknown>,
   jdText: string,
@@ -1466,57 +1307,17 @@ Return ONLY valid JSON with this exact shape:
 
 Rules:
 - This is a snippet-level decision, not a full-profile decision. Do not over-penalize missing details.
-- Keep should represent scrape-worthiness for deeper review.
-- Keep/score consistency is mandatory:
-  - If keep=true, match_score MUST be >= ${PRE_SCREEN_PASS_SCORE}.
-  - If keep=false, match_score MUST be <= ${PRE_SCREEN_PASS_SCORE - 1}.
+- Keep indicates whether this candidate looks worth scraping for richer LinkedIn data.
+- match_score is used for ranking candidates against each other. Keep score granularity meaningful.
 - Use this score rubric:
   - 85-100: clear strong relevance from title/headline/snippet (role + stack + likely location fit).
   - 70-84: strong likely fit with enough evidence to prioritize.
-  - ${PRE_SCREEN_PASS_SCORE}-69: plausible fit worth scraping even if evidence is partial.
+  - 55-69: plausible fit worth scraping even if evidence is partial.
   - 40-59: weak/uncertain fit; not worth scraping now.
   - 0-39: clear mismatch, non-engineering role, or obvious hard-constraint conflict.
 - For strict onsite/hybrid roles, apply location/work-model constraints when explicit conflicts appear.
 - Keep reason under 20 words.
 - Return raw JSON only. No markdown fences. Do not return extra fields.`;
-}
-
-function buildDeepScorePrompt(
-  parsed: Record<string, unknown>,
-  jdText: string,
-  richProfiles: string,
-  poolSize: number,
-) {
-  return `${CANDIDATE_SUITABILITY_PROMPT}
-
-## Original Job Description
-${truncateForPrompt(jdText.trim(), 5000)}
-
-## Search Intent
-${buildPromptSearchContext(parsed)}
-
-## Company Context
-${buildCompanyProfileContext(parsed)}
-
-## Candidate Profiles (${poolSize} candidates)
-The profiles below are raw candidate profiles derived from LinkedIn data.
-
-${richProfiles}
-
-## Your Task
-Assess every candidate for shortlist suitability. Return one object per candidate profile.
-
-Additional rules:
-- "strong_fit" means worth advancing now and must map to 85-100.
-- "viable_fit" means usable for the shortlist but with something to verify and must map to 65-84.
-- "risky_fit" means maybe worth keeping as a broader alternative, not a primary recommendation, and must map to 40-64.
-- "reject" means not shortlist-worthy and must map to 0-39.
-- "ready_to_act" is only valid for strong_fit or the strongest viable_fit candidates with clear evidence.
-- "not_actionable" is only valid for rejects or low-confidence low-score candidates.
-- Keep "why_this_candidate" concrete and evidence-based.
-- Put any missing hard constraints into "constraint_risks" and "why_not_higher".
-- Never speculate about relocation or work authorization.
-`;
 }
 
 function buildJudgeScorePrompt(
@@ -2122,62 +1923,6 @@ function mergeCandidateRows(
   return merged;
 }
 
-function selectQualifiedAssessments(
-  assessments: ScoredCandidateAssessment[],
-  hiringBrief: HiringBrief,
-) {
-  const strictLocationGate =
-    (hiringBrief.work_model === "hybrid" || hiringBrief.work_model === "onsite") &&
-    hiringBrief.location_flexibility === "strict";
-
-  return assessments.filter((assessment) => {
-    if (assessment.suitability.match_score < 60) return false;
-    if (assessment.suitability.scoring_breakdown.relevance_score < 60) return false;
-    if (assessment.suitability.scoring_breakdown.join_likelihood_score < 40) return false;
-    if (assessment.suitability.actionability === "not_actionable") return false;
-    if (!strictLocationGate) return true;
-    return (
-      assessment.suitability.constraint_verdicts.location_fit !== "non_local" &&
-      assessment.suitability.constraint_verdicts.work_model_fit !== "no"
-    );
-  });
-}
-
-function selectQualifiedLightAssessments(assessments: LightCandidateAssessment[]) {
-  return assessments.filter((assessment) => assessment.match_score >= PRE_SCREEN_PASS_SCORE);
-}
-
-function selectDeepReviewIndexes(
-  assessments: LightCandidateAssessment[],
-  maxCount: number = DEEP_REVIEW_TARGET,
-) {
-  if (maxCount <= 0 || assessments.length === 0) return [];
-
-  const cap = Math.min(maxCount, assessments.length);
-  return assessments
-    .filter((assessment) => assessment.match_score >= PRE_SCREEN_PASS_SCORE)
-    .slice(0, cap)
-    .map((assessment) => assessment.index);
-}
-
-function getActionabilityRank(value: CandidateSuitability["actionability"]) {
-  switch (value) {
-    case "ready_to_act":
-      return 0;
-    case "needs_review":
-      return 1;
-    default:
-      return 2;
-  }
-}
-
-function getMoreConservativeActionability(
-  left: CandidateSuitability["actionability"],
-  right: CandidateSuitability["actionability"],
-): CandidateSuitability["actionability"] {
-  return getActionabilityRank(left) >= getActionabilityRank(right) ? left : right;
-}
-
 function hasJudgeConflict(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
@@ -2623,84 +2368,112 @@ function evaluateSerperSourceRules(
 }
 
 function shouldStopSerperTierExpansion(
-  lightPassCount: number,
+  uniqueCount: number,
   newUniqueCount: number,
-  currentUniqueCount: number,
 ) {
-  if (lightPassCount < TARGET_SCRAPE_COUNT) return false;
+  if (uniqueCount < TARGET_SCRAPE_COUNT) return false;
   const gainRatio =
-    currentUniqueCount <= 0 ? 0 : newUniqueCount / currentUniqueCount;
+    uniqueCount <= 0 ? 0 : newUniqueCount / uniqueCount;
   return gainRatio < STOP_MIN_GAIN_RATIO;
 }
 
-function selectCalibratedLightPass(
+function computeTopCount(total: number, ratio: number, cap: number) {
+  if (total <= 0) return 0;
+  const ratioCount = Math.max(1, Math.round(total * ratio));
+  return Math.min(total, cap, ratioCount);
+}
+
+function selectTopLightCandidates(
   preScreened: SerperPreScreenedCandidate[],
 ) {
-  const normalizedMinRate = Math.min(LIGHT_PASS_RATE_MIN, LIGHT_PASS_RATE_MAX);
-  const normalizedMaxRate = Math.max(LIGHT_PASS_RATE_MIN, LIGHT_PASS_RATE_MAX);
   if (preScreened.length === 0) {
     return {
       selected: [] as SerperPreScreenedCandidate[],
-      mode: "empty" as const,
-      threshold: PRE_SCREEN_PASS_SCORE,
-      passRate: 0,
-      minCount: 0,
-      maxCount: 0,
+      selectedCount: 0,
+      selectedRate: 0,
+      ratio: LIGHT_STAGE_TOP_RATIO,
+      cap: PRE_SCREEN_TARGET,
     };
   }
 
-  const sortedByScore = [...preScreened].sort(
+  const sorted = [...preScreened].sort(
     (left, right) => right.preScreen.match_score - left.preScreen.match_score,
   );
-  const keepCandidates = sortedByScore.filter((candidate) => candidate.preScreen.keep);
-  const thresholdPassed = keepCandidates.filter(
-    (candidate) => candidate.preScreen.match_score >= PRE_SCREEN_PASS_SCORE,
+  const selectedCount = computeTopCount(
+    sorted.length,
+    LIGHT_STAGE_TOP_RATIO,
+    PRE_SCREEN_TARGET,
   );
+  const selected = sorted.slice(0, selectedCount);
+  const selectedRate = selectedCount / sorted.length;
+  return {
+    selected,
+    selectedCount,
+    selectedRate,
+    ratio: LIGHT_STAGE_TOP_RATIO,
+    cap: PRE_SCREEN_TARGET,
+  };
+}
 
-  if (keepCandidates.length === 0) {
+function selectTopLightAssessments(
+  assessments: LightCandidateAssessment[],
+) {
+  if (assessments.length === 0) {
     return {
-      selected: [] as SerperPreScreenedCandidate[],
-      mode: "no_keep" as const,
-      threshold: PRE_SCREEN_PASS_SCORE,
-      passRate: 0,
-      minCount: 0,
-      maxCount: 0,
+      selected: [] as LightCandidateAssessment[],
+      selectedCount: 0,
+      selectedRate: 0,
+      ratio: LIGHT_STAGE_TOP_RATIO,
+      cap: PRE_SCREEN_TARGET,
     };
   }
 
-  const evaluatedCount = preScreened.length;
-  const minCount = Math.min(
-    keepCandidates.length,
-    Math.max(1, Math.round(evaluatedCount * normalizedMinRate)),
+  const sorted = [...assessments].sort((left, right) => right.match_score - left.match_score);
+  const selectedCount = computeTopCount(
+    sorted.length,
+    LIGHT_STAGE_TOP_RATIO,
+    PRE_SCREEN_TARGET,
   );
-  const maxCount = Math.max(
-    minCount,
-    Math.min(keepCandidates.length, Math.round(evaluatedCount * normalizedMaxRate)),
-  );
-
-  let selected = thresholdPassed;
-  let mode: "threshold" | "floor_fill" | "ceiling_trim" = "threshold";
-  if (selected.length < minCount) {
-    selected = keepCandidates.slice(0, minCount);
-    mode = "floor_fill";
-  } else if (selected.length > maxCount) {
-    selected = selected.slice(0, maxCount);
-    mode = "ceiling_trim";
-  }
-
-  const threshold =
-    selected.length > 0
-      ? selected[selected.length - 1].preScreen.match_score
-      : PRE_SCREEN_PASS_SCORE;
-  const passRate = evaluatedCount > 0 ? selected.length / evaluatedCount : 0;
+  const selected = sorted.slice(0, selectedCount);
+  const selectedRate = selectedCount / sorted.length;
 
   return {
     selected,
-    mode,
-    threshold,
-    passRate,
-    minCount,
-    maxCount,
+    selectedCount,
+    selectedRate,
+    ratio: LIGHT_STAGE_TOP_RATIO,
+    cap: PRE_SCREEN_TARGET,
+  };
+}
+
+function selectTopDeepAssessments(
+  assessments: ScoredCandidateAssessment[],
+) {
+  if (assessments.length === 0) {
+    return {
+      selected: [] as ScoredCandidateAssessment[],
+      selectedCount: 0,
+      selectedRate: 0,
+      ratio: DEEP_STAGE_TOP_RATIO,
+      cap: FINAL_RESULT_CAP,
+    };
+  }
+
+  const sorted = [...assessments].sort(sortCandidateAssessments);
+  const selectedCount = computeTopCount(
+    sorted.length,
+    DEEP_STAGE_TOP_RATIO,
+    FINAL_RESULT_CAP,
+  );
+  const selected = sorted.slice(0, selectedCount);
+  const selectedRate = selectedCount / sorted.length;
+
+  return {
+    selected,
+    selectedCount,
+    selectedRate,
+    ratio: DEEP_STAGE_TOP_RATIO,
+    cap: FINAL_RESULT_CAP,
   };
 }
 
@@ -3049,7 +2822,7 @@ async function buildSerperCandidates(
     );
     sourceRulePassCount += sourceRulePassed.length;
 
-    for (const item of sourceRulePassed) {
+    for (const item of sourceRuleEvaluations) {
       sourceRuleFallbackByUrl.set(item.candidate.linkedin_url.toLowerCase(), item);
     }
 
@@ -3057,14 +2830,12 @@ async function buildSerperCandidates(
       aiClient,
       parsed,
       context.jdText,
-      sourceRulePassed.map((item) => item.candidate),
+      newTierCandidates,
     );
     llmPrescreenEvaluatedCount += tierPreScreened.length;
 
     const tierLlmPass = tierPreScreened.filter(
-      (item) =>
-        item.preScreen.keep &&
-        item.preScreen.match_score >= PRE_SCREEN_PASS_SCORE,
+      (item) => item.preScreen.keep,
     );
     llmPrescreenPassCount += tierLlmPass.length;
 
@@ -3077,11 +2848,10 @@ async function buildSerperCandidates(
     }
 
     const tierStopReason = shouldStopSerperTierExpansion(
-      llmPrescreenPassCount,
-      newTierCandidates.length,
       deduped.size,
+      newTierCandidates.length,
     )
-      ? `dual_threshold_reached(light_pass_count=${llmPrescreenPassCount}, gain_ratio=${deduped.size <= 0 ? 0 : (newTierCandidates.length / deduped.size).toFixed(4)})`
+      ? `retrieval_target_reached(unique_count=${deduped.size}, gain_ratio=${deduped.size <= 0 ? 0 : (newTierCandidates.length / deduped.size).toFixed(4)})`
       : null;
 
     const tierStat: SerperTierStats = {
@@ -3117,7 +2887,7 @@ async function buildSerperCandidates(
       llm_prescreen_pass_count: tierStat.llm_prescreen_pass_count,
       stop_reason: tierStopReason,
       cumulative_unique_count: deduped.size,
-      cumulative_light_pass_count: llmPrescreenPassCount,
+      cumulative_light_keep_count: llmPrescreenPassCount,
       job_id: context.jobId,
     });
 
@@ -3168,25 +2938,25 @@ async function buildSerperCandidates(
       preScreen: {
         keep: true,
         match_score: item.sourceRule.score,
-        reason: `Source rule pass (${item.sourceRule.score})`,
+        reason: `Source rule rank (${item.sourceRule.score})`,
       },
     }));
   if (!preScreened.length && sourceRuleFallback.length === 0) {
     return null;
   }
 
-  const lightPassSelection = selectCalibratedLightPass(preScreened);
-  const lightPassed = lightPassSelection.selected;
+  const lightSelection = selectTopLightCandidates(preScreened);
+  const lightPassed = lightSelection.selected;
   const preScreenKeptCount = preScreened.filter((candidate) => candidate.preScreen.keep).length;
-  const scrapeCandidates = lightPassed.slice(
-    0,
-    Math.min(lightPassed.length, PRE_SCREEN_TARGET),
-  );
+  const scrapeCandidates = lightPassed;
   const fallbackSeed =
     lightPassed.length > 0
       ? lightPassed
       : (preScreened.length > 0 ? preScreened : sourceRuleFallback);
-  const fallbackRows = buildSerperCandidateRows(fallbackSeed, context.candidateCount);
+  const fallbackRows = buildSerperCandidateRows(
+    fallbackSeed,
+    Math.max(context.candidateCount, FINAL_RESULT_CAP),
+  );
 
   logSearchEvent("search_step_completed", {
     search_id: context.searchId,
@@ -3199,15 +2969,16 @@ async function buildSerperCandidates(
     pre_screen_evaluated_count: preScreened.length,
     pre_screen_kept_count: preScreenKeptCount,
     llm_prescreen_pass_rate: Number(llmPreScreenPassRate.toFixed(4)),
-    light_pass_count: lightPassed.length,
-    light_pass_rate: Number(lightPassSelection.passRate.toFixed(4)),
-    light_pass_calibration_mode: lightPassSelection.mode,
-    light_pass_calibration_min_count: lightPassSelection.minCount,
-    light_pass_calibration_max_count: lightPassSelection.maxCount,
-    light_pass_effective_threshold: lightPassSelection.threshold,
+    light_selected_count: lightPassed.length,
+    light_selected_rate: Number(lightSelection.selectedRate.toFixed(4)),
+    light_selection_mode: "top_percent",
+    light_selection_ratio: lightSelection.ratio,
+    light_selection_cap: lightSelection.cap,
+    light_selection_cutoff_score:
+      lightPassed.length > 0 ? lightPassed[lightPassed.length - 1].preScreen.match_score : null,
+    light_total_evaluated_count: preScreened.length,
     target_scrape_count: TARGET_SCRAPE_COUNT,
     scrape_count: scrapeCandidates.length,
-    pass_score_threshold: PRE_SCREEN_PASS_SCORE,
     stop_reason: stopReason,
     job_id: context.jobId,
   });
@@ -3221,40 +2992,6 @@ async function buildSerperCandidates(
     llmPreScreenPassRate,
     stopReason,
   };
-}
-
-async function deepScoreBatch(
-  aiClient: ReturnType<typeof createAIClient>,
-  parsed: Record<string, unknown>,
-  jdText: string,
-  profileTexts: string[],
-  batchIndexes: number[],
-  totalPoolSize: number,
-): Promise<ScoredCandidateAssessment[]> {
-  const profilesText = batchIndexes
-    .map((idx) => profileTexts[idx])
-    .join("\n\n");
-
-  const deepPrompt = buildDeepScorePrompt(
-    parsed,
-    jdText,
-    profilesText,
-    batchIndexes.length,
-  );
-  const { text: deepText } = await withTimeout(
-    generateText({
-      model: aiClient(getAIModel()),
-      prompt: deepPrompt,
-      maxOutputTokens: 2000,
-    }),
-    60000,
-    "Deep scoring detail",
-  );
-
-  return parseScoredAssessments(
-    JSON.parse(extractJSON(deepText)),
-    totalPoolSize,
-  ).filter((assessment) => batchIndexes.includes(assessment.index));
 }
 
 async function lightScoreBatch(
@@ -3612,10 +3349,11 @@ async function scoreBrightDataProfiles(
     renderProfileEntries,
     brightProfiles.length,
   );
-  const lightQualified = selectQualifiedLightAssessments(lightAssessments);
-  const selectedIndexes = selectDeepReviewIndexes(lightAssessments);
+  const lightSelection = selectTopLightAssessments(lightAssessments);
+  const deepReviewCandidates = lightSelection.selected;
+  const selectedIndexes = deepReviewCandidates.map((assessment) => assessment.index);
 
-  const allAssessments = await deepScoreSelectedProfiles(
+  const deepAssessments = await deepScoreSelectedProfiles(
     aiClient,
     parsed,
     context.jdText,
@@ -3627,9 +3365,9 @@ async function scoreBrightDataProfiles(
     logSearchEvent("deep_review_distribution", {
       search_id: context.searchId,
       requested_count: selectedIndexes.length,
-      completed_count: allAssessments.length,
+      completed_count: deepAssessments.length,
       selected_indexes: selectedIndexes,
-      scores: allAssessments.map((assessment) => ({
+      scores: deepAssessments.map((assessment) => ({
         index: assessment.index,
         match_score: assessment.suitability.match_score,
         capability_score: assessment.suitability.scoring_breakdown.capability_score,
@@ -3640,53 +3378,48 @@ async function scoreBrightDataProfiles(
       })),
     });
   }
-  const fullDetailIncomplete = allAssessments.length < selectedIndexes.length;
-  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const qualifiedAssessments = selectQualifiedAssessments(allAssessments, hiringBrief);
-  const qualifiedCount = qualifiedAssessments.length;
-  // 流水线模式：返回所有合格候选人，不限制数量
-  const outreachPoolCount = qualifiedCount;
-  const deepTopPickRows = buildBrightDataCandidateRows(
+  const fullDetailIncomplete = deepAssessments.length < selectedIndexes.length;
+  const deepSelection = selectTopDeepAssessments(deepAssessments);
+  const deepSelected = deepSelection.selected;
+  const deepRows = buildBrightDataCandidateRows(
     brightProfiles,
-    qualifiedAssessments,
-    context.highlightCount,
-    "top_pick",
-  );
-  const deepPoolRows = buildBrightDataCandidateRows(
-    brightProfiles,
-    qualifiedAssessments.slice(context.highlightCount),
-    qualifiedCount - context.highlightCount,
+    deepSelected,
+    deepSelected.length,
     "outreach_pool",
   );
-  const lightTopPickRows = buildBrightDataLightCandidateRows(
-    brightProfiles,
-    lightQualified,
-    context.highlightCount,
-    "top_pick",
+
+  const deepIndexSet = new Set(deepAssessments.map((assessment) => assessment.index));
+  const lightFallbackCandidates = deepReviewCandidates.filter(
+    (assessment) => !deepIndexSet.has(assessment.index),
   );
-  const lightPoolRows = buildBrightDataLightCandidateRows(
+  const fallbackSlots = Math.max(0, FINAL_RESULT_CAP - deepRows.length);
+  const lightFallbackRows = buildBrightDataLightCandidateRows(
     brightProfiles,
-    lightQualified.slice(context.highlightCount),
-    lightQualified.length - context.highlightCount,
+    lightFallbackCandidates,
+    fallbackSlots,
     "outreach_pool",
   );
+
+  const finalTargetCount = FINAL_RESULT_CAP;
+  const highlightTarget = Math.min(context.highlightCount, finalTargetCount);
   const finalRows = tagPoolRows(
-    [...deepTopPickRows, ...deepPoolRows],
-    [...lightTopPickRows, ...lightPoolRows],
-    context.highlightCount,
-    outreachPoolCount,
+    deepRows,
+    lightFallbackRows,
+    highlightTarget,
+    finalTargetCount,
   );
-  const shortlistRows = finalRows.filter((row) => row.metadata?.pool_type === "top_pick");
-  const qualifiedRowCount = finalRows.length;
+  const shortlistedCount = finalRows.filter(
+    (row) => row.metadata?.pool_type === "top_pick",
+  ).length;
 
   let warningMessage: string | null = null;
   if (finalRows.length === 0) {
-    warningMessage = "No candidates met the current outreach threshold for this role.";
-  } else if (shortlistRows.length < context.highlightCount) {
-    warningMessage = `Only ${shortlistRows.length} highlighted candidate${shortlistRows.length === 1 ? "" : "s"} met the current outreach threshold.`;
+    warningMessage = "No candidates were ranked into the final result set.";
   } else if (fullDetailIncomplete) {
     warningMessage =
-      "Some advanced profile scoring did not finish, but the current 25 candidates are ready to review.";
+      "Some deep reviews timed out, and partial light-ranking fallback was used.";
+  } else if (shortlistedCount < highlightTarget) {
+    warningMessage = `Only ${shortlistedCount} highlighted candidate${shortlistedCount === 1 ? "" : "s"} are available in the final ranking.`;
   }
 
   return {
@@ -3695,23 +3428,17 @@ async function scoreBrightDataProfiles(
     displayStats: buildSearchDisplayStats({
       retrieval_count: retrievalCount,
       deep_review_requested_count: selectedIndexes.length,
-      deep_review_completed_count: allAssessments.length,
-      qualified_count: qualifiedRowCount,
+      deep_review_completed_count: deepAssessments.length,
+      qualified_count: finalRows.length,
       outreach_pool_count: finalRows.length,
       shortlist_count: finalRows.length,
       brightdata_scrape_count: brightProfiles.length,
       deep_qualified_rate:
-        allAssessments.length > 0 ? qualifiedRowCount / allAssessments.length : 0,
+        deepAssessments.length > 0
+          ? deepSelected.length / deepAssessments.length
+          : 0,
     }),
   };
-}
-
-function selectShortlist(
-  assessments: ScoredCandidateAssessment[],
-  candidateCount: number,
-  hiringBrief: HiringBrief,
-): ScoredCandidateAssessment[] {
-  return selectQualifiedAssessments(assessments, hiringBrief).slice(0, candidateCount);
 }
 
 async function refineSerperCandidates(
@@ -3727,14 +3454,16 @@ async function refineSerperCandidates(
 ) {
   const brightDataToken = process.env.BRIGHTDATA_API_TOKEN;
   const brightDataDatasetId = process.env.BRIGHTDATA_DATASET_ID;
+  const urlsToScrape = preScreened.map((candidate) => candidate.serperCandidate.linkedin_url);
+
   if (!brightDataToken || !brightDataDatasetId) {
     return {
       finalRows: fallbackRows,
       warningMessage: null,
       displayStats: buildSearchDisplayStats({
         retrieval_count: retrievalCount,
-        deep_review_requested_count: preScreened.length,
-        deep_review_completed_count: preScreened.length,
+        deep_review_requested_count: 0,
+        deep_review_completed_count: 0,
         qualified_count: fallbackRows.length,
         outreach_pool_count: fallbackRows.length,
         shortlist_count: fallbackRows.length,
@@ -3752,7 +3481,7 @@ async function refineSerperCandidates(
   const scrapeBatchConcurrency = Math.min(BRIGHTDATA_BATCH_CONCURRENCY, brightDataBatchCount);
   const deepScoringBatchCount = Math.ceil(preScreened.length / DEEP_SCORING_BATCH_SIZE);
   const deepScoringConcurrency = Math.min(DEEP_SCORING_CONCURRENCY, deepScoringBatchCount);
-  const deepReviewConcurrency = Math.min(DEEP_REVIEW_CONCURRENCY, preScreened.length);
+  const deepReviewConcurrency = Math.min(DEEP_REVIEW_CONCURRENCY, urlsToScrape.length);
 
   logSearchEvent("search_step_started", {
     search_id: context.searchId,
@@ -3763,198 +3492,52 @@ async function refineSerperCandidates(
     deep_scoring_batch_size: DEEP_SCORING_BATCH_SIZE,
     deep_scoring_concurrency: deepScoringConcurrency,
     deep_review_concurrency: deepReviewConcurrency,
+    scrape_request_count: urlsToScrape.length,
+    final_result_cap: FINAL_RESULT_CAP,
+    light_stage_top_ratio: LIGHT_STAGE_TOP_RATIO,
+    deep_stage_top_ratio: DEEP_STAGE_TOP_RATIO,
     job_id: context.jobId,
   });
 
   try {
-    const urlsToScrape = preScreened.map((c) => c.serperCandidate.linkedin_url);
-
-    // 流水线模式：边抓取边评分边落库
-    const aiClient = createAIClient();
-    const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-    const allDeepRows: CandidateRowInput[] = [];
-    const allLightRows: CandidateRowInput[] = [];
-    let totalScraped = 0;
-    let deepRequestedCount = 0;
-    let deepCompletedCount = 0;
-    let batchNumber = 0;
-    let remainingDeepBudget = Math.min(DEEP_REVIEW_TARGET, urlsToScrape.length);
-    let remainingProfilesEstimate = urlsToScrape.length;
-
-    const profileStream = streamLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
-      batchSize: BRIGHTDATA_BATCH_SIZE,
-      concurrency: scrapeBatchConcurrency,
-      allowPartial: true,
-    });
-
-    for await (const profileBatch of profileStream) {
-      batchNumber += 1;
-      totalScraped += profileBatch.length;
-      logSearchEvent("search_pipeline_batch_started", {
-        search_id: context.searchId,
-        batch: batchNumber,
-        batch_size: profileBatch.length,
-        scraped_so_far: totalScraped,
-        total_requested: urlsToScrape.length,
-        job_id: context.jobId,
-      });
-
-      const renderProfileEntries = profileBatch.map((profile, index) =>
-        brightDataProfileToRichText(profile, index),
-      );
-
-      const fallbackLightAssessments: LightCandidateAssessment[] = profileBatch.map((_, index) => ({
-        index,
-        match_score: 0,
-        reason: "Ranking pass failed for this profile batch.",
-      }));
-
-      const lightAssessments = await lightScoreAllProfiles(
-        aiClient,
-        parsed,
-        context.jdText,
-        renderProfileEntries,
-        profileBatch.length,
-      ).catch((error) => {
-        logSearchEvent("search_pipeline_light_scoring_failed", {
-          search_id: context.searchId,
-          batch: batchNumber,
-          error: error instanceof Error ? error.message : String(error),
-          job_id: context.jobId,
-        });
-        return fallbackLightAssessments;
-      });
-
-      const lightQualified = selectQualifiedLightAssessments(lightAssessments);
-      allLightRows.push(
-        ...buildBrightDataLightCandidateRows(
-          profileBatch,
-          lightQualified,
-          lightQualified.length,
-          "outreach_pool",
-        ),
-      );
-
-      const proportionalBudget =
-        remainingDeepBudget <= 0
-          ? 0
-          : Math.ceil(
-            (profileBatch.length / Math.max(remainingProfilesEstimate, 1)) *
-              remainingDeepBudget,
-          );
-      const batchDeepBudget = Math.min(
-        remainingDeepBudget,
-        Math.max(0, proportionalBudget),
-      );
-      const selectedIndexes = selectDeepReviewIndexes(lightAssessments, batchDeepBudget);
-      remainingDeepBudget = Math.max(0, remainingDeepBudget - selectedIndexes.length);
-      remainingProfilesEstimate = Math.max(
-        0,
-        remainingProfilesEstimate - profileBatch.length,
-      );
-      deepRequestedCount += selectedIndexes.length;
-
-      const deepAssessments = await deepScoreSelectedProfiles(
-        aiClient,
-        parsed,
-        context.jdText,
-        renderProfileEntries,
-        selectedIndexes,
-        profileBatch.length,
-      ).catch((error) => {
-        logSearchEvent("search_pipeline_deep_scoring_failed", {
-          search_id: context.searchId,
-          batch: batchNumber,
-          error: error instanceof Error ? error.message : String(error),
-          job_id: context.jobId,
-        });
-        return [] as ScoredCandidateAssessment[];
-      });
-
-      deepCompletedCount += deepAssessments.length;
-      const qualifiedAssessments = selectQualifiedAssessments(deepAssessments, hiringBrief);
-      allDeepRows.push(
-        ...buildBrightDataCandidateRows(
-          profileBatch,
-          qualifiedAssessments,
-          qualifiedAssessments.length,
-          "outreach_pool",
-        ),
-      );
-
-      const previewLimit = Math.max(allDeepRows.length, allLightRows.length);
-      if (previewLimit > 0) {
-        const previewRows = tagPoolRows(
-          allDeepRows,
-          allLightRows,
-          context.highlightCount,
-          previewLimit,
-        );
-        await upsertCandidatesForSearch(context.searchId, previewRows);
-      }
-
-      logSearchEvent("search_pipeline_batch_completed", {
-        search_id: context.searchId,
-        batch: batchNumber,
-        light_qualified_count: lightQualified.length,
-        deep_completed_count: deepAssessments.length,
-        deep_qualified_count: qualifiedAssessments.length,
-        total_candidates_so_far: Math.max(allDeepRows.length, allLightRows.length),
-        job_id: context.jobId,
-      });
-    }
-
-    if (!totalScraped) {
+    const brightProfiles = await scrapeLinkedInProfiles(
+      brightDataToken,
+      brightDataDatasetId,
+      urlsToScrape,
+      {
+        batchSize: BRIGHTDATA_BATCH_SIZE,
+        concurrency: scrapeBatchConcurrency,
+        allowPartial: true,
+      },
+    );
+    if (!brightProfiles.length) {
       throw new Error("Bright Data returned no profiles");
     }
 
-    const finalLimit = Math.max(allDeepRows.length, allLightRows.length);
-    const finalRows =
-      finalLimit > 0
-        ? tagPoolRows(allDeepRows, allLightRows, context.highlightCount, finalLimit)
-        : [];
-    if (!finalRows.length) {
-      throw new Error("No qualified candidates found");
-    }
-
-    const topPickCount = finalRows.filter(
-      (row) => row.metadata?.pool_type === "top_pick",
-    ).length;
-    let warningMessage: string | null = null;
-    if (topPickCount < context.highlightCount) {
-      warningMessage = `Only ${topPickCount} highlighted candidate${topPickCount === 1 ? "" : "s"} met the current outreach threshold.`;
-    }
-    if (deepCompletedCount < deepRequestedCount) {
-      warningMessage =
-        "Some advanced profile scoring did not finish, but the current candidate pool is ready to review.";
-    }
-
-    const scored: SearchPipelineResult = {
-      finalRows,
-      warningMessage,
-      displayStats: buildSearchDisplayStats({
-        retrieval_count: retrievalCount,
-        deep_review_requested_count: deepRequestedCount,
-        deep_review_completed_count: deepCompletedCount,
-        qualified_count: finalRows.length,
-        outreach_pool_count: finalRows.length,
-        shortlist_count: finalRows.length,
-        serper_query_tier_stats: serperStats.tierStats,
-        source_rule_pass_rate: serperStats.sourceRulePassRate,
-        llm_prescreen_pass_rate: serperStats.llmPreScreenPassRate,
-        brightdata_scrape_count: totalScraped,
-        deep_qualified_rate:
-          deepCompletedCount > 0 ? finalRows.length / deepCompletedCount : 0,
-      }),
-    };
+    const scored = await scoreBrightDataProfiles(
+      context,
+      parsed,
+      brightProfiles,
+      retrievalCount,
+    );
+    scored.displayStats = buildSearchDisplayStats({
+      ...scored.displayStats,
+      serper_query_tier_stats: serperStats.tierStats,
+      source_rule_pass_rate: serperStats.sourceRulePassRate,
+      llm_prescreen_pass_rate: serperStats.llmPreScreenPassRate,
+      brightdata_scrape_count: brightProfiles.length,
+    });
 
     logSearchEvent("search_step_completed", {
       search_id: context.searchId,
       step: "deep_scoring",
       provider: "brightdata",
       result_count: scored.finalRows.length,
-      scraped_count: totalScraped,
+      scraped_count: brightProfiles.length,
       shortlist_count: scored.displayStats.shortlist_count,
+      deep_review_requested_count: scored.displayStats.deep_review_requested_count,
+      deep_review_completed_count: scored.displayStats.deep_review_completed_count,
+      final_result_cap: FINAL_RESULT_CAP,
       job_id: context.jobId,
     });
 
@@ -3973,8 +3556,8 @@ async function refineSerperCandidates(
         "Advanced profile enrichment did not finish, but your shortlist is ready to review.",
       displayStats: buildSearchDisplayStats({
         retrieval_count: retrievalCount,
-        deep_review_requested_count: preScreened.length,
-        deep_review_completed_count: preScreened.length,
+        deep_review_requested_count: urlsToScrape.length,
+        deep_review_completed_count: 0,
         qualified_count: fallbackRows.length,
         outreach_pool_count: fallbackRows.length,
         shortlist_count: fallbackRows.length,
@@ -4123,7 +3706,7 @@ async function runSearchPipeline(job: SearchJobRow) {
   if (serperResult.preScreened.length === 0) {
     if (serperResult.fallbackRows.length === 0) {
       throw new Error(
-        "No candidates passed the light screening threshold.",
+        "No candidates were available after light-ranking.",
       );
     }
 
@@ -4144,7 +3727,7 @@ async function runSearchPipeline(job: SearchJobRow) {
         brightdata_scrape_count: 0,
         deep_qualified_rate: 0,
       }),
-      `No candidates reached deep-review threshold (light score >= ${PRE_SCREEN_PASS_SCORE}). Returned top light-screened candidates only.`,
+      "No candidates were selected into deep review after light-ranking. Returned top light-ranked candidates only.",
     );
     return;
   }
