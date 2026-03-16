@@ -368,12 +368,6 @@ type ScoredCandidateAssessment = {
   judge_conflict?: boolean;
 };
 
-type LightCandidateAssessment = {
-  index: number;
-  match_score: number;
-  reason: string;
-};
-
 type JudgeScoreResult = {
   index: number;
   capability_score: number;
@@ -986,18 +980,6 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
   );
 }
 
-function fallbackHeadlineFromBrightData(profile: BrightDataProfile) {
-  if (profile.current_company) {
-    const headline = `${profile.current_company.title || ""} at ${profile.current_company.name || ""}`.trim();
-    return headline || null;
-  }
-  return null;
-}
-
-function fallbackLocationFromBrightData(profile: BrightDataProfile) {
-  return [profile.city, profile.country_code].filter(Boolean).join(", ") || null;
-}
-
 function trimBrightDataProfileForMetadata(profile: BrightDataProfile) {
   return {
     ...profile,
@@ -1456,43 +1438,6 @@ Rules:
 - Return ONLY valid JSON array with one object.`;
 }
 
-function buildLightDeepScorePrompt(
-  parsed: Record<string, unknown>,
-  jdText: string,
-  richProfiles: string,
-  poolSize: number,
-) {
-  return `You are ranking candidate profiles for a hiring workflow.
-
-## Original Job Description
-${truncateForPrompt(jdText.trim(), 5000)}
-
-## Search Intent
-${buildPromptSearchContext(parsed)}
-
-## Candidate Profiles (${poolSize} candidates)
-The profiles below are raw candidate profiles derived from LinkedIn data.
-
-${richProfiles}
-
-## Your Task
-Return one lightweight ranking object per candidate profile.
-
-Return ONLY valid JSON with this exact shape:
-[
-  {
-    "index": 0,
-    "match_score": 0,
-    "reason": "one short sentence"
-  }
-]
-
-Rules:
-- Keep the reason under 18 words.
-- Do not return any extra fields.
-- This is only a coarse ranking pass, not the final suitability output.`;
-}
-
 function parseScoredAssessments(
   raw: unknown,
   poolSize: number,
@@ -1569,36 +1514,6 @@ function parseJudgeScoreResults(
       };
     })
     .filter((entry): entry is JudgeScoreResult => Boolean(entry));
-}
-
-function parseLightCandidateAssessments(
-  raw: unknown,
-  poolSize: number,
-): LightCandidateAssessment[] {
-  if (!Array.isArray(raw)) return [];
-
-  return raw
-    .map((entry): LightCandidateAssessment | null => {
-      if (!entry || typeof entry !== "object") return null;
-      const item = entry as Record<string, unknown>;
-      const rawIndex = typeof item.index === "number" ? item.index : Number(item.index);
-      if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= poolSize) return null;
-      const match_score =
-        typeof item.match_score === "number" && Number.isFinite(item.match_score)
-          ? Math.max(0, Math.min(100, Math.round(item.match_score)))
-          : 0;
-      const reason =
-        normalizeNullableString(item.reason) ||
-        "Potentially strong fit based on backend stack and role alignment.";
-
-      return {
-        index: rawIndex,
-        match_score,
-        reason,
-      };
-    })
-    .filter((entry): entry is LightCandidateAssessment => Boolean(entry))
-    .sort((left, right) => right.match_score - left.match_score);
 }
 
 async function withTimeout<T>(
@@ -1844,64 +1759,6 @@ function buildBrightDataCandidateRows(
   }
 
   return rows;
-}
-
-function buildBrightDataLightCandidateRows(
-  profiles: BrightDataProfile[],
-  selected: LightCandidateAssessment[],
-  limit: number,
-  poolType: "top_pick" | "outreach_pool",
-) {
-  return selected.slice(0, limit).flatMap((item) => {
-    const rawIndex = item.index;
-    if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= profiles.length) return [];
-
-    const profile = profiles[rawIndex];
-    return [{
-      name: profile.name || "Unknown",
-      headline:
-        fallbackHeadlineFromBrightData(profile) ||
-        normalizeNullableString((profile as unknown as Record<string, unknown>).position),
-      location: fallbackLocationFromBrightData(profile),
-      skills: (profile.skills || []).slice(0, 10),
-      experience_years: null,
-      match_score: item.match_score,
-      match_reasons: [item.reason],
-      profile_url: profile.url || profile.input?.url || null,
-      github_url: null,
-      email: null,
-      outreach_draft: null,
-      metadata: {
-        source: "brightdata",
-        analysis_stage: "final",
-        preliminary: true,
-        pool_type: poolType,
-        light_score: item,
-        work_history: (profile.experience || [])
-          .slice(0, 5)
-          .map((entry) => ({
-            title: normalizeNullableString(entry.title),
-            company: normalizeNullableString(entry.company),
-            start_date: normalizeNullableString(entry.duration),
-            end_date: null,
-            summary: normalizeNullableString(entry.description),
-          }))
-          .filter((entry) => entry.title || entry.company || entry.summary),
-        education: (profile.education || [])
-          .slice(0, 3)
-          .map((entry) => ({
-            school: normalizeNullableString(entry.subtitle),
-            degree: normalizeNullableString(entry.degree),
-            major: normalizeNullableString(entry.field_of_study),
-            start_year: normalizeNullableString(entry.start_year),
-            end_year: normalizeNullableString(entry.end_year),
-          }))
-          .filter((entry) => entry.school || entry.degree || entry.major),
-        about: profile.about ? profile.about.substring(0, 500) : null,
-        raw_profile: trimBrightDataProfileForMetadata(profile),
-      },
-    }];
-  });
 }
 
 function mergeCandidateRows(
@@ -2406,37 +2263,6 @@ function selectTopLightCandidates(
   );
   const selected = sorted.slice(0, selectedCount);
   const selectedRate = selectedCount / sorted.length;
-  return {
-    selected,
-    selectedCount,
-    selectedRate,
-    ratio: LIGHT_STAGE_TOP_RATIO,
-    cap: PRE_SCREEN_TARGET,
-  };
-}
-
-function selectTopLightAssessments(
-  assessments: LightCandidateAssessment[],
-) {
-  if (assessments.length === 0) {
-    return {
-      selected: [] as LightCandidateAssessment[],
-      selectedCount: 0,
-      selectedRate: 0,
-      ratio: LIGHT_STAGE_TOP_RATIO,
-      cap: PRE_SCREEN_TARGET,
-    };
-  }
-
-  const sorted = [...assessments].sort((left, right) => right.match_score - left.match_score);
-  const selectedCount = computeTopCount(
-    sorted.length,
-    LIGHT_STAGE_TOP_RATIO,
-    PRE_SCREEN_TARGET,
-  );
-  const selected = sorted.slice(0, selectedCount);
-  const selectedRate = selectedCount / sorted.length;
-
   return {
     selected,
     selectedCount,
@@ -2994,49 +2820,6 @@ async function buildSerperCandidates(
   };
 }
 
-async function lightScoreBatch(
-  aiClient: ReturnType<typeof createAIClient>,
-  parsed: Record<string, unknown>,
-  jdText: string,
-  profileTexts: string[],
-  batchIndexes: number[],
-  totalPoolSize: number,
-): Promise<LightCandidateAssessment[]> {
-  const profilesText = batchIndexes
-    .map((idx) => profileTexts[idx])
-    .join("\n\n");
-
-  const rankingPrompt = buildLightDeepScorePrompt(
-    parsed,
-    jdText,
-    profilesText,
-    batchIndexes.length,
-  );
-  const { text } = await withTimeout(
-    generateText({
-      model: aiClient(getHaikuModel()),
-      prompt: rankingPrompt,
-      maxOutputTokens: 600,
-    }),
-    60000,
-    "Deep scoring rank",
-  );
-
-  const parsedAssessments = parseLightCandidateAssessments(
-    JSON.parse(extractJSON(text)),
-    totalPoolSize,
-  ).filter((assessment) => batchIndexes.includes(assessment.index));
-  const byIndex = new Map(parsedAssessments.map((assessment) => [assessment.index, assessment]));
-
-  return batchIndexes.map((index) => (
-    byIndex.get(index) || {
-      index,
-      match_score: 0,
-      reason: "Ranking pass returned no result for this profile.",
-    }
-  ));
-}
-
 async function judgeScoreBatch(
   aiClient: ReturnType<typeof createAIClient>,
   parsed: Record<string, unknown>,
@@ -3122,43 +2905,6 @@ async function judgeScoreBatch(
   }
 
   throw lastError || new Error(`${judgeLabel} scoring failed`);
-}
-
-async function lightScoreAllProfiles(
-  aiClient: ReturnType<typeof createAIClient>,
-  parsed: Record<string, unknown>,
-  jdText: string,
-  profileTexts: string[],
-  totalPoolSize: number,
-): Promise<LightCandidateAssessment[]> {
-  const allIndexes = Array.from({ length: profileTexts.length }, (_, i) => i);
-
-  if (allIndexes.length <= DEEP_SCORING_BATCH_SIZE) {
-    return lightScoreBatch(aiClient, parsed, jdText, profileTexts, allIndexes, totalPoolSize);
-  }
-
-  const batches: number[][] = [];
-  for (let i = 0; i < allIndexes.length; i += DEEP_SCORING_BATCH_SIZE) {
-    batches.push(allIndexes.slice(i, i + DEEP_SCORING_BATCH_SIZE));
-  }
-
-  const batchResults = await runWithConcurrency(
-    batches,
-    Math.min(DEEP_SCORING_CONCURRENCY, batches.length),
-    async (batchIdxs) => {
-      try {
-        return await lightScoreBatch(aiClient, parsed, jdText, profileTexts, batchIdxs, totalPoolSize);
-      } catch {
-        return batchIdxs.map((index) => ({
-          index,
-          match_score: 0,
-          reason: "Ranking pass timed out.",
-        }));
-      }
-    },
-  );
-
-  return batchResults.flat().sort((left, right) => right.match_score - left.match_score);
 }
 
 async function arbitrateCandidateScore(
@@ -3341,17 +3087,7 @@ async function scoreBrightDataProfiles(
   const renderProfileEntries = brightProfiles.map((profile, index) =>
     brightDataProfileToRichText(profile, index),
   );
-
-  const lightAssessments = await lightScoreAllProfiles(
-    aiClient,
-    parsed,
-    context.jdText,
-    renderProfileEntries,
-    brightProfiles.length,
-  );
-  const lightSelection = selectTopLightAssessments(lightAssessments);
-  const deepReviewCandidates = lightSelection.selected;
-  const selectedIndexes = deepReviewCandidates.map((assessment) => assessment.index);
+  const selectedIndexes = Array.from({ length: brightProfiles.length }, (_, index) => index);
 
   const deepAssessments = await deepScoreSelectedProfiles(
     aiClient,
@@ -3388,23 +3124,11 @@ async function scoreBrightDataProfiles(
     "outreach_pool",
   );
 
-  const deepIndexSet = new Set(deepAssessments.map((assessment) => assessment.index));
-  const lightFallbackCandidates = deepReviewCandidates.filter(
-    (assessment) => !deepIndexSet.has(assessment.index),
-  );
-  const fallbackSlots = Math.max(0, FINAL_RESULT_CAP - deepRows.length);
-  const lightFallbackRows = buildBrightDataLightCandidateRows(
-    brightProfiles,
-    lightFallbackCandidates,
-    fallbackSlots,
-    "outreach_pool",
-  );
-
   const finalTargetCount = FINAL_RESULT_CAP;
   const highlightTarget = Math.min(context.highlightCount, finalTargetCount);
   const finalRows = tagPoolRows(
     deepRows,
-    lightFallbackRows,
+    [],
     highlightTarget,
     finalTargetCount,
   );
@@ -3416,8 +3140,7 @@ async function scoreBrightDataProfiles(
   if (finalRows.length === 0) {
     warningMessage = "No candidates were ranked into the final result set.";
   } else if (fullDetailIncomplete) {
-    warningMessage =
-      "Some deep reviews timed out, and partial light-ranking fallback was used.";
+    warningMessage = "Some deep reviews timed out, and only completed deep scores were ranked.";
   } else if (shortlistedCount < highlightTarget) {
     warningMessage = `Only ${shortlistedCount} highlighted candidate${shortlistedCount === 1 ? "" : "s"} are available in the final ranking.`;
   }
