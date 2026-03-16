@@ -3005,33 +3005,99 @@ async function refineSerperCandidates(
 
   try {
     const urlsToScrape = preScreened.map((c) => c.serperCandidate.linkedin_url);
-    const brightProfiles = await withTimeout(
-      scrapeLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
-        batchSize: BRIGHTDATA_BATCH_SIZE,
-        concurrency: Math.ceil(urlsToScrape.length / BRIGHTDATA_BATCH_SIZE),
-        allowPartial: true,
-      }),
-      300000,
-      "Bright Data scrape",
-    );
-
-    if (!brightProfiles.length) {
-      throw new Error("Bright Data returned no profiles");
+    
+    // 流水线模式：边抓取边评分边存储
+    const aiClient = createAIClient();
+    const allCandidates: CandidateRowInput[] = [];
+    let totalScraped = 0;
+    
+    const profileStream = streamLinkedInProfiles(brightDataToken, brightDataDatasetId, urlsToScrape, {
+      batchSize: BRIGHTDATA_BATCH_SIZE,
+      allowPartial: true,
+    });
+    
+    for await (const profileBatch of profileStream) {
+      totalScraped += profileBatch.length;
+      console.log(`[pipeline] Processing batch: ${profileBatch.length} profiles (total: ${totalScraped}/${urlsToScrape.length})`);
+      
+      // 立即评分这一批
+      const renderProfileEntries = profileBatch.map((profile, index) =>
+        brightDataProfileToRichText(profile, index),
+      );
+      
+      const lightAssessments = await lightScoreAllProfiles(
+        aiClient,
+        parsed,
+        context.jdText,
+        renderProfileEntries,
+        profileBatch.length,
+      );
+      
+      const lightQualified = selectQualifiedLightAssessments(lightAssessments);
+      const selectedIndexes = lightAssessments.map((assessment) => assessment.index);
+      
+      const deepAssessments = await deepScoreSelectedProfiles(
+        aiClient,
+        parsed,
+        context.jdText,
+        renderProfileEntries,
+        selectedIndexes,
+        profileBatch.length,
+      );
+      
+      const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+      const qualifiedAssessments = selectQualifiedAssessments(deepAssessments, hiringBrief);
+      
+      // 构建候选人行
+      const batchCandidates = buildBrightDataCandidateRows(
+        profileBatch,
+        qualifiedAssessments,
+        qualifiedAssessments.length,
+        "outreach_pool",
+      );
+      
+      // 立即存储到数据库
+      if (batchCandidates.length > 0) {
+        const { error } = await supabaseAdmin
+          .from("hirelix_candidates")
+          .insert(batchCandidates.map(c => ({
+            ...c,
+            search_id: context.searchId,
+            user_id: context.userId,
+          })));
+        
+        if (error) {
+          console.error(`[pipeline] Failed to save candidates:`, error);
+        } else {
+          allCandidates.push(...batchCandidates);
+          console.log(`[pipeline] Saved ${batchCandidates.length} candidates (total: ${allCandidates.length})`);
+        }
+      }
     }
-
-    const scored = await scoreBrightDataProfiles(
-      context,
-      parsed,
-      brightProfiles,
-      retrievalCount,
-    );
+    
+    if (allCandidates.length === 0) {
+      throw new Error("No qualified candidates found");
+    }
+    
+    const scored = {
+      finalRows: allCandidates,
+      warningMessage: null,
+      displayStats: buildSearchDisplayStats({
+        retrieval_count: retrievalCount,
+        deep_review_requested_count: totalScraped,
+        deep_review_completed_count: totalScraped,
+        qualified_count: allCandidates.length,
+        outreach_pool_count: allCandidates.length,
+        shortlist_count: Math.min(allCandidates.length, context.highlightCount),
+      }),
+    };
 
     logSearchEvent("search_step_completed", {
       search_id: context.searchId,
       step: "deep_scoring",
-      provider: "brightdata",
+      provider: "brightdata_pipeline",
       result_count: scored.finalRows.length,
-      scraped_count: brightProfiles.length,
+      scraped_count: totalScraped,
       shortlist_count: scored.displayStats.shortlist_count,
       job_id: context.jobId,
     });
