@@ -1611,6 +1611,10 @@ async function withTimeout<T>(
   }
 }
 
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function runWithConcurrency<TInput, TOutput>(
   items: TInput[],
   limit: number,
@@ -2463,38 +2467,68 @@ async function buildSerperCandidates(
   const aiClient = createAIClient();
   await setSearchStatus(context.searchId, "searching");
   const searchPlan = buildLinkedInSearchPlan(parsed);
-  logSearchEvent("search_step_started", {
-    search_id: context.searchId,
-    step: "searching",
-    provider: "serper",
-    query_concurrency: resolveStageConcurrency(
-      SERPER_QUERY_CONCURRENCY,
-      searchPlan.queries.length * SERPER_PAGES_PER_QUERY,
-    ),
-    query_count: searchPlan.queries.length,
-    pages_per_query: SERPER_PAGES_PER_QUERY,
-    results_per_page: SERPER_RESULTS_PER_PAGE,
-    job_id: context.jobId,
-  });
-  
-  // Generate query tasks with pagination
   const queryTasks: Array<{ query: string; page: number }> = [];
   for (const query of searchPlan.queries) {
     for (let page = 1; page <= SERPER_PAGES_PER_QUERY; page++) {
       queryTasks.push({ query, page });
     }
   }
+  const serperStageConcurrency = Math.min(SERPER_QUERY_CONCURRENCY, queryTasks.length);
+
+  logSearchEvent("search_step_started", {
+    search_id: context.searchId,
+    step: "searching",
+    provider: "serper",
+    query_concurrency: serperStageConcurrency,
+    query_count: searchPlan.queries.length,
+    pages_per_query: SERPER_PAGES_PER_QUERY,
+    results_per_page: SERPER_RESULTS_PER_PAGE,
+    job_id: context.jobId,
+  });
 
   const searchResults = await runWithConcurrency(
     queryTasks,
-    resolveStageConcurrency(SERPER_QUERY_CONCURRENCY, queryTasks.length),
+    serperStageConcurrency,
     async ({ query, page }) => {
-      const results = await withTimeout(
-        serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
-        25000,
-        `Serper query "${query}" page ${page}`,
-      );
-      return parseSearchResults(results);
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const results = await withTimeout(
+            serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
+            25000,
+            `Serper query "${query}" page ${page}`,
+          );
+          return parseSearchResults(results);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const retryable =
+            attempt < maxAttempts &&
+            (
+              message.includes("fetch failed") ||
+              message.includes("timed out") ||
+              message.includes("429")
+            );
+          logSearchEvent("search_serper_query_attempt_failed", {
+            search_id: context.searchId,
+            query,
+            page,
+            attempt,
+            retryable,
+            error: message,
+            job_id: context.jobId,
+          });
+          if (!retryable) break;
+          await sleep(Math.min(4000, 400 * 2 ** (attempt - 1)));
+        }
+      }
+
+      logSearchEvent("search_serper_query_skipped", {
+        search_id: context.searchId,
+        query,
+        page,
+        job_id: context.jobId,
+      });
+      return [] as SerperCandidate[];
     },
   );
 
