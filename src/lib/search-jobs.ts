@@ -1,8 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { HttpsProxyAgent } from "https-proxy-agent";
-import { fetch as undiciFetch } from "undici";
+import { fetch as undiciFetch, ProxyAgent } from "undici";
 import {
   CANDIDATE_SUITABILITY_PROMPT,
   JD_SEARCH_INTENT_PROMPT,
@@ -975,7 +974,7 @@ function createAIClient() {
     };
 
     if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
-      const proxyAgent = new HttpsProxyAgent(process.env.HTTP_PROXY);
+      const proxyAgent = new ProxyAgent(process.env.HTTP_PROXY);
       
       config.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
         // @ts-ignore - undici fetch supports dispatcher
