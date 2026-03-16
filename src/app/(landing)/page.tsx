@@ -112,7 +112,7 @@ const candidateRows = [
 const heroSearchStats = [
   { label: "Profiles scanned", value: "2,400+" },
   { label: "Deep review", value: "326" },
-  { label: "AI-ranked shortlist", value: "Top 5" },
+  { label: "AI-ranked shortlist", value: "Top 25" },
 ];
 
 const outreachChannels = [
