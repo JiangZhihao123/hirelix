@@ -47,7 +47,7 @@ export type SerperCandidate = {
   snippet: string;
 };
 
-export type LinkedInQueryTier = "P0" | "P1" | "P2";
+export type LinkedInQueryTier = "P0" | "P1" | "P2" | "P3";
 
 export type LinkedInSearchPlanTier = {
   tier: LinkedInQueryTier;
@@ -195,6 +195,75 @@ function deriveTitleVariants(title?: string, functionFocus?: string | null) {
   return Array.from(variants).filter(Boolean).slice(0, 4);
 }
 
+function deriveRoleAliases(titleVariants: string[], rawTitle?: string | null) {
+  const aliases = new Set<string>(
+    [...titleVariants, rawTitle || ""]
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+  const titleText = [...aliases].join(" ").toLowerCase();
+
+  if (/full[-\s]?stack/.test(titleText)) {
+    aliases.add("Full Stack Engineer");
+    aliases.add("Full-Stack Engineer");
+    aliases.add("Full Stack Developer");
+    aliases.add("Software Engineer");
+  }
+  if (/backend|back[-\s]?end/.test(titleText)) {
+    aliases.add("Backend Engineer");
+    aliases.add("Back-End Engineer");
+    aliases.add("Software Engineer");
+  }
+  if (/frontend|front[-\s]?end/.test(titleText)) {
+    aliases.add("Frontend Engineer");
+    aliases.add("Front-End Engineer");
+    aliases.add("Software Engineer");
+  }
+  if (/software engineer|swe/.test(titleText)) {
+    aliases.add("Software Engineer");
+    aliases.add("Software Developer");
+    aliases.add("Engineer");
+  }
+  if (aliases.size <= 2) {
+    aliases.add("Software Engineer");
+    aliases.add("Software Developer");
+    aliases.add("Engineer");
+  }
+
+  return Array.from(aliases).slice(0, 10);
+}
+
+const RECALL_BOOST_GEO_HINTS = [
+  "United States",
+  "New York",
+  "San Francisco Bay Area",
+  "Austin",
+  "Seattle",
+  "Boston",
+  "Chicago",
+  "Los Angeles",
+  "Toronto",
+  "London",
+  "Berlin",
+  "Remote",
+];
+
+const COUNTRY_CODE_TO_HINT: Record<string, string> = {
+  US: "United States",
+  CA: "Canada",
+  GB: "United Kingdom",
+  DE: "Germany",
+  FR: "France",
+  IN: "India",
+  AU: "Australia",
+  SG: "Singapore",
+  NL: "Netherlands",
+};
+
+function countryCodeToGeoHint(code: string) {
+  return COUNTRY_CODE_TO_HINT[code.toUpperCase()] || null;
+}
+
 function quoteTerm(term: string) {
   return term.includes(" ") ? `"${term}"` : term;
 }
@@ -222,6 +291,7 @@ function pickSkill(skills: string[], index: number) {
  * - P0: high precision
  * - P1: balanced recall
  * - P2: exploratory expansion
+ * - P3: high-recall expansion
  */
 export function buildLinkedInSearchPlan(parsed: {
   title?: string;
@@ -261,6 +331,7 @@ export function buildLinkedInSearchPlan(parsed: {
   const p0Queries = new Set<string>();
   const p1Queries = new Set<string>();
   const p2Queries = new Set<string>();
+  const p3Queries = new Set<string>();
 
   const recallSkills = Array.isArray(parsed.recall_spec?.core_skill_terms)
     ? parsed.recall_spec?.core_skill_terms.filter((value): value is string => typeof value === "string")
@@ -285,6 +356,7 @@ export function buildLinkedInSearchPlan(parsed: {
         .filter(Boolean),
     ),
   ).slice(0, 5);
+  const roleAliases = deriveRoleAliases(titleVariants, parsed.title || null);
 
   const locationScope =
     parsed.hiring_brief?.location_scope ||
@@ -292,6 +364,18 @@ export function buildLinkedInSearchPlan(parsed: {
     (Array.isArray(parsed.recall_spec?.countries) ? parsed.recall_spec?.countries[0] : "") ||
     "";
   const locationVariants = locationScope ? deriveLocationVariants(locationScope) : [];
+  const recallCountryHints = Array.isArray(parsed.recall_spec?.countries)
+    ? parsed.recall_spec.countries
+      .map((code) => countryCodeToGeoHint(typeof code === "string" ? code : ""))
+      .filter((value): value is string => Boolean(value))
+    : [];
+  const geoHints = Array.from(
+    new Set(
+      [...locationVariants, ...recallCountryHints, ...RECALL_BOOST_GEO_HINTS]
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 10);
   const loc = locationVariants[0] || "";
   const workModel = (parsed.hiring_brief?.work_model || "").toLowerCase();
   const locationFlexibility = (parsed.hiring_brief?.location_flexibility || "").toLowerCase();
@@ -406,10 +490,80 @@ export function buildLinkedInSearchPlan(parsed: {
     pickSkill(expandedSkills, 1),
   ]);
 
+  // P3: high-recall expansion (broader role aliases + geo hints + skill mixes)
+  const recallSkillsForP3 = [...expandedSkills, "python", "node.js", "next.js", "typescript"];
+  for (const roleAlias of roleAliases.slice(0, 8)) {
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      `"${roleAlias}"`,
+    ]);
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      parsed.seniority || null,
+      `"${roleAlias}"`,
+      pickSkill(recallSkillsForP3, 0),
+    ]);
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      `"${roleAlias}"`,
+      pickSkill(recallSkillsForP3, 0),
+      pickSkill(recallSkillsForP3, 1),
+    ]);
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      `"${roleAlias}"`,
+      pickSkill(recallSkillsForP3, 1),
+      pickSkill(recallSkillsForP3, 2),
+    ]);
+  }
+
+  for (const geo of geoHints) {
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      `"${roleAliases[0] || titleVariants[0] || parsed.title || "Software Engineer"}"`,
+      `"${geo}"`,
+    ]);
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      `"Software Engineer"`,
+      pickSkill(recallSkillsForP3, 0),
+      `"${geo}"`,
+    ]);
+  }
+
+  const broadSkillPairs: Array<[number, number]> = [
+    [0, 1],
+    [0, 2],
+    [1, 2],
+    [1, 3],
+    [2, 3],
+    [0, 4],
+    [2, 4],
+    [3, 4],
+  ];
+  for (const [leftIndex, rightIndex] of broadSkillPairs) {
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      `"${roleAliases[0] || "Software Engineer"}"`,
+      pickSkill(recallSkillsForP3, leftIndex),
+      pickSkill(recallSkillsForP3, rightIndex),
+    ]);
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      `"${roleAliases[1] || roleAliases[0] || "Software Developer"}"`,
+      pickSkill(recallSkillsForP3, leftIndex),
+      pickSkill(recallSkillsForP3, rightIndex),
+      geoHints[leftIndex % Math.max(geoHints.length, 1)]
+        ? `"${geoHints[leftIndex % Math.max(geoHints.length, 1)]}"`
+        : null,
+    ]);
+  }
+
   const tiers = ([
     { tier: "P0" as const, queries: Array.from(p0Queries).slice(0, 8) },
-    { tier: "P1" as const, queries: Array.from(p1Queries).slice(0, 10) },
-    { tier: "P2" as const, queries: Array.from(p2Queries).slice(0, 12) },
+    { tier: "P1" as const, queries: Array.from(p1Queries).slice(0, 14) },
+    { tier: "P2" as const, queries: Array.from(p2Queries).slice(0, 24) },
+    { tier: "P3" as const, queries: Array.from(p3Queries).slice(0, 64) },
   ] satisfies LinkedInSearchPlanTier[]).filter((tier) => tier.queries.length > 0);
 
   return {

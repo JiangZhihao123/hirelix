@@ -89,6 +89,11 @@ const SERPER_PAGES_PER_QUERY = getConfiguredPositiveInt(
   4,
   { max: 10 },
 );
+const SERPER_PAGES_PER_QUERY_EXPANDED = getConfiguredPositiveInt(
+  "SEARCH_SERPER_PAGES_PER_QUERY_EXPANDED",
+  8,
+  { max: 20 },
+);
 const PRE_SCREEN_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_CONCURRENCY",
   20,
@@ -2536,6 +2541,7 @@ async function buildSerperCandidates(
     query_concurrency: SERPER_QUERY_CONCURRENCY,
     query_count: searchPlan.queries.length,
     pages_per_query: SERPER_PAGES_PER_QUERY,
+    expanded_pages_per_query: SERPER_PAGES_PER_QUERY_EXPANDED,
     results_per_page: SERPER_RESULTS_PER_PAGE,
     source_rule_pass_score: SOURCE_RULE_PASS_SCORE,
     target_scrape_count: TARGET_SCRAPE_COUNT,
@@ -2561,9 +2567,13 @@ async function buildSerperCandidates(
   let stopReason: string | null = null;
 
   for (const tierPlan of tierPlans) {
+    const pagesForTier =
+      tierPlan.tier === "P3"
+        ? Math.max(SERPER_PAGES_PER_QUERY, SERPER_PAGES_PER_QUERY_EXPANDED)
+        : SERPER_PAGES_PER_QUERY;
     const queryTasks: Array<{ query: string; page: number }> = [];
     for (const query of tierPlan.queries) {
-      for (let page = 1; page <= SERPER_PAGES_PER_QUERY; page++) {
+      for (let page = 1; page <= pagesForTier; page++) {
         queryTasks.push({ query, page });
       }
     }
