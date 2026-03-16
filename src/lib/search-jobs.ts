@@ -181,6 +181,16 @@ const STOP_MIN_GAIN_RATIO = getConfiguredNumber(
   0.08,
   { min: 0, max: 1 },
 );
+const LIGHT_PASS_RATE_MIN = getConfiguredNumber(
+  "SEARCH_LIGHT_PASS_RATE_MIN",
+  0.08,
+  { min: 0, max: 1 },
+);
+const LIGHT_PASS_RATE_MAX = getConfiguredNumber(
+  "SEARCH_LIGHT_PASS_RATE_MAX",
+  0.35,
+  { min: 0, max: 1 },
+);
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
   "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
   false,
@@ -1049,12 +1059,9 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
       ? Math.max(0, Math.min(100, Math.round(item.match_score)))
       : 0;
 
-  // Enforce keep/score consistency so downstream thresholding is stable.
-  if (keep && matchScore < PRE_SCREEN_PASS_SCORE) {
-    matchScore = PRE_SCREEN_PASS_SCORE;
-  } else if (!keep && matchScore >= PRE_SCREEN_PASS_SCORE) {
-    matchScore = PRE_SCREEN_PASS_SCORE - 1;
-  }
+  // Keep score range sane, but avoid forcing everything across pass threshold.
+  if (keep && matchScore < 40) matchScore = 40;
+  if (!keep && matchScore > 80) matchScore = 80;
 
   return {
     keep,
@@ -2626,6 +2633,77 @@ function shouldStopSerperTierExpansion(
   return gainRatio < STOP_MIN_GAIN_RATIO;
 }
 
+function selectCalibratedLightPass(
+  preScreened: SerperPreScreenedCandidate[],
+) {
+  const normalizedMinRate = Math.min(LIGHT_PASS_RATE_MIN, LIGHT_PASS_RATE_MAX);
+  const normalizedMaxRate = Math.max(LIGHT_PASS_RATE_MIN, LIGHT_PASS_RATE_MAX);
+  if (preScreened.length === 0) {
+    return {
+      selected: [] as SerperPreScreenedCandidate[],
+      mode: "empty" as const,
+      threshold: PRE_SCREEN_PASS_SCORE,
+      passRate: 0,
+      minCount: 0,
+      maxCount: 0,
+    };
+  }
+
+  const sortedByScore = [...preScreened].sort(
+    (left, right) => right.preScreen.match_score - left.preScreen.match_score,
+  );
+  const keepCandidates = sortedByScore.filter((candidate) => candidate.preScreen.keep);
+  const thresholdPassed = keepCandidates.filter(
+    (candidate) => candidate.preScreen.match_score >= PRE_SCREEN_PASS_SCORE,
+  );
+
+  if (keepCandidates.length === 0) {
+    return {
+      selected: [] as SerperPreScreenedCandidate[],
+      mode: "no_keep" as const,
+      threshold: PRE_SCREEN_PASS_SCORE,
+      passRate: 0,
+      minCount: 0,
+      maxCount: 0,
+    };
+  }
+
+  const evaluatedCount = preScreened.length;
+  const minCount = Math.min(
+    keepCandidates.length,
+    Math.max(1, Math.round(evaluatedCount * normalizedMinRate)),
+  );
+  const maxCount = Math.max(
+    minCount,
+    Math.min(keepCandidates.length, Math.round(evaluatedCount * normalizedMaxRate)),
+  );
+
+  let selected = thresholdPassed;
+  let mode: "threshold" | "floor_fill" | "ceiling_trim" = "threshold";
+  if (selected.length < minCount) {
+    selected = keepCandidates.slice(0, minCount);
+    mode = "floor_fill";
+  } else if (selected.length > maxCount) {
+    selected = selected.slice(0, maxCount);
+    mode = "ceiling_trim";
+  }
+
+  const threshold =
+    selected.length > 0
+      ? selected[selected.length - 1].preScreen.match_score
+      : PRE_SCREEN_PASS_SCORE;
+  const passRate = evaluatedCount > 0 ? selected.length / evaluatedCount : 0;
+
+  return {
+    selected,
+    mode,
+    threshold,
+    passRate,
+    minCount,
+    maxCount,
+  };
+}
+
 
 async function preScreenSerperCandidate(
   aiClient: ReturnType<typeof createAIClient>,
@@ -3097,11 +3175,8 @@ async function buildSerperCandidates(
     return null;
   }
 
-  const lightPassed = preScreened.filter(
-    (candidate) =>
-      candidate.preScreen.keep &&
-      candidate.preScreen.match_score >= PRE_SCREEN_PASS_SCORE,
-  );
+  const lightPassSelection = selectCalibratedLightPass(preScreened);
+  const lightPassed = lightPassSelection.selected;
   const preScreenKeptCount = preScreened.filter((candidate) => candidate.preScreen.keep).length;
   const scrapeCandidates = lightPassed.slice(
     0,
@@ -3125,6 +3200,11 @@ async function buildSerperCandidates(
     pre_screen_kept_count: preScreenKeptCount,
     llm_prescreen_pass_rate: Number(llmPreScreenPassRate.toFixed(4)),
     light_pass_count: lightPassed.length,
+    light_pass_rate: Number(lightPassSelection.passRate.toFixed(4)),
+    light_pass_calibration_mode: lightPassSelection.mode,
+    light_pass_calibration_min_count: lightPassSelection.minCount,
+    light_pass_calibration_max_count: lightPassSelection.maxCount,
+    light_pass_effective_threshold: lightPassSelection.threshold,
     target_scrape_count: TARGET_SCRAPE_COUNT,
     scrape_count: scrapeCandidates.length,
     pass_score_threshold: PRE_SCREEN_PASS_SCORE,
