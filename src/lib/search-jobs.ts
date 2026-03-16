@@ -1383,7 +1383,7 @@ Rules:
 - Keep join_likelihood_reasons concrete and evidence-based. Max 3 items.
 - Keep risk_flags concrete and short. Max 4 items.
 - Do not speculate about relocation or work authorization.
-- Return ONLY valid JSON.`;
+- Return ONLY valid JSON. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json or \`\`\`). Return raw JSON directly.`;
 }
 
 function buildArbiterPrompt(
