@@ -402,15 +402,36 @@ function logSearchEvent(eventName: string, payload: Record<string, unknown>) {
 }
 
 function extractJSON(text: string): string {
+  // 策略 1: 尝试提取 markdown 代码块中的 JSON
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  let result = fenced ? fenced[1].trim() : text.trim();
-  if (result.startsWith("[") && !result.endsWith("]")) {
-    const lastBrace = result.lastIndexOf("}");
-    if (lastBrace > 0) {
-      result = result.substring(0, lastBrace + 1) + "]";
+  if (fenced && fenced[1].trim().length > 0) {
+    let result = fenced[1].trim();
+    // 修复不完整的数组
+    if (result.startsWith("[") && !result.endsWith("]")) {
+      const lastBrace = result.lastIndexOf("}");
+      if (lastBrace > 0) {
+        result = result.substring(0, lastBrace + 1) + "]";
+      }
     }
+    return result;
   }
-  return result;
+  
+  // 策略 2: 尝试查找第一个 { 或 [ 到最后一个 } 或 ]
+  const firstBrace = Math.min(
+    text.indexOf("{") >= 0 ? text.indexOf("{") : Infinity,
+    text.indexOf("[") >= 0 ? text.indexOf("[") : Infinity
+  );
+  const lastBrace = Math.max(
+    text.lastIndexOf("}"),
+    text.lastIndexOf("]")
+  );
+  
+  if (firstBrace < Infinity && lastBrace > firstBrace) {
+    return text.substring(firstBrace, lastBrace + 1);
+  }
+  
+  // 策略 3: 返回原始文本（去除首尾空白）
+  return text.trim();
 }
 
 function normalizeNullableString(value: unknown): string | null {
@@ -2634,8 +2655,21 @@ async function judgeScoreBatch(
     `${judgeLabel} scoring`,
   );
 
+  let parsed;
+  try {
+    const extracted = extractJSON(text);
+    parsed = JSON.parse(extracted);
+  } catch (error) {
+    console.error(`[search:judge_json_parse_error] Failed to parse JSON from ${judgeLabel}:`, {
+      error: error instanceof Error ? error.message : String(error),
+      textLength: text.length,
+      textPreview: text.substring(0, 200),
+    });
+    throw error;
+  }
+  
   return parseJudgeScoreResults(
-    JSON.parse(extractJSON(text)),
+    parsed,
     totalPoolSize,
     batchIndexes,
   ).filter((assessment) => batchIndexes.includes(assessment.index));
