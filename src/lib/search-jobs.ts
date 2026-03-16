@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import {
   CANDIDATE_SUITABILITY_PROMPT,
   JD_SEARCH_INTENT_PROMPT,
@@ -973,7 +974,6 @@ function createAIClient() {
     };
 
     if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
-      const { HttpsProxyAgent } = require("https-proxy-agent");
       const proxyAgent = new HttpsProxyAgent(process.env.HTTP_PROXY);
       
       config.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
