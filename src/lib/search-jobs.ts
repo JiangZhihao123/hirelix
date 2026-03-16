@@ -166,12 +166,12 @@ const LIGHT_STAGE_TOP_RATIO = getConfiguredNumber(
 );
 const DEEP_STAGE_TOP_RATIO = getConfiguredNumber(
   "SEARCH_DEEP_STAGE_TOP_RATIO",
-  0.1,
+  0.2,
   { min: 0.01, max: 1 },
 );
 const FINAL_RESULT_CAP = getConfiguredPositiveInt(
   "SEARCH_FINAL_RESULT_CAP",
-  25,
+  50,
   { min: 1, max: 250 },
 );
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
