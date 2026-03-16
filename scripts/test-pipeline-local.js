@@ -3,6 +3,7 @@
  * Serper → AI Pre-screen → Bright Data → AI Deep Score → Apollo/Hunter Email
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 const env = {};
 for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {

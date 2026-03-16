@@ -9,6 +9,42 @@
  */
 
 const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
+const BRIGHTDATA_FILTER_API_BASE = "https://api.brightdata.com/datasets";
+
+type BrightDataScrapeOptions = {
+  batchSize?: number;
+  concurrency?: number;
+  maxAttempts?: number;
+  intervalMs?: number;
+  allowPartial?: boolean;
+};
+
+export type BrightDataFilterRule =
+  | {
+      name: string;
+      operator: string;
+      value: string | number | boolean;
+    }
+  | {
+      operator: "and" | "or";
+      filters: BrightDataFilterRule[];
+    };
+
+export type BrightDataDatasetFilterRequest = {
+  datasetId: string;
+  filter: BrightDataFilterRule;
+  recordsLimit: number;
+};
+
+export type BrightDataSnapshotMetadata = {
+  id: string;
+  status: "scheduled" | "building" | "ready" | "failed";
+  dataset_id: string;
+  dataset_size?: number;
+  file_size?: number;
+  cost?: number;
+  error_code?: string | number;
+};
 
 // ──────────────────── Types ────────────────────
 
@@ -57,6 +93,304 @@ export type BrightDataProfile = {
   input: { url: string };
 };
 
+type BrightDataDatasetCompany = {
+  name?: unknown;
+  company_id?: unknown;
+  title?: unknown;
+  location?: unknown;
+};
+
+type BrightDataDatasetExperience = {
+  title?: unknown;
+  company?: unknown;
+  company_id?: unknown;
+  location?: unknown;
+  duration?: unknown;
+  start_date?: unknown;
+  end_date?: unknown;
+  description?: unknown;
+  positions?: unknown;
+};
+
+type BrightDataDatasetEducation = {
+  title?: unknown;
+  subtitle?: unknown;
+  field?: unknown;
+  field_of_study?: unknown;
+  degree?: unknown;
+  start_year?: unknown;
+  end_year?: unknown;
+};
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function asString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function asStringArray(value: unknown, maxItems: number = 20) {
+  if (!Array.isArray(value)) return [];
+  const deduped = new Set<string>();
+
+  for (const item of value) {
+    const normalized =
+      typeof item === "string"
+        ? asString(item)
+        : item && typeof item === "object"
+          ? asString((item as Record<string, unknown>).title)
+          : null;
+    if (!normalized) continue;
+    deduped.add(normalized);
+    if (deduped.size >= maxItems) break;
+  }
+
+  return Array.from(deduped);
+}
+
+function buildDuration(startDate: string | null, endDate: string | null) {
+  if (startDate && endDate) return `${startDate} - ${endDate}`;
+  if (startDate) return `${startDate} - Present`;
+  if (endDate) return endDate;
+  return null;
+}
+
+function mapDatasetExperienceEntry(value: unknown): BrightDataExperience[] {
+  if (!value || typeof value !== "object") return [];
+  const entry = value as BrightDataDatasetExperience;
+  const nestedPositions = Array.isArray(entry.positions) ? entry.positions : [];
+
+  if (nestedPositions.length > 0) {
+    return nestedPositions
+      .map((position) => {
+        if (!position || typeof position !== "object") return null;
+        const item = position as Record<string, unknown>;
+        const startDate = asString(item.start_date);
+        const endDate = asString(item.end_date);
+        return {
+          title: asString(item.title),
+          company: asString(item.subtitle) || asString(entry.company),
+          company_id: asString(entry.company_id),
+          location: asString(item.location) || asString(entry.location),
+          duration: asString(item.meta) || buildDuration(startDate, endDate),
+          description: asString(item.description) || asString(item.description_html),
+        };
+      })
+      .filter(
+        (item): item is BrightDataExperience =>
+          Boolean(item && (item.title || item.company || item.description)),
+      );
+  }
+
+  const startDate = asString(entry.start_date);
+  const endDate = asString(entry.end_date);
+  const mapped = {
+    title: asString(entry.title),
+    company: asString(entry.company),
+    company_id: asString(entry.company_id),
+    location: asString(entry.location),
+    duration: asString(entry.duration) || buildDuration(startDate, endDate),
+    description: asString(entry.description),
+  };
+
+  if (!mapped.title && !mapped.company && !mapped.description) return [];
+  return [mapped];
+}
+
+function mapDatasetEducationEntry(value: unknown): BrightDataEducation | null {
+  if (!value || typeof value !== "object") return null;
+  const entry = value as BrightDataDatasetEducation;
+  const mapped = {
+    title: asString(entry.title),
+    subtitle: asString(entry.subtitle),
+    field_of_study: asString(entry.field_of_study) || asString(entry.field),
+    degree: asString(entry.degree),
+    start_year: asString(entry.start_year),
+    end_year: asString(entry.end_year),
+  };
+  if (!mapped.title && !mapped.subtitle && !mapped.field_of_study) return null;
+  return mapped;
+}
+
+function mapDatasetCompany(value: unknown): BrightDataProfile["current_company"] {
+  if (!value || typeof value !== "object") return null;
+  const company = value as BrightDataDatasetCompany;
+  const mapped = {
+    name: asString(company.name),
+    company_id: asString(company.company_id),
+    title: asString(company.title),
+    location: asString(company.location),
+  };
+  if (!mapped.name && !mapped.title && !mapped.location) return null;
+  return mapped;
+}
+
+function chunkArray<T>(items: T[], batchSize: number) {
+  const batches: T[][] = [];
+  for (let index = 0; index < items.length; index += batchSize) {
+    batches.push(items.slice(index, index + batchSize));
+  }
+  return batches;
+}
+
+async function runWithConcurrency<TInput, TOutput>(
+  items: TInput[],
+  limit: number,
+  fn: (item: TInput, index: number) => Promise<TOutput>,
+) {
+  const results: TOutput[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const current = nextIndex;
+      nextIndex += 1;
+      results[current] = await fn(items[current], current);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(Math.max(limit, 1), items.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+// ──────────────────── Dataset filter recall ────────────────────
+
+export async function triggerDatasetFilter(
+  apiToken: string,
+  request: BrightDataDatasetFilterRequest,
+): Promise<string> {
+  const res = await fetch(`${BRIGHTDATA_FILTER_API_BASE}/filter`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      dataset_id: request.datasetId,
+      records_limit: request.recordsLimit,
+      filter: request.filter,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Bright Data filter failed (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  return data.snapshot_id;
+}
+
+export async function getDatasetSnapshotMetadata(
+  apiToken: string,
+  snapshotId: string,
+): Promise<BrightDataSnapshotMetadata> {
+  const res = await fetch(
+    `${BRIGHTDATA_FILTER_API_BASE}/snapshots/${snapshotId}`,
+    {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Bright Data snapshot metadata failed (${res.status}): ${text}`);
+  }
+
+  return (await res.json()) as BrightDataSnapshotMetadata;
+}
+
+export async function downloadDatasetSnapshot(
+  apiToken: string,
+  snapshotId: string,
+): Promise<Record<string, unknown>[]> {
+  const res = await fetch(
+    `${BRIGHTDATA_FILTER_API_BASE}/snapshots/${snapshotId}/download?format=json`,
+    {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Bright Data snapshot download failed (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Unexpected Bright Data dataset download format");
+  }
+
+  return data as Record<string, unknown>[];
+}
+
+export async function waitForDatasetSnapshot(
+  apiToken: string,
+  snapshotId: string,
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+): Promise<{
+  metadata: BrightDataSnapshotMetadata | null;
+  profiles: BrightDataProfile[] | null;
+}> {
+  const timeoutMs = Math.max(1000, options.timeoutMs ?? 300000);
+  const pollIntervalMs = Math.max(1000, options.pollIntervalMs ?? 5000);
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const metadata = await getDatasetSnapshotMetadata(apiToken, snapshotId);
+    if (metadata.status === "ready") {
+      const rows = await downloadDatasetSnapshot(apiToken, snapshotId);
+      return {
+        metadata,
+        profiles: rows.map(adaptDatasetRecordToBrightDataProfile),
+      };
+    }
+    if (metadata.status === "failed") {
+      const errorCode =
+        typeof metadata.error_code === "string" || typeof metadata.error_code === "number"
+          ? ` (error_code=${String(metadata.error_code)})`
+          : "";
+      throw new Error(`Bright Data snapshot ${snapshotId} failed${errorCode}`);
+    }
+    await sleep(pollIntervalMs);
+  }
+
+  return {
+    metadata: null,
+    profiles: null,
+  };
+}
+
+export async function filterDatasetProfiles(
+  apiToken: string,
+  request: BrightDataDatasetFilterRequest,
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+): Promise<{
+  snapshotId: string;
+  metadata: BrightDataSnapshotMetadata;
+  profiles: BrightDataProfile[];
+}> {
+  const snapshotId = await triggerDatasetFilter(apiToken, request);
+  const { metadata, profiles } = await waitForDatasetSnapshot(apiToken, snapshotId, options);
+  if (!metadata || !profiles) {
+    const timeoutMs = Math.max(1000, options.timeoutMs ?? 300000);
+    throw new Error(`Bright Data dataset filtering did not complete after ${timeoutMs}ms`);
+  }
+
+  return {
+    snapshotId,
+    metadata,
+    profiles,
+  };
+}
+
 // ──────────────────── Trigger scraping job ────────────────────
 
 export async function triggerScrape(
@@ -92,12 +426,12 @@ export async function triggerScrape(
 export async function pollSnapshot(
   apiToken: string,
   snapshotId: string,
-  maxAttempts: number = 6,
-  intervalMs: number = 30000,
+  maxAttempts: number = 12,
+  intervalMs: number = 20000,
 ): Promise<BrightDataProfile[]> {
   for (let i = 0; i < maxAttempts; i++) {
     console.log(`[brightdata] Polling snapshot ${snapshotId} (attempt ${i + 1}/${maxAttempts})...`);
-    await new Promise((r) => setTimeout(r, intervalMs));
+    await sleep(intervalMs);
 
     const res = await fetch(
       `${BRIGHTDATA_API_BASE}/snapshot/${snapshotId}?format=json`,
@@ -138,14 +472,155 @@ export async function scrapeLinkedInProfiles(
   apiToken: string,
   datasetId: string,
   linkedinUrls: string[],
+  options: BrightDataScrapeOptions = {},
 ): Promise<BrightDataProfile[]> {
   if (linkedinUrls.length === 0) return [];
 
-  console.log(`[brightdata] Triggering scrape for ${linkedinUrls.length} profiles...`);
-  const snapshotId = await triggerScrape(apiToken, datasetId, linkedinUrls);
-  console.log(`[brightdata] Snapshot ID: ${snapshotId}`);
+  const batchSize = Math.max(1, options.batchSize ?? linkedinUrls.length);
+  const concurrency = Math.max(1, options.concurrency ?? 1);
+  const maxAttempts = options.maxAttempts ?? 12;
+  const intervalMs = options.intervalMs ?? 20000;
+  const allowPartial = options.allowPartial ?? false;
 
-  return pollSnapshot(apiToken, snapshotId);
+  if (batchSize >= linkedinUrls.length && concurrency === 1) {
+    console.log(`[brightdata] Triggering scrape for ${linkedinUrls.length} profiles...`);
+    const snapshotId = await triggerScrape(apiToken, datasetId, linkedinUrls);
+    console.log(`[brightdata] Snapshot ID: ${snapshotId}`);
+    return pollSnapshot(apiToken, snapshotId, maxAttempts, intervalMs);
+  }
+
+  const batches = chunkArray(linkedinUrls, batchSize);
+  console.log(
+    `[brightdata] Triggering ${batches.length} scrape batch(es) for ${linkedinUrls.length} profiles with concurrency ${Math.min(concurrency, batches.length)}...`,
+  );
+
+  const batchResults = await runWithConcurrency(
+    batches,
+    concurrency,
+    async (urls, batchIndex) => {
+      const label = `batch ${batchIndex + 1}/${batches.length}`;
+
+      try {
+        console.log(`[brightdata] Triggering ${label} for ${urls.length} profiles...`);
+        const snapshotId = await triggerScrape(apiToken, datasetId, urls);
+        console.log(`[brightdata] ${label} snapshot ID: ${snapshotId}`);
+
+        const profiles = await pollSnapshot(
+          apiToken,
+          snapshotId,
+          maxAttempts,
+          intervalMs,
+        );
+
+        return {
+          batchIndex,
+          profiles,
+          error: null,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[brightdata] ${label} failed: ${message}`);
+
+        if (!allowPartial) {
+          throw error;
+        }
+
+        return {
+          batchIndex,
+          profiles: [] as BrightDataProfile[],
+          error: message,
+        };
+      }
+    },
+  );
+
+  const failures = batchResults.filter((result) => result.error);
+  const profiles = batchResults
+    .sort((left, right) => left.batchIndex - right.batchIndex)
+    .flatMap((result) => result.profiles);
+
+  if (!profiles.length) {
+    const reason =
+      failures.length > 0
+        ? failures.map((result) => result.error).join("; ")
+        : "Bright Data returned no profiles";
+    throw new Error(reason);
+  }
+
+  if (failures.length > 0) {
+    console.warn(
+      `[brightdata] Completed with ${failures.length} failed batch(es); returning ${profiles.length} profile(s).`,
+    );
+  }
+
+  if (profiles.length < linkedinUrls.length) {
+    console.warn(
+      `[brightdata] Requested ${linkedinUrls.length} profiles but received ${profiles.length}.`,
+    );
+  }
+
+  return profiles;
+}
+
+export function adaptDatasetRecordToBrightDataProfile(
+  record: Record<string, unknown>,
+): BrightDataProfile {
+  const currentCompany = mapDatasetCompany(record.current_company);
+  const experience = Array.isArray(record.experience)
+    ? record.experience.flatMap((entry) => mapDatasetExperienceEntry(entry))
+    : [];
+  const education = Array.isArray(record.education)
+    ? record.education
+      .map((entry) => mapDatasetEducationEntry(entry))
+      .filter((entry): entry is BrightDataEducation => Boolean(entry))
+    : [];
+
+  return {
+    name: asString(record.name) || "Unknown",
+    first_name: asString(record.first_name),
+    last_name: asString(record.last_name),
+    linkedin_id: asString(record.linkedin_id) || asString(record.id),
+    about: asString(record.about),
+    city: asString(record.city) || asString(record.location),
+    country_code: asString(record.country_code),
+    current_company: currentCompany,
+    experience,
+    education,
+    skills: asStringArray(record.skills),
+    connections:
+      typeof record.connections === "number" && Number.isFinite(record.connections)
+        ? record.connections
+        : null,
+    followers:
+      typeof record.followers === "number" && Number.isFinite(record.followers)
+        ? record.followers
+        : null,
+    url: asString(record.url) || asString(record.input_url),
+    avatar: asString(record.avatar),
+    languages: asStringArray(record.languages, 10),
+    certifications:
+      Array.isArray(record.certifications)
+        ? record.certifications
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const item = entry as Record<string, unknown>;
+            const name = asString(item.title) || asString(item.name);
+            if (!name) return null;
+            return {
+              name,
+              authority: asString(item.subtitle) || asString(item.authority),
+            };
+          })
+          .filter((entry): entry is { name: string; authority: string | null } => Boolean(entry))
+        : [],
+    recommendations_count:
+      typeof record.recommendations_count === "number" && Number.isFinite(record.recommendations_count)
+        ? record.recommendations_count
+        : null,
+    input: {
+      url: asString(record.input_url) || asString(record.url) || "",
+    },
+  };
 }
 
 // ──────────────────── Convert to rich profile text for AI ────────────────────

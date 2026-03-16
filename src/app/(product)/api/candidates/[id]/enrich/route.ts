@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { findEmail } from "@/lib/hunter";
 
 const supabaseAdmin = createClient(
@@ -45,6 +46,11 @@ export async function POST(
       { global: { headers: { Authorization: `Bearer ${token}` } } },
     );
     const { data: { user } } = await supabaseUser.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
 
     // Get candidate + parent search
     const { data: candidate, error: candErr } = await supabaseAdmin
@@ -55,6 +61,19 @@ export async function POST(
 
     if (candErr || !candidate) {
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+    }
+
+    const needsEnrich = !candidate.outreach_draft;
+    if (needsEnrich && billing.usage.enrichesRemaining <= 0) {
+      return NextResponse.json(
+        {
+          error:
+            billing.plan.code === "free"
+              ? "Free accounts do not include email enrichment. Upgrade to Pro to unlock 25 contact enriches each month."
+              : "You have reached this month's contact enrich limit. Add a Contact Pack or wait for your next billing cycle.",
+        },
+        { status: 403 },
+      );
     }
 
     // Get company profile from user settings
@@ -185,10 +204,24 @@ Return ONLY valid JSON, no markdown.`;
 
     // ── Update DB ──
     if (Object.keys(updates).length > 0) {
+      if (!candidate.enriched_at && needsEnrich) {
+        updates.enriched_at = new Date().toISOString();
+      }
       await supabaseAdmin
         .from("hirelix_candidates")
         .update(updates)
         .eq("id", id);
+    }
+
+    if (!candidate.enriched_at && needsEnrich) {
+      await supabaseAdmin.from("hirelix_usage_events").insert({
+        user_id: user.id,
+        event_type: "candidate_enriched",
+        related_id: candidate.id,
+        metadata: {
+          plan_code: billing.plan.code,
+        },
+      });
     }
 
     return NextResponse.json({

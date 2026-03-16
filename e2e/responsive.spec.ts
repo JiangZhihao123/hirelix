@@ -7,7 +7,7 @@ test.describe("Responsive - Landing Page", () => {
     await page.goto("/");
     await expect(page.getByText("Best experienced on desktop")).toBeVisible();
     await expect(page.getByTestId("mobile-sample-cta")).toBeVisible();
-    await expect(page.getByRole("link", { name: /Sign in on this device/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Sign in on this device/i })).toBeVisible();
   });
 
   test("should hide the desktop-only hero form and shortlist demo on mobile", async ({ page }) => {
@@ -16,7 +16,15 @@ test.describe("Responsive - Landing Page", () => {
       page.getByPlaceholder("Paste the full JD here. We will keep it ready for you on the next step."),
     ).toBeHidden();
     await expect(page.getByText("James Liu")).toBeHidden();
-    await expect(page.getByRole("link", { name: "Sign In" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign In" }).first()).toBeVisible();
+  });
+
+  test("should open the generic auth modal from the mobile sign-in action", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /Sign in on this device/i }).click();
+    await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to continue to Hirelix." })).toBeVisible();
+    await expect(page.getByTestId("landing-auth-preview-title")).toHaveCount(0);
   });
 
   test("should still render the major conversion sections on mobile", async ({ page }) => {
@@ -36,6 +44,8 @@ test.describe("Responsive - Auth Page", () => {
     await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sign In" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Use password instead" })).toBeVisible();
+    await expect(page.getByText(/No account\?/i)).toHaveCount(0);
   });
 });

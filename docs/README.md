@@ -23,6 +23,7 @@ This directory is the home for project documentation.
 
 - [`growth/growth-plan-24-months.md`](./growth/growth-plan-24-months.md): 24-month growth and fundraising plan
 - [`growth/conversion-funnel-v1.md`](./growth/conversion-funnel-v1.md): conversion event taxonomy and landing-page experiment definitions
+- [`growth/ads-funnel-roi-model.md`](./growth/ads-funnel-roi-model.md): paid-acquisition funnel psychology, conversion assumptions, and first-month ROI model
 
 ### Marketing
 

@@ -1,6 +1,13 @@
 "use client";
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  startTransition,
+  type FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,7 +15,7 @@ import {
   ArrowRight,
   Brain,
   CheckCircle2,
-  Clock3,
+  CircleHelp,
   Database,
   FileText,
   Mail,
@@ -16,106 +23,159 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  X,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
+import { LoginForm } from "@/components/LoginForm";
 import {
   ANALYTICS_EVENTS,
   buildAttributionQuery,
   getAnalyticsContextFromBrowser,
   getDefaultLandingExperimentState,
-  getLandingExperimentStateFromBrowser,
   trackEvent,
   type IntentPath,
 } from "@/lib/analytics";
+import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK } from "@/lib/billing";
 
-const sampleJd = `Senior Frontend Engineer
+const sampleJd = `Senior Software Engineer
 
-We are hiring a Senior Frontend Engineer to build customer-facing product experiences for a fast-growing B2B SaaS company.
+We are hiring a Senior Software Engineer to build product and platform systems for a fast-growing B2B SaaS company.
 
 Requirements:
-- 5+ years of frontend engineering experience
-- Strong React and TypeScript skills
-- Experience with Next.js and modern design systems
-- Comfortable shipping production features end-to-end
-- Bonus: growth experiments, analytics, or performance optimization
+- 5+ years of software engineering experience
+- Strong experience building backend services, APIs, and production systems
+- Comfortable working across cloud infrastructure, data flows, and product collaboration
+- Experience shipping reliable features end-to-end in fast-moving teams
+- Bonus: distributed systems, observability, or developer tooling experience
 
 Nice to have:
 - Experience working in startups
-- Familiarity with GraphQL and product analytics`;
+- Familiarity with AWS, PostgreSQL, and event-driven architectures`;
 
 const candidateRows = [
   {
     initials: "JL",
     name: "James Liu",
-    role: "Senior Frontend Engineer at Shopify",
+    role: "Senior Software Engineer at Shopify",
     score: 88,
-    matched: ["React", "TypeScript", "Next.js"],
+    matched: ["APIs", "Distributed Systems", "AWS"],
+    matchReasons: [
+      "6 years building APIs and production backend services",
+      "Built reliable distributed systems in fast-moving product teams",
+    ],
+    email: "james.liu@shopify-example.com",
+    linkedinUrl: "https://www.linkedin.com/in/james-liu-platform",
+    linkedinDraft:
+      "Hi James, your platform work at Shopify looks unusually close to what this team needs. You have built APIs and platform systems at real scale, which is exactly why I wanted to reach out. Open to a quick conversation?",
+    emailDraft:
+      "Hi James, I came across your work building APIs and platform systems at Shopify and thought it was one of the closest fits I have seen for this backend role. The team needs someone who is comfortable with production systems, cloud infrastructure, and shipping reliably across product and platform. If you are open to it, I would love to share a little more context.",
+    emailSubject: "James, quick question about your Shopify platform work",
   },
   {
     initials: "AN",
     name: "Anika Nair",
-    role: "Staff Frontend Developer at Atlassian",
+    role: "Staff Software Engineer at Atlassian",
     score: 79,
-    matched: ["React", "GraphQL"],
+    matched: ["Platform", "PostgreSQL"],
+    matchReasons: [
+      "Led platform work across product teams and backend systems",
+      "Strong PostgreSQL and distributed data experience",
+    ],
+    email: "anika.nair@atlassian-example.com",
+    linkedinUrl: "https://www.linkedin.com/in/anika-nair-platform",
+    linkedinDraft:
+      "Hi Anika, your platform engineering work at Atlassian stood out right away. This role needs someone who can move across product systems, backend reliability, and data-heavy infrastructure without losing execution speed.",
+    emailDraft:
+      "Hi Anika, I saw your background leading platform work at Atlassian and thought the overlap here was strong. The team is hiring for someone who can work across backend systems, platform reliability, and product-facing execution, and your profile looked unusually relevant. If you are open, I can send a few details and let you decide whether it is worth exploring.",
+    emailSubject: "Anika, your Atlassian platform background looks highly relevant",
   },
   {
     initials: "MR",
     name: "Marco Rossi",
-    role: "Frontend Lead at Datadog",
+    role: "Senior Backend Engineer at Datadog",
     score: 72,
-    matched: ["TypeScript", "Design Systems"],
+    matched: ["TypeScript", "Cloud Infrastructure"],
+    matchReasons: [
+      "Strong backend execution across cloud infrastructure and production systems",
+      "Relevant experience with TypeScript services and observability-heavy environments",
+    ],
+    email: "marco.rossi@datadog-example.com",
+    linkedinUrl: "https://www.linkedin.com/in/marco-rossi-backend",
+    linkedinDraft:
+      "Hi Marco, your backend and cloud infrastructure work at Datadog looks very aligned with this role. They need someone strong in production systems, reliable services, and API-heavy backend work, so I wanted to reach out directly.",
+    emailDraft:
+      "Hi Marco, your mix of backend, cloud infrastructure, and production systems experience at Datadog caught my attention because it maps closely to what this team is hiring for. The role is hands-on, API-heavy, and needs someone comfortable with reliability and scale. Happy to send more context if it sounds potentially relevant.",
+    emailSubject: "Marco, quick question about your Datadog backend work",
   },
 ];
 
-const headlineCopy = {
-  speed: "Get a ranked shortlist in minutes.",
-  results: "Turn any job description into a candidate shortlist.",
-} as const;
+const heroSearchStats = [
+  { label: "Profiles scanned", value: "2,400+" },
+  { label: "Deep review", value: "126" },
+  { label: "AI-ranked shortlist", value: "Top 5" },
+];
 
-const ctaCopy = {
-  paste_jd: "Paste a JD",
-  find_candidates: "Find Candidates",
-} as const;
-
-const proofCards = {
-  speed: {
-    icon: Clock3,
-    title: "Under 5 minutes",
-    desc: "From pasted JD to a shortlist you can review fast.",
+const outreachChannels = [
+  {
+    label: "LinkedIn InMail",
+    eyebrow: "Send via LinkedIn",
+    cta: "Send LinkedIn InMail",
   },
-  source: {
-    icon: Database,
-    title: "Real LinkedIn profiles",
-    desc: "Results are grounded in real public profile discovery.",
+  {
+    label: "Email Outreach",
+    eyebrow: "Send via email",
+    cta: "Send Email Outreach",
   },
-  ranking: {
-    icon: Star,
-    title: "Ranked match reasons",
-    desc: "See why a candidate matches before you open outreach.",
-  },
-} as const;
-
-const proofOrder = {
-  speed_first: ["speed", "source", "ranking"] as const,
-  credibility_first: ["source", "ranking", "speed"] as const,
-} as const;
+];
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
+  const experiments = getDefaultLandingExperimentState();
   const [jdText, setJdText] = useState("");
-  const [experiments, setExperiments] = useState(getDefaultLandingExperimentState);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authIntent, setAuthIntent] = useState<"search" | "signin">("search");
+  const [pendingJd, setPendingJd] = useState("");
+  const [pendingIntentPath, setPendingIntentPath] = useState<IntentPath>("direct_jd");
+  const [pendingRedirectPath, setPendingRedirectPath] = useState("");
+  const [selectedHeroCandidateIndex, setSelectedHeroCandidateIndex] = useState(0);
+  const [selectedOutreachChannelIndex, setSelectedOutreachChannelIndex] = useState(0);
   const hasTrackedInputRef = useRef(false);
   const hasTrackedLandingViewRef = useRef(false);
 
   const trimmedJd = jdText.trim();
   const wordCount = trimmedJd ? trimmedJd.split(/\s+/).filter(Boolean).length : 0;
   const canSubmit = trimmedJd.length >= 50;
-  const activeProofCards = proofOrder[experiments.proof].map((key) => proofCards[key]);
+  const modalPreviewTitle = useMemo(() => {
+    const firstMeaningfulLine = pendingJd
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean);
+
+    return firstMeaningfulLine || "Selected job description";
+  }, [pendingJd]);
+  const isSearchAuthIntent = authIntent === "search";
+  const displayedHeroCandidates = candidateRows.slice(0, 2);
+  const activeHeroCandidate =
+    displayedHeroCandidates[selectedHeroCandidateIndex] ?? displayedHeroCandidates[0];
+  const activeOutreachChannel = outreachChannels[selectedOutreachChannelIndex] ?? outreachChannels[0];
+  const activeContactLabel = selectedOutreachChannelIndex === 0 ? "LinkedIn" : "Email";
+  const activeContactValue =
+    selectedOutreachChannelIndex === 0
+      ? activeHeroCandidate.linkedinUrl
+      : activeHeroCandidate.email;
+  const activeActionHref =
+    selectedOutreachChannelIndex === 0
+      ? activeHeroCandidate.linkedinUrl
+      : `mailto:${activeHeroCandidate.email}?subject=${encodeURIComponent(
+          activeHeroCandidate.emailSubject,
+        )}&body=${encodeURIComponent(activeHeroCandidate.emailDraft)}`;
+  const activeActionTarget = selectedOutreachChannelIndex === 0 ? "_blank" : undefined;
+  const activeActionRel = selectedOutreachChannelIndex === 0 ? "noreferrer noopener" : undefined;
 
   useEffect(() => {
-    const assignedExperiments = getLandingExperimentStateFromBrowser();
-    const frame = window.requestAnimationFrame(() => {
-      setExperiments(assignedExperiments);
-    });
+    router.prefetch("/app/search/new");
 
     if (!hasTrackedLandingViewRef.current) {
       hasTrackedLandingViewRef.current = true;
@@ -124,24 +184,36 @@ export default function Home() {
         ANALYTICS_EVENTS.landingView,
         {
           ...getAnalyticsContextFromBrowser({
-            page_variant: assignedExperiments.pageVariant,
+            entry_mode: "landing",
+            page_variant: experiments.pageVariant,
           }),
-          headline_variant: assignedExperiments.headline,
-          cta_variant: assignedExperiments.cta,
-          proof_variant: assignedExperiments.proof,
+          headline_variant: experiments.headline,
+          cta_variant: experiments.cta,
+          proof_variant: experiments.proof,
         },
       );
     }
+  }, [experiments, router]);
 
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
+  useEffect(() => {
+    if (!authModalOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [authModalOpen]);
 
   function buildTrackedHref(
     pathname: string,
     intentPath: IntentPath,
     extra?: Record<string, string | number>,
+    entryMode: "landing" | "signin" | "workspace" = "landing",
   ) {
     const context = getAnalyticsContextFromBrowser({
+      entry_mode: entryMode,
       page_variant: experiments.pageVariant,
       intent_path: intentPath,
     });
@@ -150,6 +222,7 @@ export default function Home() {
       pageVariant: context.page_variant,
       trafficSource: context.traffic_source,
       utmCampaign: context.utm_campaign,
+      entryMode: context.entry_mode,
       extra,
     });
 
@@ -157,18 +230,71 @@ export default function Home() {
   }
 
   function goToSearch(prefill: string, intentPath: Extract<IntentPath, "sample" | "direct_jd">) {
-    router.push(
+    startTransition(() => {
+      router.push(
+        buildTrackedHref("/app/search/new", intentPath, {
+          jd: prefill,
+        }),
+      );
+    });
+  }
+
+  function openAuthModal(
+    intentPath: IntentPath,
+    options?: {
+      authIntent?: "search" | "signin";
+      prefill?: string;
+      redirectPath?: string;
+    },
+  ) {
+    const authIntentValue = options?.authIntent ?? "search";
+    const prefill = options?.prefill ?? "";
+    const redirectPath =
+      options?.redirectPath ??
       buildTrackedHref("/app/search/new", intentPath, {
         jd: prefill,
+      });
+
+    setAuthIntent(authIntentValue);
+    setPendingJd(prefill);
+    setPendingIntentPath(intentPath);
+    setPendingRedirectPath(redirectPath);
+    setAuthModalOpen(true);
+    setIsSubmitting(false);
+
+    trackEvent(ANALYTICS_EVENTS.signinView, {
+      ...getAnalyticsContextFromBrowser({
+        entry_mode: "landing",
+        page_variant: experiments.pageVariant,
+        intent_path: intentPath,
       }),
-    );
+      route: "/",
+      has_prefilled_jd: Boolean(prefill),
+      signin_surface: "landing_modal",
+    });
+  }
+
+  function handleGenericSignIn() {
+    if (user) {
+      router.push(buildTrackedHref("/app/search/new", "signin", undefined, "signin"));
+      return;
+    }
+
+    openAuthModal("signin", {
+      authIntent: "signin",
+      redirectPath: buildTrackedHref("/app/search/new", "signin", undefined, "signin"),
+    });
   }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
 
     const eventContext = getAnalyticsContextFromBrowser({
+      entry_mode: "landing",
       page_variant: experiments.pageVariant,
       intent_path: "direct_jd",
     });
@@ -184,21 +310,38 @@ export default function Home() {
       jd_word_count: wordCount,
     });
 
-    goToSearch(trimmedJd, "direct_jd");
+    if (user) {
+      goToSearch(trimmedJd, "direct_jd");
+      return;
+    }
+
+    openAuthModal("direct_jd", {
+      authIntent: "search",
+      prefill: trimmedJd,
+    });
   }
 
   function handleTrySample() {
     const eventContext = getAnalyticsContextFromBrowser({
+      entry_mode: "landing",
       page_variant: experiments.pageVariant,
       intent_path: "sample",
     });
 
     trackEvent(ANALYTICS_EVENTS.sampleCtaClick, {
       ...eventContext,
-      sample_name: "senior_frontend_engineer",
+      sample_name: "senior_software_engineer",
     });
 
-    goToSearch(sampleJd, "sample");
+    if (user) {
+      goToSearch(sampleJd, "sample");
+      return;
+    }
+
+    openAuthModal("sample", {
+      authIntent: "search",
+      prefill: sampleJd,
+    });
   }
 
   function handleJdInput(value: string) {
@@ -208,61 +351,100 @@ export default function Home() {
       hasTrackedInputRef.current = true;
       trackEvent(ANALYTICS_EVENTS.heroJdInputStart, {
         ...getAnalyticsContextFromBrowser({
+          entry_mode: "landing",
           page_variant: experiments.pageVariant,
           intent_path: "direct_jd",
         }),
       });
     }
   }
-
-  const signInHref = buildTrackedHref("/app", "signin");
-  const desktopFooterCtaLabel =
-    experiments.cta === "paste_jd" ? "Jump to the JD form" : "Go to the search form";
+  const desktopFooterCtaLabel = "Get Ranked Shortlist";
+  const legalLinks = [
+    { href: "/privacy", label: "Privacy Policy" },
+    { href: "/terms", label: "Terms of Service" },
+    { href: "/refund-policy", label: "Refund Policy" },
+    { href: "/contact", label: "Contact" },
+  ];
+  const billingFaqs = [
+    {
+      title: "Do subscriptions renew automatically?",
+      body: "Yes. Pro Monthly and Pro Annual renew automatically until you cancel.",
+    },
+    {
+      title: "How do I cancel?",
+      body: "You can cancel from billing settings or by emailing support@hirelix.online. Unless required by law, cancellation takes effect at the end of the current billing period.",
+    },
+    {
+      title: "How do refunds work?",
+      body: "Purchases made through Paddle are refundable within 14 days of the transaction date. For subscriptions, this applies within 14 days of the initial purchase or the most recent renewal.",
+    },
+    {
+      title: "Do I need a card to start?",
+      body: "No. The Free plan lets you start with 3 searches per month before upgrading.",
+    },
+  ];
 
   return (
-    <div className="landing-dark min-h-screen">
+    <div className="min-h-screen bg-[#07101d] text-slate-950">
       <nav className="fixed top-0 z-50 w-full border-b border-white/[0.08] bg-[#07101d]/78 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-2.5">
             <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
             <span className="text-xl font-bold tracking-tight text-white">Hirelix</span>
           </div>
-          <Link
-            href={signInHref}
-            className="rounded-lg border border-white/[0.12] bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:border-white/[0.2] hover:bg-white/[0.06]"
+          <button
+            type="button"
+            onClick={handleGenericSignIn}
+            className="rounded-lg border border-white/[0.16] bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:border-white/[0.28] hover:bg-white/[0.1]"
           >
             Sign In
-          </Link>
+          </button>
         </div>
       </nav>
 
-      <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
+      <section className="landing-dark relative overflow-hidden pt-24 pb-12 sm:pt-30 sm:pb-18 lg:min-h-screen lg:pt-24 lg:pb-12">
         <div className="hero-grid pointer-events-none absolute inset-0" />
         <div className="pointer-events-none absolute top-16 left-1/2 h-[660px] w-[660px] -translate-x-1/2 rounded-full bg-sky-400/[0.1] blur-[132px]" />
         <div className="pointer-events-none absolute top-44 left-1/4 h-[280px] w-[280px] rounded-full bg-cyan-300/[0.07] blur-[100px] animate-glow" />
+        <div className="pointer-events-none absolute top-32 right-[14%] h-[360px] w-[360px] rounded-full bg-amber-300/[0.08] blur-[140px]" />
 
-        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div className="relative mx-auto grid max-w-[92rem] gap-10 px-6 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/[0.1] px-3 py-1 text-xs font-medium text-sky-100">
               <Sparkles className="h-3.5 w-3.5" />
-              For founders and recruiters who need qualified candidates fast
+              For founders and recruiters filling open roles fast
             </div>
 
-            <h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
+            <h1 className="mt-5 max-w-[14ch] text-4xl font-extrabold leading-[0.96] tracking-tight text-white sm:text-[3rem] lg:text-[4rem]">
               Paste a JD.
               <br />
-              <span className="text-gradient">{headlineCopy[experiments.headline]}</span>
+              <span className="text-gradient">Get a ranked shortlist in minutes.</span>
             </h1>
 
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:mt-6 sm:text-lg">
-              Hirelix turns a job description into real candidate profiles, ranked match reasons, and outreach-ready copy. See the value first. Sign in when you&apos;re ready to run the search.
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-300 sm:text-[1.03rem]">
+              Real LinkedIn candidates, ranked match reasons, and outreach-ready drafts without turning the role into manual filters first.
             </p>
 
-            <div className="mt-6 rounded-2xl border border-white/[0.14] bg-white/[0.06] p-4 sm:hidden">
-              <p className="text-sm font-semibold text-white">
+            <div className="mt-4 hidden flex-wrap items-center gap-2 text-[11px] text-slate-100 sm:flex">
+              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
+                Under 5 minutes
+              </span>
+              <span className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 font-medium text-sky-100">
+                Large-scale LinkedIn search
+              </span>
+              <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
+                AI-ranked shortlist
+              </span>
+              <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
+                InMail + email outreach
+              </span>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-white/[0.2] bg-[linear-gradient(180deg,rgba(248,250,252,0.97)_0%,rgba(232,240,250,0.94)_100%)] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)] sm:hidden">
+              <p className="text-sm font-semibold text-slate-950">
                 Best experienced on desktop
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-300/84">
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 Reviewing candidates, match reasons, and outreach drafts is much easier on a larger screen.
               </p>
               <div className="mt-4 grid gap-2">
@@ -275,34 +457,40 @@ export default function Home() {
                   Try a Sample Search <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-3 text-center text-xs text-slate-300/70">
+              <p className="mt-3 text-center text-xs text-slate-600">
                 Already have an account?{" "}
-                <Link href={signInHref} className="font-medium text-sky-100 hover:underline">
+                <button
+                  type="button"
+                  onClick={handleGenericSignIn}
+                  className="font-medium text-sky-700 hover:underline"
+                >
                   Sign in on this device
-                </Link>
+                </button>
               </p>
-              <div className="mt-4 grid gap-2 text-xs text-slate-300/72">
+              <div className="mt-4 grid gap-2 text-xs text-slate-600">
                 <p>Under 5 minutes from JD to shortlist</p>
                 <p>Real LinkedIn profiles and ranked match reasons</p>
-                <p>Personalized outreach drafts included</p>
+                <p>Sign in only when you&apos;re ready to run the search</p>
               </div>
             </div>
 
-            <form id="hero-form" onSubmit={handleSubmit} className="mt-8 hidden sm:block">
-              <div className="rounded-2xl border border-white/[0.16] bg-white/[0.08] p-2 shadow-[0_24px_80px_rgba(13,33,66,0.45)]">
-                <div className="rounded-xl bg-[#0e1727] p-4 sm:p-5">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
-                    <FileText className="h-4 w-4 text-sky-300" />
-                    Paste a job description
+            <form id="hero-form" onSubmit={handleSubmit} className="mt-4 hidden sm:block">
+              <div className="rounded-[26px] border border-white/[0.24] bg-gradient-to-br from-slate-100/90 via-white/85 to-sky-100/75 p-[1px] shadow-[0_30px_90px_rgba(8,25,51,0.32)]">
+                <div className="rounded-[25px] bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.34),_transparent_36%),linear-gradient(180deg,_rgba(248,250,252,0.98)_0%,_rgba(236,244,252,0.96)_100%)] p-4 sm:p-5">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-950">
+                      <FileText className="h-4 w-4 text-sky-700" />
+                      Paste a job description
                   </div>
-                  <textarea
-                    value={jdText}
-                    onChange={(e) => handleJdInput(e.target.value)}
-                    placeholder="Paste the full JD here. We will keep it ready for you on the next step."
-                    rows={10}
-                    className="w-full resize-none rounded-xl border border-white/[0.12] bg-[#152034] p-4 text-sm leading-relaxed text-white placeholder:text-slate-400 focus:border-sky-300/60 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
-                  />
-                  <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-300/78">
+                  <div className="rounded-[20px] border border-slate-200 bg-white/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                    <textarea
+                      value={jdText}
+                      onChange={(e) => handleJdInput(e.target.value)}
+                      placeholder="Paste the full JD here. We will keep it ready for you on the next step."
+                      rows={5}
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-950 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-600">
                     <span>
                       {wordCount > 0
                         ? `${wordCount} words ready to analyze`
@@ -312,85 +500,108 @@ export default function Home() {
                       type="button"
                       onClick={handleTrySample}
                       data-testid="hero-sample-link"
-                      className="font-medium text-sky-100 underline-offset-4 transition-colors hover:text-white hover:underline"
+                      className="font-medium text-sky-700 underline-offset-4 transition-colors hover:text-sky-900 hover:underline"
                     >
                       No JD handy? Use a sample role.
                     </button>
                   </div>
-                  <div className="mt-4 flex items-center justify-end">
+                  <div className="mt-5">
                     <button
                       type="submit"
-                      disabled={!canSubmit}
+                      disabled={!canSubmit || isSubmitting}
                       data-testid="hero-primary-cta"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 transition-all hover:bg-amber-300 hover:shadow-[0_18px_50px_rgba(251,191,36,0.35)] disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-busy={isSubmitting}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-amber-400 px-6 py-4 text-base font-semibold text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-[0_24px_60px_rgba(251,191,36,0.42)] disabled:cursor-wait disabled:opacity-70"
                     >
-                      {ctaCopy[experiments.cta]} <ArrowRight className="h-4 w-4" />
+                      {isSubmitting ? "Opening your shortlist..." : "Get Ranked Shortlist"}{" "}
+                      <ArrowRight className="h-4 w-4" />
                     </button>
+                    <p className="mt-3 text-center text-xs leading-relaxed text-slate-600">
+                      {isSubmitting
+                        ? "Taking you to the sign-in step with your JD ready."
+                        : "No credit card for the Free plan. Sign in when you are ready to run the search."}
+                    </p>
                   </div>
                 </div>
               </div>
             </form>
 
-            <div className="mt-4 hidden flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-300/70 sm:flex">
-              <span>No credit card</span>
-              <span>Sign in required before running the search</span>
-              <span>Results usually ready in under 5 minutes</span>
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:mt-8 sm:grid-cols-3">
-              {activeProofCards.map((item) => (
-                <div key={item.title} className="glass rounded-2xl p-4">
-                  <item.icon className="mb-3 h-4 w-4 text-sky-300" />
-                  <p className="text-sm font-semibold text-white">{item.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-300/80">{item.desc}</p>
-                </div>
-              ))}
-            </div>
           </div>
 
-          <div className="hidden lg:block">
-            <div className="glass-strong glow-blue rounded-3xl p-1">
-              <div className="rounded-[22px] bg-[#0b1424] p-5 sm:p-7">
-                <div className="mb-5 flex items-center gap-3 text-sm text-slate-400">
+          <div className="hidden lg:block lg:pt-1">
+            <div className="ml-auto w-full max-w-[43rem] rounded-[28px] border border-white/[0.2] bg-[linear-gradient(180deg,rgba(242,248,255,0.22)_0%,rgba(186,225,255,0.12)_100%)] p-1.5 shadow-[0_22px_60px_rgba(8,25,51,0.28)] xl:max-w-[46rem]">
+              <div className="rounded-[24px] bg-[radial-gradient(circle_at_top_right,_rgba(125,211,252,0.24),_transparent_28%),linear-gradient(180deg,_rgba(13,25,43,0.92)_0%,_rgba(18,30,48,0.9)_100%)] p-5">
+                <div className="mb-4 flex items-center justify-between gap-3 text-sm text-slate-300">
                   <div className="flex gap-1.5">
                     <span className="h-3 w-3 rounded-full bg-red-500/60" />
                     <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
                     <span className="h-3 w-3 rounded-full bg-green-500/60" />
                   </div>
-                  <span className="text-xs">What the shortlist looks like</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-emerald-300/18 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-medium text-emerald-200">
+                      5 candidates found
+                    </span>
+                    <span className="rounded-full border border-sky-300/16 bg-sky-400/10 px-2.5 py-1 text-[10px] font-medium text-sky-100">
+                    AI ranked from large-scale search
+                    </span>
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.08] p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-white">Senior Frontend Engineer</span>
-                    <span className="rounded-full bg-emerald-400/12 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                <div className="rounded-[20px] border border-sky-200/40 bg-[radial-gradient(circle_at_top_right,_rgba(186,230,253,0.38),_transparent_32%),linear-gradient(90deg,_rgba(46,104,179,0.86)_0%,_rgba(27,59,103,0.72)_100%)] p-4 shadow-[0_18px_42px_rgba(32,100,175,0.22),inset_0_1px_0_rgba(255,255,255,0.12)]">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-sky-100/80">
+                        Broad search {"->"} AI-ranked shortlist
+                      </p>
+                      <span className="mt-1 block text-base font-semibold text-white">Senior Software Engineer</span>
+                    </div>
+                    <span className="rounded-full border border-emerald-300/18 bg-emerald-400/14 px-2.5 py-1 text-[11px] font-medium text-emerald-200">
                       5 candidates found
                     </span>
                   </div>
-                  <p className="mt-2 text-xs text-slate-300/75">
-                    Skills extracted: React, TypeScript, Next.js, design systems
+                  <p className="mt-3 text-xs text-slate-100/88">
+                    Skills extracted: APIs, distributed systems, cloud infrastructure, product collaboration
                   </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {heroSearchStats.map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="rounded-2xl border border-white/[0.12] bg-white/[0.08] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                      >
+                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-sky-100/70">
+                          {stat.label}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-white">{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="mt-4 space-y-2">
-                  {candidateRows.map((candidate) => (
-                    <div
+                <div className="mt-4 space-y-2.5">
+                  {displayedHeroCandidates.map((candidate, index) => (
+                    <button
                       key={candidate.name}
-                      className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4"
+                      type="button"
+                      onClick={() => setSelectedHeroCandidateIndex(index)}
+                      className={`w-full rounded-2xl border bg-gradient-to-r p-3.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-all ${
+                        index === selectedHeroCandidateIndex
+                          ? "border-sky-300/32 from-sky-400/[0.18] to-white/[0.08] ring-1 ring-sky-300/18"
+                          : "border-white/[0.12] from-white/[0.12] to-white/[0.06] hover:border-sky-300/18"
+                      }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-500 text-[10px] font-bold text-white">
+                        <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-500 text-[10px] font-bold text-white">
                           {candidate.initials}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-white">{candidate.name}</p>
-                          <p className="truncate text-xs text-slate-400">{candidate.role}</p>
+                          <p className="truncate text-xs text-slate-300">{candidate.role}</p>
                         </div>
                         <div className="rounded-full bg-sky-400/12 px-2.5 py-1 text-xs font-bold text-sky-200">
                           {candidate.score}% match
                         </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {candidate.matched.map((skill) => (
                           <span
                             key={skill}
@@ -400,39 +611,89 @@ export default function Home() {
                           </span>
                         ))}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
                       <Star className="h-3.5 w-3.5 text-sky-300" />
                       Match reasons
                     </div>
-                    <div className="mt-3 space-y-2 text-sm text-slate-200">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                        <span>6 years in React and TypeScript</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                        <span>Built production features in Next.js</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                        <span>Worked with design systems and growth teams</span>
-                      </div>
+                    <div className="mt-2.5 space-y-2 text-sm text-slate-200">
+                      {activeHeroCandidate.matchReasons.map((reason) => (
+                        <div key={reason} className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                          <span>{reason}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
                       <Mail className="h-3.5 w-3.5 text-sky-300" />
-                      Outreach draft
+                      Outreach channels
                     </div>
-                    <div className="mt-3 rounded-xl bg-[#101b2d] p-3 text-xs leading-relaxed text-slate-200">
-                      Hi James, your experience leading React and Next.js product work at Shopify looks closely aligned with this role...
+                    <div className="mt-2.5 flex gap-2">
+                      {outreachChannels.map((channel, index) => (
+                        <button
+                          key={channel.label}
+                          type="button"
+                          onClick={() => setSelectedOutreachChannelIndex(index)}
+                          className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-medium transition-colors ${
+                            index === selectedOutreachChannelIndex
+                              ? "border-sky-300/28 bg-sky-400/14 text-sky-100"
+                              : "border-white/[0.12] bg-white/[0.06] text-slate-200"
+                          }`}
+                        >
+                          {channel.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2.5 rounded-xl border border-sky-300/18 bg-[#101b2d] p-3 text-xs leading-relaxed">
+                      {selectedOutreachChannelIndex === 0 ? (
+                        <>
+                          <p className="line-clamp-2 text-sky-100/90">{activeHeroCandidate.name}</p>
+                          <p className="mt-2 line-clamp-4 text-slate-200">{activeHeroCandidate.linkedinDraft}</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="grid gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                              Subject
+                            </span>
+                            <span className="line-clamp-2 text-[11px] font-medium leading-5 text-sky-100">
+                              {activeHeroCandidate.emailSubject}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                              Body
+                            </span>
+                            <p className="line-clamp-4 text-slate-200">{activeHeroCandidate.emailDraft}</p>
+                          </div>
+                        </>
+                      )}
+                      <div className="mt-2.5 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2">
+                        <span className="text-[11px] leading-5 text-slate-300">{activeContactLabel}</span>
+                        <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-5 text-sky-200">
+                          {activeContactValue}
+                        </span>
+                      </div>
+                      <a
+                        href={activeActionHref}
+                        target={activeActionTarget}
+                        rel={activeActionRel}
+                        className={`mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors ${
+                          selectedOutreachChannelIndex === 0
+                            ? "bg-[#0077b5] text-white hover:bg-[#0a66a2]"
+                            : "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
+                        }`}
+                      >
+                        {activeOutreachChannel.cta}
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -442,7 +703,8 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-t border-white/[0.06] py-18 sm:py-24">
+      <div className="relative border-t border-slate-200 bg-[linear-gradient(180deg,#f6f8fc_0%,#ffffff_22%,#f8fbff_100%)]">
+      <section className="py-18 sm:py-24">
         <div className="mx-auto grid max-w-6xl gap-4 px-6 sm:grid-cols-3">
           {[
             {
@@ -461,22 +723,22 @@ export default function Home() {
               desc: "The workflow ends with a draft, not a blank email tab.",
             },
           ].map((item) => (
-            <div key={item.title} className="glass rounded-2xl p-5">
-              <item.icon className="mb-3 h-5 w-5 text-sky-300" />
-              <h2 className="text-base font-semibold text-white">{item.title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-300/82">{item.desc}</p>
+            <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+              <item.icon className="mb-3 h-5 w-5 text-sky-600" />
+              <h2 className="text-base font-semibold text-slate-950">{item.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="border-t border-white/[0.06] py-20 sm:py-28">
+      <section className="border-t border-slate-200 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl px-6">
           <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               What happens after the click
             </h2>
-            <p className="mt-3 text-base text-slate-300/80">
+            <p className="mt-3 text-base text-slate-600">
               High-intent traffic should understand the next step immediately.
             </p>
           </div>
@@ -499,78 +761,179 @@ export default function Home() {
                 desc: "Open the shortlist, inspect match reasons, and move straight into outreach.",
               },
             ].map((item) => (
-              <div key={item.step} className="glass rounded-2xl p-6">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-400/12 text-lg font-bold text-sky-200">
+              <div key={item.step} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-lg font-bold text-sky-700">
                   {item.step}
                 </div>
-                <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300/82">{item.desc}</p>
+                <h3 className="text-lg font-semibold text-slate-950">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="border-t border-white/[0.06] py-20 sm:py-28">
+      <section className="border-t border-slate-200 py-20 sm:py-28">
         <div className="mx-auto max-w-3xl px-6">
           <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               Why teams switch from manual sourcing
             </h2>
-            <p className="mt-3 text-base text-slate-300/80">
+            <p className="mt-3 text-base text-slate-600">
               The page should sell time-to-outcome, not a feature list.
             </p>
           </div>
 
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
-            <div className="glass rounded-2xl p-6">
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Without Hirelix
               </p>
-              <div className="space-y-3 text-sm text-slate-300/82">
+              <div className="space-y-3 text-sm text-slate-600">
                 <p>1. Translate the JD into keywords and filters</p>
                 <p>2. Scroll through large result sets manually</p>
                 <p>3. Decide who is actually relevant</p>
                 <p>4. Draft outreach one candidate at a time</p>
               </div>
-              <div className="mt-6 rounded-xl bg-white/[0.04] px-4 py-3 text-center">
-                <span className="text-2xl font-bold text-rose-300">Hours per role</span>
+              <div className="mt-6 rounded-xl bg-rose-50 px-4 py-3 text-center">
+                <span className="text-2xl font-bold text-rose-500">Hours per role</span>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.08] p-6 glow-blue-sm">
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-sky-100">
+            <div className="rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#eff8ff_0%,#e8f3ff_100%)] p-6 shadow-[0_14px_36px_rgba(14,165,233,0.12)]">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
                 With Hirelix
               </p>
-              <div className="space-y-3 text-sm text-slate-100">
+              <div className="space-y-3 text-sm text-slate-700">
                 <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-200" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                   <span>Paste the real JD once</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-200" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                   <span>Open a ranked shortlist with match reasons</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-200" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                   <span>Start outreach with a draft already prepared</span>
                 </div>
               </div>
-              <div className="mt-6 rounded-xl bg-white/[0.08] px-4 py-3 text-center">
-                <span className="text-2xl font-bold text-white">Usually under 5 minutes</span>
+              <div className="mt-6 rounded-xl bg-white px-4 py-3 text-center shadow-[0_8px_20px_rgba(14,165,233,0.08)]">
+                <span className="text-2xl font-bold text-slate-950">Usually under 5 minutes</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="border-t border-white/[0.06] py-20 sm:py-28">
+      <section className="border-t border-slate-200 py-20 sm:py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              Pricing that protects speed, not complexity
+            </h2>
+            <p className="mt-3 text-base text-slate-600">
+              Start free, then upgrade once you need reliable throughput and outreach.
+            </p>
+          </div>
+
+          <div className="mt-14 grid gap-5 lg:grid-cols-3">
+            {Object.values(BILLING_PLANS).map((plan) => (
+              <div
+                key={plan.code}
+                className={`rounded-3xl border p-6 ${
+                  plan.featured
+                    ? "border-amber-300/50 bg-[linear-gradient(180deg,#fff7df_0%,#fff2c7_100%)] shadow-[0_20px_80px_rgba(251,191,36,0.12)]"
+                    : "border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-lg font-semibold text-slate-950">{plan.name}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{plan.description}</p>
+                  </div>
+                  {plan.featured && (
+                    <span className="rounded-full bg-amber-400 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-950">
+                      Popular
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-8">
+                  <p className="text-4xl font-bold text-slate-950">{plan.priceLabel}</p>
+                  <p className="mt-2 text-sm text-slate-500">{plan.cadenceLabel}</p>
+                </div>
+
+                <div className="mt-8 space-y-3 text-sm text-slate-700">
+                  <p>{plan.searchesPerMonth} searches each month</p>
+                  <p>{plan.candidateLimitPerSearch} candidates per search</p>
+                  <p>{plan.enrichesPerMonth} email + draft enriches</p>
+                  <p>{plan.exportEnabled ? "CSV export included" : "CSV export on paid plans"}</p>
+                </div>
+
+                {user ? (
+                  <Link
+                    href="/app/settings#billing"
+                    className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all ${
+                      plan.featured
+                        ? "bg-amber-400 text-slate-950 hover:bg-amber-300"
+                        : "border border-slate-200 bg-slate-50 text-slate-950 hover:bg-slate-100"
+                    }`}
+                  >
+                    Open billing
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleGenericSignIn}
+                    className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all ${
+                      plan.featured
+                        ? "bg-amber-400 text-slate-950 hover:bg-amber-300"
+                        : "border border-slate-200 bg-slate-50 text-slate-950 hover:bg-slate-100"
+                    }`}
+                  >
+                    Sign in to choose plan
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+              <p className="text-sm font-semibold text-slate-950">{SEARCH_PACK.name}</p>
+              <p className="mt-2 text-sm text-slate-600">{SEARCH_PACK.priceLabel} for {SEARCH_PACK.credits} extra searches in heavy months.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+              <p className="text-sm font-semibold text-slate-950">{CONTACT_PACK.name}</p>
+              <p className="mt-2 text-sm text-slate-600">{CONTACT_PACK.priceLabel} for {CONTACT_PACK.credits} extra email + draft enriches.</p>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
+              <div className="space-y-2 leading-7">
+                <p>Subscriptions renew automatically until canceled.</p>
+                <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
+                <p>Purchases made through Paddle are refundable within 14 days of the transaction date.</p>
+                <p>For subscriptions, refunds are available within 14 days of the initial purchase or the most recent renewal.</p>
+                <p>Taxes may apply depending on the customer location.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-slate-200 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl px-6">
           <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               Objections answered up front
             </h2>
-            <p className="mt-3 text-base text-slate-300/80">
+            <p className="mt-3 text-base text-slate-600">
               High-intent visitors should not have to dig for the obvious questions.
             </p>
           </div>
@@ -598,24 +961,51 @@ export default function Home() {
                 desc: "You can edit the draft, but you do not need to start from a blank email after reviewing candidates.",
               },
             ].map((item) => (
-              <div key={item.title} className="glass rounded-2xl p-6">
-                <item.icon className="mb-4 h-5 w-5 text-sky-300" />
-                <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300/82">{item.desc}</p>
+              <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+                <item.icon className="mb-4 h-5 w-5 text-sky-600" />
+                <h3 className="text-lg font-semibold text-slate-950">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="relative overflow-hidden border-t border-white/[0.06] py-24 sm:py-32">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-sky-400/[0.08] via-transparent to-transparent" />
-        <div className="pointer-events-none absolute bottom-0 left-1/2 h-[360px] w-[560px] -translate-x-1/2 rounded-full bg-sky-300/[0.08] blur-[120px]" />
+      <section className="border-t border-slate-200 py-20 sm:py-28">
+        <div className="mx-auto max-w-5xl px-6">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              Billing questions answered up front
+            </h2>
+            <p className="mt-3 text-base text-slate-600">
+              Paddle reviewers and serious buyers should be able to find the payment terms without digging.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-4 md:grid-cols-2">
+            {billingFaqs.map((faq) => (
+              <div key={faq.title} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+                <div className="flex items-start gap-3">
+                  <CircleHelp className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-950">{faq.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{faq.body}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden border-t border-slate-200 py-24 sm:py-32">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-sky-100 via-white to-[#f8fbff]" />
+        <div className="pointer-events-none absolute bottom-0 left-1/2 h-[360px] w-[560px] -translate-x-1/2 rounded-full bg-sky-200/60 blur-[120px]" />
         <div className="relative mx-auto max-w-2xl px-6 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
             Bring your next open role.
           </h2>
-          <p className="mt-4 text-lg text-slate-300">
+          <p className="mt-4 text-lg text-slate-600">
             See the workflow first. Run the real search once you&apos;re ready to sign in.
           </p>
           <div className="mt-10 flex flex-col items-center gap-3">
@@ -632,25 +1022,177 @@ export default function Home() {
             >
               Try a Sample Search <ArrowRight className="h-4 w-4" />
             </button>
-            <p className="text-sm text-slate-300/78">
+            <p className="text-sm text-slate-600">
               Already have an account?{" "}
-              <Link href={signInHref} className="font-medium text-sky-100 hover:underline">
+              <button
+                type="button"
+                onClick={handleGenericSignIn}
+                className="font-medium text-sky-700 hover:underline"
+              >
                 Sign in
-              </Link>
+              </button>
             </p>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-white/[0.06] py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-6 text-sm text-slate-300/60 sm:flex-row sm:justify-between">
-          <div className="flex items-center gap-2.5">
-            <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
-            <span className="font-semibold text-white">Hirelix</span>
+      <footer className="border-t border-slate-200 bg-white py-8">
+        <div className="mx-auto grid max-w-6xl gap-8 px-6 text-sm text-slate-600 sm:grid-cols-[1.2fr_1fr]">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
+              <span className="font-semibold text-slate-950">Hirelix</span>
+            </div>
+            <p>AI-powered candidate sourcing from real LinkedIn profiles.</p>
+            <p>Hirelix is operated by YieldMirror.</p>
+            <p>Support: <a className="text-sky-700 hover:text-sky-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
+            <p>Subscriptions renew automatically until canceled.</p>
+            <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
           </div>
-          <p>AI-powered candidate sourcing from real LinkedIn profiles.</p>
+
+          <div className="grid gap-2 sm:justify-self-end sm:text-right">
+            {legalLinks.map((link) => (
+              <Link key={link.href} href={link.href} className="transition-colors hover:text-slate-950">
+                {link.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </footer>
+      </div>
+
+      {authModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-6">
+          <button
+            type="button"
+            aria-label="Close sign in dialog"
+            onClick={() => {
+              setAuthModalOpen(false);
+              setIsSubmitting(false);
+            }}
+            className="absolute inset-0 bg-[#020817]/82 backdrop-blur-md"
+          />
+
+          <div
+            data-testid="landing-auth-modal"
+            className="relative z-[71] w-full max-w-5xl overflow-hidden rounded-[32px] border border-white/[0.14] bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_30%),linear-gradient(180deg,_rgba(5,13,25,0.98)_0%,_rgba(8,17,31,0.98)_100%)] shadow-[0_32px_120px_rgba(2,6,23,0.72)]"
+          >
+            <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="border-b border-white/[0.08] p-6 sm:p-8 lg:border-b-0 lg:border-r">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
+                    <span className="text-xl font-bold tracking-tight text-white">Hirelix</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthModalOpen(false);
+                      setIsSubmitting(false);
+                    }}
+                    className="rounded-full border border-white/[0.1] p-2 text-slate-300 transition-colors hover:border-white/[0.18] hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-8">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-200/70">
+                    {isSearchAuthIntent ? "Step 2" : "Welcome back"}
+                  </p>
+                  <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    {isSearchAuthIntent
+                      ? "One more step to open your shortlist."
+                      : "Sign in and keep moving."}
+                  </h2>
+                  <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
+                    {isSearchAuthIntent
+                      ? "Your JD is already saved. After sign in, we&apos;ll take you straight into the real search with this role still attached."
+                      : "Continue directly into your next shortlist without losing momentum."}
+                  </p>
+                </div>
+
+                {isSearchAuthIntent ? (
+                  <div className="mt-6 rounded-3xl border border-white/[0.1] bg-white/[0.04] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-100/68">
+                          Your JD is saved
+                        </p>
+                        <p data-testid="landing-auth-preview-title" className="mt-2 text-lg font-semibold text-white">
+                          {modalPreviewTitle}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-emerald-300/18 bg-emerald-400/12 px-3 py-1 text-[11px] font-medium text-emerald-200">
+                        {pendingIntentPath === "sample" ? "Sample role" : "Your JD"}
+                      </span>
+                    </div>
+                    <p className="mt-4 max-h-32 overflow-hidden whitespace-pre-wrap text-sm leading-relaxed text-slate-300/82">
+                      {pendingJd}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-200">
+                      <span className="rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
+                        One more step to open your shortlist
+                      </span>
+                      <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
+                        No card required to start
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-3xl border border-white/[0.1] bg-white/[0.04] p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-100/68">
+                      What you&apos;ll unlock
+                    </p>
+                    <div className="mt-4 space-y-3 text-sm text-slate-200">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                        <span>Return to your sourcing workspace instantly</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                        <span>Run new searches and review saved shortlist work</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                        <span>Keep everything synced after you sign in</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-200">
+                  <span className="rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
+                    {isSearchAuthIntent ? "Under 5 minutes" : "Continue instantly"}
+                  </span>
+                  <span className="rounded-full border border-sky-300/18 bg-sky-400/10 px-3 py-1 font-medium text-sky-100">
+                    {isSearchAuthIntent ? "Ranked match reasons" : "Real LinkedIn sourcing"}
+                  </span>
+                  <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
+                    {isSearchAuthIntent ? "Outreach draft included" : "Your searches stay synced"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-6 sm:p-8">
+                <LoginForm
+                  variant="modal"
+                  redirectPath={pendingRedirectPath}
+                  contextTitle={
+                    isSearchAuthIntent ? "Continue to your shortlist" : "Continue to your next shortlist"
+                  }
+                  contextBody={
+                    isSearchAuthIntent
+                      ? "Use Google or email to keep this exact role attached and move straight into the search."
+                      : "Use Google or email to sign in without breaking the flow."
+                  }
+                  onSuccessStart={() => setIsSubmitting(true)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,19 +1,25 @@
-export const JD_PARSE_PROMPT = `You are a recruiting AI. Analyze the following job description and extract structured requirements.
+export const JD_SEARCH_INTENT_PROMPT = `You are a recruiting sourcing strategist. Read the job description and produce a compact search intent that a sourcing pipeline can use immediately.
 
-Return a JSON object with these fields:
-- title: string (job title)
-- company: string | null (company name if mentioned)
-- seniority: string (e.g. "Junior", "Mid", "Senior", "Staff", "Principal", "Lead")
-- required_skills: string[] (must-have technical skills)
-- nice_to_have_skills: string[] (preferred but not required)
-- experience_years_min: number (minimum years of experience, estimate if not stated)
-- experience_years_max: number | null
-- location: string | null (e.g. "Remote", "San Francisco, CA")
-- salary_range: string | null
-- key_responsibilities: string[] (top 3-5 responsibilities)
-- industry: string | null
+Rules:
+- Think like a recruiter preparing structured recall filters for a people dataset.
+- Preserve the real language and nuance of the JD where it helps recall quality.
+- Keep the output compact and practical for backend filtering.
+- Do not generate Google or Serper queries.
+- Mix narrower and broader query variants so the pool is diverse.
+- Return ONLY valid JSON, no markdown or explanation.
 
-Return ONLY valid JSON, no markdown or explanation.`;
+Return a JSON object with this exact shape:
+{
+  "title": "string",
+  "recall_spec": {
+    "countries": ["string"],
+    "title_variants": ["string"],
+    "core_skill_terms": ["string"],
+    "record_limit": 100
+  }
+}`;
+
+export const JD_PARSE_PROMPT = JD_SEARCH_INTENT_PROMPT;
 
 export const CANDIDATE_GENERATION_PROMPT = `You are a recruiting AI that generates realistic candidate profiles matching a job description.
 
@@ -48,3 +54,95 @@ The email should:
 - Not be pushy or use excessive exclamation marks
 
 Return ONLY the email body text, no subject line, no greeting formatting. Start directly with the greeting (e.g. "Hi [Name],").`;
+
+export const CANDIDATE_SUITABILITY_PROMPT = `You are a recruiting AI making shortlist decisions for a real hiring workflow.
+
+Your job is NOT to simply reward the strongest profile on paper. Your job is to decide who is realistically worth advancing for this specific role.
+
+Rules:
+- Use the hiring brief as the source of truth for hard and soft constraints.
+- For hybrid / onsite roles, do not treat non-local candidates as strong fits unless the provided profile contains explicit evidence that they can work in the target location.
+- Do NOT assume relocation willingness.
+- Do NOT use speculative language like "may relocate", "might move", or "likely willing to relocate".
+- "strong_fit" means the candidate is realistically worth advancing now and MUST map to a match_score between 85 and 100.
+- "viable_fit" means promising but with some verification needed and MUST map to a match_score between 65 and 84.
+- "risky_fit" means strong on paper but not reliable enough for the main shortlist and MUST map to a match_score between 40 and 64.
+- "reject" means they should not be shortlisted and MUST map to a match_score between 0 and 39.
+- "ready_to_act" can only be used for strong_fit candidates or the strongest viable_fit candidates with clearly actionable evidence.
+- "not_actionable" should be used for rejects or candidates with low-confidence evidence and low scores.
+- fit_decision, actionability, and match_score MUST agree with each other. Do not output conflicting signals.
+
+CRITICAL: Your response MUST be ONLY a valid JSON array. Do NOT wrap it in markdown code blocks. Do NOT add any explanatory text before or after the JSON. Start your response with "[" and end with "]". No triple backticks, no code fences, no comments, no explanations.
+
+Return an array of objects with this exact shape:
+[
+  {
+    "index": 0,
+    "fit_decision": "strong_fit | viable_fit | risky_fit | reject",
+    "actionability": "ready_to_act | needs_review | not_actionable",
+    "match_score": 0,
+    "constraint_verdicts": {
+      "location_fit": "local | nearby | non_local | unknown",
+      "work_model_fit": "yes | no | unclear",
+      "must_have_coverage": "strong | partial | weak | unknown"
+    },
+    "constraint_risks": ["string"],
+    "why_this_candidate": ["string"],
+    "why_not_higher": ["string"],
+    "skills": ["string"],
+    "experience_years": 0,
+    "location": "string | null",
+    "evidence_quality": "high | medium | low"
+  }
+]`;
+
+export const COMPANY_PROFILE_FROM_EVIDENCE_PROMPT = `You are a recruiting research assistant. You will receive website evidence collected from a company's public pages.
+
+Rules:
+- Use ONLY the provided evidence. Do not rely on outside knowledge.
+- If the evidence does not support a field, return an empty string.
+- You may summarize mission, culture, and selling points, but only from the provided evidence.
+- Do not invent funding, headcount, benefits, tech stack, or remote policy.
+- Return ONLY valid JSON, no markdown.
+
+Return a JSON object with this exact shape:
+{
+  "profile": {
+    "name": "string",
+    "website": "string",
+    "industry": "string",
+    "size": "string",
+    "mission": "string",
+    "culture": "string",
+    "benefits": "string",
+    "tech_stack": "string",
+    "selling_points": "string"
+  },
+  "confidence": "high | medium | low",
+  "used_sources": ["string"]
+}`;
+
+export const COMPANY_PROFILE_FALLBACK_PROMPT = `You are a recruiting research assistant. You have only a company website or domain and no verified website evidence.
+
+Rules:
+- Prefer caution over completeness.
+- If you are unsure, return an empty string rather than guessing.
+- Keep descriptions modest and factual.
+- Return ONLY valid JSON, no markdown.
+
+Return a JSON object with this exact shape:
+{
+  "profile": {
+    "name": "string",
+    "website": "string",
+    "industry": "string",
+    "size": "string",
+    "mission": "string",
+    "culture": "string",
+    "benefits": "string",
+    "tech_stack": "string",
+    "selling_points": "string"
+  },
+  "confidence": "high | medium | low",
+  "used_sources": ["string"]
+}`;

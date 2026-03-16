@@ -7,9 +7,9 @@ test.describe("New Search Page (unauthenticated)", () => {
   });
 
   test("should preserve a prefilled JD at the auth gate", async ({ page }) => {
-    await page.goto("/app/search/new?jd=Senior%20Frontend%20Engineer&intent_path=sample");
-    await expect(page.getByRole("heading", { name: "Your job description is ready" })).toBeVisible();
-    await expect(page.getByText("Senior Frontend Engineer")).toBeVisible();
+    await page.goto("/app/search/new?jd=Senior%20Software%20Engineer&intent_path=sample");
+    await expect(page.getByRole("heading", { name: "Sign in to open this search" })).toBeVisible();
+    await expect(page.getByText("Senior Software Engineer")).toBeVisible();
   });
 });
 

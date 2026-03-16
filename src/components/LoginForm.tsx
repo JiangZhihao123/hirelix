@@ -1,15 +1,31 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { Loader2, Lock, Mail, RefreshCcw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
-import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
-export function LoginForm() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+type LoginFormProps = {
+  redirectPath?: string;
+  contextTitle?: string;
+  contextBody?: string;
+  onSuccessStart?: () => void;
+  variant?: "page" | "modal";
+};
+
+export function LoginForm({
+  redirectPath,
+  contextTitle,
+  contextBody,
+  onSuccessStart,
+  variant = "page",
+}: LoginFormProps) {
+  const router = useRouter();
+  const [phase, setPhase] = useState<"email" | "otp" | "password">("email");
   const [email, setEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -19,67 +35,311 @@ export function LoginForm() {
     return `${window.location.pathname}${window.location.search}`;
   }
 
+  const nextPath = redirectPath || getCurrentPath();
+  const containerClassName =
+    variant === "modal" ? "w-full max-w-md space-y-5" : "w-full max-w-sm space-y-4";
+  const googleButtonClassName =
+    variant === "modal"
+      ? "flex w-full cursor-pointer items-center justify-center gap-3 rounded-xl border border-white/[0.12] bg-white/[0.06] py-3 text-sm font-medium text-white transition-colors hover:border-white/[0.18] hover:bg-white/[0.09] disabled:opacity-50"
+      : "flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-border bg-background py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50";
+  const inputClassName =
+    variant === "modal"
+      ? "w-full rounded-xl border border-white/[0.12] bg-white/[0.06] py-3 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 focus:border-sky-300/60 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
+      : "w-full rounded-lg border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+  const otpInputClassName =
+    variant === "modal"
+      ? "w-full rounded-xl border border-white/[0.12] bg-white/[0.06] py-3 pl-10 pr-4 text-center text-base tracking-[0.45em] text-white placeholder:tracking-normal placeholder:text-slate-400 focus:border-sky-300/60 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
+      : "w-full rounded-lg border border-border bg-background py-3 pl-10 pr-4 text-center text-base tracking-[0.45em] text-foreground placeholder:tracking-normal placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+  const submitButtonClassName =
+    variant === "modal"
+      ? "flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-400 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300 disabled:opacity-50"
+      : "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50";
+  const secondaryButtonClassName =
+    variant === "modal"
+      ? "inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-sky-200 transition-colors hover:text-white disabled:opacity-50"
+      : "inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary-dark disabled:opacity-50";
+  const dividerColorClassName = variant === "modal" ? "bg-white/[0.12]" : "bg-border";
+  const dividerTextClassName = variant === "modal" ? "text-slate-400" : "text-muted-light";
+  const iconClassName = variant === "modal" ? "text-slate-400" : "text-muted-light";
+  const infoBoxClassName =
+    variant === "modal"
+      ? "rounded-xl border border-white/[0.12] bg-white/[0.04] p-3 text-sm text-slate-200"
+      : "rounded-lg border border-border bg-background p-3 text-sm text-muted";
+
+  function logAuthDebug(label: string, error: unknown) {
+    if (process.env.NODE_ENV !== "development") return;
+
+    const details =
+      error && typeof error === "object"
+        ? {
+            name: "name" in error ? error.name : undefined,
+            message: "message" in error ? error.message : undefined,
+            status: "status" in error ? error.status : undefined,
+            code: "code" in error ? error.code : undefined,
+            errorCode: "error_code" in error ? error.error_code : undefined,
+          }
+        : { value: error };
+
+    console.error(`[auth] ${label}`, details, error);
+  }
+
+  function formatAuthErrorMessage(error: unknown, action: "request" | "verify" | "oauth" | "password") {
+    const fallbackMessage =
+      action === "verify"
+        ? "That code did not work. Please check the latest email and try again."
+        : action === "password"
+          ? "We could not sign you in with that email and password."
+        : "Something went wrong. Please try again.";
+
+    const rawMessage = error instanceof Error ? error.message : fallbackMessage;
+    const lowerMessage = rawMessage.toLowerCase();
+    const errorCode =
+      error && typeof error === "object" && "code" in error && typeof error.code === "string"
+        ? error.code
+        : "";
+    const errorStatus =
+      error && typeof error === "object" && "status" in error && typeof error.status === "number"
+        ? error.status
+        : undefined;
+
+    const cooldownMatch = rawMessage.match(/after\s+(\d+)\s+seconds?/i);
+    if (cooldownMatch) {
+      const seconds = Number.parseInt(cooldownMatch[1] ?? "0", 10);
+      const waitText = Number.isFinite(seconds) && seconds > 0
+        ? `${seconds} second${seconds === 1 ? "" : "s"}`
+        : "a moment";
+
+      return action === "request"
+        ? `We just sent a code. Please wait ${waitText} before requesting another one.`
+        : `Please wait ${waitText} and try again.`;
+    }
+
+    if (action === "verify") {
+      if (lowerMessage.includes("token") || lowerMessage.includes("otp") || lowerMessage.includes("expired")) {
+        return "That code is invalid or has expired. Please check the latest email or request a new code.";
+      }
+    }
+
+    if (action === "request") {
+      if (
+        errorCode === "over_email_send_rate_limit"
+        || lowerMessage.includes("rate limit exceeded")
+        || errorStatus === 429
+      ) {
+        return "You've requested too many codes in a short time. Please wait a minute and try again.";
+      }
+
+      if (
+        lowerMessage.includes("invalid email")
+        || lowerMessage.includes("email address is invalid")
+        || lowerMessage.includes("unable to validate email address")
+      ) {
+        return "Please enter a valid email address and try again.";
+      }
+
+      return "We could not send the sign-in code right now. Please try again in a moment.";
+    }
+
+    if (action === "password") {
+      if (
+        errorCode === "invalid_credentials"
+        || lowerMessage.includes("invalid login credentials")
+        || lowerMessage.includes("invalid credentials")
+      ) {
+        return "That email and password did not match. Check your credentials or use a one-time code instead.";
+      }
+
+      if (lowerMessage.includes("email not confirmed")) {
+        return "Your email is not confirmed yet. Use a one-time code first, then try password login again.";
+      }
+
+      return "We could not sign you in with that email and password. Please try again or use a one-time code instead.";
+    }
+
+    if (action === "oauth") {
+      return "Google sign-in could not start right now. Please try again.";
+    }
+
+    return rawMessage;
+  }
+
   async function handleGoogleLogin() {
     setGoogleLoading(true);
     setErrorMsg("");
+    onSuccessStart?.();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}${getCurrentPath()}`,
+        redirectTo: `${window.location.origin}${nextPath}`,
       },
     });
     if (error) {
-      setErrorMsg(error.message);
+      logAuthDebug("google sign-in failed", error);
+      setErrorMsg(formatAuthErrorMessage(error, "oauth"));
       setGoogleLoading(false);
     }
   }
 
-  async function handleSubmit(e: FormEvent) {
+  async function requestOtp(targetEmail: string, source: "primary" | "resend") {
+    setLoading(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const normalizedEmail = targetEmail.trim().toLowerCase();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        },
+      });
+
+      if (error) throw error;
+
+      trackEvent(ANALYTICS_EVENTS.emailOtpRequested, {
+        ...getAnalyticsContextFromBrowser(),
+        auth_method: "email",
+        otp_request_source: source,
+      });
+
+      setEmail(normalizedEmail);
+      setPhase("otp");
+      setOtpCode("");
+      setSuccessMsg(
+        redirectPath?.includes("/app/search/new")
+          ? "Enter the code we sent to keep this shortlist moving."
+          : "Enter the code we sent to continue to Hirelix.",
+      );
+    } catch (err) {
+      logAuthDebug(`email OTP ${source} failed`, err);
+      const message = formatAuthErrorMessage(err, "request");
+      setErrorMsg(message);
+      trackEvent(ANALYTICS_EVENTS.emailOtpFailed, {
+        ...getAnalyticsContextFromBrowser(),
+        auth_method: "email",
+        otp_stage: source,
+        error_message: message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleEmailSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !password) return;
+    if (!email.trim()) return;
+    await requestOtp(email, "primary");
+  }
+
+  async function handlePasswordSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !password.trim()) return;
 
     setLoading(true);
     setErrorMsg("");
     setSuccessMsg("");
 
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(getCurrentPath())}`,
-          },
-        });
-        if (error) throw error;
-        trackEvent(ANALYTICS_EVENTS.signupSuccess, {
-          ...getAnalyticsContextFromBrowser(),
-          auth_method: "email",
-        });
-        setSuccessMsg("Check your email to confirm your account, then sign in.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        if (error) throw error;
-      }
+      const normalizedEmail = email.trim().toLowerCase();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (error) throw error;
+
+      onSuccessStart?.();
+      router.push(nextPath);
     } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong",
-      );
+      logAuthDebug("password sign-in failed", err);
+      setErrorMsg(formatAuthErrorMessage(err, "password"));
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleVerifySubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !otpCode.trim()) return;
+
+    setLoading(true);
+    setErrorMsg("");
+    setSuccessMsg("");
+
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: otpCode.trim(),
+        type: "email",
+      });
+
+      if (error) throw error;
+
+      trackEvent(ANALYTICS_EVENTS.emailOtpVerified, {
+        ...getAnalyticsContextFromBrowser(),
+        auth_method: "email",
+      });
+
+      onSuccessStart?.();
+      router.push(nextPath);
+    } catch (err) {
+      logAuthDebug("email OTP verify failed", err);
+      const message = formatAuthErrorMessage(err, "verify");
+      setErrorMsg(message);
+      trackEvent(ANALYTICS_EVENTS.emailOtpFailed, {
+        ...getAnalyticsContextFromBrowser(),
+        auth_method: "email",
+        otp_stage: "verify",
+        error_message: message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleUseDifferentEmail() {
+    setPhase("email");
+    setEmail("");
+    setOtpCode("");
+    setPassword("");
+    setErrorMsg("");
+    setSuccessMsg("");
+  }
+
+  function switchToPasswordPhase() {
+    setPhase("password");
+    setOtpCode("");
+    setErrorMsg("");
+    setSuccessMsg("");
+  }
+
+  function switchToEmailPhase() {
+    setPhase("email");
+    setPassword("");
+    setErrorMsg("");
+    setSuccessMsg("");
+  }
+
   return (
-    <div className="w-full max-w-sm space-y-4">
-      {/* Google OAuth */}
+    <div className={containerClassName}>
+      {contextTitle && (
+        <div className={variant === "modal" ? "text-left" : "text-center"}>
+          <h3 className={variant === "modal" ? "text-xl font-semibold text-white" : "text-lg font-semibold text-foreground"}>
+            {contextTitle}
+          </h3>
+          {contextBody && (
+            <p className={variant === "modal" ? "mt-2 text-sm text-slate-300" : "mt-2 text-sm text-muted"}>
+              {contextBody}
+            </p>
+          )}
+        </div>
+      )}
+
       <button
         onClick={handleGoogleLogin}
         disabled={googleLoading}
-        className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-border bg-background py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50"
+        className={googleButtonClassName}
       >
         {googleLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -96,91 +356,158 @@ export function LoginForm() {
         )}
       </button>
 
-      {/* Divider */}
       <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted-light">or</span>
-        <div className="h-px flex-1 bg-border" />
+        <div className={`h-px flex-1 ${dividerColorClassName}`} />
+        <span className={`text-xs ${dividerTextClassName}`}>or</span>
+        <div className={`h-px flex-1 ${dividerColorClassName}`} />
       </div>
 
-      {/* Email + Password form */}
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="relative">
-          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
-          <input
-            type="email"
-            required
-            placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
-        </div>
-        <div className="relative">
-          <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-light" />
-          <input
-            type={showPassword ? "text" : "password"}
-            required
-            minLength={6}
-            placeholder={mode === "signup" ? "Create a password (6+ chars)" : "Password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background py-3 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
+      {phase === "email" ? (
+        <form onSubmit={handleEmailSubmit} className="space-y-3">
+          <div className="relative">
+            <Mail className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${iconClassName}`} />
+            <input
+              type="email"
+              required
+              placeholder="you@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className={submitButtonClassName}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue with email"}
+          </button>
           <button
             type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted-light hover:text-foreground"
+            onClick={switchToPasswordPhase}
+            disabled={loading}
+            className={secondaryButtonClassName}
           >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <Lock className="h-4 w-4" />
+            Use password instead
           </button>
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : mode === "signup" ? (
-            "Create Account"
-          ) : (
-            "Sign In"
-          )}
-        </button>
-      </form>
+        </form>
+      ) : phase === "password" ? (
+        <form onSubmit={handlePasswordSubmit} className="space-y-3">
+          <div className="relative">
+            <Mail className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${iconClassName}`} />
+            <input
+              type="email"
+              required
+              placeholder="you@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <div className="relative">
+            <Lock className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${iconClassName}`} />
+            <input
+              type="password"
+              required
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClassName}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className={submitButtonClassName}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue with password"}
+          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={switchToEmailPhase}
+              disabled={loading}
+              className={secondaryButtonClassName}
+            >
+              <Mail className="h-4 w-4" />
+              Use email code instead
+            </button>
+            <button
+              type="button"
+              onClick={handleUseDifferentEmail}
+              disabled={loading}
+              className={secondaryButtonClassName}
+            >
+              Use a different email
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={handleVerifySubmit} className="space-y-3">
+          <div className={infoBoxClassName}>
+            <p className="font-medium text-inherit">Code sent to {email}</p>
+            <p className="mt-1 text-xs opacity-80">
+              Enter the 6-digit code from your email to finish signing in.
+            </p>
+          </div>
+          <div className="relative">
+            <ShieldCheck className={`absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${iconClassName}`} />
+            <input
+              type="text"
+              required
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="6-digit code"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className={otpInputClassName}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading || otpCode.trim().length < 6}
+            className={submitButtonClassName}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify code"}
+          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => requestOtp(email, "resend")}
+              disabled={loading}
+              className={secondaryButtonClassName}
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Resend code
+            </button>
+            <button
+              type="button"
+              onClick={switchToPasswordPhase}
+              disabled={loading}
+              className={secondaryButtonClassName}
+            >
+              <Lock className="h-4 w-4" />
+              Use password instead
+            </button>
+            <button
+              type="button"
+              onClick={handleUseDifferentEmail}
+              disabled={loading}
+              className={secondaryButtonClassName}
+            >
+              Use a different email
+            </button>
+          </div>
+        </form>
+      )}
 
       {errorMsg && (
         <p className="text-center text-sm text-red-500">{errorMsg}</p>
       )}
       {successMsg && (
-        <p className="text-center text-sm text-emerald-600">{successMsg}</p>
+        <p className={`text-center text-sm ${variant === "modal" ? "text-emerald-300" : "text-emerald-600"}`}>{successMsg}</p>
       )}
-
-      {/* Toggle login/signup */}
-      <p className="text-center text-sm text-muted">
-        {mode === "login" ? (
-          <>
-            No account?{" "}
-            <button
-              onClick={() => { setMode("signup"); setErrorMsg(""); setSuccessMsg(""); }}
-              className="cursor-pointer font-medium text-primary hover:underline"
-            >
-              Sign up
-            </button>
-          </>
-        ) : (
-          <>
-            Already have an account?{" "}
-            <button
-              onClick={() => { setMode("login"); setErrorMsg(""); setSuccessMsg(""); }}
-              className="cursor-pointer font-medium text-primary hover:underline"
-            >
-              Sign in
-            </button>
-          </>
-        )}
-      </p>
     </div>
   );
 }

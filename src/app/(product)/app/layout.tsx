@@ -6,7 +6,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { LoginForm } from "@/components/LoginForm";
+import { ProductShellSkeleton } from "@/components/ProductSkeletons";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
+import { BillingProvider } from "@/lib/use-billing";
 import {
   Search,
   Plus,
@@ -26,6 +28,7 @@ export default function ProductLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
   const hasTrackedSigninViewRef = useRef(false);
   const pendingJd = useSyncExternalStore(
     () => () => {},
@@ -36,25 +39,43 @@ export default function ProductLayout({
     },
     () => "",
   );
+  const entryMode = useSyncExternalStore(
+    () => () => {},
+    () => {
+      if (typeof window === "undefined") return "workspace";
+      const params = new URLSearchParams(window.location.search);
+      return params.get("entry") || "workspace";
+    },
+    () => "workspace",
+  );
   const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
+  const isFocusedNewSearch =
+    pathname === "/app/search/new" && entryMode === "landing" && Boolean(pendingJd);
+  const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
 
   useEffect(() => {
     if (loading || user || hasTrackedSigninViewRef.current) return;
 
     hasTrackedSigninViewRef.current = true;
     trackEvent(ANALYTICS_EVENTS.signinView, {
-      ...getAnalyticsContextFromBrowser(),
+      ...getAnalyticsContextFromBrowser({
+        entry_mode: isSearchIntent ? "landing" : entryMode === "signin" ? "signin" : "workspace",
+      }),
       route: pathname,
       has_prefilled_jd: isSearchIntent,
+      signin_surface: "product_page",
     });
-  }, [isSearchIntent, loading, pathname, user]);
+  }, [entryMode, isSearchIntent, loading, pathname, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    router.prefetch("/app");
+    router.prefetch("/app/search/new");
+    router.prefetch("/app/settings");
+  }, [router, user]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <ProductShellSkeleton />;
   }
 
   if (!user) {
@@ -66,25 +87,32 @@ export default function ProductLayout({
         </div>
         <div className="text-center">
           <h1 className="text-xl font-semibold">
-            {isSearchIntent ? "Your job description is ready" : "Sign in to continue"}
+            {isSearchIntent ? "One more step to open your shortlist" : "Sign in to keep moving"}
           </h1>
           <p className="mt-2 text-sm text-muted">
             {isSearchIntent
-              ? "Sign in to run this search and keep your pasted JD."
-              : "Use Google or email to get started"}
+              ? "Your JD is saved below. Sign in and we will take you straight into the real search."
+              : "Use Google, email, or password to continue into the next shortlist flow."}
           </p>
         </div>
         {isSearchIntent && (
           <div className="w-full max-w-xl rounded-xl border border-border bg-surface p-4 text-left">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-light">
-              Ready to analyze
+              Your JD is saved
             </p>
             <p className="mt-2 max-h-32 overflow-hidden whitespace-pre-wrap text-sm text-foreground">
               {pendingJd}
             </p>
           </div>
         )}
-        <LoginForm />
+        <LoginForm
+          contextTitle={isSearchIntent ? "Continue to your shortlist" : "Continue to Hirelix"}
+          contextBody={
+            isSearchIntent
+              ? "No card required. Use Google or email to keep this shortlist flow moving."
+              : "Use Google or email to continue without starting over."
+          }
+        />
         <Link href="/" className="text-sm text-muted hover:text-foreground">
           &larr; Back to homepage
         </Link>
@@ -95,10 +123,17 @@ export default function ProductLayout({
   const sidebarContent = (
     <>
       <div className="flex h-14 items-center justify-between border-b border-border px-5">
-        <div className="flex items-center gap-2.5">
+        <Link
+          href="/app"
+          onClick={() => {
+            setSidebarOpen(false);
+            setPendingPath("/app");
+          }}
+          className="flex items-center gap-2.5 rounded-lg transition-colors hover:text-foreground"
+        >
           <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
           <span className="text-lg font-bold tracking-tight">Hirelix</span>
-        </div>
+        </Link>
         <button onClick={() => setSidebarOpen(false)} className="lg:hidden cursor-pointer text-muted hover:text-foreground">
           <X className="h-5 w-5" />
         </button>
@@ -107,27 +142,36 @@ export default function ProductLayout({
       <nav className="flex-1 space-y-1 p-3">
         <Link
           href="/app"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => {
+            setSidebarOpen(false);
+            setPendingPath("/app");
+          }}
           className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-background hover:text-foreground"
         >
-          <Search className="h-4 w-4" />
-          My Searches
+          {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          My Shortlists
         </Link>
         <Link
           href="/app/search/new"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => {
+            setSidebarOpen(false);
+            setPendingPath("/app/search/new");
+          }}
           className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
         >
-          <Plus className="h-4 w-4" />
-          New Search
+          {effectivePendingPath === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          New Shortlist
         </Link>
         <Link
           href="/app/settings"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => {
+            setSidebarOpen(false);
+            setPendingPath("/app/settings");
+          }}
           className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-background hover:text-foreground"
         >
-          <Settings className="h-4 w-4" />
-          Settings
+          {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
+          Settings & Billing
         </Link>
       </nav>
 
@@ -150,17 +194,27 @@ export default function ProductLayout({
     <div className="flex min-h-screen">
       {/* Mobile top bar */}
       <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
-        <div className="flex items-center gap-2.5">
+        <Link
+          href="/app"
+          onClick={() => setPendingPath("/app")}
+          className="flex items-center gap-2.5 rounded-lg transition-colors hover:text-foreground"
+        >
           <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
           <span className="text-lg font-bold tracking-tight">Hirelix</span>
-        </div>
-        <button onClick={() => setSidebarOpen(true)} className="cursor-pointer text-muted hover:text-foreground">
-          <Menu className="h-5 w-5" />
-        </button>
+        </Link>
+        {isFocusedNewSearch ? (
+          <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-700">
+            Focused flow
+          </span>
+        ) : (
+          <button onClick={() => setSidebarOpen(true)} className="cursor-pointer text-muted hover:text-foreground">
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* Mobile overlay */}
-      {sidebarOpen && (
+      {sidebarOpen && !isFocusedNewSearch && (
         <div
           className="fixed inset-0 z-50 bg-black/40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
@@ -168,16 +222,20 @@ export default function ProductLayout({
       )}
 
       {/* Sidebar — desktop: fixed, mobile: drawer */}
-      <aside
-        className={`fixed left-0 top-0 z-50 flex h-full w-60 flex-col border-r border-border bg-surface transition-transform duration-200 lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        {sidebarContent}
-      </aside>
+      {!isFocusedNewSearch && (
+        <aside
+          className={`fixed left-0 top-0 z-50 flex h-full w-60 flex-col border-r border-border bg-surface transition-transform duration-200 lg:translate-x-0 ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          {sidebarContent}
+        </aside>
+      )}
 
       {/* Main content */}
-      <main className="w-full pt-14 lg:ml-60 lg:pt-0 flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+      <main className={`w-full flex-1 p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 lg:pt-8 ${isFocusedNewSearch ? "lg:ml-0" : "lg:ml-60"}`}>
+        <BillingProvider>{children}</BillingProvider>
+      </main>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isStaleProcessingSearch } from "@/lib/search-state";
+import { enqueueSearchJob, kickSearchJobRunner } from "@/lib/search-jobs";
 
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,7 +42,7 @@ export async function POST(
   // Fetch the existing search
   const { data: search } = await supabaseAdmin
     .from("hirelix_searches")
-    .select("id, user_id, jd_text, parsed_requirements, status")
+    .select("id, user_id, jd_text, parsed_requirements, status, updated_at")
     .eq("id", id)
     .single();
 
@@ -49,17 +50,28 @@ export async function POST(
     return NextResponse.json({ error: "Search not found" }, { status: 404 });
   }
 
-  if (search.status !== "error") {
-    return NextResponse.json({ error: "Only failed searches can be retried" }, { status: 400 });
+  const canRetry =
+    search.status === "error"
+    || search.status === "degraded"
+    || isStaleProcessingSearch(search.status, (search as { updated_at?: string | null }).updated_at);
+
+  if (!canRetry) {
+    return NextResponse.json({ error: "Only failed or stalled searches can be retried" }, { status: 400 });
   }
 
   // Reset search status
   await supabaseAdmin
     .from("hirelix_searches")
     .update({
-      status: "processing",
+      status: "queued",
       pipeline_step: "queued",
       error_message: null,
+      warning_message: null,
+      queued_at: new Date().toISOString(),
+      parse_completed_at: null,
+      search_completed_at: null,
+      partial_ready_at: null,
+      done_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -67,14 +79,16 @@ export async function POST(
   // Delete old candidates if any
   await supabaseAdmin.from("hirelix_candidates").delete().eq("search_id", id);
 
-  // Re-run the pipeline via dynamic import to avoid circular deps
   const candidateCount = (search.parsed_requirements as Record<string, unknown>)?.candidate_count as number || 5;
-  const userId = user.id;
+  await enqueueSearchJob({
+    searchId: id,
+    userId: user.id,
+    jdText: search.jd_text,
+    candidateCount,
+  });
 
-  after(async () => {
-    // Dynamic import the pipeline runner from create route
-    const { runPipelineForRetry } = await import("@/app/(product)/api/search/create/route");
-    await runPipelineForRetry(id, search.jd_text, candidateCount, userId);
+  kickSearchJobRunner(req.nextUrl.origin, {
+    searchId: id,
   });
 
   return NextResponse.json({ ok: true });

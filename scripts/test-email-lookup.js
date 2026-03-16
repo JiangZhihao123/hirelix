@@ -2,6 +2,7 @@
  * Test script for new LLM-based email lookup with multi-strategy approach
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 
 // Load env

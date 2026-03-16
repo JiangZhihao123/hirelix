@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getBillingSummaryForUser } from "@/lib/billing-server";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,11 +30,14 @@ export async function GET(req: NextRequest) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data } = await supabaseAdmin
+  const [{ data }, billing] = await Promise.all([
+    supabaseAdmin
     .from("hirelix_user_settings")
     .select("pdl_api_key, company_profile")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle(),
+    getBillingSummaryForUser(supabaseAdmin, user.id),
+  ]);
 
   const hasKey = !!(data?.pdl_api_key);
   const masked = hasKey
@@ -44,6 +48,7 @@ export async function GET(req: NextRequest) {
     has_pdl_key: hasKey,
     pdl_api_key_masked: masked,
     company_profile: data?.company_profile || null,
+    billing,
   });
 }
 

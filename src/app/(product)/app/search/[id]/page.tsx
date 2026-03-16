@@ -1,10 +1,25 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
+import { ResultPageSkeleton } from "@/components/ProductSkeletons";
 import { supabase } from "@/lib/supabase";
+import { useBilling } from "@/lib/use-billing";
+import {
+  isReviewableSearchStatus,
+  isRunningSearchStatus,
+  getStalledSearchMessage,
+  isOlderThanMinutes,
+  isStaleProcessingSearch,
+} from "@/lib/search-state";
+import {
+  ANALYTICS_EVENTS,
+  getAnalyticsContextFromBrowser,
+  trackEvent,
+} from "@/lib/analytics";
 import {
   ArrowLeft,
   Loader2,
@@ -18,7 +33,6 @@ import {
   Mail,
   ExternalLink,
   AlertCircle,
-  User,
   Search,
   RotateCcw,
   FileText,
@@ -42,7 +56,14 @@ type SearchRow = {
   status: string;
   pipeline_step: string | null;
   error_message: string | null;
+  warning_message?: string | null;
+  queued_at?: string | null;
+  parse_completed_at?: string | null;
+  search_completed_at?: string | null;
+  partial_ready_at?: string | null;
+  done_at?: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 type WorkHistoryItem = {
@@ -50,12 +71,32 @@ type WorkHistoryItem = {
   company: string | null;
   start_date: string | null;
   end_date: string | null;
+  summary?: string | null;
 };
 
 type EducationItem = {
   school: string | null;
   degree: string | null;
   major: string | null;
+  start_year?: string | null;
+  end_year?: string | null;
+};
+
+type ConstraintVerdict = {
+  location_fit?: "local" | "nearby" | "non_local" | "unknown";
+  work_model_fit?: "yes" | "no" | "unclear";
+  must_have_coverage?: "strong" | "partial" | "weak" | "unknown";
+};
+
+type CandidateSuitability = {
+  fit_decision?: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
+  actionability?: "ready_to_act" | "needs_review" | "not_actionable";
+  match_score?: number;
+  constraint_verdicts?: ConstraintVerdict;
+  constraint_risks?: string[];
+  why_this_candidate?: string[];
+  why_not_higher?: string[];
+  evidence_quality?: "high" | "medium" | "low";
 };
 
 type CandidateRow = {
@@ -75,7 +116,27 @@ type CandidateRow = {
   metadata: {
     work_history?: WorkHistoryItem[];
     education?: EducationItem[];
+    analysis_stage?: string;
+    preliminary?: boolean;
+    pool_type?: "top_pick" | "outreach_pool" | "main" | "extended";
+    suitability?: CandidateSuitability;
+    constraint_verdicts?: ConstraintVerdict;
+    constraint_risks?: string[];
+    why_not_higher?: string[];
+    canonical_profile?: Record<string, unknown>;
+    raw_profile?: Record<string, unknown>;
+    about?: string | null;
   } | null;
+};
+
+type SearchDisplayStats = {
+  retrieval_count?: number;
+  deep_review_count?: number;
+  deep_review_requested_count?: number;
+  deep_review_completed_count?: number;
+  qualified_count?: number;
+  outreach_pool_count?: number;
+  shortlist_count?: number;
 };
 
 const avatarColors = [
@@ -116,6 +177,52 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
+function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
+  const actionability = candidate.metadata?.suitability?.actionability;
+  const fitDecision = candidate.metadata?.suitability?.fit_decision;
+  const poolType = candidate.metadata?.pool_type;
+
+  if (poolType === "outreach_pool" || poolType === "extended") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+        Outreach pool
+      </span>
+    );
+  }
+
+  if (fitDecision === "risky_fit" || actionability === "not_actionable") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+        Constraint risk
+      </span>
+    );
+  }
+
+  if (actionability === "needs_review" || fitDecision === "viable_fit") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+        Needs review
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+      Ready to act
+    </span>
+  );
+}
+
+function formatConstraintValue(
+  value: ConstraintVerdict["location_fit"] | ConstraintVerdict["work_model_fit"] | ConstraintVerdict["must_have_coverage"],
+) {
+  if (!value) return "Unknown";
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function parseOutreach(draft: string | null): { subject: string; linkedin: string; email: string } {
   if (!draft) return { subject: "", linkedin: "", email: "" };
   // Try JSON format first (new format)
@@ -134,22 +241,45 @@ function parseOutreach(draft: string | null): { subject: string; linkedin: strin
   }
 }
 
+function positiveInt(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : null;
+}
+
+function formatDisplayCount(value: number) {
+  if (value >= 100) return `${Math.floor(value / 50) * 50}+`;
+  if (value >= 10) return `${Math.floor(value / 5) * 5}+`;
+  return `${value}`;
+}
+
 function CandidateCard({
   candidate,
   onStatusChange,
+  onExpand,
   requiredSkills,
   selected,
   onToggleSelect,
+  billingPlanCode,
+  enrichesRemaining,
+  refreshBilling,
+  onUpgradeClick,
 }: {
   candidate: CandidateRow;
   onStatusChange: (id: string, status: string) => void;
+  onExpand: (candidate: CandidateRow) => void;
   requiredSkills: string[];
   selected?: boolean;
   onToggleSelect?: () => void;
+  billingPlanCode: "free" | "pro_monthly" | "pro_annual";
+  enrichesRemaining: number;
+  refreshBilling: () => Promise<void>;
+  onUpgradeClick: (surface: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
   const [enriching, setEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
   const [localCandidate, setLocalCandidate] = useState(candidate);
   const outreach = parseOutreach(localCandidate.outreach_draft);
   const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
@@ -176,6 +306,7 @@ function CandidateCard({
 
   async function handleEnrich() {
     if (enriching || !session?.access_token) return;
+    setEnrichError(null);
     setEnriching(true);
     try {
       const res = await fetch(`/api/candidates/${candidate.id}/enrich`, {
@@ -189,9 +320,14 @@ function CandidateCard({
           email: data.email || prev.email,
           outreach_draft: data.outreach_draft || prev.outreach_draft,
         }));
+        await refreshBilling();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setEnrichError(data.error || "We couldn't enrich this candidate.");
       }
     } catch (err) {
       console.error("Enrich failed:", err);
+      setEnrichError("We couldn't enrich this candidate right now.");
     } finally {
       setEnriching(false);
     }
@@ -218,6 +354,12 @@ function CandidateCard({
     const sl = skill.toLowerCase();
     return reqLower.some((r) => sl.includes(r) || r.includes(sl) || sl.split(" ").some((w) => w.length > 3 && r.includes(w)));
   }
+  const displayableWorkHistory = (candidate.metadata?.work_history || []).filter(
+    (job) => job.title || job.company || job.summary,
+  );
+  const displayableEducation = (candidate.metadata?.education || []).filter(
+    (edu) => edu.school || edu.degree || edu.major,
+  );
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -226,6 +368,13 @@ function CandidateCard({
     replied: "text-green-600",
     rejected: "text-red-500",
   };
+
+  function toggleExpanded() {
+    if (!expanded) {
+      onExpand(localCandidate);
+    }
+    setExpanded(!expanded);
+  }
 
   return (
     <div className="rounded-xl border border-border bg-background transition-colors hover:border-muted-light">
@@ -240,13 +389,14 @@ function CandidateCard({
           />
         )}
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={toggleExpanded}
           className="flex flex-1 cursor-pointer items-center gap-4 min-w-0"
         >
         <InitialsAvatar name={candidate.name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <p className="truncate text-sm font-semibold">{candidate.name}</p>
+            <ActionabilityBadge candidate={candidate} />
             <ScoreBadge score={candidate.match_score} />
             {!candidate.email && (
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -338,6 +488,43 @@ function CandidateCard({
                 </div>
               </div>
 
+              {(candidate.metadata?.constraint_verdicts || candidate.metadata?.suitability?.constraint_verdicts) && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    Constraint fit
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Location fit</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">
+                        {formatConstraintValue(
+                          candidate.metadata?.constraint_verdicts?.location_fit ||
+                            candidate.metadata?.suitability?.constraint_verdicts?.location_fit,
+                        )}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Work model fit</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">
+                        {formatConstraintValue(
+                          candidate.metadata?.constraint_verdicts?.work_model_fit ||
+                            candidate.metadata?.suitability?.constraint_verdicts?.work_model_fit,
+                        )}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Must-have coverage</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">
+                        {formatConstraintValue(
+                          candidate.metadata?.constraint_verdicts?.must_have_coverage ||
+                            candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage,
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
                   Skills
@@ -365,9 +552,19 @@ function CandidateCard({
               </div>
 
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                  Why This Candidate
-                </p>
+                <div className="mb-2 flex items-center gap-2">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
+                    {candidate.metadata?.pool_type === "outreach_pool" ||
+                    candidate.metadata?.pool_type === "extended"
+                      ? "Why this candidate is in the outreach pool"
+                      : "Why this candidate made the shortlist"}
+                  </p>
+                  {candidate.metadata?.preliminary && (
+                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+                      Preliminary
+                    </span>
+                  )}
+                </div>
                 <ul className="space-y-1.5">
                   {candidate.match_reasons.map((reason, i) => (
                     <li
@@ -379,16 +576,37 @@ function CandidateCard({
                     </li>
                   ))}
                 </ul>
+                {candidate.metadata?.preliminary && (
+                  <p className="mt-2 text-xs text-muted">
+                    These reasons are already usable for review. Hirelix may refine the ranking and rationale as richer profile data comes in.
+                  </p>
+                )}
               </div>
 
+              {Array.isArray(candidate.metadata?.why_not_higher) && candidate.metadata.why_not_higher.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    What to verify before outreach
+                  </p>
+                  <ul className="space-y-1.5">
+                    {candidate.metadata.why_not_higher.map((reason, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted">
+                        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* Work History */}
-              {candidate.metadata?.work_history && candidate.metadata.work_history.length > 0 && (
+              {displayableWorkHistory.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
                     Work History
                   </p>
                   <div className="space-y-2">
-                    {candidate.metadata.work_history.map((job, i) => (
+                    {displayableWorkHistory.map((job, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
                         <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-light" />
                         <div>
@@ -399,6 +617,9 @@ function CandidateCard({
                               <span className="text-muted-light"> · {job.start_date}{job.end_date ? ` – ${job.end_date}` : " – Present"}</span>
                             )}
                           </p>
+                          {job.summary && (
+                            <p className="mt-1 text-xs text-muted">{job.summary}</p>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -407,20 +628,25 @@ function CandidateCard({
               )}
 
               {/* Education */}
-              {candidate.metadata?.education && candidate.metadata.education.length > 0 && (
+              {displayableEducation.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
                     Education
                   </p>
                   <div className="space-y-2">
-                    {candidate.metadata.education.map((edu, i) => (
+                    {displayableEducation.map((edu, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
                         <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-light" />
                         <div>
-                          <p className="font-medium text-foreground">{edu.school}</p>
+                          {edu.school && <p className="font-medium text-foreground">{edu.school}</p>}
                           {(edu.degree || edu.major) && (
                             <p className="text-xs text-muted">
                               {[edu.degree, edu.major].filter(Boolean).join(" in ")}
+                            </p>
+                          )}
+                          {(edu.start_year || edu.end_year) && (
+                            <p className="text-xs text-muted-light">
+                              {[edu.start_year, edu.end_year].filter(Boolean).join(" – ")}
                             </p>
                           )}
                         </div>
@@ -458,25 +684,52 @@ function CandidateCard({
                 // On-demand: show "Get Email & Draft" button
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
                   <Mail className="mb-3 h-8 w-8 text-muted-light" />
-                  <p className="mb-1 text-sm font-medium text-foreground">Ready to reach out?</p>
-                  <p className="mb-4 text-xs text-muted">Find their email and generate a personalized outreach message.</p>
-                  <button
-                    onClick={handleEnrich}
-                    disabled={enriching}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {enriching ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Finding email & drafting...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4" />
-                        Get Email & Draft
-                      </>
-                    )}
-                  </button>
+                  <p className="mb-1 text-sm font-medium text-foreground">Ready to turn this shortlist into outreach?</p>
+                  <p className="mb-4 text-xs text-muted">
+                    {billingPlanCode === "free"
+                      ? "You have already seen the ranked shortlist. Upgrade only when you want email lookup and personalized outreach drafts for the finalists you want to contact."
+                      : "Find their email and generate a personalized outreach message."}
+                  </p>
+                  {billingPlanCode === "free" ? (
+                    <PaddleCheckoutButton
+                      checkout={{ type: "plan", planCode: "pro_monthly" }}
+                      label="Unlock contact details and outreach"
+                      onClick={() => onUpgradeClick("candidate_outreach_gate")}
+                      onError={(message) => setEnrichError(message)}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  ) : enrichesRemaining <= 0 ? (
+                    <PaddleCheckoutButton
+                      checkout={{ type: "add_on", addOn: "contact_pack" }}
+                      label="Buy Contact Pack"
+                      onClick={() => onUpgradeClick("candidate_contact_pack")}
+                      onError={(message) => setEnrichError(message)}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  ) : (
+                    <button
+                      onClick={handleEnrich}
+                      disabled={enriching}
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {enriching ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Finding email & drafting...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          Get Email & Draft
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {enrichError && (
+                    <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {enrichError}
+                    </p>
+                  )}
                   {localCandidate.profile_url && (
                     <a
                       href={localCandidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
@@ -606,30 +859,39 @@ function CandidateCard({
   );
 }
 
-// Map pipeline_step values to step index
-const STEP_ORDER = ["parsing", "parsed", "searching", "scoring", "scraping", "done"];
-
-function ProcessingSteps({ pipelineStep, candidateCount }: { pipelineStep: string | null; candidateCount: number }) {
-  const stepIdx = STEP_ORDER.indexOf(pipelineStep || "parsing");
+function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
   const steps = [
-    { icon: FileText, label: "Parsing job description", doneAt: 1 },     // done after "parsed"
-    { icon: Users, label: "Searching & screening candidates", doneAt: 3 },// done after "scoring" (pre-screen)
-    { icon: Star, label: "Scraping full profiles & AI scoring", doneAt: 5 }, // done at "done"
+    { icon: FileText, label: "Understanding the role", activeFor: ["queued", "parsing"] },
+    { icon: Users, label: "Finding likely matches", activeFor: ["searching"] },
+    { icon: Star, label: "Building your shortlist", activeFor: ["screening"] },
   ];
 
-  // Determine current active step based on pipeline_step
-  let activeIdx = 0;
-  for (let i = 0; i < steps.length; i++) {
-    if (stepIdx >= steps[i].doneAt) activeIdx = i + 1;
-    else break;
-  }
+  const activeIdx = Math.max(
+    steps.findIndex((step) => step.activeFor.includes(pipelineStep || "queued")),
+    0,
+  );
+
+  const progressTitle =
+    pipelineStep === "parsing"
+      ? "Understanding the role and extracting the hiring signal..."
+      : pipelineStep === "searching"
+        ? "Searching a broad candidate pool..."
+        : pipelineStep === "screening"
+          ? "Ranking top picks and building the outreach pool..."
+          : "Ranking top picks and building the outreach pool...";
 
   return (
-    <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-5">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+        Processing reassurance
+      </p>
+      <div className="mb-2 mt-2 flex items-center gap-2">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        <p className="text-sm font-medium">Processing your search...</p>
+        <p className="text-sm font-medium">{progressTitle}</p>
       </div>
+      <p className="mb-4 max-w-2xl text-sm leading-relaxed text-slate-600">
+        Hirelix is reading the role, searching broadly across LinkedIn profile data, and turning the result into top picks plus a workable outreach pool.
+      </p>
       <div className="space-y-3">
         {steps.map((step, i) => {
           const Icon = step.icon;
@@ -658,19 +920,23 @@ function ProcessingSteps({ pipelineStep, candidateCount }: { pipelineStep: strin
           );
         })}
       </div>
-      {candidateCount > 0 ? (
-        <p className="mt-4 text-xs text-primary font-medium">{candidateCount} candidates found — generating outreach emails...</p>
-      ) : (
-        <p className="mt-4 text-xs text-muted">This usually takes 30-60 seconds.</p>
-      )}
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Usually under 5 minutes</span>
+        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Safe to leave and come back</span>
+        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">You will review usable candidates, not raw results</span>
+      </div>
+      <p className="mt-4 text-xs text-muted">
+        You can leave this page and come back. Most shortlist runs are ready in a few minutes, and partial progress becomes reviewable as soon as it is useful.
+      </p>
     </div>
   );
 }
 
 export default function SearchResultPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const { user, session } = useAuth();
-  const router = useRouter();
+  const { billing, refresh: refreshBilling } = useBilling();
   const [search, setSearch] = useState<SearchRow | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -678,6 +944,20 @@ export default function SearchResultPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
+  const [showAlternatives, setShowAlternatives] = useState(false);
+  const hasTrackedProcessingViewRef = useRef(false);
+  const hasTrackedResultsViewRef = useRef(false);
+  const hasTrackedDoneRef = useRef(false);
+  const hasTrackedDegradedRef = useRef(false);
+  const hasTrackedProcessingReassuranceRef = useRef(false);
+  const hasTrackedUpgradeValueExposedRef = useRef(false);
+  const analyticsContext = getAnalyticsContextFromBrowser({
+    entry_mode: searchParams.get("entry") === "landing"
+      ? "landing"
+      : searchParams.get("entry") === "signin"
+        ? "signin"
+        : "workspace",
+  });
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -686,11 +966,13 @@ export default function SearchResultPage() {
       return next;
     });
   }
-  function toggleAll() {
-    if (selectedIds.size === candidates.length) {
+  function toggleAll(rows: CandidateRow[]) {
+    const rowIds = rows.map((row) => row.id);
+    const allSelected = rowIds.length > 0 && rowIds.every((rowId) => selectedIds.has(rowId));
+    if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(candidates.map((c) => c.id)));
+      setSelectedIds(new Set(rowIds));
     }
   }
   async function bulkStatusChange(newStatus: string) {
@@ -704,10 +986,10 @@ export default function SearchResultPage() {
     }
   }
 
-  function exportCSV() {
-    if (candidates.length === 0) return;
+  function exportCSV(rows: CandidateRow[]) {
+    if (rows.length === 0) return;
     const headers = ["Name", "Headline", "Location", "Match Score", "Skills", "Experience Years", "Profile URL", "Email", "Status", "Match Reasons"];
-    const rows = candidates.map((c) => [
+    const csvRows = rows.map((c) => [
       c.name,
       c.headline || "",
       c.location || "",
@@ -719,7 +1001,7 @@ export default function SearchResultPage() {
       c.status,
       c.match_reasons.join("; "),
     ]);
-    const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = [headers, ...csvRows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -732,16 +1014,70 @@ export default function SearchResultPage() {
   const fetchData = useCallback(async () => {
     if (!user || !id) return;
 
-    const [{ data: searchData }, { data: candidatesData }] = await Promise.all([
-      supabase.from("hirelix_searches").select("*").eq("id", id).single(),
-      supabase
-        .from("hirelix_candidates")
-        .select("*")
-        .eq("search_id", id)
-        .order("match_score", { ascending: false }),
-    ]);
+    const searchRequest = supabase.from("hirelix_searches").select("*").eq("id", id).single();
+    const candidatesRequest = supabase
+      .from("hirelix_candidates")
+      .select("*")
+      .eq("search_id", id)
+      .order("match_score", { ascending: false });
 
-    if (searchData) setSearch(searchData);
+    const { data: searchData } = await searchRequest;
+
+    let normalizedSearch = searchData;
+    if (
+      searchData &&
+      isStaleProcessingSearch(searchData.status, searchData.updated_at)
+    ) {
+      await supabase
+        .from("hirelix_searches")
+        .update({
+          status: "error",
+          pipeline_step: "error",
+          error_message: getStalledSearchMessage(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      normalizedSearch = {
+        ...searchData,
+        status: "error",
+        pipeline_step: "error",
+        error_message: getStalledSearchMessage(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+    if (normalizedSearch) setSearch(normalizedSearch);
+    setLoading(false);
+    const { data: candidatesData } = await candidatesRequest;
+    if (
+      normalizedSearch &&
+      normalizedSearch.status === "deep_scoring" &&
+      (candidatesData?.length || 0) > 0 &&
+      isOlderThanMinutes(normalizedSearch.updated_at)
+    ) {
+      await supabase
+        .from("hirelix_searches")
+        .update({
+          status: "degraded",
+          pipeline_step: "done",
+          warning_message:
+            "Advanced profile refinement took too long, but your shortlist is still ready to review.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      normalizedSearch = {
+        ...normalizedSearch,
+        status: "degraded",
+        pipeline_step: "done",
+        warning_message:
+          "Advanced profile refinement took too long, but your shortlist is still ready to review.",
+        updated_at: new Date().toISOString(),
+      };
+      setSearch(normalizedSearch);
+    }
     if (candidatesData) {
       // Sort: candidates with email first, then by match score
       const sorted = candidatesData.sort((a, b) => {
@@ -752,23 +1088,122 @@ export default function SearchResultPage() {
       });
       setCandidates(sorted);
     }
-    setLoading(false);
   }, [user, id]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Fast poll while processing (1.5s for near real-time feel)
+  // Fast poll while search is actively progressing or refining results.
   useEffect(() => {
-    if (search?.status !== "processing") return;
+    if (!search || !isRunningSearchStatus(search.status)) return;
     const interval = setInterval(fetchData, 1500);
     return () => clearInterval(interval);
-  }, [search?.status, fetchData]);
+  }, [fetchData, search]);
+
+  useEffect(() => {
+    if (
+      !search ||
+      !["queued", "parsing", "searching", "screening"].includes(search.status) ||
+      hasTrackedProcessingViewRef.current
+    ) {
+      return;
+    }
+    hasTrackedProcessingViewRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.searchProcessingView, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      pipeline_step: search.pipeline_step ?? "unknown",
+      candidate_count: candidates.length,
+      has_candidates: candidates.length > 0,
+      has_email_candidates: candidates.some((candidate) => Boolean(candidate.email)),
+      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+    });
+  }, [analyticsContext, billing, candidates, candidates.length, search]);
+
+  useEffect(() => {
+    if (!search || !isReviewableSearchStatus(search.status) || candidates.length === 0 || hasTrackedResultsViewRef.current) return;
+    hasTrackedResultsViewRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.searchResultsView, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      candidate_count: candidates.length,
+      has_candidates: candidates.length > 0,
+      has_email_candidates: candidates.some((candidate) => Boolean(candidate.email)),
+      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+    });
+  }, [analyticsContext, billing, candidates, candidates.length, search]);
+
+  useEffect(() => {
+    if (!search || search.status !== "done" || hasTrackedDoneRef.current) return;
+    hasTrackedDoneRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.searchDone, {
+      ...analyticsContext,
+      search_id: search.id,
+      candidate_count: candidates.length,
+      done_at: search.done_at ?? null,
+    });
+  }, [analyticsContext, candidates.length, search]);
+
+  useEffect(() => {
+    if (!search || search.status !== "degraded" || hasTrackedDegradedRef.current) return;
+    hasTrackedDegradedRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.searchDegraded, {
+      ...analyticsContext,
+      search_id: search.id,
+      candidate_count: candidates.length,
+      warning_message: search.warning_message ?? null,
+    });
+  }, [analyticsContext, candidates.length, search]);
+
+  useEffect(() => {
+    if (!search || !["queued", "parsing", "searching", "screening"].includes(search.status) || hasTrackedProcessingReassuranceRef.current) {
+      return;
+    }
+
+    hasTrackedProcessingReassuranceRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.processingReassuranceView, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      pipeline_step: search.pipeline_step ?? "unknown",
+    });
+  }, [analyticsContext, search]);
+
+  useEffect(() => {
+    if (
+      !search ||
+      !isReviewableSearchStatus(search.status) ||
+      candidates.length === 0 ||
+      hasTrackedUpgradeValueExposedRef.current ||
+      billing?.plan.code !== "free"
+    ) {
+      return;
+    }
+
+    hasTrackedUpgradeValueExposedRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.upgradeValueExposed, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      candidate_count: candidates.length,
+      has_email_candidates: candidates.some((candidate) => Boolean(candidate.email)),
+      upgrade_surface: "results_capability_unlock",
+    });
+  }, [analyticsContext, billing?.plan.code, candidates, search]);
 
   async function handleRetry() {
     if (!session?.access_token || !id) return;
     setRetrying(true);
+    trackEvent(ANALYTICS_EVENTS.retrySearchClick, {
+      ...analyticsContext,
+      search_id: id,
+      search_status: search?.status ?? "unknown",
+      candidate_count: candidates.length,
+      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+    });
     try {
       const res = await fetch(`/api/search/${id}/retry`, {
         method: "POST",
@@ -776,7 +1211,23 @@ export default function SearchResultPage() {
       });
       if (res.ok) {
         // Reset local state to show processing
-        setSearch((prev) => prev ? { ...prev, status: "processing", pipeline_step: "queued", error_message: null } : prev);
+        hasTrackedProcessingViewRef.current = false;
+        hasTrackedResultsViewRef.current = false;
+        hasTrackedDoneRef.current = false;
+        hasTrackedDegradedRef.current = false;
+        hasTrackedProcessingReassuranceRef.current = false;
+        hasTrackedUpgradeValueExposedRef.current = false;
+        setSearch((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "queued",
+                pipeline_step: "queued",
+                error_message: null,
+                warning_message: null,
+              }
+            : prev,
+        );
         setCandidates([]);
       }
     } catch {
@@ -798,18 +1249,40 @@ export default function SearchResultPage() {
       .eq("id", candidateId);
   }
 
+  function handleCandidateExpand(candidate: CandidateRow) {
+    trackEvent(ANALYTICS_EVENTS.candidateExpand, {
+      ...analyticsContext,
+      search_id: search?.id ?? null,
+      candidate_id: candidate.id,
+      match_score: candidate.match_score,
+      has_email: Boolean(candidate.email),
+      has_candidates: candidates.length > 0,
+      has_email_candidates: candidates.some((row) => Boolean(row.email)),
+      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+    });
+  }
+
+  function handleUpgradeClick(surface: string) {
+    trackEvent(ANALYTICS_EVENTS.upgradeCtaClick, {
+      ...analyticsContext,
+      search_id: search?.id ?? null,
+      search_status: search?.status ?? "unknown",
+      candidate_count: candidates.length,
+      has_candidates: candidates.length > 0,
+      has_email_candidates: candidates.some((candidate) => Boolean(candidate.email)),
+      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+      upgrade_surface: surface,
+    });
+  }
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-light" />
-      </div>
-    );
+    return <ResultPageSkeleton />;
   }
 
   if (!search) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-muted">Search not found</p>
+        <p className="text-muted">Shortlist not found</p>
         <Link
           href="/app"
           className="mt-4 text-sm text-primary hover:underline"
@@ -821,6 +1294,79 @@ export default function SearchResultPage() {
   }
 
   const reqs = search.parsed_requirements as Record<string, unknown> | null;
+  const isReviewable = isReviewableSearchStatus(search.status);
+  const isImprovingInBackground = search.status === "deep_scoring";
+  const isReadyWithWarning = search.status === "degraded";
+  const isPreResultsProcessing =
+    search.status === "queued" ||
+    search.status === "parsing" ||
+    search.status === "searching" ||
+    search.status === "screening";
+  const displayTarget =
+    positiveInt(reqs?.display_count) ??
+    positiveInt(reqs?.candidate_count) ??
+    5;
+  const outreachPoolTarget =
+    positiveInt(reqs?.outreach_pool_target) ??
+    25;
+  const mainCandidates = candidates.filter((candidate) => {
+    const poolType = candidate.metadata?.pool_type || "top_pick";
+    return poolType === "top_pick" || poolType === "main";
+  });
+  const alternativeCandidates = candidates.filter((candidate) => {
+    const poolType = candidate.metadata?.pool_type;
+    return poolType === "outreach_pool" || poolType === "extended";
+  });
+  const reviewCandidates = showOnlyWithEmail
+    ? mainCandidates.filter((candidate) => candidate.email)
+    : mainCandidates;
+  const visibleAlternativeCandidates = showOnlyWithEmail
+    ? alternativeCandidates.filter((candidate) => candidate.email)
+    : alternativeCandidates;
+  const visibleCandidates = showAlternatives
+    ? [
+        ...reviewCandidates,
+        ...visibleAlternativeCandidates,
+      ]
+    : reviewCandidates;
+  const averageMatch = mainCandidates.length
+    ? Math.round(
+        mainCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
+          mainCandidates.length,
+      )
+    : 0;
+  const rawDisplayStats =
+    reqs && typeof reqs.display_stats === "object" && reqs.display_stats
+      ? (reqs.display_stats as SearchDisplayStats)
+      : null;
+  const retrievalCount =
+    positiveInt(rawDisplayStats?.retrieval_count) ??
+    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+  const deepReviewRequestedCount =
+    positiveInt(rawDisplayStats?.deep_review_requested_count) ??
+    positiveInt(rawDisplayStats?.deep_review_count) ??
+    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+  const deepReviewCompletedCount =
+    positiveInt(rawDisplayStats?.deep_review_completed_count) ??
+    positiveInt(rawDisplayStats?.deep_review_count) ??
+    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+  const qualifiedCount =
+    positiveInt(rawDisplayStats?.qualified_count) ??
+    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+  const outreachPoolCount =
+    positiveInt(rawDisplayStats?.outreach_pool_count) ??
+    Math.max(mainCandidates.length + alternativeCandidates.length, 0);
+  const shortlistReadyCount =
+    positiveInt(rawDisplayStats?.shortlist_count) ?? mainCandidates.length;
+  const readyToActCount = mainCandidates.filter(
+    (candidate) => candidate.metadata?.suitability?.actionability === "ready_to_act",
+  ).length;
+  const withContactCount = mainCandidates.filter((candidate) => Boolean(candidate.email)).length;
+  const entryQuery =
+    analyticsContext.entry_mode === "workspace"
+      ? ""
+      : `?entry=${analyticsContext.entry_mode}`;
+  const encodedJd = encodeURIComponent(search.jd_text);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -831,13 +1377,13 @@ export default function SearchResultPage() {
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to searches
+          Back to shortlists
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
-            {search.title || "Untitled Search"}
+            {search.title || "Untitled shortlist"}
           </h1>
-          {search.status === "done" && (
+          {isReviewable && (
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowJd(!showJd)}
@@ -847,22 +1393,32 @@ export default function SearchResultPage() {
                 <span className="hidden sm:inline">{showJd ? "Hide JD" : "View JD"}</span>
                 <span className="sm:hidden">{showJd ? "Hide" : "JD"}</span>
               </button>
-              {candidates.length > 0 && (
-                <button
-                  onClick={exportCSV}
-                  className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
-                >
-                  <Download className="h-3 w-3" />
-                  <span className="hidden sm:inline">Export CSV</span>
-                  <span className="sm:hidden">CSV</span>
-                </button>
-              )}
+              {mainCandidates.length > 0 &&
+                (billing?.usage.exportEnabled ? (
+                  <button
+                    onClick={() => exportCSV(mainCandidates)}
+                    className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
+                  >
+                    <Download className="h-3 w-3" />
+                    <span className="hidden sm:inline">Export CSV</span>
+                    <span className="sm:hidden">CSV</span>
+                  </button>
+                ) : (
+                  <Link
+                    href="/app/settings#billing"
+                    onClick={() => handleUpgradeClick("results_export_gate")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-muted-light hover:text-foreground"
+                  >
+                    <Download className="h-3 w-3" />
+                    Export this shortlist
+                  </Link>
+                ))}
               <Link
-                href="/app/search/new"
+                href={`/app/search/new${entryQuery}`}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
               >
                 <Search className="h-3 w-3" />
-                New Search
+                New shortlist
               </Link>
             </div>
           )}
@@ -893,6 +1449,96 @@ export default function SearchResultPage() {
         )}
       </div>
 
+      {isPreResultsProcessing && (
+        <div className="mb-6 rounded-2xl border border-sky-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+            Building your shortlist
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">
+            Building top picks and an outreach-ready pool
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-slate-600">
+            Hirelix is reading the role, searching broadly across LinkedIn profile data, and preparing a funnel you can actually work from.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
+              Broad search in progress
+            </span>
+            <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">LinkedIn profile data</span>
+            <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">You can come back to this shortlist any time</span>
+          </div>
+        </div>
+      )}
+
+      {isReviewable && (mainCandidates.length > 0 || alternativeCandidates.length > 0) && (
+        <div className="mb-6 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                {isReadyWithWarning
+                  ? "Ready with a warning"
+                  : isImprovingInBackground
+                    ? "Usable now, still refining"
+                    : "Top picks ready"}
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-950">
+                {isReadyWithWarning
+                  ? "Your top picks are ready with a warning"
+                  : isImprovingInBackground
+                    ? "Your top picks are already usable now"
+                    : "Your top picks are ready"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                {search.warning_message
+                  ? search.warning_message
+                  : "Hirelix searched across a broad LinkedIn candidate pool, ranked the strongest matches, and prepared a deeper outreach-ready pool behind the top picks shown here."}
+              </p>
+              {isImprovingInBackground && !search.warning_message && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-sky-500" />
+                  Background refinement is still tightening fit reasons and ranking, but these candidates are already reviewable
+                </div>
+              )}
+              {!search.warning_message && (
+                <p className="mt-2 text-sm font-medium text-slate-950">
+                  Start with the current top picks. The broader outreach pool is prepared separately so you are not blocked on reply-rate math.
+                </p>
+              )}
+            </div>
+            <div className="grid min-w-[220px] gap-3 sm:grid-cols-2 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Candidates considered</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(retrievalCount)}</p>
+                <p className="mt-1 text-xs text-slate-500">From a broader LinkedIn search</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Profiles deeply reviewed</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(deepReviewCompletedCount)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {deepReviewRequestedCount > deepReviewCompletedCount
+                    ? `${formatDisplayCount(deepReviewRequestedCount)} requested`
+                    : "Full profiles evaluated before final ranking"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Qualified for outreach</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(qualifiedCount)}</p>
+                <p className="mt-1 text-xs text-slate-500">Candidates above the outreach threshold</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top picks shown</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{shortlistReadyCount}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {outreachPoolCount > shortlistReadyCount
+                    ? `${outreachPoolCount} prepared for outreach`
+                    : "Immediate top picks to review"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* JD original text toggle */}
       {showJd && search.jd_text && (
         <div className="mb-6 rounded-xl border border-border bg-surface p-5">
@@ -902,8 +1548,8 @@ export default function SearchResultPage() {
       )}
 
       {/* Processing state with step progress */}
-      {search.status === "processing" && (
-        <ProcessingSteps pipelineStep={search.pipeline_step} candidateCount={candidates.length} />
+      {isPreResultsProcessing && (
+        <ProcessingSteps pipelineStep={search.pipeline_step} />
       )}
 
       {/* Error state */}
@@ -913,10 +1559,17 @@ export default function SearchResultPage() {
             <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium text-red-700">
-                {search.error_message?.includes("API key") ? "PDL API Key Required" : "Something went wrong"}
+                {search.error_message?.includes("stalled before finishing")
+                  ? "This shortlist run didn't finish"
+                  : search.error_message?.includes("API key")
+                    ? "PDL API Key Required"
+                    : "This shortlist run didn't finish"}
               </p>
               <p className="text-xs text-red-600">
-                {search.error_message || "We couldn\u0027t generate candidates for this search. Please try again."}
+                {search.error_message || "We couldn't generate candidates for this shortlist."}
+              </p>
+              <p className="mt-2 text-xs text-red-600/90">
+                We can retry from here. If the role is too short or vague, refine the JD with clearer requirements before you run it again.
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -934,45 +1587,134 @@ export default function SearchResultPage() {
                 className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
               >
                 {retrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                Retry
+                Retry shortlist run
               </button>
+              <Link
+                href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
+              >
+                Refine JD and retry
+              </Link>
             </div>
           </div>
         </div>
       )}
 
       {/* Results */}
-      {candidates.length > 0 && (
+      {(mainCandidates.length > 0 || alternativeCandidates.length > 0) && (
         <div className="space-y-3">
+          <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-4 py-4 text-sm text-slate-600 shadow-sm">
+            {mainCandidates.length === 0 ? (
+              "No candidates met the current outreach threshold yet. Refine the role or widen the search to unlock more viable outreach targets."
+            ) : isImprovingInBackground ? (
+              <>
+                <span className="font-semibold text-slate-950">Your top picks are reviewable now.</span>
+                {" "}Hirelix is still refining the broader outreach pool in the background.
+              </>
+            ) : isReadyWithWarning ? (
+              <>
+                <span className="font-semibold text-slate-950">
+                  {shortlistReadyCount} top pick{shortlistReadyCount === 1 ? "" : "s"} ready to review
+                </span>
+                {' '}— with {Math.min(outreachPoolCount, outreachPoolTarget)} outreach-ready candidate{Math.min(outreachPoolCount, outreachPoolTarget) === 1 ? "" : "s"} prepared
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-slate-950">This funnel is worth working from now</span>
+                {' '}— {shortlistReadyCount} of {displayTarget} top pick{displayTarget === 1 ? "" : "s"} are shown now, {Math.min(outreachPoolCount, outreachPoolTarget)} candidate{Math.min(outreachPoolCount, outreachPoolTarget) === 1 ? "" : "s"} are prepared for outreach, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the current top picks already have clear fit signals"}
+              </>
+            )}
+          </div>
+          {billing?.plan.code === "free" && mainCandidates.length > 0 && (
+            <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                Capability unlock
+              </p>
+              <h3 className="mt-2 text-lg font-semibold text-slate-950">
+                Review the top picks first. Unlock contact details when you are ready to work the outreach pool.
+              </h3>
+              <p className="mt-2 text-sm text-slate-700">
+                You can already inspect the ranked top picks and see how large the outreach-ready pool is. Upgrade when you want email lookup, editable outreach drafts, or export for the candidates you actually want to contact.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistReadyCount} top picks shown</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{Math.min(outreachPoolCount, outreachPoolTarget)} outreach-ready candidates prepared</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{withContactCount}/{mainCandidates.length} already show contact info</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">Unlock outreach when needed</span>
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted">
-                {showOnlyWithEmail 
-                  ? `${candidates.filter(c => c.email).length} candidates with email`
-                  : `${candidates.length} candidates found`}
+                {showOnlyWithEmail
+                  ? `${reviewCandidates.length} candidates with contact info`
+                  : mainCandidates.length > 0
+                    ? `${shortlistReadyCount} top picks ready to review`
+                    : `${alternativeCandidates.length} outreach-pool candidates available`}
               </p>
               <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
-                <span>Avg: {Math.round(candidates.reduce((a, c) => a + c.match_score, 0) / candidates.length)}%</span>
-                <span>·</span>
-                <span>Range: {Math.min(...candidates.map((c) => c.match_score))}–{Math.max(...candidates.map((c) => c.match_score))}%</span>
-                <span>·</span>
-                <span>{candidates.filter(c => c.email).length}/{candidates.length} with email</span>
+                {mainCandidates.length > 0 && (
+                  <>
+                    <span>Avg: {averageMatch}%</span>
+                    <span>·</span>
+                    <span>Range: {Math.min(...mainCandidates.map((c) => c.match_score))}–{Math.max(...mainCandidates.map((c) => c.match_score))}%</span>
+                  </>
+                )}
+                {billing?.usage.exportEnabled ? (
+                  <>
+                    <span>·</span>
+                    <span>
+                      {mainCandidates.length > 0
+                        ? `${mainCandidates.filter((candidate) => candidate.email).length}/${mainCandidates.length} with contact info`
+                        : `${alternativeCandidates.filter((candidate) => candidate.email).length}/${alternativeCandidates.length || 0} with contact info`}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>·</span>
+                    <span>Profiles sourced from LinkedIn</span>
+                  </>
+                )}
+                {alternativeCandidates.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{alternativeCandidates.length} more in outreach pool</span>
+                  </>
+                )}
               </div>
             </div>
-            {search.status === "done" && (
+            {isReviewable && (
               <div className="flex items-center gap-2">
+                {billing?.usage.exportEnabled && mainCandidates.some((candidate) => candidate.email) && (
+                  <>
+                    <button
+                      onClick={() => setShowOnlyWithEmail(!showOnlyWithEmail)}
+                      className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
+                    >
+                      {showOnlyWithEmail ? "Show all" : "Only with contact info"}
+                    </button>
+                    <span className="text-muted-light">·</span>
+                  </>
+                )}
+                {alternativeCandidates.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setShowAlternatives((current) => !current)}
+                      className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
+                    >
+                      {showAlternatives ? "Hide outreach pool" : "Show outreach pool"}
+                    </button>
+                    <span className="text-muted-light">·</span>
+                  </>
+                )}
                 <button
-                  onClick={() => setShowOnlyWithEmail(!showOnlyWithEmail)}
+                  onClick={() => toggleAll(visibleCandidates)}
                   className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
                 >
-                  {showOnlyWithEmail ? "Show all" : "Only with email"}
-                </button>
-                <span className="text-muted-light">·</span>
-                <button
-                  onClick={toggleAll}
-                  className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
-                >
-                  {selectedIds.size === candidates.length ? "Deselect all" : "Select all"}
+                  {visibleCandidates.length > 0 && visibleCandidates.every((candidate) => selectedIds.has(candidate.id))
+                    ? "Deselect all"
+                    : "Select all"}
                 </button>
                 {selectedIds.size > 0 && (
                   <div className="flex items-center gap-1">
@@ -991,9 +1733,7 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {candidates
-            .filter(c => !showOnlyWithEmail || c.email)
-            .map((c, idx) => (
+          {reviewCandidates.map((c, idx) => (
               <div
                 key={c.id}
                 className="animate-fade-in-up"
@@ -1002,20 +1742,60 @@ export default function SearchResultPage() {
                 <CandidateCard
                   candidate={c}
                   onStatusChange={handleStatusChange}
+                  onExpand={handleCandidateExpand}
                   requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
                   selected={selectedIds.has(c.id)}
                   onToggleSelect={() => toggleSelect(c.id)}
+                  billingPlanCode={billing?.subscription.planCode || "free"}
+                  enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
+                  refreshBilling={refreshBilling}
+                  onUpgradeClick={handleUpgradeClick}
                 />
               </div>
             ))}
+          {showAlternatives && visibleAlternativeCandidates.length > 0 && (
+            <div className="pt-2">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="font-medium">Outreach pool</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                  These candidates cleared the outreach threshold, but they rank behind the top picks above. Use this pool when you need enough volume to support real outbound conversion.
+                </p>
+              </div>
+              <div className="mt-3 space-y-3">
+                {visibleAlternativeCandidates.map((c, idx) => (
+                  <div
+                    key={c.id}
+                    className="animate-fade-in-up"
+                    style={{ animationDelay: `${(reviewCandidates.length + idx) * 100}ms` }}
+                  >
+                    <CandidateCard
+                      candidate={c}
+                      onStatusChange={handleStatusChange}
+                      onExpand={handleCandidateExpand}
+                      requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
+                      selected={selectedIds.has(c.id)}
+                      onToggleSelect={() => toggleSelect(c.id)}
+                      billingPlanCode={billing?.subscription.planCode || "free"}
+                      enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
+                      refreshBilling={refreshBilling}
+                      onUpgradeClick={handleUpgradeClick}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {search.status === "done" && candidates.length === 0 && (
+      {isReviewable && mainCandidates.length === 0 && alternativeCandidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <p className="text-muted">No candidates found for this search.</p>
+          <p className="text-muted">No candidates met the current outreach threshold yet.</p>
+          <p className="mt-2 max-w-md text-center text-sm text-muted">
+            Hirelix did not find enough candidates who satisfy the current outreach threshold for this role. Tighten the JD, relax location requirements, or widen the target profile to unlock a larger funnel.
+          </p>
           <Link
-            href={`/app/search/new?jd=${encodeURIComponent(search.jd_text)}`}
+            href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
             className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
           >
             <RotateCcw className="h-3.5 w-3.5" />

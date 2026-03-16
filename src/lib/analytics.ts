@@ -6,10 +6,6 @@ type AnalyticsValue = string | number | boolean | null | undefined;
 
 const LANDING_EXPERIMENT_STORAGE_KEY = "hirelix.landing-experiments.v1";
 
-const LANDING_HEADLINE_VARIANTS = ["speed", "results"] as const;
-const LANDING_CTA_VARIANTS = ["paste_jd", "find_candidates"] as const;
-const LANDING_PROOF_VARIANTS = ["speed_first", "credibility_first"] as const;
-
 export const ANALYTICS_EVENTS = {
   landingView: "landing_view",
   heroPrimaryCtaClick: "hero_primary_cta_click",
@@ -18,8 +14,25 @@ export const ANALYTICS_EVENTS = {
   heroJdSubmitAttempt: "hero_jd_submit_attempt",
   signinView: "signin_view",
   signupSuccess: "signup_success",
+  emailOtpRequested: "email_otp_requested",
+  emailOtpVerified: "email_otp_verified",
+  emailOtpFailed: "email_otp_failed",
+  dashboardView: "dashboard_view",
+  dashboardPrimaryContextShown: "dashboard_primary_context_shown",
+  primaryProductCtaClick: "primary_product_cta_click",
   newSearchView: "new_search_view",
+  searchConfirmationView: "search_confirmation_view",
+  searchJobEnqueued: "search_job_enqueued",
+  searchProcessingView: "search_processing_view",
+  processingReassuranceView: "processing_reassurance_view",
+  searchResultsView: "search_results_view",
+  searchDone: "search_done",
+  searchDegraded: "search_degraded",
   searchCreateSuccess: "search_create_success",
+  candidateExpand: "candidate_expand",
+  upgradeCtaClick: "upgrade_cta_click",
+  upgradeValueExposed: "upgrade_value_exposed",
+  retrySearchClick: "retry_search_click",
 } as const;
 
 export type AnalyticsEventName =
@@ -27,10 +40,11 @@ export type AnalyticsEventName =
 
 export type DeviceType = "desktop" | "mobile";
 export type IntentPath = "sample" | "direct_jd" | "signin" | "unknown";
+export type EntryMode = "landing" | "signin" | "workspace";
 
-export type LandingHeadlineVariant = (typeof LANDING_HEADLINE_VARIANTS)[number];
-export type LandingCtaVariant = (typeof LANDING_CTA_VARIANTS)[number];
-export type LandingProofVariant = (typeof LANDING_PROOF_VARIANTS)[number];
+export type LandingHeadlineVariant = "speed" | "results";
+export type LandingCtaVariant = "paste_jd" | "find_candidates";
+export type LandingProofVariant = "speed_first" | "credibility_first";
 
 export type LandingExperimentState = {
   headline: LandingHeadlineVariant;
@@ -45,6 +59,7 @@ export type AnalyticsContext = {
   utm_campaign: string;
   page_variant: string;
   intent_path: IntentPath;
+  entry_mode: EntryMode;
 };
 
 type TrackEventPayload = Record<string, AnalyticsValue>;
@@ -58,7 +73,7 @@ declare global {
 
 const DEFAULT_LANDING_EXPERIMENTS: Omit<LandingExperimentState, "pageVariant"> = {
   headline: "speed",
-  cta: "paste_jd",
+  cta: "find_candidates",
   proof: "speed_first",
 };
 
@@ -67,18 +82,7 @@ const DEFAULT_LANDING_EXPERIMENT_STATE: LandingExperimentState = {
   pageVariant: buildPageVariant(DEFAULT_LANDING_EXPERIMENTS),
 };
 
-let landingExperimentCache: LandingExperimentState | null = null;
-
-function isVariant<T extends string>(
-  value: string | null,
-  variants: readonly T[],
-): value is T {
-  return value !== null && variants.includes(value as T);
-}
-
-function chooseVariant<T extends string>(variants: readonly T[]): T {
-  return variants[Math.floor(Math.random() * variants.length)];
-}
+let landingExperimentCache: LandingExperimentState | null = DEFAULT_LANDING_EXPERIMENT_STATE;
 
 function buildPageVariant({
   headline,
@@ -86,37 +90,6 @@ function buildPageVariant({
   proof,
 }: Omit<LandingExperimentState, "pageVariant">) {
   return `headline_${headline}__cta_${cta}__proof_${proof}`;
-}
-
-function readStoredLandingExperiments():
-  | Omit<LandingExperimentState, "pageVariant">
-  | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(LANDING_EXPERIMENT_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<LandingExperimentState>;
-    const parsedHeadline = parsed.headline ?? null;
-    const parsedCta = parsed.cta ?? null;
-    const parsedProof = parsed.proof ?? null;
-
-    if (
-      isVariant(parsedHeadline, LANDING_HEADLINE_VARIANTS) &&
-      isVariant(parsedCta, LANDING_CTA_VARIANTS) &&
-      isVariant(parsedProof, LANDING_PROOF_VARIANTS)
-    ) {
-      return {
-        headline: parsedHeadline,
-        cta: parsedCta,
-        proof: parsedProof,
-      };
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
 }
 
 export function getDefaultLandingExperimentState(): LandingExperimentState {
@@ -132,46 +105,12 @@ export function getLandingExperimentStateFromBrowser(): LandingExperimentState {
     return landingExperimentCache;
   }
 
-  const params = new URLSearchParams(window.location.search);
-  const stored = readStoredLandingExperiments();
-
-  const headlineParam = params.get("exp_headline");
-  const ctaParam = params.get("exp_cta");
-  const proofParam = params.get("exp_proof");
-
-  const headline: LandingHeadlineVariant = isVariant(
-    headlineParam,
-    LANDING_HEADLINE_VARIANTS,
-  )
-    ? headlineParam
-    : stored?.headline ?? chooseVariant(LANDING_HEADLINE_VARIANTS);
-
-  const cta: LandingCtaVariant = isVariant(ctaParam, LANDING_CTA_VARIANTS)
-    ? ctaParam
-    : stored?.cta ?? chooseVariant(LANDING_CTA_VARIANTS);
-
-  const proof: LandingProofVariant = isVariant(
-    proofParam,
-    LANDING_PROOF_VARIANTS,
-  )
-    ? proofParam
-    : stored?.proof ?? chooseVariant(LANDING_PROOF_VARIANTS);
-
-  const experimentState: Omit<LandingExperimentState, "pageVariant"> = {
-    headline,
-    cta,
-    proof,
-  };
-
   window.localStorage.setItem(
     LANDING_EXPERIMENT_STORAGE_KEY,
-    JSON.stringify(experimentState),
+    JSON.stringify(DEFAULT_LANDING_EXPERIMENTS),
   );
 
-  landingExperimentCache = {
-    ...experimentState,
-    pageVariant: buildPageVariant(experimentState),
-  };
+  landingExperimentCache = DEFAULT_LANDING_EXPERIMENT_STATE;
 
   return landingExperimentCache;
 }
@@ -187,6 +126,14 @@ function normalizeIntentPath(value: string | null): IntentPath {
   }
 
   return "unknown";
+}
+
+function normalizeEntryMode(value: string | null): EntryMode {
+  if (value === "landing" || value === "signin") {
+    return value;
+  }
+
+  return "workspace";
 }
 
 function detectTrafficSource(params: SearchParamsLike, referrer = "") {
@@ -230,6 +177,8 @@ export function getAnalyticsContextFromParams(
       overrides.page_variant ?? params.get("page_variant") ?? "unassigned",
     intent_path:
       overrides.intent_path ?? normalizeIntentPath(params.get("intent_path")),
+    entry_mode:
+      overrides.entry_mode ?? normalizeEntryMode(params.get("entry")),
   };
 }
 
@@ -243,6 +192,7 @@ export function getAnalyticsContextFromBrowser(
       utm_campaign: "none",
       page_variant: overrides.page_variant ?? "unassigned",
       intent_path: overrides.intent_path ?? "unknown",
+      entry_mode: overrides.entry_mode ?? "workspace",
     };
   }
 
@@ -258,6 +208,7 @@ export function buildAttributionQuery(options: {
   pageVariant: string;
   trafficSource: string;
   utmCampaign: string;
+  entryMode?: EntryMode;
   extra?: Record<string, string | number>;
 }) {
   const params = new URLSearchParams();
@@ -265,6 +216,7 @@ export function buildAttributionQuery(options: {
   params.set("page_variant", options.pageVariant);
   params.set("traffic_source", options.trafficSource);
   params.set("utm_campaign", options.utmCampaign);
+  params.set("entry", options.entryMode ?? "workspace");
 
   for (const [key, value] of Object.entries(options.extra ?? {})) {
     params.set(key, String(value));
