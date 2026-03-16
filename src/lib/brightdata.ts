@@ -479,7 +479,7 @@ export async function scrapeLinkedInProfiles(
   const batchSize = Math.max(1, options.batchSize ?? linkedinUrls.length);
   const concurrency = Math.max(1, options.concurrency ?? 1);
   const maxAttempts = options.maxAttempts ?? 12;
-  const intervalMs = options.intervalMs ?? 20000;
+  const intervalMs = options.intervalMs ?? 10000;
   const allowPartial = options.allowPartial ?? false;
 
   if (batchSize >= linkedinUrls.length && concurrency === 1) {
