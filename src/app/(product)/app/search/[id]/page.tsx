@@ -149,6 +149,24 @@ type SearchDisplayStats = {
   qualified_count?: number;
   outreach_pool_count?: number;
   shortlist_count?: number;
+  source_rule_pass_rate?: number;
+  llm_prescreen_pass_rate?: number;
+  brightdata_scrape_count?: number;
+  deep_qualified_rate?: number;
+  serper_query_tier_stats?: Array<{
+    tier: "P0" | "P1" | "P2";
+    query_count: number;
+    request_count: number;
+    raw_result_count: number;
+    unique_count: number;
+    new_unique_count: number;
+    duplicate_ratio: number;
+    source_rule_pass_count: number;
+    source_rule_pass_rate: number;
+    llm_prescreen_pass_count: number;
+    llm_prescreen_pass_rate: number;
+    stop_reason: string | null;
+  }>;
 };
 
 const avatarColors = [

@@ -13,6 +13,7 @@ import {
   parseSearchResults,
   serperCandidateToRichProfile,
   serperCandidateToDbCandidate,
+  type LinkedInQueryTier,
   type SerperCandidate,
 } from "@/lib/serper";
 import {
@@ -44,6 +45,19 @@ function getConfiguredPositiveInt(
   const safeValue = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   const min = options.min ?? 1;
   const max = options.max ?? Number.MAX_SAFE_INTEGER;
+  return Math.min(Math.max(safeValue, min), max);
+}
+
+function getConfiguredNumber(
+  envName: string,
+  fallback: number,
+  options: { min?: number; max?: number } = {},
+) {
+  const raw = process.env[envName];
+  const parsed = raw ? Number.parseFloat(raw) : Number.NaN;
+  const safeValue = Number.isFinite(parsed) ? parsed : fallback;
+  const min = options.min ?? Number.NEGATIVE_INFINITY;
+  const max = options.max ?? Number.POSITIVE_INFINITY;
   return Math.min(Math.max(safeValue, min), max);
 }
 
@@ -151,6 +165,21 @@ const PRE_SCREEN_PASS_SCORE = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_PASS_SCORE",
   60,
   { min: 1, max: 100 },
+);
+const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
+  "SEARCH_SOURCE_RULE_PASS_SCORE",
+  60,
+  { min: 1, max: 100 },
+);
+const TARGET_SCRAPE_COUNT = getConfiguredPositiveInt(
+  "SEARCH_TARGET_SCRAPE_COUNT",
+  120,
+  { min: 1, max: 1000 },
+);
+const STOP_MIN_GAIN_RATIO = getConfiguredNumber(
+  "SEARCH_STOP_MIN_GAIN_RATIO",
+  0.08,
+  { min: 0, max: 1 },
 );
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
   "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
@@ -318,6 +347,39 @@ type SerperPreScreenedCandidate = {
   preScreen: SerperPreScreenDecision;
 };
 
+type SerperSourceRuleDecision = {
+  score: number;
+  hard_reject: boolean;
+  reasons: string[];
+  title_hit: boolean;
+  must_have_hits: number;
+  must_have_total: number;
+  location_hit: boolean | null;
+  noise_penalty: number;
+};
+
+type SerperTierStats = {
+  tier: LinkedInQueryTier;
+  query_count: number;
+  request_count: number;
+  raw_result_count: number;
+  unique_count: number;
+  new_unique_count: number;
+  duplicate_ratio: number;
+  source_rule_pass_count: number;
+  source_rule_pass_rate: number;
+  llm_prescreen_pass_count: number;
+  llm_prescreen_pass_rate: number;
+  stop_reason: string | null;
+};
+
+type SerperSourceRuleContext = {
+  titleTerms: string[];
+  mustHaveTerms: string[];
+  strictLocation: boolean;
+  locationTerms: string[];
+};
+
 type ScoredCandidateAssessment = {
   index: number;
   suitability: CandidateSuitability;
@@ -366,12 +428,27 @@ type SearchDisplayStats = {
   qualified_count: number;
   outreach_pool_count: number;
   shortlist_count: number;
+  serper_query_tier_stats?: SerperTierStats[];
+  source_rule_pass_rate?: number;
+  llm_prescreen_pass_rate?: number;
+  brightdata_scrape_count?: number;
+  deep_qualified_rate?: number;
 };
 
 type SearchPipelineResult = {
   finalRows: CandidateRowInput[];
   displayStats: SearchDisplayStats;
   warningMessage?: string | null;
+};
+
+type SerperBuildResult = {
+  preScreened: SerperPreScreenedCandidate[];
+  fallbackRows: CandidateRowInput[];
+  retrievalCount: number;
+  tierStats: SerperTierStats[];
+  sourceRulePassRate: number;
+  llmPreScreenPassRate: number;
+  stopReason: string | null;
 };
 
 type RecallMetadata = {
@@ -484,6 +561,50 @@ function normalizeCountryCode(value: unknown): string | null {
   return /^[A-Z]{2}$/.test(trimmed) ? trimmed : null;
 }
 
+function splitSkillTerms(rawSkills: string[]): string[] {
+  const terms: string[] = [];
+  for (const raw of rawSkills) {
+    const base = raw.trim();
+    if (!base) continue;
+    const parts = base
+      .split(/[\/,;]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 1);
+    terms.push(...parts);
+  }
+  return Array.from(new Set(terms));
+}
+
+function normalizeText(value: string | null | undefined) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^\w\s./-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function deriveLocationTerms(locationScope: string | null): string[] {
+  if (!locationScope) return [];
+  const normalized = normalizeText(locationScope).replace(/\b(remote|hybrid|onsite|on site)\b/g, "").trim();
+  if (!normalized) return [];
+
+  const terms = new Set<string>();
+  terms.add(normalized);
+
+  const commaParts = normalized.split(",").map((part) => part.trim()).filter(Boolean);
+  if (commaParts[0]) terms.add(commaParts[0]);
+  if (commaParts.length > 1) terms.add(commaParts.slice(-1)[0]);
+
+  if (/new york/.test(normalized)) terms.add("new york");
+  if (/san francisco/.test(normalized)) terms.add("san francisco");
+  if (/los angeles/.test(normalized)) terms.add("los angeles");
+
+  return Array.from(terms)
+    .map((term) => term.replace(/\s+/g, " ").trim())
+    .filter((term) => term.length >= 3)
+    .slice(0, 5);
+}
+
 function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec {
   const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const countries = Array.isArray(item.countries)
@@ -544,6 +665,31 @@ function buildSearchDisplayStats(
     qualified_count: Math.max(0, Math.round(overrides.qualified_count ?? 0)),
     outreach_pool_count: Math.max(0, Math.round(overrides.outreach_pool_count ?? 0)),
     shortlist_count: Math.max(0, Math.round(overrides.shortlist_count ?? 0)),
+    ...(Array.isArray(overrides.serper_query_tier_stats)
+      ? { serper_query_tier_stats: overrides.serper_query_tier_stats }
+      : {}),
+    ...(typeof overrides.source_rule_pass_rate === "number"
+      ? {
+        source_rule_pass_rate: Math.max(
+          0,
+          Math.min(1, overrides.source_rule_pass_rate),
+        ),
+      }
+      : {}),
+    ...(typeof overrides.llm_prescreen_pass_rate === "number"
+      ? {
+        llm_prescreen_pass_rate: Math.max(
+          0,
+          Math.min(1, overrides.llm_prescreen_pass_rate),
+        ),
+      }
+      : {}),
+    ...(typeof overrides.brightdata_scrape_count === "number"
+      ? { brightdata_scrape_count: Math.max(0, Math.round(overrides.brightdata_scrape_count)) }
+      : {}),
+    ...(typeof overrides.deep_qualified_rate === "number"
+      ? { deep_qualified_rate: Math.max(0, Math.min(1, overrides.deep_qualified_rate)) }
+      : {}),
   };
 }
 
@@ -1001,7 +1147,7 @@ function getHaikuModel() {
     return (
       process.env.SEARCH_LIGHT_MODEL ||
       process.env.OPENROUTER_HAIKU_MODEL ||
-      "anthropic/claude-haiku-4.5"
+      "claude-haiku-4-5-20251001"
     );
   }
   return (
@@ -2304,6 +2450,162 @@ async function parseJobDescription(
   return parsed;
 }
 
+const SOURCE_RULE_NOISE_TERMS = [
+  "account executive",
+  "sales manager",
+  "business development",
+  "recruiter",
+  "talent acquisition",
+  "human resources",
+  "customer success",
+  "marketing manager",
+  "graphic designer",
+  "loan officer",
+  "real estate agent",
+  "insurance agent",
+];
+
+const SOURCE_RULE_ENGINEERING_TERMS = [
+  "software engineer",
+  "backend engineer",
+  "full stack",
+  "full-stack",
+  "frontend engineer",
+  "platform engineer",
+  "machine learning engineer",
+  "data engineer",
+  "sre",
+  "devops",
+];
+
+function buildSerperSourceRuleContext(parsed: Record<string, unknown>): SerperSourceRuleContext {
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, Number(parsed.candidate_count) || 5);
+
+  const titleTerms = Array.from(
+    new Set(
+      [
+        normalizeNullableString(parsed.title),
+        hiringBrief.role_core.title,
+        ...recallSpec.title_variants,
+      ]
+        .map((value) => normalizeText(value))
+        .filter(Boolean),
+    ),
+  ).slice(0, 8);
+
+  const mustHaveTerms = splitSkillTerms(
+    [
+      ...hiringBrief.role_core.required_skills,
+      ...normalizeStringArray(parsed.required_skills, 12),
+      ...recallSpec.core_skill_terms,
+    ].slice(0, 16),
+  )
+    .map((term) => normalizeText(term))
+    .filter(Boolean)
+    .slice(0, 12);
+
+  const strictLocation =
+    (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
+    hiringBrief.location_flexibility === "strict";
+  const locationTerms = deriveLocationTerms(
+    hiringBrief.location_scope || normalizeNullableString(parsed.location),
+  );
+
+  return {
+    titleTerms,
+    mustHaveTerms,
+    strictLocation,
+    locationTerms,
+  };
+}
+
+function evaluateSerperSourceRules(
+  candidate: SerperCandidate,
+  context: SerperSourceRuleContext,
+): SerperSourceRuleDecision {
+  const candidateText = normalizeText(
+    [candidate.name, candidate.headline, candidate.snippet, candidate.linkedin_url]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  const title_hit = context.titleTerms.some((term) => candidateText.includes(term));
+  const mustHaveHits = context.mustHaveTerms.filter((term) => candidateText.includes(term)).length;
+  const mustHaveTotal = context.mustHaveTerms.length;
+  const location_hit =
+    context.locationTerms.length > 0
+      ? context.locationTerms.some((term) => candidateText.includes(term))
+      : null;
+  const engineeringSignal = SOURCE_RULE_ENGINEERING_TERMS.some((term) =>
+    candidateText.includes(term),
+  );
+  const noiseHits = SOURCE_RULE_NOISE_TERMS.filter((term) => candidateText.includes(term));
+  const noise_penalty = Math.min(36, noiseHits.length * 12);
+
+  let score = 0;
+  const reasons: string[] = [];
+
+  if (title_hit) {
+    score += 40;
+  } else {
+    const partialTitleHit = context.titleTerms.some((term) =>
+      term
+        .split(" ")
+        .filter((piece) => piece.length > 2)
+        .every((piece) => candidateText.includes(piece)),
+    );
+    if (partialTitleHit) score += 24;
+    else reasons.push("title_miss");
+  }
+
+  if (mustHaveTotal > 0) {
+    score += Math.round((mustHaveHits / mustHaveTotal) * 35);
+    if (mustHaveHits === 0) reasons.push("must_have_miss");
+  } else {
+    score += 20;
+  }
+
+  if (location_hit === true) {
+    score += context.strictLocation ? 20 : 12;
+  } else if (location_hit === false) {
+    if (context.strictLocation) reasons.push("strict_location_miss");
+  } else {
+    score += 6;
+  }
+
+  if (engineeringSignal) score += 8;
+  if (noise_penalty > 0) {
+    score -= noise_penalty;
+    reasons.push("noise_penalty");
+  }
+
+  const hard_reject = context.strictLocation && location_hit === false;
+  const clampedScore = Math.max(0, Math.min(100, Math.round(score)));
+
+  return {
+    score: hard_reject ? Math.min(clampedScore, SOURCE_RULE_PASS_SCORE - 1) : clampedScore,
+    hard_reject,
+    reasons,
+    title_hit,
+    must_have_hits: mustHaveHits,
+    must_have_total: mustHaveTotal,
+    location_hit,
+    noise_penalty,
+  };
+}
+
+function shouldStopSerperTierExpansion(
+  lightPassCount: number,
+  newUniqueCount: number,
+  currentUniqueCount: number,
+) {
+  if (lightPassCount < TARGET_SCRAPE_COUNT) return false;
+  const gainRatio =
+    currentUniqueCount <= 0 ? 0 : newUniqueCount / currentUniqueCount;
+  return gainRatio < STOP_MIN_GAIN_RATIO;
+}
+
 
 async function preScreenSerperCandidate(
   aiClient: ReturnType<typeof createAIClient>,
@@ -2338,9 +2640,9 @@ async function preScreenSerperCandidate(
   return {
     serperCandidate: candidate,
     preScreen: {
-      keep: true,
-      match_score: 50,
-      reason: "Possible fit based on LinkedIn headline and snippet.",
+      keep: false,
+      match_score: 0,
+      reason: "LLM prescreen failed; candidate held for manual fallback only.",
     },
   };
 }
@@ -2359,8 +2661,7 @@ async function preScreenAllCandidates(
     async (candidate) => preScreenSerperCandidate(aiClient, parsed, jdText, candidate),
   );
 
-  const kept = preScreened.filter((candidate) => candidate.preScreen.keep);
-  return (kept.length > 0 ? kept : preScreened).sort(
+  return preScreened.sort(
     (a, b) => b.preScreen.match_score - a.preScreen.match_score,
   );
 }
@@ -2515,7 +2816,7 @@ async function buildBrightDataDatasetCandidates(
 async function buildSerperCandidates(
   context: PipelineContext,
   parsed: Record<string, unknown>,
-) {
+): Promise<SerperBuildResult | null> {
   const serperApiKey = process.env.SERPER_API_KEY;
   if (!serperApiKey) {
     return null;
@@ -2524,76 +2825,207 @@ async function buildSerperCandidates(
   const aiClient = createAIClient();
   await setSearchStatus(context.searchId, "searching");
   const searchPlan = buildLinkedInSearchPlan(parsed);
-  const queryTasks: Array<{ query: string; page: number }> = [];
-  for (const query of searchPlan.queries) {
-    for (let page = 1; page <= SERPER_PAGES_PER_QUERY; page++) {
-      queryTasks.push({ query, page });
-    }
-  }
-  const serperStageConcurrency = Math.min(SERPER_QUERY_CONCURRENCY, queryTasks.length);
+  const sourceRuleContext = buildSerperSourceRuleContext(parsed);
+  const tierPlans =
+    searchPlan.tiers.length > 0
+      ? searchPlan.tiers
+      : [{ tier: "P0" as const, queries: searchPlan.queries }];
 
   logSearchEvent("search_step_started", {
     search_id: context.searchId,
     step: "searching",
     provider: "serper",
-    query_concurrency: serperStageConcurrency,
+    query_tier_count: tierPlans.length,
+    query_concurrency: SERPER_QUERY_CONCURRENCY,
     query_count: searchPlan.queries.length,
     pages_per_query: SERPER_PAGES_PER_QUERY,
     results_per_page: SERPER_RESULTS_PER_PAGE,
+    source_rule_pass_score: SOURCE_RULE_PASS_SCORE,
+    target_scrape_count: TARGET_SCRAPE_COUNT,
+    stop_min_gain_ratio: STOP_MIN_GAIN_RATIO,
     job_id: context.jobId,
   });
 
-  const searchResults = await runWithConcurrency(
-    queryTasks,
-    serperStageConcurrency,
-    async ({ query, page }) => {
-      const maxAttempts = 3;
-      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        try {
-          const results = await withTimeout(
-            serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
-            25000,
-            `Serper query "${query}" page ${page}`,
-          );
-          return parseSearchResults(results);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          const retryable =
-            attempt < maxAttempts &&
-            (
-              message.includes("fetch failed") ||
-              message.includes("timed out") ||
-              message.includes("429")
-            );
-          logSearchEvent("search_serper_query_attempt_failed", {
-            search_id: context.searchId,
-            query,
-            page,
-            attempt,
-            retryable,
-            error: message,
-            job_id: context.jobId,
-          });
-          if (!retryable) break;
-          await sleep(Math.min(4000, 400 * 2 ** (attempt - 1)));
-        }
-      }
-
-      logSearchEvent("search_serper_query_skipped", {
-        search_id: context.searchId,
-        query,
-        page,
-        job_id: context.jobId,
-      });
-      return [] as SerperCandidate[];
-    },
-  );
-
   const deduped = new Map<string, SerperCandidate>();
-  for (const batch of searchResults) {
-    for (const candidate of batch) {
-      const key = candidate.linkedin_url.toLowerCase();
-      if (!deduped.has(key)) deduped.set(key, candidate);
+  const preScreenedByUrl = new Map<string, SerperPreScreenedCandidate>();
+  const sourceRuleFallbackByUrl = new Map<
+    string,
+    {
+      candidate: SerperCandidate;
+      sourceRule: SerperSourceRuleDecision;
+    }
+  >();
+  const tierStats: SerperTierStats[] = [];
+
+  let sourceRuleEvaluatedCount = 0;
+  let sourceRulePassCount = 0;
+  let llmPrescreenEvaluatedCount = 0;
+  let llmPrescreenPassCount = 0;
+  let stopReason: string | null = null;
+
+  for (const tierPlan of tierPlans) {
+    const queryTasks: Array<{ query: string; page: number }> = [];
+    for (const query of tierPlan.queries) {
+      for (let page = 1; page <= SERPER_PAGES_PER_QUERY; page++) {
+        queryTasks.push({ query, page });
+      }
+    }
+    if (queryTasks.length === 0) continue;
+
+    const tierConcurrency = Math.min(SERPER_QUERY_CONCURRENCY, queryTasks.length);
+    const searchResults = await runWithConcurrency(
+      queryTasks,
+      tierConcurrency,
+      async ({ query, page }) => {
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            const results = await withTimeout(
+              serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
+              25000,
+              `Serper query "${query}" page ${page}`,
+            );
+            return parseSearchResults(results);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const retryable =
+              attempt < maxAttempts &&
+              (
+                message.includes("fetch failed") ||
+                message.includes("timed out") ||
+                message.includes("429")
+              );
+            logSearchEvent("search_serper_query_attempt_failed", {
+              search_id: context.searchId,
+              tier: tierPlan.tier,
+              query,
+              page,
+              attempt,
+              retryable,
+              error: message,
+              job_id: context.jobId,
+            });
+            if (!retryable) break;
+            await sleep(Math.min(4000, 400 * 2 ** (attempt - 1)));
+          }
+        }
+
+        logSearchEvent("search_serper_query_skipped", {
+          search_id: context.searchId,
+          tier: tierPlan.tier,
+          query,
+          page,
+          job_id: context.jobId,
+        });
+        return [] as SerperCandidate[];
+      },
+    );
+
+    let rawResultCount = 0;
+    let duplicateCount = 0;
+    const newTierCandidates: SerperCandidate[] = [];
+
+    for (const batch of searchResults) {
+      rawResultCount += batch.length;
+      for (const candidate of batch) {
+        const key = candidate.linkedin_url.toLowerCase();
+        if (deduped.has(key)) {
+          duplicateCount += 1;
+          continue;
+        }
+        deduped.set(key, candidate);
+        newTierCandidates.push(candidate);
+      }
+    }
+
+    const sourceRuleEvaluations = newTierCandidates.map((candidate) => ({
+      candidate,
+      sourceRule: evaluateSerperSourceRules(candidate, sourceRuleContext),
+    }));
+    sourceRuleEvaluatedCount += sourceRuleEvaluations.length;
+
+    const sourceRulePassed = sourceRuleEvaluations.filter(
+      ({ sourceRule }) =>
+        !sourceRule.hard_reject &&
+        sourceRule.score >= SOURCE_RULE_PASS_SCORE,
+    );
+    sourceRulePassCount += sourceRulePassed.length;
+
+    for (const item of sourceRulePassed) {
+      sourceRuleFallbackByUrl.set(item.candidate.linkedin_url.toLowerCase(), item);
+    }
+
+    const tierPreScreened = await preScreenAllCandidates(
+      aiClient,
+      parsed,
+      context.jdText,
+      sourceRulePassed.map((item) => item.candidate),
+    );
+    llmPrescreenEvaluatedCount += tierPreScreened.length;
+
+    const tierLlmPass = tierPreScreened.filter(
+      (item) =>
+        item.preScreen.keep &&
+        item.preScreen.match_score >= PRE_SCREEN_PASS_SCORE,
+    );
+    llmPrescreenPassCount += tierLlmPass.length;
+
+    for (const item of tierPreScreened) {
+      const key = item.serperCandidate.linkedin_url.toLowerCase();
+      const existing = preScreenedByUrl.get(key);
+      if (!existing || item.preScreen.match_score > existing.preScreen.match_score) {
+        preScreenedByUrl.set(key, item);
+      }
+    }
+
+    const tierStopReason = shouldStopSerperTierExpansion(
+      llmPrescreenPassCount,
+      newTierCandidates.length,
+      deduped.size,
+    )
+      ? `dual_threshold_reached(light_pass_count=${llmPrescreenPassCount}, gain_ratio=${deduped.size <= 0 ? 0 : (newTierCandidates.length / deduped.size).toFixed(4)})`
+      : null;
+
+    const tierStat: SerperTierStats = {
+      tier: tierPlan.tier,
+      query_count: tierPlan.queries.length,
+      request_count: queryTasks.length,
+      raw_result_count: rawResultCount,
+      unique_count: deduped.size,
+      new_unique_count: newTierCandidates.length,
+      duplicate_ratio: rawResultCount > 0 ? duplicateCount / rawResultCount : 0,
+      source_rule_pass_count: sourceRulePassed.length,
+      source_rule_pass_rate:
+        sourceRuleEvaluations.length > 0
+          ? sourceRulePassed.length / sourceRuleEvaluations.length
+          : 0,
+      llm_prescreen_pass_count: tierLlmPass.length,
+      llm_prescreen_pass_rate:
+        tierPreScreened.length > 0 ? tierLlmPass.length / tierPreScreened.length : 0,
+      stop_reason: tierStopReason,
+    };
+    tierStats.push(tierStat);
+
+    logSearchEvent("search_step_completed", {
+      search_id: context.searchId,
+      step: "searching",
+      provider: "serper",
+      tier: tierPlan.tier,
+      query_count: tierPlan.queries.length,
+      request_count: queryTasks.length,
+      new_unique_count: tierStat.new_unique_count,
+      source_rule_pass_count: tierStat.source_rule_pass_count,
+      duplicate_ratio: Number(tierStat.duplicate_ratio.toFixed(4)),
+      llm_prescreen_pass_count: tierStat.llm_prescreen_pass_count,
+      stop_reason: tierStopReason,
+      cumulative_unique_count: deduped.size,
+      cumulative_light_pass_count: llmPrescreenPassCount,
+      job_id: context.jobId,
+    });
+
+    if (tierStopReason) {
+      stopReason = tierStopReason;
+      break;
     }
   }
 
@@ -2610,23 +3042,38 @@ async function buildSerperCandidates(
   }
 
   await setSearchStatus(context.searchId, "screening");
+  const sourceRulePassRate =
+    sourceRuleEvaluatedCount > 0 ? sourceRulePassCount / sourceRuleEvaluatedCount : 0;
+  const llmPreScreenPassRate =
+    llmPrescreenEvaluatedCount > 0 ? llmPrescreenPassCount / llmPrescreenEvaluatedCount : 0;
   logSearchEvent("search_step_completed", {
     search_id: context.searchId,
     step: "searching",
     provider: "serper",
     result_count: allCandidates.length,
+    tier_count: tierStats.length,
+    serper_query_tier_stats: tierStats,
+    source_rule_pass_rate: Number(sourceRulePassRate.toFixed(4)),
+    llm_prescreen_pass_rate: Number(llmPreScreenPassRate.toFixed(4)),
+    stop_reason: stopReason,
     query_count: searchPlan.queries.length,
     job_id: context.jobId,
   });
 
-  const preScreened = await preScreenAllCandidates(
-    aiClient,
-    parsed,
-    context.jdText,
-    allCandidates,
+  const preScreened = Array.from(preScreenedByUrl.values()).sort(
+    (a, b) => b.preScreen.match_score - a.preScreen.match_score,
   );
-
-  if (!preScreened.length) {
+  const sourceRuleFallback = Array.from(sourceRuleFallbackByUrl.values())
+    .sort((left, right) => right.sourceRule.score - left.sourceRule.score)
+    .map((item) => ({
+      serperCandidate: item.candidate,
+      preScreen: {
+        keep: true,
+        match_score: item.sourceRule.score,
+        reason: `Source rule pass (${item.sourceRule.score})`,
+      },
+    }));
+  if (!preScreened.length && sourceRuleFallback.length === 0) {
     return null;
   }
 
@@ -2635,22 +3082,33 @@ async function buildSerperCandidates(
       candidate.preScreen.keep &&
       candidate.preScreen.match_score >= PRE_SCREEN_PASS_SCORE,
   );
+  const preScreenKeptCount = preScreened.filter((candidate) => candidate.preScreen.keep).length;
   const scrapeCandidates = lightPassed.slice(
     0,
     Math.min(lightPassed.length, PRE_SCREEN_TARGET),
   );
-  const fallbackSeed = lightPassed.length > 0 ? lightPassed : preScreened;
+  const fallbackSeed =
+    lightPassed.length > 0
+      ? lightPassed
+      : (preScreened.length > 0 ? preScreened : sourceRuleFallback);
   const fallbackRows = buildSerperCandidateRows(fallbackSeed, context.candidateCount);
 
   logSearchEvent("search_step_completed", {
     search_id: context.searchId,
     step: "screening",
     provider: "serper",
+    tier: tierStats.length > 0 ? tierStats[tierStats.length - 1]?.tier : "P0",
     retrieval_count: allCandidates.length,
-    pre_screen_kept_count: preScreened.length,
+    source_rule_pass_count: sourceRulePassCount,
+    source_rule_pass_rate: Number(sourceRulePassRate.toFixed(4)),
+    pre_screen_evaluated_count: preScreened.length,
+    pre_screen_kept_count: preScreenKeptCount,
+    llm_prescreen_pass_rate: Number(llmPreScreenPassRate.toFixed(4)),
     light_pass_count: lightPassed.length,
+    target_scrape_count: TARGET_SCRAPE_COUNT,
     scrape_count: scrapeCandidates.length,
     pass_score_threshold: PRE_SCREEN_PASS_SCORE,
+    stop_reason: stopReason,
     job_id: context.jobId,
   });
 
@@ -2658,6 +3116,10 @@ async function buildSerperCandidates(
     preScreened: scrapeCandidates,
     fallbackRows,
     retrievalCount: allCandidates.length,
+    tierStats,
+    sourceRulePassRate,
+    llmPreScreenPassRate,
+    stopReason,
   };
 }
 
@@ -3137,6 +3599,9 @@ async function scoreBrightDataProfiles(
       qualified_count: qualifiedRowCount,
       outreach_pool_count: finalRows.length,
       shortlist_count: finalRows.length,
+      brightdata_scrape_count: brightProfiles.length,
+      deep_qualified_rate:
+        allAssessments.length > 0 ? qualifiedRowCount / allAssessments.length : 0,
     }),
   };
 }
@@ -3155,6 +3620,10 @@ async function refineSerperCandidates(
   preScreened: SerperPreScreenedCandidate[],
   fallbackRows: CandidateRowInput[],
   retrievalCount: number,
+  serperStats: Pick<
+    SerperBuildResult,
+    "tierStats" | "sourceRulePassRate" | "llmPreScreenPassRate"
+  >,
 ) {
   const brightDataToken = process.env.BRIGHTDATA_API_TOKEN;
   const brightDataDatasetId = process.env.BRIGHTDATA_DATASET_ID;
@@ -3169,6 +3638,11 @@ async function refineSerperCandidates(
         qualified_count: fallbackRows.length,
         outreach_pool_count: fallbackRows.length,
         shortlist_count: fallbackRows.length,
+        serper_query_tier_stats: serperStats.tierStats,
+        source_rule_pass_rate: serperStats.sourceRulePassRate,
+        llm_prescreen_pass_rate: serperStats.llmPreScreenPassRate,
+        brightdata_scrape_count: 0,
+        deep_qualified_rate: 0,
       }),
     };
   }
@@ -3365,6 +3839,12 @@ async function refineSerperCandidates(
         qualified_count: finalRows.length,
         outreach_pool_count: finalRows.length,
         shortlist_count: finalRows.length,
+        serper_query_tier_stats: serperStats.tierStats,
+        source_rule_pass_rate: serperStats.sourceRulePassRate,
+        llm_prescreen_pass_rate: serperStats.llmPreScreenPassRate,
+        brightdata_scrape_count: totalScraped,
+        deep_qualified_rate:
+          deepCompletedCount > 0 ? finalRows.length / deepCompletedCount : 0,
       }),
     };
 
@@ -3398,6 +3878,11 @@ async function refineSerperCandidates(
         qualified_count: fallbackRows.length,
         outreach_pool_count: fallbackRows.length,
         shortlist_count: fallbackRows.length,
+        serper_query_tier_stats: serperStats.tierStats,
+        source_rule_pass_rate: serperStats.sourceRulePassRate,
+        llm_prescreen_pass_rate: serperStats.llmPreScreenPassRate,
+        brightdata_scrape_count: 0,
+        deep_qualified_rate: 0,
       }),
     };
   }
@@ -3553,6 +4038,11 @@ async function runSearchPipeline(job: SearchJobRow) {
         qualified_count: serperResult.fallbackRows.length,
         outreach_pool_count: serperResult.fallbackRows.length,
         shortlist_count: serperResult.fallbackRows.length,
+        serper_query_tier_stats: serperResult.tierStats,
+        source_rule_pass_rate: serperResult.sourceRulePassRate,
+        llm_prescreen_pass_rate: serperResult.llmPreScreenPassRate,
+        brightdata_scrape_count: 0,
+        deep_qualified_rate: 0,
       }),
       `No candidates reached deep-review threshold (light score >= ${PRE_SCREEN_PASS_SCORE}). Returned top light-screened candidates only.`,
     );
@@ -3565,6 +4055,11 @@ async function runSearchPipeline(job: SearchJobRow) {
     serperResult.preScreened,
     serperResult.fallbackRows,
     serperResult.retrievalCount,
+    {
+      tierStats: serperResult.tierStats,
+      sourceRulePassRate: serperResult.sourceRulePassRate,
+      llmPreScreenPassRate: serperResult.llmPreScreenPassRate,
+    },
   );
   await completeSearch(
     context,

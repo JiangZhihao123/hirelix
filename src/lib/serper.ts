@@ -47,8 +47,16 @@ export type SerperCandidate = {
   snippet: string;
 };
 
+export type LinkedInQueryTier = "P0" | "P1" | "P2";
+
+export type LinkedInSearchPlanTier = {
+  tier: LinkedInQueryTier;
+  queries: string[];
+};
+
 export type LinkedInSearchPlan = {
   queries: string[];
+  tiers: LinkedInSearchPlanTier[];
 };
 
 // ──────────────────── Google Search via Serper ────────────────────
@@ -187,9 +195,33 @@ function deriveTitleVariants(title?: string, functionFocus?: string | null) {
   return Array.from(variants).filter(Boolean).slice(0, 4);
 }
 
+function quoteTerm(term: string) {
+  return term.includes(" ") ? `"${term}"` : term;
+}
+
+function addQuery(
+  target: Set<string>,
+  parts: Array<string | null | undefined>,
+) {
+  const normalized = parts
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter(Boolean);
+  if (!normalized.length) return;
+  if (normalized.length === 1 && normalized[0] === "site:linkedin.com/in") return;
+  target.add(normalized.join(" "));
+}
+
+function pickSkill(skills: string[], index: number) {
+  const skill = skills[index];
+  if (!skill) return null;
+  return quoteTerm(skill);
+}
+
 /**
- * Build a broad, redundant query set to retrieve a large unique LinkedIn pool.
- * All queries go into a single pool — breadth matters more than precision here.
+ * Build a quality-first, tiered query plan:
+ * - P0: high precision
+ * - P1: balanced recall
+ * - P2: exploratory expansion
  */
 export function buildLinkedInSearchPlan(parsed: {
   title?: string;
@@ -217,14 +249,23 @@ export function buildLinkedInSearchPlan(parsed: {
   if (providedQueries.length > 0) {
     return {
       queries: providedQueries,
+      tiers: [
+        {
+          tier: "P0",
+          queries: providedQueries,
+        },
+      ],
     };
   }
 
-  const allQueries: string[] = [];
+  const p0Queries = new Set<string>();
+  const p1Queries = new Set<string>();
+  const p2Queries = new Set<string>();
+
   const recallSkills = Array.isArray(parsed.recall_spec?.core_skill_terms)
     ? parsed.recall_spec?.core_skill_terms.filter((value): value is string => typeof value === "string")
     : [];
-  const skills = splitSkills(
+  const mustSkills = splitSkills(
     ((parsed.required_skills && parsed.required_skills.length > 0
       ? parsed.required_skills
       : recallSkills) || []).slice(0, 8),
@@ -233,10 +274,18 @@ export function buildLinkedInSearchPlan(parsed: {
   const recallTitleVariants = Array.isArray(parsed.recall_spec?.title_variants)
     ? parsed.recall_spec?.title_variants.filter((value): value is string => typeof value === "string")
     : [];
-  const titleVariants = deriveTitleVariants(
-    recallTitleVariants[0] || parsed.title,
+  const generatedTitleVariants = deriveTitleVariants(
+    parsed.title,
     parsed.hiring_brief?.role_core?.function_focus ?? null,
   );
+  const titleVariants = Array.from(
+    new Set(
+      [...recallTitleVariants, ...generatedTitleVariants]
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 5);
+
   const locationScope =
     parsed.hiring_brief?.location_scope ||
     parsed.location ||
@@ -246,243 +295,126 @@ export function buildLinkedInSearchPlan(parsed: {
   const loc = locationVariants[0] || "";
   const workModel = (parsed.hiring_brief?.work_model || "").toLowerCase();
   const locationFlexibility = (parsed.hiring_brief?.location_flexibility || "").toLowerCase();
-  const isRemoteFriendly = workModel === "remote";
-  const useLocation = !isRemoteFriendly && loc.length > 2;
+  const strictLocationConstraint =
+    (workModel === "onsite" || workModel === "hybrid") &&
+    locationFlexibility === "strict";
+  const strictLocationTerm = strictLocationConstraint && loc.length > 2 ? `"${loc}"` : null;
+  const normalizedRawTitle = parsed.title?.trim() || null;
+  const primaryTitle =
+    titleVariants[0]
+      ? `"${titleVariants[0]}"`
+      : (normalizedRawTitle ? quoteTerm(normalizedRawTitle) : null);
 
-  // Q1: title + top 2 skills + location
-  {
-    const parts = ["site:linkedin.com/in"];
-    if (titleVariants[0]) parts.push(`"${titleVariants[0]}"`);
-    for (const sk of skills.slice(0, 2)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    if (useLocation) parts.push(`"${loc}"`);
-    allQueries.push(parts.join(" "));
+  // P0: high precision (title variants + must-have skills + strict location if required)
+  for (const title of titleVariants.slice(0, 3)) {
+    addQuery(p0Queries, [
+      "site:linkedin.com/in",
+      parsed.seniority || null,
+      `"${title}"`,
+      pickSkill(mustSkills, 0),
+      pickSkill(mustSkills, 1),
+      strictLocationTerm,
+    ]);
+    addQuery(p0Queries, [
+      "site:linkedin.com/in",
+      `"${title}"`,
+      pickSkill(mustSkills, 0),
+      pickSkill(mustSkills, 2),
+      strictLocationTerm,
+    ]);
   }
 
-  // Q2: seniority + title variant + skills + location
-  {
-    const parts = ["site:linkedin.com/in"];
-    if (parsed.seniority) parts.push(parsed.seniority);
-    if (titleVariants[1] || titleVariants[0]) parts.push(`"${titleVariants[1] || titleVariants[0]}"`);
-    for (const sk of skills.slice(0, 3)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    if (useLocation) parts.push(`"${locationVariants[1] || loc}"`);
-    allQueries.push(parts.join(" "));
+  if (p0Queries.size === 0) {
+    addQuery(p0Queries, [
+      "site:linkedin.com/in",
+      primaryTitle,
+      pickSkill(mustSkills, 0),
+      pickSkill(mustSkills, 1),
+      strictLocationTerm,
+    ]);
   }
 
-  // Q3: title variant + industry + mid skills + location
-  {
-    const parts = ["site:linkedin.com/in"];
-    if (titleVariants[2] || titleVariants[0]) parts.push(`"${titleVariants[2] || titleVariants[0]}"`);
-    if (parsed.industry) parts.push(parsed.industry);
-    for (const sk of skills.slice(2, 4)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    if (useLocation) parts.push(`"${locationVariants[2] || loc}"`);
-    allQueries.push(parts.join(" "));
+  // P1: balanced (title + must-have, location relaxed)
+  for (const title of titleVariants.slice(0, 4)) {
+    addQuery(p1Queries, [
+      "site:linkedin.com/in",
+      parsed.seniority || null,
+      `"${title}"`,
+      pickSkill(mustSkills, 0),
+      pickSkill(mustSkills, 1),
+    ]);
+    addQuery(p1Queries, [
+      "site:linkedin.com/in",
+      `"${title}"`,
+      pickSkill(mustSkills, 1),
+      pickSkill(mustSkills, 2),
+      parsed.industry ? quoteTerm(parsed.industry) : null,
+    ]);
+  }
+  addQuery(p1Queries, [
+    "site:linkedin.com/in",
+    parsed.seniority || null,
+    primaryTitle,
+    pickSkill(mustSkills, 0),
+    pickSkill(mustSkills, 1),
+    pickSkill(mustSkills, 2),
+  ]);
+  if (!strictLocationConstraint && loc.length > 2) {
+    addQuery(p1Queries, [
+      "site:linkedin.com/in",
+      primaryTitle,
+      pickSkill(mustSkills, 0),
+      `"${loc}"`,
+    ]);
   }
 
-  // Q4: title variant + no location (broader reach)
-  {
-    const parts = ["site:linkedin.com/in"];
-    if (titleVariants[3] || titleVariants[0]) parts.push(`"${titleVariants[3] || titleVariants[0]}"`);
-    for (const sk of skills.slice(0, 3)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    allQueries.push(parts.join(" "));
+  // P2: exploratory (expanded skills and optional nice-to-have terms)
+  const expandedSkills = [...mustSkills, ...niceSkills].slice(0, 8);
+  const skillPairs: Array<[number, number]> = [
+    [0, 2],
+    [1, 2],
+    [2, 3],
+    [0, 3],
+    [1, 4],
+  ];
+  for (const [leftIndex, rightIndex] of skillPairs) {
+    addQuery(p2Queries, [
+      "site:linkedin.com/in",
+      parsed.seniority || null,
+      primaryTitle,
+      pickSkill(expandedSkills, leftIndex),
+      pickSkill(expandedSkills, rightIndex),
+      locationVariants[leftIndex % Math.max(locationVariants.length, 1)]
+        ? `"${locationVariants[leftIndex % Math.max(locationVariants.length, 1)]}"`
+        : null,
+    ]);
   }
-
-  // Q5: seniority + skills only + location (no title)
-  if (skills.length >= 2) {
-    const parts = ["site:linkedin.com/in"];
-    if (parsed.seniority) parts.push(parsed.seniority);
-    for (const sk of skills.slice(0, 4)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    if (useLocation) parts.push(`"${loc}"`);
-    allQueries.push(parts.join(" "));
-  }
-
-  // Q6: title + later skills + location variant
-  if (skills.length > 3) {
-    const parts = ["site:linkedin.com/in"];
-    if (titleVariants[0]) parts.push(`"${titleVariants[0]}"`);
-    for (const sk of skills.slice(3, 6)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    if (useLocation) parts.push(`"${locationVariants[1] || loc}"`);
-    allQueries.push(parts.join(" "));
-  }
-
-  // Q7: nice-to-have skills + title
   if (niceSkills.length > 0) {
-    const parts = ["site:linkedin.com/in"];
-    if (titleVariants[0]) parts.push(`"${titleVariants[0]}"`);
-    for (const sk of niceSkills.slice(0, 3)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    if (useLocation) parts.push(`"${loc}"`);
-    allQueries.push(parts.join(" "));
+    addQuery(p2Queries, [
+      "site:linkedin.com/in",
+      primaryTitle,
+      pickSkill(mustSkills, 0),
+      pickSkill(niceSkills, 0),
+      pickSkill(niceSkills, 1),
+    ]);
   }
+  addQuery(p2Queries, [
+    "site:linkedin.com/in",
+    parsed.seniority || null,
+    parsed.industry ? quoteTerm(parsed.industry) : null,
+    pickSkill(expandedSkills, 0),
+    pickSkill(expandedSkills, 1),
+  ]);
 
-  // Q8: seniority + skills + no location (broad)
-  if (skills.length >= 2) {
-    const parts = ["site:linkedin.com/in"];
-    if (parsed.seniority) parts.push(parsed.seniority);
-    for (const sk of skills.slice(1, 5)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    allQueries.push(parts.join(" "));
-  }
-
-  // Q9: location-only broad + top skills
-  if (useLocation && skills.length >= 2) {
-    const parts = ["site:linkedin.com/in"];
-    if (parsed.seniority) parts.push(parsed.seniority);
-    parts.push(`"${loc}"`);
-    for (const sk of skills.slice(0, 2)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    allQueries.push(parts.join(" "));
-  }
-
-  // Q10: nice-to-have + seniority + no title
-  if (niceSkills.length >= 2) {
-    const parts = ["site:linkedin.com/in"];
-    if (parsed.seniority) parts.push(parsed.seniority);
-    for (const sk of niceSkills.slice(0, 4)) {
-      parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-    }
-    if (useLocation) parts.push(`"${loc}"`);
-    allQueries.push(parts.join(" "));
-  }
-
-  // Q11: title + required skill #1 + nice skill #1 + location
-  if (skills.length > 0 && niceSkills.length > 0) {
-    const parts = ["site:linkedin.com/in"];
-    if (titleVariants[0]) parts.push(`"${titleVariants[0]}"`);
-    const sk0 = skills[0];
-    parts.push(sk0.includes(" ") ? `"${sk0}"` : sk0);
-    const ns0 = niceSkills[0];
-    parts.push(ns0.includes(" ") ? `"${ns0}"` : ns0);
-    if (useLocation) parts.push(`"${loc}"`);
-    allQueries.push(parts.join(" "));
-  }
-
-  // Q12: industry + seniority + location (broadest)
-  if (parsed.industry) {
-    const parts = ["site:linkedin.com/in"];
-    if (parsed.seniority) parts.push(parsed.seniority);
-    parts.push(parsed.industry);
-    if (skills[0]) {
-      const sk0 = skills[0];
-      parts.push(sk0.includes(" ") ? `"${sk0}"` : sk0);
-    }
-    if (useLocation) parts.push(`"${loc}"`);
-    allQueries.push(parts.join(" "));
-  }
-
-  // Q13-Q20: Skill pair combinations with different titles
-  if (skills.length >= 4) {
-    const skillPairs = [
-      [0, 1], [0, 2], [1, 2], [2, 3],
-      [0, 3], [1, 3], [3, 4], [4, 5]
-    ];
-    for (const [i, j] of skillPairs) {
-      if (skills[i] && skills[j]) {
-        const parts = ["site:linkedin.com/in"];
-        const titleIdx = Math.floor(i / 2) % titleVariants.length;
-        if (titleVariants[titleIdx]) parts.push(`"${titleVariants[titleIdx]}"`);
-        const sk1 = skills[i];
-        const sk2 = skills[j];
-        parts.push(sk1.includes(" ") ? `"${sk1}"` : sk1);
-        parts.push(sk2.includes(" ") ? `"${sk2}"` : sk2);
-        if (useLocation && i % 2 === 0) {
-          const locIdx = i % locationVariants.length;
-          parts.push(`"${locationVariants[locIdx] || loc}"`);
-        }
-        allQueries.push(parts.join(" "));
-      }
-    }
-  }
-
-  // Q21-Q25: Nice-to-have skill combinations
-  if (niceSkills.length >= 3) {
-    const nicePairs = [[0, 1], [1, 2], [0, 2], [2, 3], [1, 3]];
-    for (const [i, j] of nicePairs) {
-      if (niceSkills[i] && niceSkills[j]) {
-        const parts = ["site:linkedin.com/in"];
-        if (titleVariants[0]) parts.push(`"${titleVariants[0]}"`);
-        const ns1 = niceSkills[i];
-        const ns2 = niceSkills[j];
-        parts.push(ns1.includes(" ") ? `"${ns1}"` : ns1);
-        parts.push(ns2.includes(" ") ? `"${ns2}"` : ns2);
-        if (useLocation && i === 0) parts.push(`"${loc}"`);
-        allQueries.push(parts.join(" "));
-      }
-    }
-  }
-
-  // Q26-Q30: Location variants with top skills
-  if (locationVariants.length > 1 && skills.length >= 2) {
-    for (let i = 0; i < Math.min(5, locationVariants.length); i++) {
-      const parts = ["site:linkedin.com/in"];
-      if (parsed.seniority) parts.push(parsed.seniority);
-      if (titleVariants[i % titleVariants.length]) {
-        parts.push(`"${titleVariants[i % titleVariants.length]}"`);
-      }
-      const sk1 = skills[i % skills.length];
-      const sk2 = skills[(i + 1) % skills.length];
-      parts.push(sk1.includes(" ") ? `"${sk1}"` : sk1);
-      parts.push(sk2.includes(" ") ? `"${sk2}"` : sk2);
-      parts.push(`"${locationVariants[i]}"`);
-      allQueries.push(parts.join(" "));
-    }
-  }
-
-  // Q31-Q35: Mixed required + nice-to-have combinations
-  if (skills.length >= 2 && niceSkills.length >= 2) {
-    const mixPairs = [[0, 0], [1, 0], [0, 1], [2, 1], [1, 2]];
-    for (const [si, ni] of mixPairs) {
-      if (skills[si] && niceSkills[ni]) {
-        const parts = ["site:linkedin.com/in"];
-        const titleIdx = si % titleVariants.length;
-        if (titleVariants[titleIdx]) parts.push(`"${titleVariants[titleIdx]}"`);
-        const sk = skills[si];
-        const ns = niceSkills[ni];
-        parts.push(sk.includes(" ") ? `"${sk}"` : sk);
-        parts.push(ns.includes(" ") ? `"${ns}"` : ns);
-        if (useLocation && si % 2 === 0) parts.push(`"${loc}"`);
-        allQueries.push(parts.join(" "));
-      }
-    }
-  }
-
-  // Q36-Q40: Seniority + skill triplets
-  if (parsed.seniority && skills.length >= 3) {
-    const triplets = [[0, 1, 2], [1, 2, 3], [2, 3, 4], [0, 2, 4], [1, 3, 5]];
-    for (const [i, j, k] of triplets) {
-      if (skills[i] && skills[j] && skills[k]) {
-        const parts = ["site:linkedin.com/in"];
-        parts.push(parsed.seniority);
-        const sk1 = skills[i];
-        const sk2 = skills[j];
-        const sk3 = skills[k];
-        parts.push(sk1.includes(" ") ? `"${sk1}"` : sk1);
-        parts.push(sk2.includes(" ") ? `"${sk2}"` : sk2);
-        parts.push(sk3.includes(" ") ? `"${sk3}"` : sk3);
-        if (useLocation && i === 0) parts.push(`"${loc}"`);
-        allQueries.push(parts.join(" "));
-      }
-    }
-  }
-
-  const unique = Array.from(new Set(allQueries.filter(Boolean)));
+  const tiers = ([
+    { tier: "P0" as const, queries: Array.from(p0Queries).slice(0, 8) },
+    { tier: "P1" as const, queries: Array.from(p1Queries).slice(0, 10) },
+    { tier: "P2" as const, queries: Array.from(p2Queries).slice(0, 12) },
+  ] satisfies LinkedInSearchPlanTier[]).filter((tier) => tier.queries.length > 0);
 
   return {
-    queries: unique,
+    queries: tiers.flatMap((tier) => tier.queries),
+    tiers,
   };
 }
 
