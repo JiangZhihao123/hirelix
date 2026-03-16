@@ -5,8 +5,15 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { fetch as undiciFetch, ProxyAgent } from "undici";
 import {
   CANDIDATE_SUITABILITY_PROMPT,
+  COMPANY_PROFILE_FALLBACK_PROMPT,
+  COMPANY_PROFILE_FROM_EVIDENCE_PROMPT,
   JD_SEARCH_INTENT_PROMPT,
 } from "@/lib/prompts";
+import {
+  collectCompanyEvidence,
+  normalizeCompanyUrl,
+  type CompanyEvidencePacket,
+} from "@/lib/company-research";
 import {
   serperSearch,
   buildLinkedInSearchPlan,
@@ -766,18 +773,39 @@ function sanitizeCompanyProfile(value: unknown): CompanyProfile | null {
   return hasAnyValue ? profile : null;
 }
 
+function appendCompanyProfileContextLines(
+  lines: string[],
+  title: string,
+  profile: CompanyProfile | null,
+) {
+  if (!profile) return;
+  lines.push(title);
+  if (profile.size) lines.push(`- Size: ${profile.size}`);
+  if (profile.mission) lines.push(`- Mission: ${profile.mission}`);
+  if (profile.tech_stack) lines.push(`- Tech stack: ${profile.tech_stack}`);
+  if (profile.benefits) lines.push(`- Benefits: ${profile.benefits}`);
+  if (profile.selling_points) lines.push(`- Why join: ${profile.selling_points}`);
+}
+
 function buildCompanyProfileContext(parsed: Record<string, unknown>) {
-  const companyProfile = sanitizeCompanyProfile(parsed.company_profile);
-  if (!companyProfile) {
+  const globalCompanyProfile = sanitizeCompanyProfile(parsed.company_profile);
+  const jdCompanyProfile = sanitizeCompanyProfile(parsed.jd_company_profile);
+
+  if (!globalCompanyProfile && !jdCompanyProfile) {
     return "Company context: Not provided. Infer join likelihood from JD scope, role level, work model, and public candidate signals only.";
   }
 
   const lines = ["Company Profile Context:"];
-  if (companyProfile.size) lines.push(`- Size: ${companyProfile.size}`);
-  if (companyProfile.mission) lines.push(`- Mission: ${companyProfile.mission}`);
-  if (companyProfile.tech_stack) lines.push(`- Tech stack: ${companyProfile.tech_stack}`);
-  if (companyProfile.benefits) lines.push(`- Benefits: ${companyProfile.benefits}`);
-  if (companyProfile.selling_points) lines.push(`- Why join: ${companyProfile.selling_points}`);
+  appendCompanyProfileContextLines(
+    lines,
+    "Workspace Global Profile (supplemental):",
+    globalCompanyProfile,
+  );
+  appendCompanyProfileContextLines(
+    lines,
+    "JD Company Website Profile (prefer this when conflict exists):",
+    jdCompanyProfile,
+  );
   return lines.join("\n");
 }
 
@@ -811,7 +839,7 @@ function deriveActionabilityFromScores(
   joinLikelihoodScore: number,
 ): CandidateSuitability["actionability"] {
   if (overallScore >= 80 && joinLikelihoodScore >= 60) return "ready_to_act";
-  if (overallScore >= 65) return "needs_review";
+  if (overallScore >= 60) return "needs_review";
   return "not_actionable";
 }
 
@@ -1020,6 +1048,200 @@ function createAIClient() {
       ? { baseURL: process.env.ANTHROPIC_BASE_URL }
       : {}),
   });
+}
+
+function buildCompanyEvidencePrompt(evidence: CompanyEvidencePacket) {
+  const pages = evidence.pages
+    .map((page, index) =>
+      [
+        `## Page ${index + 1}`,
+        `URL: ${page.url}`,
+        `Title: ${page.title || "N/A"}`,
+        `Meta Description: ${page.metaDescription || "N/A"}`,
+        `Headings: ${page.headings.join(" | ") || "N/A"}`,
+        `Body Text: ${page.bodyText || "N/A"}`,
+      ].join("\n"),
+    )
+    .join("\n\n");
+
+  return `${COMPANY_PROFILE_FROM_EVIDENCE_PROMPT}
+
+Website: ${evidence.baseUrl}
+Total Pages: ${evidence.pages.length}
+
+${pages}`;
+}
+
+function buildCompanyFallbackPrompt(website: string) {
+  return `${COMPANY_PROFILE_FALLBACK_PROMPT}
+
+Company website/domain: ${website}`;
+}
+
+function normalizeHost(host: string) {
+  return host.toLowerCase().replace(/^www\./, "");
+}
+
+function extractExplicitWebsitesFromText(text: string) {
+  const urls = new Set<string>();
+  const explicitUrlPattern = /\bhttps?:\/\/[^\s<>"')\]]+/gi;
+  const bareDomainPattern =
+    /\b(?:www\.)?[a-z0-9][a-z0-9-]{1,62}(?:\.[a-z0-9][a-z0-9-]{1,62}){1,3}(?:\/[^\s<>"')\]]*)?/gi;
+
+  for (const match of text.match(explicitUrlPattern) || []) {
+    urls.add(match.replace(/[),.;]+$/, ""));
+  }
+
+  for (const match of text.match(bareDomainPattern) || []) {
+    const cleaned = match.replace(/[),.;]+$/, "");
+    if (cleaned.includes("@")) continue;
+    if (!/\.[a-z]{2,}$/i.test(cleaned)) continue;
+    if (cleaned.toLowerCase().endsWith(".js")) continue;
+    if (cleaned.toLowerCase().endsWith(".ts")) continue;
+    urls.add(cleaned);
+  }
+
+  return Array.from(urls);
+}
+
+function inferCompanyNameFromJd(jdText: string) {
+  const patterns = [
+    /(?:^|\n)\s*(?:\*\*)?(?:company|employer|hiring company)(?:\*\*)?\s*[:：]\s*([^\n]+)/i,
+    /(?:^|\n)\s*##\s*about\s+([^\n]+)/i,
+    /(?:^|\n)\s*about\s+([^\n]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const matched = jdText.match(pattern);
+    const value = matched?.[1]?.replace(/\*\*/g, "").trim();
+    if (value) {
+      return value.replace(/\s{2,}/g, " ").slice(0, 80);
+    }
+  }
+
+  return null;
+}
+
+const WEBSITE_SEARCH_BLOCKED_HOSTS = new Set([
+  "linkedin.com",
+  "www.linkedin.com",
+  "x.com",
+  "www.x.com",
+  "twitter.com",
+  "www.twitter.com",
+  "facebook.com",
+  "www.facebook.com",
+  "instagram.com",
+  "www.instagram.com",
+  "youtube.com",
+  "www.youtube.com",
+  "wikipedia.org",
+  "www.wikipedia.org",
+  "ycombinator.com",
+  "www.ycombinator.com",
+  "wellfound.com",
+  "www.wellfound.com",
+  "crunchbase.com",
+  "www.crunchbase.com",
+]);
+
+async function resolveJdCompanyWebsite(
+  context: PipelineContext,
+  parsed: Record<string, unknown>,
+) {
+  for (const rawWebsite of extractExplicitWebsitesFromText(context.jdText)) {
+    try {
+      return normalizeCompanyUrl(rawWebsite).toString();
+    } catch {
+      continue;
+    }
+  }
+
+  const companyName =
+    inferCompanyNameFromJd(context.jdText) ||
+    normalizeNullableString(parsed.company_name) ||
+    null;
+  const serperApiKey = process.env.SERPER_API_KEY;
+  if (!companyName || !serperApiKey) return null;
+
+  try {
+    const results = await withTimeout(
+      serperSearch(serperApiKey, `${companyName} official website`, 10, 1),
+      20000,
+      "JD company website lookup",
+    );
+    for (const result of results) {
+      try {
+        const normalized = normalizeCompanyUrl(result.link);
+        const host = normalizeHost(normalized.hostname);
+        if (WEBSITE_SEARCH_BLOCKED_HOSTS.has(host)) continue;
+        return normalized.toString();
+      } catch {
+        continue;
+      }
+    }
+  } catch (error) {
+    logSearchEvent("search_jd_company_website_lookup_failed", {
+      search_id: context.searchId,
+      company_name: companyName,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return null;
+}
+
+async function researchCompanyProfileFromWebsite(
+  context: PipelineContext,
+  aiClient: ReturnType<typeof createAIClient>,
+  website: string,
+) {
+  try {
+    const normalizedUrl = normalizeCompanyUrl(website);
+    const evidence = await withTimeout(
+      collectCompanyEvidence(normalizedUrl),
+      35000,
+      "Company evidence collection",
+    );
+    const prompt = evidence
+      ? buildCompanyEvidencePrompt(evidence)
+      : buildCompanyFallbackPrompt(normalizedUrl.toString());
+
+    const { text } = await withTimeout(
+      generateText({
+        model: aiClient(getAIModel()),
+        prompt,
+        maxOutputTokens: 1400,
+      }),
+      60000,
+      "Company profile generation",
+    );
+
+    const parsedResponse = JSON.parse(extractJSON(text)) as Record<string, unknown>;
+    const generatedProfile = sanitizeCompanyProfile(
+      parsedResponse.profile ?? parsedResponse,
+    );
+    if (!generatedProfile) return null;
+
+    logSearchEvent("search_jd_company_profile_generated", {
+      search_id: context.searchId,
+      website: normalizedUrl.toString(),
+      mode: evidence ? "website_evidence" : "fallback_domain_inference",
+      evidence_page_count: evidence?.pages.length ?? 0,
+      evidence_total_chars: evidence?.totalBodyChars ?? 0,
+    });
+    return {
+      profile: generatedProfile,
+      website: normalizedUrl.toString(),
+    };
+  } catch (error) {
+    logSearchEvent("search_jd_company_profile_failed", {
+      search_id: context.searchId,
+      website,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 function buildSearchOutreachPrompt(
@@ -2227,6 +2449,7 @@ async function parseJobDescription(
     Number(existingParsed?.highlight_count) || context.highlightCount;
   parsed.outreach_pool_target =
     Number(existingParsed?.outreach_pool_target) || context.outreachPoolTarget;
+
   try {
     const { data: settings } = await supabaseAdmin
       .from("hirelix_user_settings")
@@ -2244,6 +2467,30 @@ async function parseJobDescription(
       parsed.company_profile = sanitizeCompanyProfile(existingParsed.company_profile);
     }
   }
+
+  const existingJdCompanyProfile = sanitizeCompanyProfile(existingParsed?.jd_company_profile);
+  const existingJdCompanyWebsite = normalizeNullableString(existingParsed?.jd_company_website);
+  if (existingJdCompanyProfile) {
+    parsed.jd_company_profile = existingJdCompanyProfile;
+    if (existingJdCompanyWebsite) {
+      parsed.jd_company_website = existingJdCompanyWebsite;
+    }
+  } else {
+    const jdCompanyWebsite = await resolveJdCompanyWebsite(context, parsed);
+    if (jdCompanyWebsite) {
+      parsed.jd_company_website = jdCompanyWebsite;
+      const researchedProfile = await researchCompanyProfileFromWebsite(
+        context,
+        aiClient,
+        jdCompanyWebsite,
+      );
+      if (researchedProfile) {
+        parsed.jd_company_profile = researchedProfile.profile;
+        parsed.jd_company_website = researchedProfile.website;
+      }
+    }
+  }
+
   parsed.recall_provider = SEARCH_RECALL_PROVIDER;
   parsed.recall_spec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount);
   const existingRecallMetadata = normalizeRecallMetadata(existingParsed?.recall_metadata);
