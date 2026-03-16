@@ -2646,20 +2646,20 @@ async function judgeScoreBatch(
     batchIndexes.length,
     judgeLabel,
   );
-  const { text } = await withTimeout(
-    generateText({
-      model: aiClient(getJudgeModel()),
-      prompt,
-      maxOutputTokens: 500,
+  const text = await withTimeout(
+    aiClient.generateText({
+      model: judgeModel,
+      messages: [{ role: "user", content: prompt }],
+      maxTokens: 16000,
     }),
     JUDGE_SCORING_TIMEOUT_MS,
     `${judgeLabel} scoring`,
   );
 
-  let parsed;
+  let judgeResult;
   try {
     const extracted = extractJSON(text);
-    parsed = JSON.parse(extracted);
+    judgeResult = JSON.parse(extracted);
   } catch (error) {
     console.error(`[search:judge_json_parse_error] Failed to parse JSON from ${judgeLabel}:`, {
       error: error instanceof Error ? error.message : String(error),
