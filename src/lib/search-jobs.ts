@@ -976,11 +976,11 @@ function createAIClient() {
     if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
       const proxyAgent = new HttpsProxyAgent(process.env.HTTP_PROXY);
       
-      config.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+      config.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        // @ts-ignore - agent option for proxy
         return fetch(input, {
           ...init,
-          // @ts-ignore - undici allows dispatcher option
-          dispatcher: proxyAgent,
+          agent: proxyAgent,
         });
       };
     }
