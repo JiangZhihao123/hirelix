@@ -109,6 +109,16 @@ const BRIGHTDATA_BATCH_CONCURRENCY = getConfiguredPositiveInt(
   20,
   { max: 50 },
 );
+const BRIGHTDATA_SCRAPE_MAX_ATTEMPTS = getConfiguredPositiveInt(
+  "SEARCH_BRIGHTDATA_SCRAPE_MAX_ATTEMPTS",
+  24,
+  { min: 6, max: 120 },
+);
+const BRIGHTDATA_SCRAPE_INTERVAL_MS = getConfiguredPositiveInt(
+  "SEARCH_BRIGHTDATA_SCRAPE_INTERVAL_MS",
+  10000,
+  { min: 2000, max: 60000 },
+);
 const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_BATCH_SIZE",
   1,
@@ -153,6 +163,10 @@ const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
   "SEARCH_SOURCE_RULE_PASS_SCORE",
   60,
   { min: 1, max: 100 },
+);
+const STRICT_LOCATION_REQUIRE_HIT = getConfiguredBoolean(
+  "SEARCH_STRICT_LOCATION_REQUIRE_HIT",
+  false,
 );
 const TARGET_SCRAPE_COUNT = getConfiguredPositiveInt(
   "SEARCH_TARGET_SCRAPE_COUNT",
@@ -359,6 +373,7 @@ type SerperSourceRuleContext = {
   titleTerms: string[];
   mustHaveTerms: string[];
   strictLocation: boolean;
+  strictLocationRequireHit: boolean;
   locationTerms: string[];
 };
 
@@ -2112,7 +2127,51 @@ const SOURCE_RULE_ENGINEERING_TERMS = [
   "devops",
 ];
 
-function buildSerperSourceRuleContext(parsed: Record<string, unknown>): SerperSourceRuleContext {
+function extractLocationFromJdText(jdText: string) {
+  const line = jdText
+    .split("\n")
+    .map((entry) => entry.replace(/\*/g, "").trim())
+    .find((entry) => /^location\s*:/i.test(entry));
+  if (!line) return null;
+  const raw = line.replace(/^location\s*:/i, "").trim();
+  if (!raw) return null;
+  return raw.split(/[|(]/)[0]?.trim() || null;
+}
+
+function inferStrictLocationFromJdText(jdText: string) {
+  const text = normalizeText(jdText);
+  if (!text) return false;
+
+  const inOfficeSignals = [
+    "full time in office",
+    "full-time in office",
+    "in office",
+    "in-office",
+    "onsite",
+    "on-site",
+    "work from office",
+    "5 days in office",
+    "must be based in",
+    "must be located in",
+    "relocation assistance",
+  ];
+  const hasInOfficeSignal = inOfficeSignals.some((signal) => text.includes(signal));
+  if (!hasInOfficeSignal) return false;
+
+  const remoteSignals = ["remote", "work from home", "wfh"];
+  const hasRemoteOnlySignal =
+    remoteSignals.some((signal) => text.includes(signal)) &&
+    !text.includes("in office") &&
+    !text.includes("in-office") &&
+    !text.includes("onsite") &&
+    !text.includes("on-site");
+  return !hasRemoteOnlySignal;
+}
+
+function buildSerperSourceRuleContext(
+  parsed: Record<string, unknown>,
+  jdText: string,
+): SerperSourceRuleContext {
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, Number(parsed.candidate_count) || 5);
 
@@ -2139,17 +2198,20 @@ function buildSerperSourceRuleContext(parsed: Record<string, unknown>): SerperSo
     .filter(Boolean)
     .slice(0, 12);
 
-  const strictLocation =
+  const strictLocationFromBrief =
     (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
     hiringBrief.location_flexibility === "strict";
+  const strictLocation = strictLocationFromBrief || inferStrictLocationFromJdText(jdText);
+  const locationFromJd = extractLocationFromJdText(jdText);
   const locationTerms = deriveLocationTerms(
-    hiringBrief.location_scope || normalizeNullableString(parsed.location),
+    hiringBrief.location_scope || normalizeNullableString(parsed.location) || locationFromJd,
   );
 
   return {
     titleTerms,
     mustHaveTerms,
     strictLocation,
+    strictLocationRequireHit: STRICT_LOCATION_REQUIRE_HIT,
     locationTerms,
   };
 }
@@ -2204,6 +2266,8 @@ function evaluateSerperSourceRules(
     score += context.strictLocation ? 20 : 12;
   } else if (location_hit === false) {
     if (context.strictLocation) reasons.push("strict_location_miss");
+  } else if (context.strictLocation) {
+    reasons.push("strict_location_unknown");
   } else {
     score += 6;
   }
@@ -2214,7 +2278,9 @@ function evaluateSerperSourceRules(
     reasons.push("noise_penalty");
   }
 
-  const hard_reject = context.strictLocation && location_hit === false;
+  const hard_reject =
+    context.strictLocation &&
+    (location_hit === false || (context.strictLocationRequireHit && location_hit !== true));
   const clampedScore = Math.max(0, Math.min(100, Math.round(score)));
 
   return {
@@ -2227,6 +2293,25 @@ function evaluateSerperSourceRules(
     location_hit,
     noise_penalty,
   };
+}
+
+function isBrightDataProfileLocationMatch(
+  profile: BrightDataProfile,
+  context: SerperSourceRuleContext,
+) {
+  if (context.locationTerms.length === 0) return true;
+  const profileText = normalizeText(
+    [
+      profile.city,
+      profile.country_code,
+      profile.current_company?.location,
+      profile.current_company?.name,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+  if (!profileText) return false;
+  return context.locationTerms.some((term) => profileText.includes(term));
 }
 
 function shouldStopSerperTierExpansion(
@@ -2527,7 +2612,7 @@ async function buildSerperCandidates(
   const aiClient = createAIClient();
   await setSearchStatus(context.searchId, "searching");
   const searchPlan = buildLinkedInSearchPlan(parsed);
-  const sourceRuleContext = buildSerperSourceRuleContext(parsed);
+  const sourceRuleContext = buildSerperSourceRuleContext(parsed, context.jdText);
   const tierPlans =
     searchPlan.tiers.length > 0
       ? searchPlan.tiers
@@ -2658,15 +2743,16 @@ async function buildSerperCandidates(
     );
     sourceRulePassCount += sourceRulePassed.length;
 
-    for (const item of sourceRuleEvaluations) {
+    for (const item of sourceRulePassed) {
       sourceRuleFallbackByUrl.set(item.candidate.linkedin_url.toLowerCase(), item);
     }
 
+    const sourceRulePassedCandidates = sourceRulePassed.map((item) => item.candidate);
     const tierPreScreened = await preScreenAllCandidates(
       aiClient,
       parsed,
       context.jdText,
-      newTierCandidates,
+      sourceRulePassedCandidates,
     );
     llmPrescreenEvaluatedCount += tierPreScreened.length;
 
@@ -3240,6 +3326,8 @@ async function refineSerperCandidates(
       {
         batchSize: BRIGHTDATA_BATCH_SIZE,
         concurrency: scrapeBatchConcurrency,
+        maxAttempts: BRIGHTDATA_SCRAPE_MAX_ATTEMPTS,
+        intervalMs: BRIGHTDATA_SCRAPE_INTERVAL_MS,
         allowPartial: true,
       },
     );
@@ -3247,10 +3335,38 @@ async function refineSerperCandidates(
       throw new Error("Bright Data returned no profiles");
     }
 
+    const sourceRuleContext = buildSerperSourceRuleContext(parsed, context.jdText);
+    const locationFilteredProfiles =
+      sourceRuleContext.strictLocation && sourceRuleContext.locationTerms.length > 0
+        ? brightProfiles.filter((profile) =>
+          isBrightDataProfileLocationMatch(profile, sourceRuleContext),
+        )
+        : brightProfiles;
+
+    if (
+      sourceRuleContext.strictLocation &&
+      sourceRuleContext.locationTerms.length > 0 &&
+      locationFilteredProfiles.length < brightProfiles.length
+    ) {
+      logSearchEvent("search_step_completed", {
+        search_id: context.searchId,
+        step: "deep_scoring",
+        provider: "brightdata",
+        tier: "location_filter",
+        location_filtered_out_count: brightProfiles.length - locationFilteredProfiles.length,
+        location_filtered_in_count: locationFilteredProfiles.length,
+        strict_location: true,
+        job_id: context.jobId,
+      });
+    }
+    if (!locationFilteredProfiles.length) {
+      throw new Error("All enriched profiles failed strict location filter");
+    }
+
     const scored = await scoreBrightDataProfiles(
       context,
       parsed,
-      brightProfiles,
+      locationFilteredProfiles,
       retrievalCount,
     );
     scored.displayStats = buildSearchDisplayStats({
@@ -3258,7 +3374,7 @@ async function refineSerperCandidates(
       serper_query_tier_stats: serperStats.tierStats,
       source_rule_pass_rate: serperStats.sourceRulePassRate,
       llm_prescreen_pass_rate: serperStats.llmPreScreenPassRate,
-      brightdata_scrape_count: brightProfiles.length,
+      brightdata_scrape_count: locationFilteredProfiles.length,
     });
 
     logSearchEvent("search_step_completed", {
@@ -3266,7 +3382,7 @@ async function refineSerperCandidates(
       step: "deep_scoring",
       provider: "brightdata",
       result_count: scored.finalRows.length,
-      scraped_count: brightProfiles.length,
+      scraped_count: locationFilteredProfiles.length,
       shortlist_count: scored.displayStats.shortlist_count,
       deep_review_requested_count: scored.displayStats.deep_review_requested_count,
       deep_review_completed_count: scored.displayStats.deep_review_completed_count,
