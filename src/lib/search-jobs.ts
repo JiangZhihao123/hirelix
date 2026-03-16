@@ -5,15 +5,8 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { fetch as undiciFetch, ProxyAgent } from "undici";
 import {
   CANDIDATE_SUITABILITY_PROMPT,
-  COMPANY_PROFILE_FALLBACK_PROMPT,
-  COMPANY_PROFILE_FROM_EVIDENCE_PROMPT,
   JD_SEARCH_INTENT_PROMPT,
 } from "@/lib/prompts";
-import {
-  collectCompanyEvidence,
-  normalizeCompanyUrl,
-  type CompanyEvidencePacket,
-} from "@/lib/company-research";
 import {
   serperSearch,
   buildLinkedInSearchPlan,
@@ -1048,200 +1041,6 @@ function createAIClient() {
       ? { baseURL: process.env.ANTHROPIC_BASE_URL }
       : {}),
   });
-}
-
-function buildCompanyEvidencePrompt(evidence: CompanyEvidencePacket) {
-  const pages = evidence.pages
-    .map((page, index) =>
-      [
-        `## Page ${index + 1}`,
-        `URL: ${page.url}`,
-        `Title: ${page.title || "N/A"}`,
-        `Meta Description: ${page.metaDescription || "N/A"}`,
-        `Headings: ${page.headings.join(" | ") || "N/A"}`,
-        `Body Text: ${page.bodyText || "N/A"}`,
-      ].join("\n"),
-    )
-    .join("\n\n");
-
-  return `${COMPANY_PROFILE_FROM_EVIDENCE_PROMPT}
-
-Website: ${evidence.baseUrl}
-Total Pages: ${evidence.pages.length}
-
-${pages}`;
-}
-
-function buildCompanyFallbackPrompt(website: string) {
-  return `${COMPANY_PROFILE_FALLBACK_PROMPT}
-
-Company website/domain: ${website}`;
-}
-
-function normalizeHost(host: string) {
-  return host.toLowerCase().replace(/^www\./, "");
-}
-
-function extractExplicitWebsitesFromText(text: string) {
-  const urls = new Set<string>();
-  const explicitUrlPattern = /\bhttps?:\/\/[^\s<>"')\]]+/gi;
-  const bareDomainPattern =
-    /\b(?:www\.)?[a-z0-9][a-z0-9-]{1,62}(?:\.[a-z0-9][a-z0-9-]{1,62}){1,3}(?:\/[^\s<>"')\]]*)?/gi;
-
-  for (const match of text.match(explicitUrlPattern) || []) {
-    urls.add(match.replace(/[),.;]+$/, ""));
-  }
-
-  for (const match of text.match(bareDomainPattern) || []) {
-    const cleaned = match.replace(/[),.;]+$/, "");
-    if (cleaned.includes("@")) continue;
-    if (!/\.[a-z]{2,}$/i.test(cleaned)) continue;
-    if (cleaned.toLowerCase().endsWith(".js")) continue;
-    if (cleaned.toLowerCase().endsWith(".ts")) continue;
-    urls.add(cleaned);
-  }
-
-  return Array.from(urls);
-}
-
-function inferCompanyNameFromJd(jdText: string) {
-  const patterns = [
-    /(?:^|\n)\s*(?:\*\*)?(?:company|employer|hiring company)(?:\*\*)?\s*[:：]\s*([^\n]+)/i,
-    /(?:^|\n)\s*##\s*about\s+([^\n]+)/i,
-    /(?:^|\n)\s*about\s+([^\n]+)/i,
-  ];
-
-  for (const pattern of patterns) {
-    const matched = jdText.match(pattern);
-    const value = matched?.[1]?.replace(/\*\*/g, "").trim();
-    if (value) {
-      return value.replace(/\s{2,}/g, " ").slice(0, 80);
-    }
-  }
-
-  return null;
-}
-
-const WEBSITE_SEARCH_BLOCKED_HOSTS = new Set([
-  "linkedin.com",
-  "www.linkedin.com",
-  "x.com",
-  "www.x.com",
-  "twitter.com",
-  "www.twitter.com",
-  "facebook.com",
-  "www.facebook.com",
-  "instagram.com",
-  "www.instagram.com",
-  "youtube.com",
-  "www.youtube.com",
-  "wikipedia.org",
-  "www.wikipedia.org",
-  "ycombinator.com",
-  "www.ycombinator.com",
-  "wellfound.com",
-  "www.wellfound.com",
-  "crunchbase.com",
-  "www.crunchbase.com",
-]);
-
-async function resolveJdCompanyWebsite(
-  context: PipelineContext,
-  parsed: Record<string, unknown>,
-) {
-  for (const rawWebsite of extractExplicitWebsitesFromText(context.jdText)) {
-    try {
-      return normalizeCompanyUrl(rawWebsite).toString();
-    } catch {
-      continue;
-    }
-  }
-
-  const companyName =
-    inferCompanyNameFromJd(context.jdText) ||
-    normalizeNullableString(parsed.company_name) ||
-    null;
-  const serperApiKey = process.env.SERPER_API_KEY;
-  if (!companyName || !serperApiKey) return null;
-
-  try {
-    const results = await withTimeout(
-      serperSearch(serperApiKey, `${companyName} official website`, 10, 1),
-      20000,
-      "JD company website lookup",
-    );
-    for (const result of results) {
-      try {
-        const normalized = normalizeCompanyUrl(result.link);
-        const host = normalizeHost(normalized.hostname);
-        if (WEBSITE_SEARCH_BLOCKED_HOSTS.has(host)) continue;
-        return normalized.toString();
-      } catch {
-        continue;
-      }
-    }
-  } catch (error) {
-    logSearchEvent("search_jd_company_website_lookup_failed", {
-      search_id: context.searchId,
-      company_name: companyName,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  return null;
-}
-
-async function researchCompanyProfileFromWebsite(
-  context: PipelineContext,
-  aiClient: ReturnType<typeof createAIClient>,
-  website: string,
-) {
-  try {
-    const normalizedUrl = normalizeCompanyUrl(website);
-    const evidence = await withTimeout(
-      collectCompanyEvidence(normalizedUrl),
-      35000,
-      "Company evidence collection",
-    );
-    const prompt = evidence
-      ? buildCompanyEvidencePrompt(evidence)
-      : buildCompanyFallbackPrompt(normalizedUrl.toString());
-
-    const { text } = await withTimeout(
-      generateText({
-        model: aiClient(getAIModel()),
-        prompt,
-        maxOutputTokens: 1400,
-      }),
-      60000,
-      "Company profile generation",
-    );
-
-    const parsedResponse = JSON.parse(extractJSON(text)) as Record<string, unknown>;
-    const generatedProfile = sanitizeCompanyProfile(
-      parsedResponse.profile ?? parsedResponse,
-    );
-    if (!generatedProfile) return null;
-
-    logSearchEvent("search_jd_company_profile_generated", {
-      search_id: context.searchId,
-      website: normalizedUrl.toString(),
-      mode: evidence ? "website_evidence" : "fallback_domain_inference",
-      evidence_page_count: evidence?.pages.length ?? 0,
-      evidence_total_chars: evidence?.totalBodyChars ?? 0,
-    });
-    return {
-      profile: generatedProfile,
-      website: normalizedUrl.toString(),
-    };
-  } catch (error) {
-    logSearchEvent("search_jd_company_profile_failed", {
-      search_id: context.searchId,
-      website,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
 }
 
 function buildSearchOutreachPrompt(
@@ -2472,23 +2271,9 @@ async function parseJobDescription(
   const existingJdCompanyWebsite = normalizeNullableString(existingParsed?.jd_company_website);
   if (existingJdCompanyProfile) {
     parsed.jd_company_profile = existingJdCompanyProfile;
-    if (existingJdCompanyWebsite) {
-      parsed.jd_company_website = existingJdCompanyWebsite;
-    }
-  } else {
-    const jdCompanyWebsite = await resolveJdCompanyWebsite(context, parsed);
-    if (jdCompanyWebsite) {
-      parsed.jd_company_website = jdCompanyWebsite;
-      const researchedProfile = await researchCompanyProfileFromWebsite(
-        context,
-        aiClient,
-        jdCompanyWebsite,
-      );
-      if (researchedProfile) {
-        parsed.jd_company_profile = researchedProfile.profile;
-        parsed.jd_company_website = researchedProfile.website;
-      }
-    }
+  }
+  if (existingJdCompanyWebsite) {
+    parsed.jd_company_website = existingJdCompanyWebsite;
   }
 
   parsed.recall_provider = SEARCH_RECALL_PROVIDER;
