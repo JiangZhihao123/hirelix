@@ -147,6 +147,11 @@ const PRE_SCREEN_TARGET = getConfiguredPositiveInt(
   250,
   { min: 25, max: 1000 },
 );
+const PRE_SCREEN_PASS_SCORE = getConfiguredPositiveInt(
+  "SEARCH_PRE_SCREEN_PASS_SCORE",
+  60,
+  { min: 1, max: 100 },
+);
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
   "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
   false,
@@ -993,9 +998,17 @@ function getArbiterModel() {
 function getHaikuModel() {
   const provider = process.env.AI_PROVIDER || "anthropic";
   if (provider === "openrouter") {
-    return process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
+    return (
+      process.env.SEARCH_LIGHT_MODEL ||
+      process.env.OPENROUTER_HAIKU_MODEL ||
+      "anthropic/claude-haiku-4.5"
+    );
   }
-  return process.env.ANTHROPIC_HAIKU_MODEL || "claude-haiku-4-5-20251001";
+  return (
+    process.env.SEARCH_LIGHT_MODEL ||
+    process.env.ANTHROPIC_HAIKU_MODEL ||
+    "claude-haiku-4-5-20251001"
+  );
 }
 
 function createAIClient() {
@@ -1958,7 +1971,7 @@ function selectQualifiedAssessments(
 }
 
 function selectQualifiedLightAssessments(assessments: LightCandidateAssessment[]) {
-  return assessments.filter((assessment) => assessment.match_score >= 60);
+  return assessments.filter((assessment) => assessment.match_score >= PRE_SCREEN_PASS_SCORE);
 }
 
 function selectDeepReviewIndexes(
@@ -1968,20 +1981,10 @@ function selectDeepReviewIndexes(
   if (maxCount <= 0 || assessments.length === 0) return [];
 
   const cap = Math.min(maxCount, assessments.length);
-  const selected = new Set<number>();
-
-  for (const assessment of assessments) {
-    if (assessment.match_score < 60) continue;
-    selected.add(assessment.index);
-    if (selected.size >= cap) return Array.from(selected);
-  }
-
-  for (const assessment of assessments) {
-    selected.add(assessment.index);
-    if (selected.size >= cap) break;
-  }
-
-  return Array.from(selected);
+  return assessments
+    .filter((assessment) => assessment.match_score >= PRE_SCREEN_PASS_SCORE)
+    .slice(0, cap)
+    .map((assessment) => assessment.index);
 }
 
 function getActionabilityRank(value: CandidateSuitability["actionability"]) {
@@ -2347,7 +2350,6 @@ async function preScreenAllCandidates(
   parsed: Record<string, unknown>,
   jdText: string,
   candidates: SerperCandidate[],
-  targetCount: number,
 ): Promise<SerperPreScreenedCandidate[]> {
   if (!candidates.length) return [];
 
@@ -2358,10 +2360,9 @@ async function preScreenAllCandidates(
   );
 
   const kept = preScreened.filter((candidate) => candidate.preScreen.keep);
-  const sorted = (kept.length > 0 ? kept : preScreened).sort(
+  return (kept.length > 0 ? kept : preScreened).sort(
     (a, b) => b.preScreen.match_score - a.preScreen.match_score,
   );
-  return sorted.slice(0, targetCount);
 }
 
 async function buildBrightDataDatasetCandidates(
@@ -2623,17 +2624,38 @@ async function buildSerperCandidates(
     parsed,
     context.jdText,
     allCandidates,
-    Math.min(allCandidates.length, PRE_SCREEN_TARGET),
   );
 
   if (!preScreened.length) {
     return null;
   }
 
-  const fallbackRows = buildSerperCandidateRows(preScreened, context.candidateCount);
+  const lightPassed = preScreened.filter(
+    (candidate) =>
+      candidate.preScreen.keep &&
+      candidate.preScreen.match_score >= PRE_SCREEN_PASS_SCORE,
+  );
+  const scrapeCandidates = lightPassed.slice(
+    0,
+    Math.min(lightPassed.length, PRE_SCREEN_TARGET),
+  );
+  const fallbackSeed = lightPassed.length > 0 ? lightPassed : preScreened;
+  const fallbackRows = buildSerperCandidateRows(fallbackSeed, context.candidateCount);
+
+  logSearchEvent("search_step_completed", {
+    search_id: context.searchId,
+    step: "screening",
+    provider: "serper",
+    retrieval_count: allCandidates.length,
+    pre_screen_kept_count: preScreened.length,
+    light_pass_count: lightPassed.length,
+    scrape_count: scrapeCandidates.length,
+    pass_score_threshold: PRE_SCREEN_PASS_SCORE,
+    job_id: context.jobId,
+  });
 
   return {
-    preScreened,
+    preScreened: scrapeCandidates,
     fallbackRows,
     retrievalCount: allCandidates.length,
   };
@@ -2693,7 +2715,7 @@ async function lightScoreBatch(
   );
   const { text } = await withTimeout(
     generateText({
-      model: aiClient(getAIModel()),
+      model: aiClient(getHaikuModel()),
       prompt: rankingPrompt,
       maxOutputTokens: 600,
     }),
@@ -3508,10 +3530,33 @@ async function runSearchPipeline(job: SearchJobRow) {
   }
 
   const serperResult = await buildSerperCandidates(context, parsed);
-  if (!serperResult?.preScreened.length) {
+  if (!serperResult) {
     throw new Error(
       "No data source returned candidates. Please try again later.",
     );
+  }
+  if (serperResult.preScreened.length === 0) {
+    if (serperResult.fallbackRows.length === 0) {
+      throw new Error(
+        "No candidates passed the light screening threshold.",
+      );
+    }
+
+    await completeSearch(
+      context,
+      parsed,
+      serperResult.fallbackRows,
+      buildSearchDisplayStats({
+        retrieval_count: serperResult.retrievalCount,
+        deep_review_requested_count: 0,
+        deep_review_completed_count: 0,
+        qualified_count: serperResult.fallbackRows.length,
+        outreach_pool_count: serperResult.fallbackRows.length,
+        shortlist_count: serperResult.fallbackRows.length,
+      }),
+      `No candidates reached deep-review threshold (light score >= ${PRE_SCREEN_PASS_SCORE}). Returned top light-screened candidates only.`,
+    );
+    return;
   }
 
   const refinedResult = await refineSerperCandidates(
