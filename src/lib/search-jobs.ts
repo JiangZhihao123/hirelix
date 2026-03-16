@@ -5,7 +5,6 @@ import {
   CANDIDATE_SUITABILITY_PROMPT,
   JD_SEARCH_INTENT_PROMPT,
 } from "@/lib/prompts";
-import { buildPDLQuery, searchPeople, pdlPersonToCandidate, pdlPersonToRichProfile, type PDLPerson } from "@/lib/pdl";
 import {
   serperSearch,
   buildLinkedInSearchPlan,
@@ -65,6 +64,16 @@ const SERPER_QUERY_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_SERPER_QUERY_CONCURRENCY",
   24,
   { max: 100 },
+);
+const SERPER_RESULTS_PER_PAGE = getConfiguredPositiveInt(
+  "SEARCH_SERPER_RESULTS_PER_PAGE",
+  100,
+  { max: 100 },
+);
+const SERPER_PAGES_PER_QUERY = getConfiguredPositiveInt(
+  "SEARCH_SERPER_PAGES_PER_QUERY",
+  4,
+  { max: 10 },
 );
 const PRE_SCREEN_BATCH_SIZE = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_BATCH_SIZE",
@@ -130,6 +139,11 @@ const SHORTLIST_MIN_SCORE = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_MIN_SCORE",
   60,
   { min: 1, max: 100 },
+);
+const PRE_SCREEN_TARGET = getConfiguredPositiveInt(
+  "SEARCH_PRE_SCREEN_TARGET",
+  250,
+  { min: 25, max: 1000 },
 );
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
   "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
@@ -242,12 +256,29 @@ type ConstraintVerdict = {
   must_have_coverage: "strong" | "partial" | "weak" | "unknown";
 };
 
+type CompanyProfile = {
+  size: string | null;
+  mission: string | null;
+  benefits: string | null;
+  tech_stack: string | null;
+  selling_points: string | null;
+};
+
+type ScoringBreakdown = {
+  capability_score: number;
+  relevance_score: number;
+  join_likelihood_score: number;
+  join_likelihood_reasons: string[];
+};
+
 type CandidateSuitability = {
   fit_decision: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
   actionability: "ready_to_act" | "needs_review" | "not_actionable";
   match_score: number;
+  scoring_breakdown: ScoringBreakdown;
   constraint_verdicts: ConstraintVerdict;
   constraint_risks: string[];
+  risk_flags: string[];
   why_this_candidate: string[];
   why_not_higher: string[];
   evidence_quality: "high" | "medium" | "low";
@@ -299,11 +330,12 @@ type LightCandidateAssessment = {
 
 type JudgeScoreResult = {
   index: number;
-  fit_decision: CandidateSuitability["fit_decision"];
-  actionability: CandidateSuitability["actionability"];
-  match_score: number;
+  capability_score: number;
+  relevance_score: number;
+  join_likelihood_score: number;
+  join_likelihood_reasons: string[];
   short_reasons: string[];
-  constraint_risks: string[];
+  risk_flags: string[];
   skills: string[];
   experience_years: number | null;
   location: string | null;
@@ -697,6 +729,35 @@ function sanitizeConstraintVerdicts(value: unknown): ConstraintVerdict {
   };
 }
 
+function sanitizeCompanyProfile(value: unknown): CompanyProfile | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const profile: CompanyProfile = {
+    size: normalizeNullableString(item.size),
+    mission: normalizeNullableString(item.mission),
+    benefits: normalizeNullableString(item.benefits),
+    tech_stack: normalizeNullableString(item.tech_stack),
+    selling_points: normalizeNullableString(item.selling_points),
+  };
+  const hasAnyValue = Object.values(profile).some(Boolean);
+  return hasAnyValue ? profile : null;
+}
+
+function buildCompanyProfileContext(parsed: Record<string, unknown>) {
+  const companyProfile = sanitizeCompanyProfile(parsed.company_profile);
+  if (!companyProfile) {
+    return "Company context: Not provided. Infer join likelihood from JD scope, role level, work model, and public candidate signals only.";
+  }
+
+  const lines = ["Company Profile Context:"];
+  if (companyProfile.size) lines.push(`- Size: ${companyProfile.size}`);
+  if (companyProfile.mission) lines.push(`- Mission: ${companyProfile.mission}`);
+  if (companyProfile.tech_stack) lines.push(`- Tech stack: ${companyProfile.tech_stack}`);
+  if (companyProfile.benefits) lines.push(`- Benefits: ${companyProfile.benefits}`);
+  if (companyProfile.selling_points) lines.push(`- Why join: ${companyProfile.selling_points}`);
+  return lines.join("\n");
+}
+
 function stripSpeculativeRelocation(texts: string[]) {
   return texts.filter((text) => {
     const normalized = text.toLowerCase();
@@ -709,55 +770,69 @@ function stripSpeculativeRelocation(texts: string[]) {
   });
 }
 
+function normalizeScore(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.min(100, Math.round(value)))
+    : 0;
+}
+
+function deriveFitDecisionFromScore(score: number): CandidateSuitability["fit_decision"] {
+  if (score >= 85) return "strong_fit";
+  if (score >= 65) return "viable_fit";
+  if (score >= 40) return "risky_fit";
+  return "reject";
+}
+
+function deriveActionabilityFromScores(
+  overallScore: number,
+  joinLikelihoodScore: number,
+): CandidateSuitability["actionability"] {
+  if (overallScore >= 80 && joinLikelihoodScore >= 60) return "ready_to_act";
+  if (overallScore >= 65) return "needs_review";
+  return "not_actionable";
+}
+
 function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
-  const rawMatchScore =
-    typeof item.match_score === "number" && Number.isFinite(item.match_score)
-      ? Math.max(0, Math.min(100, Math.round(item.match_score)))
-      : 0;
-  let fitDecision = normalizeEnumValue(
-    item.fit_decision,
-    ["strong_fit", "viable_fit", "risky_fit", "reject"] as const,
-    "reject",
-  );
-  let actionability = normalizeEnumValue(
-    item.actionability,
-    ["ready_to_act", "needs_review", "not_actionable"] as const,
-    "not_actionable",
-  );
-
-  if (rawMatchScore >= 85) {
-    fitDecision = "strong_fit";
-  } else if (rawMatchScore >= 65) {
-    fitDecision = "viable_fit";
-  } else if (rawMatchScore >= 40) {
-    fitDecision = "risky_fit";
-  } else {
-    fitDecision = "reject";
-  }
-
-  if (fitDecision === "reject") {
-    actionability = "not_actionable";
-  } else if (rawMatchScore < 70 && actionability === "ready_to_act") {
-    actionability = "needs_review";
-  } else if (fitDecision === "strong_fit") {
-    actionability = actionability === "not_actionable" ? "needs_review" : actionability;
-  } else if (fitDecision === "viable_fit") {
-    if (actionability === "not_actionable") actionability = "needs_review";
-    if (actionability === "ready_to_act" && rawMatchScore < 80) {
-      actionability = "needs_review";
-    }
-  } else if (fitDecision === "risky_fit") {
-    actionability = "needs_review";
+  const capabilityScore = normalizeScore(item.capability_score);
+  const relevanceScore =
+    item.relevance_score != null ? normalizeScore(item.relevance_score) : normalizeScore(item.match_score);
+  const joinLikelihoodScore = normalizeScore(item.join_likelihood_score);
+  const hasTriScores =
+    item.capability_score != null ||
+    item.relevance_score != null ||
+    item.join_likelihood_score != null;
+  const rawMatchScore = hasTriScores
+    ? Math.round((capabilityScore + relevanceScore + joinLikelihoodScore) / 3)
+    : normalizeScore(item.match_score);
+  const fitDecision = deriveFitDecisionFromScore(rawMatchScore);
+  let actionability = deriveActionabilityFromScores(rawMatchScore, joinLikelihoodScore);
+  if (!hasTriScores) {
+    actionability = normalizeEnumValue(
+      item.actionability,
+      ["ready_to_act", "needs_review", "not_actionable"] as const,
+      rawMatchScore >= 80 ? "ready_to_act" : rawMatchScore >= 65 ? "needs_review" : "not_actionable",
+    );
   }
 
   return {
     fit_decision: fitDecision,
     actionability,
     match_score: rawMatchScore,
+    scoring_breakdown: {
+      capability_score: capabilityScore,
+      relevance_score: relevanceScore,
+      join_likelihood_score: joinLikelihoodScore,
+      join_likelihood_reasons: stripSpeculativeRelocation(
+        normalizeStringArray(item.join_likelihood_reasons, 6),
+      ),
+    },
     constraint_verdicts: sanitizeConstraintVerdicts(item.constraint_verdicts),
-    constraint_risks: stripSpeculativeRelocation(normalizeStringArray(item.constraint_risks, 6)),
+    constraint_risks: stripSpeculativeRelocation(
+      normalizeStringArray(item.constraint_risks ?? item.risk_flags, 6),
+    ),
+    risk_flags: stripSpeculativeRelocation(normalizeStringArray(item.risk_flags, 6)),
     why_this_candidate: stripSpeculativeRelocation(
       normalizeStringArray(item.why_this_candidate, 6),
     ),
@@ -786,17 +861,6 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
 }
 
 function sortCandidateAssessments(left: ScoredCandidateAssessment, right: ScoredCandidateAssessment) {
-  const decisionRank: Record<CandidateSuitability["fit_decision"], number> = {
-    strong_fit: 0,
-    viable_fit: 1,
-    risky_fit: 2,
-    reject: 3,
-  };
-  const actionRank: Record<CandidateSuitability["actionability"], number> = {
-    ready_to_act: 0,
-    needs_review: 1,
-    not_actionable: 2,
-  };
   const evidenceRank: Record<CandidateSuitability["evidence_quality"], number> = {
     high: 0,
     medium: 1,
@@ -804,10 +868,11 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
   };
 
   return (
-    decisionRank[left.suitability.fit_decision] - decisionRank[right.suitability.fit_decision] ||
-    actionRank[left.suitability.actionability] - actionRank[right.suitability.actionability] ||
-    evidenceRank[left.suitability.evidence_quality] - evidenceRank[right.suitability.evidence_quality] ||
-    right.suitability.match_score - left.suitability.match_score
+    right.suitability.match_score - left.suitability.match_score ||
+    right.suitability.scoring_breakdown.relevance_score - left.suitability.scoring_breakdown.relevance_score ||
+    right.suitability.scoring_breakdown.join_likelihood_score - left.suitability.scoring_breakdown.join_likelihood_score ||
+    right.suitability.scoring_breakdown.capability_score - left.suitability.scoring_breakdown.capability_score ||
+    evidenceRank[left.suitability.evidence_quality] - evidenceRank[right.suitability.evidence_quality]
   );
 }
 
@@ -842,15 +907,49 @@ function trimBrightDataProfileForMetadata(profile: BrightDataProfile) {
 function getAIModel() {
   const provider = process.env.AI_PROVIDER || "anthropic";
   if (provider === "openrouter") {
-    return process.env.AI_MODEL || "deepseek/deepseek-v3.2";
+    return process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
   }
   return process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+}
+
+function getJudgeModel() {
+  const provider = process.env.AI_PROVIDER || "anthropic";
+  if (provider === "openrouter") {
+    return (
+      process.env.SEARCH_JUDGE_MODEL ||
+      process.env.OPENROUTER_JUDGE_MODEL ||
+      process.env.AI_MODEL ||
+      "anthropic/claude-sonnet-4.6"
+    );
+  }
+  return (
+    process.env.SEARCH_JUDGE_MODEL ||
+    process.env.ANTHROPIC_JUDGE_MODEL ||
+    process.env.ANTHROPIC_MODEL ||
+    "claude-sonnet-4-20250514"
+  );
+}
+
+function getArbiterModel() {
+  const provider = process.env.AI_PROVIDER || "anthropic";
+  if (provider === "openrouter") {
+    return (
+      process.env.SEARCH_ARBITER_MODEL ||
+      process.env.OPENROUTER_ARBITER_MODEL ||
+      getJudgeModel()
+    );
+  }
+  return (
+    process.env.SEARCH_ARBITER_MODEL ||
+    process.env.ANTHROPIC_ARBITER_MODEL ||
+    getJudgeModel()
+  );
 }
 
 function getHaikuModel() {
   const provider = process.env.AI_PROVIDER || "anthropic";
   if (provider === "openrouter") {
-    return process.env.AI_MODEL || "deepseek/deepseek-v3.2";
+    return process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
   }
   return process.env.ANTHROPIC_HAIKU_MODEL || "claude-haiku-4-5-20251001";
 }
@@ -863,10 +962,30 @@ function createAIClient() {
     if (!apiKey) {
       throw new Error("OPENROUTER_API_KEY is missing");
     }
-    return createOpenAI({
+
+    const config: {
+      apiKey: string;
+      baseURL: string;
+      fetch?: typeof fetch;
+    } = {
       apiKey,
       baseURL: "https://openrouter.ai/api/v1",
-    });
+    };
+
+    if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
+      const { HttpsProxyAgent } = require("https-proxy-agent");
+      const proxyAgent = new HttpsProxyAgent(process.env.HTTP_PROXY);
+      
+      config.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+        return fetch(input, {
+          ...init,
+          // @ts-ignore - undici allows dispatcher option
+          dispatcher: proxyAgent,
+        });
+      };
+    }
+
+    return createOpenAI(config);
   }
   
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
@@ -1148,6 +1267,9 @@ ${truncateForPrompt(jdText.trim(), 5000)}
 ## Search Intent
 ${buildPromptSearchContext(parsed)}
 
+## Company Context
+${buildCompanyProfileContext(parsed)}
+
 ## Candidate Profiles (${poolSize} candidates)
 The profiles below are raw candidate profiles derived from LinkedIn data.
 
@@ -1183,11 +1305,12 @@ function buildJudgeScorePrompt(
   const jsonShape = poolSize === 1
     ? `{
   "index": 0,
-  "fit_decision": "strong_fit | viable_fit | risky_fit | reject",
-  "actionability": "ready_to_act | needs_review | not_actionable",
-  "match_score": 0,
+  "capability_score": 0,
+  "relevance_score": 0,
+  "join_likelihood_score": 0,
+  "join_likelihood_reasons": ["string"],
   "short_reasons": ["string"],
-  "constraint_risks": ["string"],
+  "risk_flags": ["string"],
   "skills": ["string"],
   "experience_years": 0,
   "location": "string | null"
@@ -1195,11 +1318,12 @@ function buildJudgeScorePrompt(
     : `[
   {
     "index": 0,
-    "fit_decision": "strong_fit | viable_fit | risky_fit | reject",
-    "actionability": "ready_to_act | needs_review | not_actionable",
-    "match_score": 0,
+    "capability_score": 0,
+    "relevance_score": 0,
+    "join_likelihood_score": 0,
+    "join_likelihood_reasons": ["string"],
     "short_reasons": ["string"],
-    "constraint_risks": ["string"],
+    "risk_flags": ["string"],
     "skills": ["string"],
     "experience_years": 0,
     "location": "string | null"
@@ -1229,13 +1353,14 @@ ${jsonShape}
 Rules:
 - ${styleHint}
 - ${indexRule}
-- "strong_fit" must map to 85-100.
-- "viable_fit" must map to 65-84.
-- "risky_fit" must map to 40-64.
-- "reject" must map to 0-39.
-- "ready_to_act" is only valid for strong_fit or high-end viable_fit with clear evidence.
-- "not_actionable" is only valid for reject or low-confidence low-score candidates.
+- capability_score measures how strong the person is overall in seniority, depth, and execution track record.
+- relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain.
+- join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity.
+- Strongly penalize obvious overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
+- Do not reward prestige alone.
 - Keep short_reasons concrete and short. Max 3 items.
+- Keep join_likelihood_reasons concrete and evidence-based. Max 3 items.
+- Keep risk_flags concrete and short. Max 4 items.
 - Do not speculate about relocation or work authorization.
 - Return ONLY valid JSON.`;
 }
@@ -1257,6 +1382,9 @@ ${truncateForPrompt(jdText.trim(), 5000)}
 ## Search Intent
 ${buildPromptSearchContext(parsed)}
 
+## Company Context
+${buildCompanyProfileContext(parsed)}
+
 ## Candidate Profile
 ${profileText}
 
@@ -1270,9 +1398,31 @@ ${JSON.stringify(judgeB, null, 2)}
 Return exactly one final assessment object for this candidate. Resolve the disagreement rather than averaging blindly.
 
 Rules:
-- The final fit_decision must match the final match_score band.
-- The final actionability must be realistic and conservative.
-- Explain the candidate's strengths and what still needs verification.
+- Return tri-scores, not a free-form final verdict.
+- The final result must be conservative on join likelihood when evidence is weak.
+- Explain the candidate's strengths, join-likelihood evidence, and what still needs verification.
+- Return ONLY valid JSON array with one object using this exact shape:
+[
+  {
+    "index": 0,
+    "capability_score": 0,
+    "relevance_score": 0,
+    "join_likelihood_score": 0,
+    "join_likelihood_reasons": ["string"],
+    "constraint_verdicts": {
+      "location_fit": "local | nearby | non_local | unknown",
+      "work_model_fit": "yes | no | unclear",
+      "must_have_coverage": "strong | partial | weak | unknown"
+    },
+    "risk_flags": ["string"],
+    "why_this_candidate": ["string"],
+    "why_not_higher": ["string"],
+    "skills": ["string"],
+    "experience_years": 0,
+    "location": "string | null",
+    "evidence_quality": "high | medium | low"
+  }
+]
 - Return ONLY valid JSON array with one object.`;
 }
 
@@ -1368,14 +1518,21 @@ function parseJudgeScoreResults(
       const rawIndex = rawIndexValue;
       if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= poolSize) return null;
       const suitability = sanitizeCandidateSuitability(item);
-      if (!suitability) return null;
       return {
         index: rawIndex,
-        fit_decision: suitability.fit_decision,
-        actionability: suitability.actionability,
-        match_score: suitability.match_score,
+        capability_score: normalizeScore(item.capability_score),
+        relevance_score:
+          item.relevance_score != null
+            ? normalizeScore(item.relevance_score)
+            : suitability?.match_score ?? normalizeScore(item.match_score),
+        join_likelihood_score: normalizeScore(item.join_likelihood_score),
+        join_likelihood_reasons: stripSpeculativeRelocation(
+          normalizeStringArray(item.join_likelihood_reasons, 3),
+        ),
         short_reasons: normalizeStringArray(item.short_reasons, 3),
-        constraint_risks: stripSpeculativeRelocation(normalizeStringArray(item.constraint_risks, 4)),
+        risk_flags: stripSpeculativeRelocation(
+          normalizeStringArray(item.risk_flags ?? item.constraint_risks, 4),
+        ),
         skills: normalizeStringArray(item.skills, 10),
         experience_years: normalizeExperienceYears(item.experience_years),
         location: normalizeNullableString(item.location),
@@ -1559,60 +1716,6 @@ async function hasRunnableSearchJobs() {
   return (count || 0) > 0;
 }
 
-function buildPDLCandidateRows(
-  people: PDLPerson[],
-  selected: Array<Record<string, unknown>>,
-  limit: number,
-  stage: "preliminary" | "final",
-) {
-  const rows: CandidateRowInput[] = [];
-
-  for (const item of selected.slice(0, limit)) {
-    const rawIndex = typeof item.index === "number" ? item.index : Number(item.index);
-    if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= people.length) continue;
-
-    const person = people[rawIndex];
-    const candidate = pdlPersonToCandidate(person);
-    const workHistory = (person.experience || [])
-      .filter((entry) => entry.title?.name || entry.company?.name)
-      .slice(0, 5)
-      .map((entry) => ({
-        title: entry.title?.name || null,
-        company: entry.company?.name || null,
-        start_date: entry.start_date || null,
-        end_date: entry.end_date || null,
-      }));
-    const education = (person.education || [])
-      .filter((entry) => entry.school?.name)
-      .slice(0, 3)
-      .map((entry) => ({
-        school: entry.school?.name || null,
-        degree: entry.degrees?.[0] || null,
-        major: entry.majors?.[0] || null,
-      }));
-
-    rows.push({
-      ...candidate,
-      match_score: Number(item.match_score) || candidate.match_score || 50,
-      match_reasons: Array.isArray(item.match_reasons)
-        ? item.match_reasons.filter((reason): reason is string => typeof reason === "string")
-        : ["Profile matches required skills"],
-      skills:
-        Array.isArray(item.skills) && item.skills.length > 0
-          ? item.skills.filter((skill): skill is string => typeof skill === "string")
-          : candidate.skills,
-      metadata: {
-        source: "pdl",
-        analysis_stage: stage,
-        preliminary: stage === "preliminary",
-        work_history: workHistory,
-        education,
-      },
-    });
-  }
-
-  return rows;
-}
 
 function buildSerperCandidateRows(
   candidates: SerperPreScreenedCandidate[],
@@ -1674,8 +1777,11 @@ function buildBrightDataCandidateRows(
         judge_delta: item.judge_delta ?? 0,
         judge_conflict: item.judge_conflict ?? false,
         suitability: item.suitability,
+        scoring_breakdown: item.suitability.scoring_breakdown,
         constraint_verdicts: item.suitability.constraint_verdicts,
         constraint_risks: item.suitability.constraint_risks,
+        risk_flags: item.suitability.risk_flags,
+        join_likelihood_reasons: item.suitability.scoring_breakdown.join_likelihood_reasons,
         why_not_higher: item.suitability.why_not_higher,
         work_history: (profile.experience || [])
           .slice(0, 5)
@@ -1792,9 +1898,10 @@ function selectQualifiedAssessments(
     hiringBrief.location_flexibility === "strict";
 
   return assessments.filter((assessment) => {
-    if (assessment.suitability.fit_decision === "reject") return false;
+    if (assessment.suitability.match_score < 65) return false;
+    if (assessment.suitability.scoring_breakdown.relevance_score < 60) return false;
+    if (assessment.suitability.scoring_breakdown.join_likelihood_score < 40) return false;
     if (assessment.suitability.actionability === "not_actionable") return false;
-    if (assessment.suitability.match_score < SHORTLIST_MIN_SCORE) return false;
     if (!strictLocationGate) return true;
     return (
       assessment.suitability.constraint_verdicts.location_fit !== "non_local" &&
@@ -1804,7 +1911,7 @@ function selectQualifiedAssessments(
 }
 
 function selectQualifiedLightAssessments(assessments: LightCandidateAssessment[]) {
-  return assessments.filter((assessment) => assessment.match_score >= SHORTLIST_MIN_SCORE);
+  return assessments.filter((assessment) => assessment.match_score >= 65);
 }
 
 function getActionabilityRank(value: CandidateSuitability["actionability"]) {
@@ -1829,11 +1936,19 @@ function hasJudgeConflict(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
 ) {
+  const judgeAOverall = Math.round(
+    (judgeA.capability_score + judgeA.relevance_score + judgeA.join_likelihood_score) / 3,
+  );
+  const judgeBOverall = Math.round(
+    (judgeB.capability_score + judgeB.relevance_score + judgeB.join_likelihood_score) / 3,
+  );
   return (
-    Math.abs(judgeA.match_score - judgeB.match_score) > 8 ||
-    judgeA.fit_decision !== judgeB.fit_decision ||
-    (judgeA.actionability === "ready_to_act" && judgeB.actionability === "not_actionable") ||
-    (judgeB.actionability === "ready_to_act" && judgeA.actionability === "not_actionable")
+    Math.abs(judgeA.capability_score - judgeB.capability_score) > 8 ||
+    Math.abs(judgeA.relevance_score - judgeB.relevance_score) > 8 ||
+    Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score) > 8 ||
+    deriveFitDecisionFromScore(judgeAOverall) !== deriveFitDecisionFromScore(judgeBOverall) ||
+    (judgeA.relevance_score >= 75 && judgeB.join_likelihood_score <= 35) ||
+    (judgeB.relevance_score >= 75 && judgeA.join_likelihood_score <= 35)
   );
 }
 
@@ -1841,19 +1956,27 @@ function mergeJudgeResults(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
 ): ScoredCandidateAssessment {
-  const finalScore = Math.round((judgeA.match_score + judgeB.match_score) / 2);
+  const capabilityScore = Math.round((judgeA.capability_score + judgeB.capability_score) / 2);
+  const relevanceScore = Math.round((judgeA.relevance_score + judgeB.relevance_score) / 2);
+  const joinLikelihoodScore = Math.round(
+    (judgeA.join_likelihood_score + judgeB.join_likelihood_score) / 2,
+  );
   const suitability = sanitizeCandidateSuitability({
-    fit_decision: judgeA.fit_decision,
-    actionability: getMoreConservativeActionability(judgeA.actionability, judgeB.actionability),
-    match_score: finalScore,
+    capability_score: capabilityScore,
+    relevance_score: relevanceScore,
+    join_likelihood_score: joinLikelihoodScore,
+    join_likelihood_reasons: Array.from(
+      new Set([...judgeA.join_likelihood_reasons, ...judgeB.join_likelihood_reasons]),
+    ).slice(0, 6),
     constraint_verdicts: {
       location_fit: "unknown",
       work_model_fit: "unclear",
       must_have_coverage: "unknown",
     },
-    constraint_risks: [...judgeA.constraint_risks, ...judgeB.constraint_risks],
+    risk_flags: [...judgeA.risk_flags, ...judgeB.risk_flags],
+    constraint_risks: [...judgeA.risk_flags, ...judgeB.risk_flags],
     why_this_candidate: [...judgeA.short_reasons, ...judgeB.short_reasons],
-    why_not_higher: [...judgeA.constraint_risks, ...judgeB.constraint_risks],
+    why_not_higher: [...judgeA.risk_flags, ...judgeB.risk_flags],
     evidence_quality: "medium",
   });
 
@@ -1863,12 +1986,19 @@ function mergeJudgeResults(
       fit_decision: "reject",
       actionability: "not_actionable",
       match_score: 0,
+      scoring_breakdown: {
+        capability_score: 0,
+        relevance_score: 0,
+        join_likelihood_score: 0,
+        join_likelihood_reasons: [],
+      },
       constraint_verdicts: {
         location_fit: "unknown",
         work_model_fit: "unclear",
         must_have_coverage: "unknown",
       },
       constraint_risks: [],
+      risk_flags: [],
       why_this_candidate: [],
       why_not_higher: [],
       evidence_quality: "medium",
@@ -1877,7 +2007,11 @@ function mergeJudgeResults(
     experience_years: judgeA.experience_years ?? judgeB.experience_years,
     location: judgeA.location ?? judgeB.location,
     scoring_method: "dual_review_auto",
-    judge_delta: Math.abs(judgeA.match_score - judgeB.match_score),
+    judge_delta: Math.max(
+      Math.abs(judgeA.capability_score - judgeB.capability_score),
+      Math.abs(judgeA.relevance_score - judgeB.relevance_score),
+      Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
+    ),
     judge_conflict: false,
   };
 }
@@ -2044,6 +2178,23 @@ async function parseJobDescription(
     Number(existingParsed?.highlight_count) || context.highlightCount;
   parsed.outreach_pool_target =
     Number(existingParsed?.outreach_pool_target) || context.outreachPoolTarget;
+  try {
+    const { data: settings } = await supabaseAdmin
+      .from("hirelix_user_settings")
+      .select("company_profile")
+      .eq("user_id", context.userId)
+      .single();
+    const companyProfile = sanitizeCompanyProfile(settings?.company_profile);
+    if (companyProfile) {
+      parsed.company_profile = companyProfile;
+    } else if (existingParsed?.company_profile) {
+      parsed.company_profile = sanitizeCompanyProfile(existingParsed.company_profile);
+    }
+  } catch {
+    if (existingParsed?.company_profile) {
+      parsed.company_profile = sanitizeCompanyProfile(existingParsed.company_profile);
+    }
+  }
   parsed.recall_provider = SEARCH_RECALL_PROVIDER;
   parsed.recall_spec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount);
   const existingRecallMetadata = normalizeRecallMetadata(existingParsed?.recall_metadata);
@@ -2069,115 +2220,6 @@ async function parseJobDescription(
   return parsed;
 }
 
-async function buildPdlCandidates(
-  context: PipelineContext,
-  parsed: Record<string, unknown>,
-) {
-  const aiClient = createAIClient();
-
-  let pdlApiKey: string | null = null;
-  try {
-    const { data: settings } = await supabaseAdmin
-      .from("hirelix_user_settings")
-      .select("pdl_api_key")
-      .eq("user_id", context.userId)
-      .single();
-    pdlApiKey = settings?.pdl_api_key || null;
-  } catch {
-    pdlApiKey = null;
-  }
-
-  if (!pdlApiKey) return null;
-
-  await setSearchStatus(context.searchId, "searching");
-  logSearchEvent("search_step_started", {
-    search_id: context.searchId,
-    step: "searching",
-    provider: "pdl",
-    job_id: context.jobId,
-  });
-
-  const poolSize = Math.min(Math.max(context.candidateCount * 4, 8), 40);
-  const pdlQuery = buildPDLQuery(parsed);
-  const searchResult = await withTimeout(
-    searchPeople(pdlApiKey, pdlQuery, poolSize),
-    30000,
-    "PDL search",
-  );
-
-  if (!searchResult.data.length) {
-    logSearchEvent("search_provider_failed", {
-      search_id: context.searchId,
-      provider: "pdl",
-      reason: "no_results",
-      job_id: context.jobId,
-    });
-    return null;
-  }
-
-  await setSearchStatus(context.searchId, "screening", {
-    search_completed_at: nowIso(),
-  });
-  logSearchEvent("search_step_completed", {
-    search_id: context.searchId,
-    step: "searching",
-    provider: "pdl",
-    result_count: searchResult.data.length,
-    job_id: context.jobId,
-  });
-
-  const richProfiles = searchResult.data
-    .map((person, index) => pdlPersonToRichProfile(person, index))
-    .join("\n\n");
-  const filterPrompt = buildFilterPrompt(
-    parsed,
-    context.jdText,
-    richProfiles,
-    searchResult.data.length,
-    context.candidateCount,
-  );
-
-  const { text } = await withTimeout(
-    generateText({
-      model: aiClient(getAIModel()),
-      prompt: filterPrompt,
-      maxOutputTokens: 3000,
-    }),
-    30000,
-    "PDL shortlist scoring",
-  );
-
-  let selected: Array<Record<string, unknown>> = [];
-  try {
-    selected = JSON.parse(extractJSON(text));
-  } catch {
-    selected = searchResult.data.slice(0, context.candidateCount).map((person, index) => ({
-      index,
-      match_score: 50,
-      match_reasons: ["Profile matches required skills"],
-      skills: person.skills.slice(0, 8),
-    }));
-  }
-
-  const finalRows = buildPDLCandidateRows(
-    searchResult.data,
-    selected,
-    context.candidateCount,
-    "final",
-  );
-
-  return {
-    finalRows,
-    displayStats: buildSearchDisplayStats({
-      retrieval_count: searchResult.data.length,
-      deep_review_requested_count: selected.length,
-      deep_review_completed_count: selected.length,
-      qualified_count: finalRows.length,
-      outreach_pool_count: finalRows.length,
-      shortlist_count: Math.min(selected.length, context.candidateCount),
-    }),
-  };
-}
 
 async function preScreenSerperCandidate(
   aiClient: ReturnType<typeof createAIClient>,
@@ -2400,23 +2442,24 @@ async function buildSerperCandidates(
   const aiClient = createAIClient();
   await setSearchStatus(context.searchId, "searching");
   const searchPlan = buildLinkedInSearchPlan(parsed);
-  const RESULTS_PER_QUERY = 100;
-  const PAGES_PER_QUERY = 2;
   logSearchEvent("search_step_started", {
     search_id: context.searchId,
     step: "searching",
     provider: "serper",
     query_concurrency: resolveStageConcurrency(
       SERPER_QUERY_CONCURRENCY,
-      searchPlan.queries.length * PAGES_PER_QUERY,
+      searchPlan.queries.length * SERPER_PAGES_PER_QUERY,
     ),
+    query_count: searchPlan.queries.length,
+    pages_per_query: SERPER_PAGES_PER_QUERY,
+    results_per_page: SERPER_RESULTS_PER_PAGE,
     job_id: context.jobId,
   });
   
   // Generate query tasks with pagination
   const queryTasks: Array<{ query: string; page: number }> = [];
   for (const query of searchPlan.queries) {
-    for (let page = 1; page <= PAGES_PER_QUERY; page++) {
+    for (let page = 1; page <= SERPER_PAGES_PER_QUERY; page++) {
       queryTasks.push({ query, page });
     }
   }
@@ -2426,7 +2469,7 @@ async function buildSerperCandidates(
     resolveStageConcurrency(SERPER_QUERY_CONCURRENCY, queryTasks.length),
     async ({ query, page }) => {
       const results = await withTimeout(
-        serperSearch(serperApiKey, query, RESULTS_PER_QUERY, page),
+        serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
         25000,
         `Serper query "${query}" page ${page}`,
       );
@@ -2464,7 +2507,6 @@ async function buildSerperCandidates(
     job_id: context.jobId,
   });
 
-  const PRE_SCREEN_TARGET = 100;
   const preScreened = await preScreenAllCandidates(
     aiClient,
     parsed,
@@ -2584,7 +2626,7 @@ async function judgeScoreBatch(
   );
   const { text } = await withTimeout(
     generateText({
-      model: aiClient(getAIModel()),
+      model: aiClient(getJudgeModel()),
       prompt,
       maxOutputTokens: 500,
     }),
@@ -2648,7 +2690,7 @@ async function arbitrateCandidateScore(
   const prompt = buildArbiterPrompt(parsed, jdText, profileText, judgeA, judgeB);
   const { text } = await withTimeout(
     generateText({
-      model: aiClient(getAIModel()),
+      model: aiClient(getArbiterModel()),
       prompt,
       maxOutputTokens: 800,
     }),
@@ -2661,7 +2703,11 @@ async function arbitrateCandidateScore(
   return {
     ...assessment,
     scoring_method: "dual_review_arbitrated",
-    judge_delta: Math.abs(judgeA.match_score - judgeB.match_score),
+    judge_delta: Math.max(
+      Math.abs(judgeA.capability_score - judgeB.capability_score),
+      Math.abs(judgeA.relevance_score - judgeB.relevance_score),
+      Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
+    ),
     judge_conflict: true,
   };
 }
@@ -2751,7 +2797,11 @@ async function deepScoreSelectedProfiles(
         return {
           ...mergeJudgeResults(judgeA, judgeB),
           scoring_method: "dual_review_auto",
-          judge_delta: Math.abs(judgeA.match_score - judgeB.match_score),
+          judge_delta: Math.max(
+            Math.abs(judgeA.capability_score - judgeB.capability_score),
+            Math.abs(judgeA.relevance_score - judgeB.relevance_score),
+            Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
+          ),
           judge_conflict: true,
         };
       }
@@ -2801,6 +2851,9 @@ async function scoreBrightDataProfiles(
       scores: allAssessments.map((assessment) => ({
         index: assessment.index,
         match_score: assessment.suitability.match_score,
+        capability_score: assessment.suitability.scoring_breakdown.capability_score,
+        relevance_score: assessment.suitability.scoring_breakdown.relevance_score,
+        join_likelihood_score: assessment.suitability.scoring_breakdown.join_likelihood_score,
         fit_decision: assessment.suitability.fit_decision,
         actionability: assessment.suitability.actionability,
       })),
@@ -3067,21 +3120,6 @@ async function runSearchPipeline(job: SearchJobRow) {
     }
     : await parseJobDescription(context, (search as SearchRow).parsed_requirements);
 
-  try {
-    const pdlResult = await buildPdlCandidates(context, parsed);
-    if (pdlResult?.finalRows.length) {
-      await completeSearch(context, parsed, pdlResult.finalRows, pdlResult.displayStats);
-      return;
-    }
-  } catch (error) {
-    logSearchEvent("search_provider_failed", {
-      search_id: context.searchId,
-      provider: "pdl",
-      reason: error instanceof Error ? error.message : String(error),
-      job_id: context.jobId,
-    });
-  }
-
   const recallProvider: RecallProvider =
     SEARCH_RECALL_PROVIDER === "serper" ? "serper" : "brightdata_dataset";
   const fallbackProvider: RecallProvider | null =
@@ -3119,7 +3157,7 @@ async function runSearchPipeline(job: SearchJobRow) {
   const serperResult = await buildSerperCandidates(context, parsed);
   if (!serperResult?.preScreened.length) {
     throw new Error(
-      "No data source returned candidates. Add a PDL API key or try again later.",
+      "No data source returned candidates. Please try again later.",
     );
   }
 

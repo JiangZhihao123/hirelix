@@ -1,5 +1,42 @@
 # AGENTS.md — AI Agent 开发经验
 
+## Git 提交原则
+
+**每个任务完成后都要进行 Git 提交，提交信息使用中文说明。**
+
+### 提交规范
+
+```bash
+# 功能开发
+git add .
+git commit -m "功能：添加 XXX 功能"
+
+# Bug 修复
+git commit -m "修复：解决 XXX 问题"
+
+# 代码重构
+git commit -m "重构：优化 XXX 模块"
+
+# 文档更新
+git commit -m "文档：更新 XXX 说明"
+
+# 依赖更新
+git commit -m "依赖：升级/添加 XXX 包"
+
+# 配置变更
+git commit -m "配置：调整 XXX 设置"
+```
+
+### 提交时机
+
+- ✅ 完成一个独立功能
+- ✅ 修复一个 Bug
+- ✅ 完成一次重构
+- ✅ 更新文档
+- ✅ 调整配置
+- ❌ 不要在代码无法运行时提交
+- ❌ 不要把多个不相关的改动放在一个提交中
+
 ## 网络代理配置
 
 本地网络无法直连国外服务，代理运行在 `127.0.0.1:7890`。
@@ -119,6 +156,36 @@ PGPASSWORD='<DB_PASSWORD>' /opt/homebrew/opt/libpq/bin/psql \
 | PROJECT_REF | `orftlxqgxsezreyzsnot` |
 | SUPABASE_URL | `https://orftlxqgxsezreyzsnot.supabase.co` |
 | 代理地址 | `http://127.0.0.1:7890` |
+
+### OpenRouter AI 模型代理配置
+
+**开发环境自动使用代理访问 OpenRouter**（绕过地域限制）
+
+在 `.env` 文件中配置：
+
+```bash
+# AI Provider 配置
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# 开发环境代理（自动检测 NODE_ENV=development）
+HTTP_PROXY=http://127.0.0.1:7890
+
+# 可选：指定模型（默认使用 anthropic/claude-sonnet-4.6）
+AI_MODEL=anthropic/claude-sonnet-4.6
+SEARCH_JUDGE_MODEL=anthropic/claude-sonnet-4.6
+SEARCH_ARBITER_MODEL=anthropic/claude-sonnet-4.6
+```
+
+**工作原理：**
+- `src/lib/search-jobs.ts` 的 `createAIClient()` 函数会检测 `NODE_ENV === "development"` 和 `HTTP_PROXY`
+- 如果两者都存在，自动使用 `https-proxy-agent` 通过代理访问 OpenRouter
+- 生产环境不使用代理，直连 OpenRouter
+
+**已删除的功能：**
+- ❌ PDL (People Data Labs) 集成已移除
+- ❌ 用户设置中的 PDL API Key 配置已移除
+- ✅ 现在只使用 Serper.dev + Bright Data 作为数据源
 
 ### 注意事项
 

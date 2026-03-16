@@ -88,12 +88,21 @@ type ConstraintVerdict = {
   must_have_coverage?: "strong" | "partial" | "weak" | "unknown";
 };
 
+type ScoringBreakdown = {
+  capability_score?: number;
+  relevance_score?: number;
+  join_likelihood_score?: number;
+  join_likelihood_reasons?: string[];
+};
+
 type CandidateSuitability = {
   fit_decision?: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
   actionability?: "ready_to_act" | "needs_review" | "not_actionable";
   match_score?: number;
+  scoring_breakdown?: ScoringBreakdown;
   constraint_verdicts?: ConstraintVerdict;
   constraint_risks?: string[];
+  risk_flags?: string[];
   why_this_candidate?: string[];
   why_not_higher?: string[];
   evidence_quality?: "high" | "medium" | "low";
@@ -120,8 +129,11 @@ type CandidateRow = {
     preliminary?: boolean;
     pool_type?: "top_pick" | "outreach_pool" | "main" | "extended";
     suitability?: CandidateSuitability;
+    scoring_breakdown?: ScoringBreakdown;
     constraint_verdicts?: ConstraintVerdict;
     constraint_risks?: string[];
+    risk_flags?: string[];
+    join_likelihood_reasons?: string[];
     why_not_higher?: string[];
     canonical_profile?: Record<string, unknown>;
     raw_profile?: Record<string, unknown>;
@@ -212,6 +224,14 @@ function formatConstraintValue(
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatDimensionLabel(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "Unknown";
+  if (value >= 85) return "High";
+  if (value >= 65) return "Good";
+  if (value >= 40) return "Mixed";
+  return "Low";
 }
 
 function parseOutreach(draft: string | null): { subject: string; linkedin: string; email: string } {
@@ -353,6 +373,16 @@ function CandidateCard({
   const displayableEducation = (candidate.metadata?.education || []).filter(
     (edu) => edu.school || edu.degree || edu.major,
   );
+  const scoringBreakdown =
+    candidate.metadata?.scoring_breakdown || candidate.metadata?.suitability?.scoring_breakdown;
+  const joinLikelihoodReasons =
+    candidate.metadata?.join_likelihood_reasons ||
+    candidate.metadata?.suitability?.scoring_breakdown?.join_likelihood_reasons ||
+    [];
+  const riskFlags =
+    candidate.metadata?.risk_flags ||
+    candidate.metadata?.suitability?.risk_flags ||
+    [];
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -529,6 +559,34 @@ function CandidateCard({
                 </div>
               )}
 
+              {scoringBreakdown && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    Why this person is worth advancing
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Capability</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {scoringBreakdown.capability_score ?? "?"} · {formatDimensionLabel(scoringBreakdown.capability_score)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">JD relevance</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {scoringBreakdown.relevance_score ?? "?"} · {formatDimensionLabel(scoringBreakdown.relevance_score)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Join likelihood</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {scoringBreakdown.join_likelihood_score ?? "?"} · {formatDimensionLabel(scoringBreakdown.join_likelihood_score)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
                   Skills
@@ -586,6 +644,22 @@ function CandidateCard({
                 )}
               </div>
 
+              {joinLikelihoodReasons.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    Why they might realistically engage
+                  </p>
+                  <ul className="space-y-1.5">
+                    {joinLikelihoodReasons.map((reason, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {Array.isArray(candidate.metadata?.why_not_higher) && candidate.metadata.why_not_higher.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
@@ -593,6 +667,22 @@ function CandidateCard({
                   </p>
                   <ul className="space-y-1.5">
                     {candidate.metadata.why_not_higher.map((reason, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted">
+                        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {riskFlags.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    Advancement risks
+                  </p>
+                  <ul className="space-y-1.5">
+                    {riskFlags.map((reason, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-muted">
                         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
                         {reason}
@@ -893,7 +983,7 @@ function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
         <p className="text-sm font-medium">{progressTitle}</p>
       </div>
       <p className="mb-4 max-w-2xl text-sm leading-relaxed text-slate-600">
-        Hirelix is reading the role, searching broadly across LinkedIn profile data, and turning the result into a ranked 25-candidate list with the strongest 5 highlighted first.
+        Hirelix is reading the role, searching broadly across LinkedIn profile data, and turning the result into a ranked 25-candidate list with the 5 most worth advancing highlighted first.
       </p>
       <div className="space-y-3">
         {steps.map((step, i) => {
@@ -1449,7 +1539,7 @@ export default function SearchResultPage() {
             Building your 25-candidate list
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Hirelix is reading the role, searching broadly across LinkedIn profile data, and preparing the final 25 candidates with the top 5 highlighted first.
+            Hirelix is reading the role, searching broadly across LinkedIn profile data, and preparing the final 25 candidates with the 5 most worth advancing highlighted first.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
@@ -1482,7 +1572,7 @@ export default function SearchResultPage() {
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 {search.warning_message
                   ? search.warning_message
-                  : "Hirelix searched across a broad LinkedIn candidate pool, ranked the strongest matches, and prepared a full 25-candidate review list with the top 5 highlighted."}
+                  : "Hirelix searched across a broad LinkedIn candidate pool, ranked the most realistic matches to advance, and prepared a full 25-candidate review list with the top 5 highlighted."}
               </p>
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">

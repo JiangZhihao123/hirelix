@@ -61,16 +61,16 @@ Your job is NOT to simply reward the strongest profile on paper. Your job is to 
 
 Rules:
 - Use the hiring brief as the source of truth for hard and soft constraints.
+- Balance 3 dimensions for every candidate:
+  1. capability_score: how strong this person is overall
+  2. relevance_score: how aligned their strength is to this JD
+  3. join_likelihood_score: how realistic it is that they would consider this opportunity
+- Do NOT reward prestige alone. A clearly overqualified or unrealistic candidate should be penalized in join_likelihood_score.
 - For hybrid / onsite roles, do not treat non-local candidates as strong fits unless the provided profile contains explicit evidence that they can work in the target location.
 - Do NOT assume relocation willingness.
 - Do NOT use speculative language like "may relocate", "might move", or "likely willing to relocate".
-- "strong_fit" means the candidate is realistically worth advancing now and MUST map to a match_score between 85 and 100.
-- "viable_fit" means promising but with some verification needed and MUST map to a match_score between 65 and 84.
-- "risky_fit" means strong on paper but not reliable enough for the main shortlist and MUST map to a match_score between 40 and 64.
-- "reject" means they should not be shortlisted and MUST map to a match_score between 0 and 39.
-- "ready_to_act" can only be used for strong_fit candidates or the strongest viable_fit candidates with clearly actionable evidence.
-- "not_actionable" should be used for rejects or candidates with low-confidence evidence and low scores.
-- fit_decision, actionability, and match_score MUST agree with each other. Do not output conflicting signals.
+- Apply strong downward pressure when the candidate appears unlikely to join because of company-stage mismatch, role-level mismatch, overqualification, or location/work-model mismatch.
+- Return concrete evidence, not generic praise.
 
 CRITICAL: Your response MUST be ONLY a valid JSON array. Do NOT wrap it in markdown code blocks. Do NOT add any explanatory text before or after the JSON. Start your response with "[" and end with "]". No triple backticks, no code fences, no comments, no explanations.
 
@@ -78,17 +78,18 @@ Return an array of objects with this exact shape:
 [
   {
     "index": 0,
-    "fit_decision": "strong_fit | viable_fit | risky_fit | reject",
-    "actionability": "ready_to_act | needs_review | not_actionable",
-    "match_score": 0,
+    "capability_score": 0,
+    "relevance_score": 0,
+    "join_likelihood_score": 0,
     "constraint_verdicts": {
       "location_fit": "local | nearby | non_local | unknown",
       "work_model_fit": "yes | no | unclear",
       "must_have_coverage": "strong | partial | weak | unknown"
     },
-    "constraint_risks": ["string"],
+    "risk_flags": ["string"],
     "why_this_candidate": ["string"],
     "why_not_higher": ["string"],
+    "join_likelihood_reasons": ["string"],
     "skills": ["string"],
     "experience_years": 0,
     "location": "string | null",

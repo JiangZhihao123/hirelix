@@ -166,8 +166,8 @@ function deriveTitleVariants(title?: string, functionFocus?: string | null) {
 }
 
 /**
- * Build 10-12 diverse search queries to retrieve 300+ LinkedIn profiles.
- * All queries go into a single pool — no primary/extended split.
+ * Build a broad, redundant query set to retrieve a large unique LinkedIn pool.
+ * All queries go into a single pool — breadth matters more than precision here.
  */
 export function buildLinkedInSearchPlan(parsed: {
   title?: string;
