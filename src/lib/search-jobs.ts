@@ -225,6 +225,49 @@ const FULL_STAGE_PARALLELISM = getConfiguredBoolean(
   "SEARCH_FULL_STAGE_PARALLELISM",
   true,
 );
+const SEARCH_LOW_COST_MODE = getConfiguredBoolean(
+  "SEARCH_LOW_COST_MODE",
+  false,
+);
+const SEARCH_SINGLE_JUDGE_MODE = getConfiguredBoolean(
+  "SEARCH_SINGLE_JUDGE_MODE",
+  SEARCH_LOW_COST_MODE,
+);
+const PARSE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
+  "SEARCH_PARSE_MAX_OUTPUT_TOKENS",
+  SEARCH_LOW_COST_MODE ? 900 : 1800,
+  { min: 200, max: 4000 },
+);
+const LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
+  "SEARCH_LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS",
+  SEARCH_LOW_COST_MODE ? 120 : 200,
+  { min: 50, max: 800 },
+);
+const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
+  "SEARCH_JUDGE_MAX_OUTPUT_TOKENS",
+  SEARCH_LOW_COST_MODE ? 420 : 700,
+  { min: 120, max: 2000 },
+);
+const ARBITER_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
+  "SEARCH_ARBITER_MAX_OUTPUT_TOKENS",
+  SEARCH_LOW_COST_MODE ? 320 : 500,
+  { min: 120, max: 2000 },
+);
+const OUTREACH_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
+  "SEARCH_OUTREACH_MAX_OUTPUT_TOKENS",
+  SEARCH_LOW_COST_MODE ? 450 : 700,
+  { min: 120, max: 2000 },
+);
+const JUDGE_MAX_ATTEMPTS = getConfiguredPositiveInt(
+  "SEARCH_JUDGE_MAX_ATTEMPTS",
+  SEARCH_LOW_COST_MODE ? 1 : 2,
+  { min: 1, max: 4 },
+);
+const ARBITER_MAX_ATTEMPTS = getConfiguredPositiveInt(
+  "SEARCH_ARBITER_MAX_ATTEMPTS",
+  SEARCH_LOW_COST_MODE ? 1 : 2,
+  { min: 1, max: 4 },
+);
 
 type SearchJobRow = {
   id: string;
@@ -390,7 +433,7 @@ type ScoredCandidateAssessment = {
   skills: string[];
   experience_years: number | null;
   location: string | null;
-  scoring_method?: "dual_review_auto" | "dual_review_arbitrated";
+  scoring_method?: "dual_review_auto" | "dual_review_arbitrated" | "single_judge_debug";
   judge_delta?: number;
   judge_conflict?: boolean;
 };
@@ -1314,21 +1357,33 @@ function trimBrightDataProfileForMetadata(profile: BrightDataProfile) {
 }
 
 function getAIModel() {
-  const provider = process.env.AI_PROVIDER || "anthropic";
+  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
   if (provider === "openrouter") {
     return process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
+  }
+  if (provider === "deepseek") {
+    return process.env.AI_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
   }
   return process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
 }
 
 function getJudgeModel() {
-  const provider = process.env.AI_PROVIDER || "anthropic";
+  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
   if (provider === "openrouter") {
     return (
       process.env.SEARCH_JUDGE_MODEL ||
       process.env.OPENROUTER_JUDGE_MODEL ||
       process.env.AI_MODEL ||
       "anthropic/claude-sonnet-4.6"
+    );
+  }
+  if (provider === "deepseek") {
+    return (
+      process.env.SEARCH_JUDGE_MODEL ||
+      process.env.DEEPSEEK_JUDGE_MODEL ||
+      process.env.AI_MODEL ||
+      process.env.DEEPSEEK_MODEL ||
+      "deepseek-chat"
     );
   }
   return (
@@ -1340,11 +1395,18 @@ function getJudgeModel() {
 }
 
 function getArbiterModel() {
-  const provider = process.env.AI_PROVIDER || "anthropic";
+  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
   if (provider === "openrouter") {
     return (
       process.env.SEARCH_ARBITER_MODEL ||
       process.env.OPENROUTER_ARBITER_MODEL ||
+      getJudgeModel()
+    );
+  }
+  if (provider === "deepseek") {
+    return (
+      process.env.SEARCH_ARBITER_MODEL ||
+      process.env.DEEPSEEK_ARBITER_MODEL ||
       getJudgeModel()
     );
   }
@@ -1356,12 +1418,21 @@ function getArbiterModel() {
 }
 
 function getHaikuModel() {
-  const provider = process.env.AI_PROVIDER || "anthropic";
+  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
   if (provider === "openrouter") {
     return (
       process.env.SEARCH_LIGHT_MODEL ||
       process.env.OPENROUTER_HAIKU_MODEL ||
       "claude-haiku-4-5-20251001"
+    );
+  }
+  if (provider === "deepseek") {
+    return (
+      process.env.SEARCH_LIGHT_MODEL ||
+      process.env.DEEPSEEK_LIGHT_MODEL ||
+      process.env.DEEPSEEK_MODEL ||
+      process.env.AI_MODEL ||
+      "deepseek-chat"
     );
   }
   return (
@@ -1372,7 +1443,7 @@ function getHaikuModel() {
 }
 
 function createAIClient() {
-  const provider = process.env.AI_PROVIDER || "anthropic";
+  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
   
   if (provider === "openrouter") {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -1387,6 +1458,36 @@ function createAIClient() {
     } = {
       apiKey,
       baseURL: "https://openrouter.ai/api/v1",
+    };
+
+    if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
+      const proxyAgent = new ProxyAgent(process.env.HTTP_PROXY);
+
+      config.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        const requestInit = (init ?? {}) as Record<string, unknown>;
+        return undiciFetch(input as never, {
+          ...requestInit,
+          dispatcher: proxyAgent,
+        } as never) as unknown as Promise<Response>;
+      }) as typeof fetch;
+    }
+
+    return createOpenAI(config);
+  }
+
+  if (provider === "deepseek") {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      throw new Error("DEEPSEEK_API_KEY is missing");
+    }
+
+    const config: {
+      apiKey: string;
+      baseURL: string;
+      fetch?: typeof fetch;
+    } = {
+      apiKey,
+      baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
     };
 
     if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
@@ -1474,7 +1575,7 @@ async function generateOutreachDraftsForRows(
           generateText({
             model: aiClient(getHaikuModel()),
             prompt: buildSearchOutreachPrompt(parsed, context.jdText, row),
-            maxOutputTokens: 700,
+            maxOutputTokens: OUTREACH_MAX_OUTPUT_TOKENS,
           }),
           60000,
           `Outreach draft for ${row.name}`,
@@ -2465,7 +2566,7 @@ async function parseJobDescription(
           model: aiClient(getAIModel()),
           system: JD_SEARCH_INTENT_PROMPT,
           prompt: context.jdText,
-          maxOutputTokens: 1800,
+          maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
         }),
         60000,
         "Search intent generation",
@@ -2867,7 +2968,7 @@ async function preScreenSerperCandidate(
       generateText({
         model: aiClient(getHaikuModel()),
         prompt,
-        maxOutputTokens: 200,
+        maxOutputTokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
       }),
       15000,
       "Serper candidate pre-screen",
@@ -3384,7 +3485,7 @@ async function judgeScoreBatch(
     judgeLabel,
   );
   const judgeModel = getJudgeModel();
-  const maxAttempts = 2;
+  const maxAttempts = JUDGE_MAX_ATTEMPTS;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -3393,7 +3494,7 @@ async function judgeScoreBatch(
         generateText({
           model: aiClient(judgeModel),
           prompt,
-          maxOutputTokens: 700,
+          maxOutputTokens: JUDGE_MAX_OUTPUT_TOKENS,
         }),
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,
@@ -3467,7 +3568,7 @@ async function arbitrateCandidateScore(
     judgeA,
     judgeB,
   );
-  const maxAttempts = 2;
+  const maxAttempts = ARBITER_MAX_ATTEMPTS;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -3476,7 +3577,7 @@ async function arbitrateCandidateScore(
         generateText({
           model: aiClient(getArbiterModel()),
           prompt,
-          maxOutputTokens: 500,
+          maxOutputTokens: ARBITER_MAX_OUTPUT_TOKENS,
         }),
         ARBITER_SCORING_TIMEOUT_MS,
         `Arbiter scoring (attempt ${attempt})`,
@@ -3537,6 +3638,34 @@ async function deepScoreSelectedProfiles(
     selectedIndexes,
     workerCount,
     async (selectedIndex) => {
+      if (SEARCH_SINGLE_JUDGE_MODE) {
+        try {
+          const judgeResults = await judgeScoreBatch(
+            aiClient,
+            parsed,
+            jdText,
+            profileTexts,
+            [selectedIndex],
+            totalPoolSize,
+            "Judge A",
+          );
+          const judge = judgeResults[0];
+          if (!judge) return null;
+          return {
+            ...mergeJudgeResults(judge, judge),
+            scoring_method: "single_judge_debug",
+            judge_delta: 0,
+            judge_conflict: false,
+          };
+        } catch (error) {
+          logSearchEvent("single_judge_scoring_failed", {
+            index: selectedIndex,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        }
+      }
+
       const judgeBatch = [selectedIndex];
       const [judgeAResults, judgeBResults] = await Promise.allSettled([
         judgeScoreBatch(aiClient, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge A"),
@@ -3786,6 +3915,13 @@ async function refineSerperCandidates(
     deep_scoring_batch_size: DEEP_SCORING_BATCH_SIZE,
     deep_scoring_concurrency: deepScoringConcurrency,
     deep_review_concurrency: deepReviewConcurrency,
+    low_cost_mode: SEARCH_LOW_COST_MODE,
+    single_judge_mode: SEARCH_SINGLE_JUDGE_MODE,
+    parse_max_output_tokens: PARSE_MAX_OUTPUT_TOKENS,
+    light_prescreen_max_output_tokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
+    judge_max_output_tokens: JUDGE_MAX_OUTPUT_TOKENS,
+    arbiter_max_output_tokens: ARBITER_MAX_OUTPUT_TOKENS,
+    outreach_max_output_tokens: OUTREACH_MAX_OUTPUT_TOKENS,
     scrape_request_count: urlsToScrape.length,
     final_result_cap: FINAL_RESULT_CAP,
     light_stage_target_count: PRE_SCREEN_TARGET,
