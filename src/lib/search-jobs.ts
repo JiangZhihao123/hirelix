@@ -318,12 +318,22 @@ type ScoringBreakdown = {
   relevance_score: number;
   join_likelihood_score: number;
   join_likelihood_reasons: string[];
+  quality_score: number;
+  advance_score: number;
 };
+
+type AdvanceRecommendation = "advance" | "hold" | "reject";
+type BlockingSeverity = "hard" | "soft" | "none";
 
 type CandidateSuitability = {
   fit_decision: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
   actionability: "ready_to_act" | "needs_review" | "not_actionable";
   match_score: number;
+  quality_score: number;
+  advance_score: number;
+  advance_recommendation: AdvanceRecommendation;
+  blocking_constraints: string[];
+  blocking_severity: BlockingSeverity;
   scoring_breakdown: ScoringBreakdown;
   constraint_verdicts: ConstraintVerdict;
   constraint_risks: string[];
@@ -397,6 +407,11 @@ type JudgeScoreResult = {
   join_likelihood_reasons: string[];
   short_reasons: string[];
   risk_flags: string[];
+  blocking_constraints: string[];
+  blocking_severity: BlockingSeverity;
+  advance_recommendation: AdvanceRecommendation;
+  constraint_verdicts: ConstraintVerdict;
+  evidence_quality: "high" | "medium" | "low";
   skills: string[];
   experience_years: number | null;
   location: string | null;
@@ -425,6 +440,11 @@ type SearchDisplayStats = {
   llm_prescreen_pass_rate?: number;
   brightdata_scrape_count?: number;
   deep_qualified_rate?: number;
+  hard_blocked_count?: number;
+  soft_blocked_count?: number;
+  advanceable_count?: number;
+  top_quality_score?: number;
+  top50_quality_cutoff?: number;
 };
 
 type SearchPipelineResult = {
@@ -661,6 +681,26 @@ function buildSearchDisplayStats(
     ...(typeof overrides.deep_qualified_rate === "number"
       ? { deep_qualified_rate: Math.max(0, Math.min(1, overrides.deep_qualified_rate)) }
       : {}),
+    ...(typeof overrides.hard_blocked_count === "number"
+      ? { hard_blocked_count: Math.max(0, Math.round(overrides.hard_blocked_count)) }
+      : {}),
+    ...(typeof overrides.soft_blocked_count === "number"
+      ? { soft_blocked_count: Math.max(0, Math.round(overrides.soft_blocked_count)) }
+      : {}),
+    ...(typeof overrides.advanceable_count === "number"
+      ? { advanceable_count: Math.max(0, Math.round(overrides.advanceable_count)) }
+      : {}),
+    ...(typeof overrides.top_quality_score === "number"
+      ? { top_quality_score: Math.max(0, Math.min(100, Math.round(overrides.top_quality_score))) }
+      : {}),
+    ...(typeof overrides.top50_quality_cutoff === "number"
+      ? {
+        top50_quality_cutoff: Math.max(
+          0,
+          Math.min(100, Math.round(overrides.top50_quality_cutoff)),
+        ),
+      }
+      : {}),
   };
 }
 
@@ -894,6 +934,53 @@ function normalizeScore(value: unknown) {
     : 0;
 }
 
+function normalizeBlockingSeverity(value: unknown): BlockingSeverity {
+  return normalizeEnumValue(
+    value,
+    ["hard", "soft", "none"] as const,
+    "none",
+  );
+}
+
+function normalizeAdvanceRecommendation(value: unknown): AdvanceRecommendation {
+  return normalizeEnumValue(
+    value,
+    ["advance", "hold", "reject"] as const,
+    "hold",
+  );
+}
+
+function normalizeBlockingConstraints(value: unknown) {
+  return normalizeStringArray(value, 8);
+}
+
+function computeQualityScore(
+  capabilityScore: number,
+  relevanceScore: number,
+) {
+  return Math.round((capabilityScore + relevanceScore) / 2);
+}
+
+function computeAdvanceScore(
+  qualityScore: number,
+  joinLikelihoodScore: number,
+  blockingSeverity: BlockingSeverity,
+) {
+  const baseScore = Math.round((qualityScore * 0.75) + (joinLikelihoodScore * 0.25));
+  const penalty = blockingSeverity === "hard" ? 35 : blockingSeverity === "soft" ? 12 : 0;
+  return Math.max(0, Math.min(100, baseScore - penalty));
+}
+
+function deriveAdvanceRecommendation(
+  advanceScore: number,
+  blockingSeverity: BlockingSeverity,
+) {
+  if (blockingSeverity === "hard") return "reject";
+  if (advanceScore >= 72 && blockingSeverity === "none") return "advance";
+  if (advanceScore >= 45) return "hold";
+  return "reject";
+}
+
 function deriveFitDecisionFromScore(score: number): CandidateSuitability["fit_decision"] {
   if (score >= 85) return "strong_fit";
   if (score >= 65) return "viable_fit";
@@ -902,11 +989,11 @@ function deriveFitDecisionFromScore(score: number): CandidateSuitability["fit_de
 }
 
 function deriveActionabilityFromScores(
-  overallScore: number,
-  joinLikelihoodScore: number,
+  qualityScore: number,
+  advanceRecommendation: AdvanceRecommendation,
 ): CandidateSuitability["actionability"] {
-  if (overallScore >= 80 && joinLikelihoodScore >= 60) return "ready_to_act";
-  if (overallScore >= 60) return "needs_review";
+  if (advanceRecommendation === "advance") return "ready_to_act";
+  if (qualityScore >= 60 && advanceRecommendation === "hold") return "needs_review";
   return "not_actionable";
 }
 
@@ -921,23 +1008,43 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
     item.capability_score != null ||
     item.relevance_score != null ||
     item.join_likelihood_score != null;
-  const rawMatchScore = hasTriScores
-    ? Math.round((capabilityScore + relevanceScore + joinLikelihoodScore) / 3)
+  const qualityScore = hasTriScores
+    ? (
+      item.quality_score != null
+        ? normalizeScore(item.quality_score)
+        : computeQualityScore(capabilityScore, relevanceScore)
+    )
     : normalizeScore(item.match_score);
-  const fitDecision = deriveFitDecisionFromScore(rawMatchScore);
-  let actionability = deriveActionabilityFromScores(rawMatchScore, joinLikelihoodScore);
-  if (!hasTriScores) {
+  const blockingSeverity = normalizeBlockingSeverity(item.blocking_severity);
+  const advanceScore =
+    item.advance_score != null
+      ? normalizeScore(item.advance_score)
+      : computeAdvanceScore(qualityScore, joinLikelihoodScore, blockingSeverity);
+  const advanceRecommendation = normalizeAdvanceRecommendation(
+    item.advance_recommendation ??
+      deriveAdvanceRecommendation(advanceScore, blockingSeverity),
+  );
+  const fitDecision = deriveFitDecisionFromScore(qualityScore);
+  let actionability = deriveActionabilityFromScores(qualityScore, advanceRecommendation);
+  if (!hasTriScores && item.actionability != null) {
     actionability = normalizeEnumValue(
       item.actionability,
       ["ready_to_act", "needs_review", "not_actionable"] as const,
-      rawMatchScore >= 80 ? "ready_to_act" : rawMatchScore >= 65 ? "needs_review" : "not_actionable",
+      actionability,
     );
   }
 
   return {
     fit_decision: fitDecision,
     actionability,
-    match_score: rawMatchScore,
+    match_score: qualityScore,
+    quality_score: qualityScore,
+    advance_score: advanceScore,
+    advance_recommendation: advanceRecommendation,
+    blocking_constraints: normalizeBlockingConstraints(
+      item.blocking_constraints ?? item.constraint_risks ?? item.risk_flags,
+    ),
+    blocking_severity: blockingSeverity,
     scoring_breakdown: {
       capability_score: capabilityScore,
       relevance_score: relevanceScore,
@@ -945,6 +1052,8 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
       join_likelihood_reasons: stripSpeculativeRelocation(
         normalizeStringArray(item.join_likelihood_reasons, 6),
       ),
+      quality_score: qualityScore,
+      advance_score: advanceScore,
     },
     constraint_verdicts: sanitizeConstraintVerdicts(item.constraint_verdicts),
     constraint_risks: stripSpeculativeRelocation(
@@ -993,9 +1102,9 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
   };
 
   return (
-    right.suitability.match_score - left.suitability.match_score ||
+    right.suitability.quality_score - left.suitability.quality_score ||
+    right.suitability.advance_score - left.suitability.advance_score ||
     right.suitability.scoring_breakdown.relevance_score - left.suitability.scoring_breakdown.relevance_score ||
-    right.suitability.scoring_breakdown.join_likelihood_score - left.suitability.scoring_breakdown.join_likelihood_score ||
     right.suitability.scoring_breakdown.capability_score - left.suitability.scoring_breakdown.capability_score ||
     evidenceRank[left.suitability.evidence_quality] - evidenceRank[right.suitability.evidence_quality]
   );
@@ -1342,8 +1451,17 @@ function buildJudgeScorePrompt(
   "relevance_score": 0,
   "join_likelihood_score": 0,
   "join_likelihood_reasons": ["string"],
+  "constraint_verdicts": {
+    "location_fit": "local | nearby | non_local | unknown",
+    "work_model_fit": "yes | no | unclear",
+    "must_have_coverage": "strong | partial | weak | unknown"
+  },
+  "blocking_constraints": ["string"],
+  "blocking_severity": "hard | soft | none",
+  "advance_recommendation": "advance | hold | reject",
   "short_reasons": ["string"],
   "risk_flags": ["string"],
+  "evidence_quality": "high | medium | low",
   "skills": ["string"],
   "experience_years": 0,
   "location": "string | null"
@@ -1355,8 +1473,17 @@ function buildJudgeScorePrompt(
     "relevance_score": 0,
     "join_likelihood_score": 0,
     "join_likelihood_reasons": ["string"],
+    "constraint_verdicts": {
+      "location_fit": "local | nearby | non_local | unknown",
+      "work_model_fit": "yes | no | unclear",
+      "must_have_coverage": "strong | partial | weak | unknown"
+    },
+    "blocking_constraints": ["string"],
+    "blocking_severity": "hard | soft | none",
+    "advance_recommendation": "advance | hold | reject",
     "short_reasons": ["string"],
     "risk_flags": ["string"],
+    "evidence_quality": "high | medium | low",
     "skills": ["string"],
     "experience_years": 0,
     "location": "string | null"
@@ -1389,6 +1516,9 @@ Rules:
 - capability_score measures how strong the person is overall in seniority, depth, and execution track record.
 - relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain.
 - join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity.
+- Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
+- blocking_severity should be hard only for constraints that should stop final advancement.
+- advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
 - Strongly penalize obvious overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
 - Do not reward prestige alone.
 - Keep short_reasons concrete and short. Max 3 items, each under 14 words.
@@ -1431,9 +1561,11 @@ ${JSON.stringify(judgeB, null, 2)}
 Return exactly one final assessment object for this candidate. Resolve the disagreement rather than averaging blindly.
 
 Rules:
-- Return tri-scores, not a free-form final verdict.
-- The final result must be conservative on join likelihood when evidence is weak.
-- Explain the candidate's strengths, join-likelihood evidence, and what still needs verification.
+- Return tri-scores plus explicit quality/advance outputs.
+- quality_score should reflect only candidate quality for this JD: capability + relevance.
+- advance_score should reflect real-world advanceability: quality + join likelihood - blocker severity.
+- join_likelihood_score can influence advance_score but must not directly drag down quality_score.
+- If location, work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
 [
@@ -1442,6 +1574,11 @@ Rules:
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
+    "quality_score": 0,
+    "advance_score": 0,
+    "advance_recommendation": "advance | hold | reject",
+    "blocking_constraints": ["string"],
+    "blocking_severity": "hard | soft | none",
     "join_likelihood_reasons": ["string"],
     "constraint_verdicts": {
       "location_fit": "local | nearby | non_local | unknown",
@@ -1529,6 +1666,15 @@ function parseJudgeScoreResults(
         short_reasons: normalizeStringArray(item.short_reasons, 3),
         risk_flags: stripSpeculativeRelocation(
           normalizeStringArray(item.risk_flags ?? item.constraint_risks, 4),
+        ),
+        blocking_constraints: normalizeBlockingConstraints(item.blocking_constraints),
+        blocking_severity: normalizeBlockingSeverity(item.blocking_severity),
+        advance_recommendation: normalizeAdvanceRecommendation(item.advance_recommendation),
+        constraint_verdicts: sanitizeConstraintVerdicts(item.constraint_verdicts),
+        evidence_quality: normalizeEnumValue(
+          item.evidence_quality,
+          ["high", "medium", "low"] as const,
+          "medium",
         ),
         skills: normalizeStringArray(item.skills, 10),
         experience_years: normalizeExperienceYears(item.experience_years),
@@ -1730,7 +1876,7 @@ function buildBrightDataCandidateRows(
         ? item.skills
         : (profile.skills || []).slice(0, 10),
       experience_years: item.experience_years,
-      match_score: item.suitability.match_score || 50,
+      match_score: item.suitability.quality_score || item.suitability.match_score || 50,
       match_reasons:
         item.suitability.why_this_candidate.length > 0
           ? item.suitability.why_this_candidate
@@ -1747,6 +1893,15 @@ function buildBrightDataCandidateRows(
         scoring_method: item.scoring_method || "dual_review_auto",
         judge_delta: item.judge_delta ?? 0,
         judge_conflict: item.judge_conflict ?? false,
+        quality_score: item.suitability.quality_score,
+        advance_score: item.suitability.advance_score,
+        advance_recommendation: item.suitability.advance_recommendation,
+        blocking_constraints: item.suitability.blocking_constraints,
+        blocking_severity: item.suitability.blocking_severity,
+        quality_breakdown: {
+          capability_score: item.suitability.scoring_breakdown.capability_score,
+          relevance_score: item.suitability.scoring_breakdown.relevance_score,
+        },
         suitability: item.suitability,
         scoring_breakdown: item.suitability.scoring_breakdown,
         constraint_verdicts: item.suitability.constraint_verdicts,
@@ -1806,17 +1961,15 @@ function hasJudgeConflict(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
 ) {
-  const judgeAOverall = Math.round(
-    (judgeA.capability_score + judgeA.relevance_score + judgeA.join_likelihood_score) / 3,
-  );
-  const judgeBOverall = Math.round(
-    (judgeB.capability_score + judgeB.relevance_score + judgeB.join_likelihood_score) / 3,
-  );
+  const judgeAQuality = computeQualityScore(judgeA.capability_score, judgeA.relevance_score);
+  const judgeBQuality = computeQualityScore(judgeB.capability_score, judgeB.relevance_score);
   return (
     Math.abs(judgeA.capability_score - judgeB.capability_score) > 8 ||
     Math.abs(judgeA.relevance_score - judgeB.relevance_score) > 8 ||
     Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score) > 8 ||
-    deriveFitDecisionFromScore(judgeAOverall) !== deriveFitDecisionFromScore(judgeBOverall) ||
+    judgeA.blocking_severity !== judgeB.blocking_severity ||
+    judgeA.advance_recommendation !== judgeB.advance_recommendation ||
+    deriveFitDecisionFromScore(judgeAQuality) !== deriveFitDecisionFromScore(judgeBQuality) ||
     (judgeA.relevance_score >= 75 && judgeB.join_likelihood_score <= 35) ||
     (judgeB.relevance_score >= 75 && judgeA.join_likelihood_score <= 35)
   );
@@ -1831,23 +1984,49 @@ function mergeJudgeResults(
   const joinLikelihoodScore = Math.round(
     (judgeA.join_likelihood_score + judgeB.join_likelihood_score) / 2,
   );
+  const blockingSeverity: BlockingSeverity =
+    judgeA.blocking_severity === "hard" || judgeB.blocking_severity === "hard"
+      ? "hard"
+      : judgeA.blocking_severity === "soft" || judgeB.blocking_severity === "soft"
+        ? "soft"
+        : "none";
+  const qualityScore = computeQualityScore(capabilityScore, relevanceScore);
+  const advanceScore = computeAdvanceScore(
+    qualityScore,
+    joinLikelihoodScore,
+    blockingSeverity,
+  );
+  const advanceRecommendation =
+    judgeA.advance_recommendation === "reject" || judgeB.advance_recommendation === "reject"
+      ? "reject"
+      : judgeA.advance_recommendation === "hold" || judgeB.advance_recommendation === "hold"
+        ? "hold"
+        : deriveAdvanceRecommendation(advanceScore, blockingSeverity);
   const suitability = sanitizeCandidateSuitability({
     capability_score: capabilityScore,
     relevance_score: relevanceScore,
     join_likelihood_score: joinLikelihoodScore,
+    quality_score: qualityScore,
+    advance_score: advanceScore,
+    advance_recommendation: advanceRecommendation,
+    blocking_constraints: Array.from(
+      new Set([...judgeA.blocking_constraints, ...judgeB.blocking_constraints]),
+    ).slice(0, 8),
+    blocking_severity: blockingSeverity,
     join_likelihood_reasons: Array.from(
       new Set([...judgeA.join_likelihood_reasons, ...judgeB.join_likelihood_reasons]),
     ).slice(0, 6),
-    constraint_verdicts: {
-      location_fit: "unknown",
-      work_model_fit: "unclear",
-      must_have_coverage: "unknown",
-    },
+    constraint_verdicts: judgeA.constraint_verdicts,
     risk_flags: [...judgeA.risk_flags, ...judgeB.risk_flags],
     constraint_risks: [...judgeA.risk_flags, ...judgeB.risk_flags],
     why_this_candidate: [...judgeA.short_reasons, ...judgeB.short_reasons],
     why_not_higher: [...judgeA.risk_flags, ...judgeB.risk_flags],
-    evidence_quality: "medium",
+    evidence_quality:
+      judgeA.evidence_quality === "high" || judgeB.evidence_quality === "high"
+        ? "high"
+        : judgeA.evidence_quality === "medium" || judgeB.evidence_quality === "medium"
+          ? "medium"
+          : "low",
   });
 
   return {
@@ -1856,11 +2035,18 @@ function mergeJudgeResults(
       fit_decision: "reject",
       actionability: "not_actionable",
       match_score: 0,
+      quality_score: 0,
+      advance_score: 0,
+      advance_recommendation: "reject",
+      blocking_constraints: [],
+      blocking_severity: "none",
       scoring_breakdown: {
         capability_score: 0,
         relevance_score: 0,
         join_likelihood_score: 0,
         join_likelihood_reasons: [],
+        quality_score: 0,
+        advance_score: 0,
       },
       constraint_verdicts: {
         location_fit: "unknown",
@@ -2385,7 +2571,14 @@ function selectTopLightCandidates(
 function selectTopDeepAssessments(
   assessments: ScoredCandidateAssessment[],
 ) {
-  if (assessments.length === 0) {
+  const eligibleAssessments = assessments.filter(
+    (assessment) => !(
+      assessment.suitability.advance_recommendation === "reject" &&
+      assessment.suitability.blocking_severity === "hard"
+    ),
+  );
+
+  if (eligibleAssessments.length === 0) {
     return {
       selected: [] as ScoredCandidateAssessment[],
       selectedCount: 0,
@@ -2395,7 +2588,7 @@ function selectTopDeepAssessments(
     };
   }
 
-  const sorted = [...assessments].sort(sortCandidateAssessments);
+  const sorted = [...eligibleAssessments].sort(sortCandidateAssessments);
   const selectedCount = computeTopCount(
     sorted.length,
     DEEP_STAGE_TOP_RATIO,
@@ -3201,15 +3394,29 @@ async function scoreBrightDataProfiles(
       scores: deepAssessments.map((assessment) => ({
         index: assessment.index,
         match_score: assessment.suitability.match_score,
+        quality_score: assessment.suitability.quality_score,
+        advance_score: assessment.suitability.advance_score,
         capability_score: assessment.suitability.scoring_breakdown.capability_score,
         relevance_score: assessment.suitability.scoring_breakdown.relevance_score,
         join_likelihood_score: assessment.suitability.scoring_breakdown.join_likelihood_score,
         fit_decision: assessment.suitability.fit_decision,
         actionability: assessment.suitability.actionability,
+        advance_recommendation: assessment.suitability.advance_recommendation,
+        blocking_severity: assessment.suitability.blocking_severity,
+        blocking_constraints: assessment.suitability.blocking_constraints,
       })),
     });
   }
   const fullDetailIncomplete = deepAssessments.length < selectedIndexes.length;
+  const hardBlockedCount = deepAssessments.filter(
+    (assessment) => assessment.suitability.blocking_severity === "hard",
+  ).length;
+  const softBlockedCount = deepAssessments.filter(
+    (assessment) => assessment.suitability.blocking_severity === "soft",
+  ).length;
+  const advanceableCount = deepAssessments.filter(
+    (assessment) => assessment.suitability.advance_recommendation === "advance",
+  ).length;
   const deepSelection = selectTopDeepAssessments(deepAssessments);
   const deepSelected = deepSelection.selected;
   const deepRows = buildBrightDataCandidateRows(
@@ -3230,6 +3437,14 @@ async function scoreBrightDataProfiles(
   const shortlistedCount = finalRows.filter(
     (row) => row.metadata?.pool_type === "top_pick",
   ).length;
+  const topQualityScore = deepAssessments.reduce(
+    (best, assessment) => Math.max(best, assessment.suitability.quality_score),
+    0,
+  );
+  const top50QualityCutoff =
+    finalRows.length > 0
+      ? finalRows[finalRows.length - 1]?.match_score ?? 0
+      : 0;
 
   let warningMessage: string | null = null;
   if (finalRows.length === 0) {
@@ -3255,6 +3470,11 @@ async function scoreBrightDataProfiles(
         deepAssessments.length > 0
           ? deepSelected.length / deepAssessments.length
           : 0,
+      hard_blocked_count: hardBlockedCount,
+      soft_blocked_count: softBlockedCount,
+      advanceable_count: advanceableCount,
+      top_quality_score: topQualityScore,
+      top50_quality_cutoff: top50QualityCutoff,
     }),
   };
 }

@@ -93,12 +93,19 @@ type ScoringBreakdown = {
   relevance_score?: number;
   join_likelihood_score?: number;
   join_likelihood_reasons?: string[];
+  quality_score?: number;
+  advance_score?: number;
 };
 
 type CandidateSuitability = {
   fit_decision?: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
   actionability?: "ready_to_act" | "needs_review" | "not_actionable";
   match_score?: number;
+  quality_score?: number;
+  advance_score?: number;
+  advance_recommendation?: "advance" | "hold" | "reject";
+  blocking_constraints?: string[];
+  blocking_severity?: "hard" | "soft" | "none";
   scoring_breakdown?: ScoringBreakdown;
   constraint_verdicts?: ConstraintVerdict;
   constraint_risks?: string[];
@@ -128,6 +135,15 @@ type CandidateRow = {
     analysis_stage?: string;
     preliminary?: boolean;
     pool_type?: "top_pick" | "outreach_pool" | "main" | "extended";
+    quality_score?: number;
+    advance_score?: number;
+    advance_recommendation?: "advance" | "hold" | "reject";
+    blocking_constraints?: string[];
+    blocking_severity?: "hard" | "soft" | "none";
+    quality_breakdown?: {
+      capability_score?: number;
+      relevance_score?: number;
+    };
     suitability?: CandidateSuitability;
     scoring_breakdown?: ScoringBreakdown;
     constraint_verdicts?: ConstraintVerdict;
@@ -153,6 +169,11 @@ type SearchDisplayStats = {
   llm_prescreen_pass_rate?: number;
   brightdata_scrape_count?: number;
   deep_qualified_rate?: number;
+  hard_blocked_count?: number;
+  soft_blocked_count?: number;
+  advanceable_count?: number;
+  top_quality_score?: number;
+  top50_quality_cutoff?: number;
   serper_query_tier_stats?: Array<{
     tier: "P0" | "P1" | "P2";
     query_count: number;
@@ -202,7 +223,7 @@ function ScoreBadge({ score }: { score: number }) {
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}
     >
-      {score}% match
+      {score}% quality
     </span>
   );
 }
@@ -210,6 +231,26 @@ function ScoreBadge({ score }: { score: number }) {
 function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
   const actionability = candidate.metadata?.suitability?.actionability;
   const fitDecision = candidate.metadata?.suitability?.fit_decision;
+  const advanceRecommendation = candidate.metadata?.advance_recommendation ||
+    candidate.metadata?.suitability?.advance_recommendation;
+  const blockingSeverity = candidate.metadata?.blocking_severity ||
+    candidate.metadata?.suitability?.blocking_severity;
+
+  if (advanceRecommendation === "reject" && blockingSeverity === "hard") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+        Hard blocker
+      </span>
+    );
+  }
+
+  if (blockingSeverity === "soft" || advanceRecommendation === "hold") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+        Needs review
+      </span>
+    );
+  }
 
   if (fitDecision === "risky_fit" || actionability === "not_actionable") {
     return (
@@ -393,6 +434,26 @@ function CandidateCard({
   );
   const scoringBreakdown =
     candidate.metadata?.scoring_breakdown || candidate.metadata?.suitability?.scoring_breakdown;
+  const suitability = candidate.metadata?.suitability;
+  const qualityScore =
+    candidate.metadata?.quality_score ??
+    suitability?.quality_score ??
+    scoringBreakdown?.quality_score ??
+    candidate.match_score;
+  const advanceScore =
+    candidate.metadata?.advance_score ??
+    suitability?.advance_score ??
+    scoringBreakdown?.advance_score;
+  const advanceRecommendation =
+    candidate.metadata?.advance_recommendation ??
+    suitability?.advance_recommendation;
+  const blockingSeverity =
+    candidate.metadata?.blocking_severity ??
+    suitability?.blocking_severity;
+  const blockingConstraints =
+    candidate.metadata?.blocking_constraints ??
+    suitability?.blocking_constraints ??
+    [];
   const joinLikelihoodReasons =
     candidate.metadata?.join_likelihood_reasons ||
     candidate.metadata?.suitability?.scoring_breakdown?.join_likelihood_reasons ||
@@ -580,9 +641,31 @@ function CandidateCard({
               {scoringBreakdown && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Why this person is worth advancing
+                    AI scorecard
                   </p>
                   <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Quality score</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {qualityScore ?? "?"} · {formatDimensionLabel(qualityScore)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Advance score</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {advanceScore ?? "?"} · {formatDimensionLabel(advanceScore)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Advance verdict</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {advanceRecommendation
+                          ? advanceRecommendation.charAt(0).toUpperCase() + advanceRecommendation.slice(1)
+                          : "Unknown"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
                       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Capability</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">
@@ -596,11 +679,33 @@ function CandidateCard({
                       </p>
                     </div>
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Join likelihood</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Engagement likelihood</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">
                         {scoringBreakdown.join_likelihood_score ?? "?"} · {formatDimensionLabel(scoringBreakdown.join_likelihood_score)}
                       </p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {blockingConstraints.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
+                    Blocking constraints
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {blockingConstraints.map((constraint) => (
+                      <span
+                        key={constraint}
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          blockingSeverity === "hard"
+                            ? "bg-red-50 text-red-700"
+                            : "bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {constraint}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1427,7 +1532,7 @@ export default function SearchResultPage() {
     ? allCandidates.filter((candidate) => candidate.email)
     : allCandidates;
   const highlightedCandidates = allCandidates.slice(0, Math.min(highlightCount, allCandidates.length));
-  const averageMatch = highlightedCandidates.length
+  const averageQuality = highlightedCandidates.length
     ? Math.round(
         highlightedCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
           highlightedCandidates.length,
@@ -1457,8 +1562,25 @@ export default function SearchResultPage() {
   );
   const shortlistReadyCount =
     positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
+  const hardBlockedCount =
+    positiveInt(rawDisplayStats?.hard_blocked_count) ?? 0;
+  const softBlockedCount =
+    positiveInt(rawDisplayStats?.soft_blocked_count) ?? 0;
+  const advanceableCount =
+    positiveInt(rawDisplayStats?.advanceable_count) ??
+    allCandidates.filter(
+      (candidate) => candidate.metadata?.suitability?.advance_recommendation === "advance",
+    ).length;
+  const topQualityScore =
+    positiveInt(rawDisplayStats?.top_quality_score) ??
+    Math.max(0, ...allCandidates.map((candidate) => candidate.match_score));
+  const top50QualityCutoff =
+    positiveInt(rawDisplayStats?.top50_quality_cutoff) ??
+    (allCandidates.length > 0 ? allCandidates[allCandidates.length - 1]?.match_score ?? 0 : 0);
   const readyToActCount = allCandidates.filter(
-    (candidate) => candidate.metadata?.suitability?.actionability === "ready_to_act",
+    (candidate) =>
+      candidate.metadata?.suitability?.advance_recommendation === "advance" ||
+      candidate.metadata?.suitability?.actionability === "ready_to_act",
   ).length;
   const withContactCount = allCandidates.filter((candidate) => Boolean(candidate.email)).length;
   const entryQuery =
@@ -1620,17 +1742,17 @@ export default function SearchResultPage() {
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Qualified for outreach</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(qualifiedCount)}</p>
-                <p className="mt-1 text-xs text-slate-500">Candidates above the outreach threshold</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Advanceable now</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(advanceableCount)}</p>
+                <p className="mt-1 text-xs text-slate-500">{formatDisplayCount(qualifiedCount)} candidates made the final ranked pool</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top picks shown</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{Math.min(highlightCount, allCandidates.length)}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top quality band</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{topQualityScore}% / {top50QualityCutoff}%</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {outreachPoolCount > 0
-                    ? `${outreachPoolCount} candidates returned`
-                    : "Immediate top picks to review"}
+                  {hardBlockedCount > 0 || softBlockedCount > 0
+                    ? `${hardBlockedCount} hard blocked, ${softBlockedCount} soft blocked`
+                    : `${outreachPoolCount > 0 ? outreachPoolCount : allCandidates.length} candidates returned`}
                 </p>
               </div>
             </div>
@@ -1753,9 +1875,15 @@ export default function SearchResultPage() {
               <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
                 {highlightedCandidates.length > 0 && (
                   <>
-                    <span>Avg: {averageMatch}%</span>
+                    <span>Quality avg: {averageQuality}%</span>
                     <span>·</span>
                     <span>Range: {Math.min(...highlightedCandidates.map((c) => c.match_score))}–{Math.max(...highlightedCandidates.map((c) => c.match_score))}%</span>
+                  </>
+                )}
+                {(hardBlockedCount > 0 || advanceableCount > 0) && (
+                  <>
+                    <span>·</span>
+                    <span>{advanceableCount} advanceable / {hardBlockedCount} hard blocked</span>
                   </>
                 )}
                 {billing?.usage.exportEnabled ? (
