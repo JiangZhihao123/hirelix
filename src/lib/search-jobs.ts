@@ -1472,11 +1472,7 @@ function createAIClient() {
       }) as typeof fetch;
     }
 
-    const deepseekClient = createOpenAI(config);
-    const chatPreferredClient = ((modelId: string) =>
-      deepseekClient.chat(modelId)) as typeof deepseekClient;
-    Object.assign(chatPreferredClient, deepseekClient);
-    return chatPreferredClient;
+    return createOpenAI(config);
   }
 
   if (provider === "deepseek") {
@@ -1506,7 +1502,11 @@ function createAIClient() {
       }) as typeof fetch;
     }
 
-    return createOpenAI(config);
+    const deepseekClient = createOpenAI(config);
+    const chatPreferredClient = ((modelId: string) =>
+      deepseekClient.chat(modelId)) as typeof deepseekClient;
+    Object.assign(chatPreferredClient, deepseekClient);
+    return chatPreferredClient;
   }
   
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
