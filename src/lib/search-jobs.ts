@@ -190,7 +190,7 @@ const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
 );
 const SEARCH_RECALL_PROVIDER = (
   process.env.SEARCH_RECALL_PROVIDER ||
-  "serper"
+  "brightdata_dataset"
 ).trim().toLowerCase();
 const SEARCH_RECALL_FALLBACK_PROVIDER = (
   process.env.SEARCH_RECALL_FALLBACK_PROVIDER ||
@@ -198,8 +198,13 @@ const SEARCH_RECALL_FALLBACK_PROVIDER = (
 ).trim().toLowerCase();
 const BRIGHTDATA_FILTER_LIMIT = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_LIMIT",
-  250,
-  { max: 500 },
+  TARGET_SCRAPE_COUNT,
+  { min: 100, max: 5000 },
+);
+const PARSE_MAX_ATTEMPTS = getConfiguredPositiveInt(
+  "SEARCH_PARSE_MAX_ATTEMPTS",
+  2,
+  { min: 1, max: 4 },
 );
 const BRIGHTDATA_FILTER_TIMEOUT_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_TIMEOUT_MS",
@@ -622,7 +627,7 @@ function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec
     title_variants,
     core_skill_terms,
     record_limit: Math.min(
-      Math.max(requestedLimit, BRIGHTDATA_FILTER_LIMIT, Math.max(candidateCount * 10, 25)),
+      Math.max(requestedLimit, Math.max(candidateCount * 10, 25)),
       BRIGHTDATA_FILTER_LIMIT,
     ),
   };
@@ -637,6 +642,105 @@ function normalizeExperienceYears(value: unknown): number | null {
     if (Number.isFinite(parsed) && parsed >= 0) return Math.round(parsed);
   }
   return null;
+}
+
+function extractLikelyTitleFromJdText(jdText: string) {
+  const lines = jdText
+    .split("\n")
+    .map((line) => line.replace(/[#*`>-]/g, " ").trim())
+    .filter(Boolean);
+
+  for (const line of lines.slice(0, 12)) {
+    if (line.length < 4 || line.length > 90) continue;
+    if (/^(location|company|about|requirements|responsibilities|nice to have|compensation)\s*:/i.test(line)) {
+      continue;
+    }
+    return line;
+  }
+
+  return null;
+}
+
+const FALLBACK_CORE_SKILL_TERMS = [
+  "python",
+  "typescript",
+  "javascript",
+  "node.js",
+  "next.js",
+  "react",
+  "postgresql",
+  "aws",
+  "docker",
+  "kubernetes",
+  "llm",
+  "ai agent",
+];
+
+function deriveCoreSkillsFromJdText(jdText: string, maxItems = 12) {
+  const lower = jdText.toLowerCase();
+  const deduped = new Set<string>();
+  for (const term of FALLBACK_CORE_SKILL_TERMS) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${escaped}\\b`, "i");
+    if (re.test(lower)) {
+      deduped.add(term);
+      if (deduped.size >= maxItems) break;
+    }
+  }
+  return Array.from(deduped);
+}
+
+function inferCountriesFromJdText(jdText: string) {
+  const lower = jdText.toLowerCase();
+  if (
+    lower.includes("new york") ||
+    lower.includes("nyc") ||
+    lower.includes("united states") ||
+    /\busa\b/.test(lower) ||
+    /\bus\b/.test(lower)
+  ) {
+    return ["US"];
+  }
+  return [];
+}
+
+function enrichRecallSpecFromJd(
+  parsed: Record<string, unknown>,
+  jdText: string,
+  candidateCount: number,
+) {
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount);
+  const title = normalizeNullableString(parsed.title) || extractLikelyTitleFromJdText(jdText);
+  const titleVariants = recallSpec.title_variants.length > 0
+    ? recallSpec.title_variants
+    : (title ? [title] : []);
+  const coreSkillTerms = recallSpec.core_skill_terms.length > 0
+    ? recallSpec.core_skill_terms
+    : deriveCoreSkillsFromJdText(jdText, 12);
+  const countries = recallSpec.countries.length > 0
+    ? recallSpec.countries
+    : inferCountriesFromJdText(jdText);
+
+  return {
+    ...recallSpec,
+    title_variants: titleVariants.slice(0, 8),
+    core_skill_terms: coreSkillTerms.slice(0, 12),
+    countries: countries.slice(0, 5),
+  };
+}
+
+function isWeakParsedIntent(
+  parsed: Record<string, unknown>,
+  candidateCount: number,
+) {
+  const title = normalizeNullableString(parsed.title);
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount);
+  return (
+    !title ||
+    /^untitled role$/i.test(title) ||
+    recallSpec.title_variants.length === 0 ||
+    recallSpec.core_skill_terms.length === 0
+  );
 }
 
 function buildSearchDisplayStats(
@@ -2351,23 +2455,50 @@ async function parseJobDescription(
   });
 
   const aiClient = createAIClient();
-  const { text } = await withTimeout(
-    generateText({
-      model: aiClient(getAIModel()),
-      system: JD_SEARCH_INTENT_PROMPT,
-      prompt: context.jdText,
-      maxOutputTokens: 1800,
-    }),
-    60000,
-    "Search intent generation",
-  );
+  let parsed: Record<string, unknown> | null = null;
+  let lastParseError: string | null = null;
 
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(extractJSON(text));
-  } catch {
+  for (let attempt = 1; attempt <= PARSE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const { text } = await withTimeout(
+        generateText({
+          model: aiClient(getAIModel()),
+          system: JD_SEARCH_INTENT_PROMPT,
+          prompt: context.jdText,
+          maxOutputTokens: 1800,
+        }),
+        60000,
+        "Search intent generation",
+      );
+
+      const candidate = JSON.parse(extractJSON(text)) as Record<string, unknown>;
+      if (isWeakParsedIntent(candidate, context.candidateCount)) {
+        lastParseError = "weak_parsed_intent";
+        logSearchEvent("search_parse_retry", {
+          search_id: context.searchId,
+          attempt,
+          reason: lastParseError,
+          job_id: context.jobId,
+        });
+        if (attempt < PARSE_MAX_ATTEMPTS) continue;
+      }
+      parsed = candidate;
+      break;
+    } catch (error) {
+      lastParseError = error instanceof Error ? error.message : String(error);
+      logSearchEvent("search_parse_retry", {
+        search_id: context.searchId,
+        attempt,
+        reason: lastParseError,
+        job_id: context.jobId,
+      });
+      if (attempt >= PARSE_MAX_ATTEMPTS) break;
+    }
+  }
+
+  if (!parsed) {
     parsed = {
-      title: "Untitled Role",
+      title: extractLikelyTitleFromJdText(context.jdText) || "Untitled Role",
       hiring_brief: {
         work_model: "unknown",
         location_scope: null,
@@ -2375,15 +2506,18 @@ async function parseJobDescription(
         relocation_allowed: "unknown",
       },
       recall_spec: {
-        countries: [],
+        countries: inferCountriesFromJdText(context.jdText),
         title_variants: [],
-        core_skill_terms: [],
+        core_skill_terms: deriveCoreSkillsFromJdText(context.jdText, 12),
         record_limit: BRIGHTDATA_FILTER_LIMIT,
       },
     };
   }
 
-  parsed.title = normalizeNullableString(parsed.title) || "Untitled Role";
+  parsed.title =
+    normalizeNullableString(parsed.title) ||
+    extractLikelyTitleFromJdText(context.jdText) ||
+    "Untitled Role";
   parsed.hiring_brief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   parsed.candidate_count = context.candidateCount;
   parsed.display_count = context.candidateCount;
@@ -2420,7 +2554,7 @@ async function parseJobDescription(
   }
 
   parsed.recall_provider = SEARCH_RECALL_PROVIDER;
-  parsed.recall_spec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount);
+  parsed.recall_spec = enrichRecallSpecFromJd(parsed, context.jdText, context.candidateCount);
   const existingRecallMetadata = normalizeRecallMetadata(existingParsed?.recall_metadata);
   if (existingRecallMetadata?.provider === "brightdata_dataset") {
     parsed.recall_metadata = existingRecallMetadata;
