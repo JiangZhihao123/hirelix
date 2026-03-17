@@ -167,7 +167,7 @@ const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
 );
 const STRICT_LOCATION_REQUIRE_HIT = getConfiguredBoolean(
   "SEARCH_STRICT_LOCATION_REQUIRE_HIT",
-  true,
+  false,
 );
 const TARGET_SCRAPE_COUNT = getConfiguredPositiveInt(
   "SEARCH_TARGET_SCRAPE_COUNT",
@@ -574,19 +574,6 @@ function deriveLocationTerms(locationScope: string | null): string[] {
     .map((term) => term.replace(/\s+/g, " ").trim())
     .filter((term) => term.length >= 3)
     .slice(0, 5);
-}
-
-function inferCountryCodesFromLocationTerms(locationTerms: string[]) {
-  const merged = locationTerms.join(" ");
-  if (!merged) return [] as string[];
-  if (
-    /\b(united states|usa|new york|nyc|san francisco|los angeles|seattle|austin|boston|chicago)\b/i.test(
-      merged,
-    )
-  ) {
-    return ["US"];
-  }
-  return [] as string[];
 }
 
 function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec {
@@ -1941,15 +1928,10 @@ function buildBrightDataRecallFilter(
   if (titleTerms.length === 0) return null;
 
   const sourceRuleContext = buildSerperSourceRuleContext(parsed, jdText);
-  const explicitCountryCodes = recallSpec.countries
+  const countryCodes = recallSpec.countries
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4);
-  const inferredCountryCodes =
-    explicitCountryCodes.length > 0
-      ? []
-      : inferCountryCodesFromLocationTerms(sourceRuleContext.locationTerms);
-  const countryCodes = [...explicitCountryCodes, ...inferredCountryCodes].slice(0, 4);
   const locationTerms = sourceRuleContext.locationTerms
     .map((term) => normalizeText(term))
     .filter((term) => term.length >= 3)
@@ -2102,6 +2084,12 @@ async function parseJobDescription(
   } catch {
     parsed = {
       title: "Untitled Role",
+      hiring_brief: {
+        work_model: "unknown",
+        location_scope: null,
+        location_flexibility: "moderate",
+        relocation_allowed: "unknown",
+      },
       recall_spec: {
         countries: [],
         title_variants: [],
@@ -2112,6 +2100,7 @@ async function parseJobDescription(
   }
 
   parsed.title = normalizeNullableString(parsed.title) || "Untitled Role";
+  parsed.hiring_brief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   parsed.candidate_count = context.candidateCount;
   parsed.display_count = context.candidateCount;
   parsed.highlight_count =
@@ -2274,6 +2263,13 @@ function buildSerperSourceRuleContext(
     (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
     hiringBrief.location_flexibility === "strict";
   const strictLocation = strictLocationFromBrief || inferStrictLocationFromJdText(jdText);
+  const strictLocationRequireHit =
+    strictLocation &&
+    (
+      STRICT_LOCATION_REQUIRE_HIT ||
+      hiringBrief.location_flexibility === "strict" ||
+      hiringBrief.relocation_allowed === "no"
+    );
   const locationFromJd = extractLocationFromJdText(jdText);
   const locationTerms = deriveLocationTerms(
     hiringBrief.location_scope || normalizeNullableString(parsed.location) || locationFromJd,
@@ -2283,7 +2279,7 @@ function buildSerperSourceRuleContext(
     titleTerms,
     mustHaveTerms,
     strictLocation,
-    strictLocationRequireHit: STRICT_LOCATION_REQUIRE_HIT,
+    strictLocationRequireHit,
     locationTerms,
   };
 }

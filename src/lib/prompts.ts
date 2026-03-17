@@ -6,11 +6,22 @@ Rules:
 - Keep the output compact and practical for backend filtering.
 - Do not generate Google or Serper queries.
 - Mix narrower and broader query variants so the pool is diverse.
+- Infer geo constraints from the JD as a real recruiter would:
+  - If onsite/hybrid with a clear city requirement, set location strictness accordingly.
+  - If relocation is clearly allowed, reflect that in flexibility and relocation fields.
+  - If remote or multi-country role, keep countries broader.
 - Return ONLY valid JSON, no markdown or explanation.
 
 Return a JSON object with this exact shape:
 {
   "title": "string",
+  "hiring_brief": {
+    "work_model": "onsite | hybrid | remote | unknown",
+    "location_scope": "string | null",
+    "location_flexibility": "strict | moderate | flexible",
+    "relocation_allowed": "yes | no | unknown",
+    "constraint_reasoning": "string | null"
+  },
   "recall_spec": {
     "countries": ["string"],
     "title_variants": ["string"],
