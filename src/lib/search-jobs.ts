@@ -1318,7 +1318,8 @@ Rules:
   - 55-69: plausible fit worth scraping even if evidence is partial.
   - 40-59: weak/uncertain fit; not worth scraping now.
   - 0-39: clear mismatch, non-engineering role, or obvious hard-constraint conflict.
-- For strict onsite/hybrid roles, apply location/work-model constraints when explicit conflicts appear.
+- You are the sole gate for this stage; no external rule will override your keep decision.
+- For strict onsite/hybrid roles, apply location/work-model feasibility directly in keep/match_score.
 - Keep reason under 20 words.
 - Return raw JSON only. No markdown fences. Do not return extra fields.`;
 }
@@ -2199,36 +2200,6 @@ function extractLocationFromJdText(jdText: string) {
   return raw.split(/[|(]/)[0]?.trim() || null;
 }
 
-function inferStrictLocationFromJdText(jdText: string) {
-  const text = normalizeText(jdText);
-  if (!text) return false;
-
-  const inOfficeSignals = [
-    "full time in office",
-    "full-time in office",
-    "in office",
-    "in-office",
-    "onsite",
-    "on-site",
-    "work from office",
-    "5 days in office",
-    "must be based in",
-    "must be located in",
-    "relocation assistance",
-  ];
-  const hasInOfficeSignal = inOfficeSignals.some((signal) => text.includes(signal));
-  if (!hasInOfficeSignal) return false;
-
-  const remoteSignals = ["remote", "work from home", "wfh"];
-  const hasRemoteOnlySignal =
-    remoteSignals.some((signal) => text.includes(signal)) &&
-    !text.includes("in office") &&
-    !text.includes("in-office") &&
-    !text.includes("onsite") &&
-    !text.includes("on-site");
-  return !hasRemoteOnlySignal;
-}
-
 function buildSerperSourceRuleContext(
   parsed: Record<string, unknown>,
   jdText: string,
@@ -2262,7 +2233,7 @@ function buildSerperSourceRuleContext(
   const strictLocationFromBrief =
     (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
     hiringBrief.location_flexibility === "strict";
-  const strictLocation = strictLocationFromBrief || inferStrictLocationFromJdText(jdText);
+  const strictLocation = strictLocationFromBrief;
   const strictLocationRequireHit =
     strictLocation &&
     (
@@ -2361,25 +2332,6 @@ function evaluateSerperSourceRules(
     location_hit,
     noise_penalty,
   };
-}
-
-function isBrightDataProfileLocationMatch(
-  profile: BrightDataProfile,
-  context: SerperSourceRuleContext,
-) {
-  if (context.locationTerms.length === 0) return true;
-  const profileText = normalizeText(
-    [
-      profile.city,
-      profile.country_code,
-      profile.current_company?.location,
-      profile.current_company?.name,
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
-  if (!profileText) return false;
-  return context.locationTerms.some((term) => profileText.includes(term));
 }
 
 function shouldStopSerperTierExpansion(
@@ -2704,13 +2656,6 @@ async function buildSerperCandidates(
 
   const deduped = new Map<string, SerperCandidate>();
   const preScreenedByUrl = new Map<string, SerperPreScreenedCandidate>();
-  const sourceRuleFallbackByUrl = new Map<
-    string,
-    {
-      candidate: SerperCandidate;
-      sourceRule: SerperSourceRuleDecision;
-    }
-  >();
   const tierStats: SerperTierStats[] = [];
 
   let sourceRuleEvaluatedCount = 0;
@@ -2811,11 +2756,7 @@ async function buildSerperCandidates(
     );
     sourceRulePassCount += sourceRulePassed.length;
 
-    for (const item of sourceRulePassed) {
-      sourceRuleFallbackByUrl.set(item.candidate.linkedin_url.toLowerCase(), item);
-    }
-
-    const sourceRulePassedCandidates = sourceRulePassed.map((item) => item.candidate);
+    const sourceRulePassedCandidates = newTierCandidates;
     const tierPreScreened = await preScreenAllCandidates(
       aiClient,
       parsed,
@@ -2921,17 +2862,7 @@ async function buildSerperCandidates(
   const preScreened = Array.from(preScreenedByUrl.values()).sort(
     (a, b) => b.preScreen.match_score - a.preScreen.match_score,
   );
-  const sourceRuleFallback = Array.from(sourceRuleFallbackByUrl.values())
-    .sort((left, right) => right.sourceRule.score - left.sourceRule.score)
-    .map((item) => ({
-      serperCandidate: item.candidate,
-      preScreen: {
-        keep: true,
-        match_score: item.sourceRule.score,
-        reason: `Source rule rank (${item.sourceRule.score})`,
-      },
-    }));
-  if (!preScreened.length && sourceRuleFallback.length === 0) {
+  if (!preScreened.length) {
     return null;
   }
 
@@ -2942,7 +2873,7 @@ async function buildSerperCandidates(
   const fallbackSeed =
     lightPassed.length > 0
       ? lightPassed
-      : (preScreened.length > 0 ? preScreened : sourceRuleFallback);
+      : preScreened;
   const fallbackRows = buildSerperCandidateRows(
     fallbackSeed,
     Math.max(context.candidateCount, FINAL_RESULT_CAP),
@@ -3403,38 +3334,10 @@ async function refineSerperCandidates(
       throw new Error("Bright Data returned no profiles");
     }
 
-    const sourceRuleContext = buildSerperSourceRuleContext(parsed, context.jdText);
-    const locationFilteredProfiles =
-      sourceRuleContext.strictLocation && sourceRuleContext.locationTerms.length > 0
-        ? brightProfiles.filter((profile) =>
-          isBrightDataProfileLocationMatch(profile, sourceRuleContext),
-        )
-        : brightProfiles;
-
-    if (
-      sourceRuleContext.strictLocation &&
-      sourceRuleContext.locationTerms.length > 0 &&
-      locationFilteredProfiles.length < brightProfiles.length
-    ) {
-      logSearchEvent("search_step_completed", {
-        search_id: context.searchId,
-        step: "deep_scoring",
-        provider: "brightdata",
-        tier: "location_filter",
-        location_filtered_out_count: brightProfiles.length - locationFilteredProfiles.length,
-        location_filtered_in_count: locationFilteredProfiles.length,
-        strict_location: true,
-        job_id: context.jobId,
-      });
-    }
-    if (!locationFilteredProfiles.length) {
-      throw new Error("All enriched profiles failed strict location filter");
-    }
-
     const scored = await scoreBrightDataProfiles(
       context,
       parsed,
-      locationFilteredProfiles,
+      brightProfiles,
       retrievalCount,
     );
     scored.displayStats = buildSearchDisplayStats({
@@ -3442,7 +3345,7 @@ async function refineSerperCandidates(
       serper_query_tier_stats: serperStats.tierStats,
       source_rule_pass_rate: serperStats.sourceRulePassRate,
       llm_prescreen_pass_rate: serperStats.llmPreScreenPassRate,
-      brightdata_scrape_count: locationFilteredProfiles.length,
+      brightdata_scrape_count: brightProfiles.length,
     });
 
     logSearchEvent("search_step_completed", {
@@ -3450,7 +3353,7 @@ async function refineSerperCandidates(
       step: "deep_scoring",
       provider: "brightdata",
       result_count: scored.finalRows.length,
-      scraped_count: locationFilteredProfiles.length,
+      scraped_count: brightProfiles.length,
       shortlist_count: scored.displayStats.shortlist_count,
       deep_review_requested_count: scored.displayStats.deep_review_requested_count,
       deep_review_completed_count: scored.displayStats.deep_review_completed_count,
