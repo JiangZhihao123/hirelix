@@ -576,6 +576,19 @@ function deriveLocationTerms(locationScope: string | null): string[] {
     .slice(0, 5);
 }
 
+function inferCountryCodesFromLocationTerms(locationTerms: string[]) {
+  const merged = locationTerms.join(" ");
+  if (!merged) return [] as string[];
+  if (
+    /\b(united states|usa|new york|nyc|san francisco|los angeles|seattle|austin|boston|chicago)\b/i.test(
+      merged,
+    )
+  ) {
+    return ["US"];
+  }
+  return [] as string[];
+}
+
 function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec {
   const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const countries = Array.isArray(item.countries)
@@ -1928,10 +1941,15 @@ function buildBrightDataRecallFilter(
   if (titleTerms.length === 0) return null;
 
   const sourceRuleContext = buildSerperSourceRuleContext(parsed, jdText);
-  const countryCodes = recallSpec.countries
+  const explicitCountryCodes = recallSpec.countries
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4);
+  const inferredCountryCodes =
+    explicitCountryCodes.length > 0
+      ? []
+      : inferCountryCodesFromLocationTerms(sourceRuleContext.locationTerms);
+  const countryCodes = [...explicitCountryCodes, ...inferredCountryCodes].slice(0, 4);
   const locationTerms = sourceRuleContext.locationTerms
     .map((term) => normalizeText(term))
     .filter((term) => term.length >= 3)
