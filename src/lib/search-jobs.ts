@@ -179,11 +179,6 @@ const STOP_MIN_GAIN_RATIO = getConfiguredNumber(
   0.08,
   { min: 0, max: 1 },
 );
-const DEEP_STAGE_TOP_RATIO = getConfiguredNumber(
-  "SEARCH_DEEP_STAGE_TOP_RATIO",
-  0.2,
-  { min: 0.01, max: 1 },
-);
 const FINAL_RESULT_CAP = getConfiguredPositiveInt(
   "SEARCH_FINAL_RESULT_CAP",
   50,
@@ -949,6 +944,52 @@ function normalizeBlockingConstraints(value: unknown) {
   return normalizeStringArray(value, 8);
 }
 
+const UNCERTAIN_BLOCKING_TERMS = [
+  "unknown",
+  "unverifiable",
+  "unverified",
+  "unclear",
+  "not enough",
+  "insufficient",
+  "sparse",
+  "no evidence",
+  "cannot confirm",
+  "can't confirm",
+];
+
+function isUncertainBlockingConstraint(text: string) {
+  const normalized = text.toLowerCase();
+  return UNCERTAIN_BLOCKING_TERMS.some((term) => normalized.includes(term));
+}
+
+function calibrateBlockingSeverity(
+  blockingSeverity: BlockingSeverity,
+  blockingConstraints: string[],
+  constraintVerdicts: ConstraintVerdict,
+) {
+  if (blockingSeverity !== "hard") return blockingSeverity;
+
+  // Keep hard only when there is explicit incompatibility.
+  const explicitHardConflict =
+    constraintVerdicts.location_fit === "non_local" ||
+    constraintVerdicts.work_model_fit === "no";
+  if (explicitHardConflict) return "hard";
+
+  const allConstraintsUncertain =
+    blockingConstraints.length === 0 ||
+    blockingConstraints.every(isUncertainBlockingConstraint);
+
+  if (
+    allConstraintsUncertain ||
+    constraintVerdicts.location_fit === "unknown" ||
+    constraintVerdicts.work_model_fit === "unclear"
+  ) {
+    return "soft";
+  }
+
+  return blockingSeverity;
+}
+
 function computeQualityScore(
   capabilityScore: number,
   relevanceScore: number,
@@ -1010,14 +1051,27 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
         : computeQualityScore(capabilityScore, relevanceScore)
     )
     : normalizeScore(item.match_score);
-  const blockingSeverity = normalizeBlockingSeverity(item.blocking_severity);
-  const advanceScore =
-    item.advance_score != null
-      ? normalizeScore(item.advance_score)
-      : computeAdvanceScore(qualityScore, joinLikelihoodScore, blockingSeverity);
+  const rawBlockingSeverity = normalizeBlockingSeverity(item.blocking_severity);
+  const constraintVerdicts = sanitizeConstraintVerdicts(item.constraint_verdicts);
+  const blockingConstraints = normalizeBlockingConstraints(
+    item.blocking_constraints ?? item.constraint_risks ?? item.risk_flags,
+  );
+  const blockingSeverity = calibrateBlockingSeverity(
+    rawBlockingSeverity,
+    blockingConstraints,
+    constraintVerdicts,
+  );
+  const useProvidedAdvanceScore =
+    item.advance_score != null && blockingSeverity === rawBlockingSeverity;
+  const advanceScore = useProvidedAdvanceScore
+    ? normalizeScore(item.advance_score)
+    : computeAdvanceScore(qualityScore, joinLikelihoodScore, blockingSeverity);
+  const useProvidedAdvanceRecommendation =
+    item.advance_recommendation != null && blockingSeverity === rawBlockingSeverity;
   const advanceRecommendation = normalizeAdvanceRecommendation(
-    item.advance_recommendation ??
-      deriveAdvanceRecommendation(advanceScore, blockingSeverity),
+    useProvidedAdvanceRecommendation
+      ? item.advance_recommendation
+      : deriveAdvanceRecommendation(advanceScore, blockingSeverity),
   );
   const fitDecision = deriveFitDecisionFromScore(qualityScore);
   let actionability = deriveActionabilityFromScores(qualityScore, advanceRecommendation);
@@ -1036,9 +1090,7 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
     quality_score: qualityScore,
     advance_score: advanceScore,
     advance_recommendation: advanceRecommendation,
-    blocking_constraints: normalizeBlockingConstraints(
-      item.blocking_constraints ?? item.constraint_risks ?? item.risk_flags,
-    ),
+    blocking_constraints: blockingConstraints,
     blocking_severity: blockingSeverity,
     scoring_breakdown: {
       capability_score: capabilityScore,
@@ -1050,7 +1102,7 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
       quality_score: qualityScore,
       advance_score: advanceScore,
     },
-    constraint_verdicts: sanitizeConstraintVerdicts(item.constraint_verdicts),
+    constraint_verdicts: constraintVerdicts,
     constraint_risks: stripSpeculativeRelocation(
       normalizeStringArray(item.constraint_risks ?? item.risk_flags, 6),
     ),
@@ -1512,7 +1564,8 @@ Rules:
 - relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain.
 - join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity.
 - Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
-- blocking_severity should be hard only for constraints that should stop final advancement.
+- blocking_severity should be hard only for explicit incompatibilities.
+- If evidence is missing, unclear, or unverifiable, use soft (not hard).
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
 - Strongly penalize obvious overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
 - Do not reward prestige alone.
@@ -1561,6 +1614,7 @@ Rules:
 - advance_score should reflect real-world advanceability: quality + join likelihood - blocker severity.
 - join_likelihood_score can influence advance_score but must not directly drag down quality_score.
 - If location, work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
+- Use hard blocker only for explicit conflicts; unknown or sparse evidence must be soft.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
 [
@@ -2525,12 +2579,6 @@ function shouldStopSerperTierExpansion(
   return gainRatio < STOP_MIN_GAIN_RATIO;
 }
 
-function computeTopCount(total: number, ratio: number, cap: number) {
-  if (total <= 0) return 0;
-  const ratioCount = Math.max(1, Math.round(total * ratio));
-  return Math.min(total, cap, ratioCount);
-}
-
 function selectTopLightCandidates(
   preScreened: SerperPreScreenedCandidate[],
 ) {
@@ -2575,17 +2623,12 @@ function selectTopDeepAssessments(
       selected: [] as ScoredCandidateAssessment[],
       selectedCount: 0,
       selectedRate: 0,
-      ratio: DEEP_STAGE_TOP_RATIO,
-      cap: FINAL_RESULT_CAP,
+      target: FINAL_RESULT_CAP,
     };
   }
 
   const sorted = [...eligibleAssessments].sort(sortCandidateAssessments);
-  const selectedCount = computeTopCount(
-    sorted.length,
-    DEEP_STAGE_TOP_RATIO,
-    FINAL_RESULT_CAP,
-  );
+  const selectedCount = Math.min(sorted.length, FINAL_RESULT_CAP);
   const selected = sorted.slice(0, selectedCount);
   const selectedRate = selectedCount / sorted.length;
 
@@ -2593,8 +2636,7 @@ function selectTopDeepAssessments(
     selected,
     selectedCount,
     selectedRate,
-    ratio: DEEP_STAGE_TOP_RATIO,
-    cap: FINAL_RESULT_CAP,
+    target: FINAL_RESULT_CAP,
   };
 }
 
@@ -3532,7 +3574,7 @@ async function refineSerperCandidates(
     scrape_request_count: urlsToScrape.length,
     final_result_cap: FINAL_RESULT_CAP,
     light_stage_target_count: PRE_SCREEN_TARGET,
-    deep_stage_top_ratio: DEEP_STAGE_TOP_RATIO,
+    deep_stage_target_count: FINAL_RESULT_CAP,
     job_id: context.jobId,
   });
 

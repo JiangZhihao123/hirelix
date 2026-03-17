@@ -89,6 +89,8 @@ Rules:
 - Apply strong downward pressure when the candidate appears unlikely to join because of company-stage mismatch, role-level mismatch, overqualification, or location/work-model mismatch.
 - join_likelihood_score can influence advance_score, but it must not directly drag down quality_score.
 - If there is a meaningful blocker, make it explicit in blocking_constraints rather than only hinting with a low score.
+- Use blocking_severity=hard only for explicit incompatibility (for example clear non-local conflict for strict onsite, clear work-model conflict, clear authorization blocker).
+- If evidence is missing, sparse, unknown, or unverifiable, use blocking_severity=soft.
 - Return concrete evidence, not generic praise.
 
 CRITICAL: Your response MUST be ONLY a valid JSON array. Do NOT wrap it in markdown code blocks. Do NOT add any explanatory text before or after the JSON. Start your response with "[" and end with "]". No triple backticks, no code fences, no comments, no explanations.
