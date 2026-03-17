@@ -157,7 +157,7 @@ const HIGHLIGHT_CANDIDATE_COUNT = getConfiguredPositiveInt(
 );
 const PRE_SCREEN_TARGET = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_TARGET",
-  250,
+  200,
   { min: 25, max: 1000 },
 );
 const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
@@ -171,18 +171,13 @@ const STRICT_LOCATION_REQUIRE_HIT = getConfiguredBoolean(
 );
 const TARGET_SCRAPE_COUNT = getConfiguredPositiveInt(
   "SEARCH_TARGET_SCRAPE_COUNT",
-  2500,
+  1000,
   { min: 1, max: 5000 },
 );
 const STOP_MIN_GAIN_RATIO = getConfiguredNumber(
   "SEARCH_STOP_MIN_GAIN_RATIO",
   0.08,
   { min: 0, max: 1 },
-);
-const LIGHT_STAGE_TOP_RATIO = getConfiguredNumber(
-  "SEARCH_LIGHT_STAGE_TOP_RATIO",
-  0.1,
-  { min: 0.01, max: 1 },
 );
 const DEEP_STAGE_TOP_RATIO = getConfiguredNumber(
   "SEARCH_DEEP_STAGE_TOP_RATIO",
@@ -2544,27 +2539,24 @@ function selectTopLightCandidates(
       selected: [] as SerperPreScreenedCandidate[],
       selectedCount: 0,
       selectedRate: 0,
-      ratio: LIGHT_STAGE_TOP_RATIO,
-      cap: PRE_SCREEN_TARGET,
+      target: PRE_SCREEN_TARGET,
+      cutoffScore: null as number | null,
     };
   }
 
   const sorted = [...preScreened].sort(
     (left, right) => right.preScreen.match_score - left.preScreen.match_score,
   );
-  const selectedCount = computeTopCount(
-    sorted.length,
-    LIGHT_STAGE_TOP_RATIO,
-    PRE_SCREEN_TARGET,
-  );
+  const selectedCount = Math.min(sorted.length, PRE_SCREEN_TARGET);
   const selected = sorted.slice(0, selectedCount);
   const selectedRate = selectedCount / sorted.length;
   return {
     selected,
     selectedCount,
     selectedRate,
-    ratio: LIGHT_STAGE_TOP_RATIO,
-    cap: PRE_SCREEN_TARGET,
+    target: PRE_SCREEN_TARGET,
+    cutoffScore:
+      selected.length > 0 ? selected[selected.length - 1]?.preScreen.match_score ?? null : null,
   };
 }
 
@@ -2922,10 +2914,15 @@ async function buildSerperCandidates(
     let rawResultCount = 0;
     let duplicateCount = 0;
     const newTierCandidates: SerperCandidate[] = [];
+    let retrievalCapReached = false;
 
     for (const batch of searchResults) {
       rawResultCount += batch.length;
       for (const candidate of batch) {
+        if (deduped.size >= TARGET_SCRAPE_COUNT) {
+          retrievalCapReached = true;
+          break;
+        }
         const key = candidate.linkedin_url.toLowerCase();
         if (deduped.has(key)) {
           duplicateCount += 1;
@@ -2934,6 +2931,7 @@ async function buildSerperCandidates(
         deduped.set(key, candidate);
         newTierCandidates.push(candidate);
       }
+      if (retrievalCapReached) break;
     }
 
     const sourceRuleEvaluations = newTierCandidates.map((candidate) => ({
@@ -2942,14 +2940,15 @@ async function buildSerperCandidates(
     }));
     sourceRuleEvaluatedCount += sourceRuleEvaluations.length;
 
-    const sourceRulePassed = sourceRuleEvaluations.filter(
-      ({ sourceRule }) =>
-        !sourceRule.hard_reject &&
-        sourceRule.score >= SOURCE_RULE_PASS_SCORE,
+    const sourceRuleEligible = sourceRuleEvaluations.filter(
+      ({ sourceRule }) => !sourceRule.hard_reject,
+    );
+    const sourceRulePassed = sourceRuleEligible.filter(
+      ({ sourceRule }) => sourceRule.score >= SOURCE_RULE_PASS_SCORE,
     );
     sourceRulePassCount += sourceRulePassed.length;
 
-    const sourceRulePassedCandidates = newTierCandidates;
+    const sourceRulePassedCandidates = sourceRuleEligible.map(({ candidate }) => candidate);
     const tierPreScreened = await preScreenAllCandidates(
       aiClient,
       parsed,
@@ -2976,7 +2975,9 @@ async function buildSerperCandidates(
       newTierCandidates.length,
     )
       ? `retrieval_target_reached(unique_count=${deduped.size}, gain_ratio=${deduped.size <= 0 ? 0 : (newTierCandidates.length / deduped.size).toFixed(4)})`
-      : null;
+      : retrievalCapReached
+        ? `retrieval_cap_reached(unique_count=${deduped.size}, cap=${TARGET_SCRAPE_COUNT})`
+        : null;
 
     const tierStat: SerperTierStats = {
       tier: tierPlan.tier,
@@ -3085,11 +3086,9 @@ async function buildSerperCandidates(
     llm_prescreen_pass_rate: Number(llmPreScreenPassRate.toFixed(4)),
     light_selected_count: lightPassed.length,
     light_selected_rate: Number(lightSelection.selectedRate.toFixed(4)),
-    light_selection_mode: "top_percent",
-    light_selection_ratio: lightSelection.ratio,
-    light_selection_cap: lightSelection.cap,
-    light_selection_cutoff_score:
-      lightPassed.length > 0 ? lightPassed[lightPassed.length - 1].preScreen.match_score : null,
+    light_selection_mode: "top_fixed",
+    light_selection_target: lightSelection.target,
+    light_selection_cutoff_score: lightSelection.cutoffScore,
     light_total_evaluated_count: preScreened.length,
     target_scrape_count: TARGET_SCRAPE_COUNT,
     scrape_count: scrapeCandidates.length,
@@ -3532,7 +3531,7 @@ async function refineSerperCandidates(
     deep_review_concurrency: deepReviewConcurrency,
     scrape_request_count: urlsToScrape.length,
     final_result_cap: FINAL_RESULT_CAP,
-    light_stage_top_ratio: LIGHT_STAGE_TOP_RATIO,
+    light_stage_target_count: PRE_SCREEN_TARGET,
     deep_stage_top_ratio: DEEP_STAGE_TOP_RATIO,
     job_id: context.jobId,
   });
