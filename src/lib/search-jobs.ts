@@ -635,21 +635,6 @@ function deriveLocationTerms(locationScope: string | null): string[] {
     .slice(0, 5);
 }
 
-function isLikelyCityScopedLocation(locationScope: string | null) {
-  if (!locationScope) return false;
-  const normalized = normalizeText(locationScope);
-  if (!normalized) return false;
-  if (/\b(remote|worldwide|global|anywhere)\b/.test(normalized)) return false;
-
-  const commaParts = normalized
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (commaParts.length >= 2 && commaParts[0].length >= 3) return true;
-
-  return /(new york|san francisco|los angeles|seattle|austin|boston|chicago|toronto|london|berlin|singapore|tokyo|paris|sydney|vancouver)/.test(normalized);
-}
-
 function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec {
   const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const countries = Array.isArray(item.countries)
@@ -1716,6 +1701,9 @@ Rules:
 - Default to keep=false when evidence is sparse or ambiguous.
 - Keep=true should require at least two clear positive signals (title alignment, stack signal, seniority fit, or location/work-model feasibility).
 - For onsite/hybrid roles with a target location, unknown/non-local location should be strongly penalized.
+- If the JD clearly requires a specific city/country for onsite or strict hybrid work, treat explicit out-of-region evidence as a hard conflict at this stage.
+- For explicit out-of-region conflicts, set keep=false and use a low match_score (typically 0-20).
+- If location evidence is missing for a strict location-constrained role, default to keep=false unless other profile evidence clearly indicates in-region feasibility.
 - Non-engineering or obvious noise profiles should be rejected.
 - Use this score rubric:
   - 90-100: explicit strong match on role + must-have stack + location/work-model feasibility.
@@ -1816,6 +1804,8 @@ Rules:
 - blocking_severity should be hard only for explicit incompatibilities.
 - If evidence is missing, unclear, or unverifiable, use soft (not hard).
 - For single-city onsite/hybrid roles, mark non-local candidates as hard unless profile has explicit relocation proof.
+- For roles with explicit city/country hard constraints, treat explicit out-of-region evidence as a hard blocker and reflect it in blocking_constraints.
+- For explicit out-of-region hard blockers, do not output advance_recommendation=advance.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
 - Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
 - Do not collapse quality because of sparse evidence alone. Use evidence_quality + risk fields to express uncertainty.
@@ -1870,6 +1860,7 @@ Rules:
 - Reserve very low quality_score for clear mismatch, not mere missing details.
 - For single-city onsite/hybrid roles, non-local location_fit should normally be a hard blocker unless explicit relocation evidence exists.
 - If location, work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
+- For explicit city/country hard constraints in the JD, explicit out-of-region evidence should remain a hard blocker in the final arbitration.
 - Use hard blocker only for explicit conflicts; unknown or sparse evidence must be soft.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
@@ -2758,21 +2749,19 @@ function buildSerperSourceRuleContext(
   const locationTerms = deriveLocationTerms(
     locationScope,
   );
-  const cityScopedLocation = isLikelyCityScopedLocation(locationScope);
   const onsiteOrHybrid = hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid";
   const strictLocationFromBrief =
     onsiteOrHybrid &&
     (
       hiringBrief.location_flexibility === "strict" ||
-      (hiringBrief.location_flexibility === "moderate" && cityScopedLocation)
+      hiringBrief.relocation_allowed === "no"
     );
   const strictLocationRequireHit =
     strictLocationFromBrief &&
     (
       STRICT_LOCATION_REQUIRE_HIT ||
       hiringBrief.location_flexibility === "strict" ||
-      hiringBrief.relocation_allowed === "no" ||
-      cityScopedLocation
+      hiringBrief.relocation_allowed === "no"
     );
   const locationPreference: "strict" | "preferred" | "none" =
     locationTerms.length === 0

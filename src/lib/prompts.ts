@@ -8,7 +8,8 @@ Rules:
 - Mix narrower and broader query variants so the pool is diverse.
 - Infer geo constraints from the JD as a real recruiter would:
   - If onsite/hybrid with a clear city requirement, set location strictness accordingly.
-  - If onsite/hybrid is tied to one primary city (for example "New York, NY"), default location_flexibility to strict.
+  - Do NOT default to strict only because a city is mentioned (for example "New York, NY").
+  - Use location_flexibility=strict only when JD explicitly states hard local-only constraints (must be local, no relocation, or equivalent).
   - Use location_flexibility=moderate only when JD clearly allows nearby relocation or broad regional flexibility.
   - If relocation is clearly allowed, reflect that in flexibility and relocation fields.
   - Set relocation_allowed=yes only when JD explicitly indicates relocation support or openness.
@@ -87,6 +88,7 @@ Rules:
   8. advance_recommendation: advance | hold | reject
 - Do NOT reward prestige alone. A clearly overqualified or unrealistic candidate should be penalized in join_likelihood_score.
 - For hybrid / onsite roles, do not treat non-local candidates as strong fits unless the provided profile contains explicit evidence that they can work in the target location.
+- If the JD has explicit city/country hard constraints, treat explicit out-of-region evidence as a hard blocker and make it explicit in blocking_constraints.
 - Do NOT assume relocation willingness.
 - Do NOT use speculative language like "may relocate", "might move", or "likely willing to relocate".
 - Apply strong downward pressure when the candidate appears unlikely to join because of company-stage mismatch, role-level mismatch, overqualification, or location/work-model mismatch.
