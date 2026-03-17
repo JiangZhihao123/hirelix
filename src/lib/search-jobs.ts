@@ -21,6 +21,7 @@ import {
   brightDataProfileToRichText,
   triggerDatasetFilter,
   waitForDatasetSnapshot,
+  type BrightDataFilterRule,
   type BrightDataDatasetFilterRequest,
   type BrightDataProfile,
 } from "@/lib/brightdata";
@@ -166,7 +167,7 @@ const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
 );
 const STRICT_LOCATION_REQUIRE_HIT = getConfiguredBoolean(
   "SEARCH_STRICT_LOCATION_REQUIRE_HIT",
-  false,
+  true,
 );
 const TARGET_SCRAPE_COUNT = getConfiguredPositiveInt(
   "SEARCH_TARGET_SCRAPE_COUNT",
@@ -1912,8 +1913,11 @@ function tagPoolRows(
 function buildBrightDataRecallFilter(
   parsed: Record<string, unknown>,
   candidateCount: number,
+  jdText: string,
 ): BrightDataDatasetFilterRequest | null {
-  const datasetId = process.env.BRIGHTDATA_RECALL_DATASET_ID;
+  const datasetId =
+    process.env.BRIGHTDATA_RECALL_DATASET_ID ||
+    process.env.BRIGHTDATA_DATASET_ID;
   if (!datasetId) return null;
 
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount);
@@ -1923,10 +1927,18 @@ function buildBrightDataRecallFilter(
 
   if (titleTerms.length === 0) return null;
 
-  return {
-    datasetId,
-    recordsLimit: recallSpec.record_limit,
-    filter: {
+  const sourceRuleContext = buildSerperSourceRuleContext(parsed, jdText);
+  const countryCodes = recallSpec.countries
+    .map((country) => normalizeCountryCode(country))
+    .filter((country): country is string => Boolean(country))
+    .slice(0, 4);
+  const locationTerms = sourceRuleContext.locationTerms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 3)
+    .slice(0, 4);
+
+  const rootFilters: BrightDataFilterRule[] = [
+    {
       operator: "or",
       filters: titleTerms.map((term) => ({
         name: "position",
@@ -1934,6 +1946,48 @@ function buildBrightDataRecallFilter(
         value: term,
       })),
     },
+  ];
+
+  if (countryCodes.length > 0) {
+    rootFilters.push(
+      countryCodes.length === 1
+        ? {
+          name: "country_code",
+          operator: "=",
+          value: countryCodes[0],
+        }
+        : {
+          operator: "or",
+          filters: countryCodes.map((country) => ({
+            name: "country_code",
+            operator: "=",
+            value: country,
+          })),
+        },
+    );
+  }
+
+  if (sourceRuleContext.strictLocation && locationTerms.length > 0) {
+    rootFilters.push({
+      operator: "or",
+      filters: locationTerms.map((term) => ({
+        name: "city",
+        operator: "includes",
+        value: term,
+      })),
+    });
+  }
+
+  return {
+    datasetId,
+    recordsLimit: recallSpec.record_limit,
+    filter:
+      rootFilters.length === 1
+        ? rootFilters[0]
+        : {
+          operator: "and",
+          filters: rootFilters,
+        },
   };
 }
 
@@ -2458,7 +2512,7 @@ async function buildBrightDataDatasetCandidates(
   parsed: Record<string, unknown>,
 ): Promise<SearchPipelineResult | null> {
   const brightDataToken = process.env.BRIGHTDATA_API_TOKEN;
-  const recallRequest = buildBrightDataRecallFilter(parsed, context.candidateCount);
+  const recallRequest = buildBrightDataRecallFilter(parsed, context.candidateCount, context.jdText);
   if (!brightDataToken || !recallRequest) {
     return null;
   }
