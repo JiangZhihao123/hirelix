@@ -71,6 +71,7 @@ export type BrightDataProfile = {
   first_name: string | null;
   last_name: string | null;
   linkedin_id: string | null;
+  headline: string | null;
   about: string | null;
   city: string | null;
   country_code: string | null;
@@ -338,12 +339,13 @@ function hasMeaningfulProfileSignal(profile: BrightDataProfile) {
 
 function buildFallbackExperienceFromCurrentCompany(
   currentCompany: BrightDataProfile["current_company"],
+  headlineTitle: string | null = null,
 ): BrightDataExperience[] {
   if (!currentCompany) return [];
-  if (!currentCompany.title && !currentCompany.name) return [];
+  if (!currentCompany.title && !currentCompany.name && !headlineTitle) return [];
   return [
     {
-      title: currentCompany.title,
+      title: currentCompany.title || headlineTitle,
       company: currentCompany.name,
       company_id: currentCompany.company_id,
       location: currentCompany.location,
@@ -351,6 +353,18 @@ function buildFallbackExperienceFromCurrentCompany(
       description: null,
     },
   ];
+}
+
+function parseHeadlineParts(headline: string | null) {
+  if (!headline) return { title: null, company: null };
+  const atMatch = headline.match(/^\s*(.+?)\s+at\s+(.+?)\s*$/i);
+  if (atMatch) {
+    return {
+      title: asString(atMatch[1]),
+      company: asString(atMatch[2]),
+    };
+  }
+  return { title: headline, company: null };
 }
 
 function chunkArray<T>(items: T[], batchSize: number) {
@@ -825,16 +839,36 @@ export async function scrapeLinkedInProfiles(
 export function adaptDatasetRecordToBrightDataProfile(
   record: Record<string, unknown>,
 ): BrightDataProfile {
-  const currentCompany =
+  const headline =
+    asString(record.headline) ||
+    asString(record.current_title) ||
+    asString(record.position) ||
+    asString(record.title);
+  const headlineParts = parseHeadlineParts(headline);
+  let currentCompany =
     mapDatasetCompany(record.current_company) ||
     getCurrentCompanyFromFallbackFields(record);
+  if (!currentCompany && (headlineParts.title || headlineParts.company)) {
+    currentCompany = {
+      name: headlineParts.company,
+      company_id: null,
+      title: headlineParts.title,
+      location: asString(record.location),
+    };
+  } else if (currentCompany) {
+    currentCompany = {
+      ...currentCompany,
+      title: currentCompany.title || headlineParts.title,
+      name: currentCompany.name || headlineParts.company,
+    };
+  }
   const mappedExperience = Array.isArray(record.experience)
     ? record.experience.flatMap((entry) => mapDatasetExperienceEntry(entry))
     : [];
   const experience =
     mappedExperience.length > 0
       ? mappedExperience
-      : buildFallbackExperienceFromCurrentCompany(currentCompany);
+      : buildFallbackExperienceFromCurrentCompany(currentCompany, headlineParts.title);
 
   const mappedEducation = Array.isArray(record.education)
     ? record.education
@@ -862,6 +896,7 @@ export function adaptDatasetRecordToBrightDataProfile(
     first_name: asString(record.first_name),
     last_name: asString(record.last_name),
     linkedin_id: asString(record.linkedin_id) || asString(record.id),
+    headline,
     about,
     city: asString(record.city) || asString(record.location),
     country_code: asString(record.country_code),
@@ -910,6 +945,9 @@ export function adaptDatasetRecordToBrightDataProfile(
 export function brightDataProfileToRichText(profile: BrightDataProfile, index: number): string {
   const lines: string[] = [];
   lines.push(`[${index}] ${profile.name}`);
+  if (profile.headline) {
+    lines.push(`  Headline: ${profile.headline}`);
+  }
 
   if (profile.current_company) {
     lines.push(`  Current: ${profile.current_company.title || "N/A"} at ${profile.current_company.name || "N/A"}`);

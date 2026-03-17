@@ -101,6 +101,20 @@ function cleanLocation(loc: string): string {
     .trim();
 }
 
+function isLikelyCityScopedLocation(locationScope: string) {
+  const normalized = locationScope.toLowerCase().trim();
+  if (!normalized) return false;
+  if (/\b(remote|worldwide|global|anywhere)\b/.test(normalized)) return false;
+
+  const commaParts = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (commaParts.length >= 2 && commaParts[0].length >= 3) return true;
+
+  return /(new york|san francisco|los angeles|seattle|austin|boston|chicago|toronto|london|berlin|singapore|tokyo|paris|sydney|vancouver)/.test(normalized);
+}
+
 function deriveLocationVariants(loc: string) {
   const base = cleanLocation(loc);
   const variants = new Set<string>();
@@ -233,7 +247,7 @@ function deriveRoleAliases(titleVariants: string[], rawTitle?: string | null) {
   return Array.from(aliases).slice(0, 10);
 }
 
-const RECALL_BOOST_GEO_HINTS = [
+const RECALL_BOOST_GEO_HINTS_US = [
   "United States",
   "New York",
   "San Francisco Bay Area",
@@ -242,10 +256,11 @@ const RECALL_BOOST_GEO_HINTS = [
   "Boston",
   "Chicago",
   "Los Angeles",
-  "Toronto",
-  "London",
-  "Berlin",
+];
+
+const RECALL_BOOST_GEO_HINTS_GLOBAL = [
   "Remote",
+  "Worldwide",
 ];
 
 const COUNTRY_CODE_TO_HINT: Record<string, string> = {
@@ -262,6 +277,23 @@ const COUNTRY_CODE_TO_HINT: Record<string, string> = {
 
 function countryCodeToGeoHint(code: string) {
   return COUNTRY_CODE_TO_HINT[code.toUpperCase()] || null;
+}
+
+function isLikelyUsScope(locationScope: string, countries: string[]) {
+  if (countries.includes("US")) return true;
+  const normalized = locationScope.toLowerCase();
+  return (
+    normalized.includes("united states") ||
+    normalized.includes("usa") ||
+    /\bus\b/.test(normalized) ||
+    normalized.includes("new york") ||
+    normalized.includes("san francisco") ||
+    normalized.includes("los angeles") ||
+    normalized.includes("seattle") ||
+    normalized.includes("austin") ||
+    normalized.includes("boston") ||
+    normalized.includes("chicago")
+  );
 }
 
 function quoteTerm(term: string) {
@@ -364,14 +396,22 @@ export function buildLinkedInSearchPlan(parsed: {
     (Array.isArray(parsed.recall_spec?.countries) ? parsed.recall_spec?.countries[0] : "") ||
     "";
   const locationVariants = locationScope ? deriveLocationVariants(locationScope) : [];
-  const recallCountryHints = Array.isArray(parsed.recall_spec?.countries)
+  const recallCountries = Array.isArray(parsed.recall_spec?.countries)
     ? parsed.recall_spec.countries
+      .filter((code): code is string => typeof code === "string")
+      .map((code) => code.toUpperCase())
+    : [];
+  const recallCountryHints = recallCountries.length > 0
+    ? recallCountries
       .map((code) => countryCodeToGeoHint(typeof code === "string" ? code : ""))
       .filter((value): value is string => Boolean(value))
     : [];
+  const recallBoostGeoHints = isLikelyUsScope(locationScope, recallCountries)
+    ? RECALL_BOOST_GEO_HINTS_US
+    : RECALL_BOOST_GEO_HINTS_GLOBAL;
   const geoHints = Array.from(
     new Set(
-      [...locationVariants, ...recallCountryHints, ...RECALL_BOOST_GEO_HINTS]
+      [...locationVariants, ...recallCountryHints, ...recallBoostGeoHints]
         .map((item) => item.trim())
         .filter(Boolean),
     ),
@@ -379,10 +419,15 @@ export function buildLinkedInSearchPlan(parsed: {
   const loc = locationVariants[0] || "";
   const workModel = (parsed.hiring_brief?.work_model || "").toLowerCase();
   const locationFlexibility = (parsed.hiring_brief?.location_flexibility || "").toLowerCase();
+  const onsiteOrHybrid = workModel === "onsite" || workModel === "hybrid";
+  const cityScopedLocation = isLikelyCityScopedLocation(locationScope);
   const strictLocationConstraint =
-    (workModel === "onsite" || workModel === "hybrid") &&
-    locationFlexibility === "strict";
-  const strictLocationTerm = strictLocationConstraint && loc.length > 2 ? `"${loc}"` : null;
+    onsiteOrHybrid &&
+    (
+      locationFlexibility === "strict" ||
+      (locationFlexibility === "moderate" && cityScopedLocation)
+    );
+  const locationConstrainedTerm = onsiteOrHybrid && loc.length > 2 ? `"${loc}"` : null;
   const normalizedRawTitle = parsed.title?.trim() || null;
   const primaryTitle =
     titleVariants[0]
@@ -397,14 +442,14 @@ export function buildLinkedInSearchPlan(parsed: {
       `"${title}"`,
       pickSkill(mustSkills, 0),
       pickSkill(mustSkills, 1),
-      strictLocationTerm,
+      locationConstrainedTerm,
     ]);
     addQuery(p0Queries, [
       "site:linkedin.com/in",
       `"${title}"`,
       pickSkill(mustSkills, 0),
       pickSkill(mustSkills, 2),
-      strictLocationTerm,
+      locationConstrainedTerm,
     ]);
   }
 
@@ -414,7 +459,7 @@ export function buildLinkedInSearchPlan(parsed: {
       primaryTitle,
       pickSkill(mustSkills, 0),
       pickSkill(mustSkills, 1),
-      strictLocationTerm,
+      locationConstrainedTerm,
     ]);
   }
 
@@ -514,6 +559,13 @@ export function buildLinkedInSearchPlan(parsed: {
       `"${roleAlias}"`,
       pickSkill(recallSkillsForP3, 1),
       pickSkill(recallSkillsForP3, 2),
+    ]);
+    addQuery(p3Queries, [
+      "site:linkedin.com/in",
+      parsed.seniority || null,
+      `"${roleAlias}"`,
+      pickSkill(recallSkillsForP3, 0),
+      locationConstrainedTerm,
     ]);
   }
 

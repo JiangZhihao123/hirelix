@@ -8,7 +8,10 @@ Rules:
 - Mix narrower and broader query variants so the pool is diverse.
 - Infer geo constraints from the JD as a real recruiter would:
   - If onsite/hybrid with a clear city requirement, set location strictness accordingly.
+  - If onsite/hybrid is tied to one primary city (for example "New York, NY"), default location_flexibility to strict.
+  - Use location_flexibility=moderate only when JD clearly allows nearby relocation or broad regional flexibility.
   - If relocation is clearly allowed, reflect that in flexibility and relocation fields.
+  - Set relocation_allowed=yes only when JD explicitly indicates relocation support or openness.
   - If remote or multi-country role, keep countries broader.
 - Return ONLY valid JSON, no markdown or explanation.
 

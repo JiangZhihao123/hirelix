@@ -375,6 +375,7 @@ type SerperSourceRuleContext = {
   mustHaveTerms: string[];
   strictLocation: boolean;
   strictLocationRequireHit: boolean;
+  locationPreference: "strict" | "preferred" | "none";
   locationTerms: string[];
 };
 
@@ -584,6 +585,21 @@ function deriveLocationTerms(locationScope: string | null): string[] {
     .map((term) => term.replace(/\s+/g, " ").trim())
     .filter((term) => term.length >= 3)
     .slice(0, 5);
+}
+
+function isLikelyCityScopedLocation(locationScope: string | null) {
+  if (!locationScope) return false;
+  const normalized = normalizeText(locationScope);
+  if (!normalized) return false;
+  if (/\b(remote|worldwide|global|anywhere)\b/.test(normalized)) return false;
+
+  const commaParts = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (commaParts.length >= 2 && commaParts[0].length >= 3) return true;
+
+  return /(new york|san francisco|los angeles|seattle|austin|boston|chicago|toronto|london|berlin|singapore|tokyo|paris|sydney|vancouver)/.test(normalized);
 }
 
 function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec {
@@ -817,9 +833,29 @@ function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unkn
 }
 
 function buildPromptSearchContext(parsed: Record<string, unknown>) {
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const lines = [
     `Title: ${normalizeNullableString(parsed.title) || "N/A"}`,
   ];
+
+  if (hiringBrief.role_core.seniority) {
+    lines.push(`Seniority: ${hiringBrief.role_core.seniority}`);
+  }
+  if (hiringBrief.work_model && hiringBrief.work_model !== "unknown") {
+    lines.push(`Work Model: ${hiringBrief.work_model}`);
+  }
+  if (hiringBrief.location_scope) {
+    lines.push(`Target Location: ${hiringBrief.location_scope}`);
+  }
+  lines.push(
+    `Location Flexibility: ${hiringBrief.location_flexibility} | Relocation Allowed: ${hiringBrief.relocation_allowed}`,
+  );
+  if (hiringBrief.role_core.required_skills.length > 0) {
+    lines.push(`Must-Have Skills: ${hiringBrief.role_core.required_skills.slice(0, 10).join(", ")}`);
+  }
+  if (hiringBrief.must_have_constraints.length > 0) {
+    lines.push(`Must-Have Constraints: ${hiringBrief.must_have_constraints.slice(0, 6).join(" | ")}`);
+  }
 
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, Number(parsed.candidate_count) || 5);
   if (recallSpec.title_variants.length > 0) {
@@ -1465,15 +1501,19 @@ Return ONLY valid JSON with this exact shape:
 }
 
 Rules:
-- This is a snippet-level decision, not a full-profile decision. Do not over-penalize missing details.
+- This is a snippet-level decision, but precision matters more than recall.
 - Keep indicates whether this candidate looks worth scraping for richer LinkedIn data.
 - match_score is used for ranking candidates against each other. Keep score granularity meaningful.
+- Default to keep=false when evidence is sparse or ambiguous.
+- Keep=true should require at least two clear positive signals (title alignment, stack signal, seniority fit, or location/work-model feasibility).
+- For onsite/hybrid roles with a target location, unknown/non-local location should be strongly penalized.
+- Non-engineering or obvious noise profiles should be rejected.
 - Use this score rubric:
-  - 85-100: clear strong relevance from title/headline/snippet (role + stack + likely location fit).
-  - 70-84: strong likely fit with enough evidence to prioritize.
-  - 55-69: plausible fit worth scraping even if evidence is partial.
-  - 40-59: weak/uncertain fit; not worth scraping now.
-  - 0-39: clear mismatch, non-engineering role, or obvious hard-constraint conflict.
+  - 90-100: explicit strong match on role + must-have stack + location/work-model feasibility.
+  - 75-89: strong role and stack evidence with no major constraint conflict.
+  - 60-74: moderate but credible fit, worth scraping when building a wider pool.
+  - 40-59: weak evidence, major unknowns, or likely constraint risk.
+  - 0-39: clear mismatch, noise role, or hard conflict.
 - You are the sole gate for this stage; no external rule will override your keep decision.
 - For strict onsite/hybrid roles, apply location/work-model feasibility directly in keep/match_score.
 - Keep reason under 20 words.
@@ -1566,8 +1606,12 @@ Rules:
 - Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
 - blocking_severity should be hard only for explicit incompatibilities.
 - If evidence is missing, unclear, or unverifiable, use soft (not hard).
+- For single-city onsite/hybrid roles, mark non-local candidates as hard unless profile has explicit relocation proof.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
-- Strongly penalize obvious overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
+- Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
+- Do not collapse quality because of sparse evidence alone. Use evidence_quality + risk fields to express uncertainty.
+- When title/about/current role strongly align but details are sparse, capability/relevance can still be moderate.
+- Reserve very low capability/relevance for explicit mismatch, not just missing fields.
 - Do not reward prestige alone.
 - Keep short_reasons concrete and short. Max 3 items, each under 14 words.
 - Keep join_likelihood_reasons concrete and evidence-based. Max 3 items, each under 16 words.
@@ -1613,6 +1657,9 @@ Rules:
 - quality_score should reflect only candidate quality for this JD: capability + relevance.
 - advance_score should reflect real-world advanceability: quality + join likelihood - blocker severity.
 - join_likelihood_score can influence advance_score but must not directly drag down quality_score.
+- Sparse or incomplete profile evidence should lower confidence tags first, not automatically collapse quality_score.
+- Reserve very low quality_score for clear mismatch, not mere missing details.
+- For single-city onsite/hybrid roles, non-local location_fit should normally be a hard blocker unless explicit relocation evidence exists.
 - If location, work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
 - Use hard blocker only for explicit conflicts; unknown or sparse evidence must be soft.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
@@ -1915,11 +1962,12 @@ function buildBrightDataCandidateRows(
     if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= profiles.length) continue;
 
     const profile = profiles[rawIndex];
+    const derivedCompanyHeadline = profile.current_company
+      ? `${profile.current_company.title || ""} at ${profile.current_company.name || ""}`.trim() || null
+      : null;
     rows.push({
       name: profile.name || "Unknown",
-      headline: profile.current_company
-        ? `${profile.current_company.title || ""} at ${profile.current_company.name || ""}`.trim() || null
-        : null,
+      headline: profile.headline || derivedCompanyHeadline,
       location: item.location || [profile.city, profile.country_code].filter(Boolean).join(", ") || null,
       skills: item.skills.length > 0
         ? item.skills
@@ -2465,27 +2513,43 @@ function buildSerperSourceRuleContext(
     .filter(Boolean)
     .slice(0, 12);
 
+  const locationFromJd = extractLocationFromJdText(jdText);
+  const locationScope =
+    hiringBrief.location_scope || normalizeNullableString(parsed.location) || locationFromJd;
+  const locationTerms = deriveLocationTerms(
+    locationScope,
+  );
+  const cityScopedLocation = isLikelyCityScopedLocation(locationScope);
+  const onsiteOrHybrid = hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid";
   const strictLocationFromBrief =
-    (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
-    hiringBrief.location_flexibility === "strict";
-  const strictLocation = strictLocationFromBrief;
+    onsiteOrHybrid &&
+    (
+      hiringBrief.location_flexibility === "strict" ||
+      (hiringBrief.location_flexibility === "moderate" && cityScopedLocation)
+    );
   const strictLocationRequireHit =
-    strictLocation &&
+    strictLocationFromBrief &&
     (
       STRICT_LOCATION_REQUIRE_HIT ||
       hiringBrief.location_flexibility === "strict" ||
-      hiringBrief.relocation_allowed === "no"
+      hiringBrief.relocation_allowed === "no" ||
+      cityScopedLocation
     );
-  const locationFromJd = extractLocationFromJdText(jdText);
-  const locationTerms = deriveLocationTerms(
-    hiringBrief.location_scope || normalizeNullableString(parsed.location) || locationFromJd,
-  );
+  const locationPreference: "strict" | "preferred" | "none" =
+    locationTerms.length === 0
+      ? "none"
+      : strictLocationFromBrief
+        ? "strict"
+        : (onsiteOrHybrid || hiringBrief.relocation_allowed === "no")
+          ? "preferred"
+          : "none";
 
   return {
     titleTerms,
     mustHaveTerms,
-    strictLocation,
+    strictLocation: locationPreference === "strict",
     strictLocationRequireHit,
+    locationPreference,
     locationTerms,
   };
 }
@@ -2537,11 +2601,24 @@ function evaluateSerperSourceRules(
   }
 
   if (location_hit === true) {
-    score += context.strictLocation ? 20 : 12;
+    score +=
+      context.locationPreference === "strict"
+        ? 20
+        : context.locationPreference === "preferred"
+          ? 16
+          : 12;
   } else if (location_hit === false) {
-    if (context.strictLocation) reasons.push("strict_location_miss");
-  } else if (context.strictLocation) {
+    if (context.locationPreference === "strict") {
+      reasons.push("strict_location_miss");
+    } else if (context.locationPreference === "preferred") {
+      score -= 12;
+      reasons.push("preferred_location_miss");
+    }
+  } else if (context.locationPreference === "strict") {
     reasons.push("strict_location_unknown");
+  } else if (context.locationPreference === "preferred") {
+    score -= 6;
+    reasons.push("preferred_location_unknown");
   } else {
     score += 6;
   }
@@ -2552,9 +2629,11 @@ function evaluateSerperSourceRules(
     reasons.push("noise_penalty");
   }
 
+  // Only hard-reject explicit location mismatch. Unknown location should stay in play
+  // and let AI light-screening decide with stronger penalties.
   const hard_reject =
     context.strictLocation &&
-    (location_hit === false || (context.strictLocationRequireHit && location_hit !== true));
+    location_hit === false;
   const clampedScore = Math.max(0, Math.min(100, Math.round(score)));
 
   return {
@@ -2990,7 +3069,9 @@ async function buildSerperCandidates(
     );
     sourceRulePassCount += sourceRulePassed.length;
 
-    const sourceRulePassedCandidates = sourceRuleEligible.map(({ candidate }) => candidate);
+    // Keep source rules as quality diagnostics; light-screening still evaluates all
+    // retrieved candidates so ranking can happen over the full source pool.
+    const sourceRulePassedCandidates = newTierCandidates;
     const tierPreScreened = await preScreenAllCandidates(
       aiClient,
       parsed,
