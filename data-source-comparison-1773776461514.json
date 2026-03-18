@@ -1,0 +1,2735 @@
+{
+  "test_date": "2026-03-17T19:41:01.514Z",
+  "jd_file": "/Users/noah/projects/hirelix/test-jd-glimpse-real.md",
+  "bright_data": {
+    "search_id": "ddcf1f12-91e8-4a89-ac38-629c96f38a73",
+    "candidate_count": 1,
+    "duration_ms": 655341,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 1,
+      "retrieval_count": 100,
+      "shortlist_count": 1,
+      "advanceable_count": 0,
+      "deep_review_count": 10,
+      "top_quality_score": 65,
+      "hard_blocked_count": 10,
+      "soft_blocked_count": 0,
+      "deep_qualified_rate": 0.1,
+      "outreach_pool_count": 1,
+      "top50_quality_cutoff": 58,
+      "source_rule_pass_rate": 0.14,
+      "brightdata_scrape_count": 10,
+      "llm_prescreen_pass_rate": 0.08,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 18,
+          "request_count": 24,
+          "duplicate_ratio": 0.4375,
+          "new_unique_count": 18,
+          "raw_result_count": 32,
+          "source_rule_pass_rate": 0.7222222222222222,
+          "source_rule_pass_count": 13,
+          "llm_prescreen_pass_rate": 0.3888888888888889,
+          "llm_prescreen_pass_count": 7
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.13,
+          "new_unique_count": 82,
+          "raw_result_count": 100,
+          "source_rule_pass_rate": 0.012195121951219513,
+          "source_rule_pass_count": 1,
+          "llm_prescreen_pass_rate": 0.012195121951219513,
+          "llm_prescreen_pass_count": 1
+        }
+      ],
+      "deep_review_completed_count": 10,
+      "deep_review_requested_count": 10
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmuzzg43120iv69klf",
+      "requested_at": "2026-03-17T19:20:47.340Z",
+      "filter_summary": {
+        "title_terms": [
+          "Full Stack Engineer",
+          "Full Stack Developer",
+          "Software Engineer - Full Stack",
+          "Full Stack Software Engineer",
+          "Web Application Developer",
+          "Full Stack Web Developer",
+          "Backend/Frontend Engineer"
+        ],
+        "country_codes": [
+          "US"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "Full Stack Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "title_variants": [
+          "Full Stack Engineer",
+          "Full Stack Developer",
+          "Software Engineer - Full Stack",
+          "Full Stack Software Engineer",
+          "Web Application Developer",
+          "Full Stack Web Developer",
+          "Backend/Frontend Engineer"
+        ],
+        "core_skill_terms": [
+          "Python",
+          "Node.js",
+          "Next.js",
+          "MongoDB",
+          "PostgreSQL",
+          "Full-Stack Development",
+          "LLMs",
+          "Large Language Models",
+          "End-to-End Development",
+          "Production Deployment",
+          "Rapid Development"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "Full Stack Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "onsite",
+        "location_scope": "New York, NY",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "yes",
+        "constraint_reasoning": "Job description explicitly states 'Ability to work from our NY office full-time' and 'Full-time in office'. Relocation assistance is offered, but physical presence in NYC is required.",
+        "location_flexibility": "strict",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 1,
+        "retrieval_count": 100,
+        "shortlist_count": 1,
+        "advanceable_count": 0,
+        "deep_review_count": 10,
+        "top_quality_score": 65,
+        "hard_blocked_count": 10,
+        "soft_blocked_count": 0,
+        "deep_qualified_rate": 0.1,
+        "outreach_pool_count": 1,
+        "top50_quality_cutoff": 58,
+        "source_rule_pass_rate": 0.14,
+        "brightdata_scrape_count": 10,
+        "llm_prescreen_pass_rate": 0.08,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 18,
+            "request_count": 24,
+            "duplicate_ratio": 0.4375,
+            "new_unique_count": 18,
+            "raw_result_count": 32,
+            "source_rule_pass_rate": 0.7222222222222222,
+            "source_rule_pass_count": 13,
+            "llm_prescreen_pass_rate": 0.3888888888888889,
+            "llm_prescreen_pass_count": 7
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.13,
+            "new_unique_count": 82,
+            "raw_result_count": 100,
+            "source_rule_pass_rate": 0.012195121951219513,
+            "source_rule_pass_count": 1,
+            "llm_prescreen_pass_rate": 0.012195121951219513,
+            "llm_prescreen_pass_count": 1
+          }
+        ],
+        "deep_review_completed_count": 10,
+        "deep_review_requested_count": 10
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmuzzg43120iv69klf",
+        "requested_at": "2026-03-17T19:20:47.340Z",
+        "filter_summary": {
+          "title_terms": [
+            "Full Stack Engineer",
+            "Full Stack Developer",
+            "Software Engineer - Full Stack",
+            "Full Stack Software Engineer",
+            "Web Application Developer",
+            "Full Stack Web Developer",
+            "Backend/Frontend Engineer"
+          ],
+          "country_codes": [
+            "US"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "8bc2a192-9d18-4ecc-8fd9-a380464f918a",
+        "search_id": "ddcf1f12-91e8-4a89-ac38-629c96f38a73",
+        "name": "Sri Sowmya Jonnala",
+        "headline": "at MetLife",
+        "location": "Greater Seattle Area, US",
+        "skills": [
+          "Full-Stack Development"
+        ],
+        "experience_years": 6,
+        "match_score": 58,
+        "match_reasons": [
+          "Senior Full-Stack Engineer with 6 years of experience.",
+          "Meets minimum experience requirement for the role."
+        ],
+        "profile_url": "https://bh.linkedin.com/in/sri-sowmya-jonnala-341a9837a",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer role at Glimpse (YC-backed, 14x growth)\",\"linkedin\":\"Hi Sri, I saw your work at MetLife. We're a YC-backed AI startup in NYC, Glimpse, growing 14x this year. Your 6 years of full-stack experience with Python/Node.js is a perfect match for our team. We're automating financial workflows for CPG brands. Interested in a chat about our full-stack role?\",\"email\":\"Hi Sri, I'm reaching out from Glimpse, a YC & 8VC-backed AI platform for CPG brands. We've grown 14x in 2025 and are looking for a Full Stack Engineer. Your 6+ years of experience, particularly with Python and Node.js, aligns well with our needs. The role offers significant ownership and impact. Are you open to exploring this opportunity based in NYC?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "I am a Senior Full-Stack Engineer with nearly six years of experience designing and…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "top_pick",
+          "risk_flags": [
+            "Hard location and work model mismatch.",
+            "Sparse profile lacks explicit tech stack and LLM details.",
+            "Potential overqualification and stage mismatch."
+          ],
+          "judge_delta": 58,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://bh.linkedin.com/in/sri-sowmya-jonnala-341a9837a",
+            "city": "Greater Seattle Area",
+            "name": "Sri Sowmya Jonnala",
+            "about": "I am a Senior Full-Stack Engineer with nearly six years of experience designing and…",
+            "input": {
+              "url": "https://www.linkedin.com/in/sri-sowmya-jonnala-341a9837a"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "Colorado State University",
+                "degree": null,
+                "end_year": "2025-05",
+                "subtitle": null,
+                "start_year": null,
+                "field_of_study": null
+              }
+            ],
+            "followers": 111,
+            "languages": [
+              "English"
+            ],
+            "last_name": "Sowmya Jonnala",
+            "experience": [
+              {
+                "title": null,
+                "company": "MetLife",
+                "duration": null,
+                "location": null,
+                "company_id": "metlife",
+                "description": null
+              }
+            ],
+            "first_name": "Sri",
+            "connections": 110,
+            "linkedin_id": "srisowmyajonnala9",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "Business Application Development",
+                "authority": "Colorado State University"
+              },
+              {
+                "name": "Information Technology Project Management",
+                "authority": "Colorado State University"
+              },
+              {
+                "name": "Master Of Computer Information Systems",
+                "authority": "Colorado State University"
+              }
+            ],
+            "current_company": {
+              "name": "MetLife",
+              "title": null,
+              "location": null,
+              "company_id": "metlife"
+            },
+            "recommendations_count": null
+          },
+          "suitability": {
+            "risk_flags": [
+              "Hard location and work model mismatch.",
+              "Sparse profile lacks explicit tech stack and LLM details.",
+              "Potential overqualification and stage mismatch."
+            ],
+            "match_score": 58,
+            "fit_decision": "risky_fit",
+            "actionability": "not_actionable",
+            "advance_score": 25,
+            "quality_score": 58,
+            "why_not_higher": [
+              "Profile lacks explicit evidence of required tech stack (Python, Node.js, Next.js, LLMs).",
+              "Experience at large corporate insurer may not align with fast-paced startup environment."
+            ],
+            "constraint_risks": [
+              "Hard location and work model mismatch.",
+              "Sparse profile lacks explicit tech stack and LLM details.",
+              "Potential overqualification and stage mismatch."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "hard",
+            "scoring_breakdown": {
+              "advance_score": 25,
+              "quality_score": 58,
+              "relevance_score": 50,
+              "capability_score": 65,
+              "join_likelihood_score": 20,
+              "join_likelihood_reasons": [
+                "Senior title and 6 years experience suggests overqualification for 3+ year role.",
+                "Current role at large corporate insurer is a potential company-stage mismatch."
+              ]
+            },
+            "why_this_candidate": [
+              "Senior Full-Stack Engineer with 6 years of experience.",
+              "Meets minimum experience requirement for the role."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "non_local",
+              "work_model_fit": "no",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Candidate is located in Greater Seattle Area, role requires full-time in NYC office."
+            ],
+            "advance_recommendation": "hold"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "MetLife",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 25,
+          "quality_score": 58,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Profile lacks explicit evidence of required tech stack (Python, Node.js, Next.js, LLMs).",
+            "Experience at large corporate insurer may not align with fast-paced startup environment."
+          ],
+          "constraint_risks": [
+            "Hard location and work model mismatch.",
+            "Sparse profile lacks explicit tech stack and LLM details.",
+            "Potential overqualification and stage mismatch."
+          ],
+          "blocking_severity": "hard",
+          "quality_breakdown": {
+            "relevance_score": 50,
+            "capability_score": 65
+          },
+          "scoring_breakdown": {
+            "advance_score": 25,
+            "quality_score": 58,
+            "relevance_score": 50,
+            "capability_score": 65,
+            "join_likelihood_score": 20,
+            "join_likelihood_reasons": [
+              "Senior title and 6 years experience suggests overqualification for 3+ year role.",
+              "Current role at large corporate insurer is a potential company-stage mismatch."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "non_local",
+            "work_model_fit": "no",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Candidate is located in Greater Seattle Area, role requires full-time in NYC office."
+          ],
+          "advance_recommendation": "hold",
+          "join_likelihood_reasons": [
+            "Senior title and 6 years experience suggests overqualification for 3+ year role.",
+            "Current role at large corporate insurer is a potential company-stage mismatch."
+          ]
+        },
+        "created_at": "2026-03-17T19:31:27.220656+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  },
+  "serper": {
+    "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+    "candidate_count": 15,
+    "duration_ms": 565214,
+    "status": "done",
+    "stats": {
+      "qualified_count": 15,
+      "retrieval_count": 100,
+      "shortlist_count": 15,
+      "advanceable_count": 2,
+      "deep_review_count": 30,
+      "top_quality_score": 68,
+      "hard_blocked_count": 17,
+      "soft_blocked_count": 12,
+      "deep_qualified_rate": 0.5,
+      "outreach_pool_count": 15,
+      "top50_quality_cutoff": 1,
+      "source_rule_pass_rate": 0.15,
+      "brightdata_scrape_count": 30,
+      "llm_prescreen_pass_rate": 0.06,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 18,
+          "request_count": 24,
+          "duplicate_ratio": 0.41935483870967744,
+          "new_unique_count": 18,
+          "raw_result_count": 31,
+          "source_rule_pass_rate": 0.7777777777777778,
+          "source_rule_pass_count": 14,
+          "llm_prescreen_pass_rate": 0.2777777777777778,
+          "llm_prescreen_pass_count": 5
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.12,
+          "new_unique_count": 82,
+          "raw_result_count": 100,
+          "source_rule_pass_rate": 0.012195121951219513,
+          "source_rule_pass_count": 1,
+          "llm_prescreen_pass_rate": 0.012195121951219513,
+          "llm_prescreen_pass_count": 1
+        }
+      ],
+      "deep_review_completed_count": 30,
+      "deep_review_requested_count": 30
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmv0dlb3f60n1s7tr",
+      "requested_at": "2026-03-17T19:31:47.265Z",
+      "filter_summary": {
+        "title_terms": [
+          "Full Stack Engineer",
+          "Full Stack Developer",
+          "Software Engineer - Full Stack",
+          "Full Stack Software Engineer",
+          "Web Application Developer",
+          "Full Stack Web Developer",
+          "Backend/Frontend Engineer"
+        ],
+        "country_codes": [
+          "US"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "Full Stack Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "title_variants": [
+          "Full Stack Engineer",
+          "Full Stack Developer",
+          "Software Engineer - Full Stack",
+          "Full Stack Software Engineer",
+          "Web Application Developer",
+          "Full Stack Web Developer",
+          "Backend/Frontend Engineer"
+        ],
+        "core_skill_terms": [
+          "Python",
+          "Node.js",
+          "Next.js",
+          "MongoDB",
+          "PostgreSQL",
+          "LLMs",
+          "full-stack development",
+          "end-to-end applications",
+          "front-end",
+          "back-end"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "Full Stack Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "onsite",
+        "location_scope": "New York, NY",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "yes",
+        "constraint_reasoning": "Job description explicitly states 'Ability to work from our NY office full-time' and 'Full-time in office' in the header. Relocation assistance is offered, but physical presence in NYC is mandatory.",
+        "location_flexibility": "strict",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 15,
+        "retrieval_count": 100,
+        "shortlist_count": 15,
+        "advanceable_count": 2,
+        "deep_review_count": 30,
+        "top_quality_score": 68,
+        "hard_blocked_count": 17,
+        "soft_blocked_count": 12,
+        "deep_qualified_rate": 0.5,
+        "outreach_pool_count": 15,
+        "top50_quality_cutoff": 1,
+        "source_rule_pass_rate": 0.15,
+        "brightdata_scrape_count": 30,
+        "llm_prescreen_pass_rate": 0.06,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 18,
+            "request_count": 24,
+            "duplicate_ratio": 0.41935483870967744,
+            "new_unique_count": 18,
+            "raw_result_count": 31,
+            "source_rule_pass_rate": 0.7777777777777778,
+            "source_rule_pass_count": 14,
+            "llm_prescreen_pass_rate": 0.2777777777777778,
+            "llm_prescreen_pass_count": 5
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.12,
+            "new_unique_count": 82,
+            "raw_result_count": 100,
+            "source_rule_pass_rate": 0.012195121951219513,
+            "source_rule_pass_count": 1,
+            "llm_prescreen_pass_rate": 0.012195121951219513,
+            "llm_prescreen_pass_count": 1
+          }
+        ],
+        "deep_review_completed_count": 30,
+        "deep_review_requested_count": 30
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmv0dlb3f60n1s7tr",
+        "requested_at": "2026-03-17T19:31:47.265Z",
+        "filter_summary": {
+          "title_terms": [
+            "Full Stack Engineer",
+            "Full Stack Developer",
+            "Software Engineer - Full Stack",
+            "Full Stack Software Engineer",
+            "Web Application Developer",
+            "Full Stack Web Developer",
+            "Backend/Frontend Engineer"
+          ],
+          "country_codes": [
+            "US"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "a0a17820-6881-424d-977b-2c1fac57228a",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Atul Choudhary",
+        "headline": "at HashedIn by Deloitte",
+        "location": "New Delhi, Delhi, India, IN",
+        "skills": [
+          "Python",
+          "Node.js",
+          "Next.js",
+          "MongoDB",
+          "PostgreSQL",
+          "Full-Stack Development"
+        ],
+        "experience_years": 3,
+        "match_score": 68,
+        "match_reasons": [
+          "Strong match on required tech stack: Python, Node.js, Next.js.",
+          "3+ years full-stack experience aligns with JD requirements.",
+          "Profile indicates building production web applications."
+        ],
+        "profile_url": "https://nl.linkedin.com/in/atul-choudhary-5867a5200",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer role at Glimpse (YC S23) - Python/Node.js/Next.js\",\"linkedin\":\"Hi Atul, Noticed your work with Python, Node.js, and Next.js at HashedIn. Glimpse (YC, $17M raised) is hiring full-stack engineers in NYC. You're a strong match for our stack. We're automating finance for CPG brands and grew 14x last year. Relocation assistance provided. Interested in a quick chat?\",\"email\":\"Hi Atul, I was impressed by your full-stack experience with Python, Node.js, and Next.js at HashedIn by Deloitte. I'm reaching out from Glimpse, a YC-backed AI platform for CPG brands. We're seeking a Full Stack Engineer with your exact skillset to help build and own core product features. We offer relocation to NYC and have grown 14x in 2025. Would you be open to exploring this opportunity?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "I’m a Senior Full-Stack Engineer with 3+ years building production web applications using…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "top_pick",
+          "risk_flags": [
+            "Work authorization status unknown.",
+            "Sparse experience details in profile."
+          ],
+          "judge_delta": 63,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://nl.linkedin.com/in/atul-choudhary-5867a5200",
+            "city": "New Delhi, Delhi, India",
+            "name": "Atul Choudhary",
+            "about": "I’m a Senior Full-Stack Engineer with 3+ years building production web applications using…",
+            "input": {
+              "url": "https://in.linkedin.com/in/atul-choudhary-5867a5200"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "Amity University",
+                "degree": null,
+                "end_year": "2022",
+                "subtitle": null,
+                "start_year": "2018",
+                "field_of_study": null
+              }
+            ],
+            "followers": 461,
+            "languages": [],
+            "last_name": "Choudhary",
+            "experience": [
+              {
+                "title": null,
+                "company": "HashedIn by Deloitte",
+                "duration": null,
+                "location": null,
+                "company_id": "hashedin",
+                "description": null
+              }
+            ],
+            "first_name": "Atul",
+            "connections": 462,
+            "linkedin_id": "atul-choudhary-5867a5200",
+            "country_code": "IN",
+            "certifications": [],
+            "current_company": {
+              "name": "HashedIn by Deloitte",
+              "title": null,
+              "location": null,
+              "company_id": "hashedin"
+            },
+            "recommendations_count": null
+          },
+          "suitability": {
+            "risk_flags": [
+              "Work authorization status unknown.",
+              "Sparse experience details in profile."
+            ],
+            "match_score": 68,
+            "fit_decision": "viable_fit",
+            "actionability": "needs_review",
+            "advance_score": 40,
+            "quality_score": 68,
+            "why_not_higher": [
+              "Profile is sparse on specific project or impact details.",
+              "No explicit evidence of LLM experience mentioned."
+            ],
+            "constraint_risks": [
+              "Work authorization status unknown.",
+              "Sparse experience details in profile."
+            ],
+            "evidence_quality": "medium",
+            "blocking_severity": "hard",
+            "scoring_breakdown": {
+              "advance_score": 40,
+              "quality_score": 68,
+              "relevance_score": 70,
+              "capability_score": 65,
+              "join_likelihood_score": 30,
+              "join_likelihood_reasons": [
+                "Hard location and work model mismatch.",
+                "YC startup stage may mismatch large-company background."
+              ]
+            },
+            "why_this_candidate": [
+              "Strong match on required tech stack: Python, Node.js, Next.js.",
+              "3+ years full-stack experience aligns with JD requirements.",
+              "Profile indicates building production web applications."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "non_local",
+              "work_model_fit": "no",
+              "must_have_coverage": "strong"
+            },
+            "blocking_constraints": [
+              "Candidate located in New Delhi, India. Role requires full-time onsite in NYC."
+            ],
+            "advance_recommendation": "hold"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "HashedIn by Deloitte",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 40,
+          "quality_score": 68,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Profile is sparse on specific project or impact details.",
+            "No explicit evidence of LLM experience mentioned."
+          ],
+          "constraint_risks": [
+            "Work authorization status unknown.",
+            "Sparse experience details in profile."
+          ],
+          "blocking_severity": "hard",
+          "quality_breakdown": {
+            "relevance_score": 70,
+            "capability_score": 65
+          },
+          "scoring_breakdown": {
+            "advance_score": 40,
+            "quality_score": 68,
+            "relevance_score": 70,
+            "capability_score": 65,
+            "join_likelihood_score": 30,
+            "join_likelihood_reasons": [
+              "Hard location and work model mismatch.",
+              "YC startup stage may mismatch large-company background."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "non_local",
+            "work_model_fit": "no",
+            "must_have_coverage": "strong"
+          },
+          "blocking_constraints": [
+            "Candidate located in New Delhi, India. Role requires full-time onsite in NYC."
+          ],
+          "advance_recommendation": "hold",
+          "join_likelihood_reasons": [
+            "Hard location and work model mismatch.",
+            "YC startup stage may mismatch large-company background."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "b7c022f4-7ed4-4d1b-97cf-9123052dfcc8",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Junsoo Park",
+        "headline": "at LG CNS",
+        "location": "New York, New York, United States",
+        "skills": [
+          "full-stack development"
+        ],
+        "experience_years": 3,
+        "match_score": 35,
+        "match_reasons": [
+          "Local candidate meeting 3+ years full-stack experience.",
+          "Profile directly states full-stack development skills.",
+          "No location or work model blockers present."
+        ],
+        "profile_url": "https://pk.linkedin.com/in/Junsoo-park-93b589a9",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer role at Glimpse (YC, 14x growth)\",\"linkedin\":\"Hi Junsoo, Saw your full-stack dev experience at LG CNS. Glimpse (YC, $17M raised) is hiring a Full Stack Engineer in NYC. We're an AI platform for CPG brands, growing 14x. Your local experience and skills look like a great match for our Python/Node.js/Next.js stack and LLM work. Interested in chatting?\",\"email\":\"Hi Junsoo, I'm reaching out from Glimpse, a YC-backed AI platform for CPG brands that grew 14x last year. Given your full-stack development experience at LG CNS and location in New York, I thought you might be interested in our Full Stack Engineer role. We're looking for someone with 3+ years of experience proficient in Python, Node.js, and Next.js to join our in-office team and own projects end-to-end. Would you be open to a brief conversation to learn more?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "Results-driven Software Engineer with 3+ years of experience in full-stack development…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "top_pick",
+          "risk_flags": [
+            "Very low evidence quality; profile is sparse.",
+            "No explicit proof of experience with LLMs or specified databases.",
+            "Current employment status and project details are unknown."
+          ],
+          "judge_delta": 64,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://pk.linkedin.com/in/Junsoo-park-93b589a9",
+            "city": "New York, New York, United States",
+            "name": "Junsoo Park",
+            "about": "Results-driven Software Engineer with 3+ years of experience in full-stack development…",
+            "input": {
+              "url": "https://www.linkedin.com/in/junsoo-park-93b589a9"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "General Assembly",
+                "degree": null,
+                "end_year": "2022-07",
+                "subtitle": null,
+                "start_year": "2022-04",
+                "field_of_study": null
+              }
+            ],
+            "followers": 355,
+            "languages": [
+              "Korean",
+              "English"
+            ],
+            "last_name": "Park",
+            "experience": [
+              {
+                "title": null,
+                "company": "LG CNS",
+                "duration": null,
+                "location": null,
+                "company_id": "lgcns",
+                "description": null
+              }
+            ],
+            "first_name": "Junsoo",
+            "connections": 352,
+            "linkedin_id": "junsoopark92",
+            "country_code": "US",
+            "certifications": [],
+            "current_company": {
+              "name": "LG CNS",
+              "title": null,
+              "location": null,
+              "company_id": "lgcns"
+            },
+            "recommendations_count": null
+          },
+          "suitability": {
+            "risk_flags": [
+              "Very low evidence quality; profile is sparse.",
+              "No explicit proof of experience with LLMs or specified databases.",
+              "Current employment status and project details are unknown."
+            ],
+            "match_score": 35,
+            "fit_decision": "reject",
+            "actionability": "ready_to_act",
+            "advance_score": 60,
+            "quality_score": 35,
+            "why_not_higher": [
+              "Profile lacks concrete evidence for key tech stack requirements.",
+              "No demonstrated experience with LLM building as required.",
+              "Experience details are generic, making capability assessment difficult."
+            ],
+            "constraint_risks": [
+              "Very low evidence quality; profile is sparse.",
+              "No explicit proof of experience with LLMs or specified databases.",
+              "Current employment status and project details are unknown."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 60,
+              "quality_score": 35,
+              "relevance_score": 40,
+              "capability_score": 30,
+              "join_likelihood_score": 70,
+              "join_likelihood_reasons": [
+                "Explicitly located in New York, NY, matching strict onsite requirement.",
+                "Full-stack experience aligns with core job title and years requirement.",
+                "No evidence of company-stage or seniority mismatch."
+              ]
+            },
+            "why_this_candidate": [
+              "Local candidate meeting 3+ years full-stack experience.",
+              "Profile directly states full-stack development skills.",
+              "No location or work model blockers present."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "local",
+              "work_model_fit": "yes",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Sparse evidence of required tech stack (Python, Node.js, Next.js, LLMs, MongoDB/PostgreSQL)"
+            ],
+            "advance_recommendation": "advance"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "LG CNS",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 60,
+          "quality_score": 35,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Profile lacks concrete evidence for key tech stack requirements.",
+            "No demonstrated experience with LLM building as required.",
+            "Experience details are generic, making capability assessment difficult."
+          ],
+          "constraint_risks": [
+            "Very low evidence quality; profile is sparse.",
+            "No explicit proof of experience with LLMs or specified databases.",
+            "Current employment status and project details are unknown."
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 40,
+            "capability_score": 30
+          },
+          "scoring_breakdown": {
+            "advance_score": 60,
+            "quality_score": 35,
+            "relevance_score": 40,
+            "capability_score": 30,
+            "join_likelihood_score": 70,
+            "join_likelihood_reasons": [
+              "Explicitly located in New York, NY, matching strict onsite requirement.",
+              "Full-stack experience aligns with core job title and years requirement.",
+              "No evidence of company-stage or seniority mismatch."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "local",
+            "work_model_fit": "yes",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Sparse evidence of required tech stack (Python, Node.js, Next.js, LLMs, MongoDB/PostgreSQL)"
+          ],
+          "advance_recommendation": "advance",
+          "join_likelihood_reasons": [
+            "Explicitly located in New York, NY, matching strict onsite requirement.",
+            "Full-stack experience aligns with core job title and years requirement.",
+            "No evidence of company-stage or seniority mismatch."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "aed41151-b777-4542-945e-0d8f7ee4b422",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Chris Scrivo",
+        "headline": "at IQVIA",
+        "location": "New York, New York, United States, US",
+        "skills": [
+          "UI development",
+          "Backend"
+        ],
+        "experience_years": 0,
+        "match_score": 6,
+        "match_reasons": [
+          "Local full-stack developer in NYC.",
+          "Summary mentions UI and backend expertise."
+        ],
+        "profile_url": "https://vn.linkedin.com/in/chrisscrivo",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer at Glimpse (YC, 14x growth)\",\"linkedin\":\"Hi Chris, Noticed your UI/backend expertise at IQVIA. Glimpse (YC, $17M) is hiring a full-stack engineer in NYC. We're automating CPG finance with AI, growing 14x. Your local full-stack skills look perfect for building with Python/Node/Next.js. Interested in a chat?\",\"email\":\"Hi Chris, I'm reaching out from Glimpse, a YC-backed AI platform for CPG brands. We've grown 14x and are hiring a Full Stack Engineer in NYC. Your experience in UI development and backend engineering at IQVIA aligns well with our need for someone to own projects end-to-end in Python, Node.js, and Next.js. Would you be open to a brief conversation to discuss the role?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "Summary: Versatile Full Stack Developer with expertise in UI development, backend…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "top_pick",
+          "risk_flags": [
+            "Very sparse profile; lacks specific tech evidence.",
+            "No explicit mention of Python, Node.js, or LLMs.",
+            "Experience years and seniority unclear."
+          ],
+          "judge_delta": 4,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://vn.linkedin.com/in/chrisscrivo",
+            "city": "New York, New York, United States",
+            "name": "Chris Scrivo",
+            "about": "Summary: Versatile Full Stack Developer with expertise in UI development, backend…",
+            "input": {
+              "url": "https://www.linkedin.com/in/chrisscrivo"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "CUNY Baccalaureate for Unique and Interdisciplinary Studies",
+                "degree": null,
+                "end_year": "2007-05",
+                "subtitle": null,
+                "start_year": null,
+                "field_of_study": null
+              }
+            ],
+            "followers": 3062,
+            "languages": [
+              "Japanese",
+              "Spanish"
+            ],
+            "last_name": "Scrivo",
+            "experience": [
+              {
+                "title": null,
+                "company": "IQVIA",
+                "duration": null,
+                "location": null,
+                "company_id": "iqvia",
+                "description": null
+              }
+            ],
+            "first_name": "Chris",
+            "connections": 500,
+            "linkedin_id": "chrisscrivo",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "Learning Webflow",
+                "authority": "LinkedIn"
+              },
+              {
+                "name": "Blockchain Fundamentals",
+                "authority": "Chainlink Labs"
+              },
+              {
+                "name": "Microsoft MCP",
+                "authority": "Microsoft"
+              },
+              {
+                "name": "Sun SCSA",
+                "authority": "Sun Systems"
+              }
+            ],
+            "current_company": {
+              "name": "IQVIA",
+              "title": null,
+              "location": null,
+              "company_id": "iqvia"
+            },
+            "recommendations_count": 11
+          },
+          "suitability": {
+            "risk_flags": [
+              "Very sparse profile; lacks specific tech evidence.",
+              "No explicit mention of Python, Node.js, or LLMs.",
+              "Experience years and seniority unclear."
+            ],
+            "match_score": 6,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 6,
+            "quality_score": 6,
+            "why_not_higher": [
+              "Missing explicit JD tech stack evidence.",
+              "Profile lacks detail on experience and projects."
+            ],
+            "constraint_risks": [
+              "Very sparse profile; lacks specific tech evidence.",
+              "No explicit mention of Python, Node.js, or LLMs.",
+              "Experience years and seniority unclear."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "none",
+            "scoring_breakdown": {
+              "advance_score": 6,
+              "quality_score": 6,
+              "relevance_score": 3,
+              "capability_score": 3,
+              "join_likelihood_score": 5,
+              "join_likelihood_reasons": [
+                "Local to NYC, meets onsite requirement.",
+                "Title and summary align with full-stack role.",
+                "No explicit evidence of stage mismatch."
+              ]
+            },
+            "why_this_candidate": [
+              "Local full-stack developer in NYC.",
+              "Summary mentions UI and backend expertise."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "local",
+              "work_model_fit": "yes",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [],
+            "advance_recommendation": "hold"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "IQVIA",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 6,
+          "quality_score": 6,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Missing explicit JD tech stack evidence.",
+            "Profile lacks detail on experience and projects."
+          ],
+          "constraint_risks": [
+            "Very sparse profile; lacks specific tech evidence.",
+            "No explicit mention of Python, Node.js, or LLMs.",
+            "Experience years and seniority unclear."
+          ],
+          "blocking_severity": "none",
+          "quality_breakdown": {
+            "relevance_score": 3,
+            "capability_score": 3
+          },
+          "scoring_breakdown": {
+            "advance_score": 6,
+            "quality_score": 6,
+            "relevance_score": 3,
+            "capability_score": 3,
+            "join_likelihood_score": 5,
+            "join_likelihood_reasons": [
+              "Local to NYC, meets onsite requirement.",
+              "Title and summary align with full-stack role.",
+              "No explicit evidence of stage mismatch."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "local",
+            "work_model_fit": "yes",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [],
+          "advance_recommendation": "hold",
+          "join_likelihood_reasons": [
+            "Local to NYC, meets onsite requirement.",
+            "Title and summary align with full-stack role.",
+            "No explicit evidence of stage mismatch."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "eae800db-8e9f-4eeb-9c9a-530fe082f9c7",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Yi-Ting Hsieh",
+        "headline": "at DEVA",
+        "location": "New York, New York, United States",
+        "skills": [],
+        "experience_years": 0,
+        "match_score": 6,
+        "match_reasons": [
+          "Perfect location fit for NYC onsite role.",
+          "Strong academic credential from NYU Courant.",
+          "Software Engineer title aligns with role."
+        ],
+        "profile_url": "https://in.linkedin.com/in/yi-ting-hsieh623",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer at Glimpse (YC) - NYC\",\"linkedin\":\"Hi Yi-Ting, Saw you're a Software Engineer in NYC. Glimpse (YC, $17M raised) is hiring a Full Stack Engineer to join our in-person team. Your background from NYU Courant looks great. We're building AI agents for CPG brands, using Python/Node.js/Next.js. Love to chat if you're exploring new roles.\",\"email\":\"Hi Yi-Ting, I'm reaching out from Glimpse, a YC-backed AI platform for CPG brands in NYC. We're seeking a Full Stack Engineer (Python/Node.js/Next.js) to join our in-person team. Given your software engineering experience and NYU Courant background, you could be a great fit. Are you open to discussing the role? We offer relocation assistance if needed.\"}",
+        "status": "new",
+        "metadata": {
+          "about": "I am a Software Engineer and NYU Courant M.S. graduate with a track record of building…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "top_pick",
+          "risk_flags": [
+            "Experience duration unverified.",
+            "Key required skills not explicitly listed.",
+            "Current role and project details missing."
+          ],
+          "judge_delta": 4,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://in.linkedin.com/in/yi-ting-hsieh623",
+            "city": "New York, New York, United States",
+            "name": "Yi-Ting Hsieh",
+            "about": "I am a Software Engineer and NYU Courant M.S. graduate with a track record of building…",
+            "input": {
+              "url": "https://www.linkedin.com/in/yi-ting-hsieh623"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "New York University",
+                "degree": null,
+                "end_year": "2025-05",
+                "subtitle": null,
+                "start_year": "2023-09",
+                "field_of_study": null
+              }
+            ],
+            "followers": 430,
+            "languages": [],
+            "last_name": "Ting Hsieh",
+            "experience": [
+              {
+                "title": null,
+                "company": "DEVA",
+                "duration": null,
+                "location": null,
+                "company_id": null,
+                "description": null
+              }
+            ],
+            "first_name": "Yi",
+            "connections": 423,
+            "linkedin_id": "yi-ting-hsieh623",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "Machine Learning and Reinforcement Learning in Finance Specialization",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Reinforcement Learning in Finance",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Accelerated Computer Science Fundamentals Specialization",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Data Manipulation at Scale: Systems and Algorithms",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Fundamentals of Machine Learning in Finance",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Guided Tour of Machine Learning in Finance",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Object-Oriented Data Structures in C++",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Ordered Data Structures",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Overview of Advanced Methods of Reinforcement Learning in Finance",
+                "authority": "Coursera"
+              },
+              {
+                "name": "Unordered Data Structures",
+                "authority": "Coursera"
+              }
+            ],
+            "current_company": {
+              "name": "DEVA",
+              "title": null,
+              "location": null,
+              "company_id": null
+            },
+            "recommendations_count": null
+          },
+          "suitability": {
+            "risk_flags": [
+              "Experience duration unverified.",
+              "Key required skills not explicitly listed.",
+              "Current role and project details missing."
+            ],
+            "match_score": 6,
+            "fit_decision": "reject",
+            "actionability": "ready_to_act",
+            "advance_score": 5,
+            "quality_score": 6,
+            "why_not_higher": [
+              "Sparse profile lacks evidence for required 3+ years experience.",
+              "No explicit mention of Python, Node.js, or LLM experience.",
+              "Cannot assess full-stack project ownership depth."
+            ],
+            "constraint_risks": [
+              "Experience duration unverified.",
+              "Key required skills not explicitly listed.",
+              "Current role and project details missing."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 5,
+              "quality_score": 6,
+              "relevance_score": 3,
+              "capability_score": 3,
+              "join_likelihood_score": 6,
+              "join_likelihood_reasons": [
+                "Local to NYC, meets strict onsite requirement.",
+                "NYU M.S. graduate, suggests local ties and strong foundation.",
+                "Early career stage may align with startup growth opportunity."
+              ]
+            },
+            "why_this_candidate": [
+              "Perfect location fit for NYC onsite role.",
+              "Strong academic credential from NYU Courant.",
+              "Software Engineer title aligns with role."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "local",
+              "work_model_fit": "yes",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Profile is sparse; cannot verify 3+ years experience or specific tech stack (Python, Node, LLMs)."
+            ],
+            "advance_recommendation": "advance"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "DEVA",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 5,
+          "quality_score": 6,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Sparse profile lacks evidence for required 3+ years experience.",
+            "No explicit mention of Python, Node.js, or LLM experience.",
+            "Cannot assess full-stack project ownership depth."
+          ],
+          "constraint_risks": [
+            "Experience duration unverified.",
+            "Key required skills not explicitly listed.",
+            "Current role and project details missing."
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 3,
+            "capability_score": 3
+          },
+          "scoring_breakdown": {
+            "advance_score": 5,
+            "quality_score": 6,
+            "relevance_score": 3,
+            "capability_score": 3,
+            "join_likelihood_score": 6,
+            "join_likelihood_reasons": [
+              "Local to NYC, meets strict onsite requirement.",
+              "NYU M.S. graduate, suggests local ties and strong foundation.",
+              "Early career stage may align with startup growth opportunity."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "local",
+            "work_model_fit": "yes",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Profile is sparse; cannot verify 3+ years experience or specific tech stack (Python, Node, LLMs)."
+          ],
+          "advance_recommendation": "advance",
+          "join_likelihood_reasons": [
+            "Local to NYC, meets strict onsite requirement.",
+            "NYU M.S. graduate, suggests local ties and strong foundation.",
+            "Early career stage may align with startup growth opportunity."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "580c89e3-cfa5-445a-8643-e17f8e5d72fa",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Isha Satoor",
+        "headline": "at ExaCare AI",
+        "location": "New York City Metropolitan Area, US",
+        "skills": [
+          "ai"
+        ],
+        "experience_years": 0,
+        "match_score": 5,
+        "match_reasons": [
+          "Local full-stack engineer in NYC.",
+          "AI experience aligns with LLM requirement.",
+          "Title directly matches target role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/Isha-satoor-051ab716b",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer at Glimpse (YC) - AI for CPG\",\"linkedin\":\"Hi Isha, Saw your full-stack and AI work at ExaCare. Glimpse is a YC-backed AI platform for CPG brands, growing 14x last year. We're a tight-knit team in NYC looking for a full-stack engineer (Python/Node/Next.js) with LLM experience to own projects end-to-end. Your background is a perfect match. Would you be open to a quick chat?\",\"email\":\"Hi Isha, I was impressed by your full-stack engineering and AI background at ExaCare. I'm reaching out from Glimpse, a YC & 8VC-backed AI platform automating financial workflows for major CPG brands. Given your experience with LLMs and local presence in NYC, I thought you'd be an excellent fit for our Full Stack Engineer role. We're a fast-growing team working in-person. Are you available for a brief conversation next week to discuss?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "Hello! I am a Full-Stack Software Engineer working in Manhattan. I’m…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "top_pick",
+          "risk_flags": [
+            "Very low evidence quality.",
+            "Experience duration unverified.",
+            "Specific tech skills not listed."
+          ],
+          "judge_delta": 1,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://www.linkedin.com/in/Isha-satoor-051ab716b",
+            "city": "New York City Metropolitan Area",
+            "name": "Isha Satoor",
+            "about": "Hello! I am a Full-Stack Software Engineer working in Manhattan. I’m…",
+            "input": {
+              "url": "https://www.linkedin.com/in/isha-satoor-051ab716b"
+            },
+            "avatar": null,
+            "skills": [
+              "ai"
+            ],
+            "headline": null,
+            "education": [
+              {
+                "title": "University of California, Los Angeles",
+                "degree": null,
+                "end_year": "2022",
+                "subtitle": null,
+                "start_year": "2018",
+                "field_of_study": null
+              }
+            ],
+            "followers": 989,
+            "languages": [],
+            "last_name": "Satoor",
+            "experience": [
+              {
+                "title": null,
+                "company": "ExaCare AI",
+                "duration": null,
+                "location": null,
+                "company_id": "exa-care",
+                "description": null
+              }
+            ],
+            "first_name": "Isha",
+            "connections": 500,
+            "linkedin_id": "isha-satoor-051ab716b",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "Building a Website with Node.js and Express.js",
+                "authority": "LinkedIn"
+              },
+              {
+                "name": "JavaScript: Async",
+                "authority": "LinkedIn"
+              },
+              {
+                "name": "Linux: Bash Shell and Scripts",
+                "authority": "LinkedIn"
+              },
+              {
+                "name": "Mindfulness",
+                "authority": "LinkedIn"
+              },
+              {
+                "name": "Node.js Essential Training",
+                "authority": "LinkedIn"
+              },
+              {
+                "name": "Git Essential Training: The Basics",
+                "authority": "LinkedIn"
+              },
+              {
+                "name": "AWS Development Tools Services Overview",
+                "authority": "Amazon Web Services (AWS)"
+              },
+              {
+                "name": "AWS Well-Architected",
+                "authority": "Amazon Web Services (AWS)"
+              }
+            ],
+            "current_company": {
+              "name": "ExaCare AI",
+              "title": null,
+              "location": null,
+              "company_id": "exa-care"
+            },
+            "recommendations_count": 1
+          },
+          "suitability": {
+            "risk_flags": [
+              "Very low evidence quality.",
+              "Experience duration unverified.",
+              "Specific tech skills not listed."
+            ],
+            "match_score": 5,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 4,
+            "quality_score": 5,
+            "why_not_higher": [
+              "Profile is extremely sparse on details.",
+              "No explicit confirmation of required tech stack.",
+              "Experience level cannot be verified."
+            ],
+            "constraint_risks": [
+              "Very low evidence quality.",
+              "Experience duration unverified.",
+              "Specific tech skills not listed."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 4,
+              "quality_score": 5,
+              "relevance_score": 3,
+              "capability_score": 2,
+              "join_likelihood_score": 6,
+              "join_likelihood_reasons": [
+                "Local to NYC, meets strict onsite requirement.",
+                "Title 'Full-Stack Software Engineer' directly matches role.",
+                "AI skills listed, relevant to LLM requirement."
+              ]
+            },
+            "why_this_candidate": [
+              "Local full-stack engineer in NYC.",
+              "AI experience aligns with LLM requirement.",
+              "Title directly matches target role."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "local",
+              "work_model_fit": "yes",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Sparse profile lacks explicit tech stack (Python, Node, Next).",
+              "Experience years unclear, may not meet 3+ year minimum."
+            ],
+            "advance_recommendation": "hold"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "ExaCare AI",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 4,
+          "quality_score": 5,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Profile is extremely sparse on details.",
+            "No explicit confirmation of required tech stack.",
+            "Experience level cannot be verified."
+          ],
+          "constraint_risks": [
+            "Very low evidence quality.",
+            "Experience duration unverified.",
+            "Specific tech skills not listed."
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 3,
+            "capability_score": 2
+          },
+          "scoring_breakdown": {
+            "advance_score": 4,
+            "quality_score": 5,
+            "relevance_score": 3,
+            "capability_score": 2,
+            "join_likelihood_score": 6,
+            "join_likelihood_reasons": [
+              "Local to NYC, meets strict onsite requirement.",
+              "Title 'Full-Stack Software Engineer' directly matches role.",
+              "AI skills listed, relevant to LLM requirement."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "local",
+            "work_model_fit": "yes",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Sparse profile lacks explicit tech stack (Python, Node, Next).",
+            "Experience years unclear, may not meet 3+ year minimum."
+          ],
+          "advance_recommendation": "hold",
+          "join_likelihood_reasons": [
+            "Local to NYC, meets strict onsite requirement.",
+            "Title 'Full-Stack Software Engineer' directly matches role.",
+            "AI skills listed, relevant to LLM requirement."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "80481a41-6d65-4e90-ae8a-0fadb4102172",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Brennan Skinner",
+        "headline": "at Descriptive",
+        "location": "Brooklyn, New York, United States, US",
+        "skills": [
+          "full-stack development"
+        ],
+        "experience_years": 0,
+        "match_score": 5,
+        "match_reasons": [
+          "Local candidate matching work model.",
+          "Title and education align with full-stack role.",
+          "Early-career profile fits startup culture."
+        ],
+        "profile_url": "https://au.linkedin.com/in/brennan-skinner",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer at Glimpse (YC) - Local to Brooklyn\",\"linkedin\":\"Hi Brennan, Saw your full-stack background at Descriptive. We're Glimpse, a YC-backed AI platform for CPG brands in NYC, growing 14x last year. Looking for a full-stack engineer (Python/Node/Next.js) who enjoys end-to-end ownership. You're local in Brooklyn—would you be open to chat about our in-office role?\",\"email\":\"Hi Brennan, I'm reaching out from Glimpse, a YC & 8VC-backed AI startup in NYC. We've grown 14x automating revenue recovery for major CPG brands. Your full-stack development experience aligns well with our need for an engineer to own projects end-to-end in Python, Node.js, and Next.js. Given you're based in Brooklyn, I'd love to discuss our on-site role and the impact you could have. Are you available for a brief call next week?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "👋 Hello, my name is Brennan and I am a Full Stack Engineer. My interest in coding…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "outreach_pool",
+          "risk_flags": [
+            "Extremely low evidence quality.",
+            "Experience duration and specific skills unverified.",
+            "No explicit LLM experience shown."
+          ],
+          "judge_delta": 1,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://au.linkedin.com/in/brennan-skinner",
+            "city": "Brooklyn, New York, United States",
+            "name": "Brennan Skinner",
+            "about": "👋 Hello, my name is Brennan and I am a Full Stack Engineer. My interest in coding…",
+            "input": {
+              "url": "https://www.linkedin.com/in/brennan-skinner"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "Fullstack Academy",
+                "degree": null,
+                "end_year": "2022-04",
+                "subtitle": null,
+                "start_year": "2021-12",
+                "field_of_study": null
+              }
+            ],
+            "followers": 169,
+            "languages": [],
+            "last_name": "Skinner",
+            "experience": [
+              {
+                "title": null,
+                "company": "Descriptive",
+                "duration": null,
+                "location": null,
+                "company_id": "wearedescriptive",
+                "description": null
+              }
+            ],
+            "first_name": "Brennan",
+            "connections": 163,
+            "linkedin_id": "brennan-skinner",
+            "country_code": "US",
+            "certifications": [],
+            "current_company": {
+              "name": "Descriptive",
+              "title": null,
+              "location": null,
+              "company_id": "wearedescriptive"
+            },
+            "recommendations_count": null
+          },
+          "suitability": {
+            "risk_flags": [
+              "Extremely low evidence quality.",
+              "Experience duration and specific skills unverified.",
+              "No explicit LLM experience shown."
+            ],
+            "match_score": 5,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 4,
+            "quality_score": 5,
+            "why_not_higher": [
+              "Profile lacks detail to assess capability.",
+              "Cannot confirm 3+ years experience or tech proficiency.",
+              "No evidence of LLM experience."
+            ],
+            "constraint_risks": [
+              "Extremely low evidence quality.",
+              "Experience duration and specific skills unverified.",
+              "No explicit LLM experience shown."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 4,
+              "quality_score": 5,
+              "relevance_score": 3,
+              "capability_score": 2,
+              "join_likelihood_score": 5,
+              "join_likelihood_reasons": [
+                "Local to NYC, fits onsite requirement.",
+                "Bootcamp grad, likely open to early-stage startup role.",
+                "Title aligns directly with the job."
+              ]
+            },
+            "why_this_candidate": [
+              "Local candidate matching work model.",
+              "Title and education align with full-stack role.",
+              "Early-career profile fits startup culture."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "local",
+              "work_model_fit": "yes",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Sparse profile; cannot verify 3+ years experience or required tech stack (Python, Node.js, Next.js, LLMs)."
+            ],
+            "advance_recommendation": "hold"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "Descriptive",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 4,
+          "quality_score": 5,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Profile lacks detail to assess capability.",
+            "Cannot confirm 3+ years experience or tech proficiency.",
+            "No evidence of LLM experience."
+          ],
+          "constraint_risks": [
+            "Extremely low evidence quality.",
+            "Experience duration and specific skills unverified.",
+            "No explicit LLM experience shown."
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 3,
+            "capability_score": 2
+          },
+          "scoring_breakdown": {
+            "advance_score": 4,
+            "quality_score": 5,
+            "relevance_score": 3,
+            "capability_score": 2,
+            "join_likelihood_score": 5,
+            "join_likelihood_reasons": [
+              "Local to NYC, fits onsite requirement.",
+              "Bootcamp grad, likely open to early-stage startup role.",
+              "Title aligns directly with the job."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "local",
+            "work_model_fit": "yes",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Sparse profile; cannot verify 3+ years experience or required tech stack (Python, Node.js, Next.js, LLMs)."
+          ],
+          "advance_recommendation": "hold",
+          "join_likelihood_reasons": [
+            "Local to NYC, fits onsite requirement.",
+            "Bootcamp grad, likely open to early-stage startup role.",
+            "Title aligns directly with the job."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "6f44dca9-161d-4218-8c93-14c60cbdb2fe",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Carlos L.",
+        "headline": "at Servon",
+        "location": "West Hartford, Connecticut, United States",
+        "skills": [
+          "Full Stack Development",
+          "Scalable Web Applications"
+        ],
+        "experience_years": 0,
+        "match_score": 4,
+        "match_reasons": [
+          "Founder status is a major join risk.",
+          "Skillset aligns but location is non-local.",
+          "Evidence of specific tech stack is sparse.",
+          "Founder experience shows ownership.",
+          "Tech stack partially aligns (full-stack, web).",
+          "Lacks explicit LLM, Python, Node.js evidence."
+        ],
+        "profile_url": "https://fr.linkedin.com/in/Lopezcarlosdev",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer at Glimpse (YC, 14x Growth)\",\"linkedin\":\"Hi Carlos, Saw your background in full-stack development and scalable web apps at Servon. Glimpse is a YC-backed AI platform for CPG brands, growing 14x last year. We're looking for a hands-on engineer to own projects end-to-end in Python/Node.js/Next.js. Your founder experience is compelling. Relocate to NYC with our assistance? Would love to chat.\",\"email\":\"Hi Carlos, I was impressed by your full-stack development experience at Servon, particularly your work on scalable web applications. I'm recruiting for a Full Stack Engineer role at Glimpse, a fast-growth YC startup in NYC. Your skills align well with our stack (Python, Node.js, Next.js) and your founder perspective would be valuable. We offer full relocation assistance. Are you open to discussing the role?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "Self-taught Full Stack Developer and Founder of Servon, building scalable web…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "outreach_pool",
+          "risk_flags": [
+            "Founder of own startup.",
+            "Sparse professional experience details.",
+            "Sparse professional experience evidence.",
+            "No team/office work proof.",
+            "Location mismatch."
+          ],
+          "judge_delta": 1,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://fr.linkedin.com/in/Lopezcarlosdev",
+            "city": "West Hartford, Connecticut, United States",
+            "name": "Carlos L.",
+            "about": "Self-taught Full Stack Developer and Founder of Servon, building scalable web…",
+            "input": {
+              "url": "https://www.linkedin.com/in/lopezcarlosdev"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [],
+            "followers": 376,
+            "languages": [
+              "Spanish",
+              "English"
+            ],
+            "last_name": "L.",
+            "experience": [
+              {
+                "title": null,
+                "company": "Servon",
+                "duration": null,
+                "location": null,
+                "company_id": "servon-software",
+                "description": null
+              }
+            ],
+            "first_name": "Carlos",
+            "connections": 351,
+            "linkedin_id": "lopezcarlosdev",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "JavaScript Algorithms and Data Structures",
+                "authority": "freeCodeCamp"
+              },
+              {
+                "name": "Responsive Web Design",
+                "authority": "freeCodeCamp"
+              }
+            ],
+            "current_company": {
+              "name": "Servon",
+              "title": null,
+              "location": null,
+              "company_id": "servon-software"
+            },
+            "recommendations_count": 10
+          },
+          "suitability": {
+            "risk_flags": [
+              "Founder of own startup.",
+              "Sparse professional experience details.",
+              "Sparse professional experience evidence.",
+              "No team/office work proof.",
+              "Location mismatch."
+            ],
+            "match_score": 4,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 0,
+            "quality_score": 4,
+            "why_not_higher": [
+              "Founder of own startup.",
+              "Sparse professional experience details.",
+              "Sparse professional experience evidence.",
+              "No team/office work proof.",
+              "Location mismatch."
+            ],
+            "constraint_risks": [
+              "Founder of own startup.",
+              "Sparse professional experience details.",
+              "Sparse professional experience evidence.",
+              "No team/office work proof.",
+              "Location mismatch."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "hard",
+            "scoring_breakdown": {
+              "advance_score": 0,
+              "quality_score": 4,
+              "relevance_score": 4,
+              "capability_score": 3,
+              "join_likelihood_score": 2,
+              "join_likelihood_reasons": [
+                "Founder of own company, likely committed to that venture.",
+                "Profile suggests entrepreneurial path, not seeking employee role.",
+                "Self-taught founder may value high-ownership startup role.",
+                "Profile lacks evidence of prior team/office experience."
+              ]
+            },
+            "why_this_candidate": [
+              "Founder status is a major join risk.",
+              "Skillset aligns but location is non-local.",
+              "Evidence of specific tech stack is sparse.",
+              "Founder experience shows ownership.",
+              "Tech stack partially aligns (full-stack, web).",
+              "Lacks explicit LLM, Python, Node.js evidence."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "non_local",
+              "work_model_fit": "unclear",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Current founder of own company (Servon).",
+              "Location is West Hartford, CT, with no relocation proof.",
+              "Location: West Hartford, CT for NYC onsite role.",
+              "No explicit relocation intent or proof."
+            ],
+            "advance_recommendation": "hold"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "Servon",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 0,
+          "quality_score": 4,
+          "analysis_stage": "final",
+          "judge_conflict": false,
+          "scoring_method": "dual_review_auto",
+          "why_not_higher": [
+            "Founder of own startup.",
+            "Sparse professional experience details.",
+            "Sparse professional experience evidence.",
+            "No team/office work proof.",
+            "Location mismatch."
+          ],
+          "constraint_risks": [
+            "Founder of own startup.",
+            "Sparse professional experience details.",
+            "Sparse professional experience evidence.",
+            "No team/office work proof.",
+            "Location mismatch."
+          ],
+          "blocking_severity": "hard",
+          "quality_breakdown": {
+            "relevance_score": 4,
+            "capability_score": 3
+          },
+          "scoring_breakdown": {
+            "advance_score": 0,
+            "quality_score": 4,
+            "relevance_score": 4,
+            "capability_score": 3,
+            "join_likelihood_score": 2,
+            "join_likelihood_reasons": [
+              "Founder of own company, likely committed to that venture.",
+              "Profile suggests entrepreneurial path, not seeking employee role.",
+              "Self-taught founder may value high-ownership startup role.",
+              "Profile lacks evidence of prior team/office experience."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "non_local",
+            "work_model_fit": "unclear",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Current founder of own company (Servon).",
+            "Location is West Hartford, CT, with no relocation proof.",
+            "Location: West Hartford, CT for NYC onsite role.",
+            "No explicit relocation intent or proof."
+          ],
+          "advance_recommendation": "hold",
+          "join_likelihood_reasons": [
+            "Founder of own company, likely committed to that venture.",
+            "Profile suggests entrepreneurial path, not seeking employee role.",
+            "Self-taught founder may value high-ownership startup role.",
+            "Profile lacks evidence of prior team/office experience."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "6b83b0a6-92f0-4622-b0d2-0a842e1566c6",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Emily L.",
+        "headline": "at Developer Portfolio Club",
+        "location": "United States, US",
+        "skills": [
+          "fullstack",
+          "frontend"
+        ],
+        "experience_years": 0,
+        "match_score": 3,
+        "match_reasons": [
+          "Lacks required 3+ years of experience.",
+          "Current student, role is for experienced hire.",
+          "Skills partially align but seniority is a hard blocker.",
+          "No evidence of JD's tech stack (Python, Node, Next).",
+          "Student profile vs. role for seasoned full-stack engineer."
+        ],
+        "profile_url": "https://dk.linkedin.com/in/Emily-lopez228",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer role at Glimpse (YC)\",\"linkedin\":\"Hi Emily, Saw your portfolio work. While you're early in your career, your full-stack skills caught my eye. We're a fast-growing YC startup in NYC building AI agents for CPG brands. If you're eager to work with Python/Next.js/LLMs in a high-ownership role, I'd love to chat about potential opportunities.\",\"email\":\"Hi Emily, I'm reaching out from Glimpse, a YC-backed AI startup in NYC that grew 14x last year. We're hiring Full Stack Engineers. Your portfolio demonstrates strong foundational skills. While we typically seek 3+ years of experience, we value drive and technical aptitude. If you're interested in solving complex problems with Python, Node.js, and LLMs in a collaborative, in-office environment, I would welcome a conversation to explore fit.\"}",
+        "status": "new",
+        "metadata": {
+          "about": "I'm Emily, a CS student at Widener and a fullstack developer who specializes in frontend…",
+          "source": "brightdata",
+          "education": [
+            {
+              "major": null,
+              "degree": null,
+              "school": "Widener University",
+              "end_year": null,
+              "start_year": null
+            }
+          ],
+          "pool_type": "outreach_pool",
+          "risk_flags": [
+            "Zero professional experience listed.",
+            "Role is a major seniority jump.",
+            "Evidence from portfolio, not employment.",
+            "Very sparse profile details.",
+            "Potential entry-level candidate.",
+            "Location unknown."
+          ],
+          "judge_delta": 2,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://dk.linkedin.com/in/Emily-lopez228",
+            "city": "United States",
+            "name": "Emily L.",
+            "about": "I'm Emily, a CS student at Widener and a fullstack developer who specializes in frontend…",
+            "input": {
+              "url": "https://www.linkedin.com/in/emily-lopez228"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": null,
+                "degree": null,
+                "end_year": null,
+                "subtitle": "Widener University",
+                "start_year": null,
+                "field_of_study": null
+              }
+            ],
+            "followers": 127,
+            "languages": [
+              "English",
+              "Spanish"
+            ],
+            "last_name": "L.",
+            "experience": [
+              {
+                "title": null,
+                "company": "Developer Portfolio Club",
+                "duration": null,
+                "location": null,
+                "company_id": null,
+                "description": null
+              }
+            ],
+            "first_name": "Emily",
+            "connections": 123,
+            "linkedin_id": "emily-lopez228",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "Linux Unhatched",
+                "authority": "Cisco Networking Academy"
+              },
+              {
+                "name": "PC Pro",
+                "authority": "TestOut Continuing Education"
+              },
+              {
+                "name": "CPR/AED/First Aid",
+                "authority": "American Red Cross"
+              }
+            ],
+            "current_company": {
+              "name": "Developer Portfolio Club",
+              "title": null,
+              "location": null,
+              "company_id": null
+            },
+            "recommendations_count": null
+          },
+          "suitability": {
+            "risk_flags": [
+              "Zero professional experience listed.",
+              "Role is a major seniority jump.",
+              "Evidence from portfolio, not employment.",
+              "Very sparse profile details.",
+              "Potential entry-level candidate.",
+              "Location unknown."
+            ],
+            "match_score": 3,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 0,
+            "quality_score": 3,
+            "why_not_higher": [
+              "Zero professional experience listed.",
+              "Role is a major seniority jump.",
+              "Evidence from portfolio, not employment.",
+              "Very sparse profile details.",
+              "Potential entry-level candidate.",
+              "Location unknown."
+            ],
+            "constraint_risks": [
+              "Zero professional experience listed.",
+              "Role is a major seniority jump.",
+              "Evidence from portfolio, not employment.",
+              "Very sparse profile details.",
+              "Potential entry-level candidate.",
+              "Location unknown."
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 0,
+              "quality_score": 3,
+              "relevance_score": 3,
+              "capability_score": 2,
+              "join_likelihood_score": 4,
+              "join_likelihood_reasons": [
+                "Student likely seeking first full-time role.",
+                "Startup equity and mission may be appealing.",
+                "No explicit location conflict in profile.",
+                "Student seeking entry-level roles, not 3+ years experience.",
+                "No evidence of LLM experience or relevant tech stack."
+              ]
+            },
+            "why_this_candidate": [
+              "Lacks required 3+ years of experience.",
+              "Current student, role is for experienced hire.",
+              "Skills partially align but seniority is a hard blocker.",
+              "No evidence of JD's tech stack (Python, Node, Next).",
+              "Student profile vs. role for seasoned full-stack engineer."
+            ],
+            "constraint_verdicts": {
+              "location_fit": "unknown",
+              "work_model_fit": "unclear",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Experience years mismatch: JD requires 3+ years, candidate is a student.",
+              "Seniority mismatch: JD is for experienced engineer, not entry-level.",
+              "Seniority mismatch: candidate is a student, JD requires 3+ years experience.",
+              "Missing required skills: No evidence of Python, Node.js, Next.js, LLMs."
+            ],
+            "advance_recommendation": "reject"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "Developer Portfolio Club",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 0,
+          "quality_score": 3,
+          "analysis_stage": "final",
+          "judge_conflict": false,
+          "scoring_method": "dual_review_auto",
+          "why_not_higher": [
+            "Zero professional experience listed.",
+            "Role is a major seniority jump.",
+            "Evidence from portfolio, not employment.",
+            "Very sparse profile details.",
+            "Potential entry-level candidate.",
+            "Location unknown."
+          ],
+          "constraint_risks": [
+            "Zero professional experience listed.",
+            "Role is a major seniority jump.",
+            "Evidence from portfolio, not employment.",
+            "Very sparse profile details.",
+            "Potential entry-level candidate.",
+            "Location unknown."
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 3,
+            "capability_score": 2
+          },
+          "scoring_breakdown": {
+            "advance_score": 0,
+            "quality_score": 3,
+            "relevance_score": 3,
+            "capability_score": 2,
+            "join_likelihood_score": 4,
+            "join_likelihood_reasons": [
+              "Student likely seeking first full-time role.",
+              "Startup equity and mission may be appealing.",
+              "No explicit location conflict in profile.",
+              "Student seeking entry-level roles, not 3+ years experience.",
+              "No evidence of LLM experience or relevant tech stack."
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "unknown",
+            "work_model_fit": "unclear",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Experience years mismatch: JD requires 3+ years, candidate is a student.",
+            "Seniority mismatch: JD is for experienced engineer, not entry-level.",
+            "Seniority mismatch: candidate is a student, JD requires 3+ years experience.",
+            "Missing required skills: No evidence of Python, Node.js, Next.js, LLMs."
+          ],
+          "advance_recommendation": "reject",
+          "join_likelihood_reasons": [
+            "Student likely seeking first full-time role.",
+            "Startup equity and mission may be appealing.",
+            "No explicit location conflict in profile.",
+            "Student seeking entry-level roles, not 3+ years experience.",
+            "No evidence of LLM experience or relevant tech stack."
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "fb91b19d-8719-4587-acf9-e8ac58b9bd7e",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Tyler Thomas",
+        "headline": "at Self",
+        "location": "United States, US",
+        "skills": [
+          "Full Stack Development",
+          "Full-stack development"
+        ],
+        "experience_years": 2,
+        "match_score": 3,
+        "match_reasons": [
+          "Experience years below JD's 3+ minimum",
+          "Location fit unknown for strict NYC onsite",
+          "Skills match stack but depth is unclear",
+          "2 years experience vs 3+ required",
+          "Missing evidence for key tech (LLMs, specific DBs)"
+        ],
+        "profile_url": "https://za.linkedin.com/in/tylergthomas",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer at Glimpse (YC)\",\"linkedin\":\"Hi Tyler, Noticed your full-stack background. Glimpse is a YC/8VC-backed AI platform for CPG brands, growing 14x last year. We're looking for an engineer to own projects end-to-end in Python/Node/Next.js, with LLM experience a plus. Relocate to NYC with our assistance. Interested in a quick chat?\",\"email\":\"Hi Tyler, I'm reaching out from Glimpse, a YC & 8VC-backed AI startup for CPG brands that grew 14x in 2025. Your full-stack development experience aligns well with our need for an engineer to own projects end-to-end in our Python, Node.js, and Next.js stack. Experience with LLMs is a strong plus. We offer relocation to NYC. Would you be open to a brief conversation to discuss the role?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "Full Stack Engineer with 2+ years of experience with a proven ability to deliver robust…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "outreach_pool",
+          "risk_flags": [
+            "Sparse experience details",
+            "No explicit location",
+            "No LLM experience shown",
+            "Experience below minimum threshold",
+            "Location mismatch is a hard blocker",
+            "Sparse profile details"
+          ],
+          "judge_delta": 2,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://za.linkedin.com/in/tylergthomas",
+            "city": "United States",
+            "name": "Tyler Thomas",
+            "about": "Full Stack Engineer with 2+ years of experience with a proven ability to deliver robust…",
+            "input": {
+              "url": "https://www.linkedin.com/in/tylergthomas"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "V School",
+                "degree": null,
+                "end_year": "2022",
+                "subtitle": null,
+                "start_year": "2021",
+                "field_of_study": null
+              }
+            ],
+            "followers": 629,
+            "languages": [],
+            "last_name": "Thomas",
+            "experience": [
+              {
+                "title": null,
+                "company": "Self",
+                "duration": null,
+                "location": null,
+                "company_id": null,
+                "description": null
+              }
+            ],
+            "first_name": "Tyler",
+            "connections": 500,
+            "linkedin_id": "tylergthomas",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "The Complete Guide to Becoming a Software Architect",
+                "authority": "Udemy"
+              },
+              {
+                "name": "GitHub Actions - The Complete Guide",
+                "authority": "Udemy"
+              },
+              {
+                "name": "V School Web Development Course Completion",
+                "authority": "V School"
+              },
+              {
+                "name": "AWS Certified Solutions Architect – Associate",
+                "authority": "Amazon Web Services (AWS)"
+              }
+            ],
+            "current_company": {
+              "name": "Self",
+              "title": null,
+              "location": null,
+              "company_id": null
+            },
+            "recommendations_count": 4
+          },
+          "suitability": {
+            "risk_flags": [
+              "Sparse experience details",
+              "No explicit location",
+              "No LLM experience shown",
+              "Experience below minimum threshold",
+              "Location mismatch is a hard blocker",
+              "Sparse profile details"
+            ],
+            "match_score": 3,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 0,
+            "quality_score": 3,
+            "why_not_higher": [
+              "Sparse experience details",
+              "No explicit location",
+              "No LLM experience shown",
+              "Experience below minimum threshold",
+              "Location mismatch is a hard blocker",
+              "Sparse profile details"
+            ],
+            "constraint_risks": [
+              "Sparse experience details",
+              "No explicit location",
+              "No LLM experience shown",
+              "Experience below minimum threshold",
+              "Location mismatch is a hard blocker",
+              "Sparse profile details"
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 0,
+              "quality_score": 3,
+              "relevance_score": 3,
+              "capability_score": 2,
+              "join_likelihood_score": 3,
+              "join_likelihood_reasons": [
+                "Self-employed status suggests openness to new roles",
+                "Profile shows alignment with full-stack and modern web tech",
+                "YC startup may appeal to entrepreneurial background",
+                "Self-employed status may indicate openness to new roles",
+                "General full-stack background aligns with role basics"
+              ]
+            },
+            "why_this_candidate": [
+              "Experience years below JD's 3+ minimum",
+              "Location fit unknown for strict NYC onsite",
+              "Skills match stack but depth is unclear",
+              "2 years experience vs 3+ required",
+              "Missing evidence for key tech (LLMs, specific DBs)"
+            ],
+            "constraint_verdicts": {
+              "location_fit": "unknown",
+              "work_model_fit": "unclear",
+              "must_have_coverage": "partial"
+            },
+            "blocking_constraints": [
+              "Location not specified, NYC onsite is a hard requirement",
+              "Location: Profile shows US but not NYC; role requires full-time NYC onsite"
+            ],
+            "advance_recommendation": "reject"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "Self",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 0,
+          "quality_score": 3,
+          "analysis_stage": "final",
+          "judge_conflict": false,
+          "scoring_method": "dual_review_auto",
+          "why_not_higher": [
+            "Sparse experience details",
+            "No explicit location",
+            "No LLM experience shown",
+            "Experience below minimum threshold",
+            "Location mismatch is a hard blocker",
+            "Sparse profile details"
+          ],
+          "constraint_risks": [
+            "Sparse experience details",
+            "No explicit location",
+            "No LLM experience shown",
+            "Experience below minimum threshold",
+            "Location mismatch is a hard blocker",
+            "Sparse profile details"
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 3,
+            "capability_score": 2
+          },
+          "scoring_breakdown": {
+            "advance_score": 0,
+            "quality_score": 3,
+            "relevance_score": 3,
+            "capability_score": 2,
+            "join_likelihood_score": 3,
+            "join_likelihood_reasons": [
+              "Self-employed status suggests openness to new roles",
+              "Profile shows alignment with full-stack and modern web tech",
+              "YC startup may appeal to entrepreneurial background",
+              "Self-employed status may indicate openness to new roles",
+              "General full-stack background aligns with role basics"
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "unknown",
+            "work_model_fit": "unclear",
+            "must_have_coverage": "partial"
+          },
+          "blocking_constraints": [
+            "Location not specified, NYC onsite is a hard requirement",
+            "Location: Profile shows US but not NYC; role requires full-time NYC onsite"
+          ],
+          "advance_recommendation": "reject",
+          "join_likelihood_reasons": [
+            "Self-employed status suggests openness to new roles",
+            "Profile shows alignment with full-stack and modern web tech",
+            "YC startup may appeal to entrepreneurial background",
+            "Self-employed status may indicate openness to new roles",
+            "General full-stack background aligns with role basics"
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "f2520fb3-aedb-4c0a-845f-fcc407911a91",
+        "search_id": "af7df0f1-4cd9-4e8b-87ba-36f32c1cdf84",
+        "name": "Ram Vyas",
+        "headline": "at NasAero",
+        "location": "Jersey City, New Jersey, United States",
+        "skills": [],
+        "experience_years": 0,
+        "match_score": 2,
+        "match_reasons": [
+          "Location is a good fit for NYC office"
+        ],
+        "profile_url": "https://at.linkedin.com/in/Ramvyas-",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer role at Glimpse (YC S23) - NYC\",\"linkedin\":\"Hi Ram, Noticed you're in Jersey City. Glimpse (YC, $17M raised) is hiring a Full Stack Engineer in NYC. We're building AI agents for CPG back-office automation, scaling 14x this year. Your background looks great. Would you be open to a quick chat about our stack (Python/Node/Next.js) and the role?\",\"email\":\"Hi Ram, I'm reaching out from Glimpse, a YC-backed AI platform for CPG brands that grew 14x in 2025. Given your proximity in Jersey City, I thought you might be interested in our Full Stack Engineer role in NYC. We're looking for someone with strong end-to-end ownership skills in Python, Node.js, and Next.js. The role offers significant impact, equity, and relocation assistance. Are you available for a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "Passionate about software engineering and innovative problem-solving. From my first year…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "outreach_pool",
+          "risk_flags": [
+            "Very low evidence quality",
+            "Experience years unverifiable",
+            "Skill set completely unknown"
+          ],
+          "judge_delta": 2,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://at.linkedin.com/in/Ramvyas-",
+            "city": "Jersey City, New Jersey, United States",
+            "name": "Ram Vyas",
+            "about": "Passionate about software engineering and innovative problem-solving. From my first year…",
+            "input": {
+              "url": "https://www.linkedin.com/in/ramvyas-"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "New Jersey Institute of Technology",
+                "degree": null,
+                "end_year": "2022",
+                "subtitle": null,
+                "start_year": "2020",
+                "field_of_study": null
+              }
+            ],
+            "followers": 1044,
+            "languages": [
+              "English",
+              "Gujarati",
+              "Hindi"
+            ],
+            "last_name": "Vyas",
+            "experience": [
+              {
+                "title": null,
+                "company": "NasAero",
+                "duration": null,
+                "location": null,
+                "company_id": "nasaero",
+                "description": null
+              }
+            ],
+            "first_name": "Ram",
+            "connections": 500,
+            "linkedin_id": "ramvyas-",
+            "country_code": "US",
+            "certifications": [],
+            "current_company": {
+              "name": "NasAero",
+              "title": null,
+              "location": null,
+              "company_id": "nasaero"
+            },
+            "recommendations_count": 1
+          },
+          "suitability": {
+            "risk_flags": [
+              "Very low evidence quality",
+              "Experience years unverifiable",
+              "Skill set completely unknown"
+            ],
+            "match_score": 2,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 1,
+            "quality_score": 2,
+            "why_not_higher": [
+              "Profile lacks any technical details or experience proof",
+              "Cannot verify any required skills or minimum experience"
+            ],
+            "constraint_risks": [
+              "Very low evidence quality",
+              "Experience years unverifiable",
+              "Skill set completely unknown"
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 1,
+              "quality_score": 2,
+              "relevance_score": 1,
+              "capability_score": 1,
+              "join_likelihood_score": 3,
+              "join_likelihood_reasons": [
+                "Location is nearby (Jersey City)",
+                "No explicit evidence of role or company mismatch",
+                "Sparse profile makes intent unclear"
+              ]
+            },
+            "why_this_candidate": [
+              "Location is a good fit for NYC office"
+            ],
+            "constraint_verdicts": {
+              "location_fit": "nearby",
+              "work_model_fit": "unclear",
+              "must_have_coverage": "unknown"
+            },
+            "blocking_constraints": [
+              "No evidence of required 3+ years full-stack experience",
+              "No demonstrated skills in Python, Node.js, Next.js, or LLMs"
+            ],
+            "advance_recommendation": "reject"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "NasAero",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 1,
+          "quality_score": 2,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Profile lacks any technical details or experience proof",
+            "Cannot verify any required skills or minimum experience"
+          ],
+          "constraint_risks": [
+            "Very low evidence quality",
+            "Experience years unverifiable",
+            "Skill set completely unknown"
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 1,
+            "capability_score": 1
+          },
+          "scoring_breakdown": {
+            "advance_score": 1,
+            "quality_score": 2,
+            "relevance_score": 1,
+            "capability_score": 1,
+            "join_likelihood_score": 3,
+            "join_likelihood_reasons": [
+              "Location is nearby (Jersey City)",
+              "No explicit evidence of role or company mismatch",
+              "Sparse profile makes intent unclear"
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "nearby",
+            "work_model_fit": "unclear",
+            "must_have_coverage": "unknown"
+          },
+          "blocking_constraints": [
+            "No evidence of required 3+ years full-stack experience",
+            "No demonstrated skills in Python, Node.js, Next.js, or LLMs"
+          ],
+          "advance_recommendation": "reject",
+          "join_likelihood_reasons": [
+            "Location is nearby (Jersey City)",
+            "No explicit evidence of role or company mismatch",
+            "Sparse profile makes intent unclear"
+          ]
+        },
+        "created_at": "2026-03-17T19:40:59.325335+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,422 @@
+{
+  "test_date": "2026-03-17T18:52:00.579Z",
+  "jd_file": "/Users/noah/projects/hirelix/test-jd-glimpse-real.md",
+  "bright_data": {
+    "search_id": "2b14354e-e60a-42d2-9596-9416ea190372",
+    "candidate_count": 0,
+    "duration_ms": 317369,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 0,
+      "retrieval_count": 100,
+      "shortlist_count": 0,
+      "advanceable_count": 0,
+      "deep_review_count": 0,
+      "top_quality_score": 0,
+      "hard_blocked_count": 0,
+      "soft_blocked_count": 0,
+      "deep_qualified_rate": 0,
+      "outreach_pool_count": 0,
+      "top50_quality_cutoff": 0,
+      "source_rule_pass_rate": 0.54,
+      "brightdata_scrape_count": 69,
+      "llm_prescreen_pass_rate": 0,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 2,
+          "stop_reason": null,
+          "unique_count": 66,
+          "request_count": 8,
+          "duplicate_ratio": 0.175,
+          "new_unique_count": 66,
+          "raw_result_count": 80,
+          "source_rule_pass_rate": 0.5606060606060606,
+          "source_rule_pass_count": 37,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        },
+        {
+          "tier": "P1",
+          "query_count": 3,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 12,
+          "duplicate_ratio": 0.5777777777777777,
+          "new_unique_count": 34,
+          "raw_result_count": 90,
+          "source_rule_pass_rate": 0.5,
+          "source_rule_pass_count": 17,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        }
+      ],
+      "deep_review_completed_count": 0,
+      "deep_review_requested_count": 69
+    },
+    "recall_metadata": {
+      "status": "submitted",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmuyr4ebygnfn13nh",
+      "requested_at": "2026-03-17T18:46:19.344Z"
+    },
+    "top_10": []
+  },
+  "serper": {
+    "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+    "candidate_count": 50,
+    "duration_ms": 20800,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 50,
+      "retrieval_count": 100,
+      "shortlist_count": 50,
+      "deep_review_count": 0,
+      "deep_qualified_rate": 0,
+      "outreach_pool_count": 50,
+      "source_rule_pass_rate": 0.61,
+      "brightdata_scrape_count": 0,
+      "llm_prescreen_pass_rate": 0,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 2,
+          "stop_reason": null,
+          "unique_count": 65,
+          "request_count": 8,
+          "duplicate_ratio": 0.1875,
+          "new_unique_count": 65,
+          "raw_result_count": 80,
+          "source_rule_pass_rate": 0.676923076923077,
+          "source_rule_pass_count": 44,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        },
+        {
+          "tier": "P1",
+          "query_count": 3,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 12,
+          "duplicate_ratio": 0.55,
+          "new_unique_count": 35,
+          "raw_result_count": 80,
+          "source_rule_pass_rate": 0.4857142857142857,
+          "source_rule_pass_count": 17,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        }
+      ],
+      "deep_review_completed_count": 0,
+      "deep_review_requested_count": 100
+    },
+    "recall_metadata": {
+      "status": "submitted",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmuyy2h512m7kxcghe",
+      "requested_at": "2026-03-17T18:51:43.358Z"
+    },
+    "top_10": [
+      {
+        "id": "854e47e3-b531-4413-850d-39b0a44d9907",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "James Martin",
+        "headline": "Full Stack Software Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://www.linkedin.com/in/chasemartin",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi James, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi James, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "f22d78dd-95ff-4a53-b8c9-c505267f9c34",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Emily L.",
+        "headline": "Full Stack Engineer | Skilled in React.js, Node.js, Python",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://www.linkedin.com/in/emily-lopez228",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Emily, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Emily, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "34583f4b-3235-47fe-a660-1c2eab2dfae4",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Joshua Ham",
+        "headline": "Full Stack Software Engineer |  | Javascript",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://www.linkedin.com/in/joshua-j-ham",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Joshua, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Joshua, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "41fe0364-63cc-4172-88a8-bd2d0adb4565",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Andrew Santoli",
+        "headline": "Senior Full Stack Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://www.linkedin.com/in/santoli-connected",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Andrew, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Andrew, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "acff7e88-3833-4369-a530-f1b1a15dbe82",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Charan B",
+        "headline": "Full Stack Engineer | React, TypeScript, Node.js ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://www.linkedin.com/in/charanx",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Charan, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Charan, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "ad7e8cb2-e01f-4339-aa85-417ca28e5259",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Robert Lynch",
+        "headline": "Full‑Stack (Node.js, React, Python)",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://www.linkedin.com/in/robertflynch",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Robert, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Robert, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "b1e15bdd-83a8-447f-ad84-da9a7ad45a1a",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Pablo Barrera",
+        "headline": "Senior Full | Stack Engineer | Node.js ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://mx.linkedin.com/in/pablo-barrera-8ab419139",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Pablo, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Pablo, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "5a53e90e-7be0-4fe9-9dd9-1995ef501c09",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Patrick Lam",
+        "headline": "Full Stack Engineer | Python | JavaScript",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://www.linkedin.com/in/patrick-lam23",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Patrick, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Patrick, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "6a367cb2-69c7-468b-8709-f20ef11a1dd3",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Etty Sekhon",
+        "headline": "Full Stack Engineer | Python | Node.js",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://uk.linkedin.com/in/fullstackclouddatadev",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Etty, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Etty, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "18588255-6fc2-4cad-967b-273f3c822a30",
+        "search_id": "cc788e45-59b2-43c0-8753-3bc93fd1856a",
+        "name": "Sarvesh P.",
+        "headline": "Full Stack Engineer (React, Next.js, Node.js ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 0,
+        "match_reasons": [
+          "LLM prescreen failed; candidate held for manual fallback only."
+        ],
+        "profile_url": "https://in.linkedin.com/in/sarveshp273",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Full Stack Engineer opportunity\",\"linkedin\":\"Hi Sarvesh, I came across your profile and thought your background looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\",\"email\":\"Hi Sarvesh, I came across your background and thought it looked relevant for our Full Stack Engineer. Would you be open to a quick chat?\\n\\nBest regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "LLM prescreen failed; candidate held for manual fallback only.",
+            "match_score": 0
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-17T18:51:58.4388+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,931 @@
+{
+  "test_date": "2026-03-18T07:17:53.885Z",
+  "jd_file": "test-jd-crouton-founding-engineer.md",
+  "bright_data": {
+    "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+    "candidate_count": 50,
+    "duration_ms": 651838,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 50,
+      "retrieval_count": 100,
+      "shortlist_count": 50,
+      "deep_review_count": 0,
+      "deep_qualified_rate": 0,
+      "outreach_pool_count": 50,
+      "source_rule_pass_rate": 0.23,
+      "brightdata_scrape_count": 0,
+      "llm_prescreen_pass_rate": 0.06,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 27,
+          "request_count": 24,
+          "duplicate_ratio": 0.2894736842105263,
+          "new_unique_count": 27,
+          "raw_result_count": 38,
+          "source_rule_pass_rate": 0.8148148148148148,
+          "source_rule_pass_count": 22,
+          "llm_prescreen_pass_rate": 0.14814814814814814,
+          "llm_prescreen_pass_count": 4
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.17777777777777778,
+          "new_unique_count": 73,
+          "raw_result_count": 90,
+          "source_rule_pass_rate": 0.0136986301369863,
+          "source_rule_pass_count": 1,
+          "llm_prescreen_pass_rate": 0.0273972602739726,
+          "llm_prescreen_pass_count": 2
+        }
+      ],
+      "deep_review_completed_count": 0,
+      "deep_review_requested_count": 100
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmvotbfw2p92y9fufk",
+      "requested_at": "2026-03-18T06:55:51.755Z",
+      "filter_summary": {
+        "title_terms": [
+          "Founding Engineer",
+          "Software Engineer",
+          "Full Stack Engineer",
+          "Senior Software Engineer",
+          "Lead Engineer",
+          "Technical Co-founder",
+          "Early Stage Engineer"
+        ],
+        "country_codes": [
+          "US"
+        ],
+        "location_terms": [
+          "new york",
+          "nyc",
+          "new york city"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "Founding Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "location_terms": [
+          "New York",
+          "NYC",
+          "New York City",
+          "Manhattan",
+          "Brooklyn"
+        ],
+        "title_variants": [
+          "Founding Engineer",
+          "Software Engineer",
+          "Full Stack Engineer",
+          "Senior Software Engineer",
+          "Lead Engineer",
+          "Technical Co-founder",
+          "Early Stage Engineer"
+        ],
+        "core_skill_terms": [
+          "React",
+          "TypeScript",
+          "PostgreSQL",
+          "AWS",
+          "full-stack",
+          "web development",
+          "frontend",
+          "backend",
+          "database"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "Founding Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "onsite",
+        "location_scope": "New York, NY",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "unknown",
+        "constraint_reasoning": "Job description explicitly states 'Full-time in office' in New York, NY. This is a strict onsite requirement for the NYC metro area. Recall should prioritize candidates already in or immediately available to the NYC region.",
+        "location_flexibility": "strict",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 50,
+        "retrieval_count": 100,
+        "shortlist_count": 50,
+        "deep_review_count": 0,
+        "deep_qualified_rate": 0,
+        "outreach_pool_count": 50,
+        "source_rule_pass_rate": 0.23,
+        "brightdata_scrape_count": 0,
+        "llm_prescreen_pass_rate": 0.06,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 27,
+            "request_count": 24,
+            "duplicate_ratio": 0.2894736842105263,
+            "new_unique_count": 27,
+            "raw_result_count": 38,
+            "source_rule_pass_rate": 0.8148148148148148,
+            "source_rule_pass_count": 22,
+            "llm_prescreen_pass_rate": 0.14814814814814814,
+            "llm_prescreen_pass_count": 4
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.17777777777777778,
+            "new_unique_count": 73,
+            "raw_result_count": 90,
+            "source_rule_pass_rate": 0.0136986301369863,
+            "source_rule_pass_count": 1,
+            "llm_prescreen_pass_rate": 0.0273972602739726,
+            "llm_prescreen_pass_count": 2
+          }
+        ],
+        "deep_review_completed_count": 0,
+        "deep_review_requested_count": 100
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmvotbfw2p92y9fufk",
+        "requested_at": "2026-03-18T06:55:51.755Z",
+        "filter_summary": {
+          "title_terms": [
+            "Founding Engineer",
+            "Software Engineer",
+            "Full Stack Engineer",
+            "Senior Software Engineer",
+            "Lead Engineer",
+            "Technical Co-founder",
+            "Early Stage Engineer"
+          ],
+          "country_codes": [
+            "US"
+          ],
+          "location_terms": [
+            "new york",
+            "nyc",
+            "new york city"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "51702fcf-88d0-4579-8c0b-dfc26221e9e5",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Brendan Lentz",
+        "headline": "Senior Software Engineer | React, TypeScript",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong stack and title match, NYC location aligns."
+        ],
+        "profile_url": "https://www.linkedin.com/in/brendanlentz",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24) - React/TS Stack\",\"linkedin\":\"Hi Brendan, Saw your React/TypeScript expertise. We're Crouton (YC F24) in NYC, building org management software. Looking for a Founding Engineer to own the full-stack (React, TS, Postgres, AWS) and shape the product. Your senior-level experience looks like a great fit. Interested in a chat?\",\"email\":\"Hi Brendan, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software in NYC and are seeking a Founding Engineer. Your strong background with React and TypeScript aligns perfectly with our stack. This role offers significant ownership, equity, and direct collaboration. Are you open to discussing the opportunity this week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong stack and title match, NYC location aligns.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "45f65187-4aa2-480d-8638-8e1742243eda",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "George Naifonov",
+        "headline": "Senior Full | Stack Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong full-stack and stack match, located in New York."
+        ],
+        "profile_url": "https://ca.linkedin.com/in/george-naifonov",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24)\",\"linkedin\":\"Hi George, Saw your profile and your full-stack experience looks great. I'm Adam, founder of Crouton (YC F24) in NYC. We're building org management software and need a founding engineer. Your stack (React/TS/Postgres) is a perfect match. Interested in chatting about shaping the product?\",\"email\":\"Hi George, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software for internal teams here in New York. Your full-stack engineering background appears to be an excellent match for our tech stack and our need for a founding engineer. I'd welcome the chance to discuss the role, its significant ownership (0.5-5% equity), and our vision. Are you available for a brief call next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong full-stack and stack match, located in New York.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "f02e1c38-3a18-464f-8b0d-df43ef22dfd9",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Charles Tark",
+        "headline": "Full Stack Software Engineer based in NYC",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong stack match, NYC-based, and title aligns."
+        ],
+        "profile_url": "https://www.linkedin.com/in/cyt25",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24) - NYC\",\"linkedin\":\"Hi Charles, Saw you're a full-stack engineer in NYC. We're Crouton (YC F24), building org management software here in NY. Your stack (React/TS/Postgres) is a perfect match. As a founding engineer, you'd have massive ownership and equity. Interested in chatting?\",\"email\":\"Hi Charles, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software and are looking for a Founding Engineer in NYC. Your full-stack background aligns perfectly with our React, TypeScript, and PostgreSQL stack. This role offers significant equity and ownership. Would you be open to a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong stack match, NYC-based, and title aligns.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "fb38e4ef-6c50-457d-919b-05c46bed1702",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "David Kim",
+        "headline": "Software Developer @ ScribeAI & Graph",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong stack match, founding engineer title, and NYC location."
+        ],
+        "profile_url": "https://www.linkedin.com/in/davidjonghunkim",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24) - Let's connect\",\"linkedin\":\"Hi David, Saw your background at ScribeAI & Graph. We're Crouton (YC F24), building org management software in NYC. Your full-stack experience with React/TypeScript looks like a perfect match for our founding engineer role. Interested in discussing the high-impact opportunity?\",\"email\":\"Hi David, I'm Adam, founder of Crouton (YC F24). Your engineering experience at ScribeAI & Graph, particularly with our stack (React, TypeScript, PostgreSQL), aligns well with our Founding Engineer role. We're building organizational management software in NYC and offer significant ownership and equity. Are you open to a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong stack match, founding engineer title, and NYC location.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "c5cd46db-5530-423c-9e0d-9ec76aac2046",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Alex Mendes Barreto",
+        "headline": "Software Engineer | Typescript | Python | React",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Strong stack match and NYC location, but title is generic."
+        ],
+        "profile_url": "https://www.linkedin.com/in/mendesdevelop",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24) - React/TypeScript Role\",\"linkedin\":\"Hi Alex, Saw your background with TypeScript and React. We're Crouton (YC F24), building org management software in NYC. Looking for a Founding Engineer to own the full stack (React/TS/PostgreSQL/AWS) and shape the product. Your stack looks like a perfect match. Interested in a quick chat?\",\"email\":\"Hi Alex, I'm Adam, founder of Crouton (YC F24). We're building organizational management software in NYC and are seeking a Founding Engineer. Your experience with TypeScript and React aligns directly with our stack. This role offers significant ownership (0.5-5% equity) and impact from day one. Are you open to discussing the opportunity this week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong stack match and NYC location, but title is generic.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "c13a882c-5e94-4314-ba49-cfd694b1bff5",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Vladimir Balaur",
+        "headline": "Full | stack Engineer (React / Vue / Node.js / AWS ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Strong stack match and NYC location, but title is generic."
+        ],
+        "profile_url": "https://md.linkedin.com/in/vladimir-balaur",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Crouton (YC F24) - Founding Engineer Role\",\"linkedin\":\"Hi Vladimir, Saw your profile. You're in NYC with strong React/TS/AWS experience—a perfect match for Crouton's founding engineer role. We're a YC startup building org management software. Small team, huge ownership, and direct customer impact. Would you be open to a quick chat about what we're building?\",\"email\":\"Hi Vladimir, I'm Adam Suskin, founder of Crouton (YC F24). Your experience with React, TypeScript, and AWS aligns closely with our stack for a Founding Engineer role. We're building organizational management software in NYC, offering significant equity and ownership. I'd appreciate the chance to discuss how you could shape our product and direction. Are you available for a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong stack match and NYC location, but title is generic.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "d8a935de-c7fb-4611-82ee-4a640a1a091a",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Ksenia Smith",
+        "headline": "Software Engineer, Front End (React, TypeScript)",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 30,
+        "match_reasons": [
+          "Only shows frontend skills, location unclear, lacks full-stack evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/smithkseniav",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24) - React/TypeScript Focus\",\"linkedin\":\"Hi Ksenia, I saw your React/TypeScript background. We're Crouton (YC F24), building org management software in NYC. Looking for a founding engineer to own the frontend and full-stack. Your skills look like a great match. Interested in chatting?\",\"email\":\"Hi Ksenia, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software and are seeking a Founding Engineer in NYC. Your strong experience with React and TypeScript is directly relevant to our stack. I'd love to discuss how you could shape our product and have significant ownership. Are you available for a brief call next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Only shows frontend skills, location unclear, lacks full-stack evidence.",
+            "match_score": 30
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "5367a166-7642-4ea3-b1fb-937cb83f140d",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Giancarlo Zabaleta",
+        "headline": "Co | Founder, CTO | Full | Stack Software Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "NYC location likely, but role is a short CTO stint and lacks clear stack evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/giancarlo-zabaleta",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24)\",\"linkedin\":\"Hi Giancarlo, Saw your CTO/founder experience. We're building org management software at Crouton (YC F24) in NYC. Looking for a founding engineer to own the full-stack (React/TS/Postgres/AWS) and shape the product. Your background seems like a great fit. Interested in a quick chat?\",\"email\":\"Hi Giancarlo, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software in NYC and are seeking a Founding Engineer. Your experience as a CTO and full-stack builder aligns well with our need for someone to own key technical decisions and product direction. The role offers significant equity and impact. Would you be open to discussing?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "NYC location likely, but role is a short CTO stint and lacks clear stack evidence.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "f063ee75-3332-4e03-9836-c0b8fa313510",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Christopher Lu",
+        "headline": "Software Engineer | JavaScript | TypeScript | React.js",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "No location or work model evidence for strict NYC onsite role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/christopher-lu19",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24) - Let's connect\",\"linkedin\":\"Hi Christopher, I'm Adam, founder of Crouton (YC F24). We're building org management software in NYC. Your experience with JavaScript, TypeScript, and React.js is a perfect match for our stack. As a founding engineer, you'd have massive ownership and equity. Are you open to roles based in New York? Would love to chat.\",\"email\":\"Hi Christopher, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software for internal teams in NYC. Your strong background with JavaScript, TypeScript, and React aligns directly with our tech stack. I'm looking for a Founding Engineer to own major parts of the product and work closely with me. The role is full-time in our New York office. Are you currently based in or open to relocating to NYC? I'd welcome the chance to discuss.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "No location or work model evidence for strict NYC onsite role.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "48212e3b-58c5-4e14-9b7d-a974d13d6f10",
+        "search_id": "c739ca30-b9b3-4cec-90ba-5aeb4893e6f6",
+        "name": "Lenny Gonzalez",
+        "headline": "Software Engineer at Bloomberg LP",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for strict NYC onsite role; only one clear positive signal (stack)."
+        ],
+        "profile_url": "https://www.linkedin.com/in/lenny-gonzalez",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24)\",\"linkedin\":\"Hi Lenny, Saw your background at Bloomberg. We're building org management software at Crouton (YC F24) in NYC and are looking for a founding engineer. Your stack experience looks like a great fit for our React/TS/Postgres/AWS setup. Would you be open to a quick chat about what we're building?\",\"email\":\"Hi Lenny, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software for internal teams here in New York. Given your engineering experience at Bloomberg and relevant technical skills, I thought you might be interested in our Founding Engineer role. It offers significant ownership and equity. Are you available for a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for strict NYC onsite role; only one clear positive signal (stack).",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T07:06:27.661459+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  },
+  "serper": {
+    "search_id": "31709387-b7a3-4aca-84ba-60c32dcb2282",
+    "candidate_count": 1,
+    "duration_ms": 677624,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 1,
+      "retrieval_count": 100,
+      "shortlist_count": 1,
+      "advanceable_count": 0,
+      "deep_review_count": 40,
+      "top_quality_score": 88,
+      "hard_blocked_count": 39,
+      "soft_blocked_count": 1,
+      "deep_qualified_rate": 0.025,
+      "outreach_pool_count": 1,
+      "top50_quality_cutoff": 2,
+      "source_rule_pass_rate": 0.18,
+      "brightdata_scrape_count": 40,
+      "llm_prescreen_pass_rate": 0.1,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 23,
+          "request_count": 24,
+          "duplicate_ratio": 0.25806451612903225,
+          "new_unique_count": 23,
+          "raw_result_count": 31,
+          "source_rule_pass_rate": 0.782608695652174,
+          "source_rule_pass_count": 18,
+          "llm_prescreen_pass_rate": 0.34782608695652173,
+          "llm_prescreen_pass_count": 8
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.13,
+          "new_unique_count": 77,
+          "raw_result_count": 100,
+          "source_rule_pass_rate": 0,
+          "source_rule_pass_count": 0,
+          "llm_prescreen_pass_rate": 0.025974025974025976,
+          "llm_prescreen_pass_count": 2
+        }
+      ],
+      "deep_review_completed_count": 40,
+      "deep_review_requested_count": 40
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmvp7fuvxymgwos0q",
+      "requested_at": "2026-03-18T07:06:50.622Z",
+      "filter_summary": {
+        "title_terms": [
+          "Founding Engineer",
+          "Software Engineer",
+          "Full Stack Engineer",
+          "Senior Software Engineer",
+          "Lead Engineer",
+          "Technical Co-founder",
+          "Early Stage Engineer"
+        ],
+        "country_codes": [
+          "US"
+        ],
+        "location_terms": [
+          "new york",
+          "nyc",
+          "manhattan"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "Founding Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "location_terms": [
+          "New York",
+          "NYC",
+          "Manhattan",
+          "Brooklyn",
+          "New York City"
+        ],
+        "title_variants": [
+          "Founding Engineer",
+          "Software Engineer",
+          "Full Stack Engineer",
+          "Senior Software Engineer",
+          "Lead Engineer",
+          "Technical Co-founder",
+          "Early Stage Engineer"
+        ],
+        "core_skill_terms": [
+          "React",
+          "TypeScript",
+          "PostgreSQL",
+          "AWS",
+          "full-stack",
+          "JavaScript",
+          "Node.js",
+          "web development",
+          "frontend",
+          "backend",
+          "database"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "Founding Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "onsite",
+        "location_scope": "New York, NY",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "unknown",
+        "constraint_reasoning": "Job explicitly states 'Full-time in office' in New York, NY. This is a strict onsite requirement for an early-stage founding role, so recall must prioritize candidates in the NYC metro area. Remote candidates should be excluded from initial sourcing.",
+        "location_flexibility": "strict",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 1,
+        "retrieval_count": 100,
+        "shortlist_count": 1,
+        "advanceable_count": 0,
+        "deep_review_count": 40,
+        "top_quality_score": 88,
+        "hard_blocked_count": 39,
+        "soft_blocked_count": 1,
+        "deep_qualified_rate": 0.025,
+        "outreach_pool_count": 1,
+        "top50_quality_cutoff": 2,
+        "source_rule_pass_rate": 0.18,
+        "brightdata_scrape_count": 40,
+        "llm_prescreen_pass_rate": 0.1,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 23,
+            "request_count": 24,
+            "duplicate_ratio": 0.25806451612903225,
+            "new_unique_count": 23,
+            "raw_result_count": 31,
+            "source_rule_pass_rate": 0.782608695652174,
+            "source_rule_pass_count": 18,
+            "llm_prescreen_pass_rate": 0.34782608695652173,
+            "llm_prescreen_pass_count": 8
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.13,
+            "new_unique_count": 77,
+            "raw_result_count": 100,
+            "source_rule_pass_rate": 0,
+            "source_rule_pass_count": 0,
+            "llm_prescreen_pass_rate": 0.025974025974025976,
+            "llm_prescreen_pass_count": 2
+          }
+        ],
+        "deep_review_completed_count": 40,
+        "deep_review_requested_count": 40
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmvp7fuvxymgwos0q",
+        "requested_at": "2026-03-18T07:06:50.622Z",
+        "filter_summary": {
+          "title_terms": [
+            "Founding Engineer",
+            "Software Engineer",
+            "Full Stack Engineer",
+            "Senior Software Engineer",
+            "Lead Engineer",
+            "Technical Co-founder",
+            "Early Stage Engineer"
+          ],
+          "country_codes": [
+            "US"
+          ],
+          "location_terms": [
+            "new york",
+            "nyc",
+            "manhattan"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "bc6f2a90-0919-4af1-8a10-02df8b27a720",
+        "search_id": "31709387-b7a3-4aca-84ba-60c32dcb2282",
+        "name": "Elias Luna",
+        "headline": "at The Daily Beast",
+        "location": "Brooklyn, New York, United States, US",
+        "skills": [],
+        "experience_years": 0,
+        "match_score": 2,
+        "match_reasons": [
+          "Local candidate, meets strict NYC onsite requirement",
+          "Career transition suggests adaptability and growth potential"
+        ],
+        "profile_url": "https://vn.linkedin.com/in/eliasluna23",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Founding Engineer at Crouton (YC F24) - Brooklyn local\",\"linkedin\":\"Hi Elias, Saw you're in Brooklyn. I'm Adam, founder of Crouton (YC F24). We're building org management software here in NYC. Your career path shows great adaptability. Looking for a founding engineer with strong full-stack skills (React/TS) and EQ. Interested in chatting?\",\"email\":\"Hi Elias, I'm Adam Suskin, founder of Crouton (YC F24). We're building organizational management software for internal teams, based here in New York. Your background and Brooklyn location stood out. We're seeking a founding engineer to own significant parts of the product stack (React, TypeScript, PostgreSQL). Your career transition suggests the adaptability we value. Would you be open to a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "about": "I’m a former film/events freelancer turned software developer. I recently wrapped up my…",
+          "source": "brightdata",
+          "education": [],
+          "pool_type": "top_pick",
+          "risk_flags": [
+            "Profile is extremely sparse",
+            "Career transitioner, unknown skill depth",
+            "No founding/early-stage experience shown"
+          ],
+          "judge_delta": 3,
+          "preliminary": false,
+          "raw_profile": {
+            "url": "https://vn.linkedin.com/in/eliasluna23",
+            "city": "Brooklyn, New York, United States",
+            "name": "Elias Luna",
+            "about": "I’m a former film/events freelancer turned software developer. I recently wrapped up my…",
+            "input": {
+              "url": "https://www.linkedin.com/in/eliasluna23"
+            },
+            "avatar": null,
+            "skills": [],
+            "headline": null,
+            "education": [
+              {
+                "title": "CUNY New York City College of Technology",
+                "degree": null,
+                "end_year": "2020",
+                "subtitle": null,
+                "start_year": "2018",
+                "field_of_study": null
+              }
+            ],
+            "followers": 483,
+            "languages": [],
+            "last_name": "Luna",
+            "experience": [
+              {
+                "title": null,
+                "company": "The Daily Beast",
+                "duration": null,
+                "location": null,
+                "company_id": "the-daily-beast",
+                "description": null
+              }
+            ],
+            "first_name": "Elias",
+            "connections": 478,
+            "linkedin_id": "eliasluna23",
+            "country_code": "US",
+            "certifications": [
+              {
+                "name": "Master the Coding Interview: Data Structures + Algorithms",
+                "authority": "Udemy"
+              },
+              {
+                "name": "The Complete Web Developer in 2020: Zero to Mastery",
+                "authority": "Udemy"
+              }
+            ],
+            "current_company": {
+              "name": "The Daily Beast",
+              "title": null,
+              "location": null,
+              "company_id": "the-daily-beast"
+            },
+            "recommendations_count": 5
+          },
+          "suitability": {
+            "risk_flags": [
+              "Profile is extremely sparse",
+              "Career transitioner, unknown skill depth",
+              "No founding/early-stage experience shown"
+            ],
+            "match_score": 2,
+            "fit_decision": "reject",
+            "actionability": "not_actionable",
+            "advance_score": 2,
+            "quality_score": 2,
+            "why_not_higher": [
+              "Zero evidence of required tech stack",
+              "Experience level likely below JD minimum"
+            ],
+            "constraint_risks": [
+              "Profile is extremely sparse",
+              "Career transitioner, unknown skill depth",
+              "No founding/early-stage experience shown"
+            ],
+            "evidence_quality": "low",
+            "blocking_severity": "soft",
+            "scoring_breakdown": {
+              "advance_score": 2,
+              "quality_score": 2,
+              "relevance_score": 1,
+              "capability_score": 1,
+              "join_likelihood_score": 4,
+              "join_likelihood_reasons": [
+                "Local to NYC, fits strict onsite requirement",
+                "Career transitioner likely open to new opportunities",
+                "No evidence of seniority mismatch"
+              ]
+            },
+            "why_this_candidate": [
+              "Local candidate, meets strict NYC onsite requirement",
+              "Career transition suggests adaptability and growth potential"
+            ],
+            "constraint_verdicts": {
+              "location_fit": "local",
+              "work_model_fit": "yes",
+              "must_have_coverage": "weak"
+            },
+            "blocking_constraints": [
+              "No evidence of required tech stack (React, TypeScript, PostgreSQL, AWS)",
+              "No evidence of 1+ year full-stack experience"
+            ],
+            "advance_recommendation": "hold"
+          },
+          "work_history": [
+            {
+              "title": null,
+              "company": "The Daily Beast",
+              "summary": null,
+              "end_date": null,
+              "start_date": null
+            }
+          ],
+          "advance_score": 2,
+          "quality_score": 2,
+          "analysis_stage": "final",
+          "judge_conflict": true,
+          "scoring_method": "dual_review_arbitrated",
+          "why_not_higher": [
+            "Zero evidence of required tech stack",
+            "Experience level likely below JD minimum"
+          ],
+          "constraint_risks": [
+            "Profile is extremely sparse",
+            "Career transitioner, unknown skill depth",
+            "No founding/early-stage experience shown"
+          ],
+          "blocking_severity": "soft",
+          "quality_breakdown": {
+            "relevance_score": 1,
+            "capability_score": 1
+          },
+          "scoring_breakdown": {
+            "advance_score": 2,
+            "quality_score": 2,
+            "relevance_score": 1,
+            "capability_score": 1,
+            "join_likelihood_score": 4,
+            "join_likelihood_reasons": [
+              "Local to NYC, fits strict onsite requirement",
+              "Career transitioner likely open to new opportunities",
+              "No evidence of seniority mismatch"
+            ]
+          },
+          "constraint_verdicts": {
+            "location_fit": "local",
+            "work_model_fit": "yes",
+            "must_have_coverage": "weak"
+          },
+          "blocking_constraints": [
+            "No evidence of required tech stack (React, TypeScript, PostgreSQL, AWS)",
+            "No evidence of 1+ year full-stack experience"
+          ],
+          "advance_recommendation": "hold",
+          "join_likelihood_reasons": [
+            "Local to NYC, fits strict onsite requirement",
+            "Career transitioner likely open to new opportunities",
+            "No evidence of seniority mismatch"
+          ]
+        },
+        "created_at": "2026-03-18T07:17:51.570958+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  }
+}

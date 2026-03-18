@@ -1,0 +1,1030 @@
+{
+  "test_date": "2026-03-18T05:59:02.264Z",
+  "jd_file": "test-jd-vectorshift-ai-engineer.md",
+  "bright_data": {
+    "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+    "candidate_count": 50,
+    "duration_ms": 623257,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 50,
+      "retrieval_count": 100,
+      "shortlist_count": 50,
+      "deep_review_count": 0,
+      "deep_qualified_rate": 0,
+      "outreach_pool_count": 50,
+      "source_rule_pass_rate": 0.19,
+      "brightdata_scrape_count": 0,
+      "llm_prescreen_pass_rate": 0.07,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 23,
+          "request_count": 24,
+          "duplicate_ratio": 0.17857142857142858,
+          "new_unique_count": 23,
+          "raw_result_count": 28,
+          "source_rule_pass_rate": 0.8260869565217391,
+          "source_rule_pass_count": 19,
+          "llm_prescreen_pass_rate": 0.2608695652173913,
+          "llm_prescreen_pass_count": 6
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.12222222222222222,
+          "new_unique_count": 77,
+          "raw_result_count": 90,
+          "source_rule_pass_rate": 0,
+          "source_rule_pass_count": 0,
+          "llm_prescreen_pass_rate": 0.012987012987012988,
+          "llm_prescreen_pass_count": 1
+        }
+      ],
+      "deep_review_completed_count": 0,
+      "deep_review_requested_count": 100
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmvm2zf11l7phebhqj",
+      "requested_at": "2026-03-18T05:39:23.848Z",
+      "filter_summary": {
+        "title_terms": [
+          "AI Engineer",
+          "Machine Learning Engineer",
+          "ML Engineer",
+          "AI Software Engineer",
+          "Software Engineer, AI",
+          "Applied Scientist",
+          "Backend Engineer, AI"
+        ],
+        "country_codes": [
+          "US"
+        ],
+        "location_terms": [
+          "new york",
+          "nyc",
+          "new york city"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "AI Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "location_terms": [
+          "New York",
+          "NYC",
+          "New York City",
+          "Brooklyn",
+          "Jersey City"
+        ],
+        "title_variants": [
+          "AI Engineer",
+          "Machine Learning Engineer",
+          "ML Engineer",
+          "AI Software Engineer",
+          "Software Engineer, AI",
+          "Applied Scientist",
+          "Backend Engineer, AI"
+        ],
+        "core_skill_terms": [
+          "Python",
+          "FastAPI",
+          "Django",
+          "RAG",
+          "LLM orchestration",
+          "AI agents",
+          "Docker",
+          "Kubernetes",
+          "CI/CD",
+          "relational databases",
+          "data modeling",
+          "cloud infrastructure"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "AI Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "onsite",
+        "location_scope": "New York, NY",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "no",
+        "constraint_reasoning": "Job explicitly states 'Onsite' in New York, NY and requires US citizen/visa. Sourcing must prioritize candidates already in or immediately available to work in the NYC metro area. Remote or distant candidates should be excluded from initial recall.",
+        "location_flexibility": "strict",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 50,
+        "retrieval_count": 100,
+        "shortlist_count": 50,
+        "deep_review_count": 0,
+        "deep_qualified_rate": 0,
+        "outreach_pool_count": 50,
+        "source_rule_pass_rate": 0.19,
+        "brightdata_scrape_count": 0,
+        "llm_prescreen_pass_rate": 0.07,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 23,
+            "request_count": 24,
+            "duplicate_ratio": 0.17857142857142858,
+            "new_unique_count": 23,
+            "raw_result_count": 28,
+            "source_rule_pass_rate": 0.8260869565217391,
+            "source_rule_pass_count": 19,
+            "llm_prescreen_pass_rate": 0.2608695652173913,
+            "llm_prescreen_pass_count": 6
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.12222222222222222,
+            "new_unique_count": 77,
+            "raw_result_count": 90,
+            "source_rule_pass_rate": 0,
+            "source_rule_pass_count": 0,
+            "llm_prescreen_pass_rate": 0.012987012987012988,
+            "llm_prescreen_pass_count": 1
+          }
+        ],
+        "deep_review_completed_count": 0,
+        "deep_review_requested_count": 100
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmvm2zf11l7phebhqj",
+        "requested_at": "2026-03-18T05:39:23.848Z",
+        "filter_summary": {
+          "title_terms": [
+            "AI Engineer",
+            "Machine Learning Engineer",
+            "ML Engineer",
+            "AI Software Engineer",
+            "Software Engineer, AI",
+            "Applied Scientist",
+            "Backend Engineer, AI"
+          ],
+          "country_codes": [
+            "US"
+          ],
+          "location_terms": [
+            "new york",
+            "nyc",
+            "new york city"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "a798ff87-551f-49bf-bb4e-183c58c037e2",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Ashutosh",
+        "headline": "Ash Gajankush | Software Engineer | LinkedIn",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong title and stack match, location aligns with onsite requirement."
+        ],
+        "profile_url": "https://www.linkedin.com/in/ashutoshgajankush",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23) - Your background looks great\",\"linkedin\":\"Hi Ashutosh, I saw your profile and was impressed. We're VectorShift (YC S23), building AI workflow automation for enterprises. We're looking for an AI Engineer in NYC to build production RAG/agent systems in Python/FastAPI. Your software engineering experience looks like a strong fit. Would you be open to a quick chat about the role?\",\"email\":\"Hi Ashutosh, I'm reaching out from VectorShift (YC S23). We're developing an AI automation platform for large enterprises and are hiring an AI Engineer in New York. Your background in software engineering and production AI applications aligns well with our needs for building scalable RAG systems and backend services. I'd welcome the chance to discuss the role and our vision. The salary range is $150K-$250K plus equity. Best regards,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong title and stack match, location aligns with onsite requirement.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "516fd264-019f-4061-9028-c1a4bb7981ad",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Nilay Jhaveri",
+        "headline": "Certified AI Engineer | Lead Engineer @ Bloomberg",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong title and location match, relevant experience at Bloomberg."
+        ],
+        "profile_url": "https://www.linkedin.com/in/nilay320",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23) - Your background at Bloomberg looks perfect\",\"linkedin\":\"Hi Nilay, I saw your Lead Engineer background at Bloomberg. We're VectorShift (YC S23), building AI workflow automation for large enterprises. Your experience deploying production AI systems is exactly what we need for our AI Engineer role in NYC. Are you open to a quick chat about what we're building?\",\"email\":\"Hi Nilay, I'm reaching out from VectorShift (YC S23). We're developing AI automation platforms for billion-dollar enterprises and are hiring an AI Engineer in New York. Your role as a Lead Engineer at Bloomberg, with its focus on production AI systems, strongly aligns with our work on RAG, multi-agent orchestration, and scalable backends. I'd welcome the chance to discuss if this opportunity might be a compelling next step for you.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong title and location match, relevant experience at Bloomberg.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "dd064870-d417-4a1d-978b-79d6e12a3cca",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Amaan Elahi",
+        "headline": "Machine Learning Engineer | Backend & AI/ML Systems",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong title and stack match, location feasible for onsite NYC."
+        ],
+        "profile_url": "https://www.linkedin.com/in/amaan-elahi-b57942150",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23) - Your background looks great\",\"linkedin\":\"Hi Amaan, Your work in ML Engineering and backend systems caught my eye. We're VectorShift (YC S23), building automated AI workflows for enterprises. Looking for an AI Engineer to own RAG systems, multi-agent orchestration, and backend APIs in NYC. Your experience seems like a strong fit. Interested in a quick chat to discuss?\",\"email\":\"Hi Amaan, I'm reaching out from VectorShift (YC S23). We're developing AI workflow automation for large enterprises and are hiring an AI Engineer in NYC. Your background in Machine Learning Engineering and backend systems aligns well with our work on production RAG, agent orchestration, and Python/API development. The role offers significant ownership and impact. Are you open to exploring this opportunity? Best regards,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong title and stack match, location feasible for onsite NYC.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "1e7fa9fa-e861-444a-9276-1fa5e97f5bff",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Bryan Owens",
+        "headline": "AI Engineer & Full | Stack Engineer at early | stage ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Title and location match, with relevant AI engineer experience."
+        ],
+        "profile_url": "https://www.linkedin.com/in/bryan-owens-dev",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer at VectorShift (YC S23) - Your Background Looks Great\",\"linkedin\":\"Hi Bryan, Saw your AI Engineer profile. VectorShift (YC S23) is hiring an AI Engineer in NYC to build production RAG/agent systems. Your work at an early-stage company seems very relevant. Are you open to discussing our platform for automating enterprise AI workflows?\",\"email\":\"Hi Bryan, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for large enterprises and are seeking an AI Engineer in New York. Your experience developing and deploying AI applications at an early-stage company aligns well with our work on production RAG, multi-agent orchestration, and scalable backend systems. I'd welcome the chance to tell you more about the role and see if it might be a compelling next step.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and location match, with relevant AI engineer experience.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "e97fd69e-4cf1-4d72-a653-5f26ad617cb3",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Vatsal Mehta",
+        "headline": "Full | Stack AI Engineer & Consultant @ Capco",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Title and key AI/LLM skills align, location matches NYC."
+        ],
+        "profile_url": "https://www.linkedin.com/in/vatsalmehta27",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23) - Your background looks great\",\"linkedin\":\"Hi Vatsal, Your work as a Full Stack AI Engineer caught my eye. We're VectorShift (YC S23), building enterprise AI workflow automation in NYC. Your experience with AI/LLM applications aligns perfectly with our AI Engineer role. Would you be open to a quick chat about what we're building?\",\"email\":\"Hi Vatsal, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for large enterprises and are hiring an AI Engineer in NYC. Your background in full-stack AI engineering and consulting for firms like Capco seems highly relevant, particularly for our work on RAG systems and production AI chains. I'd welcome the chance to discuss the role and our vision. Best regards,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and key AI/LLM skills align, location matches NYC.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "33e4fad3-7826-4b8a-b00b-4211df204fde",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Christopher Abella",
+        "headline": "Senior Machine Learning Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Strong title, stack, and location match."
+        ],
+        "profile_url": "https://gy.linkedin.com/in/christopher-abella-0011b7398",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer at VectorShift (YC S23) - Your Expertise in Production AI\",\"linkedin\":\"Hi Christopher, Saw your profile and your work as a Senior ML Engineer looks impressive. We're VectorShift (YC S23), building AI workflow automation for large enterprises. Your experience deploying AI applications in production is a perfect match for our AI Engineer role in NYC. Are you open to exploring this opportunity?\",\"email\":\"Hi Christopher, I'm reaching out from VectorShift (YC S23). We're developing an AI automation platform for large enterprises and are seeking an AI Engineer in New York. Your background as a Senior Machine Learning Engineer, particularly your experience with production AI/ML systems, aligns strongly with our needs in building RAG systems and multi-agent orchestration. I'd welcome the chance to discuss the role and our vision with you.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong title, stack, and location match.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "4ffa1004-817f-46e6-a007-ca69a4f1b351",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Kevin Silva",
+        "headline": "AI Engineer | Generative AI & LLM | LangChain",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Strong title and stack match, location unknown."
+        ],
+        "profile_url": "https://www.linkedin.com/in/kevin-o-silva",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer Role at VectorShift (YC S23) - Your LLM Expertise\",\"linkedin\":\"Hi Kevin, Your work with Generative AI & LLM, especially LangChain, is impressive. I'm recruiting for an AI Engineer at VectorShift (YC S23), building automated AI workflows. Your profile is a strong match for our work on RAG systems and multi-agent orchestration. Are you open to exploring this onsite role in NYC?\",\"email\":\"Hi Kevin, I was impressed by your background in Generative AI, LLMs, and LangChain. I'm recruiting for an AI Engineer at VectorShift (YC S23), where we develop enterprise AI workflow automation. Your experience aligns closely with our work on production RAG systems and agent orchestration. I'd welcome the chance to discuss this full-time, onsite opportunity in New York. Best regards,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong title and stack match, location unknown.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "c8f3aa44-ef16-4dce-a80b-dafcdb652deb",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Jun Yong Shin",
+        "headline": "Engineer | Backend & ML | Python, FastAPI, SQL",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 30,
+        "match_reasons": [
+          "Strong skill match but location feasibility unknown for strict NYC onsite role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/jun-yong-shin-0a3827206",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23)\",\"linkedin\":\"Hi Jun, Your work with Python and FastAPI caught my eye. We're VectorShift (YC S23), building AI workflow automation for enterprises. We're hiring an AI Engineer in NYC to own backend services and production RAG/agent systems. Your backend & ML background looks like a great fit. Are you open to NYC-based roles and interested in learning more?\",\"email\":\"Hi Jun, I'm reaching out from VectorShift (YC S23). We're building automated AI workflow systems for large enterprises and are hiring an AI Engineer in New York. Your experience with Python, FastAPI, and backend/ML development aligns strongly with our needs for building and deploying production AI features. The role is onsite in NYC. I'd welcome the chance to discuss if this aligns with your location preferences and career interests. Best,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Strong skill match but location feasibility unknown for strict NYC onsite role.",
+            "match_score": 30
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "6f5c9f1b-24ce-4475-85ff-9819553ce3a3",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Prasiddh Shah",
+        "headline": "Software Engineer | Python, FastAPI, Cloud ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 30,
+        "match_reasons": [
+          "Missing location and explicit AI production experience."
+        ],
+        "profile_url": "https://www.linkedin.com/in/prasiddhshah",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23)\",\"linkedin\":\"Hi Prasiddh, I saw your background in Python and FastAPI. We're VectorShift (YC S23), building AI workflow automation for enterprises. Your skills look like a great match for our AI Engineer role, where you'd build and deploy production RAG/agent systems. Are you open to exploring this opportunity in NYC?\",\"email\":\"Hi Prasiddh, I'm reaching out from VectorShift (YC S23). We're developing an AI automation platform for large enterprises. Your experience with Python and FastAPI aligns well with our AI Engineer role, which focuses on building production-grade AI features like RAG systems and multi-agent orchestration. The position is onsite in New York. I'd welcome the chance to discuss if this opportunity might interest you.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Missing location and explicit AI production experience.",
+            "match_score": 30
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "8fe19a5f-2fd4-4726-9db3-1cd651a1601b",
+        "search_id": "08a59390-09c7-4c48-9f29-4a6463ade159",
+        "name": "Mitchell Lee",
+        "headline": "Lead Machine Learning Engineer at Paramount",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for strict onsite role, and headline lacks clear AI/backend engineering signal."
+        ],
+        "profile_url": "https://www.linkedin.com/in/mitchellvanlee",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer at VectorShift (YC S23) - Building Enterprise AI Automation\",\"linkedin\":\"Hi Mitchell, Your work as a Lead ML Engineer at Paramount caught my eye. We're VectorShift (YC S23), building automated AI workflows for large enterprises in NYC. Your background in production ML seems like a great fit for our AI Engineer role, designing RAG systems and multi-agent orchestration. Are you open to exploring this opportunity?\",\"email\":\"Hi Mitchell, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for billion-dollar enterprises, and your experience as a Lead Machine Learning Engineer at Paramount aligns well with our needs. We're looking for an AI Engineer in NYC to own backend services, RAG pipelines, and agent architectures. I'd welcome the chance to discuss if this onsite role could be of interest. Best regards\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for strict onsite role, and headline lacks clear AI/backend engineering signal.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:49:31.956793+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  },
+  "serper": {
+    "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+    "candidate_count": 50,
+    "duration_ms": 561660,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 50,
+      "retrieval_count": 100,
+      "shortlist_count": 50,
+      "deep_review_count": 0,
+      "deep_qualified_rate": 0,
+      "outreach_pool_count": 50,
+      "source_rule_pass_rate": 0.21,
+      "brightdata_scrape_count": 0,
+      "llm_prescreen_pass_rate": 0.07,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 25,
+          "request_count": 24,
+          "duplicate_ratio": 0.21875,
+          "new_unique_count": 25,
+          "raw_result_count": 32,
+          "source_rule_pass_rate": 0.84,
+          "source_rule_pass_count": 21,
+          "llm_prescreen_pass_rate": 0.28,
+          "llm_prescreen_pass_count": 7
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.16,
+          "new_unique_count": 75,
+          "raw_result_count": 100,
+          "source_rule_pass_rate": 0,
+          "source_rule_pass_count": 0,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        }
+      ],
+      "deep_review_completed_count": 0,
+      "deep_review_requested_count": 100
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmvmghwq24k3nhbktb",
+      "requested_at": "2026-03-18T05:49:54.357Z",
+      "filter_summary": {
+        "title_terms": [
+          "AI Engineer",
+          "Machine Learning Engineer",
+          "ML Engineer",
+          "AI Software Engineer",
+          "Software Engineer - AI",
+          "Backend Engineer - AI",
+          "Applied Scientist"
+        ],
+        "country_codes": [
+          "US"
+        ],
+        "location_terms": [
+          "new york",
+          "nyc",
+          "new york city"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "AI Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "location_terms": [
+          "New York",
+          "NYC",
+          "New York City",
+          "Manhattan",
+          "Brooklyn"
+        ],
+        "title_variants": [
+          "AI Engineer",
+          "Machine Learning Engineer",
+          "ML Engineer",
+          "AI Software Engineer",
+          "Software Engineer - AI",
+          "Backend Engineer - AI",
+          "Applied Scientist"
+        ],
+        "core_skill_terms": [
+          "Python",
+          "FastAPI",
+          "Django",
+          "RAG",
+          "LLM orchestration",
+          "AI agents",
+          "Docker",
+          "Kubernetes",
+          "CI/CD",
+          "relational databases",
+          "data modeling",
+          "Git"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "AI Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "onsite",
+        "location_scope": "New York, NY",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "unknown",
+        "constraint_reasoning": "Job explicitly states 'Onsite' in New York, NY and requires US citizenship/visa. Sourcing must prioritize candidates already in or willing to relocate to the NYC metro area. Remote candidates or those requiring visa sponsorship from outside the US are not viable for first-pass recall.",
+        "location_flexibility": "strict",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 50,
+        "retrieval_count": 100,
+        "shortlist_count": 50,
+        "deep_review_count": 0,
+        "deep_qualified_rate": 0,
+        "outreach_pool_count": 50,
+        "source_rule_pass_rate": 0.21,
+        "brightdata_scrape_count": 0,
+        "llm_prescreen_pass_rate": 0.07,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 25,
+            "request_count": 24,
+            "duplicate_ratio": 0.21875,
+            "new_unique_count": 25,
+            "raw_result_count": 32,
+            "source_rule_pass_rate": 0.84,
+            "source_rule_pass_count": 21,
+            "llm_prescreen_pass_rate": 0.28,
+            "llm_prescreen_pass_count": 7
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.16,
+            "new_unique_count": 75,
+            "raw_result_count": 100,
+            "source_rule_pass_rate": 0,
+            "source_rule_pass_count": 0,
+            "llm_prescreen_pass_rate": 0,
+            "llm_prescreen_pass_count": 0
+          }
+        ],
+        "deep_review_completed_count": 0,
+        "deep_review_requested_count": 100
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmvmghwq24k3nhbktb",
+        "requested_at": "2026-03-18T05:49:54.357Z",
+        "filter_summary": {
+          "title_terms": [
+            "AI Engineer",
+            "Machine Learning Engineer",
+            "ML Engineer",
+            "AI Software Engineer",
+            "Software Engineer - AI",
+            "Backend Engineer - AI",
+            "Applied Scientist"
+          ],
+          "country_codes": [
+            "US"
+          ],
+          "location_terms": [
+            "new york",
+            "nyc",
+            "new york city"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "e8dced78-1992-4031-be09-7c9a965b202a",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Ashutosh",
+        "headline": "Ash Gajankush | Software Engineer | LinkedIn",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong role, stack, and location alignment with production AI experience."
+        ],
+        "profile_url": "https://www.linkedin.com/in/ashutoshgajankush",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23)\",\"linkedin\":\"Hi Ashutosh, I saw your profile and was impressed by your software engineering background. We're VectorShift (YC S23), building AI workflow automation for enterprises. We're hiring an AI Engineer in NYC to design and deploy production RAG/agent systems. Your experience aligns well. Would you be open to a quick chat about the role?\",\"email\":\"Hi Ashutosh, I'm reaching out from VectorShift (YC S23). We're developing an AI automation platform for large enterprises and are hiring an AI Engineer in New York. Your production AI experience appears to be a strong match for our work on RAG systems, multi-agent orchestration, and scalable backend services. I'd welcome the chance to discuss the role and our vision with you. Are you available for a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong role, stack, and location alignment with production AI experience.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "690c96cb-c423-43e8-9626-86f6cdef6b9d",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Amaan Elahi",
+        "headline": "Machine Learning Engineer | Backend & AI/ML Systems",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Title and core AI/ML stack match, location in NYC aligns."
+        ],
+        "profile_url": "https://www.linkedin.com/in/amaan-elahi-b57942150",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23) - Your background in AI/ML systems\",\"linkedin\":\"Hi Amaan, Saw your profile and your work in ML Engineering/Backend systems. We're VectorShift (YC S23), building AI workflow automation for enterprises. Your experience aligns with our AI Engineer role in NYC, focusing on RAG, multi-agent systems, and production deployment. Would you be open to a quick chat about what we're building?\",\"email\":\"Hi Amaan, I'm reaching out from VectorShift (YC S23). We're developing an AI platform to automate complex enterprise workflows. Your background in Machine Learning Engineering and backend AI/ML systems appears to be a strong match for our AI Engineer role in New York. We're building production RAG systems, orchestration layers, and evaluation frameworks. I'd welcome the chance to discuss your experience and our work in more detail.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and core AI/ML stack match, location in NYC aligns.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "b804cc51-0151-42de-b410-263f1f340569",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Christopher Abella",
+        "headline": "Senior Machine Learning Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Title and RAG experience match, location aligns with onsite requirement."
+        ],
+        "profile_url": "https://gy.linkedin.com/in/christopher-abella-0011b7398",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer Role at VectorShift (YC S23)\",\"linkedin\":\"Hi Christopher, Your experience with RAG systems caught my eye. I'm hiring an AI Engineer at VectorShift (YC S23) to build production AI automation for large enterprises. Your background looks like a great fit for our NYC-based team. Are you open to discussing the role?\",\"email\":\"Hi Christopher, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for large enterprises and are seeking an AI Engineer with your production RAG experience. The role is onsite in NYC, focusing on deploying scalable AI chains and agent systems. I'd welcome the chance to tell you more about our work and see if it aligns with your next career step.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and RAG experience match, location aligns with onsite requirement.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "bd465557-2a06-4d36-97df-54a04e0bf7ee",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Bryan Owens",
+        "headline": "AI Engineer & Full | Stack Engineer at early | stage ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Title and location match, with relevant AI engineering experience."
+        ],
+        "profile_url": "https://www.linkedin.com/in/bryan-owens-dev",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Building AI Workflows at VectorShift (YC S23)\",\"linkedin\":\"Hi Bryan, Saw your background as an AI Engineer at an early-stage startup. We're VectorShift (YC S23) building enterprise AI workflow automation in NYC. Your experience building and deploying AI applications looks like a great fit for our team. Are you open to a quick chat about our AI Engineer role?\",\"email\":\"Hi Bryan, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for large enterprises and are hiring an AI Engineer in New York. Your experience in AI engineering and early-stage environments aligns well with our work on production RAG systems and multi-agent orchestration. I'd welcome the chance to discuss if this opportunity might be interesting. Best regards.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and location match, with relevant AI engineering experience.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "f295d1c8-78a9-4fbc-b920-78d741c167d5",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Ryan Stewart",
+        "headline": "AI at NVIDIA | Ex IBM, GDIT, U.S. DHS, U.S. DHHS",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Strong title and AI experience, location matches NYC."
+        ],
+        "profile_url": "https://www.linkedin.com/in/rylativity",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23) - Your NVIDIA experience looks perfect\",\"linkedin\":\"Hi Ryan, Your AI work at NVIDIA caught my eye. We're VectorShift (YC S23), building AI workflow automation for large enterprises in NYC. Looking for an AI Engineer to design and deploy production RAG/agent systems. Your background seems like a great fit. Interested in a quick chat to discuss?\",\"email\":\"Hi Ryan, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation platforms for billion-dollar enterprises and are hiring an AI Engineer in NYC. Your experience building AI applications at NVIDIA aligns strongly with our work on production RAG, multi-agent orchestration, and scalable backend systems. I'd welcome the chance to tell you more about the role and see if it might be a compelling next step. Best,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong title and AI experience, location matches NYC.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "61cf300d-c2f3-40b6-b3d7-49a296aad326",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Andreas Loutzidis",
+        "headline": "AI/ML Engineer | Columbia University",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Title and location align, strong AI/ML background."
+        ],
+        "profile_url": "https://www.linkedin.com/in/andreasloutzidis",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer at VectorShift (YC S23) - Your background at Columbia\",\"linkedin\":\"Hi Andreas, I saw your profile and your AI/ML focus at Columbia. We're VectorShift (YC S23), building enterprise AI workflow automation in NYC. Your background looks like a great match for our AI Engineer role, which involves building production RAG systems and multi-agent orchestration. Are you open to exploring this opportunity?\",\"email\":\"Hi Andreas, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for large enterprises and are hiring an AI Engineer in New York. Your AI/ML engineering background from Columbia University strongly aligns with our work on production RAG systems, LLM orchestration, and scalable backend services. I'd welcome the chance to discuss if this role might be a compelling next step for you. Best regards.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and location align, strong AI/ML background.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "7ec26910-7bce-4423-bfd6-c32f469d0513",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Yi",
+        "headline": "Ting Hsieh | Full Stack Software Engineer | Backend Developer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Title and core AI/ML experience align, location matches."
+        ],
+        "profile_url": "https://www.linkedin.com/in/yi-ting-hsieh623",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer Role at VectorShift (YC S23) - Your Experience in AI/ML\",\"linkedin\":\"Hi Yi, Your work in AI/ML and backend development caught my eye. VectorShift (YC S23) is hiring an AI Engineer in NYC to build production RAG/agent systems. Your profile suggests a great fit for our stack and mission to automate enterprise workflows. Are you open to exploring this role?\",\"email\":\"Hi Yi, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for large enterprises and are seeking an AI Engineer in New York. Your background in deploying AI/ML applications aligns well with our work on production RAG systems, multi-agent orchestration, and backend APIs. I'd welcome the chance to discuss if this opportunity matches your career interests.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and core AI/ML experience align, location matches.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "57f1b3c6-1bab-4786-a45b-9f8d1fec64c9",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Romani Nasrat",
+        "headline": "AI Engineer @penny software | Agentic AI",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 30,
+        "match_reasons": [
+          "Location conflict for onsite NYC role."
+        ],
+        "profile_url": "https://linkedin.com/in/romaninasrat",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer at VectorShift (YC S23) - Building Enterprise AI Agents\",\"linkedin\":\"Hi Romani, I saw your profile and your work on Agentic AI at penny software. We're VectorShift (YC S23), building automated AI workflows for large enterprises. We're looking for an AI Engineer in NYC to own production RAG/agent systems. Your background looks like a great fit. Are you open to discussing NYC-based opportunities?\",\"email\":\"Hi Romani, I'm reaching out from VectorShift (YC S23). We're developing AI workflow automation for billion-dollar enterprises, with a focus on production RAG and multi-agent systems. Your experience in Agentic AI at penny software directly aligns with our core work. We're hiring an AI Engineer for our onsite team in NYC. I'd welcome the chance to discuss if a move to New York and this role might be of interest. Best,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location conflict for onsite NYC role.",
+            "match_score": 30
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "fc1193e2-c922-49ae-bbe5-5fae98788643",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Mitchell Lee",
+        "headline": "Lead Machine Learning Engineer at Paramount",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location mismatch for strict NYC onsite role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/mitchellvanlee",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer role at VectorShift (YC S23) - Building enterprise AI automation\",\"linkedin\":\"Hi Mitchell, Your background as a Lead ML Engineer at Paramount caught my eye. I'm hiring for an AI Engineer at VectorShift (YC S23) in NYC. We're building production AI automation for large enterprises, focusing on RAG, multi-agent systems, and scalable backends. Your experience shipping ML applications seems like a great fit. Are you open to exploring NYC-based opportunities?\",\"email\":\"Hi Mitchell, I'm reaching out from VectorShift (YC S23). We're developing AI workflow automation platforms for large enterprises and are seeking an AI Engineer to build production RAG systems and agent architectures. Your role as a Lead Machine Learning Engineer at Paramount suggests the relevant experience we value. While the role is onsite in NYC, the scope and impact are substantial. I'd welcome a brief conversation to discuss if this aligns with your career interests.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location mismatch for strict NYC onsite role.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "90c58923-92be-4a36-b5ce-c3d2513a902a",
+        "search_id": "8d47c81a-b68e-4baf-bdbb-a406fde2b102",
+        "name": "Agustin Leon",
+        "headline": "Machine Learning @ NYU",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Internship experience only, location uncertain for strict NYC onsite role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/agustin-leon-nunez",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"AI Engineer Role at VectorShift (YC S23) - Building Enterprise AI Automation\",\"linkedin\":\"Hi Agustin, Saw your ML background from NYU. VectorShift (YC S23) is hiring an AI Engineer in NYC to build production RAG/agent systems. Your internship experience looks like a great foundation. Are you open to discussing a full-time role shaping AI workflow automation for large enterprises?\",\"email\":\"Hi Agustin, I'm reaching out from VectorShift (YC S23). We're building AI workflow automation for large enterprises and are hiring an AI Engineer in New York. Your Machine Learning background from NYU is compelling. While the role requires onsite work in NYC, we'd be interested to discuss your experience with AI applications and see if there's a potential fit. Are you available for a brief call next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Internship experience only, location uncertain for strict NYC onsite role.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:59:00.164272+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  }
+}

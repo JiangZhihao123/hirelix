@@ -1,0 +1,1032 @@
+{
+  "test_date": "2026-03-18T05:57:22.634Z",
+  "jd_file": "/Users/noah/projects/hirelix/test-jd-artisan-staff-backend.md",
+  "bright_data": {
+    "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+    "candidate_count": 50,
+    "duration_ms": 647180,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 50,
+      "retrieval_count": 100,
+      "shortlist_count": 50,
+      "deep_review_count": 0,
+      "deep_qualified_rate": 0,
+      "outreach_pool_count": 50,
+      "source_rule_pass_rate": 0.04,
+      "brightdata_scrape_count": 0,
+      "llm_prescreen_pass_rate": 0,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 3,
+          "request_count": 24,
+          "duplicate_ratio": 0.4,
+          "new_unique_count": 3,
+          "raw_result_count": 5,
+          "source_rule_pass_rate": 1,
+          "source_rule_pass_count": 3,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.14166666666666666,
+          "new_unique_count": 97,
+          "raw_result_count": 120,
+          "source_rule_pass_rate": 0.010309278350515464,
+          "source_rule_pass_count": 1,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        }
+      ],
+      "deep_review_completed_count": 0,
+      "deep_review_requested_count": 100
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmvlytpwilh5rdr94",
+      "requested_at": "2026-03-18T05:36:09.933Z",
+      "filter_summary": {
+        "title_terms": [
+          "Staff Software Engineer",
+          "Senior Software Engineer",
+          "Principal Software Engineer",
+          "Lead Software Engineer",
+          "Backend Engineer",
+          "Software Engineer - Backend",
+          "Senior Backend Engineer",
+          "Lead Backend Engineer"
+        ],
+        "country_codes": [
+          "US"
+        ],
+        "location_terms": [
+          "san francisco",
+          "bay area",
+          "new york"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "Staff Software Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "location_terms": [
+          "San Francisco",
+          "SF",
+          "Bay Area",
+          "New York",
+          "NYC"
+        ],
+        "title_variants": [
+          "Staff Software Engineer",
+          "Senior Software Engineer",
+          "Principal Software Engineer",
+          "Lead Software Engineer",
+          "Backend Engineer",
+          "Software Engineer - Backend",
+          "Senior Backend Engineer",
+          "Lead Backend Engineer"
+        ],
+        "core_skill_terms": [
+          "TypeScript",
+          "Node.js",
+          "Python",
+          "Go",
+          "PostgreSQL",
+          "Redis",
+          "Kubernetes",
+          "AWS",
+          "CI/CD",
+          "containers",
+          "data-intensive",
+          "high-throughput"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "Staff Software Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "hybrid",
+        "location_scope": "San Francisco, New York",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "unknown",
+        "constraint_reasoning": "Job description states 'in-person preferred; remote considered in rare cases' with specific SF/NY locations mentioned. This indicates a strong preference for candidates in those metro areas who can work hybrid/onsite, but exceptional remote candidates might be considered. Search should prioritize SF/NY candidates but not exclude strong remote profiles entirely.",
+        "location_flexibility": "moderate",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 50,
+        "retrieval_count": 100,
+        "shortlist_count": 50,
+        "deep_review_count": 0,
+        "deep_qualified_rate": 0,
+        "outreach_pool_count": 50,
+        "source_rule_pass_rate": 0.04,
+        "brightdata_scrape_count": 0,
+        "llm_prescreen_pass_rate": 0,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 3,
+            "request_count": 24,
+            "duplicate_ratio": 0.4,
+            "new_unique_count": 3,
+            "raw_result_count": 5,
+            "source_rule_pass_rate": 1,
+            "source_rule_pass_count": 3,
+            "llm_prescreen_pass_rate": 0,
+            "llm_prescreen_pass_count": 0
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.14166666666666666,
+            "new_unique_count": 97,
+            "raw_result_count": 120,
+            "source_rule_pass_rate": 0.010309278350515464,
+            "source_rule_pass_count": 1,
+            "llm_prescreen_pass_rate": 0,
+            "llm_prescreen_pass_count": 0
+          }
+        ],
+        "deep_review_completed_count": 0,
+        "deep_review_requested_count": 100
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmvlytpwilh5rdr94",
+        "requested_at": "2026-03-18T05:36:09.933Z",
+        "filter_summary": {
+          "title_terms": [
+            "Staff Software Engineer",
+            "Senior Software Engineer",
+            "Principal Software Engineer",
+            "Lead Software Engineer",
+            "Backend Engineer",
+            "Software Engineer - Backend",
+            "Senior Backend Engineer",
+            "Lead Backend Engineer"
+          ],
+          "country_codes": [
+            "US"
+          ],
+          "location_terms": [
+            "san francisco",
+            "bay area",
+            "new york"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "c034b074-0eca-49f7-ac2b-13eb9eb6b581",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Tim Ambler",
+        "headline": "Staff Software Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Title matches but location feasibility unknown for onsite-preferred role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/timambler",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - Building AI autonomy\",\"linkedin\":\"Hi Tim, I saw your profile and your experience as a Staff Engineer looks like a great fit for Artisan. We're building high-throughput AI orchestration for autonomous digital workers. The role involves deep backend work in TypeScript/Node at scale. Are you open to exploring roles in SF or NY?\",\"email\":\"Hi Tim, I'm reaching out from Artisan (YC W24). We're building backend infrastructure for autonomous AI employees and your Staff Engineer experience is highly relevant. We're looking for someone to own our core AI orchestration platform, processing millions of signals for decision-making. The role is based in SF or NY. Is this a space you're currently exploring?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Title matches but location feasibility unknown for onsite-preferred role.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "d62bce64-0459-42d7-bc57-943df49104ba",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Camilo Avelar",
+        "headline": "Staff Software Engineer | Golang, Node.js",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for strict hybrid role, insufficient evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/camiloavelar",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - AI Autonomy Infrastructure\",\"linkedin\":\"Hi Camilo, Saw your profile and your Go/Node.js experience aligns with what we're building at Artisan. We're creating autonomous AI employees, and our backend team owns the high-throughput orchestration platform. Looking for a Staff Engineer to own major infrastructure. Are you open to exploring a role based in SF or NYC?\",\"email\":\"Hi Camilo, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees, and I was impressed by your backend engineering background. We're seeking a Staff Engineer to own our core AI orchestration and platform infrastructure, processing millions of signals. Given your experience with Go and Node.js, I thought you might be a great fit. Are you available for a brief chat to discuss the role?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for strict hybrid role, insufficient evidence.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "dc589b23-0e83-4abd-bb61-b79a1e450011",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Drew Johnson",
+        "headline": "Staff Software Engineer | Full Stack Web Specialist",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for onsite/hybrid role, backend focus unclear."
+        ],
+        "profile_url": "https://www.linkedin.com/in/drew-johnson-859690121",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - AI Autonomy Infrastructure\",\"linkedin\":\"Hi Drew, Your background as a Staff Software Engineer caught my eye. Artisan (YC W24, $35M+ funded) is hiring a Staff Backend Engineer to build high-throughput AI orchestration systems for our autonomous AI employees. Given your experience, I thought you might be interested in tackling this scale and ownership. Are you open to exploring this SF/NY-based opportunity?\",\"email\":\"Hi Drew, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own our core backend infrastructure for AI decision-making at scale. Your profile suggests the strong backend fundamentals we seek. The role involves deep work on our TypeScript/Node platform, with high ownership and impact. If you're exploring new opportunities, I'd welcome a brief conversation to discuss further.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for onsite/hybrid role, backend focus unclear.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "3a0150c7-4c40-45cc-bc03-9f02b2ec441f",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Quentin McRee",
+        "headline": "Staff Software Engineer | Pragmatic Architect",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for strict hybrid role; insufficient stack evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/qmcree",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - Building AI autonomy\",\"linkedin\":\"Hi Quentin, Your profile suggests a pragmatic, architect-level approach. Artisan (YC W24) is hiring a Staff Backend Engineer to build the high-throughput AI orchestration infrastructure for autonomous digital workers. Given your experience, I'd love to discuss our $35M+, $8M+ ARR startup and this high-impact role.\",\"email\":\"Hi Quentin, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own our core backend infrastructure for AI orchestration. Your background in pragmatic architecture seems highly relevant for designing the high-throughput systems that process millions of signals for Ava, our flagship product. I'd welcome a brief conversation to share more about our technical challenges and $8M+ ARR growth.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for strict hybrid role; insufficient stack evidence.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "c838a3d4-fada-4264-aac2-609ab7d8989f",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Jason Han",
+        "headline": "Staff Software Engineer at Meta",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location mismatch and insufficient stack evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/jason-han-11564b76",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Jason, Saw your Staff Engineer experience at Meta. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for autonomous AI employees. Given your scale background and if you're open to SF/NYC, I'd love to discuss our $35M+ funded, $8M+ ARR startup's complex infra challenges.\",\"email\":\"Hi Jason, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer for our backend infrastructure. Your experience at Meta building at scale seems highly relevant for our work in AI orchestration and platform infrastructure. If you're considering opportunities in SF or NYC, I'd welcome a brief conversation to discuss the role's impact and our $8M+ ARR, rapidly scaling startup.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location mismatch and insufficient stack evidence.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "1a1ddd22-3313-4b48-92f4-ad51ed0d4e8a",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Harshit Shah",
+        "headline": "Staff Software Engineer | Backend | Full Stack",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Strong role and stack alignment, but location evidence strongly conflicts with onsite preference."
+        ],
+        "profile_url": "https://ca.linkedin.com/in/harshitshah11",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - AI Autonomy Infrastructure\",\"linkedin\":\"Hi Harshit, I saw your profile and your background in backend engineering looks like a great match for Artisan. We're a YC-backed startup building autonomous AI employees and need a Staff Engineer to own our high-throughput AI orchestration platform (Node/Typescript, AWS, K8s). The role is in-person in SF/NYC. Would you be open to a quick chat to learn more?\",\"email\":\"Hi Harshit, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own the core backend infrastructure for AI autonomy. Your backend experience aligns strongly with our needs in scalable, data-intensive systems using Node/Typescript and cloud-native tech. The role offers high ownership and impact at a rapidly growing startup ($8M+ ARR). While we prefer in-person in SF or NY, we'd love to discuss if there's a potential fit. Best,\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Strong role and stack alignment, but location evidence strongly conflicts with onsite preference.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "e861f1ed-465b-478c-9bee-2a027eb21dfb",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "John Christofolakos",
+        "headline": "Staff Software Engineer at Genesys",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown and no clear stack or seniority alignment."
+        ],
+        "profile_url": "https://ca.linkedin.com/in/johnchristofolakos",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi John, I saw your Staff Engineer background at Genesys. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for autonomous digital workers. Given your senior level, I thought you might be interested in leading this complex infrastructure work. Are you open to exploring this SF/NY-based opportunity?\",\"email\":\"Hi John, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own our core backend infrastructure for AI orchestration. Your experience as a Staff Engineer at Genesys suggests you could be a great fit for this high-impact, high-ownership role. The position is based in SF or NY. I'd welcome the chance to discuss if this aligns with your career interests.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown and no clear stack or seniority alignment.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "aa368e52-50f8-4546-895a-1a193ed19c48",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Michael Lennon",
+        "headline": "Staff Software Engineer @ Galileo, a SoFi Company",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for SF/NY hybrid role, and missing key stack signals."
+        ],
+        "profile_url": "https://www.linkedin.com/in/mslennon",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - Building AI autonomy\",\"linkedin\":\"Hi Michael, I saw your profile and your work at Galileo. Artisan builds autonomous AI employees, like our BDR 'Ava'. We're hiring a Staff Backend Engineer to own high-throughput AI orchestration and platform infrastructure. Given your experience at a high-growth fintech, I thought you might be interested in tackling this scale and complexity in SF/NY. Are you open to a quick chat?\",\"email\":\"Hi Michael, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to develop our core backend infrastructure for AI orchestration. Your experience scaling data-intensive services at Galileo seems highly relevant. We offer significant ownership, a complex technical problem, and competitive compensation ($225K-$300K, 0.05%-0.30%). If you're exploring new opportunities in SF or NY, I'd welcome a brief conversation.\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for SF/NY hybrid role, and missing key stack signals.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "84fcb589-f184-472f-b868-d97357e9d7f4",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Ron Lloyd",
+        "headline": "Founding Software Engineer | Typescript, NodeJS and ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Missing clear location, seniority, and required stack signals."
+        ],
+        "profile_url": "https://www.linkedin.com/in/ron-lloyd-3618a765",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Ron, I saw your background as a Founding Engineer. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for autonomous digital workers. Given your experience with TypeScript/Node, I thought you might be a great fit. Are you open to exploring this role?\",\"email\":\"Hi Ron, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own our core backend infrastructure. Your experience as a Founding Engineer, particularly with TypeScript/Node, aligns well with our needs for scaling data-intensive services. The role offers high ownership, complex technical challenges, and competitive compensation. Are you available for a brief conversation next week to discuss?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Missing clear location, seniority, and required stack signals.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "81b5b8f3-c1c1-440f-980f-fc79f4a128ea",
+        "search_id": "a2f52c88-d9f4-4174-bb60-cf8f2d6107ba",
+        "name": "Elias Kibret Lemma",
+        "headline": "Senior Software Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Missing location, seniority, and key stack evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/elias-kibret",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - AI Autonomy Infrastructure\",\"linkedin\":\"Hi Elias, I saw your profile and was impressed. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for our autonomous AI employees. With your senior experience, you'd own core platform infrastructure. We're at $8M+ ARR and scaling fast. Are you open to exploring this?\",\"email\":\"Hi Elias, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to develop our core backend infrastructure for AI decision-making. Given your senior engineering background, I believe you could be a great fit to own high-scale systems from design to deployment. The role offers significant technical complexity and impact. Are you available for a brief chat to discuss?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Missing location, seniority, and key stack evidence.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:46:40.804907+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  },
+  "serper": {
+    "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+    "candidate_count": 50,
+    "duration_ms": 633094,
+    "status": "degraded",
+    "stats": {
+      "qualified_count": 50,
+      "retrieval_count": 100,
+      "shortlist_count": 50,
+      "deep_review_count": 0,
+      "deep_qualified_rate": 0,
+      "outreach_pool_count": 50,
+      "source_rule_pass_rate": 0.05,
+      "brightdata_scrape_count": 0,
+      "llm_prescreen_pass_rate": 0.02,
+      "serper_query_tier_stats": [
+        {
+          "tier": "P0",
+          "query_count": 6,
+          "stop_reason": null,
+          "unique_count": 3,
+          "request_count": 24,
+          "duplicate_ratio": 0.4,
+          "new_unique_count": 3,
+          "raw_result_count": 5,
+          "source_rule_pass_rate": 1,
+          "source_rule_pass_count": 3,
+          "llm_prescreen_pass_rate": 0,
+          "llm_prescreen_pass_count": 0
+        },
+        {
+          "tier": "P1",
+          "query_count": 9,
+          "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+          "unique_count": 100,
+          "request_count": 36,
+          "duplicate_ratio": 0.18461538461538463,
+          "new_unique_count": 97,
+          "raw_result_count": 130,
+          "source_rule_pass_rate": 0.020618556701030927,
+          "source_rule_pass_count": 2,
+          "llm_prescreen_pass_rate": 0.020618556701030927,
+          "llm_prescreen_pass_count": 2
+        }
+      ],
+      "deep_review_completed_count": 0,
+      "deep_review_requested_count": 100
+    },
+    "recall_metadata": {
+      "status": "polling",
+      "provider": "brightdata_dataset",
+      "snapshot_id": "snap_mmvmcsg8o5rp6rznw",
+      "requested_at": "2026-03-18T05:47:01.375Z",
+      "filter_summary": {
+        "title_terms": [
+          "Staff Software Engineer",
+          "Senior Software Engineer",
+          "Principal Software Engineer",
+          "Lead Software Engineer",
+          "Backend Engineer",
+          "Software Engineer - Backend",
+          "Infrastructure Engineer"
+        ],
+        "country_codes": [
+          "US"
+        ],
+        "location_terms": [
+          "san francisco",
+          "sf bay area",
+          "new york"
+        ]
+      }
+    },
+    "parsed": {
+      "title": "Staff Software Engineer",
+      "recall_spec": {
+        "countries": [
+          "US"
+        ],
+        "record_limit": 100,
+        "location_terms": [
+          "San Francisco",
+          "SF Bay Area",
+          "New York",
+          "NYC"
+        ],
+        "title_variants": [
+          "Staff Software Engineer",
+          "Senior Software Engineer",
+          "Principal Software Engineer",
+          "Lead Software Engineer",
+          "Backend Engineer",
+          "Software Engineer - Backend",
+          "Infrastructure Engineer"
+        ],
+        "core_skill_terms": [
+          "TypeScript",
+          "Node.js",
+          "Python",
+          "Go",
+          "PostgreSQL",
+          "Redis",
+          "Kubernetes",
+          "AWS",
+          "CI/CD",
+          "containers",
+          "high-throughput systems",
+          "data-intensive services"
+        ]
+      },
+      "hiring_brief": {
+        "role_core": {
+          "title": "Staff Software Engineer",
+          "seniority": null,
+          "function_focus": null,
+          "required_skills": [],
+          "nice_to_have_skills": []
+        },
+        "work_model": "hybrid",
+        "location_scope": "San Francisco, New York",
+        "screening_intent": null,
+        "soft_constraints": [],
+        "relocation_allowed": "unknown",
+        "constraint_reasoning": "Job description states 'in-person preferred; remote considered in rare cases' with specific SF/NY locations. This indicates a strong preference for candidates in these metro areas who can work hybrid/onsite, but exceptional remote candidates might be considered. Search should prioritize SF/NY candidates but not exclude strong remote profiles entirely.",
+        "location_flexibility": "moderate",
+        "must_have_constraints": [],
+        "candidate_count_strategy": "focused_shortlist"
+      },
+      "display_count": 25,
+      "display_stats": {
+        "qualified_count": 50,
+        "retrieval_count": 100,
+        "shortlist_count": 50,
+        "deep_review_count": 0,
+        "deep_qualified_rate": 0,
+        "outreach_pool_count": 50,
+        "source_rule_pass_rate": 0.05,
+        "brightdata_scrape_count": 0,
+        "llm_prescreen_pass_rate": 0.02,
+        "serper_query_tier_stats": [
+          {
+            "tier": "P0",
+            "query_count": 6,
+            "stop_reason": null,
+            "unique_count": 3,
+            "request_count": 24,
+            "duplicate_ratio": 0.4,
+            "new_unique_count": 3,
+            "raw_result_count": 5,
+            "source_rule_pass_rate": 1,
+            "source_rule_pass_count": 3,
+            "llm_prescreen_pass_rate": 0,
+            "llm_prescreen_pass_count": 0
+          },
+          {
+            "tier": "P1",
+            "query_count": 9,
+            "stop_reason": "retrieval_cap_reached(unique_count=100, cap=100)",
+            "unique_count": 100,
+            "request_count": 36,
+            "duplicate_ratio": 0.18461538461538463,
+            "new_unique_count": 97,
+            "raw_result_count": 130,
+            "source_rule_pass_rate": 0.020618556701030927,
+            "source_rule_pass_count": 2,
+            "llm_prescreen_pass_rate": 0.020618556701030927,
+            "llm_prescreen_pass_count": 2
+          }
+        ],
+        "deep_review_completed_count": 0,
+        "deep_review_requested_count": 100
+      },
+      "candidate_count": 25,
+      "company_profile": {
+        "size": null,
+        "mission": "AI-powered portfolio risk monitoring that helps individual investors access institutional-grade risk metrics to protect their investments before small problems become big losses",
+        "benefits": null,
+        "tech_stack": "AI-powered monitoring system, SnapTrade integration for brokerage connections with bank-level encryption, supports 25+ major brokers including Fidelity, Schwab, Robinhood, E*TRADE, TD Ameritrade, Interactive Brokers, Vanguard, Webull, Wealthsimple",
+        "selling_points": "Institutional-grade risk metrics previously only available to hedge funds now accessible to individual investors; 24/7 AI monitoring with zero manual work; auto-syncs with brokerages daily; read-only access ensures security; monitors comprehensive metrics including Drawdown, Concentration, Volatility, Alpha, Beta, Sharpe, VaR; instant smart alerts customized to user risk tolerance; 7-day free trial with ability to cancel anytime; works with 25+ major brokers; setup takes only 3 minutes"
+      },
+      "highlight_count": 5,
+      "recall_metadata": {
+        "status": "polling",
+        "provider": "brightdata_dataset",
+        "snapshot_id": "snap_mmvmcsg8o5rp6rznw",
+        "requested_at": "2026-03-18T05:47:01.375Z",
+        "filter_summary": {
+          "title_terms": [
+            "Staff Software Engineer",
+            "Senior Software Engineer",
+            "Principal Software Engineer",
+            "Lead Software Engineer",
+            "Backend Engineer",
+            "Software Engineer - Backend",
+            "Infrastructure Engineer"
+          ],
+          "country_codes": [
+            "US"
+          ],
+          "location_terms": [
+            "san francisco",
+            "sf bay area",
+            "new york"
+          ]
+        }
+      },
+      "recall_provider": "brightdata_dataset",
+      "outreach_pool_target": 15
+    },
+    "top_10": [
+      {
+        "id": "3cb66417-17c4-45ff-8cd1-bd505ab4b3d5",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Tim Ambler",
+        "headline": "Staff Software Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 85,
+        "match_reasons": [
+          "Strong title and stack alignment, location unknown but remote considered."
+        ],
+        "profile_url": "https://www.linkedin.com/in/timambler",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - $35M+ funding\",\"linkedin\":\"Hi Tim, Saw your profile and your Staff Engineer background. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for autonomous digital workers. Your experience aligns well with our TypeScript/Node stack and scaling data-intensive systems. Interested in a chat?\",\"email\":\"Hi Tim, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own our core backend infrastructure. Your background in backend engineering at scale seems like a strong match for our work in AI orchestration and platform development. The role offers high ownership, competitive compensation ($225K-$300K, equity), and is based in SF or NY (remote possible). Would you be open to a brief conversation?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Strong title and stack alignment, location unknown but remote considered.",
+            "match_score": 85
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "057ee059-9497-4064-b353-9829ce35f51d",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Ryan H. Lewis",
+        "headline": "Staff Software Engineer (Go, TypeScript)",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 75,
+        "match_reasons": [
+          "Title and core stack match, location plausible for NYC hybrid."
+        ],
+        "profile_url": "https://www.linkedin.com/in/ryan-h-lewis",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Ryan, Saw your profile as a Staff Engineer with Go/TypeScript. We're Artisan (YC W24), building autonomous AI employees. Our backend team needs a lead to own high-throughput AI orchestration and platform infrastructure. Your stack and level match perfectly. Are you open to exploring a Staff role with us in NYC?\",\"email\":\"Hi Ryan, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer for our backend team. Your experience with Go and TypeScript aligns well with our work on high-throughput AI orchestration and platform infrastructure. The role is based in NYC with hybrid flexibility. Given your background, I thought you might be interested in discussing the impact you could have here. Would you be open to a brief chat?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": true,
+            "reason": "Title and core stack match, location plausible for NYC hybrid.",
+            "match_score": 75
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "502f593a-48b4-42d9-aa70-f0fd2270abbd",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Emerson Matthews",
+        "headline": "Lead Backend Engineer | API & Systems Design",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location feasibility unknown for SF/NY hybrid role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/emerson-matthews",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24) - AI Infrastructure\",\"linkedin\":\"Hi Emerson, Your work in backend engineering and systems design caught my eye. Artisan is hiring a Staff Engineer to build high-throughput AI orchestration for autonomous digital workers. With your API and systems background, you'd be a great fit. Interested in a quick chat about our TypeScript/Node stack and the technical challenges we're solving?\",\"email\":\"Hi Emerson, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own our core backend infrastructure for AI orchestration. Your experience in backend engineering and systems design aligns well with our needs in TypeScript/Node, scale, and platform ownership. The role is based in SF or NY with competitive compensation. Would you be open to learning more?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location feasibility unknown for SF/NY hybrid role.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "9bc7489b-91ed-4680-92df-912498e58d02",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Damir Harambasic",
+        "headline": "Staff Software Engineer @ Varo Bank",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for strict hybrid role, backend experience unclear."
+        ],
+        "profile_url": "https://www.linkedin.com/in/damirharambasic",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Damir, Saw your Staff Engineer role at Varo Bank. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for autonomous AI employees. With your background, I thought you might be interested in tackling this scale and complexity. Are you open to exploring roles in SF or NY?\",\"email\":\"Hi Damir, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer for our backend infrastructure. Your experience at Varo Bank suggests you have the scale and technical depth we seek. The role involves designing systems for millions of AI-driven signals, with full ownership from design to deployment. We're based in SF and NY. Is this a space you'd be open to discussing?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for strict hybrid role, backend experience unclear.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "a32c39d3-21c3-41c8-a2d1-e987a074a9bd",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Ron Lloyd",
+        "headline": "Founding Software Engineer | Typescript, NodeJS and ...",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown for onsite role and insufficient stack evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/ron-lloyd-3618a765",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Ron, Saw your background as a Founding Engineer. Artisan builds autonomous AI employees. We're hiring a Staff Backend Engineer to own our high-throughput AI orchestration platform in TypeScript/Node. Given your experience, thought you might be interested in discussing this SF/NY-based role.\",\"email\":\"Hi Ron, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to develop our core backend infrastructure for AI autonomy. Your founding engineer experience is compelling. The role involves high-scale systems in TypeScript/Node and offers significant ownership. Are you open to a brief conversation to discuss the opportunity?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown for onsite role and insufficient stack evidence.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "70b438fe-bad1-436f-890f-020840a2b026",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Peter Sieg",
+        "headline": "Staff Software Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Strong role and stack match, but location feasibility is unknown and penalized for onsite/hybrid role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/peter-sieg",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Peter, Saw your profile and your experience as a Staff Engineer looks like a great match for our role at Artisan. We're building high-throughput AI orchestration for autonomous digital workers. The stack is TypeScript/Node, AWS, and Temporal. Given your background, I'd love to discuss if you're open to opportunities in SF or NYC.\",\"email\":\"Hi Peter, I'm reaching out from Artisan (YC W24). We're building backend infrastructure for autonomous AI employees and your experience as a Staff Software Engineer strongly aligns. We're looking for someone to own high-scale AI orchestration systems in TypeScript/Node. The role is based in SF or NYC. Given our growth ($35M+ funded, $8M+ ARR), I thought this could be a compelling next step. Are you open to a brief conversation?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Strong role and stack match, but location feasibility is unknown and penalized for onsite/hybrid role.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "a6cee947-df79-4190-9e69-3fb9465d4eca",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Drew Johnson",
+        "headline": "Staff Software Engineer | Full Stack Web Specialist",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Headline suggests full-stack focus, lacks clear backend specialization and location evidence."
+        ],
+        "profile_url": "https://www.linkedin.com/in/drew-johnson-859690121",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Drew, Your full-stack expertise caught my eye. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for our autonomous AI employees. With your background, I think you could have a huge impact on our core infrastructure. Are you open to exploring this role?\",\"email\":\"Hi Drew, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer to own our backend AI orchestration and platform infrastructure. Your engineering experience aligns well with the scale and ownership we need. The role is based in SF or NY. Would you be interested in learning more?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Headline suggests full-stack focus, lacks clear backend specialization and location evidence.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "89ed8051-1204-45bd-a505-8d95506e18bd",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Quentin McRee",
+        "headline": "Staff Software Engineer | Pragmatic Architect",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Location unknown and no clear stack or seniority match."
+        ],
+        "profile_url": "https://www.linkedin.com/in/qmcree",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Quentin, Your profile suggests you're a pragmatic architect who builds robust systems. Artisan is building autonomous AI employees, and we need a Staff Backend Engineer to own our high-throughput AI orchestration platform. Given your seniority and focus on real-world impact, I'd love to discuss our $8M ARR, funded startup and the complex infrastructure problems we're solving.\",\"email\":\"Hi Quentin, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees, like our flagship product Ava, and are hiring a Staff Software Engineer to own our core backend infrastructure for high-throughput AI orchestration. Your experience as a pragmatic architect aligns perfectly with the scale, ownership, and technical complexity we offer. With $35M+ in funding and $8M+ ARR, we're tackling foundational problems in AI autonomy. Are you open to a brief conversation next week?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Location unknown and no clear stack or seniority match.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "eb8f414b-7018-448d-99c1-6495be69212b",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Kevin Peter",
+        "headline": "Staff Software Engineer @ Novaprime",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "No location or stack evidence, role title is a match."
+        ],
+        "profile_url": "https://www.linkedin.com/in/kevin-peter-2314b38b",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Kevin, Saw your Staff Engineer role at Novaprime. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for autonomous AI employees. With your title match and likely scale experience, I'd love to discuss our $35M+ funded, $8M+ ARR company. Are you open to a quick chat?\",\"email\":\"Hi Kevin, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Software Engineer (Backend) to own our core AI orchestration and platform infrastructure. Your experience as a Staff Engineer at Novaprime suggests you have the scale and ownership skills we need. The role offers significant technical complexity and impact with competitive compensation. Would you be interested in learning more?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "No location or stack evidence, role title is a match.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      },
+      {
+        "id": "fed066df-4e4b-4658-b90d-1824a94ec970",
+        "search_id": "4d8c99d2-f25b-4d3d-8f4a-3244c18fc8b0",
+        "name": "Travis Petersen",
+        "headline": "Staff Software Engineer",
+        "location": null,
+        "skills": [],
+        "experience_years": null,
+        "match_score": 25,
+        "match_reasons": [
+          "Missing location evidence and key stack signals for strict hybrid role."
+        ],
+        "profile_url": "https://www.linkedin.com/in/travis-petersen",
+        "github_url": null,
+        "email": null,
+        "outreach_draft": "{\"subject\":\"Staff Backend Engineer role at Artisan (YC W24)\",\"linkedin\":\"Hi Travis, I saw your profile and your experience as a Staff Engineer. Artisan (YC W24) is hiring a Staff Backend Engineer to build high-throughput AI orchestration for our autonomous AI employees. Given your background, I think you'd be a great fit. Are you open to discussing roles in SF or NYC?\",\"email\":\"Hi Travis, I'm reaching out from Artisan (YC W24). We're building autonomous AI employees and are hiring a Staff Backend Engineer to own our core AI orchestration and platform infrastructure. With your experience, I believe you could have a major impact here. The role is based in SF or NYC. Would you be interested in learning more?\"}",
+        "status": "new",
+        "metadata": {
+          "source": "google",
+          "pre_screen": {
+            "keep": false,
+            "reason": "Missing location evidence and key stack signals for strict hybrid role.",
+            "match_score": 25
+          },
+          "analysis_stage": "final"
+        },
+        "created_at": "2026-03-18T05:57:20.513946+00:00",
+        "enriched_at": null,
+        "enrich_source": null
+      }
+    ]
+  }
+}
