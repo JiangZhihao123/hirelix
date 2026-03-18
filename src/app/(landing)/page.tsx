@@ -166,7 +166,7 @@ const candidateRows = [
 const heroSearchStats = [
   { label: "Profiles scanned", value: "2,500+" },
   { label: "Deep review", value: "250+" },
-  { label: "AI-ranked shortlist", value: "Top 25" },
+  { label: "Outreach drafts", value: "Ready to send" },
 ];
 
 const outreachChannels = [
@@ -195,7 +195,7 @@ export default function Home() {
   const [pendingRedirectPath, setPendingRedirectPath] = useState("");
   const [selectedHeroCandidateIndex, setSelectedHeroCandidateIndex] = useState(0);
   const [selectedOutreachChannelIndex, setSelectedOutreachChannelIndex] = useState(0);
-  const [selectedHeroDetailTab, setSelectedHeroDetailTab] = useState<"evidence" | "experience" | "outreach">("evidence");
+  const [selectedHeroDetailTab, setSelectedHeroDetailTab] = useState<"evidence" | "experience">("evidence");
   const hasTrackedInputRef = useRef(false);
   const hasTrackedLandingViewRef = useRef(false);
 
@@ -416,7 +416,7 @@ export default function Home() {
       });
     }
   }
-  const desktopFooterCtaLabel = "Get Ranked Shortlist";
+  const desktopFooterCtaLabel = "Get Shortlist + Outreach";
   const legalLinks = [
     { href: "/privacy", label: "Privacy Policy" },
     { href: "/terms", label: "Terms of Service" },
@@ -476,25 +476,25 @@ export default function Home() {
             <h1 className="mt-4 max-w-[14ch] text-4xl font-extrabold leading-[0.96] tracking-tight text-white sm:text-[3rem] lg:text-[3.8rem]">
               Paste a JD.
               <br />
-              <span className="text-gradient">Get a ranked shortlist in minutes.</span>
+              <span className="text-gradient">Get shortlist and outreach in minutes.</span>
             </h1>
 
             <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-slate-300 sm:text-[1.01rem]">
-              Real LinkedIn candidates, ranked match reasons, and outreach-ready drafts without turning the role into manual filters first.
+              Review real LinkedIn candidates, see why they fit, and leave with ready-to-send outreach from one pasted JD.
             </p>
 
             <div className="mt-3 hidden flex-wrap items-center gap-1.5 text-[11px] text-slate-100 sm:flex">
               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
-                Under 5 minutes
+                Shortlist + outreach
               </span>
               <span className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 font-medium text-sky-100">
                 Large-scale LinkedIn search
               </span>
               <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
-                AI-ranked shortlist
+                Ranked fit reasons
               </span>
               <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
-                InMail + email outreach
+                InMail + email drafts ready
               </span>
             </div>
 
@@ -526,8 +526,8 @@ export default function Home() {
                 </button>
               </p>
               <div className="mt-4 grid gap-2 text-xs text-slate-600">
-                <p>Under 5 minutes from JD to shortlist</p>
-                <p>Real LinkedIn profiles and ranked match reasons</p>
+                <p>From JD to shortlist and outreach drafts</p>
+                <p>Real LinkedIn profiles with ranked fit reasons</p>
                 <p>Sign in only when you&apos;re ready to run the search</p>
               </div>
             </div>
@@ -571,7 +571,7 @@ export default function Home() {
                       aria-busy={isSubmitting}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-amber-400 px-6 py-3.5 text-base font-semibold text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-[0_24px_60px_rgba(251,191,36,0.42)] disabled:cursor-wait disabled:opacity-70"
                     >
-                      {isSubmitting ? "Opening your shortlist..." : "Get Ranked Shortlist"}{" "}
+                      {isSubmitting ? "Opening your shortlist..." : "Get Shortlist + Outreach"}{" "}
                       <ArrowRight className="h-4 w-4" />
                     </button>
                     <p className="mt-3 text-center text-xs leading-relaxed text-slate-600">
@@ -609,7 +609,7 @@ export default function Home() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-sky-100/80">
-                        Broad search {"->"} AI-ranked shortlist
+                        JD {"->"} ranked shortlist {"->"} outreach ready
                       </p>
                       <span className="mt-1 block text-base font-semibold text-white">Senior Software Engineer</span>
                     </div>
@@ -708,14 +708,13 @@ export default function Home() {
 
                   <div className="mt-3 flex items-center gap-2">
                     {[
-                      { key: "evidence", label: "Evidence" },
+                      { key: "evidence", label: "Fit evidence" },
                       { key: "experience", label: "Experience" },
-                      { key: "outreach", label: "Outreach" },
                     ].map((tab) => (
                       <button
                         key={tab.key}
                         type="button"
-                        onClick={() => setSelectedHeroDetailTab(tab.key as "evidence" | "experience" | "outreach")}
+                        onClick={() => setSelectedHeroDetailTab(tab.key as "evidence" | "experience")}
                         className={`rounded-full border px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] transition-colors ${
                           selectedHeroDetailTab === tab.key
                             ? "border-sky-300/28 bg-sky-400/14 text-sky-100"
@@ -752,54 +751,62 @@ export default function Home() {
                       </div>
                     ) : null}
 
-                    {selectedHeroDetailTab === "outreach" ? (
-                      <div className="space-y-2.5">
-                        <div className="flex gap-2">
-                          {outreachChannels.map((channel, index) => (
-                            <button
-                              key={channel.label}
-                              type="button"
-                              onClick={() => setSelectedOutreachChannelIndex(index)}
-                              className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-medium transition-colors ${
-                                index === selectedOutreachChannelIndex
-                                  ? "border-sky-300/28 bg-sky-400/14 text-sky-100"
-                                  : "border-white/[0.12] bg-white/[0.06] text-slate-200"
-                              }`}
-                            >
-                              {channel.label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
-                          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                            Ready-to-send preview
-                          </p>
-                          <p className="mt-1 line-clamp-2 text-slate-200">
-                            {selectedOutreachChannelIndex === 0
-                              ? activeHeroCandidate.linkedinDraft
-                              : activeHeroCandidate.emailDraft}
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2">
-                          <span className="text-[11px] leading-5 text-slate-300">{activeContactLabel}</span>
-                          <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-5 text-sky-200">
-                            {activeContactValue}
-                          </span>
-                        </div>
-                        <a
-                          href={activeActionHref}
-                          target={activeActionTarget}
-                          rel={activeActionRel}
-                          className={`inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors ${
-                            selectedOutreachChannelIndex === 0
-                              ? "bg-[#0077b5] text-white hover:bg-[#0a66a2]"
-                              : "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
+                  </div>
+
+                  <div className="mt-3 rounded-xl border border-emerald-300/18 bg-emerald-400/[0.08] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100">
+                        <Mail className="h-3.5 w-3.5 text-emerald-200" />
+                        Outreach ready
+                      </div>
+                      <span className="rounded-full border border-emerald-200/18 bg-emerald-300/12 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
+                        Draft included
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex gap-2">
+                      {outreachChannels.map((channel, index) => (
+                        <button
+                          key={channel.label}
+                          type="button"
+                          onClick={() => setSelectedOutreachChannelIndex(index)}
+                          className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-medium transition-colors ${
+                            index === selectedOutreachChannelIndex
+                              ? "border-emerald-200/28 bg-emerald-300/14 text-emerald-50"
+                              : "border-white/[0.12] bg-white/[0.06] text-slate-200"
                           }`}
                         >
-                          {activeOutreachChannel.cta}
-                        </a>
-                      </div>
-                    ) : null}
+                          {channel.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2.5 rounded-lg border border-white/[0.08] bg-[#101b2d] px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                        Ready-to-send preview
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-200">
+                        {selectedOutreachChannelIndex === 0
+                          ? activeHeroCandidate.linkedinDraft
+                          : activeHeroCandidate.emailDraft}
+                      </p>
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2">
+                      <span className="text-[11px] leading-5 text-slate-300">{activeContactLabel}</span>
+                      <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-5 text-emerald-100">
+                        {activeContactValue}
+                      </span>
+                    </div>
+                    <a
+                      href={activeActionHref}
+                      target={activeActionTarget}
+                      rel={activeActionRel}
+                      className={`mt-2.5 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors ${
+                        selectedOutreachChannelIndex === 0
+                          ? "bg-[#0077b5] text-white hover:bg-[#0a66a2]"
+                          : "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
+                      }`}
+                    >
+                      {activeOutreachChannel.cta}
+                    </a>
                   </div>
 
                   <div className="mt-3 rounded-xl border border-amber-300/16 bg-amber-400/[0.08] px-3 py-2.5">
@@ -925,7 +932,7 @@ export default function Home() {
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-                  <span>Open a ranked shortlist with match reasons</span>
+                  <span>Open a ranked shortlist with fit reasons and outreach ready</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
@@ -1287,7 +1294,7 @@ export default function Home() {
 
                 <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-200">
                   <span className="rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
-                    {isSearchAuthIntent ? "Under 5 minutes" : "Continue instantly"}
+                    {isSearchAuthIntent ? "Shortlist + outreach" : "Continue instantly"}
                   </span>
                   <span className="rounded-full border border-sky-300/18 bg-sky-400/10 px-3 py-1 font-medium text-sky-100">
                     {isSearchAuthIntent ? "Ranked match reasons" : "Real LinkedIn sourcing"}
