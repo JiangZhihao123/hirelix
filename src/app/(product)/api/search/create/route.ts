@@ -6,6 +6,7 @@ import {
   getInitialSearchTargets,
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
+import { getUserFromApiRequest } from "@/lib/api-auth";
 
 export const maxDuration = 30;
 const DEFAULT_OUTREACH_POOL_TARGET = 25;
@@ -15,29 +16,10 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-function getUserFromRequest(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return null;
-  return auth.slice(7);
-}
-
 export async function POST(req: NextRequest) {
-  const token = getUserFromRequest(req);
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const supabaseUser = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-
-  const {
-    data: { user },
-  } = await supabaseUser.auth.getUser();
+  const user = await getUserFromApiRequest(req);
   if (!user) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {

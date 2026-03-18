@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import {
@@ -12,6 +11,7 @@ import {
   COMPANY_PROFILE_FALLBACK_PROMPT,
   COMPANY_PROFILE_FROM_EVIDENCE_PROMPT,
 } from "@/lib/prompts";
+import { getUserFromApiRequest } from "@/lib/api-auth";
 
 function extractJSON(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -21,19 +21,6 @@ function extractJSON(text: string): string {
     if (lastBrace > 0) result = result.substring(0, lastBrace + 1);
   }
   return result;
-}
-
-async function getUser(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return null;
-  const token = auth.slice(7);
-  const supabaseUser = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-  const { data: { user } } = await supabaseUser.auth.getUser();
-  return user;
 }
 
 type CompanyProfile = {
@@ -142,7 +129,7 @@ function logCompanyResearch(eventName: string, payload: Record<string, unknown>)
  * Uses Claude to research a company based on its website and return a structured profile.
  */
 export async function POST(req: NextRequest) {
-  const user = await getUser(req);
+  const user = await getUserFromApiRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { website } = await req.json();

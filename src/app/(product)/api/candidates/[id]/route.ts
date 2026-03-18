@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getUserFromApiRequest } from "@/lib/api-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,8 +12,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) {
+  const user = await getUserFromApiRequest(req);
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -22,6 +23,21 @@ export async function PATCH(
 
     if (!status || !["new", "contacted", "replied", "rejected"].includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+
+    const { data: candidate, error: candidateError } = await supabaseAdmin
+      .from("hirelix_candidates")
+      .select("id, search:hirelix_searches(user_id)")
+      .eq("id", id)
+      .single();
+
+    const ownerId =
+      candidate && candidate.search && typeof candidate.search === "object"
+        ? (candidate.search as { user_id?: string | null }).user_id ?? null
+        : null;
+
+    if (candidateError || !candidate || ownerId !== user.id) {
+      return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
     }
 
     const { error } = await supabaseAdmin

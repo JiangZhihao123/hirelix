@@ -4,6 +4,7 @@ import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { findEmail } from "@/lib/hunter";
+import { getUserFromApiRequest } from "@/lib/api-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,14 +40,7 @@ export async function POST(
   }
 
   try {
-    // Get user ID from token to fetch company profile
-    const token = auth.slice(7);
-    const supabaseUser = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } },
-    );
-    const { data: { user } } = await supabaseUser.auth.getUser();
+    const user = await getUserFromApiRequest(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
