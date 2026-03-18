@@ -110,8 +110,8 @@ const candidateRows = [
 ];
 
 const heroSearchStats = [
-  { label: "Profiles scanned", value: "2,400+" },
-  { label: "Deep review", value: "326" },
+  { label: "Profiles scanned", value: "2,500+" },
+  { label: "Deep review", value: "250+" },
   { label: "AI-ranked shortlist", value: "Top 25" },
 ];
 
