@@ -986,6 +986,35 @@ function normalizeExperienceYears(value: unknown): number | null {
 }
 
 function extractLikelyTitleFromJdText(jdText: string) {
+  const proseSource = jdText.replace(/\s+/g, " ").trim();
+  const roleIntroPatterns = [
+    /\b(?:we\s+are|we're)?\s*(?:hiring|looking\s+for|seeking)\s+(?:an?|our\s+next)\s+(.{4,80}?)\s+(?:to|who|for|with|based|located|in)\b/i,
+    /^\s*(.{4,80}?)\s+(?:to|who|for|with|based|located|in)\b/i,
+  ];
+  const looksLikeRoleTitle = (value: string) =>
+    /\b(engineer|developer|manager|designer|scientist|analyst|architect|specialist|recruiter|marketer|operator|director|lead|head)\b/i.test(value);
+  const normalizeTitle = (value: string) =>
+    value
+      .replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => {
+        if (/^(ai|ml|qa|ui|ux|sre|ios)$/i.test(word)) return word.toUpperCase();
+        if (/^node\.js$/i.test(word)) return "Node.js";
+        if (/^typescript$/i.test(word)) return "TypeScript";
+        if (/^javascript$/i.test(word)) return "JavaScript";
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join(" ");
+
+  for (const pattern of roleIntroPatterns) {
+    const match = proseSource.match(pattern);
+    const candidate = match?.[1]?.trim();
+    if (candidate && looksLikeRoleTitle(candidate)) {
+      return normalizeTitle(candidate);
+    }
+  }
+
   const lines = jdText
     .split("\n")
     .map((line) => line.replace(/[#*`>-]/g, " ").trim())
@@ -996,10 +1025,15 @@ function extractLikelyTitleFromJdText(jdText: string) {
     if (/^(location|company|about|requirements|responsibilities|nice to have|compensation)\s*:/i.test(line)) {
       continue;
     }
-    return line;
+    return normalizeTitle(line);
   }
 
   return null;
+}
+
+function isPlaceholderTitle(title: string | null | undefined) {
+  if (!title) return true;
+  return normalizeText(title) === "untitled role";
 }
 
 const FALLBACK_CORE_SKILL_TERMS = [
@@ -1051,7 +1085,10 @@ function enrichRecallSpecFromJd(
   candidateCount: number,
 ) {
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount);
-  const title = normalizeNullableString(parsed.title) || extractLikelyTitleFromJdText(jdText);
+  const parsedTitle = normalizeNullableString(parsed.title);
+  const title = !isPlaceholderTitle(parsedTitle)
+    ? parsedTitle
+    : extractLikelyTitleFromJdText(jdText);
   const titleVariants = recallSpec.title_variants.length > 0
     ? recallSpec.title_variants
     : (title ? [title] : []);
@@ -2933,9 +2970,10 @@ function buildBrightDataRecallFilter(
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
-  const titleTerms = recallSpec.title_variants.length > 0
+  const titleTerms = (recallSpec.title_variants.length > 0
     ? recallSpec.title_variants
-    : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value));
+    : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value)))
+    .filter((term) => !isPlaceholderTitle(term));
 
   if (titleTerms.length === 0) return null;
 

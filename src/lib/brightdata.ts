@@ -7,9 +7,20 @@
  * Pricing: ~$1.50/1k records ($0.0015/profile)
  * Flow: trigger → snapshot_id → poll until ready → get JSON results
  */
+import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
 const BRIGHTDATA_FILTER_API_BASE = "https://api.brightdata.com/datasets";
+const BRIGHTDATA_PROXY_URL =
+  process.env.HTTP_PROXY ||
+  process.env.http_proxy ||
+  process.env.HTTPS_PROXY ||
+  process.env.https_proxy ||
+  null;
+const BRIGHTDATA_PROXY_AGENT =
+  process.env.NODE_ENV === "development" && BRIGHTDATA_PROXY_URL
+    ? new ProxyAgent(BRIGHTDATA_PROXY_URL)
+    : null;
 
 type BrightDataScrapeOptions = {
   batchSize?: number;
@@ -136,6 +147,18 @@ type BrightDataInputPayload = {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function brightDataFetch(input: RequestInfo | URL, init?: RequestInit) {
+  if (!BRIGHTDATA_PROXY_AGENT) {
+    return fetch(input, init);
+  }
+
+  const requestInit = (init ?? {}) as Record<string, unknown>;
+  return undiciFetch(input as never, {
+    ...requestInit,
+    dispatcher: BRIGHTDATA_PROXY_AGENT,
+  } as never) as unknown as Promise<Response>;
 }
 
 function asString(value: unknown): string | null {
@@ -412,7 +435,7 @@ export async function triggerDatasetFilter(
   apiToken: string,
   request: BrightDataDatasetFilterRequest,
 ): Promise<string> {
-  const res = await fetch(`${BRIGHTDATA_FILTER_API_BASE}/filter`, {
+  const res = await brightDataFetch(`${BRIGHTDATA_FILTER_API_BASE}/filter`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiToken}`,
@@ -438,7 +461,7 @@ export async function getDatasetSnapshotMetadata(
   apiToken: string,
   snapshotId: string,
 ): Promise<BrightDataSnapshotMetadata> {
-  const res = await fetch(
+  const res = await brightDataFetch(
     `${BRIGHTDATA_FILTER_API_BASE}/snapshots/${snapshotId}`,
     {
       headers: { Authorization: `Bearer ${apiToken}` },
@@ -457,7 +480,7 @@ export async function downloadDatasetSnapshot(
   apiToken: string,
   snapshotId: string,
 ): Promise<Record<string, unknown>[]> {
-  const res = await fetch(
+  const res = await brightDataFetch(
     `${BRIGHTDATA_FILTER_API_BASE}/snapshots/${snapshotId}/download?format=json`,
     {
       headers: { Authorization: `Bearer ${apiToken}` },
@@ -576,7 +599,7 @@ export async function triggerScrape(
 ): Promise<string> {
   const body = linkedinUrls.map((url) => ({ url }));
 
-  const res = await fetch(
+  const res = await brightDataFetch(
     `${BRIGHTDATA_API_BASE}/trigger?dataset_id=${datasetId}&include_errors=true`,
     {
       method: "POST",
@@ -609,7 +632,7 @@ export async function pollSnapshot(
     console.log(`[brightdata] Polling snapshot ${snapshotId} (attempt ${i + 1}/${maxAttempts})...`);
     await sleep(intervalMs);
 
-    const res = await fetch(
+    const res = await brightDataFetch(
       `${BRIGHTDATA_API_BASE}/snapshot/${snapshotId}?format=json`,
       {
         headers: { Authorization: `Bearer ${apiToken}` },
