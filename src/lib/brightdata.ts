@@ -46,6 +46,13 @@ export type BrightDataSnapshotMetadata = {
   error_code?: string | number;
 };
 
+class BrightDataSnapshotNotReadyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BrightDataSnapshotNotReadyError";
+  }
+}
+
 // ──────────────────── Types ────────────────────
 
 export type BrightDataExperience = {
@@ -462,7 +469,28 @@ export async function downloadDatasetSnapshot(
     throw new Error(`Bright Data snapshot download failed (${res.status}): ${text}`);
   }
 
-  const data = await res.json();
+  const rawText = await res.text();
+  if (!rawText.trim()) {
+    throw new BrightDataSnapshotNotReadyError(
+      `Bright Data snapshot ${snapshotId} download returned an empty body`,
+    );
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    // Bright can briefly report metadata=status=ready while the JSON download endpoint
+    // still serves a transient plain-text "Snapshot is ..." message. Keep polling instead
+    // of failing the whole recall on that race.
+    if (/snapshot\s+is/i.test(rawText) || /not\s+ready/i.test(rawText)) {
+      throw new BrightDataSnapshotNotReadyError(
+        `Bright Data snapshot ${snapshotId} download is not ready yet`,
+      );
+    }
+    throw new Error(`Unexpected Bright Data dataset download format: ${rawText.slice(0, 200)}`);
+  }
+
   if (!Array.isArray(data)) {
     throw new Error("Unexpected Bright Data dataset download format");
   }
@@ -485,7 +513,16 @@ export async function waitForDatasetSnapshot(
   while (Date.now() - startedAt < timeoutMs) {
     const metadata = await getDatasetSnapshotMetadata(apiToken, snapshotId);
     if (metadata.status === "ready") {
-      const rows = await downloadDatasetSnapshot(apiToken, snapshotId);
+      let rows: Record<string, unknown>[];
+      try {
+        rows = await downloadDatasetSnapshot(apiToken, snapshotId);
+      } catch (error) {
+        if (error instanceof BrightDataSnapshotNotReadyError) {
+          await sleep(pollIntervalMs);
+          continue;
+        }
+        throw error;
+      }
       return {
         metadata,
         profiles: rows.map(adaptDatasetRecordToBrightDataProfile),
