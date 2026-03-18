@@ -460,30 +460,30 @@ export default function Home() {
         </div>
       </nav>
 
-      <section className="landing-dark relative overflow-hidden pt-22 pb-10 sm:pt-28 sm:pb-14 lg:min-h-screen lg:pt-20 lg:pb-10">
+      <section className="landing-dark relative overflow-hidden pt-20 pb-8 sm:pt-24 sm:pb-12 lg:min-h-screen lg:pt-16 lg:pb-8">
         <div className="hero-grid pointer-events-none absolute inset-0" />
         <div className="pointer-events-none absolute top-16 left-1/2 h-[660px] w-[660px] -translate-x-1/2 rounded-full bg-sky-400/[0.1] blur-[132px]" />
         <div className="pointer-events-none absolute top-44 left-1/4 h-[280px] w-[280px] rounded-full bg-cyan-300/[0.07] blur-[100px] animate-glow" />
         <div className="pointer-events-none absolute top-32 right-[14%] h-[360px] w-[360px] rounded-full bg-amber-300/[0.08] blur-[140px]" />
 
-        <div className="relative mx-auto grid max-w-[92rem] gap-8 px-6 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
+        <div className="relative mx-auto grid max-w-[92rem] gap-6 px-6 lg:grid-cols-[0.84fr_1.16fr] lg:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/[0.1] px-3 py-1 text-xs font-medium text-sky-100">
               <Sparkles className="h-3.5 w-3.5" />
               For founders and recruiters filling open roles fast
             </div>
 
-            <h1 className="mt-4 max-w-[14ch] text-4xl font-extrabold leading-[0.96] tracking-tight text-white sm:text-[3rem] lg:text-[3.8rem]">
+            <h1 className="mt-3 max-w-[13ch] text-4xl font-extrabold leading-[0.94] tracking-tight text-white sm:text-[2.85rem] lg:text-[3.35rem]">
               Paste a JD.
               <br />
               <span className="text-gradient">Get shortlist and outreach in minutes.</span>
             </h1>
 
-            <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-slate-300 sm:text-[1.01rem]">
+            <p className="mt-2.5 max-w-[34rem] text-[15px] leading-relaxed text-slate-300 sm:text-[0.98rem]">
               Review real LinkedIn candidates, see why they fit, and leave with ready-to-send outreach from one pasted JD.
             </p>
 
-            <div className="mt-3 hidden flex-wrap items-center gap-1.5 text-[11px] text-slate-100 sm:flex">
+            <div className="mt-2.5 hidden flex-wrap items-center gap-1.5 text-[11px] text-slate-100 sm:flex">
               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
                 Shortlist + outreach
               </span>
@@ -532,19 +532,19 @@ export default function Home() {
               </div>
             </div>
 
-            <form id="hero-form" onSubmit={handleSubmit} className="mt-3 hidden sm:block">
+            <form id="hero-form" onSubmit={handleSubmit} className="mt-2.5 hidden sm:block">
               <div className="rounded-[26px] border border-white/[0.24] bg-gradient-to-br from-slate-100/90 via-white/85 to-sky-100/75 p-[1px] shadow-[0_30px_90px_rgba(8,25,51,0.32)]">
-                <div className="rounded-[25px] bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.34),_transparent_36%),linear-gradient(180deg,_rgba(248,250,252,0.98)_0%,_rgba(236,244,252,0.96)_100%)] p-4 sm:p-4.5">
-                  <div className="mb-2.5 flex items-center gap-2 text-sm font-medium text-slate-950">
+                <div className="rounded-[25px] bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.34),_transparent_36%),linear-gradient(180deg,_rgba(248,250,252,0.98)_0%,_rgba(236,244,252,0.96)_100%)] p-3.5 sm:p-4">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-950">
                       <FileText className="h-4 w-4 text-sky-700" />
                       Paste a job description
                   </div>
-                  <div className="rounded-[20px] border border-slate-200 bg-white/90 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <div className="rounded-[20px] border border-slate-200 bg-white/90 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                     <textarea
                       value={jdText}
                       onChange={(e) => handleJdInput(e.target.value)}
                       placeholder="Paste the full JD here. We will keep it ready for you on the next step."
-                      rows={4}
+                      rows={3}
                       className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-950 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
                     />
                   </div>
@@ -563,18 +563,18 @@ export default function Home() {
                       No JD handy? Use a sample role.
                     </button>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <button
                       type="submit"
                       disabled={!canSubmit || isSubmitting}
                       data-testid="hero-primary-cta"
                       aria-busy={isSubmitting}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-amber-400 px-6 py-3.5 text-base font-semibold text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-[0_24px_60px_rgba(251,191,36,0.42)] disabled:cursor-wait disabled:opacity-70"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-amber-400 px-6 py-3 text-base font-semibold text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-[0_24px_60px_rgba(251,191,36,0.42)] disabled:cursor-wait disabled:opacity-70"
                     >
                       {isSubmitting ? "Opening your shortlist..." : "Get Shortlist + Outreach"}{" "}
                       <ArrowRight className="h-4 w-4" />
                     </button>
-                    <p className="mt-3 text-center text-xs leading-relaxed text-slate-600">
+                    <p className="mt-2.5 text-center text-xs leading-relaxed text-slate-600 lg:hidden">
                       {isSubmitting
                         ? "Taking you to the sign-in step with your JD ready."
                         : "No credit card for the Free plan. Sign in when you are ready to run the search."}
@@ -587,9 +587,9 @@ export default function Home() {
           </div>
 
           <div className="hidden lg:block lg:pt-0.5">
-            <div className="ml-auto w-full max-w-[42rem] rounded-[28px] border border-white/[0.2] bg-[linear-gradient(180deg,rgba(242,248,255,0.22)_0%,rgba(186,225,255,0.12)_100%)] p-1.5 shadow-[0_22px_60px_rgba(8,25,51,0.28)] xl:max-w-[44rem]">
-              <div className="rounded-[24px] bg-[radial-gradient(circle_at_top_right,_rgba(125,211,252,0.24),_transparent_28%),linear-gradient(180deg,_rgba(13,25,43,0.92)_0%,_rgba(18,30,48,0.9)_100%)] p-4.5">
-                <div className="mb-3 flex items-center justify-between gap-3 text-sm text-slate-300">
+            <div className="ml-auto w-full max-w-[40rem] rounded-[28px] border border-white/[0.2] bg-[linear-gradient(180deg,rgba(242,248,255,0.22)_0%,rgba(186,225,255,0.12)_100%)] p-1.5 shadow-[0_22px_60px_rgba(8,25,51,0.28)] xl:max-w-[42rem]">
+              <div className="rounded-[24px] bg-[radial-gradient(circle_at_top_right,_rgba(125,211,252,0.24),_transparent_28%),linear-gradient(180deg,_rgba(13,25,43,0.92)_0%,_rgba(18,30,48,0.9)_100%)] p-4">
+                <div className="mb-2.5 flex items-center justify-between gap-3 text-sm text-slate-300">
                   <div className="flex gap-1.5">
                     <span className="h-3 w-3 rounded-full bg-red-500/60" />
                     <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
@@ -605,7 +605,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="rounded-[20px] border border-sky-200/40 bg-[radial-gradient(circle_at_top_right,_rgba(186,230,253,0.38),_transparent_32%),linear-gradient(90deg,_rgba(46,104,179,0.86)_0%,_rgba(27,59,103,0.72)_100%)] p-4 shadow-[0_18px_42px_rgba(32,100,175,0.22),inset_0_1px_0_rgba(255,255,255,0.12)]">
+                <div className="rounded-[20px] border border-sky-200/40 bg-[radial-gradient(circle_at_top_right,_rgba(186,230,253,0.38),_transparent_32%),linear-gradient(90deg,_rgba(46,104,179,0.86)_0%,_rgba(27,59,103,0.72)_100%)] p-3.5 shadow-[0_18px_42px_rgba(32,100,175,0.22),inset_0_1px_0_rgba(255,255,255,0.12)]">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-sky-100/80">
@@ -620,7 +620,7 @@ export default function Home() {
                   <p className="mt-3 text-xs text-slate-100/88">
                     Skills extracted: APIs, distributed systems, cloud infrastructure, product collaboration
                   </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
                     {heroSearchStats.map((stat) => (
                       <div
                         key={stat.label}
@@ -635,13 +635,13 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="mt-3 space-y-2">
+                <div className="mt-2.5 space-y-1.5">
                   {displayedHeroCandidates.map((candidate, index) => (
                     <button
                       key={candidate.name}
                       type="button"
                       onClick={() => setSelectedHeroCandidateIndex(index)}
-                      className={`w-full rounded-2xl border bg-gradient-to-r p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-all ${
+                      className={`w-full rounded-2xl border bg-gradient-to-r p-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-all ${
                         index === selectedHeroCandidateIndex
                           ? "border-sky-300/32 from-sky-400/[0.18] to-white/[0.08] ring-1 ring-sky-300/18"
                           : "border-white/[0.12] from-white/[0.12] to-white/[0.06] hover:border-sky-300/18"
@@ -660,7 +660,7 @@ export default function Home() {
                           {candidate.score}% match
                         </div>
                       </div>
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <div className="mt-2 flex flex-wrap gap-1.5">
                         {candidate.matched.map((skill) => (
                           <span
                             key={skill}
@@ -677,144 +677,147 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="mt-3.5 rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="mt-3 rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-3.5">
+                  <div className="grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
                     <div>
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                        <Star className="h-3.5 w-3.5 text-sky-300" />
-                        Selected candidate
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                            <Star className="h-3.5 w-3.5 text-sky-300" />
+                            Selected candidate
+                          </div>
+                          <p className="mt-1.5 text-base font-semibold text-white">{activeHeroCandidate.fitLabel}</p>
+                          <p className="mt-1 text-xs text-slate-300">{activeHeroCandidate.location} · {activeHeroCandidate.role}</p>
+                        </div>
+                        <span className="rounded-full border border-emerald-300/18 bg-emerald-400/12 px-2.5 py-1 text-[10px] font-medium text-emerald-200">
+                          {activeHeroCandidate.actionLabel}
+                        </span>
                       </div>
-                      <p className="mt-2 text-base font-semibold text-white">{activeHeroCandidate.fitLabel}</p>
-                      <p className="mt-1 text-xs text-slate-300">{activeHeroCandidate.location} · {activeHeroCandidate.role}</p>
+
+                      <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+                        {activeHeroCandidate.constraintChecks.map((item) => (
+                          <div
+                            key={item.label}
+                            className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 py-2"
+                          >
+                            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                              {item.label}
+                            </p>
+                            <p className="mt-1 text-sm font-medium text-slate-100">{item.verdict}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-2.5 flex items-center gap-2">
+                        {[
+                          { key: "evidence", label: "Fit evidence" },
+                          { key: "experience", label: "Experience" },
+                        ].map((tab) => (
+                          <button
+                            key={tab.key}
+                            type="button"
+                            onClick={() => setSelectedHeroDetailTab(tab.key as "evidence" | "experience")}
+                            className={`rounded-full border px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] transition-colors ${
+                              selectedHeroDetailTab === tab.key
+                                ? "border-sky-300/28 bg-sky-400/14 text-sky-100"
+                                : "border-white/[0.12] bg-white/[0.04] text-slate-300"
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="mt-2.5 rounded-xl border border-white/[0.08] bg-[#101b2d] p-2.5 text-xs leading-relaxed text-slate-200">
+                        {selectedHeroDetailTab === "evidence" ? (
+                          <div className="space-y-2">
+                            {activeMatchReasons.map((reason) => (
+                              <div key={reason} className="flex items-start gap-2">
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                                <span>{reason}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {selectedHeroDetailTab === "experience" ? (
+                          <div className="space-y-1.5">
+                            {activeExperiencePreview.map((item) => (
+                              <div
+                                key={item}
+                                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-2"
+                              >
+                                {item}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                    <span className="rounded-full border border-emerald-300/18 bg-emerald-400/12 px-2.5 py-1 text-[10px] font-medium text-emerald-200">
-                      {activeHeroCandidate.actionLabel}
-                    </span>
-                  </div>
 
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {activeHeroCandidate.constraintChecks.map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2"
-                      >
-                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                          {item.label}
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-slate-100">{item.verdict}</p>
+                    <div className="rounded-xl border border-emerald-300/18 bg-emerald-400/[0.08] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100">
+                          <Mail className="h-3.5 w-3.5 text-emerald-200" />
+                          Outreach ready
+                        </div>
+                        <span className="rounded-full border border-emerald-200/18 bg-emerald-300/12 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
+                          Draft included
+                        </span>
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-2">
-                    {[
-                      { key: "evidence", label: "Fit evidence" },
-                      { key: "experience", label: "Experience" },
-                    ].map((tab) => (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => setSelectedHeroDetailTab(tab.key as "evidence" | "experience")}
-                        className={`rounded-full border px-3 py-1 text-[10px] font-medium uppercase tracking-[0.12em] transition-colors ${
-                          selectedHeroDetailTab === tab.key
-                            ? "border-sky-300/28 bg-sky-400/14 text-sky-100"
-                            : "border-white/[0.12] bg-white/[0.04] text-slate-300"
+                      <div className="mt-2.5 flex gap-2">
+                        {outreachChannels.map((channel, index) => (
+                          <button
+                            key={channel.label}
+                            type="button"
+                            onClick={() => setSelectedOutreachChannelIndex(index)}
+                            className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-medium transition-colors ${
+                              index === selectedOutreachChannelIndex
+                                ? "border-emerald-200/28 bg-emerald-300/14 text-emerald-50"
+                                : "border-white/[0.12] bg-white/[0.06] text-slate-200"
+                            }`}
+                          >
+                            {channel.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-2 rounded-lg border border-white/[0.08] bg-[#101b2d] px-3 py-2">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                          Ready-to-send preview
+                        </p>
+                        <p className="mt-1 line-clamp-1 text-xs leading-relaxed text-slate-200">
+                          {selectedOutreachChannelIndex === 0
+                            ? activeHeroCandidate.linkedinDraft
+                            : activeHeroCandidate.emailDraft}
+                        </p>
+                      </div>
+                      <div className="mt-2 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2">
+                        <span className="text-[11px] leading-5 text-slate-300">{activeContactLabel}</span>
+                        <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-5 text-emerald-100">
+                          {activeContactValue}
+                        </span>
+                      </div>
+                      <a
+                        href={activeActionHref}
+                        target={activeActionTarget}
+                        rel={activeActionRel}
+                        className={`mt-2 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors ${
+                          selectedOutreachChannelIndex === 0
+                            ? "bg-[#0077b5] text-white hover:bg-[#0a66a2]"
+                            : "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
                         }`}
                       >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
+                        {activeOutreachChannel.cta}
+                      </a>
+                    </div>
 
-                  <div className="mt-3 rounded-xl border border-white/[0.08] bg-[#101b2d] p-3 text-xs leading-relaxed text-slate-200">
-                    {selectedHeroDetailTab === "evidence" ? (
-                      <div className="space-y-2.5">
-                        {activeMatchReasons.map((reason) => (
-                          <div key={reason} className="flex items-start gap-2">
-                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                            <span>{reason}</span>
-                          </div>
-                        ))}
+                    <div className="mt-2.5 rounded-xl border border-amber-300/16 bg-amber-400/[0.08] px-3 py-2.5 lg:col-span-2">
+                      <div className="flex items-start gap-2 text-xs text-amber-100">
+                        <CircleHelp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+                        <span>
+                          <span className="font-semibold text-amber-200">Main risk:</span> {activeRiskReason}
+                        </span>
                       </div>
-                    ) : null}
-
-                    {selectedHeroDetailTab === "experience" ? (
-                      <div className="space-y-2">
-                        {activeExperiencePreview.map((item) => (
-                          <div
-                            key={item}
-                            className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2"
-                          >
-                            {item}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-
-                  </div>
-
-                  <div className="mt-3 rounded-xl border border-emerald-300/18 bg-emerald-400/[0.08] p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100">
-                        <Mail className="h-3.5 w-3.5 text-emerald-200" />
-                        Outreach ready
-                      </div>
-                      <span className="rounded-full border border-emerald-200/18 bg-emerald-300/12 px-2.5 py-1 text-[10px] font-medium text-emerald-100">
-                        Draft included
-                      </span>
-                    </div>
-                    <div className="mt-2.5 flex gap-2">
-                      {outreachChannels.map((channel, index) => (
-                        <button
-                          key={channel.label}
-                          type="button"
-                          onClick={() => setSelectedOutreachChannelIndex(index)}
-                          className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-medium transition-colors ${
-                            index === selectedOutreachChannelIndex
-                              ? "border-emerald-200/28 bg-emerald-300/14 text-emerald-50"
-                              : "border-white/[0.12] bg-white/[0.06] text-slate-200"
-                          }`}
-                        >
-                          {channel.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-2.5 rounded-lg border border-white/[0.08] bg-[#101b2d] px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                        Ready-to-send preview
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-200">
-                        {selectedOutreachChannelIndex === 0
-                          ? activeHeroCandidate.linkedinDraft
-                          : activeHeroCandidate.emailDraft}
-                      </p>
-                    </div>
-                    <div className="mt-2.5 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2">
-                      <span className="text-[11px] leading-5 text-slate-300">{activeContactLabel}</span>
-                      <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-5 text-emerald-100">
-                        {activeContactValue}
-                      </span>
-                    </div>
-                    <a
-                      href={activeActionHref}
-                      target={activeActionTarget}
-                      rel={activeActionRel}
-                      className={`mt-2.5 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors ${
-                        selectedOutreachChannelIndex === 0
-                          ? "bg-[#0077b5] text-white hover:bg-[#0a66a2]"
-                          : "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
-                      }`}
-                    >
-                      {activeOutreachChannel.cta}
-                    </a>
-                  </div>
-
-                  <div className="mt-3 rounded-xl border border-amber-300/16 bg-amber-400/[0.08] px-3 py-2.5">
-                    <div className="flex items-start gap-2 text-xs text-amber-100">
-                      <CircleHelp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
-                      <span>
-                        <span className="font-semibold text-amber-200">Main risk:</span> {activeRiskReason}
-                      </span>
                     </div>
                   </div>
                 </div>
