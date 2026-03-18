@@ -215,7 +215,7 @@ export default function Home() {
   const activeHeroCandidate =
     displayedHeroCandidates[selectedHeroCandidateIndex] ?? displayedHeroCandidates[0];
   const activeOutreachChannel = outreachChannels[selectedOutreachChannelIndex] ?? outreachChannels[0];
-  const activeMatchReasons = activeHeroCandidate.matchReasons.slice(0, 2);
+  const activeMatchReasons = activeHeroCandidate.matchReasons.slice(0, 1);
   const activeRiskReason = activeHeroCandidate.riskReasons[0] ?? "Needs closer review before outreach.";
   const activeExperiencePreview = activeHeroCandidate.recentExperience.slice(0, 2);
   const activeContactLabel = selectedOutreachChannelIndex === 0 ? "LinkedIn" : "Email";
@@ -460,26 +460,26 @@ export default function Home() {
         </div>
       </nav>
 
-      <section className="landing-dark relative overflow-hidden pt-20 pb-8 sm:pt-24 sm:pb-12 lg:min-h-screen lg:pt-16 lg:pb-8">
+      <section className="landing-dark relative overflow-hidden pt-20 pb-8 sm:pt-24 sm:pb-12 lg:min-h-[calc(100vh-4rem)] lg:pt-14 lg:pb-6">
         <div className="hero-grid pointer-events-none absolute inset-0" />
         <div className="pointer-events-none absolute top-16 left-1/2 h-[660px] w-[660px] -translate-x-1/2 rounded-full bg-sky-400/[0.1] blur-[132px]" />
         <div className="pointer-events-none absolute top-44 left-1/4 h-[280px] w-[280px] rounded-full bg-cyan-300/[0.07] blur-[100px] animate-glow" />
         <div className="pointer-events-none absolute top-32 right-[14%] h-[360px] w-[360px] rounded-full bg-amber-300/[0.08] blur-[140px]" />
 
-        <div className="relative mx-auto grid max-w-[92rem] gap-6 px-6 lg:grid-cols-[0.84fr_1.16fr] lg:items-center">
-          <div>
+        <div className="relative mx-auto grid max-w-[92rem] gap-6 px-6 lg:min-h-[calc(100vh-8rem)] lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+          <div className="lg:flex lg:min-h-full lg:flex-col lg:justify-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/[0.1] px-3 py-1 text-xs font-medium text-sky-100">
               <Sparkles className="h-3.5 w-3.5" />
               For founders and recruiters filling open roles fast
             </div>
 
-            <h1 className="mt-3 max-w-[13ch] text-4xl font-extrabold leading-[0.94] tracking-tight text-white sm:text-[2.85rem] lg:text-[3.35rem]">
+            <h1 className="mt-3 max-w-[12.5ch] text-4xl font-extrabold leading-[0.93] tracking-tight text-white sm:text-[2.8rem] lg:text-[3.15rem]">
               Paste a JD.
               <br />
               <span className="text-gradient">Get shortlist and outreach in minutes.</span>
             </h1>
 
-            <p className="mt-2.5 max-w-[34rem] text-[15px] leading-relaxed text-slate-300 sm:text-[0.98rem]">
+            <p className="mt-2.5 max-w-[33rem] text-[15px] leading-relaxed text-slate-300 sm:text-[0.96rem]">
               Review real LinkedIn candidates, see why they fit, and leave with ready-to-send outreach from one pasted JD.
             </p>
 
@@ -532,7 +532,7 @@ export default function Home() {
               </div>
             </div>
 
-            <form id="hero-form" onSubmit={handleSubmit} className="mt-2.5 hidden sm:block">
+            <form id="hero-form" onSubmit={handleSubmit} className="mt-2 hidden sm:block">
               <div className="rounded-[26px] border border-white/[0.24] bg-gradient-to-br from-slate-100/90 via-white/85 to-sky-100/75 p-[1px] shadow-[0_30px_90px_rgba(8,25,51,0.32)]">
                 <div className="rounded-[25px] bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.34),_transparent_36%),linear-gradient(180deg,_rgba(248,250,252,0.98)_0%,_rgba(236,244,252,0.96)_100%)] p-3.5 sm:p-4">
                   <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-950">
@@ -548,7 +548,7 @@ export default function Home() {
                       className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-950 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
                     />
                   </div>
-                  <div className="mt-2.5 flex items-center justify-between gap-3 text-xs text-slate-600">
+                  <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-600">
                     <span>
                       {wordCount > 0
                         ? `${wordCount} words ready to analyze`
@@ -586,8 +586,8 @@ export default function Home() {
 
           </div>
 
-          <div className="hidden lg:block lg:pt-0.5">
-            <div className="ml-auto w-full max-w-[40rem] rounded-[28px] border border-white/[0.2] bg-[linear-gradient(180deg,rgba(242,248,255,0.22)_0%,rgba(186,225,255,0.12)_100%)] p-1.5 shadow-[0_22px_60px_rgba(8,25,51,0.28)] xl:max-w-[42rem]">
+          <div className="hidden lg:block lg:pt-0">
+            <div className="ml-auto w-full max-w-[42.5rem] rounded-[28px] border border-white/[0.2] bg-[linear-gradient(180deg,rgba(242,248,255,0.22)_0%,rgba(186,225,255,0.12)_100%)] p-1.5 shadow-[0_22px_60px_rgba(8,25,51,0.28)] xl:max-w-[45rem]">
               <div className="rounded-[24px] bg-[radial-gradient(circle_at_top_right,_rgba(125,211,252,0.24),_transparent_28%),linear-gradient(180deg,_rgba(13,25,43,0.92)_0%,_rgba(18,30,48,0.9)_100%)] p-4">
                 <div className="mb-2.5 flex items-center justify-between gap-3 text-sm text-slate-300">
                   <div className="flex gap-1.5">
@@ -677,8 +677,8 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="mt-3 rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-3.5">
-                  <div className="grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
+                <div className="mt-3 rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-3">
+                  <div className="grid gap-2.5 lg:grid-cols-[0.9fr_1.1fr]">
                     <div>
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -728,13 +728,13 @@ export default function Home() {
                         ))}
                       </div>
 
-                      <div className="mt-2.5 rounded-xl border border-white/[0.08] bg-[#101b2d] p-2.5 text-xs leading-relaxed text-slate-200">
+                      <div className="mt-2 rounded-xl border border-white/[0.08] bg-[#101b2d] p-2.5 text-xs leading-relaxed text-slate-200">
                         {selectedHeroDetailTab === "evidence" ? (
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             {activeMatchReasons.map((reason) => (
                               <div key={reason} className="flex items-start gap-2">
                                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                                <span>{reason}</span>
+                                <span className="line-clamp-2">{reason}</span>
                               </div>
                             ))}
                           </div>
