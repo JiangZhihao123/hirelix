@@ -113,7 +113,7 @@ const BRIGHTDATA_BATCH_CONCURRENCY = getConfiguredPositiveInt(
 );
 const BRIGHTDATA_SCRAPE_MAX_ATTEMPTS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_SCRAPE_MAX_ATTEMPTS",
-  48,
+  90,
   { min: 6, max: 120 },
 );
 const BRIGHTDATA_SCRAPE_INTERVAL_MS = getConfiguredPositiveInt(
