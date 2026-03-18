@@ -57,11 +57,29 @@ const candidateRows = [
     initials: "JL",
     name: "James Liu",
     role: "Senior Software Engineer at Shopify",
+    location: "New York City Metropolitan Area",
+    fitLabel: "Strong fit",
+    actionLabel: "Ready to reach out",
     score: 88,
     matched: ["APIs", "Distributed Systems", "AWS"],
+    constraintChecks: [
+      { label: "Backend depth", verdict: "Strong" },
+      { label: "Product pace", verdict: "Strong" },
+      { label: "Cloud systems", verdict: "Strong" },
+      { label: "Startup signal", verdict: "Moderate" },
+    ],
     matchReasons: [
-      "6 years building APIs and production backend services",
-      "Built reliable distributed systems in fast-moving product teams",
+      "Built merchant-facing APIs and backend platform systems at Shopify, directly matching the JD's API and production-systems requirement.",
+      "Shows real distributed-systems ownership in a fast-moving product org, which maps well to the role's end-to-end shipping expectation.",
+      "AWS and reliability-heavy platform work make him unusually credible for a shortlist-first outbound pass.",
+    ],
+    riskReasons: [
+      "Company-stage fit is inferred from execution speed, not from explicit startup tenure.",
+      "No public signal yet on willingness to move into a smaller team environment.",
+    ],
+    recentExperience: [
+      "Senior Software Engineer, Shopify: built internal platform APIs used by multiple product teams.",
+      "Software Engineer, Shopify: owned reliability improvements for high-volume backend services.",
     ],
     email: "james.liu@shopify-example.com",
     linkedinUrl: "https://www.linkedin.com/in/james-liu-platform",
@@ -75,11 +93,29 @@ const candidateRows = [
     initials: "AN",
     name: "Anika Nair",
     role: "Staff Software Engineer at Atlassian",
+    location: "San Francisco Bay Area",
+    fitLabel: "Viable fit",
+    actionLabel: "Needs founder check",
     score: 79,
     matched: ["Platform", "PostgreSQL"],
+    constraintChecks: [
+      { label: "Backend depth", verdict: "Strong" },
+      { label: "Cross-functional", verdict: "Strong" },
+      { label: "Seniority", verdict: "High" },
+      { label: "Stage fit", verdict: "Needs review" },
+    ],
     matchReasons: [
-      "Led platform work across product teams and backend systems",
-      "Strong PostgreSQL and distributed data experience",
+      "Led platform work that spans product systems, data storage, and reliability, which lines up with the JD's backend-plus-product shape.",
+      "PostgreSQL and platform ownership suggest strong judgment, especially for teams that need someone to stabilize systems quickly.",
+      "A good candidate when the role values technical range more than narrow title matching.",
+    ],
+    riskReasons: [
+      "Staff-level profile may be over-scoped for a role that still looks hands-on and execution heavy.",
+      "Larger-company background raises a real question about startup pace and ambiguity tolerance.",
+    ],
+    recentExperience: [
+      "Staff Software Engineer, Atlassian: led platform initiatives across shared backend services.",
+      "Senior Engineer, Atlassian: worked on PostgreSQL-backed systems and cross-team infrastructure projects.",
     ],
     email: "anika.nair@atlassian-example.com",
     linkedinUrl: "https://www.linkedin.com/in/anika-nair-platform",
@@ -93,11 +129,29 @@ const candidateRows = [
     initials: "MR",
     name: "Marco Rossi",
     role: "Senior Backend Engineer at Datadog",
+    location: "Austin, Texas",
+    fitLabel: "Risky fit",
+    actionLabel: "Hold for now",
     score: 72,
     matched: ["TypeScript", "Cloud Infrastructure"],
+    constraintChecks: [
+      { label: "Backend depth", verdict: "Strong" },
+      { label: "Observability", verdict: "Strong" },
+      { label: "Location", verdict: "Unknown" },
+      { label: "Product fit", verdict: "Moderate" },
+    ],
     matchReasons: [
-      "Strong backend execution across cloud infrastructure and production systems",
-      "Relevant experience with TypeScript services and observability-heavy environments",
+      "Datadog backend and observability work makes him believable for production-systems ownership from day one.",
+      "TypeScript service experience gives him a practical path into the stack described in the JD.",
+      "Worth keeping in the pool because the technical floor is real even if overall fit is not as clean.",
+    ],
+    riskReasons: [
+      "Location signal is outside the target market shown in the sample role.",
+      "Observability-heavy background may translate less well if the team needs broader product system ownership.",
+    ],
+    recentExperience: [
+      "Senior Backend Engineer, Datadog: shipped backend services for observability workflows.",
+      "Backend Engineer, growth-stage SaaS team: maintained TypeScript services and cloud infrastructure.",
     ],
     email: "marco.rossi@datadog-example.com",
     linkedinUrl: "https://www.linkedin.com/in/marco-rossi-backend",
@@ -596,6 +650,7 @@ export default function Home() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-white">{candidate.name}</p>
                           <p className="truncate text-xs text-slate-300">{candidate.role}</p>
+                          <p className="truncate text-[11px] text-slate-400">{candidate.location}</p>
                         </div>
                         <div className="rounded-full bg-sky-400/12 px-2.5 py-1 text-xs font-bold text-sky-200">
                           {candidate.score}% match
@@ -610,90 +665,154 @@ export default function Home() {
                             {skill}
                           </span>
                         ))}
+                        <span className="rounded-md border border-white/[0.12] px-2 py-0.5 text-[10px] font-medium text-slate-300">
+                          {candidate.fitLabel}
+                        </span>
                       </div>
                     </button>
                   ))}
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
-                      <Star className="h-3.5 w-3.5 text-sky-300" />
-                      Match reasons
-                    </div>
-                    <div className="mt-2.5 space-y-2 text-sm text-slate-200">
-                      {activeHeroCandidate.matchReasons.map((reason) => (
-                        <div key={reason} className="flex items-start gap-2">
-                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                          <span>{reason}</span>
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+                          <Star className="h-3.5 w-3.5 text-sky-300" />
+                          Fit summary
                         </div>
-                      ))}
+                        <span className="rounded-full border border-emerald-300/18 bg-emerald-400/12 px-2.5 py-1 text-[10px] font-medium text-emerald-200">
+                          {activeHeroCandidate.actionLabel}
+                        </span>
+                      </div>
+                      <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+                        {activeHeroCandidate.constraintChecks.map((item) => (
+                          <div
+                            key={item.label}
+                            className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2"
+                          >
+                            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                              {item.label}
+                            </p>
+                            <p className="mt-1 text-sm font-medium text-slate-100">{item.verdict}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+                        <Star className="h-3.5 w-3.5 text-sky-300" />
+                        Why this candidate
+                      </div>
+                      <div className="mt-2.5 space-y-2 text-sm text-slate-200">
+                        {activeHeroCandidate.matchReasons.map((reason) => (
+                          <div key={reason} className="flex items-start gap-2">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                            <span>{reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+                        <CircleHelp className="h-3.5 w-3.5 text-amber-300" />
+                        Risks and why not higher
+                      </div>
+                      <div className="mt-2.5 space-y-2 text-sm text-slate-200">
+                        {activeHeroCandidate.riskReasons.map((reason) => (
+                          <div key={reason} className="flex items-start gap-2">
+                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300" />
+                            <span>{reason}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
-                      <Mail className="h-3.5 w-3.5 text-sky-300" />
-                      Outreach channels
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+                        <FileText className="h-3.5 w-3.5 text-sky-300" />
+                        Recent experience
+                      </div>
+                      <div className="mt-2.5 space-y-2.5 text-sm text-slate-200">
+                        {activeHeroCandidate.recentExperience.map((item) => (
+                          <div
+                            key={item}
+                            className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2"
+                          >
+                            {item}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="mt-2.5 flex gap-2">
-                      {outreachChannels.map((channel, index) => (
-                        <button
-                          key={channel.label}
-                          type="button"
-                          onClick={() => setSelectedOutreachChannelIndex(index)}
-                          className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-medium transition-colors ${
-                            index === selectedOutreachChannelIndex
-                              ? "border-sky-300/28 bg-sky-400/14 text-sky-100"
-                              : "border-white/[0.12] bg-white/[0.06] text-slate-200"
+
+                    <div className="rounded-2xl border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.05] p-4">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">
+                        <Mail className="h-3.5 w-3.5 text-sky-300" />
+                        Outreach channels
+                      </div>
+                      <div className="mt-2.5 flex gap-2">
+                        {outreachChannels.map((channel, index) => (
+                          <button
+                            key={channel.label}
+                            type="button"
+                            onClick={() => setSelectedOutreachChannelIndex(index)}
+                            className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[10px] font-medium transition-colors ${
+                              index === selectedOutreachChannelIndex
+                                ? "border-sky-300/28 bg-sky-400/14 text-sky-100"
+                                : "border-white/[0.12] bg-white/[0.06] text-slate-200"
+                            }`}
+                          >
+                            {channel.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-2.5 rounded-xl border border-sky-300/18 bg-[#101b2d] p-3 text-xs leading-relaxed">
+                        {selectedOutreachChannelIndex === 0 ? (
+                          <>
+                            <p className="line-clamp-2 text-sky-100/90">{activeHeroCandidate.name}</p>
+                            <p className="mt-2 line-clamp-4 text-slate-200">{activeHeroCandidate.linkedinDraft}</p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="grid gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                              <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                                Subject
+                              </span>
+                              <span className="line-clamp-2 text-[11px] font-medium leading-5 text-sky-100">
+                                {activeHeroCandidate.emailSubject}
+                              </span>
+                            </div>
+                            <div className="mt-2 grid gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+                              <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                                Body
+                              </span>
+                              <p className="line-clamp-4 text-slate-200">{activeHeroCandidate.emailDraft}</p>
+                            </div>
+                          </>
+                        )}
+                        <div className="mt-2.5 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2">
+                          <span className="text-[11px] leading-5 text-slate-300">{activeContactLabel}</span>
+                          <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-5 text-sky-200">
+                            {activeContactValue}
+                          </span>
+                        </div>
+                        <a
+                          href={activeActionHref}
+                          target={activeActionTarget}
+                          rel={activeActionRel}
+                          className={`mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors ${
+                            selectedOutreachChannelIndex === 0
+                              ? "bg-[#0077b5] text-white hover:bg-[#0a66a2]"
+                              : "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
                           }`}
                         >
-                          {channel.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-2.5 rounded-xl border border-sky-300/18 bg-[#101b2d] p-3 text-xs leading-relaxed">
-                      {selectedOutreachChannelIndex === 0 ? (
-                        <>
-                          <p className="line-clamp-2 text-sky-100/90">{activeHeroCandidate.name}</p>
-                          <p className="mt-2 line-clamp-4 text-slate-200">{activeHeroCandidate.linkedinDraft}</p>
-                        </>
-                      ) : (
-                        <>
-                          <div className="grid gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
-                            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                              Subject
-                            </span>
-                            <span className="line-clamp-2 text-[11px] font-medium leading-5 text-sky-100">
-                              {activeHeroCandidate.emailSubject}
-                            </span>
-                          </div>
-                          <div className="mt-2 grid gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2">
-                            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
-                              Body
-                            </span>
-                            <p className="line-clamp-4 text-slate-200">{activeHeroCandidate.emailDraft}</p>
-                          </div>
-                        </>
-                      )}
-                      <div className="mt-2.5 grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2">
-                        <span className="text-[11px] leading-5 text-slate-300">{activeContactLabel}</span>
-                        <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-5 text-sky-200">
-                          {activeContactValue}
-                        </span>
+                          {activeOutreachChannel.cta}
+                        </a>
                       </div>
-                      <a
-                        href={activeActionHref}
-                        target={activeActionTarget}
-                        rel={activeActionRel}
-                        className={`mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-[11px] font-semibold transition-colors ${
-                          selectedOutreachChannelIndex === 0
-                            ? "bg-[#0077b5] text-white hover:bg-[#0a66a2]"
-                            : "bg-emerald-400 text-slate-950 hover:bg-emerald-300"
-                        }`}
-                      >
-                        {activeOutreachChannel.cta}
-                      </a>
                     </div>
                   </div>
                 </div>
