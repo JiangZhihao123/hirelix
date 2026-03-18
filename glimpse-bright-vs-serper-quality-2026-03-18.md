@@ -36,63 +36,64 @@ Observations:
 - Titles are tightly aligned with the role: software engineer / full stack / backend.
 - Location filtering worked well for the onsite NYC requirement.
 
-### Serper-only
+### Serper + Bright enrichment
 
-- Search ID: `b4b849e6-8e5b-4085-be6f-0fb3cd6bfc36`
-- Status: `degraded`
+- Search ID: `89c40775-95c4-46a2-907c-8eecafaa2ae5`
 - Provider: `serper`
-- Final candidates: `25`
-- Avg score: `36.8`
-- Max score: `85`
-- Warning: `Advanced profile enrichment did not finish, but your shortlist is ready to review.`
+- Retrieval count: `100`
+- Bright enrichment scraped profiles: `100`
+- Deep review completed count: `37`
+- Final candidates: `15`
+- Avg score: `22.73`
+- Max score: `63`
+- Warning: none
 
 Pipeline stats:
 
-- Retrieval count: `100`
-- Source-rule pass rate: `0.23`
-- LLM prescreen pass rate: `0.07`
-- Bright enrichment scrape count: `0`
-- Deep review completed count: `0`
+- Source-rule pass rate: `0.20`
+- LLM prescreen pass rate: `0.04`
+- Location gate blocked count: `63 / 100`
+- Final shortlist count: `15`
 
 Top candidates:
 
-1. Thanu Sri — Full Stack Developer & Software Engineer — location missing — score 85
-2. Bryan Owens — AI Engineer & Full Stack Engineer — location missing — score 85
-3. Vladimir Balaur — Full stack Engineer (React / Vue / Node.js) — location missing — score 75
-4. Cory Campbell — Software Developer / Full Stack — location missing — score 75
-5. Krunal Shah — AI Engineer / Full Stack Developer — location missing — score 75
+1. Bryan Owens — at Confida.ai — New York — score 63
+2. Giga Gatenashvili — at Adaptive — Brooklyn — score 63
+3. Felix Thea — at Stripe — New York — score 58
+4. Yi-Ting Hsieh — at DEVA — New York — score 50
+5. Stacey Lee — at The Knot Worldwide — Brooklyn — score 50
 
 Observations:
 
-- Top 10 are Google/Serper results with no structured location data in the final shortlist.
-- Titles are directionally relevant but significantly noisier than Bright.
-- For this onsite NYC role, Serper produced weaker evidence on the most important hard constraint: location.
+- This run used the fair comparison path: Serper recall first, then Bright enrichment for all 100 LinkedIn URLs.
+- The final shortlist is now composed of `brightdata` profiles with explicit NYC-area locations.
+- Even after enrichment, the final quality is still materially lower than Bright direct recall.
 
 ## Decision
 
-For this JD, **Bright is clearly better than Serper on candidate quality**.
+For this JD, **Bright is clearly better than Serper on candidate quality**, even after Serper gets a full Bright enrichment pass.
 
 Why:
 
 1. Bright returned a fully structured NYC-heavy profile set that matches the onsite constraint.
-2. Bright's final shortlist scores are much stronger (`66.32` avg vs `36.8` avg).
+2. Bright's final shortlist scores are much stronger (`66.32` avg vs `22.73` avg).
 3. Bright's top candidates look like real LinkedIn profiles already aligned to the role.
-4. Serper's final shortlist is much thinner on location and profile detail, even when titles look roughly relevant.
+4. Serper's enriched shortlist is still thinner and weaker after hard filters, producing only `15` final candidates versus Bright's `25`.
 
 ## Important caveat
 
-This comparison is still fair for the final product experience, but not perfectly symmetric at the pipeline level:
+This comparison is now fair for final candidate quality:
 
-- Bright's primary recall already returns rich LinkedIn profiles.
-- Serper's primary recall returns lighter Google results and then relies on Bright enrichment for deep review.
-- In this run, that enrichment did not finish, so Serper remained in a degraded state.
+- Bright's primary recall returns rich LinkedIn profiles directly.
+- Serper's primary recall returns lighter Google results, but this run completed the follow-up Bright enrichment for all 100 URLs.
+- The search row was slower to flip from `deep_scoring` to `done`, but the deep-scoring completion event emitted successfully and 15 candidates were written.
 
-Even with that caveat, the final output quality for this JD still favors Bright decisively.
+Even on this fairer setup, the final output quality still favors Bright decisively.
 
 ## Bottom line
 
 For `Glimpse`-style NYC onsite startup roles:
 
 - **Winner on quality: Bright**
-- **Winner on reliability of lightweight retrieval alone: Serper can still be useful, but its final shortlist quality is materially worse unless enrichment completes**
+- **Serper can be made fairer by enriching all recalled LinkedIn URLs, but the final shortlist is still materially weaker than Bright direct recall**
 - **Practical product strategy: use Bright for high-constraint local roles; keep Serper as a broader recall/fallback path**
