@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { enqueueSearchJob, kickSearchJobRunner } from "@/lib/search-jobs";
+import {
+  getInitialSearchTargets,
+  normalizeSearchPlanCode,
+} from "@/lib/search-execution";
 
 export const maxDuration = 30;
-const DEFAULT_HIGHLIGHT_COUNT = 5;
-const DEFAULT_CANDIDATE_TARGET = 25;
 const DEFAULT_OUTREACH_POOL_TARGET = 25;
 
 const supabaseAdmin = createClient(
@@ -41,8 +43,13 @@ export async function POST(req: NextRequest) {
   try {
     const { jd_text, candidate_count } = await req.json();
     const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
-    const requestedCandidates = Math.min(Math.max(Number(candidate_count) || DEFAULT_HIGHLIGHT_COUNT, 1), 20);
-    const maxCandidates = DEFAULT_CANDIDATE_TARGET;
+    const planCode = normalizeSearchPlanCode(billing.plan.code);
+    const searchTargets = getInitialSearchTargets(planCode);
+    const requestedCandidates = Math.min(
+      Math.max(Number(candidate_count) || searchTargets.highlightCount, 1),
+      searchTargets.candidateCount,
+    );
+    const maxCandidates = searchTargets.candidateCount;
 
     if (billing.usage.searchesRemaining <= 0) {
       return NextResponse.json(
@@ -75,10 +82,13 @@ export async function POST(req: NextRequest) {
         warning_message: null,
         parsed_requirements: {
           candidate_count: maxCandidates,
-          display_count: maxCandidates,
-          highlight_count: DEFAULT_HIGHLIGHT_COUNT,
+          display_count: searchTargets.displayCount,
+          highlight_count: searchTargets.highlightCount,
           requested_candidate_count: requestedCandidates,
           outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+          plan_code: planCode,
+          execution_profile: searchTargets.executionProfile,
+          search_phase: "phase_1",
         },
         queued_at: timestamp,
         parse_completed_at: null,
@@ -104,10 +114,11 @@ export async function POST(req: NextRequest) {
       metadata: {
         plan_code: billing.plan.code,
         candidate_count: maxCandidates,
-        display_count: maxCandidates,
-        highlight_count: DEFAULT_HIGHLIGHT_COUNT,
+        display_count: searchTargets.displayCount,
+        highlight_count: searchTargets.highlightCount,
         requested_candidate_count: requestedCandidates,
         outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+        execution_profile: searchTargets.executionProfile,
       },
     });
 

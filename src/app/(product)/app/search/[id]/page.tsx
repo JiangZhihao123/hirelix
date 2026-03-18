@@ -174,6 +174,12 @@ type SearchDisplayStats = {
   advanceable_count?: number;
   top_quality_score?: number;
   top50_quality_cutoff?: number;
+  bright_profile_budget?: number;
+  bright_profiles_requested?: number;
+  bright_profiles_returned?: number;
+  bright_snapshot_cost?: number;
+  search_phase_count?: number;
+  judge_mode?: "single" | "dual";
   serper_query_tier_stats?: Array<{
     tier: "P0" | "P1" | "P2";
     query_count: number;
@@ -1075,7 +1081,15 @@ function CandidateCard({
   );
 }
 
-function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
+function ProcessingSteps({
+  pipelineStep,
+  displayTarget,
+  searchPhase,
+}: {
+  pipelineStep: string | null;
+  displayTarget: number;
+  searchPhase: string | null;
+}) {
   const steps = [
     { icon: FileText, label: "Understanding the role", activeFor: ["queued", "parsing"] },
     { icon: Users, label: "Finding likely matches", activeFor: ["searching"] },
@@ -1091,10 +1105,12 @@ function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
     pipelineStep === "parsing"
       ? "Understanding the role and extracting the hiring signal..."
       : pipelineStep === "searching"
-        ? "Searching a broad candidate pool..."
+        ? searchPhase === "phase_2"
+          ? "Launching the deeper Bright refinement pass..."
+          : "Searching the Bright candidate pool..."
         : pipelineStep === "screening"
-          ? "Scoring the final 25 candidates..."
-          : "Scoring the final 25 candidates...";
+          ? `Scoring the best ${displayTarget} candidates...`
+          : `Scoring the best ${displayTarget} candidates...`;
 
   return (
     <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
@@ -1106,7 +1122,7 @@ function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
         <p className="text-sm font-medium">{progressTitle}</p>
       </div>
       <p className="mb-4 max-w-2xl text-sm leading-relaxed text-slate-600">
-        Hirelix is reading the role, searching broadly across LinkedIn profile data, and turning the result into a ranked 25-candidate list with the 5 most worth advancing highlighted first.
+        Hirelix is reading the role, searching Bright Data for strong LinkedIn matches, and turning them into a ranked shortlist. Higher-cost deep refinement only kicks in when the fast pass is not strong enough.
       </p>
       <div className="space-y-3">
         {steps.map((step, i) => {
@@ -1139,7 +1155,9 @@ function ProcessingSteps({ pipelineStep }: { pipelineStep: string | null }) {
       <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Usually under 5 minutes</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Safe to leave and come back</span>
-        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Top 5 highlighted, full 25 ready to review</span>
+        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">
+          Top 5 highlighted, best {displayTarget} ready first
+        </span>
       </div>
       <p className="mt-4 text-xs text-muted">
         You can leave this page and come back. Most shortlist runs are ready in a few minutes, and partial progress becomes reviewable as soon as it is useful.
@@ -1509,6 +1527,28 @@ export default function SearchResultPage() {
   }
 
   const reqs = search.parsed_requirements as Record<string, unknown> | null;
+  const hiringBrief =
+    reqs && typeof reqs.hiring_brief === "object" && reqs.hiring_brief
+      ? (reqs.hiring_brief as Record<string, unknown>)
+      : null;
+  const roleCore =
+    hiringBrief && typeof hiringBrief.role_core === "object" && hiringBrief.role_core
+      ? (hiringBrief.role_core as Record<string, unknown>)
+      : null;
+  const requiredSkills = Array.isArray(roleCore?.required_skills)
+    ? (roleCore?.required_skills as string[]).filter(Boolean)
+    : Array.isArray(reqs?.required_skills)
+      ? (reqs?.required_skills as string[]).filter(Boolean)
+      : [];
+  const workModel = typeof hiringBrief?.work_model === "string" ? hiringBrief.work_model : null;
+  const locationScope = typeof hiringBrief?.location_scope === "string" ? hiringBrief.location_scope : (typeof reqs?.location === "string" ? reqs.location : null);
+  const locationFlexibility = typeof hiringBrief?.location_flexibility === "string" ? hiringBrief.location_flexibility : null;
+  const relocationAllowed = typeof hiringBrief?.relocation_allowed === "string" ? hiringBrief.relocation_allowed : null;
+  const constraintReasoning = typeof hiringBrief?.constraint_reasoning === "string" ? hiringBrief.constraint_reasoning : null;
+  const executionProfile = typeof reqs?.execution_profile === "string" ? reqs.execution_profile : null;
+  const searchPhase = typeof reqs?.search_phase === "string" ? reqs.search_phase : null;
+  const resultStage = typeof reqs?.result_stage === "string" ? reqs.result_stage : null;
+  const searchPhaseCount = positiveInt(reqs?.search_phase_count);
   const isReviewable = isReviewableSearchStatus(search.status);
   const isImprovingInBackground = search.status === "deep_scoring";
   const isReadyWithWarning = search.status === "degraded";
@@ -1542,6 +1582,24 @@ export default function SearchResultPage() {
     reqs && typeof reqs.display_stats === "object" && reqs.display_stats
       ? (reqs.display_stats as SearchDisplayStats)
       : null;
+  const brightProfileBudget =
+    positiveInt(rawDisplayStats?.bright_profile_budget) ??
+    positiveInt(reqs?.bright_profile_budget) ??
+    null;
+  const brightProfilesRequested =
+    positiveInt(rawDisplayStats?.bright_profiles_requested) ?? null;
+  const brightProfilesReturned =
+    positiveInt(rawDisplayStats?.bright_profiles_returned) ?? null;
+  const brightSnapshotCost =
+    typeof rawDisplayStats?.bright_snapshot_cost === "number"
+      ? rawDisplayStats.bright_snapshot_cost
+      : null;
+  const judgeMode =
+    rawDisplayStats?.judge_mode === "single" || rawDisplayStats?.judge_mode === "dual"
+      ? rawDisplayStats.judge_mode
+      : typeof reqs?.judge_mode === "string" && (reqs.judge_mode === "single" || reqs.judge_mode === "dual")
+        ? reqs.judge_mode
+        : null;
   const retrievalCount =
     positiveInt(rawDisplayStats?.retrieval_count) ??
     Math.max(allCandidates.length, 0);
@@ -1577,6 +1635,8 @@ export default function SearchResultPage() {
   const top50QualityCutoff =
     positiveInt(rawDisplayStats?.top50_quality_cutoff) ??
     (allCandidates.length > 0 ? allCandidates[allCandidates.length - 1]?.match_score ?? 0 : 0);
+  const isProvisional = resultStage === "provisional";
+  const isPhaseTwoRunning = isImprovingInBackground && searchPhase === "phase_2";
   const readyToActCount = allCandidates.filter(
     (candidate) =>
       candidate.metadata?.suitability?.advance_recommendation === "advance" ||
@@ -1645,9 +1705,9 @@ export default function SearchResultPage() {
           )}
         </div>
         {reqs && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {Array.isArray(reqs.required_skills) &&
-              (reqs.required_skills as string[]).slice(0, 6).map((skill) => (
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {requiredSkills.slice(0, 6).map((skill) => (
                 <span
                   key={skill}
                   className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
@@ -1655,16 +1715,52 @@ export default function SearchResultPage() {
                   {skill}
                 </span>
               ))}
-            {typeof reqs.experience_years_min === "number" && (
-              <span className="text-xs text-muted">
-                {reqs.experience_years_min}+ years
-              </span>
-            )}
-            {typeof reqs.location === "string" && reqs.location && (
-              <span className="flex items-center gap-1 text-xs text-muted">
-                <MapPin className="h-3 w-3" />
-                {reqs.location}
-              </span>
+              {typeof reqs.experience_years_min === "number" && (
+                <span className="text-xs text-muted">
+                  {reqs.experience_years_min}+ years
+                </span>
+              )}
+              {locationScope && (
+                <span className="flex items-center gap-1 text-xs text-muted">
+                  <MapPin className="h-3 w-3" />
+                  {locationScope}
+                </span>
+              )}
+              {workModel && workModel !== "unknown" && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  {workModel}
+                </span>
+              )}
+              {locationFlexibility && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  location: {locationFlexibility}
+                </span>
+              )}
+              {relocationAllowed && relocationAllowed !== "unknown" && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  relocation: {relocationAllowed}
+                </span>
+              )}
+              {executionProfile && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  {executionProfile}
+                </span>
+              )}
+              {resultStage && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  {resultStage}
+                </span>
+              )}
+              {searchPhaseCount && searchPhaseCount > 1 && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  {searchPhaseCount} phases
+                </span>
+              )}
+            </div>
+            {constraintReasoning && (
+              <p className="max-w-3xl text-xs text-muted">
+                Hirelix interpreted this role as: {constraintReasoning}
+              </p>
             )}
           </div>
         )}
@@ -1676,14 +1772,16 @@ export default function SearchResultPage() {
             Building your shortlist
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Building your 25-candidate list
+            Building your {displayTarget}-candidate list
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Hirelix is reading the role, searching broadly across LinkedIn profile data, and preparing the final 25 candidates with the 5 most worth advancing highlighted first.
+            {searchPhase === "phase_2"
+              ? "Your fast Bright shortlist is already usable. Hirelix is now running a deeper Bright pass to improve quality and recover harder matches."
+              : "Hirelix is translating the role into search intent and running a Bright fast pass to get the strongest shortlist on screen quickly."}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-              Broad search in progress
+              {searchPhase === "phase_2" ? "Deep Bright refinement in progress" : "Bright fast pass in progress"}
             </span>
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">LinkedIn profile data</span>
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">You can come back to this shortlist any time</span>
@@ -1698,32 +1796,71 @@ export default function SearchResultPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                 {isReadyWithWarning
                   ? "Ready with a warning"
-                  : isImprovingInBackground
-                    ? "Usable now, still refining"
+                  : isPhaseTwoRunning
+                    ? "Provisional shortlist ready"
+                    : isImprovingInBackground
+                      ? "Usable now, still refining"
                     : "Candidates ready"}
               </p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">
                 {isReadyWithWarning
                   ? "Your candidate list is ready with a warning"
-                  : isImprovingInBackground
-                    ? "Your candidates are already usable now"
-                    : "Your 25 candidates are ready"}
+                  : isPhaseTwoRunning
+                    ? `Your provisional ${displayTarget}-candidate shortlist is ready`
+                    : isImprovingInBackground
+                      ? "Your candidates are already usable now"
+                    : `Your ${displayTarget} candidates are ready`}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 {search.warning_message
                   ? search.warning_message
-                  : "Hirelix searched across a broad LinkedIn candidate pool, ranked the most realistic matches to advance, and prepared a full 25-candidate review list with the top 5 highlighted."}
+                  : isPhaseTwoRunning
+                    ? `Hirelix already delivered the Bright fast-pass shortlist. A deeper Bright pass is still running in the background and may expand this list beyond ${displayTarget} candidates.`
+                    : `Hirelix searched across a Bright LinkedIn candidate pool, ranked the most realistic matches to advance, and prepared a ${displayTarget}-candidate review list with the top ${highlightCount} highlighted.`}
               </p>
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <span className="inline-flex h-2 w-2 rounded-full bg-sky-500" />
-                  Background refinement is still tightening fit reasons and ranking, but the full candidate list is already reviewable
+                  {isPhaseTwoRunning
+                    ? "Background refinement is still running a deeper Bright pass, but the shortlist is already reviewable"
+                    : "Background refinement is still tightening fit reasons and ranking, but the full candidate list is already reviewable"}
                 </div>
               )}
               {!search.warning_message && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
-                  Start with the highlighted top 5, then work through the rest of the 25-candidate list for real outbound coverage.
+                  {isProvisional
+                    ? "Start with the highlighted top 5 now. Hirelix will replace this provisional list if the deeper Bright pass finds stronger matches."
+                    : `Start with the highlighted top ${highlightCount}, then work through the rest of the ${displayTarget}-candidate list for real outbound coverage.`}
                 </p>
+              )}
+              {(brightProfileBudget || judgeMode || brightSnapshotCost != null) && (
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                  {brightProfileBudget ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      Bright budget: {brightProfileBudget} profiles
+                    </span>
+                  ) : null}
+                  {brightProfilesRequested ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      Requested: {brightProfilesRequested}
+                    </span>
+                  ) : null}
+                  {brightProfilesReturned ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      Returned: {brightProfilesReturned}
+                    </span>
+                  ) : null}
+                  {judgeMode ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      Judge mode: {judgeMode}
+                    </span>
+                  ) : null}
+                  {typeof brightSnapshotCost === "number" ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      Snapshot cost: {brightSnapshotCost.toFixed(2)}
+                    </span>
+                  ) : null}
+                </div>
               )}
             </div>
             <div className="grid min-w-[220px] gap-3 sm:grid-cols-2 lg:grid-cols-2">
@@ -1770,7 +1907,11 @@ export default function SearchResultPage() {
 
       {/* Processing state with step progress */}
       {isPreResultsProcessing && (
-        <ProcessingSteps pipelineStep={search.pipeline_step} />
+        <ProcessingSteps
+          pipelineStep={search.pipeline_step}
+          displayTarget={displayTarget}
+          searchPhase={searchPhase}
+        />
       )}
 
       {/* Error state */}
