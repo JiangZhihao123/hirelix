@@ -112,7 +112,7 @@ const BRIGHTDATA_BATCH_CONCURRENCY = getConfiguredPositiveInt(
 );
 const BRIGHTDATA_SCRAPE_MAX_ATTEMPTS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_SCRAPE_MAX_ATTEMPTS",
-  24,
+  48,
   { min: 6, max: 120 },
 );
 const BRIGHTDATA_SCRAPE_INTERVAL_MS = getConfiguredPositiveInt(
@@ -181,7 +181,7 @@ const STOP_MIN_GAIN_RATIO = getConfiguredNumber(
 );
 const FINAL_RESULT_CAP = getConfiguredPositiveInt(
   "SEARCH_FINAL_RESULT_CAP",
-  50,
+  25,
   { min: 1, max: 250 },
 );
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
@@ -208,13 +208,13 @@ const PARSE_MAX_ATTEMPTS = getConfiguredPositiveInt(
 );
 const BRIGHTDATA_FILTER_TIMEOUT_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_TIMEOUT_MS",
-  300000,
+  900000,
   { min: 10000, max: 900000 },
 );
 const BRIGHTDATA_FILTER_POLL_WINDOW_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_POLL_WINDOW_MS",
-  20000,
-  { min: 5000, max: 120000 },
+  900000,
+  { min: 5000, max: 900000 },
 );
 const BRIGHTDATA_FILTER_POLL_INTERVAL_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_POLL_INTERVAL_MS",
@@ -311,6 +311,7 @@ type RecallSpec = {
   countries: string[];
   title_variants: string[];
   core_skill_terms: string[];
+  location_terms: string[];
   record_limit: number;
 };
 
@@ -510,6 +511,11 @@ type RecallMetadata = {
   requested_at?: string | null;
   completed_at?: string | null;
   status?: "submitted" | "polling" | "ready";
+  filter_summary?: {
+    title_terms: string[];
+    country_codes: string[];
+    location_terms?: string[];
+  } | null;
 };
 
 class DatasetRecallPendingError extends Error {
@@ -635,6 +641,190 @@ function deriveLocationTerms(locationScope: string | null): string[] {
     .slice(0, 5);
 }
 
+// ──────────────────── Deterministic Location Gate ────────────────────
+
+type LocationPolicy = {
+  mode: "strict" | "moderate" | "flexible";
+  target_terms: string[];
+  work_model: string;
+  allows_relocation: boolean;
+  requires_local_presence: boolean;
+};
+
+type LocationEvidence = {
+  raw_location: string | null;
+  normalized_terms: string[];
+  country_code: string | null;
+  has_relocation_signal: boolean;
+  evidence_quality: "explicit" | "inferred" | "missing";
+};
+
+type LocationGateResult = {
+  decision: "pass" | "review" | "block";
+  location_fit: "local" | "nearby" | "non_local" | "unknown";
+  reason: string;
+  is_hard_block: boolean;
+};
+
+function normalizeLocationConstraint(hiringBrief: HiringBrief): LocationPolicy {
+  const mode = hiringBrief.location_flexibility || "moderate";
+  const target_terms = deriveLocationTerms(hiringBrief.location_scope);
+  const work_model = hiringBrief.work_model || "unknown";
+  const allows_relocation = hiringBrief.relocation_allowed === "yes";
+  const requires_local_presence =
+    (work_model === "onsite" || work_model === "hybrid") &&
+    mode === "strict" &&
+    target_terms.length > 0;
+
+  return {
+    mode,
+    target_terms,
+    work_model,
+    allows_relocation,
+    requires_local_presence,
+  };
+}
+
+function extractCandidateLocationEvidence(
+  location: string | null,
+  country_code: string | null,
+  headline: string | null,
+  about: string | null,
+): LocationEvidence {
+  const raw_location = location || null;
+  const normalized_terms: string[] = [];
+
+  if (location) {
+    const normalized = normalizeText(location);
+    normalized_terms.push(normalized);
+
+    const parts = normalized.split(/[,\/]/).map(p => p.trim()).filter(Boolean);
+    normalized_terms.push(...parts);
+  }
+
+  const text = [headline, about].filter(Boolean).join(" ").toLowerCase();
+  const has_relocation_signal =
+    /\b(relocat|moving to|will move|open to move)\b/.test(text);
+
+  const evidence_quality: "explicit" | "inferred" | "missing" =
+    location && location.length > 3 ? "explicit" :
+    country_code ? "inferred" :
+    "missing";
+
+  return {
+    raw_location,
+    normalized_terms,
+    country_code,
+    has_relocation_signal,
+    evidence_quality,
+  };
+}
+
+function evaluateCandidateLocationGate(
+  policy: LocationPolicy,
+  evidence: LocationEvidence,
+): LocationGateResult {
+  // flexible: 不做 hard gate
+  if (policy.mode === "flexible") {
+    const location_fit = evidence.evidence_quality === "missing" ? "unknown" : "local";
+    return {
+      decision: "pass",
+      location_fit,
+      reason: "Flexible location policy",
+      is_hard_block: false,
+    };
+  }
+
+  // 无地域证据
+  if (evidence.evidence_quality === "missing") {
+    if (policy.mode === "strict" && policy.requires_local_presence) {
+      return {
+        decision: "block",
+        location_fit: "unknown",
+        reason: "Strict location requirement but candidate location unknown",
+        is_hard_block: true,
+      };
+    }
+    return {
+      decision: "review",
+      location_fit: "unknown",
+      reason: "Location evidence missing",
+      is_hard_block: false,
+    };
+  }
+
+  // 检查是否匹配目标地域
+  const isLocalMatch = policy.target_terms.length === 0 ||
+    policy.target_terms.some(target =>
+      evidence.normalized_terms.some(term =>
+        term.includes(target) || target.includes(term)
+      )
+    );
+
+  if (isLocalMatch) {
+    return {
+      decision: "pass",
+      location_fit: "local",
+      reason: "Candidate location matches target",
+      is_hard_block: false,
+    };
+  }
+
+  // 明确不匹配
+  const location_fit: "nearby" | "non_local" = "non_local"; // 简化版先不判断 nearby
+
+  if (policy.mode === "strict" && policy.requires_local_presence) {
+    // strict 下，即使允许 relocation，也需要候选人有明确搬迁信号
+    if (policy.allows_relocation && evidence.has_relocation_signal) {
+      return {
+        decision: "review",
+        location_fit,
+        reason: "Non-local but has relocation signal",
+        is_hard_block: false,
+      };
+    }
+    return {
+      decision: "block",
+      location_fit,
+      reason: `Strict ${policy.work_model} role requires local presence`,
+      is_hard_block: true,
+    };
+  }
+
+  // moderate
+  return {
+    decision: "review",
+    location_fit,
+    reason: "Non-local candidate for moderate location constraint",
+    is_hard_block: false,
+  };
+}
+
+function applyLocationGateToSuitability(
+  suitability: CandidateSuitability,
+  gateResult: LocationGateResult,
+): CandidateSuitability {
+  if (!gateResult.is_hard_block) {
+    return suitability;
+  }
+
+  // 强制覆盖为 hard block
+  return {
+    ...suitability,
+    constraint_verdicts: {
+      ...suitability.constraint_verdicts,
+      location_fit: gateResult.location_fit,
+    },
+    blocking_constraints: [
+      ...suitability.blocking_constraints.filter(c => !c.toLowerCase().includes("location")),
+      gateResult.reason,
+    ],
+    blocking_severity: "hard",
+    advance_recommendation: "reject",
+    advance_score: Math.min(suitability.advance_score || 0, 20),
+  };
+}
+
 function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec {
   const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const countries = Array.isArray(item.countries)
@@ -645,6 +835,7 @@ function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec
     : [];
   const title_variants = normalizeStringArray(item.title_variants, 8);
   const core_skill_terms = normalizeStringArray(item.core_skill_terms, 12);
+  const location_terms = normalizeStringArray(item.location_terms, 5);
   const requestedLimit =
     typeof item.record_limit === "number" && Number.isFinite(item.record_limit)
       ? Math.round(item.record_limit)
@@ -654,6 +845,7 @@ function normalizeRecallSpec(value: unknown, candidateCount: number): RecallSpec
     countries,
     title_variants,
     core_skill_terms,
+    location_terms,
     record_limit: Math.min(
       Math.max(requestedLimit, Math.max(candidateCount * 10, 25)),
       BRIGHTDATA_FILTER_LIMIT,
@@ -748,12 +940,20 @@ function enrichRecallSpecFromJd(
   const countries = recallSpec.countries.length > 0
     ? recallSpec.countries
     : inferCountriesFromJdText(jdText);
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const derivedLocationTerms = hiringBrief.location_scope
+    ? deriveLocationTerms(hiringBrief.location_scope)
+    : [];
+  const locationTerms = recallSpec.location_terms.length > 0
+    ? recallSpec.location_terms
+    : derivedLocationTerms;
 
   return {
     ...recallSpec,
     title_variants: titleVariants.slice(0, 8),
     core_skill_terms: coreSkillTerms.slice(0, 12),
     countries: countries.slice(0, 5),
+    location_terms: locationTerms.slice(0, 5),
   };
 }
 
@@ -1349,7 +1549,7 @@ function getAIModel() {
   if (provider === "deepseek") {
     return process.env.AI_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
   }
-  return process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+  return process.env.ANTHROPIC_MODEL || process.env.AI_MODEL || "claude-sonnet-4-20250514";
 }
 
 function getJudgeModel() {
@@ -1423,7 +1623,9 @@ function getHaikuModel() {
   return (
     process.env.SEARCH_LIGHT_MODEL ||
     process.env.ANTHROPIC_HAIKU_MODEL ||
-    "claude-haiku-4-5-20251001"
+    process.env.ANTHROPIC_MODEL ||
+    process.env.AI_MODEL ||
+    "claude-sonnet-4-20250514"
   );
 }
 
@@ -1711,8 +1913,8 @@ Rules:
   - 60-74: moderate but credible fit, worth scraping when building a wider pool.
   - 40-59: weak evidence, major unknowns, or likely constraint risk.
   - 0-39: clear mismatch, noise role, or hard conflict.
-- You are the sole gate for this stage; no external rule will override your keep decision.
-- For strict onsite/hybrid roles, apply location/work-model feasibility directly in keep/match_score.
+- A deterministic programmatic location gate may also run in this pipeline; your job is to identify concrete location/work-model evidence accurately.
+- For strict onsite/hybrid roles, apply location/work-model feasibility directly in keep/match_score and explain conflicts clearly.
 - Keep reason under 20 words.
 - Return raw JSON only. No markdown fences. Do not return extra fields.`;
 }
@@ -2411,15 +2613,15 @@ function buildBrightDataRecallFilter(
 
   if (titleTerms.length === 0) return null;
 
-  const sourceRuleContext = buildSerperSourceRuleContext(parsed, jdText);
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const countryCodes = recallSpec.countries
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4);
-  const locationTerms = sourceRuleContext.locationTerms
+  const locationTerms = recallSpec.location_terms
     .map((term) => normalizeText(term))
     .filter((term) => term.length >= 3)
-    .slice(0, 4);
+    .slice(0, 3);
 
   const rootFilters: BrightDataFilterRule[] = [
     {
@@ -2451,7 +2653,10 @@ function buildBrightDataRecallFilter(
     );
   }
 
-  if (sourceRuleContext.strictLocation && locationTerms.length > 0) {
+  if (
+    hiringBrief.location_flexibility === "strict" &&
+    locationTerms.length > 0
+  ) {
     rootFilters.push({
       operator: "or",
       filters: locationTerms.map((term) => ({
@@ -2918,10 +3123,12 @@ function selectTopLightCandidates(
 function selectTopDeepAssessments(
   assessments: ScoredCandidateAssessment[],
 ) {
+  // 过滤掉所有 hard blocked 且 rejected 的候选人
+  // 这是最终保险丝：确保 strict location gate 的结果被执行
   const eligibleAssessments = assessments.filter(
     (assessment) => !(
-      assessment.suitability.advance_recommendation === "reject" &&
-      assessment.suitability.blocking_severity === "hard"
+      assessment.suitability.blocking_severity === "hard" &&
+      assessment.suitability.advance_recommendation === "reject"
     ),
   );
 
@@ -2956,10 +3163,12 @@ async function preScreenSerperCandidate(
 ): Promise<SerperPreScreenedCandidate> {
   const prompt = buildSerperSingleCandidatePrompt(parsed, jdText, candidate);
 
+  const lightModel = getHaikuModel();
+
   try {
     const { text } = await withTimeout(
       generateText({
-        model: aiClient(getHaikuModel()),
+        model: aiClient(lightModel),
         prompt,
         maxOutputTokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
       }),
@@ -2974,7 +3183,13 @@ async function preScreenSerperCandidate(
         preScreen: decision,
       };
     }
-  } catch {
+  } catch (error) {
+    logSearchEvent("search_prescreen_failed", {
+      provider: (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase(),
+      model: lightModel,
+      candidate_url: candidate.linkedin_url,
+      error: error instanceof Error ? error.message : String(error),
+    });
     // Fall through to conservative default.
   }
 
@@ -2996,9 +3211,40 @@ async function preScreenAllCandidates(
 ): Promise<SerperPreScreenedCandidate[]> {
   if (!candidates.length) return [];
 
+  // 先执行 deterministic location gate
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const locationPolicy = normalizeLocationConstraint(hiringBrief);
+
+  const candidatesWithGate = candidates.map(candidate => {
+    const evidence = extractCandidateLocationEvidence(
+      null, // Serper 没有单独 location 字段
+      null, // Serper 没有 country_code
+      candidate.headline,
+      candidate.snippet,
+    );
+    const gateResult = evaluateCandidateLocationGate(locationPolicy, evidence);
+    return { candidate, gateResult };
+  });
+
+  // strict block 的候选人直接不进入 LLM prescreen
+  // 注意：Serper 候选人没有结构化 location 字段，unknown 不能直接 block
+  // 只拦截明确 non-local 的候选人，unknown 交给 LLM prescreen 判断
+  const eligibleCandidates = candidatesWithGate.filter(
+    ({ gateResult }) => !(gateResult.decision === "block" && gateResult.location_fit === "non_local")
+  );
+
+  const blockedCount = candidates.length - eligibleCandidates.length;
+  if (blockedCount > 0) {
+    logSearchEvent("search_location_gate_applied", {
+      stage: "prescreen",
+      blocked_count: blockedCount,
+      total_count: candidates.length,
+    });
+  }
+
   const preScreened = await runWithConcurrency(
-    candidates,
-    resolveStageConcurrency(PRE_SCREEN_CONCURRENCY, candidates.length),
+    eligibleCandidates.map(({ candidate }) => candidate),
+    resolveStageConcurrency(PRE_SCREEN_CONCURRENCY, eligibleCandidates.length),
     async (candidate) => preScreenSerperCandidate(aiClient, parsed, jdText, candidate),
   );
 
@@ -3012,6 +3258,7 @@ async function buildBrightDataDatasetCandidates(
   parsed: Record<string, unknown>,
 ): Promise<SearchPipelineResult | null> {
   const brightDataToken = process.env.BRIGHTDATA_API_TOKEN;
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount);
   const recallRequest = buildBrightDataRecallFilter(parsed, context.candidateCount, context.jdText);
   if (!brightDataToken || !recallRequest) {
     return null;
@@ -3024,6 +3271,20 @@ async function buildBrightDataDatasetCandidates(
     ? Date.parse(existingRecallMetadata.requested_at)
     : Number.NaN;
 
+  const filterSummary = {
+    title_terms: recallSpec.title_variants.length > 0
+      ? recallSpec.title_variants
+      : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value)),
+    country_codes: recallSpec.countries
+      .map((country) => normalizeCountryCode(country))
+      .filter((country): country is string => Boolean(country))
+      .slice(0, 4),
+    location_terms: recallSpec.location_terms
+      .map((term) => normalizeText(term))
+      .filter((term) => term.length >= 3)
+      .slice(0, 3),
+  };
+
   if (!snapshotId) {
     snapshotId = await triggerDatasetFilter(brightDataToken, recallRequest);
     requestedAt = Date.now();
@@ -3033,6 +3294,7 @@ async function buildBrightDataDatasetCandidates(
       snapshot_id: snapshotId,
       requested_at: new Date(requestedAt).toISOString(),
       status: "submitted",
+      filter_summary: filterSummary,
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
     logSearchEvent("search_step_started", {
@@ -3041,6 +3303,7 @@ async function buildBrightDataDatasetCandidates(
       provider: "brightdata_dataset",
       record_limit: recallRequest.recordsLimit,
       snapshot_id: snapshotId,
+      filter_summary: filterSummary,
       job_id: context.jobId,
     });
   } else {
@@ -3054,6 +3317,7 @@ async function buildBrightDataDatasetCandidates(
       record_limit: recallRequest.recordsLimit,
       snapshot_id: snapshotId,
       resumed: true,
+      filter_summary: filterSummary,
       job_id: context.jobId,
     });
   }
@@ -3077,6 +3341,7 @@ async function buildBrightDataDatasetCandidates(
       snapshot_id: snapshotId,
       requested_at: new Date(requestedAt).toISOString(),
       status: "polling",
+      filter_summary: filterSummary,
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
     throw new DatasetRecallPendingError(
@@ -3104,6 +3369,7 @@ async function buildBrightDataDatasetCandidates(
     requested_at: new Date(requestedAt).toISOString(),
     completed_at: nowIso(),
     status: "ready",
+    filter_summary: filterSummary,
   };
   await updateSearchParsedRequirements(context.searchId, parsed);
 
@@ -3753,7 +4019,68 @@ async function scoreBrightDataProfiles(
   const renderProfileEntries = brightProfiles.map((profile, index) =>
     brightDataProfileToRichText(profile, index),
   );
-  const selectedIndexes = Array.from({ length: brightProfiles.length }, (_, index) => index);
+
+  // LLM 预筛：过滤掉明显不可能入职的人，再进入双 Judge 深评
+  const lightModel = getHaikuModel();
+  const prescreenResults = await runWithConcurrency(
+    brightProfiles.map((profile, index) => ({ profile, index })),
+    resolveStageConcurrency(PRE_SCREEN_CONCURRENCY, brightProfiles.length),
+    async ({ index }) => {
+      const profileText = renderProfileEntries[index];
+      const prompt = `You are doing a first-pass screen for a hiring pipeline.
+
+## Search Intent
+${buildPromptSearchContext(parsed)}
+
+## Candidate Profile
+${profileText}
+
+## Task
+Decide if this candidate is worth deep review. Return ONLY valid JSON:
+{"keep": true, "match_score": 0, "reason": "one short sentence"}
+
+Rules:
+- keep=false for: wrong industry (e.g. nuclear/medical/finance engineer for a software role), clearly wrong location for strict onsite, obvious seniority mismatch (e.g. C-suite for IC role).
+- keep=true if there is reasonable evidence of fit.
+- match_score 0-100 for ranking.
+- A deterministic location gate also runs; focus on role/industry/seniority fit here.
+- Keep reason under 20 words. Raw JSON only.`;
+
+      try {
+        const { text } = await withTimeout(
+          generateText({
+            model: aiClient(lightModel),
+            prompt,
+            maxOutputTokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
+          }),
+          15000,
+          "Bright profile pre-screen",
+        );
+        const decision = sanitizeSerperPreScreenDecision(JSON.parse(extractJSON(text)));
+        return { index, keep: decision?.keep ?? true, score: decision?.match_score ?? 50 };
+      } catch {
+        return { index, keep: true, score: 50 }; // 失败时保守保留
+      }
+    },
+  );
+
+  const keptIndexes = prescreenResults
+    .filter(r => r.keep)
+    .sort((a, b) => b.score - a.score)
+    .map(r => r.index);
+
+  const prescreenBlockedCount = brightProfiles.length - keptIndexes.length;
+  if (prescreenBlockedCount > 0) {
+    logSearchEvent("search_location_gate_applied", {
+      stage: "bright_prescreen",
+      blocked_count: prescreenBlockedCount,
+      total_count: brightProfiles.length,
+    });
+  }
+
+  const selectedIndexes = keptIndexes.length > 0
+    ? keptIndexes
+    : Array.from({ length: brightProfiles.length }, (_, i) => i); // 全挂时兜底
 
   const deepAssessments = await deepScoreSelectedProfiles(
     aiClient,
@@ -3763,13 +4090,40 @@ async function scoreBrightDataProfiles(
     selectedIndexes,
     brightProfiles.length,
   );
+
+  // 应用 deterministic location gate 到 deep scoring 结果
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const locationPolicy = normalizeLocationConstraint(hiringBrief);
+
+  const assessmentsWithGate = deepAssessments.map(assessment => {
+    const profile = brightProfiles[assessment.index];
+    const evidence = extractCandidateLocationEvidence(
+      profile.city,
+      profile.country_code,
+      profile.headline,
+      profile.about,
+    );
+    const gateResult = evaluateCandidateLocationGate(locationPolicy, evidence);
+
+    // 如果是 hard block，强制覆盖 suitability
+    const finalSuitability = applyLocationGateToSuitability(
+      assessment.suitability,
+      gateResult,
+    );
+
+    return {
+      ...assessment,
+      suitability: finalSuitability,
+    };
+  });
+
   if (DEEP_REVIEW_DEBUG_LOGS) {
     logSearchEvent("deep_review_distribution", {
       search_id: context.searchId,
       requested_count: selectedIndexes.length,
-      completed_count: deepAssessments.length,
+      completed_count: assessmentsWithGate.length,
       selected_indexes: selectedIndexes,
-      scores: deepAssessments.map((assessment) => ({
+      scores: assessmentsWithGate.map((assessment) => ({
         index: assessment.index,
         match_score: assessment.suitability.match_score,
         quality_score: assessment.suitability.quality_score,
@@ -3785,17 +4139,17 @@ async function scoreBrightDataProfiles(
       })),
     });
   }
-  const fullDetailIncomplete = deepAssessments.length < selectedIndexes.length;
-  const hardBlockedCount = deepAssessments.filter(
+  const fullDetailIncomplete = assessmentsWithGate.length < selectedIndexes.length;
+  const hardBlockedCount = assessmentsWithGate.filter(
     (assessment) => assessment.suitability.blocking_severity === "hard",
   ).length;
-  const softBlockedCount = deepAssessments.filter(
+  const softBlockedCount = assessmentsWithGate.filter(
     (assessment) => assessment.suitability.blocking_severity === "soft",
   ).length;
-  const advanceableCount = deepAssessments.filter(
+  const advanceableCount = assessmentsWithGate.filter(
     (assessment) => assessment.suitability.advance_recommendation === "advance",
   ).length;
-  const deepSelection = selectTopDeepAssessments(deepAssessments);
+  const deepSelection = selectTopDeepAssessments(assessmentsWithGate);
   const deepSelected = deepSelection.selected;
   const deepRows = buildBrightDataCandidateRows(
     brightProfiles,
