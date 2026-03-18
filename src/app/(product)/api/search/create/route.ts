@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
           requested_candidate_count: requestedCandidates,
           outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
           plan_code: planCode,
+          launch_mode: "paid_beta",
+          launch_scope: "us_only",
           execution_profile: searchTargets.executionProfile,
           search_phase: "phase_1",
         },
@@ -118,6 +120,8 @@ export async function POST(req: NextRequest) {
         highlight_count: searchTargets.highlightCount,
         requested_candidate_count: requestedCandidates,
         outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+        launch_mode: "paid_beta",
+        launch_scope: "us_only",
         execution_profile: searchTargets.executionProfile,
       },
     });

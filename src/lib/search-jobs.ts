@@ -263,6 +263,26 @@ const OUTREACH_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   SEARCH_LOW_COST_MODE ? 450 : 700,
   { min: 120, max: 2000 },
 );
+const ESTIMATED_TOKENS_PER_CHAR = getConfiguredNumber(
+  "SEARCH_ESTIMATED_TOKENS_PER_CHAR",
+  0.25,
+  { min: 0.05, max: 1 },
+);
+const ESTIMATED_DEEP_REVIEW_CONFLICT_RATE = getConfiguredNumber(
+  "SEARCH_ESTIMATED_DEEP_REVIEW_CONFLICT_RATE",
+  0.15,
+  { min: 0, max: 1 },
+);
+const ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M = getConfiguredNumber(
+  "SEARCH_ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M",
+  0.28,
+  { min: 0, max: 50 },
+);
+const ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M = getConfiguredNumber(
+  "SEARCH_ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M",
+  0.42,
+  { min: 0, max: 50 },
+);
 function getExecutionRuntime(
   executionProfile: SearchExecutionProfile,
 ): SearchExecutionRuntime {
@@ -287,6 +307,50 @@ function getExecutionRuntime(
     arbiterMaxAttempts: 2,
     judgeMode: executionProfile.singleJudgeMode ? "single" : "dual",
   };
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value * 10000) / 10000;
+}
+
+function estimateTokensFromText(text: string | null | undefined, minimum = 0) {
+  const normalized = typeof text === "string" ? text : "";
+  return Math.max(minimum, Math.ceil(normalized.length * ESTIMATED_TOKENS_PER_CHAR));
+}
+
+function getEstimatedModelPricing() {
+  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
+  if (provider === "deepseek") {
+    return {
+      provider: "deepseek",
+      inputCostPerToken: ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M / 1_000_000,
+      outputCostPerToken: ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M / 1_000_000,
+    };
+  }
+
+  return {
+    provider,
+    inputCostPerToken: ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M / 1_000_000,
+    outputCostPerToken: ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M / 1_000_000,
+  };
+}
+
+function estimateLlmCallCost(inputTokens: number, outputTokens: number) {
+  const pricing = getEstimatedModelPricing();
+  return roundCurrency(
+    Math.max(0, inputTokens) * pricing.inputCostPerToken +
+      Math.max(0, outputTokens) * pricing.outputCostPerToken,
+  );
+}
+
+function estimateSearchIntentCost(jdText: string, outputText?: string | null) {
+  const inputTokens =
+    estimateTokensFromText(JD_SEARCH_INTENT_PROMPT, 400) +
+    estimateTokensFromText(jdText, 250);
+  const outputTokens = outputText
+    ? estimateTokensFromText(outputText, 120)
+    : Math.min(PARSE_MAX_OUTPUT_TOKENS, 600);
+  return estimateLlmCallCost(inputTokens, outputTokens);
 }
 
 type SearchJobRow = {
@@ -482,6 +546,7 @@ type PipelineContext = {
   jobId: string;
   userId: string;
   jdText: string;
+  createdAt: string | null;
   planCode: SearchPlanCode;
   candidateCount: number;
   highlightCount: number;
@@ -510,6 +575,8 @@ type SearchDisplayStats = {
   bright_profiles_requested?: number;
   bright_profiles_returned?: number;
   bright_snapshot_cost?: number;
+  estimated_llm_cost?: number;
+  estimated_search_total_cost?: number;
   search_phase_count?: number;
   judge_mode?: "single" | "dual";
 };
@@ -558,6 +625,11 @@ type SearchExecutionRuntime = {
   judgeMaxAttempts: number;
   arbiterMaxAttempts: number;
   judgeMode: "single" | "dual";
+};
+
+type SearchCostEstimate = {
+  estimatedLlmCost: number;
+  estimatedSearchTotalCost: number;
 };
 
 class DatasetRecallPendingError extends Error {
@@ -1104,6 +1176,12 @@ function buildSearchDisplayStats(
     ...(typeof overrides.bright_snapshot_cost === "number"
       ? { bright_snapshot_cost: Math.max(0, overrides.bright_snapshot_cost) }
       : {}),
+    ...(typeof overrides.estimated_llm_cost === "number"
+      ? { estimated_llm_cost: Math.max(0, overrides.estimated_llm_cost) }
+      : {}),
+    ...(typeof overrides.estimated_search_total_cost === "number"
+      ? { estimated_search_total_cost: Math.max(0, overrides.estimated_search_total_cost) }
+      : {}),
     ...(typeof overrides.search_phase_count === "number"
       ? { search_phase_count: Math.max(1, Math.round(overrides.search_phase_count)) }
       : {}),
@@ -1111,6 +1189,102 @@ function buildSearchDisplayStats(
       ? { judge_mode: overrides.judge_mode }
       : {}),
   };
+}
+
+function estimateBrightPipelineLlmCost(params: {
+  context: PipelineContext;
+  parsed: Record<string, unknown>;
+  renderProfileEntries: string[];
+  selectedCount: number;
+  finalRows: CandidateRowInput[];
+  runtime: SearchExecutionRuntime;
+}): SearchCostEstimate {
+  const parseCost =
+    typeof params.parsed.estimated_parse_llm_cost === "number"
+      ? Math.max(0, Number(params.parsed.estimated_parse_llm_cost))
+      : estimateSearchIntentCost(params.context.jdText);
+  const searchContextTokens = estimateTokensFromText(buildPromptSearchContext(params.parsed), 250);
+  const truncatedJdTokens = estimateTokensFromText(
+    truncateForPrompt(params.context.jdText, 3000),
+    220,
+  );
+  const sampleSize = Math.min(5, params.renderProfileEntries.length);
+  const avgProfileTokens =
+    sampleSize > 0
+      ? Math.ceil(
+          params.renderProfileEntries
+            .slice(0, sampleSize)
+            .reduce((sum, entry) => sum + estimateTokensFromText(entry, 500), 0) / sampleSize,
+        )
+      : 500;
+
+  const preScreenInputTokens = searchContextTokens + avgProfileTokens + 180;
+  const preScreenOutputTokens = Math.min(params.runtime.lightPrescreenMaxOutputTokens, 60);
+  const preScreenCost =
+    params.renderProfileEntries.length *
+    estimateLlmCallCost(preScreenInputTokens, preScreenOutputTokens);
+
+  const judgeInputTokens = searchContextTokens + truncatedJdTokens + avgProfileTokens + 260;
+  const judgeOutputTokens = Math.min(params.runtime.judgeMaxOutputTokens, 260);
+  const judgeCallCount =
+    params.runtime.judgeMode === "single"
+      ? params.selectedCount
+      : params.selectedCount * 2;
+  const judgeCost =
+    judgeCallCount * estimateLlmCallCost(judgeInputTokens, judgeOutputTokens);
+
+  const arbiterCallCount =
+    params.runtime.judgeMode === "dual"
+      ? Math.round(params.selectedCount * ESTIMATED_DEEP_REVIEW_CONFLICT_RATE)
+      : 0;
+  const arbiterInputTokens = searchContextTokens + truncatedJdTokens + avgProfileTokens + 320;
+  const arbiterOutputTokens = Math.min(params.runtime.arbiterMaxOutputTokens, 220);
+  const arbiterCost =
+    arbiterCallCount * estimateLlmCallCost(arbiterInputTokens, arbiterOutputTokens);
+
+  const outreachPromptSample =
+    params.finalRows.length > 0
+      ? buildSearchOutreachPrompt(
+          params.parsed,
+          params.context.jdText,
+          params.finalRows[0],
+        )
+      : null;
+  const outreachInputTokens = estimateTokensFromText(outreachPromptSample, 220);
+  const outreachOutputTokens = Math.min(params.runtime.outreachMaxOutputTokens, 180);
+  const outreachCost =
+    params.finalRows.length * estimateLlmCallCost(outreachInputTokens, outreachOutputTokens);
+
+  const estimatedLlmCost = roundCurrency(
+    parseCost + preScreenCost + judgeCost + arbiterCost + outreachCost,
+  );
+
+  return {
+    estimatedLlmCost,
+    estimatedSearchTotalCost: estimatedLlmCost,
+  };
+}
+
+function mergeCostEstimates(
+  current: SearchDisplayStats,
+  previous?: SearchDisplayStats | null,
+): SearchDisplayStats {
+  const brightSnapshotCost = roundCurrency(
+    (previous?.bright_snapshot_cost ?? 0) + (current.bright_snapshot_cost ?? 0),
+  );
+  const estimatedLlmCost = roundCurrency(
+    (previous?.estimated_llm_cost ?? 0) + (current.estimated_llm_cost ?? 0),
+  );
+  const estimatedSearchTotalCost = roundCurrency(
+    brightSnapshotCost + estimatedLlmCost,
+  );
+
+  return buildSearchDisplayStats({
+    ...current,
+    bright_snapshot_cost: brightSnapshotCost,
+    estimated_llm_cost: estimatedLlmCost,
+    estimated_search_total_cost: estimatedSearchTotalCost,
+  });
 }
 
 function normalizeSearchPhase(value: unknown): SearchPhase {
@@ -2914,6 +3088,7 @@ async function parseJobDescription(
   const aiClient = createAIClient();
   let parsed: Record<string, unknown> | null = null;
   let lastParseError: string | null = null;
+  let estimatedParseCost = 0;
 
   for (let attempt = 1; attempt <= PARSE_MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -2927,6 +3102,7 @@ async function parseJobDescription(
         60000,
         "Search intent generation",
       );
+      estimatedParseCost += estimateSearchIntentCost(context.jdText, text);
 
       const candidate = JSON.parse(extractJSON(text)) as Record<string, unknown>;
       if (isWeakParsedIntent(candidate, context.candidateCount)) {
@@ -3013,6 +3189,9 @@ async function parseJobDescription(
 
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_spec = enrichRecallSpecFromJd(parsed, context.jdText, context.candidateCount);
+  parsed.estimated_parse_llm_cost = roundCurrency(
+    estimatedParseCost || estimateSearchIntentCost(context.jdText),
+  );
   const existingRecallMetadata = normalizeRecallMetadata(existingParsed?.recall_metadata);
   if (existingRecallMetadata?.provider === "brightdata_dataset") {
     parsed.recall_metadata = existingRecallMetadata;
@@ -3623,6 +3802,7 @@ async function buildBrightDataDatasetCandidates(
     search_phase_count: Number(parsed.search_phase_count) || 1,
     judge_mode: runtime.judgeMode,
   });
+  scored.displayStats = mergeCostEstimates(scored.displayStats);
 
   logSearchEvent("search_step_completed", {
     search_id: context.searchId,
@@ -4417,6 +4597,14 @@ Rules:
   } else if (shortlistedCount < highlightTarget) {
     warningMessage = `Only ${shortlistedCount} highlighted candidate${shortlistedCount === 1 ? "" : "s"} are available in the final ranking.`;
   }
+  const estimatedCosts = estimateBrightPipelineLlmCost({
+    context,
+    parsed,
+    renderProfileEntries,
+    selectedCount: selectedIndexes.length,
+    finalRows,
+    runtime,
+  });
 
   return {
     finalRows,
@@ -4432,6 +4620,8 @@ Rules:
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: executionProfile.filterLimit,
       bright_profiles_returned: brightProfiles.length,
+      estimated_llm_cost: estimatedCosts.estimatedLlmCost,
+      estimated_search_total_cost: estimatedCosts.estimatedSearchTotalCost,
       search_phase_count: Number(parsed.search_phase_count) || 1,
       judge_mode: runtime.judgeMode,
       deep_qualified_rate:
@@ -4614,6 +4804,10 @@ async function completeSearch(
   }
 
   const finalParsed = withDisplayStats(parsed, displayStats);
+  const createdAtMs = context.createdAt ? Date.parse(context.createdAt) : Number.NaN;
+  const finalReadyLatencyMs = Number.isFinite(createdAtMs)
+    ? Math.max(0, Date.now() - createdAtMs)
+    : null;
   await setSearchStatus(context.searchId, warningMessage ? "degraded" : "done", {
     done_at: nowIso(),
     error_message: null,
@@ -4630,6 +4824,9 @@ async function completeSearch(
     bright_profiles_requested: displayStats.bright_profiles_requested ?? null,
     bright_profiles_returned: displayStats.bright_profiles_returned ?? null,
     bright_snapshot_cost: displayStats.bright_snapshot_cost ?? null,
+    estimated_llm_cost: displayStats.estimated_llm_cost ?? null,
+    estimated_search_total_cost: displayStats.estimated_search_total_cost ?? null,
+    final_ready_latency_ms: finalReadyLatencyMs,
     judge_mode: displayStats.judge_mode ?? finalParsed.judge_mode ?? null,
   });
 
@@ -4637,6 +4834,10 @@ async function completeSearch(
     search_id: context.searchId,
     candidate_count: draftedRows.length,
     warning_message: warningMessage ?? null,
+    final_ready_latency_ms: finalReadyLatencyMs,
+    bright_snapshot_cost: displayStats.bright_snapshot_cost ?? null,
+    estimated_llm_cost: displayStats.estimated_llm_cost ?? null,
+    estimated_search_total_cost: displayStats.estimated_search_total_cost ?? null,
     job_id: context.jobId,
   });
 }
@@ -4654,6 +4855,10 @@ async function persistProvisionalSearch(
   }
 
   const provisionalParsed = withDisplayStats(parsed, displayStats);
+  const createdAtMs = context.createdAt ? Date.parse(context.createdAt) : Number.NaN;
+  const provisionalReadyLatencyMs = Number.isFinite(createdAtMs)
+    ? Math.max(0, Date.now() - createdAtMs)
+    : null;
   await setSearchStatus(context.searchId, "deep_scoring", {
     partial_ready_at: nowIso(),
     error_message: null,
@@ -4670,6 +4875,9 @@ async function persistProvisionalSearch(
     bright_profiles_requested: displayStats.bright_profiles_requested ?? null,
     bright_profiles_returned: displayStats.bright_profiles_returned ?? null,
     bright_snapshot_cost: displayStats.bright_snapshot_cost ?? null,
+    estimated_llm_cost: displayStats.estimated_llm_cost ?? null,
+    estimated_search_total_cost: displayStats.estimated_search_total_cost ?? null,
+    provisional_ready_latency_ms: provisionalReadyLatencyMs,
     judge_mode: displayStats.judge_mode ?? provisionalParsed.judge_mode ?? null,
   });
 
@@ -4678,6 +4886,10 @@ async function persistProvisionalSearch(
     candidate_count: finalRows.length,
     execution_profile: provisionalParsed.execution_profile ?? null,
     search_phase: provisionalParsed.search_phase ?? null,
+    provisional_ready_latency_ms: provisionalReadyLatencyMs,
+    bright_snapshot_cost: displayStats.bright_snapshot_cost ?? null,
+    estimated_llm_cost: displayStats.estimated_llm_cost ?? null,
+    estimated_search_total_cost: displayStats.estimated_search_total_cost ?? null,
     job_id: context.jobId,
   });
 }
@@ -4700,7 +4912,7 @@ async function failSearch(searchId: string, message: string) {
 async function runSearchPipeline(job: SearchJobRow) {
   const { data: search } = await supabaseAdmin
     .from("hirelix_searches")
-    .select("id, user_id, jd_text, parsed_requirements, status, parse_completed_at")
+    .select("id, user_id, jd_text, parsed_requirements, status, parse_completed_at, created_at")
     .eq("id", job.search_id)
     .single();
 
@@ -4725,6 +4937,10 @@ async function runSearchPipeline(job: SearchJobRow) {
     jobId: job.id,
     userId: job.user_id,
     jdText: job.jd_text || (search as SearchRow).jd_text,
+    createdAt:
+      typeof (search as SearchRow & { created_at?: string | null }).created_at === "string"
+        ? (search as SearchRow & { created_at?: string | null }).created_at ?? null
+        : null,
     planCode,
     candidateCount: job.candidate_count || Number((search as SearchRow).parsed_requirements?.candidate_count) || 5,
     highlightCount:
@@ -4919,10 +5135,13 @@ async function runSearchPipeline(job: SearchJobRow) {
       context,
       finalPhase2Parsed,
       phase2Result.finalRows,
-      buildSearchDisplayStats({
-        ...phase2Result.displayStats,
-        search_phase_count: 2,
-      }),
+      mergeCostEstimates(
+        buildSearchDisplayStats({
+          ...phase2Result.displayStats,
+          search_phase_count: 2,
+        }),
+        normalizeSearchDisplayStats(parsed.phase_1_display_stats),
+      ),
       phase2Result.warningMessage,
       {
         runtime: getExecutionRuntime(fullExecutionProfile),
@@ -4965,6 +5184,9 @@ async function runSearchPipeline(job: SearchJobRow) {
       search_phase: "phase_2",
       result_stage: "provisional",
       search_phase_count: 2,
+      bright_snapshot_cost: phase1DisplayStats?.bright_snapshot_cost ?? null,
+      estimated_llm_cost: phase1DisplayStats?.estimated_llm_cost ?? null,
+      estimated_search_total_cost: phase1DisplayStats?.estimated_search_total_cost ?? null,
       judge_mode: "dual",
     });
 

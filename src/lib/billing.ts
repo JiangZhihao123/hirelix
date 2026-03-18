@@ -56,7 +56,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Validate the workflow before you pay.",
+    description: "Validate the paid-beta workflow before you upgrade.",
     priceLabel: "$0",
     cadenceLabel: "free forever",
     billingCycle: null,
@@ -70,7 +70,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   pro_monthly: {
     code: "pro_monthly",
     name: "Pro Monthly",
-    description: "For recruiters who need real throughput every week.",
+    description: "For recruiters, founders, and hiring teams who need reliable weekly throughput.",
     priceLabel: "$99",
     cadenceLabel: "per seat / month",
     billingCycle: "month",
@@ -85,7 +85,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   pro_annual: {
     code: "pro_annual",
     name: "Pro Annual",
-    description: "Same product limits, better payback and lower monthly equivalent.",
+    description: "Same paid-beta limits, better payback and lower monthly equivalent.",
     priceLabel: "$79",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",

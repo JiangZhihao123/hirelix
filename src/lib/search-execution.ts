@@ -39,7 +39,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
   },
   bright_full_pro: {
     name: "bright_full_pro",
-    filterLimit: 100,
+    filterLimit: 200,
     finalResultCap: 25,
     lowCostMode: false,
     singleJudgeMode: false,

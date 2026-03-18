@@ -25,6 +25,10 @@ This directory is the home for project documentation.
 - [`growth/conversion-funnel-v1.md`](./growth/conversion-funnel-v1.md): conversion event taxonomy and landing-page experiment definitions
 - [`growth/ads-funnel-roi-model.md`](./growth/ads-funnel-roi-model.md): paid-acquisition funnel psychology, conversion assumptions, and first-month ROI model
 
+### Launch
+
+- [`launch/paid-beta-readiness.md`](./launch/paid-beta-readiness.md): paid beta launch checklist, rollout order, and production verification notes
+
 ### Marketing
 
 - [`marketing/reddit-post.md`](./marketing/reddit-post.md): Reddit launch copy

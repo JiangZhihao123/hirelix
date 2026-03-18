@@ -142,6 +142,17 @@ export default function NewSearchPage() {
             ? "You are still in the same flow from the landing page. Confirm the search settings below and Hirelix will move straight into ranked matches."
             : "Paste one full job description and Hirelix will search across LinkedIn profile data, compare candidate fit, and build a shortlist you can review before deciding on outreach."}
         </p>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">
+            Paid beta
+          </span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+            US-only at launch
+          </span>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+            Support: support@hirelix.online
+          </span>
+        </div>
 
         {isFocusedFlow ? (
           <>
@@ -154,7 +165,7 @@ export default function NewSearchPage() {
               </div>
               <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Expected time</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">Usually under 5 minutes</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">Often ready in a few minutes</p>
               </div>
               <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -249,7 +260,7 @@ export default function NewSearchPage() {
                   : "Tip: paste the full JD, not just the title, for stronger matches."}
               </p>
               <p className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700">
-                Returns 25 candidates, with the top 5 highlighted first
+                Paid beta: Free returns 5 candidates, Pro can expand to 25 with Bright refinement
               </p>
             </div>
             <button

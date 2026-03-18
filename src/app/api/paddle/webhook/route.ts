@@ -8,6 +8,10 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
+function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
+  console.log(`[billing:${eventName}] ${JSON.stringify(payload)}`);
+}
+
 function verifySignature(rawBody: string, signature: string | null) {
   const secret = process.env.PADDLE_WEBHOOK_SECRET;
   if (!secret || !signature) return false;
@@ -202,6 +206,7 @@ export async function POST(req: NextRequest) {
   const signature = req.headers.get("paddle-signature");
 
   if (!verifySignature(rawBody, signature)) {
+    logBillingEvent("webhook_invalid_signature", {});
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -233,6 +238,11 @@ export async function POST(req: NextRequest) {
     const userId = await resolveUserId(data);
     const isDuplicate = await recordEvent(eventId, eventType, userId, payload);
     if (isDuplicate) {
+      logBillingEvent("webhook_duplicate", {
+        event_id: eventId,
+        event_type: eventType,
+        user_id: userId,
+      });
       return NextResponse.json({ ok: true, duplicate: true });
     }
 
@@ -244,8 +254,17 @@ export async function POST(req: NextRequest) {
       await applyAddOns(data, userId);
     }
 
+    logBillingEvent("webhook_processed", {
+      event_id: eventId,
+      event_type: eventType,
+      user_id: userId,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (err) {
+    logBillingEvent("webhook_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     console.error("[paddle-webhook] Error:", err);
     return NextResponse.json({ error: "Webhook handling failed" }, { status: 500 });
   }

@@ -178,6 +178,8 @@ type SearchDisplayStats = {
   bright_profiles_requested?: number;
   bright_profiles_returned?: number;
   bright_snapshot_cost?: number;
+  estimated_llm_cost?: number;
+  estimated_search_total_cost?: number;
   search_phase_count?: number;
   judge_mode?: "single" | "dual";
   serper_query_tier_stats?: Array<{
@@ -1153,7 +1155,7 @@ function ProcessingSteps({
         })}
       </div>
       <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
-        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Usually under 5 minutes</span>
+        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Often ready in a few minutes</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Safe to leave and come back</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">
           Top 5 highlighted, best {displayTarget} ready first
@@ -1548,6 +1550,8 @@ export default function SearchResultPage() {
   const executionProfile = typeof reqs?.execution_profile === "string" ? reqs.execution_profile : null;
   const searchPhase = typeof reqs?.search_phase === "string" ? reqs.search_phase : null;
   const resultStage = typeof reqs?.result_stage === "string" ? reqs.result_stage : null;
+  const launchMode = typeof reqs?.launch_mode === "string" ? reqs.launch_mode : null;
+  const launchScope = typeof reqs?.launch_scope === "string" ? reqs.launch_scope : null;
   const searchPhaseCount = positiveInt(reqs?.search_phase_count);
   const isReviewable = isReviewableSearchStatus(search.status);
   const isImprovingInBackground = search.status === "deep_scoring";
@@ -1593,6 +1597,14 @@ export default function SearchResultPage() {
   const brightSnapshotCost =
     typeof rawDisplayStats?.bright_snapshot_cost === "number"
       ? rawDisplayStats.bright_snapshot_cost
+      : null;
+  const estimatedLlmCost =
+    typeof rawDisplayStats?.estimated_llm_cost === "number"
+      ? rawDisplayStats.estimated_llm_cost
+      : null;
+  const estimatedSearchTotalCost =
+    typeof rawDisplayStats?.estimated_search_total_cost === "number"
+      ? rawDisplayStats.estimated_search_total_cost
       : null;
   const judgeMode =
     rawDisplayStats?.judge_mode === "single" || rawDisplayStats?.judge_mode === "dual"
@@ -1746,6 +1758,16 @@ export default function SearchResultPage() {
                   {executionProfile}
                 </span>
               )}
+              {launchMode === "paid_beta" && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
+                  paid beta
+                </span>
+              )}
+              {launchScope === "us_only" && (
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+                  US-only
+                </span>
+              )}
               {resultStage && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
                   {resultStage}
@@ -1778,6 +1800,13 @@ export default function SearchResultPage() {
             {searchPhase === "phase_2"
               ? "Your fast Bright shortlist is already usable. Hirelix is now running a deeper Bright pass to improve quality and recover harder matches."
               : "Hirelix is translating the role into search intent and running a Bright fast pass to get the strongest shortlist on screen quickly."}
+          </p>
+          <p className="mt-3 max-w-2xl text-xs text-slate-500">
+            Paid beta for US-based hiring workflows. If this shortlist looks off, email{" "}
+            <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
+              support@hirelix.online
+            </a>
+            .
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
@@ -1817,6 +1846,13 @@ export default function SearchResultPage() {
                   : isPhaseTwoRunning
                     ? `Hirelix already delivered the Bright fast-pass shortlist. A deeper Bright pass is still running in the background and may expand this list beyond ${displayTarget} candidates.`
                     : `Hirelix searched across a Bright LinkedIn candidate pool, ranked the most realistic matches to advance, and prepared a ${displayTarget}-candidate review list with the top ${highlightCount} highlighted.`}
+              </p>
+              <p className="mt-3 max-w-2xl text-xs text-slate-500">
+                Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
+                <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
+                  support@hirelix.online
+                </a>
+                .
               </p>
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -1858,6 +1894,16 @@ export default function SearchResultPage() {
                   {typeof brightSnapshotCost === "number" ? (
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
                       Snapshot cost: {brightSnapshotCost.toFixed(2)}
+                    </span>
+                  ) : null}
+                  {typeof estimatedLlmCost === "number" ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      Est. LLM cost: {estimatedLlmCost.toFixed(2)}
+                    </span>
+                  ) : null}
+                  {typeof estimatedSearchTotalCost === "number" ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                      Est. total cost: {estimatedSearchTotalCost.toFixed(2)}
                     </span>
                   ) : null}
                 </div>
