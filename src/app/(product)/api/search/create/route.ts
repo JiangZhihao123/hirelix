@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { enqueueSearchJob, kickSearchJobRunner } from "@/lib/search-jobs";
 import {
@@ -7,14 +6,10 @@ import {
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const maxDuration = 30;
 const DEFAULT_OUTREACH_POOL_TARGET = 25;
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromApiRequest(req);

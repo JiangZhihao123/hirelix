@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { isStaleProcessingSearch } from "@/lib/search-state";
 import { enqueueSearchJob, kickSearchJobRunner } from "@/lib/search-jobs";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const maxDuration = 30;
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
 
 export async function POST(
   req: NextRequest,

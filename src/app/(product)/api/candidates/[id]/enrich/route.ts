@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { findEmail } from "@/lib/hunter";
 import { getUserFromApiRequest } from "@/lib/api-auth";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 /** Strip markdown code fences from Claude responses and fix truncated JSON */
 function extractJSON(text: string): string {
