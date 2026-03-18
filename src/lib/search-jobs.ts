@@ -20,6 +20,7 @@ import {
   scrapeLinkedInProfiles,
   brightDataProfileToRichText,
   triggerDatasetFilter,
+  getDatasetSnapshotMetadata,
   waitForDatasetSnapshot,
   type BrightDataFilterRule,
   type BrightDataDatasetFilterRequest,
@@ -3323,9 +3324,16 @@ async function buildBrightDataDatasetCandidates(
   }
 
   const totalElapsedMs = Math.max(0, Date.now() - requestedAt);
-  const remainingTimeoutMs = Math.max(0, BRIGHTDATA_FILTER_TIMEOUT_MS - totalElapsedMs);
+  let remainingTimeoutMs = Math.max(0, BRIGHTDATA_FILTER_TIMEOUT_MS - totalElapsedMs);
   if (remainingTimeoutMs <= 0) {
-    throw new Error(`Bright Data dataset recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms`);
+    // A resumed job may come back after the original wait budget has elapsed even though
+    // the remote snapshot finished building in the meantime. In that case, prefer using
+    // the ready snapshot instead of failing over to another provider.
+    const latestMetadata = await getDatasetSnapshotMetadata(brightDataToken, snapshotId);
+    if (latestMetadata.status !== "ready") {
+      throw new Error(`Bright Data dataset recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms`);
+    }
+    remainingTimeoutMs = BRIGHTDATA_FILTER_POLL_INTERVAL_MS;
   }
 
   const pollWindowMs = Math.min(BRIGHTDATA_FILTER_POLL_WINDOW_MS, remainingTimeoutMs);
