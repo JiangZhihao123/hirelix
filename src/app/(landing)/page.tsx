@@ -586,7 +586,7 @@ export default function Home() {
 
           </div>
 
-          <div className="hidden lg:block lg:pt-0">
+          <div className="hidden lg:block lg:pt-3">
             <div className="ml-auto w-full max-w-[42.5rem] rounded-[28px] border border-white/[0.2] bg-[linear-gradient(180deg,rgba(242,248,255,0.22)_0%,rgba(186,225,255,0.12)_100%)] p-1.5 shadow-[0_22px_60px_rgba(8,25,51,0.28)] xl:max-w-[45rem]">
               <div className="rounded-[24px] bg-[radial-gradient(circle_at_top_right,_rgba(125,211,252,0.24),_transparent_28%),linear-gradient(180deg,_rgba(13,25,43,0.92)_0%,_rgba(18,30,48,0.9)_100%)] p-4">
                 <div className="mb-2.5 flex items-center justify-between gap-3 text-sm text-slate-300">
