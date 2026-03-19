@@ -16,6 +16,7 @@ export type SearchExecutionProfile = {
   finalResultCap: number;
   highlightCount: number;
   minVisibleQualityScore: number;
+  strongNowQualityScore: number;
   lowCostMode: boolean;
   singleJudgeMode: boolean;
   allowPhaseTwo: boolean;
@@ -27,30 +28,33 @@ const SEARCH_EXECUTION_PROFILES: Record<
 > = {
   bright_fast_free: {
     name: "bright_fast_free",
-    filterLimit: 35,
+    filterLimit: 120,
     finalResultCap: 10,
     highlightCount: 3,
     minVisibleQualityScore: 60,
+    strongNowQualityScore: 72,
     lowCostMode: true,
     singleJudgeMode: true,
     allowPhaseTwo: false,
   },
   bright_activation_free: {
     name: "bright_activation_free",
-    filterLimit: 60,
+    filterLimit: 200,
     finalResultCap: 10,
     highlightCount: 3,
     minVisibleQualityScore: 60,
+    strongNowQualityScore: 72,
     lowCostMode: false,
-    singleJudgeMode: true,
+    singleJudgeMode: false,
     allowPhaseTwo: false,
   },
   bright_activation_free_topup: {
     name: "bright_activation_free_topup",
-    filterLimit: 120,
+    filterLimit: 400,
     finalResultCap: 10,
     highlightCount: 3,
     minVisibleQualityScore: 60,
+    strongNowQualityScore: 72,
     lowCostMode: false,
     singleJudgeMode: false,
     allowPhaseTwo: false,
@@ -61,6 +65,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     finalResultCap: 10,
     highlightCount: 5,
     minVisibleQualityScore: 0,
+    strongNowQualityScore: 70,
     lowCostMode: true,
     singleJudgeMode: true,
     allowPhaseTwo: true,
@@ -71,6 +76,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     finalResultCap: 25,
     highlightCount: 5,
     minVisibleQualityScore: 0,
+    strongNowQualityScore: 70,
     lowCostMode: false,
     singleJudgeMode: false,
     allowPhaseTwo: false,

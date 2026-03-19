@@ -32,18 +32,33 @@ Return ONLY valid JSON with this structure:
 {
   "title": "primary job title",
   "hiring_brief": {
+    "role_core": {
+      "title": "primary role label",
+      "seniority": "seniority label if clear, else null",
+      "function_focus": "short description of what this role is fundamentally about",
+      "required_skills": ["must-have skills only"],
+      "nice_to_have_skills": ["clear nice-to-have skills only"]
+    },
     "work_model": "onsite | hybrid | remote | unknown",
     "location_scope": "city/region if specified, null otherwise",
     "location_flexibility": "strict | moderate | flexible",
     "relocation_allowed": "yes | no | unknown",
+    "must_have_constraints": ["explicit non-skill constraints that matter to hiring"],
+    "soft_constraints": ["optional softer constraints or preferences"],
+    "company_stage_expectation": "startup | growth | enterprise | unknown",
     "constraint_reasoning": "brief explanation of how location/work model should affect search and ranking"
   },
   "recall_spec": {
     "countries": ["ISO country codes where recall should reasonably focus"],
     "title_variants": ["array of 3-8 realistic title variations for recall"],
     "core_skill_terms": ["array of 5-12 essential technical skills or tools"],
-    "location_terms": ["array of 0-8 city/metro terms only when geography should directly shape recall"],
-    "record_limit": 100
+    "must_have_signals": ["concrete recruiting signals that should strongly increase fit"],
+    "avoid_profiles": ["profiles that should not enter first-pass recall"],
+    "strict_location_terms": ["exact city / borough / metro terms for hard-local roles"],
+    "nearby_location_terms": ["nearby metro terms that are still acceptable"],
+    "geo_strategy": "how geography should shape recall, in one short sentence",
+    "recall_confidence": "high | medium | low",
+    "role_breadth": "narrow | balanced | broad"
   }
 }`;
 
@@ -117,6 +132,7 @@ Return an array of objects with this exact shape:
 [
   {
     "index": 0,
+    "bucket": "strong_now | consider_next | do_not_show",
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
@@ -128,11 +144,13 @@ Return an array of objects with this exact shape:
       "work_model_fit": "yes | no | unclear",
       "must_have_coverage": "strong | partial | weak | unknown"
     },
+    "primary_risk": "string | null",
+    "first_contact_confidence": "high | medium | low",
     "blocking_constraints": ["string"],
     "blocking_severity": "hard | soft | none",
     "risk_flags": ["string"],
-    "why_this_candidate": ["string"],
-    "why_not_higher": ["string"],
+    "why_this_candidate": ["reason_to_believe"],
+    "why_not_higher": ["reason_to_pause"],
     "join_likelihood_reasons": ["string"],
     "skills": ["string"],
     "experience_years": 0,

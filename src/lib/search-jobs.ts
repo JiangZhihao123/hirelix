@@ -396,6 +396,13 @@ type RecallSpec = {
   title_variants: string[];
   core_skill_terms: string[];
   location_terms: string[];
+  strict_location_terms: string[];
+  nearby_location_terms: string[];
+  must_have_signals: string[];
+  avoid_profiles: string[];
+  geo_strategy: string | null;
+  recall_confidence: "high" | "medium" | "low";
+  role_breadth: "narrow" | "balanced" | "broad";
   record_limit: number;
 };
 
@@ -417,6 +424,7 @@ type HiringBrief = {
   relocation_allowed: "yes" | "no" | "unknown";
   must_have_constraints: string[];
   soft_constraints: string[];
+  company_stage_expectation: "startup" | "growth" | "enterprise" | "unknown";
   screening_intent: string | null;
   candidate_count_strategy: "focused_shortlist" | "broader_shortlist";
   constraint_reasoning: string | null;
@@ -451,10 +459,14 @@ type BlockingSeverity = "hard" | "soft" | "none";
 type CandidateSuitability = {
   fit_decision: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
   actionability: "ready_to_act" | "needs_review" | "not_actionable";
+  bucket: "strong_now" | "consider_next" | "do_not_show";
   match_score: number;
   quality_score: number;
   advance_score: number;
   advance_recommendation: AdvanceRecommendation;
+  primary_risk: string | null;
+  first_contact_confidence: "high" | "medium" | "low";
+  subscription_trigger_score: number;
   blocking_constraints: string[];
   blocking_severity: BlockingSeverity;
   scoring_breakdown: ScoringBreakdown;
@@ -470,6 +482,15 @@ type SerperPreScreenDecision = {
   keep: boolean;
   match_score: number;
   reason: string;
+};
+
+type BrightPreScreenBucket = "strong_now" | "consider_next" | "reject";
+
+type BrightPreScreenDecision = {
+  bucket: BrightPreScreenBucket;
+  match_score: number;
+  fit_reason: string;
+  primary_risk: string | null;
 };
 
 type SerperPreScreenedCandidate = {
@@ -585,6 +606,14 @@ type SearchDisplayStats = {
   pre_gate_blocked_count?: number;
   prescreen_blocked_count?: number;
   contact_unlock_candidates?: number;
+  recall_profile_count?: number;
+  topup_triggered?: boolean;
+  strong_now_count?: number;
+  consider_next_count?: number;
+  do_not_show_count?: number;
+  clear_location_fit_count?: number;
+  must_have_strong_count?: number;
+  first_contact_confidence_count?: number;
 };
 
 type SearchPipelineResult = {
@@ -620,6 +649,10 @@ type RecallMetadata = {
     title_terms: string[];
     country_codes: string[];
     location_terms?: string[];
+    strict_location_terms?: string[];
+    nearby_location_terms?: string[];
+    must_have_signals?: string[];
+    avoid_profiles?: string[];
   } | null;
 };
 
@@ -736,69 +769,119 @@ function normalizeText(value: string | null | undefined) {
     .trim();
 }
 
-function deriveLocationTerms(locationScope: string | null): string[] {
-  if (!locationScope) return [];
-  const normalized = normalizeText(locationScope).replace(/\b(remote|hybrid|onsite|on site)\b/g, "").trim();
-  if (!normalized) return [];
-
-  const terms = new Set<string>();
-  terms.add(normalized);
-
-  const commaParts = normalized.split(",").map((part) => part.trim()).filter(Boolean);
-  if (commaParts[0]) terms.add(commaParts[0]);
-  if (commaParts.length > 1) terms.add(commaParts.slice(-1)[0]);
-
-  if (/^new york$/i.test(normalized)) terms.add("new york");
-  if (/san francisco/.test(normalized)) terms.add("san francisco");
-  if (/los angeles/.test(normalized)) terms.add("los angeles");
-  if (/new york|nyc|manhattan|brooklyn|queens|bronx/.test(normalized)) {
-    [
+const GEO_ALLOWLISTS = [
+  {
+    matchers: [/new york|nyc|manhattan|brooklyn|queens|bronx|jersey city|hoboken|newark/i],
+    strict: [
       "new york city",
+      "new york",
       "nyc",
-      "new york, new york",
       "manhattan",
       "brooklyn",
       "queens",
       "bronx",
-      "jersey city",
-      "hoboken",
-      "newark",
+      "new york city metropolitan area",
       "new york metropolitan area",
-    ].forEach((term) => terms.add(term));
-  }
-  if (/san francisco|bay area/.test(normalized)) {
-    [
-      "san francisco bay area",
+    ],
+    nearby: ["jersey city", "hoboken", "newark"],
+    geoStrategy:
+      "Treat NYC boroughs as local and close-in Hudson County / Newark as nearby metro options.",
+  },
+  {
+    matchers: [/san francisco|bay area|oakland|berkeley|san jose|palo alto|mountain view/i],
+    strict: [
+      "san francisco",
       "bay area",
+      "san francisco bay area",
       "oakland",
       "berkeley",
       "san jose",
       "palo alto",
       "mountain view",
-    ].forEach((term) => terms.add(term));
-  }
-  if (/los angeles|la metro/.test(normalized)) {
-    [
+    ],
+    nearby: ["redwood city", "menlo park", "fremont", "walnut creek"],
+    geoStrategy:
+      "Treat the Bay Area as one hiring market and rank Peninsula / East Bay candidates as nearby when needed.",
+  },
+  {
+    matchers: [/los angeles|la metro|santa monica|pasadena|culver city|burbank|glendale/i],
+    strict: [
+      "los angeles",
       "los angeles metropolitan area",
       "santa monica",
       "pasadena",
       "culver city",
-      "glendale",
       "burbank",
-    ].forEach((term) => terms.add(term));
+      "glendale",
+    ],
+    nearby: ["long beach", "irvine", "west hollywood"],
+    geoStrategy:
+      "Treat LA proper as local and nearby inner-metro cities as acceptable nearby options.",
+  },
+];
+
+function compactNormalizedTerms(values: Array<string | null | undefined>, maxItems: number) {
+  const deduped = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeText(value).replace(/\b(remote|hybrid|onsite|on site)\b/g, " ").trim();
+    if (!normalized || normalized.length < 3) continue;
+    deduped.add(normalized.replace(/\s+/g, " "));
+    if (deduped.size >= maxItems) break;
+  }
+  return Array.from(deduped);
+}
+
+function deriveGeoStrategy(locationScope: string | null) {
+  const normalized = normalizeText(locationScope).replace(/\b(remote|hybrid|onsite|on site)\b/g, " ").trim();
+  if (!normalized) {
+    return {
+      strictTerms: [] as string[],
+      nearbyTerms: [] as string[],
+      geoStrategy: null as string | null,
+    };
   }
 
-  return Array.from(terms)
-    .map((term) => term.replace(/\s+/g, " ").trim())
-    .filter((term) => term.length >= 3)
-    .slice(0, 10);
+  const commaParts = normalized.split(",").map((part) => part.trim()).filter(Boolean);
+  const baseTerms = compactNormalizedTerms(
+    [normalized, commaParts[0], commaParts.slice(-1)[0]],
+    12,
+  );
+  const allowlist = GEO_ALLOWLISTS.find((entry) =>
+    entry.matchers.some((matcher) => matcher.test(normalized)),
+  );
+
+  if (!allowlist) {
+    return {
+      strictTerms: baseTerms,
+      nearbyTerms: [],
+      geoStrategy:
+        baseTerms.length > 0
+          ? `Treat ${baseTerms[0]} as the primary local market and avoid obvious out-of-region candidates.`
+          : null,
+    };
+  }
+
+  return {
+    strictTerms: compactNormalizedTerms([...allowlist.strict, ...baseTerms], 16),
+    nearbyTerms: compactNormalizedTerms(allowlist.nearby, 8),
+    geoStrategy: allowlist.geoStrategy,
+  };
+}
+
+function deriveLocationTerms(locationScope: string | null): string[] {
+  const geo = deriveGeoStrategy(locationScope);
+  return compactNormalizedTerms(
+    [...geo.strictTerms, ...geo.nearbyTerms],
+    16,
+  );
 }
 
 // ──────────────────── Deterministic Location Gate ────────────────────
 
 type LocationPolicy = {
   mode: "strict" | "moderate" | "flexible";
-  target_terms: string[];
+  strict_terms: string[];
+  nearby_terms: string[];
   work_model: string;
   allows_relocation: boolean;
   requires_local_presence: boolean;
@@ -821,17 +904,18 @@ type LocationGateResult = {
 
 function normalizeLocationConstraint(hiringBrief: HiringBrief): LocationPolicy {
   const mode = hiringBrief.location_flexibility || "moderate";
-  const target_terms = deriveLocationTerms(hiringBrief.location_scope);
+  const geo = deriveGeoStrategy(hiringBrief.location_scope);
   const work_model = hiringBrief.work_model || "unknown";
   const allows_relocation = hiringBrief.relocation_allowed === "yes";
   const requires_local_presence =
     (work_model === "onsite" || work_model === "hybrid") &&
     mode === "strict" &&
-    target_terms.length > 0;
+    geo.strictTerms.length > 0;
 
   return {
     mode,
-    target_terms,
+    strict_terms: geo.strictTerms,
+    nearby_terms: geo.nearbyTerms,
     work_model,
     allows_relocation,
     requires_local_presence,
@@ -892,10 +976,10 @@ function evaluateCandidateLocationGate(
   if (evidence.evidence_quality === "missing") {
     if (policy.mode === "strict" && policy.requires_local_presence) {
       return {
-        decision: "block",
+        decision: "review",
         location_fit: "unknown",
         reason: "Strict location requirement but candidate location unknown",
-        is_hard_block: true,
+        is_hard_block: false,
       };
     }
     return {
@@ -907,8 +991,8 @@ function evaluateCandidateLocationGate(
   }
 
   // 检查是否匹配目标地域
-  const isLocalMatch = policy.target_terms.length === 0 ||
-    policy.target_terms.some(target =>
+  const isLocalMatch = policy.strict_terms.length === 0 ||
+    policy.strict_terms.some(target =>
       evidence.normalized_terms.some(term =>
         term.includes(target) || target.includes(term)
       )
@@ -923,8 +1007,25 @@ function evaluateCandidateLocationGate(
     };
   }
 
+  const isNearbyMatch = policy.nearby_terms.some(target =>
+    evidence.normalized_terms.some(term =>
+      term.includes(target) || target.includes(term)
+    ),
+  );
+  if (isNearbyMatch) {
+    return {
+      decision: policy.mode === "strict" ? "review" : "pass",
+      location_fit: "nearby",
+      reason:
+        policy.mode === "strict"
+          ? "Candidate is nearby metro, not exact local"
+          : "Candidate is within nearby metro area",
+      is_hard_block: false,
+    };
+  }
+
   // 明确不匹配
-  const location_fit: "nearby" | "non_local" = "non_local"; // 简化版先不判断 nearby
+  const location_fit = "non_local" as const;
 
   if (policy.mode === "strict" && policy.requires_local_presence) {
     // strict 下，即使允许 relocation，也需要候选人有明确搬迁信号
@@ -993,6 +1094,24 @@ function normalizeRecallSpec(
   const title_variants = normalizeStringArray(item.title_variants, 8);
   const core_skill_terms = normalizeStringArray(item.core_skill_terms, 12);
   const location_terms = normalizeStringArray(item.location_terms, 10);
+  const strict_location_terms = normalizeStringArray(
+    item.strict_location_terms ?? item.location_terms,
+    16,
+  );
+  const nearby_location_terms = normalizeStringArray(item.nearby_location_terms, 10);
+  const must_have_signals = normalizeStringArray(item.must_have_signals, 12);
+  const avoid_profiles = normalizeStringArray(item.avoid_profiles, 10);
+  const geo_strategy = normalizeNullableString(item.geo_strategy);
+  const recall_confidence = normalizeEnumValue(
+    item.recall_confidence,
+    ["high", "medium", "low"] as const,
+    "medium",
+  );
+  const role_breadth = normalizeEnumValue(
+    item.role_breadth,
+    ["narrow", "balanced", "broad"] as const,
+    "balanced",
+  );
   const requestedLimit =
     typeof options?.recordLimitOverride === "number" &&
     Number.isFinite(options.recordLimitOverride)
@@ -1006,6 +1125,13 @@ function normalizeRecallSpec(
     title_variants,
     core_skill_terms,
     location_terms,
+    strict_location_terms,
+    nearby_location_terms,
+    must_have_signals,
+    avoid_profiles,
+    geo_strategy,
+    recall_confidence,
+    role_breadth,
     record_limit:
       typeof options?.recordLimitOverride === "number" &&
       Number.isFinite(options.recordLimitOverride)
@@ -1122,6 +1248,43 @@ function inferCountriesFromJdText(jdText: string) {
   return [];
 }
 
+function deriveMustHaveSignalsFromParsed(
+  parsed: Record<string, unknown>,
+  jdText: string,
+) {
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const signals = [
+    ...hiringBrief.role_core.required_skills,
+    ...hiringBrief.must_have_constraints,
+    ...deriveCoreSkillsFromJdText(jdText, 8),
+  ];
+  return compactNormalizedTerms(signals, 12);
+}
+
+function deriveAvoidProfilesFromParsed(
+  parsed: Record<string, unknown>,
+  jdText: string,
+) {
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const normalizedJd = normalizeText(jdText);
+  const avoid = new Set<string>();
+  const title = normalizeText(parsed.title as string | null);
+
+  if (title.includes("founding") || normalizedJd.includes("startup")) {
+    avoid.add("enterprise only manager");
+    avoid.add("pure platform engineer");
+  }
+  if (title.includes("software engineer") || title.includes("full stack")) {
+    avoid.add("machine learning only");
+    avoid.add("sales engineer");
+  }
+  if (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") {
+    avoid.add("non local candidate");
+  }
+
+  return Array.from(avoid).slice(0, 8);
+}
+
 function enrichRecallSpecFromJd(
   parsed: Record<string, unknown>,
   jdText: string,
@@ -1142,19 +1305,40 @@ function enrichRecallSpecFromJd(
     ? recallSpec.countries
     : inferCountriesFromJdText(jdText);
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const derivedLocationTerms = hiringBrief.location_scope
-    ? deriveLocationTerms(hiringBrief.location_scope)
-    : [];
+  const geo = deriveGeoStrategy(hiringBrief.location_scope);
+  const derivedLocationTerms = compactNormalizedTerms(
+    [...geo.strictTerms, ...geo.nearbyTerms],
+    16,
+  );
   const locationTerms = recallSpec.location_terms.length > 0
     ? recallSpec.location_terms
     : derivedLocationTerms;
+  const mustHaveSignals = recallSpec.must_have_signals.length > 0
+    ? recallSpec.must_have_signals
+    : deriveMustHaveSignalsFromParsed(parsed, jdText);
+  const avoidProfiles = recallSpec.avoid_profiles.length > 0
+    ? recallSpec.avoid_profiles
+    : deriveAvoidProfilesFromParsed(parsed, jdText);
 
   return {
     ...recallSpec,
     title_variants: titleVariants.slice(0, 8),
     core_skill_terms: coreSkillTerms.slice(0, 12),
     countries: countries.slice(0, 5),
-    location_terms: locationTerms.slice(0, 10),
+    location_terms: locationTerms.slice(0, 16),
+    strict_location_terms:
+      (recallSpec.strict_location_terms.length > 0
+        ? recallSpec.strict_location_terms
+        : geo.strictTerms).slice(0, 16),
+    nearby_location_terms:
+      (recallSpec.nearby_location_terms.length > 0
+        ? recallSpec.nearby_location_terms
+        : geo.nearbyTerms).slice(0, 10),
+    must_have_signals: mustHaveSignals.slice(0, 12),
+    avoid_profiles: avoidProfiles.slice(0, 8),
+    geo_strategy: recallSpec.geo_strategy || geo.geoStrategy,
+    recall_confidence: recallSpec.recall_confidence,
+    role_breadth: recallSpec.role_breadth,
   };
 }
 
@@ -1281,6 +1465,30 @@ function buildSearchDisplayStats(
       : {}),
     ...(typeof overrides.contact_unlock_candidates === "number"
       ? { contact_unlock_candidates: Math.max(0, Math.round(overrides.contact_unlock_candidates)) }
+      : {}),
+    ...(typeof overrides.recall_profile_count === "number"
+      ? { recall_profile_count: Math.max(0, Math.round(overrides.recall_profile_count)) }
+      : {}),
+    ...(typeof overrides.topup_triggered === "boolean"
+      ? { topup_triggered: overrides.topup_triggered }
+      : {}),
+    ...(typeof overrides.strong_now_count === "number"
+      ? { strong_now_count: Math.max(0, Math.round(overrides.strong_now_count)) }
+      : {}),
+    ...(typeof overrides.consider_next_count === "number"
+      ? { consider_next_count: Math.max(0, Math.round(overrides.consider_next_count)) }
+      : {}),
+    ...(typeof overrides.do_not_show_count === "number"
+      ? { do_not_show_count: Math.max(0, Math.round(overrides.do_not_show_count)) }
+      : {}),
+    ...(typeof overrides.clear_location_fit_count === "number"
+      ? { clear_location_fit_count: Math.max(0, Math.round(overrides.clear_location_fit_count)) }
+      : {}),
+    ...(typeof overrides.must_have_strong_count === "number"
+      ? { must_have_strong_count: Math.max(0, Math.round(overrides.must_have_strong_count)) }
+      : {}),
+    ...(typeof overrides.first_contact_confidence_count === "number"
+      ? { first_contact_confidence_count: Math.max(0, Math.round(overrides.first_contact_confidence_count)) }
       : {}),
   };
 }
@@ -1440,19 +1648,18 @@ function shouldRunFreeActivationTopUp(
   hiringBrief: HiringBrief,
   displayStats: SearchDisplayStats,
 ) {
-  const visibleCandidateCount =
-    displayStats.visible_candidate_count ??
-    displayStats.shortlist_count ??
-    displayStats.qualified_count ??
-    0;
+  const visibleStrongCount = displayStats.strong_now_count ?? 0;
   const topQualityScore = displayStats.top_quality_score ?? 0;
+  const clearLocationFitCount = displayStats.clear_location_fit_count ?? 0;
+  const mustHaveStrongCount = displayStats.must_have_strong_count ?? 0;
   const strictLocalRole =
     (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
     hiringBrief.location_flexibility === "strict";
 
-  if (strictLocalRole) return true;
-  if (visibleCandidateCount < 3) return true;
-  if (topQualityScore < 70) return true;
+  if (visibleStrongCount < 5) return true;
+  if (topQualityScore < 75) return true;
+  if (strictLocalRole && clearLocationFitCount < 5) return true;
+  if (mustHaveStrongCount < 3) return true;
   return false;
 }
 
@@ -1500,7 +1707,11 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     ? {
       title_terms: normalizeStringArray(rawFilterSummary.title_terms, 12),
       country_codes: normalizeStringArray(rawFilterSummary.country_codes, 6),
-      location_terms: normalizeStringArray(rawFilterSummary.location_terms, 10),
+      location_terms: normalizeStringArray(rawFilterSummary.location_terms, 16),
+      strict_location_terms: normalizeStringArray(rawFilterSummary.strict_location_terms, 16),
+      nearby_location_terms: normalizeStringArray(rawFilterSummary.nearby_location_terms, 10),
+      must_have_signals: normalizeStringArray(rawFilterSummary.must_have_signals, 12),
+      avoid_profiles: normalizeStringArray(rawFilterSummary.avoid_profiles, 10),
     }
     : null;
   const judge_mode =
@@ -1537,7 +1748,15 @@ function normalizeSummaryTerms(values: string[] | undefined) {
 
 function hasRecallSnapshotDrift(
   metadata: RecallMetadata | null,
-  filterSummary: { title_terms: string[]; country_codes: string[]; location_terms: string[] },
+  filterSummary: {
+    title_terms: string[];
+    country_codes: string[];
+    location_terms: string[];
+    strict_location_terms?: string[];
+    nearby_location_terms?: string[];
+    must_have_signals?: string[];
+    avoid_profiles?: string[];
+  },
   executionProfile: SearchExecutionProfile,
   runtime: SearchExecutionRuntime,
   requestedLimit: number,
@@ -1554,6 +1773,18 @@ function hasRecallSnapshotDrift(
   const sameLocationTerms =
     JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.location_terms)) ===
     JSON.stringify(normalizeSummaryTerms(filterSummary.location_terms));
+  const sameStrictLocationTerms =
+    JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.strict_location_terms)) ===
+    JSON.stringify(normalizeSummaryTerms(filterSummary.strict_location_terms));
+  const sameNearbyLocationTerms =
+    JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.nearby_location_terms)) ===
+    JSON.stringify(normalizeSummaryTerms(filterSummary.nearby_location_terms));
+  const sameMustHaveSignals =
+    JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.must_have_signals)) ===
+    JSON.stringify(normalizeSummaryTerms(filterSummary.must_have_signals));
+  const sameAvoidProfiles =
+    JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.avoid_profiles)) ===
+    JSON.stringify(normalizeSummaryTerms(filterSummary.avoid_profiles));
   const sameBudget =
     metadata.bright_profile_budget == null ||
     metadata.bright_profile_budget === executionProfile.filterLimit;
@@ -1568,6 +1799,10 @@ function hasRecallSnapshotDrift(
     sameTitleTerms &&
     sameCountryCodes &&
     sameLocationTerms &&
+    sameStrictLocationTerms &&
+    sameNearbyLocationTerms &&
+    sameMustHaveSignals &&
+    sameAvoidProfiles &&
     sameBudget &&
     sameRequested &&
     sameJudgeMode
@@ -1653,6 +1888,11 @@ function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unkn
     ),
     must_have_constraints: normalizeStringArray(item.must_have_constraints, 10),
     soft_constraints: normalizeStringArray(item.soft_constraints, 10),
+    company_stage_expectation: normalizeEnumValue(
+      item.company_stage_expectation,
+      ["startup", "growth", "enterprise", "unknown"] as const,
+      "unknown",
+    ),
     screening_intent: normalizeNullableString(item.screening_intent),
     candidate_count_strategy: normalizeEnumValue(
       item.candidate_count_strategy,
@@ -1684,6 +1924,9 @@ function buildPromptSearchContext(parsed: Record<string, unknown>) {
   if (hiringBrief.role_core.required_skills.length > 0) {
     lines.push(`Must-Have Skills: ${hiringBrief.role_core.required_skills.slice(0, 10).join(", ")}`);
   }
+  if (hiringBrief.company_stage_expectation !== "unknown") {
+    lines.push(`Company Stage Expectation: ${hiringBrief.company_stage_expectation}`);
+  }
   if (hiringBrief.must_have_constraints.length > 0) {
     lines.push(`Must-Have Constraints: ${hiringBrief.must_have_constraints.slice(0, 6).join(" | ")}`);
   }
@@ -1694,6 +1937,21 @@ function buildPromptSearchContext(parsed: Record<string, unknown>) {
   }
   if (recallSpec.core_skill_terms.length > 0) {
     lines.push(`Core Skills: ${recallSpec.core_skill_terms.join(", ")}`);
+  }
+  if (recallSpec.must_have_signals.length > 0) {
+    lines.push(`Must-Have Signals: ${recallSpec.must_have_signals.join(" | ")}`);
+  }
+  if (recallSpec.avoid_profiles.length > 0) {
+    lines.push(`Avoid Profiles: ${recallSpec.avoid_profiles.join(" | ")}`);
+  }
+  if (recallSpec.strict_location_terms.length > 0) {
+    lines.push(`Strict Location Terms: ${recallSpec.strict_location_terms.join(", ")}`);
+  }
+  if (recallSpec.nearby_location_terms.length > 0) {
+    lines.push(`Nearby Location Terms: ${recallSpec.nearby_location_terms.join(", ")}`);
+  }
+  if (recallSpec.geo_strategy) {
+    lines.push(`Geo Strategy: ${recallSpec.geo_strategy}`);
   }
   if (recallSpec.countries.length > 0) {
     lines.push(`Countries: ${recallSpec.countries.join(", ")}`);
@@ -1900,6 +2158,103 @@ function deriveActionabilityFromScores(
   return "not_actionable";
 }
 
+function deriveFirstContactConfidence(
+  qualityScore: number,
+  advanceRecommendation: AdvanceRecommendation,
+  evidenceQuality: CandidateSuitability["evidence_quality"],
+  constraintVerdicts: ConstraintVerdict,
+) {
+  if (
+    qualityScore >= 76 &&
+    advanceRecommendation !== "reject" &&
+    evidenceQuality !== "low" &&
+    constraintVerdicts.location_fit !== "non_local" &&
+    constraintVerdicts.must_have_coverage !== "weak"
+  ) {
+    return "high" as const;
+  }
+  if (
+    qualityScore >= 60 &&
+    advanceRecommendation !== "reject" &&
+    constraintVerdicts.must_have_coverage !== "weak"
+  ) {
+    return "medium" as const;
+  }
+  return "low" as const;
+}
+
+function computeSubscriptionTriggerScore(
+  qualityScore: number,
+  advanceScore: number,
+  joinLikelihoodScore: number,
+  evidenceQuality: CandidateSuitability["evidence_quality"],
+  constraintVerdicts: ConstraintVerdict,
+) {
+  const locationBonus =
+    constraintVerdicts.location_fit === "local"
+      ? 10
+      : constraintVerdicts.location_fit === "nearby"
+        ? 6
+        : constraintVerdicts.location_fit === "unknown"
+          ? -4
+          : -12;
+  const mustHaveBonus =
+    constraintVerdicts.must_have_coverage === "strong"
+      ? 10
+      : constraintVerdicts.must_have_coverage === "partial"
+        ? 4
+        : constraintVerdicts.must_have_coverage === "weak"
+          ? -10
+          : -3;
+  const evidenceBonus =
+    evidenceQuality === "high" ? 5 : evidenceQuality === "medium" ? 0 : -6;
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        qualityScore * 0.45 +
+          advanceScore * 0.25 +
+          joinLikelihoodScore * 0.15 +
+          locationBonus +
+          mustHaveBonus +
+          evidenceBonus,
+      ),
+    ),
+  );
+}
+
+function deriveSuitabilityBucket(
+  params: {
+    qualityScore: number;
+    advanceRecommendation: AdvanceRecommendation;
+    blockingSeverity: BlockingSeverity;
+    constraintVerdicts: ConstraintVerdict;
+    strictLocalRole: boolean;
+    minVisibleQualityScore: number;
+  },
+): CandidateSuitability["bucket"] {
+  if (params.blockingSeverity === "hard") return "do_not_show";
+  if (params.advanceRecommendation === "reject") return "do_not_show";
+  if (params.qualityScore < params.minVisibleQualityScore) return "do_not_show";
+  if (params.constraintVerdicts.must_have_coverage === "weak") return "do_not_show";
+  if (
+    params.strictLocalRole &&
+    !["local", "nearby"].includes(params.constraintVerdicts.location_fit)
+  ) {
+    return "do_not_show";
+  }
+  if (
+    params.qualityScore >= Math.max(params.minVisibleQualityScore, 72) &&
+    ["strong", "partial"].includes(params.constraintVerdicts.must_have_coverage) &&
+    (!params.strictLocalRole ||
+      ["local", "nearby"].includes(params.constraintVerdicts.location_fit))
+  ) {
+    return "strong_now";
+  }
+  return "consider_next";
+}
+
 function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -1949,14 +2304,59 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
       actionability,
     );
   }
+  const evidenceQuality = normalizeEnumValue(
+    item.evidence_quality,
+    ["high", "medium", "low"] as const,
+    "medium",
+  );
+  const firstContactConfidence = normalizeEnumValue(
+    item.first_contact_confidence,
+    ["high", "medium", "low"] as const,
+    deriveFirstContactConfidence(
+      qualityScore,
+      advanceRecommendation,
+      evidenceQuality,
+      constraintVerdicts,
+    ),
+  );
+  const subscriptionTriggerScore =
+    item.subscription_trigger_score != null
+      ? normalizeScore(item.subscription_trigger_score)
+      : computeSubscriptionTriggerScore(
+          qualityScore,
+          advanceScore,
+          joinLikelihoodScore,
+          evidenceQuality,
+          constraintVerdicts,
+        );
+  const bucket = normalizeEnumValue(
+    item.bucket,
+    ["strong_now", "consider_next", "do_not_show"] as const,
+    deriveSuitabilityBucket({
+      qualityScore,
+      advanceRecommendation,
+      blockingSeverity,
+      constraintVerdicts,
+      strictLocalRole: false,
+      minVisibleQualityScore: 60,
+    }),
+  );
 
   return {
     fit_decision: fitDecision,
     actionability,
+    bucket,
     match_score: qualityScore,
     quality_score: qualityScore,
     advance_score: advanceScore,
     advance_recommendation: advanceRecommendation,
+    primary_risk:
+      normalizeNullableString(item.primary_risk) ||
+      normalizeStringArray(item.risk_flags ?? item.constraint_risks, 1)[0] ||
+      normalizeBlockingConstraints(item.blocking_constraints)[0] ||
+      null,
+    first_contact_confidence: firstContactConfidence,
+    subscription_trigger_score: subscriptionTriggerScore,
     blocking_constraints: blockingConstraints,
     blocking_severity: blockingSeverity,
     scoring_breakdown: {
@@ -1978,11 +2378,7 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
       normalizeStringArray(item.why_this_candidate, 6),
     ),
     why_not_higher: stripSpeculativeRelocation(normalizeStringArray(item.why_not_higher, 6)),
-    evidence_quality: normalizeEnumValue(
-      item.evidence_quality,
-      ["high", "medium", "low"] as const,
-      "medium",
-    ),
+    evidence_quality: evidenceQuality,
   };
 }
 
@@ -2008,6 +2404,27 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
   };
 }
 
+function sanitizeBrightPreScreenDecision(value: unknown): BrightPreScreenDecision | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  return {
+    bucket: normalizeEnumValue(
+      item.bucket,
+      ["strong_now", "consider_next", "reject"] as const,
+      "consider_next",
+    ),
+    match_score:
+      typeof item.match_score === "number" && Number.isFinite(item.match_score)
+        ? Math.max(0, Math.min(100, Math.round(item.match_score)))
+        : 50,
+    fit_reason:
+      normalizeNullableString(item.fit_reason) ||
+      normalizeNullableString(item.reason) ||
+      "Reasonable first-pass fit for deeper review.",
+    primary_risk: normalizeNullableString(item.primary_risk),
+  };
+}
+
 function sortCandidateAssessments(left: ScoredCandidateAssessment, right: ScoredCandidateAssessment) {
   const evidenceRank: Record<CandidateSuitability["evidence_quality"], number> = {
     high: 0,
@@ -2016,6 +2433,7 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
   };
 
   return (
+    right.suitability.subscription_trigger_score - left.suitability.subscription_trigger_score ||
     right.suitability.quality_score - left.suitability.quality_score ||
     right.suitability.advance_score - left.suitability.advance_score ||
     right.suitability.scoring_breakdown.relevance_score - left.suitability.scoring_breakdown.relevance_score ||
@@ -2433,6 +2851,7 @@ function buildJudgeScorePrompt(
   const jsonShape = poolSize === 1
     ? `{
   "index": 0,
+  "bucket": "strong_now | consider_next | do_not_show",
   "capability_score": 0,
   "relevance_score": 0,
   "join_likelihood_score": 0,
@@ -2442,6 +2861,8 @@ function buildJudgeScorePrompt(
     "work_model_fit": "yes | no | unclear",
     "must_have_coverage": "strong | partial | weak | unknown"
   },
+  "primary_risk": "string | null",
+  "first_contact_confidence": "high | medium | low",
   "blocking_constraints": ["string"],
   "blocking_severity": "hard | soft | none",
   "advance_recommendation": "advance | hold | reject",
@@ -2455,6 +2876,7 @@ function buildJudgeScorePrompt(
     : `[
   {
     "index": 0,
+    "bucket": "strong_now | consider_next | do_not_show",
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
@@ -2464,6 +2886,8 @@ function buildJudgeScorePrompt(
       "work_model_fit": "yes | no | unclear",
       "must_have_coverage": "strong | partial | weak | unknown"
     },
+    "primary_risk": "string | null",
+    "first_contact_confidence": "high | medium | low",
     "blocking_constraints": ["string"],
     "blocking_severity": "hard | soft | none",
     "advance_recommendation": "advance | hold | reject",
@@ -2509,6 +2933,7 @@ Rules:
 - For roles with explicit city/country hard constraints, treat explicit out-of-region evidence as a hard blocker and reflect it in blocking_constraints.
 - For explicit out-of-region hard blockers, do not output advance_recommendation=advance.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
+- bucket should be strong_now for first-screen candidates, consider_next for credible second-layer candidates, and do_not_show for hidden-by-default candidates.
 - Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
 - Do not collapse quality because of sparse evidence alone. Use evidence_quality + risk fields to express uncertainty.
 - When title/about/current role strongly align but details are sparse, capability/relevance can still be moderate.
@@ -2517,6 +2942,7 @@ Rules:
 - Keep short_reasons concrete and short. Max 3 items, each under 14 words.
 - Keep join_likelihood_reasons concrete and evidence-based. Max 3 items, each under 16 words.
 - Keep risk_flags concrete and short. Max 3 items, each under 10 words.
+- first_contact_confidence should reflect whether a recruiter would feel good reaching out immediately.
 - Do not speculate about relocation or work authorization.
 - Return ONLY valid JSON. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json or \`\`\`). Return raw JSON directly.`;
 }
@@ -2564,17 +2990,21 @@ Rules:
 - If location, work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
 - For explicit city/country hard constraints in the JD, explicit out-of-region evidence should remain a hard blocker in the final arbitration.
 - Use hard blocker only for explicit conflicts; unknown or sparse evidence must be soft.
+- bucket should describe whether this candidate belongs on the first screen, second layer, or hidden by default.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
 [
   {
     "index": 0,
+    "bucket": "strong_now | consider_next | do_not_show",
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
     "quality_score": 0,
     "advance_score": 0,
     "advance_recommendation": "advance | hold | reject",
+    "primary_risk": "string | null",
+    "first_contact_confidence": "high | medium | low",
     "blocking_constraints": ["string"],
     "blocking_severity": "hard | soft | none",
     "join_likelihood_reasons": ["string"],
@@ -2926,6 +3356,10 @@ function buildBrightDataCandidateRows(
         quality_score: item.suitability.quality_score,
         advance_score: item.suitability.advance_score,
         advance_recommendation: item.suitability.advance_recommendation,
+        bucket: item.suitability.bucket,
+        primary_risk: item.suitability.primary_risk,
+        first_contact_confidence: item.suitability.first_contact_confidence,
+        subscription_trigger_score: item.suitability.subscription_trigger_score,
         blocking_constraints: item.suitability.blocking_constraints,
         blocking_severity: item.suitability.blocking_severity,
         quality_breakdown: {
@@ -3064,10 +3498,14 @@ function mergeJudgeResults(
     suitability: suitability || {
       fit_decision: "reject",
       actionability: "not_actionable",
+      bucket: "do_not_show",
       match_score: 0,
       quality_score: 0,
       advance_score: 0,
       advance_recommendation: "reject",
+      primary_risk: "Scoring response was incomplete.",
+      first_contact_confidence: "low",
+      subscription_trigger_score: 0,
       blocking_constraints: [],
       blocking_severity: "none",
       scoring_breakdown: {
@@ -3110,9 +3548,18 @@ function tagPoolRows(
 ) {
   const finalRows = mergeCandidateRows(primaryRows, supplementalRows, candidateLimit).sort(
     (left, right) => {
+      const rightTrigger =
+        typeof right.metadata?.subscription_trigger_score === "number"
+          ? right.metadata.subscription_trigger_score
+          : right.match_score;
+      const leftTrigger =
+        typeof left.metadata?.subscription_trigger_score === "number"
+          ? left.metadata.subscription_trigger_score
+          : left.match_score;
       const rightPreliminary = right.metadata?.preliminary === true ? 1 : 0;
       const leftPreliminary = left.metadata?.preliminary === true ? 1 : 0;
       return (
+        rightTrigger - leftTrigger ||
         right.match_score - left.match_score ||
         leftPreliminary - rightPreliminary
       );
@@ -3155,6 +3602,14 @@ function buildBrightDataRecallFilter(
   const locationTerms = recallSpec.location_terms
     .map((term) => normalizeText(term))
     .filter((term) => term.length >= 3)
+    .slice(0, 16);
+  const strictLocationTerms = recallSpec.strict_location_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 3)
+    .slice(0, 12);
+  const nearbyLocationTerms = recallSpec.nearby_location_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 3)
     .slice(0, 8);
 
   const rootFilters: BrightDataFilterRule[] = [
@@ -3189,11 +3644,14 @@ function buildBrightDataRecallFilter(
 
   if (
     hiringBrief.location_flexibility === "strict" &&
-    locationTerms.length > 0
+    (strictLocationTerms.length > 0 || nearbyLocationTerms.length > 0 || locationTerms.length > 0)
   ) {
     rootFilters.push({
       operator: "or",
-      filters: locationTerms.map((term) => ({
+      filters: compactNormalizedTerms(
+        [...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms],
+        16,
+      ).map((term) => ({
         name: "city",
         operator: "includes",
         value: term,
@@ -3346,6 +3804,13 @@ async function parseJobDescription(
         countries: inferCountriesFromJdText(context.jdText),
         title_variants: [],
         core_skill_terms: deriveCoreSkillsFromJdText(context.jdText, 12),
+        must_have_signals: deriveCoreSkillsFromJdText(context.jdText, 8),
+        avoid_profiles: [],
+        strict_location_terms: [],
+        nearby_location_terms: [],
+        geo_strategy: null,
+        recall_confidence: "low",
+        role_breadth: "balanced",
         record_limit: BRIGHTDATA_FILTER_LIMIT,
       },
     };
@@ -3666,13 +4131,45 @@ function selectTopDeepAssessments(
   assessments: ScoredCandidateAssessment[],
   finalResultCap: number,
   minVisibleQualityScore: number,
+  options?: {
+    strictLocalRole?: boolean;
+    strongNowQualityScore?: number;
+  },
 ) {
-  const eligibleAssessments = assessments.filter((assessment) => {
-    if (assessment.suitability.blocking_severity === "hard") return false;
-    if (assessment.suitability.advance_recommendation === "reject") return false;
-    if (assessment.suitability.quality_score < minVisibleQualityScore) return false;
-    return true;
+  const strictLocalRole = options?.strictLocalRole === true;
+  const strongNowQualityScore = options?.strongNowQualityScore ?? 72;
+  const bucketedAssessments = assessments.map((assessment) => {
+    const bucket = deriveSuitabilityBucket({
+      qualityScore: assessment.suitability.quality_score,
+      advanceRecommendation: assessment.suitability.advance_recommendation,
+      blockingSeverity: assessment.suitability.blocking_severity,
+      constraintVerdicts: assessment.suitability.constraint_verdicts,
+      strictLocalRole,
+      minVisibleQualityScore,
+    });
+    const upgradedBucket =
+      bucket === "strong_now" &&
+      assessment.suitability.quality_score < strongNowQualityScore
+        ? "consider_next"
+        : bucket;
+    return {
+      ...assessment,
+      suitability: {
+        ...assessment.suitability,
+        bucket: upgradedBucket,
+        subscription_trigger_score: computeSubscriptionTriggerScore(
+          assessment.suitability.quality_score,
+          assessment.suitability.advance_score,
+          assessment.suitability.scoring_breakdown.join_likelihood_score,
+          assessment.suitability.evidence_quality,
+          assessment.suitability.constraint_verdicts,
+        ),
+      },
+    };
   });
+  const eligibleAssessments = bucketedAssessments.filter(
+    (assessment) => assessment.suitability.bucket !== "do_not_show",
+  );
 
   if (eligibleAssessments.length === 0) {
     return {
@@ -3683,13 +4180,22 @@ function selectTopDeepAssessments(
       eligibleCount: 0,
       excludedCount: assessments.length,
       qualityFloorApplied: assessments.length > 0,
+      strongNowCount: 0,
+      considerNextCount: 0,
+      doNotShowCount: assessments.length,
     };
   }
 
-  const sorted = [...eligibleAssessments].sort(sortCandidateAssessments);
-  const selectedCount = Math.min(sorted.length, finalResultCap);
-  const selected = sorted.slice(0, selectedCount);
-  const selectedRate = selectedCount / sorted.length;
+  const strongNow = eligibleAssessments
+    .filter((assessment) => assessment.suitability.bucket === "strong_now")
+    .sort(sortCandidateAssessments);
+  const considerNext = eligibleAssessments
+    .filter((assessment) => assessment.suitability.bucket === "consider_next")
+    .sort(sortCandidateAssessments);
+  const rankedEligible = [...strongNow, ...considerNext];
+  const selected = rankedEligible.slice(0, finalResultCap);
+  const selectedCount = selected.length;
+  const selectedRate = selectedCount / rankedEligible.length;
 
   return {
     selected,
@@ -3699,6 +4205,9 @@ function selectTopDeepAssessments(
     eligibleCount: eligibleAssessments.length,
     excludedCount: Math.max(assessments.length - eligibleAssessments.length, 0),
     qualityFloorApplied: eligibleAssessments.length !== assessments.length,
+    strongNowCount: strongNow.length,
+    considerNextCount: considerNext.length,
+    doNotShowCount: Math.max(bucketedAssessments.length - eligibleAssessments.length, 0),
   };
 }
 
@@ -3844,7 +4353,23 @@ async function buildBrightDataDatasetCandidates(
     location_terms: recallSpec.location_terms
       .map((term) => normalizeText(term))
       .filter((term) => term.length >= 3)
-      .slice(0, 8),
+      .slice(0, 16),
+    strict_location_terms: recallSpec.strict_location_terms
+      .map((term) => normalizeText(term))
+      .filter((term) => term.length >= 3)
+      .slice(0, 16),
+    nearby_location_terms: recallSpec.nearby_location_terms
+      .map((term) => normalizeText(term))
+      .filter((term) => term.length >= 3)
+      .slice(0, 10),
+    must_have_signals: recallSpec.must_have_signals
+      .map((term) => normalizeText(term))
+      .filter((term) => term.length >= 3)
+      .slice(0, 12),
+    avoid_profiles: recallSpec.avoid_profiles
+      .map((term) => normalizeText(term))
+      .filter((term) => term.length >= 3)
+      .slice(0, 10),
   };
 
   if (
@@ -4665,7 +5190,13 @@ async function scoreBrightDataProfiles(
     brightDataProfileToRichText(profile, index),
   );
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
+    recordLimitOverride: executionProfile.filterLimit,
+  });
   const locationPolicy = normalizeLocationConstraint(hiringBrief);
+  const strictLocalRole =
+    (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
+    hiringBrief.location_flexibility === "strict";
   const locationGateResults = brightProfiles.map((profile) => evaluateCandidateLocationGate(
     locationPolicy,
     extractCandidateLocationEvidence(
@@ -4694,13 +5225,67 @@ async function scoreBrightDataProfiles(
     });
   }
 
+  const deterministicPreScreen = gateEligibleIndexes.map((index) => {
+    const profile = brightProfiles[index];
+    const profileText = normalizeText(
+      [
+        profile.name,
+        profile.headline,
+        profile.city,
+        profile.about,
+        ...(profile.skills || []),
+        ...(profile.experience || []).flatMap((entry) => [entry.title, entry.company, entry.description]),
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
+    const mustHaveHits = recallSpec.must_have_signals.filter((signal) =>
+      profileText.includes(normalizeText(signal)),
+    ).length;
+    const avoidHits = recallSpec.avoid_profiles.filter((term) =>
+      profileText.includes(normalizeText(term)),
+    ).length;
+    const locationFit = locationGateResults[index]?.location_fit ?? "unknown";
+    const locationBonus = locationFit === "local" ? 15 : locationFit === "nearby" ? 8 : 0;
+    const titleSignals = recallSpec.title_variants.filter((term) =>
+      profileText.includes(normalizeText(term)),
+    ).length;
+    const score = Math.max(
+      0,
+      Math.min(
+        100,
+        30 + mustHaveHits * 12 + titleSignals * 8 + locationBonus - avoidHits * 18,
+      ),
+    );
+    const bucket: BrightPreScreenBucket =
+      avoidHits > 0 && mustHaveHits === 0
+        ? "reject"
+        : mustHaveHits >= 2 && locationFit !== "non_local"
+          ? "strong_now"
+          : "consider_next";
+    return {
+      index,
+      bucket,
+      score,
+      mustHaveHits,
+      avoidHits,
+    };
+  });
+  const deterministicRejectedCount = deterministicPreScreen.filter(
+    (item) => item.bucket === "reject",
+  ).length;
+
   // LLM 预筛：过滤掉明显不可能入职的人，再进入双 Judge 深评
   const lightModel = getHaikuModel();
   const prescreenResults = await runWithConcurrency(
-    gateEligibleIndexes,
-    resolveStageConcurrency(PRE_SCREEN_CONCURRENCY, gateEligibleIndexes.length),
+    deterministicPreScreen.filter((item) => item.bucket !== "reject"),
+    resolveStageConcurrency(
+      PRE_SCREEN_CONCURRENCY,
+      deterministicPreScreen.filter((item) => item.bucket !== "reject").length,
+    ),
     async (index) => {
-      const profileText = renderProfileEntries[index];
+      const profileIndex = typeof index === "number" ? index : index.index;
+      const profileText = renderProfileEntries[profileIndex];
       const prompt = `You are doing a first-pass screen for a hiring pipeline.
 
 ## Search Intent
@@ -4710,15 +5295,17 @@ ${buildPromptSearchContext(parsed)}
 ${profileText}
 
 ## Task
-Decide if this candidate is worth deep review. Return ONLY valid JSON:
-{"keep": true, "match_score": 0, "reason": "one short sentence"}
+Decide how this candidate should be treated before expensive deep review. Return ONLY valid JSON:
+{"bucket": "strong_now | consider_next | reject", "match_score": 0, "fit_reason": "one short sentence", "primary_risk": "one short sentence or null"}
 
 Rules:
-- keep=false for: wrong industry (e.g. nuclear/medical/finance engineer for a software role), clearly wrong location for strict onsite, obvious seniority mismatch (e.g. C-suite for IC role).
-- keep=true if there is reasonable evidence of fit.
-- match_score 0-100 for ranking.
-- A deterministic location gate also runs; focus on role/industry/seniority fit here.
-- Keep reason under 20 words. Raw JSON only.`;
+- reject for: wrong function, obvious non-startup shape mismatch, clearly wrong seniority, or no must-have signal.
+- strong_now for first-screen worthy candidates with strong role shape, clear must-have evidence, and usable location/work-model fit.
+- consider_next for credible but less exciting candidates.
+- Do not reward prestige alone.
+- Penalize pure ML/platform/manager profiles when the role is product/full-stack oriented.
+- match_score 0-100 for ranking within the bucket.
+- Keep fit_reason and primary_risk under 18 words. Raw JSON only.`;
 
       try {
         const { text } = await withTimeout(
@@ -4730,24 +5317,36 @@ Rules:
           15000,
           "Bright profile pre-screen",
         );
-        const decision = sanitizeSerperPreScreenDecision(JSON.parse(extractJSON(text)));
-        return { index, keep: decision?.keep ?? true, score: decision?.match_score ?? 50 };
+        const decision = sanitizeBrightPreScreenDecision(JSON.parse(extractJSON(text)));
+        return {
+          index: profileIndex,
+          bucket: decision?.bucket ?? "consider_next",
+          score: decision?.match_score ?? 50,
+          fit_reason: decision?.fit_reason ?? "Reasonable fit",
+          primary_risk: decision?.primary_risk ?? null,
+        };
       } catch {
-        return { index, keep: true, score: 50 }; // 失败时保守保留
+        return { index: profileIndex, bucket: "consider_next" as const, score: 50, fit_reason: "Fallback keep", primary_risk: null };
       }
     },
   );
 
   const keptIndexes = prescreenResults
-    .filter(r => r.keep)
-    .sort((a, b) => b.score - a.score)
-    .map(r => r.index);
+    .filter((result) => result.bucket !== "reject")
+    .sort((left, right) => {
+      const bucketRank = (value: BrightPreScreenBucket) =>
+        value === "strong_now" ? 0 : value === "consider_next" ? 1 : 2;
+      return bucketRank(left.bucket) - bucketRank(right.bucket) || right.score - left.score;
+    })
+    .map((result) => result.index);
 
-  const prescreenBlockedCount = gateEligibleIndexes.length - keptIndexes.length;
+  const prescreenBlockedCount =
+    deterministicRejectedCount +
+    prescreenResults.filter((result) => result.bucket === "reject").length;
   if (prescreenBlockedCount > 0) {
     logSearchEvent("search_bright_prescreen_applied", {
       stage: "bright_prescreen",
-      blocked_count: gateEligibleIndexes.length - keptIndexes.length,
+      blocked_count: prescreenBlockedCount,
       kept_count: keptIndexes.length,
       total_count: gateEligibleIndexes.length,
     });
@@ -4755,7 +5354,10 @@ Rules:
 
   const selectedIndexes = keptIndexes.length > 0
     ? keptIndexes
-    : gateEligibleIndexes; // 全挂时兜底，但不重新放回已被 hard block 的候选人
+    : deterministicPreScreen
+      .filter((item) => item.bucket !== "reject")
+      .sort((left, right) => right.score - left.score)
+      .map((item) => item.index);
 
   const deepAssessments = await deepScoreSelectedProfiles(
     aiClient,
@@ -4832,6 +5434,10 @@ Rules:
     assessmentsWithGate,
     executionProfile.finalResultCap,
     executionProfile.minVisibleQualityScore,
+    {
+      strictLocalRole,
+      strongNowQualityScore: executionProfile.strongNowQualityScore,
+    },
   );
   const deepSelected = deepSelection.selected;
   const deepRows = buildBrightDataCandidateRows(
@@ -4888,12 +5494,59 @@ Rules:
       suitability?.advance_recommendation !== "reject"
     );
   }).length;
+  const strongNowCount = finalRows.filter((row) => {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    return metadata?.bucket === "strong_now";
+  }).length;
+  const considerNextCount = finalRows.filter((row) => {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    return metadata?.bucket === "consider_next";
+  }).length;
+  const doNotShowCount = deepSelection.doNotShowCount;
+  const clearLocationFitCount = finalRows.filter((row) => {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    const verdicts =
+      metadata?.constraint_verdicts &&
+      typeof metadata.constraint_verdicts === "object"
+        ? (metadata.constraint_verdicts as ConstraintVerdict)
+        : null;
+    return verdicts?.location_fit === "local" || verdicts?.location_fit === "nearby";
+  }).length;
+  const mustHaveStrongCount = finalRows.filter((row) => {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    const verdicts =
+      metadata?.constraint_verdicts &&
+      typeof metadata.constraint_verdicts === "object"
+        ? (metadata.constraint_verdicts as ConstraintVerdict)
+        : null;
+    return verdicts?.must_have_coverage === "strong";
+  }).length;
+  const firstContactConfidenceCount = finalRows.filter((row) => {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    return metadata?.first_contact_confidence === "high";
+  }).length;
 
   return {
     finalRows,
     warningMessage,
     displayStats: buildSearchDisplayStats({
       retrieval_count: retrievalCount,
+      recall_profile_count: brightProfiles.length,
       deep_review_requested_count: selectedIndexes.length,
       deep_review_completed_count: deepAssessments.length,
       qualified_count: finalRows.length,
@@ -4913,6 +5566,12 @@ Rules:
       pre_gate_blocked_count: preGateHardBlockedCount,
       prescreen_blocked_count: prescreenBlockedCount,
       contact_unlock_candidates: contactUnlockCandidates,
+      strong_now_count: strongNowCount,
+      consider_next_count: considerNextCount,
+      do_not_show_count: doNotShowCount,
+      clear_location_fit_count: clearLocationFitCount,
+      must_have_strong_count: mustHaveStrongCount,
+      first_contact_confidence_count: firstContactConfidenceCount,
       deep_qualified_rate:
         deepAssessments.length > 0
           ? deepSelected.length / deepAssessments.length
@@ -5115,6 +5774,14 @@ async function completeSearch(
     pre_gate_blocked_count: displayStats.pre_gate_blocked_count ?? null,
     prescreen_blocked_count: displayStats.prescreen_blocked_count ?? null,
     contact_unlock_candidates: displayStats.contact_unlock_candidates ?? draftedRows.length,
+    recall_profile_count: displayStats.recall_profile_count ?? null,
+    topup_triggered: displayStats.topup_triggered ?? null,
+    strong_now_count: displayStats.strong_now_count ?? null,
+    consider_next_count: displayStats.consider_next_count ?? null,
+    do_not_show_count: displayStats.do_not_show_count ?? null,
+    clear_location_fit_count: displayStats.clear_location_fit_count ?? null,
+    must_have_strong_count: displayStats.must_have_strong_count ?? null,
+    first_contact_confidence_count: displayStats.first_contact_confidence_count ?? null,
     bright_profile_budget: displayStats.bright_profile_budget ?? null,
     bright_profiles_requested: displayStats.bright_profiles_requested ?? null,
     bright_profiles_returned: displayStats.bright_profiles_returned ?? null,
@@ -5172,6 +5839,14 @@ async function persistProvisionalSearch(
     pre_gate_blocked_count: displayStats.pre_gate_blocked_count ?? null,
     prescreen_blocked_count: displayStats.prescreen_blocked_count ?? null,
     contact_unlock_candidates: displayStats.contact_unlock_candidates ?? finalRows.length,
+    recall_profile_count: displayStats.recall_profile_count ?? null,
+    topup_triggered: displayStats.topup_triggered ?? null,
+    strong_now_count: displayStats.strong_now_count ?? null,
+    consider_next_count: displayStats.consider_next_count ?? null,
+    do_not_show_count: displayStats.do_not_show_count ?? null,
+    clear_location_fit_count: displayStats.clear_location_fit_count ?? null,
+    must_have_strong_count: displayStats.must_have_strong_count ?? null,
+    first_contact_confidence_count: displayStats.first_contact_confidence_count ?? null,
     bright_profile_budget: displayStats.bright_profile_budget ?? null,
     bright_profiles_requested: displayStats.bright_profiles_requested ?? null,
     bright_profiles_returned: displayStats.bright_profiles_returned ?? null,
@@ -5348,6 +6023,7 @@ async function runSearchPipeline(job: SearchJobRow) {
             buildSearchDisplayStats({
               ...topUpResult.displayStats,
               search_phase_count: 2,
+              topup_triggered: true,
             }),
             normalizeSearchDisplayStats(phase1Result.displayStats),
           ),
@@ -5373,6 +6049,7 @@ async function runSearchPipeline(job: SearchJobRow) {
         buildSearchDisplayStats({
           ...phase1Result.displayStats,
           search_phase_count: 1,
+          topup_triggered: false,
         }),
         phase1Result.warningMessage,
         {
@@ -5398,6 +6075,7 @@ async function runSearchPipeline(job: SearchJobRow) {
         buildSearchDisplayStats({
           ...phase1Result.displayStats,
           search_phase_count: 1,
+          topup_triggered: false,
         }),
         phase1Result.warningMessage,
         {
@@ -5434,10 +6112,11 @@ async function runSearchPipeline(job: SearchJobRow) {
       context,
       phase2Parsed,
       phase1Result.finalRows,
-      buildSearchDisplayStats({
-        ...phase1Result.displayStats,
-        search_phase_count: 2,
-      }),
+        buildSearchDisplayStats({
+          ...phase1Result.displayStats,
+          search_phase_count: 2,
+          topup_triggered: false,
+        }),
     );
 
     parsed.recall_metadata = null;
@@ -5501,6 +6180,7 @@ async function runSearchPipeline(job: SearchJobRow) {
         buildSearchDisplayStats({
           ...phase2Result.displayStats,
           search_phase_count: 2,
+          topup_triggered: false,
         }),
         normalizeSearchDisplayStats(parsed.phase_1_display_stats),
       ),

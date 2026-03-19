@@ -32,6 +32,8 @@ export const ANALYTICS_EVENTS = {
   candidateExpand: "candidate_expand",
   upgradeCtaClick: "upgrade_cta_click",
   upgradeValueExposed: "upgrade_value_exposed",
+  resultsUnlockCtaViewed: "results_unlock_cta_viewed",
+  resultsUnlockCtaClicked: "results_unlock_cta_clicked",
   retrySearchClick: "retry_search_click",
 } as const;
 

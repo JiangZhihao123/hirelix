@@ -100,10 +100,14 @@ type ScoringBreakdown = {
 type CandidateSuitability = {
   fit_decision?: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
   actionability?: "ready_to_act" | "needs_review" | "not_actionable";
+  bucket?: "strong_now" | "consider_next" | "do_not_show";
   match_score?: number;
   quality_score?: number;
   advance_score?: number;
   advance_recommendation?: "advance" | "hold" | "reject";
+  primary_risk?: string | null;
+  first_contact_confidence?: "high" | "medium" | "low";
+  subscription_trigger_score?: number;
   blocking_constraints?: string[];
   blocking_severity?: "hard" | "soft" | "none";
   scoring_breakdown?: ScoringBreakdown;
@@ -138,6 +142,10 @@ type CandidateRow = {
     quality_score?: number;
     advance_score?: number;
     advance_recommendation?: "advance" | "hold" | "reject";
+    bucket?: "strong_now" | "consider_next" | "do_not_show";
+    primary_risk?: string | null;
+    first_contact_confidence?: "high" | "medium" | "low";
+    subscription_trigger_score?: number;
     blocking_constraints?: string[];
     blocking_severity?: "hard" | "soft" | "none";
     quality_breakdown?: {
@@ -188,6 +196,14 @@ type SearchDisplayStats = {
   pre_gate_blocked_count?: number;
   prescreen_blocked_count?: number;
   contact_unlock_candidates?: number;
+  recall_profile_count?: number;
+  topup_triggered?: boolean;
+  strong_now_count?: number;
+  consider_next_count?: number;
+  do_not_show_count?: number;
+  clear_location_fit_count?: number;
+  must_have_strong_count?: number;
+  first_contact_confidence_count?: number;
   serper_query_tier_stats?: Array<{
     tier: "P0" | "P1" | "P2";
     query_count: number;
@@ -1447,6 +1463,13 @@ export default function SearchResultPage() {
       has_email_candidates: candidates.some((candidate) => Boolean(candidate.email)),
       upgrade_surface: "results_capability_unlock",
     });
+    trackEvent(ANALYTICS_EVENTS.resultsUnlockCtaViewed, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      candidate_count: candidates.length,
+      upgrade_surface: "results_capability_unlock",
+    });
   }, [analyticsContext, billing?.plan.code, candidates, search]);
 
   async function handleRetry() {
@@ -1528,6 +1551,14 @@ export default function SearchResultPage() {
       plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
       upgrade_surface: surface,
     });
+    trackEvent(ANALYTICS_EVENTS.resultsUnlockCtaClicked, {
+      ...analyticsContext,
+      search_id: search?.id ?? null,
+      search_status: search?.status ?? "unknown",
+      candidate_count: candidates.length,
+      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+      upgrade_surface: surface,
+    });
   }
 
   if (loading) {
@@ -1588,14 +1619,42 @@ export default function SearchResultPage() {
   const highlightCount =
     positiveInt(reqs?.highlight_count) ??
     5;
-  const allCandidates = [...candidates].sort((left, right) => right.match_score - left.match_score);
+  const allCandidates = [...candidates].sort((left, right) => {
+    const rightTrigger =
+      right.metadata?.subscription_trigger_score ??
+      right.metadata?.suitability?.subscription_trigger_score ??
+      right.match_score;
+    const leftTrigger =
+      left.metadata?.subscription_trigger_score ??
+      left.metadata?.suitability?.subscription_trigger_score ??
+      left.match_score;
+    return rightTrigger - leftTrigger || right.match_score - left.match_score;
+  });
+  const strongNowCandidates = allCandidates.filter(
+    (candidate) =>
+      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "strong_now",
+  );
+  const considerNextCandidates = allCandidates.filter(
+    (candidate) =>
+      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "consider_next",
+  );
+  const defaultVisibleCandidates =
+    strongNowCandidates.length > 0 ? [...strongNowCandidates, ...considerNextCandidates] : allCandidates;
   const highlightedIds = new Set(
-    allCandidates.slice(0, highlightCount).map((candidate) => candidate.id),
+    strongNowCandidates.slice(0, highlightCount).map((candidate) => candidate.id),
   );
   const visibleCandidates = showOnlyWithEmail
-    ? allCandidates.filter((candidate) => candidate.email)
-    : allCandidates;
-  const highlightedCandidates = allCandidates.slice(0, Math.min(highlightCount, allCandidates.length));
+    ? defaultVisibleCandidates.filter((candidate) => candidate.email)
+    : defaultVisibleCandidates;
+  const visibleStrongCandidates = visibleCandidates.filter(
+    (candidate) =>
+      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "strong_now",
+  );
+  const visibleConsiderCandidates = visibleCandidates.filter(
+    (candidate) =>
+      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "consider_next",
+  );
+  const highlightedCandidates = visibleStrongCandidates.slice(0, Math.min(highlightCount, visibleStrongCandidates.length));
   const averageQuality = highlightedCandidates.length
     ? Math.round(
         highlightedCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
@@ -1699,7 +1758,27 @@ export default function SearchResultPage() {
     const coverage = candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage;
     return coverage === "strong";
   }).length;
-  const topStartCount = Math.min(highlightCount, allCandidates.length);
+  const topStartCount = Math.min(highlightCount, visibleStrongCandidates.length || allCandidates.length);
+  const strongNowCount =
+    positiveInt(rawDisplayStats?.strong_now_count) ?? strongNowCandidates.length;
+  const considerNextCount =
+    positiveInt(rawDisplayStats?.consider_next_count) ?? considerNextCandidates.length;
+  const doNotShowCount =
+    positiveInt(rawDisplayStats?.do_not_show_count) ?? 0;
+  const recallProfileCount =
+    positiveInt(rawDisplayStats?.recall_profile_count) ?? brightProfilesReturned ?? retrievalCount;
+  const clearLocationFitDisplayCount =
+    positiveInt(rawDisplayStats?.clear_location_fit_count) ?? clearLocationFitCount;
+  const mustHaveStrongDisplayCount =
+    positiveInt(rawDisplayStats?.must_have_strong_count) ?? strongMustHaveCount;
+  const firstContactConfidenceCount =
+    positiveInt(rawDisplayStats?.first_contact_confidence_count) ??
+    allCandidates.filter(
+      (candidate) =>
+        candidate.metadata?.first_contact_confidence === "high" ||
+        candidate.metadata?.suitability?.first_contact_confidence === "high",
+    ).length;
+  const topupTriggered = rawDisplayStats?.topup_triggered === true;
   const finalReadyHeadline =
     visibleCandidateCount <= topStartCount
       ? `We found ${visibleCandidateCount} strong candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`
@@ -1963,8 +2042,10 @@ export default function SearchResultPage() {
             <div className="grid min-w-[220px] gap-3 sm:grid-cols-2 lg:grid-cols-2">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Candidates considered</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(retrievalCount)}</p>
-                <p className="mt-1 text-xs text-slate-500">From a broader LinkedIn search</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(recallProfileCount)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {topupTriggered ? "Expanded recall after first-pass quality check" : "From a broader LinkedIn search"}
+                </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Profiles deeply reviewed</p>
@@ -1985,7 +2066,7 @@ export default function SearchResultPage() {
                 <p className="mt-1 text-lg font-semibold text-slate-950">{topQualityScore}% / {top50QualityCutoff}%</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {hardBlockedCount > 0 || softBlockedCount > 0 || preGateBlockedCount > 0 || prescreenBlockedCount > 0
-                    ? `${preGateBlockedCount} pre-gated, ${prescreenBlockedCount} pre-screened out, ${hardBlockedCount} hard blocked`
+                    ? `${preGateBlockedCount} pre-gated, ${prescreenBlockedCount} pre-screened out, ${doNotShowCount} hidden by quality rules`
                     : `${outreachPoolCount > 0 ? outreachPoolCount : allCandidates.length} candidates returned`}
                 </p>
               </div>
@@ -2096,9 +2177,11 @@ export default function SearchResultPage() {
                 Upgrade to unlock contact details, export, and outreach execution the moment you are ready to work this shortlist.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{visibleCandidateCount} strong candidates shown</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitCount} with clear location fit</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{strongMustHaveCount} with strong must-have coverage</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{strongNowCount} top strong matches</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{considerNextCount} more worth reviewing</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{firstContactConfidenceCount} high-confidence first contacts</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} ready for contact unlock</span>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -2111,7 +2194,7 @@ export default function SearchResultPage() {
                 />
                 <p className="text-xs text-slate-600">
                   {activationRun
-                    ? "Your first search already used extra recall budget to surface stronger matches."
+                    ? `${topupTriggered ? "This first search auto-expanded recall for quality." : "Your first search already used extra recall budget to surface stronger matches."}`
                     : "You can already review fit evidence now. Upgrade when you want to actually work the shortlist."}
                 </p>
               </div>
@@ -2193,27 +2276,72 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {visibleCandidates.map((c, idx) => (
-              <div
-                key={c.id}
-                className="animate-fade-in-up"
-                style={{ animationDelay: `${idx * 100}ms` }}
-              >
-                <CandidateCard
-                  candidate={c}
-                  onStatusChange={handleStatusChange}
-                  onExpand={handleCandidateExpand}
-                  requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
-                  selected={selectedIds.has(c.id)}
-                  onToggleSelect={() => toggleSelect(c.id)}
-                  billingPlanCode={billing?.subscription.planCode || "free"}
-                  enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
-                  refreshBilling={refreshBilling}
-                  onUpgradeClick={handleUpgradeClick}
-                  highlighted={highlightedIds.has(c.id)}
-                />
+          {visibleStrongCandidates.length > 0 && (
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                  Top strong matches
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Start here. These candidates have the clearest combination of location fit, must-have coverage, and first-contact confidence.
+                </p>
               </div>
-            ))}
+              {visibleStrongCandidates.map((c, idx) => (
+                <div
+                  key={c.id}
+                  className="animate-fade-in-up"
+                  style={{ animationDelay: `${idx * 100}ms` }}
+                >
+                  <CandidateCard
+                    candidate={c}
+                    onStatusChange={handleStatusChange}
+                    onExpand={handleCandidateExpand}
+                    requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
+                    selected={selectedIds.has(c.id)}
+                    onToggleSelect={() => toggleSelect(c.id)}
+                    billingPlanCode={billing?.subscription.planCode || "free"}
+                    enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
+                    refreshBilling={refreshBilling}
+                    onUpgradeClick={handleUpgradeClick}
+                    highlighted={highlightedIds.has(c.id)}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {visibleConsiderCandidates.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                  More matches worth reviewing
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  These candidates still passed the quality floor, but the top block above should drive first contact decisions.
+                </p>
+              </div>
+              {visibleConsiderCandidates.map((c, idx) => (
+                <div
+                  key={c.id}
+                  className="animate-fade-in-up"
+                  style={{ animationDelay: `${(visibleStrongCandidates.length + idx) * 100}ms` }}
+                >
+                  <CandidateCard
+                    candidate={c}
+                    onStatusChange={handleStatusChange}
+                    onExpand={handleCandidateExpand}
+                    requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
+                    selected={selectedIds.has(c.id)}
+                    onToggleSelect={() => toggleSelect(c.id)}
+                    billingPlanCode={billing?.subscription.planCode || "free"}
+                    enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
+                    refreshBilling={refreshBilling}
+                    onUpgradeClick={handleUpgradeClick}
+                    highlighted={false}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
