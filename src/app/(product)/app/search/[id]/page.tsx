@@ -182,6 +182,12 @@ type SearchDisplayStats = {
   estimated_search_total_cost?: number;
   search_phase_count?: number;
   judge_mode?: "single" | "dual";
+  activation_run?: boolean;
+  quality_floor_applied?: boolean;
+  visible_candidate_count?: number;
+  pre_gate_blocked_count?: number;
+  prescreen_blocked_count?: number;
+  contact_unlock_candidates?: number;
   serper_query_tier_stats?: Array<{
     tier: "P0" | "P1" | "P2";
     query_count: number;
@@ -458,6 +464,10 @@ function CandidateCard({
   const blockingSeverity =
     candidate.metadata?.blocking_severity ??
     suitability?.blocking_severity;
+  const canUnlockAction =
+    billingPlanCode === "free" &&
+    advanceRecommendation !== "reject" &&
+    blockingSeverity !== "hard";
   const blockingConstraints =
     candidate.metadata?.blocking_constraints ??
     suitability?.blocking_constraints ??
@@ -553,6 +563,15 @@ function CandidateCard({
           )}
         </div>
         </button>
+        {canUnlockAction && (
+          <PaddleCheckoutButton
+            checkout={{ type: "plan", planCode: "pro_monthly" }}
+            label="Unlock contact + outreach"
+            onClick={() => onUpgradeClick("candidate_header_unlock")}
+            onError={(message) => setEnrichError(message)}
+            className="hidden shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100 lg:inline-flex"
+          />
+        )}
       </div>
 
       {/* Expanded details */}
@@ -1158,7 +1177,7 @@ function ProcessingSteps({
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Often ready in a few minutes</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Safe to leave and come back</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">
-          Top 5 highlighted, best {displayTarget} ready first
+          Top {Math.min(3, displayTarget)} highlighted first, strongest {displayTarget} visible next
         </span>
       </div>
       <p className="mt-4 text-xs text-muted">
@@ -1180,6 +1199,7 @@ export default function SearchResultPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
+  const [, setUpgradeError] = useState<string | null>(null);
   const hasTrackedProcessingViewRef = useRef(false);
   const hasTrackedResultsViewRef = useRef(false);
   const hasTrackedDoneRef = useRef(false);
@@ -1632,10 +1652,20 @@ export default function SearchResultPage() {
   );
   const shortlistReadyCount =
     positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
+  const visibleCandidateCount =
+    positiveInt(rawDisplayStats?.visible_candidate_count) ?? shortlistReadyCount;
   const hardBlockedCount =
     positiveInt(rawDisplayStats?.hard_blocked_count) ?? 0;
   const softBlockedCount =
     positiveInt(rawDisplayStats?.soft_blocked_count) ?? 0;
+  const preGateBlockedCount =
+    positiveInt(rawDisplayStats?.pre_gate_blocked_count) ?? 0;
+  const prescreenBlockedCount =
+    positiveInt(rawDisplayStats?.prescreen_blocked_count) ?? 0;
+  const qualityFloorApplied =
+    rawDisplayStats?.quality_floor_applied === true;
+  const activationRun =
+    rawDisplayStats?.activation_run === true || reqs?.activation_run === true;
   const advanceableCount =
     positiveInt(rawDisplayStats?.advanceable_count) ??
     allCandidates.filter(
@@ -1654,7 +1684,26 @@ export default function SearchResultPage() {
       candidate.metadata?.suitability?.advance_recommendation === "advance" ||
       candidate.metadata?.suitability?.actionability === "ready_to_act",
   ).length;
-  const withContactCount = allCandidates.filter((candidate) => Boolean(candidate.email)).length;
+  const contactUnlockCandidates =
+    positiveInt(rawDisplayStats?.contact_unlock_candidates) ??
+    allCandidates.filter(
+      (candidate) =>
+        candidate.metadata?.suitability?.advance_recommendation !== "reject" &&
+        candidate.metadata?.suitability?.blocking_severity !== "hard",
+    ).length;
+  const clearLocationFitCount = allCandidates.filter((candidate) => {
+    const locationFit = candidate.metadata?.suitability?.constraint_verdicts?.location_fit;
+    return locationFit === "local" || locationFit === "nearby";
+  }).length;
+  const strongMustHaveCount = allCandidates.filter((candidate) => {
+    const coverage = candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage;
+    return coverage === "strong";
+  }).length;
+  const topStartCount = Math.min(highlightCount, allCandidates.length);
+  const finalReadyHeadline =
+    visibleCandidateCount <= topStartCount
+      ? `We found ${visibleCandidateCount} strong candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`
+      : `Your strongest ${visibleCandidateCount} candidates are ready to review`;
   const entryQuery =
     analyticsContext.entry_mode === "workspace"
       ? ""
@@ -1838,14 +1887,16 @@ export default function SearchResultPage() {
                     ? `Your provisional ${displayTarget}-candidate shortlist is ready`
                     : isImprovingInBackground
                       ? "Your candidates are already usable now"
-                    : `Your ${displayTarget} candidates are ready`}
+                    : finalReadyHeadline}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 {search.warning_message
                   ? search.warning_message
                   : isPhaseTwoRunning
                     ? `Hirelix already delivered the Bright fast-pass shortlist. A deeper Bright pass is still running in the background and may expand this list beyond ${displayTarget} candidates.`
-                    : `Hirelix searched across a Bright LinkedIn candidate pool, ranked the most realistic matches to advance, and prepared a ${displayTarget}-candidate review list with the top ${highlightCount} highlighted.`}
+                    : qualityFloorApplied
+                      ? `Hirelix searched a Bright LinkedIn pool, filtered out weak or mismatched tails, and kept only the candidates that already look credible to review now.`
+                      : `Hirelix searched across a Bright LinkedIn candidate pool, ranked the most realistic matches to advance, and prepared a focused review list with the top ${highlightCount} highlighted first.`}
               </p>
               <p className="mt-3 max-w-2xl text-xs text-slate-500">
                 Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
@@ -1865,8 +1916,8 @@ export default function SearchResultPage() {
               {!search.warning_message && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
                   {isProvisional
-                    ? "Start with the highlighted top 5 now. Hirelix will replace this provisional list if the deeper Bright pass finds stronger matches."
-                    : `Start with the highlighted top ${highlightCount}, then work through the rest of the ${displayTarget}-candidate list for real outbound coverage.`}
+                    ? `Start with the highlighted top ${highlightCount} now. Hirelix will replace this provisional list if the deeper Bright pass finds stronger matches.`
+                    : `Start with the highlighted top ${highlightCount}, then unlock contact details and outreach execution for the candidates you actually want to work.`}
                 </p>
               )}
               {(brightProfileBudget || judgeMode || brightSnapshotCost != null) && (
@@ -1925,16 +1976,16 @@ export default function SearchResultPage() {
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Advanceable now</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(advanceableCount)}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Strong candidates shown</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</p>
                 <p className="mt-1 text-xs text-slate-500">{formatDisplayCount(qualifiedCount)} candidates made the final ranked pool</p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top quality band</p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">{topQualityScore}% / {top50QualityCutoff}%</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {hardBlockedCount > 0 || softBlockedCount > 0
-                    ? `${hardBlockedCount} hard blocked, ${softBlockedCount} soft blocked`
+                  {hardBlockedCount > 0 || softBlockedCount > 0 || preGateBlockedCount > 0 || prescreenBlockedCount > 0
+                    ? `${preGateBlockedCount} pre-gated, ${prescreenBlockedCount} pre-screened out, ${hardBlockedCount} hard blocked`
                     : `${outreachPoolCount > 0 ? outreachPoolCount : allCandidates.length} candidates returned`}
                 </p>
               </div>
@@ -2024,31 +2075,45 @@ export default function SearchResultPage() {
                 <span className="font-semibold text-slate-950">
                   {shortlistReadyCount} candidate{shortlistReadyCount === 1 ? "" : "s"} ready to review
                 </span>
-                {' '}— top {Math.min(highlightCount, allCandidates.length)} are highlighted first
+                {" "}— top {topStartCount} are highlighted first
               </>
             ) : (
               <>
                 <span className="font-semibold text-slate-950">This list is worth working from now</span>
-                {' '}— {shortlistReadyCount} candidate{shortlistReadyCount === 1 ? "" : "s"} are shown, the top {Math.min(highlightCount, allCandidates.length)} are highlighted, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the leading candidates already have clear fit signals"}
+                {" "}— {visibleCandidateCount} candidate{visibleCandidateCount === 1 ? "" : "s"} are shown, the top {topStartCount} are highlighted, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the leading candidates already have clear fit signals"}
               </>
             )}
           </div>
           {billing?.plan.code === "free" && allCandidates.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
-                Capability unlock
+                Action unlock
               </p>
               <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                Review the highlighted top 5 first. Unlock contact details when you are ready to work the full 25-candidate list.
+                These candidates are worth contacting.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                You can already inspect all returned candidates and read the outreach drafts. Upgrade when you want real contact lookup or export for the candidates you actually want to contact.
+                Upgrade to unlock contact details, export, and outreach execution the moment you are ready to work this shortlist.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{Math.min(highlightCount, allCandidates.length)} highlighted first</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{outreachPoolCount} candidates returned</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{withContactCount}/{allCandidates.length} already show contact info</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">Drafts included for all returned candidates</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{visibleCandidateCount} strong candidates shown</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitCount} with clear location fit</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{strongMustHaveCount} with strong must-have coverage</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} ready for contact unlock</span>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <PaddleCheckoutButton
+                  checkout={{ type: "plan", planCode: "pro_monthly" }}
+                  label="Unlock contact details"
+                  onClick={() => handleUpgradeClick("results_first_use_strip")}
+                  onError={(message) => setUpgradeError(message)}
+                  className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
+                />
+                <p className="text-xs text-slate-600">
+                  {activationRun
+                    ? "Your first search already used extra recall budget to surface stronger matches."
+                    : "You can already review fit evidence now. Upgrade when you want to actually work the shortlist."}
+                </p>
               </div>
             </div>
           )}
@@ -2087,7 +2152,7 @@ export default function SearchResultPage() {
                   </>
                 )}
                 <span>·</span>
-                <span>Top {Math.min(highlightCount, allCandidates.length)} highlighted first</span>
+                <span>Top {topStartCount} highlighted first</span>
               </div>
             </div>
             {isReviewable && (

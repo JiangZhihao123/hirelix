@@ -31,6 +31,7 @@ import {
   getInitialSearchExecutionProfile,
   getSearchExecutionProfile,
   isProPlanCode,
+  normalizeSearchExecutionProfileName,
   normalizeSearchPlanCode,
   type SearchExecutionProfile,
   type SearchPhase,
@@ -578,6 +579,12 @@ type SearchDisplayStats = {
   estimated_search_total_cost?: number;
   search_phase_count?: number;
   judge_mode?: "single" | "dual";
+  activation_run?: boolean;
+  quality_floor_applied?: boolean;
+  visible_candidate_count?: number;
+  pre_gate_blocked_count?: number;
+  prescreen_blocked_count?: number;
+  contact_unlock_candidates?: number;
 };
 
 type SearchPipelineResult = {
@@ -1257,6 +1264,24 @@ function buildSearchDisplayStats(
     ...(overrides.judge_mode === "single" || overrides.judge_mode === "dual"
       ? { judge_mode: overrides.judge_mode }
       : {}),
+    ...(typeof overrides.activation_run === "boolean"
+      ? { activation_run: overrides.activation_run }
+      : {}),
+    ...(typeof overrides.quality_floor_applied === "boolean"
+      ? { quality_floor_applied: overrides.quality_floor_applied }
+      : {}),
+    ...(typeof overrides.visible_candidate_count === "number"
+      ? { visible_candidate_count: Math.max(0, Math.round(overrides.visible_candidate_count)) }
+      : {}),
+    ...(typeof overrides.pre_gate_blocked_count === "number"
+      ? { pre_gate_blocked_count: Math.max(0, Math.round(overrides.pre_gate_blocked_count)) }
+      : {}),
+    ...(typeof overrides.prescreen_blocked_count === "number"
+      ? { prescreen_blocked_count: Math.max(0, Math.round(overrides.prescreen_blocked_count)) }
+      : {}),
+    ...(typeof overrides.contact_unlock_candidates === "number"
+      ? { contact_unlock_candidates: Math.max(0, Math.round(overrides.contact_unlock_candidates)) }
+      : {}),
   };
 }
 
@@ -1393,6 +1418,10 @@ function withExecutionState(
   };
 }
 
+function isActivationRun(parsed: Record<string, unknown> | null | undefined) {
+  return parsed?.activation_run === true;
+}
+
 function shouldUpgradeToFullPass(
   hiringBrief: HiringBrief,
   displayStats: SearchDisplayStats,
@@ -1404,6 +1433,26 @@ function shouldUpgradeToFullPass(
   if ((displayStats.qualified_count ?? 0) < 10) return true;
   if ((displayStats.advanceable_count ?? 0) < 8) return true;
   if ((displayStats.top_quality_score ?? 0) < 70) return true;
+  return false;
+}
+
+function shouldRunFreeActivationTopUp(
+  hiringBrief: HiringBrief,
+  displayStats: SearchDisplayStats,
+) {
+  const visibleCandidateCount =
+    displayStats.visible_candidate_count ??
+    displayStats.shortlist_count ??
+    displayStats.qualified_count ??
+    0;
+  const topQualityScore = displayStats.top_quality_score ?? 0;
+  const strictLocalRole =
+    (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
+    hiringBrief.location_flexibility === "strict";
+
+  if (strictLocalRole) return true;
+  if (visibleCandidateCount < 3) return true;
+  if (topQualityScore < 70) return true;
   return false;
 }
 
@@ -3614,15 +3663,14 @@ function selectTopLightCandidates(
 function selectTopDeepAssessments(
   assessments: ScoredCandidateAssessment[],
   finalResultCap: number,
+  minVisibleQualityScore: number,
 ) {
-  // 过滤掉所有 hard blocked 且 rejected 的候选人
-  // 这是最终保险丝：确保 strict location gate 的结果被执行
-  const eligibleAssessments = assessments.filter(
-    (assessment) => !(
-      assessment.suitability.blocking_severity === "hard" &&
-      assessment.suitability.advance_recommendation === "reject"
-    ),
-  );
+  const eligibleAssessments = assessments.filter((assessment) => {
+    if (assessment.suitability.blocking_severity === "hard") return false;
+    if (assessment.suitability.advance_recommendation === "reject") return false;
+    if (assessment.suitability.quality_score < minVisibleQualityScore) return false;
+    return true;
+  });
 
   if (eligibleAssessments.length === 0) {
     return {
@@ -3630,6 +3678,9 @@ function selectTopDeepAssessments(
       selectedCount: 0,
       selectedRate: 0,
       target: finalResultCap,
+      eligibleCount: 0,
+      excludedCount: assessments.length,
+      qualityFloorApplied: assessments.length > 0,
     };
   }
 
@@ -3643,6 +3694,9 @@ function selectTopDeepAssessments(
     selectedCount,
     selectedRate,
     target: finalResultCap,
+    eligibleCount: eligibleAssessments.length,
+    excludedCount: Math.max(assessments.length - eligibleAssessments.length, 0),
+    qualityFloorApplied: eligibleAssessments.length !== assessments.length,
   };
 }
 
@@ -4775,6 +4829,7 @@ Rules:
   const deepSelection = selectTopDeepAssessments(
     assessmentsWithGate,
     executionProfile.finalResultCap,
+    executionProfile.minVisibleQualityScore,
   );
   const deepSelected = deepSelection.selected;
   const deepRows = buildBrightDataCandidateRows(
@@ -4820,6 +4875,17 @@ Rules:
     finalRows,
     runtime,
   });
+  const contactUnlockCandidates = finalRows.filter((row) => {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    const suitability = sanitizeCandidateSuitability(metadata?.suitability);
+    return (
+      suitability?.blocking_severity !== "hard" &&
+      suitability?.advance_recommendation !== "reject"
+    );
+  }).length;
 
   return {
     finalRows,
@@ -4839,6 +4905,12 @@ Rules:
       estimated_search_total_cost: estimatedCosts.estimatedSearchTotalCost,
       search_phase_count: Number(parsed.search_phase_count) || 1,
       judge_mode: runtime.judgeMode,
+      activation_run: isActivationRun(parsed),
+      quality_floor_applied: deepSelection.qualityFloorApplied,
+      visible_candidate_count: finalRows.length,
+      pre_gate_blocked_count: preGateHardBlockedCount,
+      prescreen_blocked_count: prescreenBlockedCount,
+      contact_unlock_candidates: contactUnlockCandidates,
       deep_qualified_rate:
         deepAssessments.length > 0
           ? deepSelected.length / deepAssessments.length
@@ -5035,6 +5107,12 @@ async function completeSearch(
     search_phase: finalParsed.search_phase ?? null,
     result_stage: finalParsed.result_stage ?? null,
     search_phase_count: displayStats.search_phase_count ?? finalParsed.search_phase_count ?? 1,
+    activation_run: displayStats.activation_run ?? finalParsed.activation_run ?? null,
+    quality_floor_applied: displayStats.quality_floor_applied ?? null,
+    visible_candidate_count: displayStats.visible_candidate_count ?? draftedRows.length,
+    pre_gate_blocked_count: displayStats.pre_gate_blocked_count ?? null,
+    prescreen_blocked_count: displayStats.prescreen_blocked_count ?? null,
+    contact_unlock_candidates: displayStats.contact_unlock_candidates ?? draftedRows.length,
     bright_profile_budget: displayStats.bright_profile_budget ?? null,
     bright_profiles_requested: displayStats.bright_profiles_requested ?? null,
     bright_profiles_returned: displayStats.bright_profiles_returned ?? null,
@@ -5086,6 +5164,12 @@ async function persistProvisionalSearch(
     search_phase: provisionalParsed.search_phase ?? null,
     result_stage: provisionalParsed.result_stage ?? null,
     search_phase_count: displayStats.search_phase_count ?? provisionalParsed.search_phase_count ?? 1,
+    activation_run: displayStats.activation_run ?? provisionalParsed.activation_run ?? null,
+    quality_floor_applied: displayStats.quality_floor_applied ?? null,
+    visible_candidate_count: displayStats.visible_candidate_count ?? finalRows.length,
+    pre_gate_blocked_count: displayStats.pre_gate_blocked_count ?? null,
+    prescreen_blocked_count: displayStats.prescreen_blocked_count ?? null,
+    contact_unlock_candidates: displayStats.contact_unlock_candidates ?? finalRows.length,
     bright_profile_budget: displayStats.bright_profile_budget ?? null,
     bright_profiles_requested: displayStats.bright_profiles_requested ?? null,
     bright_profiles_returned: displayStats.bright_profiles_returned ?? null,
@@ -5145,7 +5229,13 @@ async function runSearchPipeline(job: SearchJobRow) {
     const billing = await getBillingSummaryForUser(supabaseAdmin, job.user_id);
     planCode = normalizeSearchPlanCode(billing.plan.code);
   }
-  const initialExecutionProfile = getInitialSearchExecutionProfile(planCode);
+  const activationRun = isActivationRun(existingParsed);
+  const storedInitialProfileName = normalizeSearchExecutionProfileName(
+    existingParsed?.execution_profile,
+  );
+  const initialExecutionProfile = storedInitialProfileName
+    ? getSearchExecutionProfile(storedInitialProfileName)
+    : getInitialSearchExecutionProfile(planCode, { activationRun });
 
   const context: PipelineContext = {
     searchId: job.search_id,
@@ -5180,6 +5270,7 @@ async function runSearchPipeline(job: SearchJobRow) {
         Number((search as SearchRow).parsed_requirements?.outreach_pool_target) ||
         context.outreachPoolTarget,
       plan_code: planCode,
+      activation_run: activationRun,
       recall_provider: "brightdata_dataset",
       recall_spec: normalizeRecallSpec(
         (search as SearchRow).parsed_requirements?.recall_spec,
@@ -5212,6 +5303,60 @@ async function runSearchPipeline(job: SearchJobRow) {
     }
 
     if (!initialExecutionProfile.allowPhaseTwo) {
+      const activationTopUpProfile = getFullSearchExecutionProfile(planCode, {
+        activationRun: isActivationRun(phase1Parsed),
+      });
+      const hiringBrief = sanitizeHiringBrief(phase1Parsed.hiring_brief, phase1Parsed);
+      if (
+        activationTopUpProfile &&
+        shouldRunFreeActivationTopUp(hiringBrief, phase1Result.displayStats)
+      ) {
+        const topUpParsed = withExecutionState(
+          {
+            ...phase1Parsed,
+            phase_1_display_stats: phase1Result.displayStats,
+            phase_1_recall_metadata: phase1Parsed.recall_metadata ?? null,
+            phase_1_execution_profile: initialExecutionProfile.name,
+          },
+          activationTopUpProfile,
+          {
+            planCode,
+            searchPhase: "phase_1",
+            resultStage: "final",
+            searchPhaseCount: 2,
+            displayCount: activationTopUpProfile.finalResultCap,
+          },
+        );
+        delete topUpParsed.recall_metadata;
+
+        const topUpResult = await buildBrightDataDatasetCandidates(
+          context,
+          topUpParsed,
+          activationTopUpProfile,
+        );
+        if (!topUpResult?.finalRows.length) {
+          throw new Error("Activation top-up returned no candidates.");
+        }
+
+        await completeSearch(
+          context,
+          topUpParsed,
+          topUpResult.finalRows,
+          mergeCostEstimates(
+            buildSearchDisplayStats({
+              ...topUpResult.displayStats,
+              search_phase_count: 2,
+            }),
+            normalizeSearchDisplayStats(phase1Result.displayStats),
+          ),
+          topUpResult.warningMessage,
+          {
+            runtime: getExecutionRuntime(activationTopUpProfile),
+          },
+        );
+        return;
+      }
+
       const finalPhase1Parsed = withExecutionState(phase1Parsed, initialExecutionProfile, {
         planCode,
         searchPhase: "phase_1",

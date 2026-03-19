@@ -965,7 +965,7 @@ export default function Home() {
               Pricing that protects speed, not complexity
             </h2>
             <p className="mt-3 text-base text-slate-600">
-              Start free, then upgrade once you need reliable throughput and outreach. The launch version is a US-only paid beta for recruiters, founders, and hiring teams.
+              Start free with up to 10 strong candidates, then upgrade the moment you want contact unlock, export, and outreach execution. The launch version is a US-only paid beta for recruiters, founders, and hiring teams.
             </p>
           </div>
 
