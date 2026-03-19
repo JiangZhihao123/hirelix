@@ -3363,6 +3363,8 @@ async function parseJobDescription(
     Number(existingParsed?.highlight_count) || context.highlightCount;
   parsed.outreach_pool_target =
     Number(existingParsed?.outreach_pool_target) || context.outreachPoolTarget;
+  parsed.plan_code = normalizeSearchPlanCode(existingParsed?.plan_code);
+  parsed.activation_run = isActivationRun(existingParsed);
 
   try {
     const { data: settings } = await supabaseAdmin
