@@ -744,11 +744,47 @@ function deriveLocationTerms(locationScope: string | null): string[] {
   if (/new york/.test(normalized)) terms.add("new york");
   if (/san francisco/.test(normalized)) terms.add("san francisco");
   if (/los angeles/.test(normalized)) terms.add("los angeles");
+  if (/new york|nyc|manhattan|brooklyn|queens|bronx/.test(normalized)) {
+    [
+      "new york city",
+      "nyc",
+      "new york",
+      "manhattan",
+      "brooklyn",
+      "queens",
+      "bronx",
+      "jersey city",
+      "hoboken",
+      "newark",
+      "new york metropolitan area",
+    ].forEach((term) => terms.add(term));
+  }
+  if (/san francisco|bay area/.test(normalized)) {
+    [
+      "san francisco bay area",
+      "bay area",
+      "oakland",
+      "berkeley",
+      "san jose",
+      "palo alto",
+      "mountain view",
+    ].forEach((term) => terms.add(term));
+  }
+  if (/los angeles|la metro/.test(normalized)) {
+    [
+      "los angeles metropolitan area",
+      "santa monica",
+      "pasadena",
+      "culver city",
+      "glendale",
+      "burbank",
+    ].forEach((term) => terms.add(term));
+  }
 
   return Array.from(terms)
     .map((term) => term.replace(/\s+/g, " ").trim())
     .filter((term) => term.length >= 3)
-    .slice(0, 5);
+    .slice(0, 10);
 }
 
 // ──────────────────── Deterministic Location Gate ────────────────────
@@ -949,7 +985,7 @@ function normalizeRecallSpec(
     : [];
   const title_variants = normalizeStringArray(item.title_variants, 8);
   const core_skill_terms = normalizeStringArray(item.core_skill_terms, 12);
-  const location_terms = normalizeStringArray(item.location_terms, 5);
+  const location_terms = normalizeStringArray(item.location_terms, 10);
   const requestedLimit =
     typeof options?.recordLimitOverride === "number" &&
     Number.isFinite(options.recordLimitOverride)
@@ -1111,7 +1147,7 @@ function enrichRecallSpecFromJd(
     title_variants: titleVariants.slice(0, 8),
     core_skill_terms: coreSkillTerms.slice(0, 12),
     countries: countries.slice(0, 5),
-    location_terms: locationTerms.slice(0, 5),
+    location_terms: locationTerms.slice(0, 10),
   };
 }
 
@@ -3070,7 +3106,7 @@ function buildBrightDataRecallFilter(
   const locationTerms = recallSpec.location_terms
     .map((term) => normalizeText(term))
     .filter((term) => term.length >= 3)
-    .slice(0, 3);
+    .slice(0, 8);
 
   const rootFilters: BrightDataFilterRule[] = [
     {
@@ -3752,7 +3788,7 @@ async function buildBrightDataDatasetCandidates(
     location_terms: recallSpec.location_terms
       .map((term) => normalizeText(term))
       .filter((term) => term.length >= 3)
-      .slice(0, 3),
+      .slice(0, 8),
   };
 
   if (

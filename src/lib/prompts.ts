@@ -42,7 +42,7 @@ Return ONLY valid JSON with this structure:
     "countries": ["ISO country codes where recall should reasonably focus"],
     "title_variants": ["array of 3-8 realistic title variations for recall"],
     "core_skill_terms": ["array of 5-12 essential technical skills or tools"],
-    "location_terms": ["array of 0-5 city/metro terms only when geography should directly shape recall"],
+    "location_terms": ["array of 0-8 city/metro terms only when geography should directly shape recall"],
     "record_limit": 100
   }
 }`;
