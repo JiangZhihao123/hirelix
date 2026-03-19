@@ -741,14 +741,14 @@ function deriveLocationTerms(locationScope: string | null): string[] {
   if (commaParts[0]) terms.add(commaParts[0]);
   if (commaParts.length > 1) terms.add(commaParts.slice(-1)[0]);
 
-  if (/new york/.test(normalized)) terms.add("new york");
+  if (/^new york$/i.test(normalized)) terms.add("new york");
   if (/san francisco/.test(normalized)) terms.add("san francisco");
   if (/los angeles/.test(normalized)) terms.add("los angeles");
   if (/new york|nyc|manhattan|brooklyn|queens|bronx/.test(normalized)) {
     [
       "new york city",
       "nyc",
-      "new york",
+      "new york, new york",
       "manhattan",
       "brooklyn",
       "queens",
