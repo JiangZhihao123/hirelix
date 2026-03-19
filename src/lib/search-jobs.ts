@@ -4624,9 +4624,10 @@ Rules:
 
   const prescreenBlockedCount = brightProfiles.length - keptIndexes.length;
   if (prescreenBlockedCount > 0) {
-    logSearchEvent("search_location_gate_applied", {
+    logSearchEvent("search_bright_prescreen_applied", {
       stage: "bright_prescreen",
       blocked_count: prescreenBlockedCount,
+      kept_count: keptIndexes.length,
       total_count: brightProfiles.length,
     });
   }
@@ -4700,6 +4701,15 @@ Rules:
   const softBlockedCount = assessmentsWithGate.filter(
     (assessment) => assessment.suitability.blocking_severity === "soft",
   ).length;
+  if (assessmentsWithGate.length > 0) {
+    logSearchEvent("search_location_gate_applied", {
+      stage: "bright_deep_gate",
+      hard_blocked_count: hardBlockedCount,
+      soft_blocked_count: softBlockedCount,
+      passed_count: assessmentsWithGate.length - hardBlockedCount,
+      total_count: assessmentsWithGate.length,
+    });
+  }
   const advanceableCount = assessmentsWithGate.filter(
     (assessment) => assessment.suitability.advance_recommendation === "advance",
   ).length;
