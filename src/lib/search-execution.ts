@@ -2,8 +2,6 @@ export type SearchPlanCode = "free" | "pro_monthly" | "pro_annual";
 
 export type SearchExecutionProfileName =
   | "bright_fast_free"
-  | "bright_activation_free"
-  | "bright_activation_free_topup"
   | "bright_fast_pro"
   | "bright_full_pro";
 
@@ -28,32 +26,10 @@ const SEARCH_EXECUTION_PROFILES: Record<
 > = {
   bright_fast_free: {
     name: "bright_fast_free",
-    filterLimit: 120,
-    finalResultCap: 10,
-    highlightCount: 3,
-    minVisibleQualityScore: 60,
-    strongNowQualityScore: 72,
-    lowCostMode: true,
-    singleJudgeMode: true,
-    allowPhaseTwo: false,
-  },
-  bright_activation_free: {
-    name: "bright_activation_free",
     filterLimit: 200,
-    finalResultCap: 10,
-    highlightCount: 3,
-    minVisibleQualityScore: 60,
-    strongNowQualityScore: 72,
-    lowCostMode: false,
-    singleJudgeMode: false,
-    allowPhaseTwo: false,
-  },
-  bright_activation_free_topup: {
-    name: "bright_activation_free_topup",
-    filterLimit: 400,
-    finalResultCap: 10,
-    highlightCount: 3,
-    minVisibleQualityScore: 60,
+    finalResultCap: 25,
+    highlightCount: 5,
+    minVisibleQualityScore: 55,
     strongNowQualityScore: 72,
     lowCostMode: false,
     singleJudgeMode: false,
@@ -88,8 +64,6 @@ export function normalizeSearchExecutionProfileName(
 ): SearchExecutionProfileName | null {
   switch (value) {
     case "bright_fast_free":
-    case "bright_activation_free":
-    case "bright_activation_free_topup":
     case "bright_fast_pro":
     case "bright_full_pro":
       return value;
@@ -114,32 +88,25 @@ export function getSearchExecutionProfile(
 
 export function getInitialSearchExecutionProfile(
   planCode: SearchPlanCode,
-  options?: { activationRun?: boolean },
 ): SearchExecutionProfile {
   return isProPlanCode(planCode)
     ? SEARCH_EXECUTION_PROFILES.bright_fast_pro
-    : options?.activationRun
-      ? SEARCH_EXECUTION_PROFILES.bright_activation_free
-      : SEARCH_EXECUTION_PROFILES.bright_fast_free;
+    : SEARCH_EXECUTION_PROFILES.bright_fast_free;
 }
 
 export function getFullSearchExecutionProfile(
   planCode: SearchPlanCode,
-  options?: { activationRun?: boolean },
 ): SearchExecutionProfile | null {
   if (isProPlanCode(planCode)) {
     return SEARCH_EXECUTION_PROFILES.bright_full_pro;
   }
-  return options?.activationRun
-    ? SEARCH_EXECUTION_PROFILES.bright_activation_free_topup
-    : null;
+  return null;
 }
 
 export function getInitialSearchTargets(
   planCode: SearchPlanCode,
-  options?: { activationRun?: boolean },
 ) {
-  const profile = getInitialSearchExecutionProfile(planCode, options);
+  const profile = getInitialSearchExecutionProfile(planCode);
   return {
     candidateCount: isProPlanCode(planCode) ? 25 : profile.finalResultCap,
     displayCount: profile.finalResultCap,

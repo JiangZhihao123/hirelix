@@ -260,7 +260,7 @@ export default function NewSearchPage() {
                   : "Tip: paste the full JD, not just the title, for stronger matches."}
               </p>
               <p className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700">
-                Paid beta: Free shows up to 10 strong candidates, Pro unlocks contact + outreach execution
+                Paid beta: Free gets 1 high-conviction shortlist per month, Pro unlocks contact + outreach execution
               </p>
             </div>
             <button
@@ -287,14 +287,14 @@ export default function NewSearchPage() {
               <div className="text-sm text-slate-700">
                 <p className="font-medium text-slate-900">What happens next</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                  {["Read role", "Search Bright pool", "Keep only credible matches", "Unlock contact + outreach on Pro"].map((step) => (
+                  {["Read role", "Search 200 Bright profiles", "Rank the top ~25", "Unlock contact + outreach on Pro"].map((step) => (
                     <span key={step} className="rounded-full border border-slate-200 bg-white px-3 py-1">
                       {step}
                     </span>
                   ))}
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-slate-600">
-                  Hirelix reads the role, expands the candidate pool across LinkedIn, and only keeps credible matches in the free shortlist. Free shows up to 10 strong candidates; Pro unlocks contact details, export, and outreach execution when you are ready to act.
+                  Hirelix reads the role, searches a 200-profile Bright LinkedIn pool, and only keeps credible matches in the free shortlist. Free gives one strong shortlist per month with roughly 25 ranked candidates; Pro unlocks contact details, export, and outreach execution when you are ready to act.
                 </p>
               </div>
             </div>

@@ -450,6 +450,7 @@ type ScoringBreakdown = {
   join_likelihood_score: number;
   join_likelihood_reasons: string[];
   quality_score: number;
+  overall_score: number;
   advance_score: number;
 };
 
@@ -462,6 +463,7 @@ type CandidateSuitability = {
   bucket: "strong_now" | "consider_next" | "do_not_show";
   match_score: number;
   quality_score: number;
+  overall_score: number;
   advance_score: number;
   advance_recommendation: AdvanceRecommendation;
   primary_risk: string | null;
@@ -1644,25 +1646,6 @@ function shouldUpgradeToFullPass(
   return false;
 }
 
-function shouldRunFreeActivationTopUp(
-  hiringBrief: HiringBrief,
-  displayStats: SearchDisplayStats,
-) {
-  const visibleStrongCount = displayStats.strong_now_count ?? 0;
-  const topQualityScore = displayStats.top_quality_score ?? 0;
-  const clearLocationFitCount = displayStats.clear_location_fit_count ?? 0;
-  const mustHaveStrongCount = displayStats.must_have_strong_count ?? 0;
-  const strictLocalRole =
-    (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
-    hiringBrief.location_flexibility === "strict";
-
-  if (visibleStrongCount < 5) return true;
-  if (topQualityScore < 75) return true;
-  if (strictLocalRole && clearLocationFitCount < 5) return true;
-  if (mustHaveStrongCount < 3) return true;
-  return false;
-}
-
 function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -2123,11 +2106,14 @@ function computeQualityScore(
 }
 
 function computeAdvanceScore(
-  qualityScore: number,
+  capabilityScore: number,
+  relevanceScore: number,
   joinLikelihoodScore: number,
   blockingSeverity: BlockingSeverity,
 ) {
-  const baseScore = Math.round((qualityScore * 0.75) + (joinLikelihoodScore * 0.25));
+  const baseScore = Math.round(
+    capabilityScore * 0.3 + relevanceScore * 0.4 + joinLikelihoodScore * 0.3,
+  );
   const penalty = blockingSeverity === "hard" ? 35 : blockingSeverity === "soft" ? 12 : 0;
   return Math.max(0, Math.min(100, baseScore - penalty));
 }
@@ -2227,6 +2213,7 @@ function computeSubscriptionTriggerScore(
 function deriveSuitabilityBucket(
   params: {
     qualityScore: number;
+    overallScore: number;
     advanceRecommendation: AdvanceRecommendation;
     blockingSeverity: BlockingSeverity;
     constraintVerdicts: ConstraintVerdict;
@@ -2236,7 +2223,7 @@ function deriveSuitabilityBucket(
 ): CandidateSuitability["bucket"] {
   if (params.blockingSeverity === "hard") return "do_not_show";
   if (params.advanceRecommendation === "reject") return "do_not_show";
-  if (params.qualityScore < params.minVisibleQualityScore) return "do_not_show";
+  if (params.overallScore < params.minVisibleQualityScore) return "do_not_show";
   if (params.constraintVerdicts.must_have_coverage === "weak") return "do_not_show";
   if (
     params.strictLocalRole &&
@@ -2245,7 +2232,8 @@ function deriveSuitabilityBucket(
     return "do_not_show";
   }
   if (
-    params.qualityScore >= Math.max(params.minVisibleQualityScore, 72) &&
+    params.overallScore >= Math.max(params.minVisibleQualityScore, 72) &&
+    params.qualityScore >= Math.max(params.minVisibleQualityScore, 65) &&
     ["strong", "partial"].includes(params.constraintVerdicts.must_have_coverage) &&
     (!params.strictLocalRole ||
       ["local", "nearby"].includes(params.constraintVerdicts.location_fit))
@@ -2287,7 +2275,12 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
     item.advance_score != null && blockingSeverity === rawBlockingSeverity;
   const advanceScore = useProvidedAdvanceScore
     ? normalizeScore(item.advance_score)
-    : computeAdvanceScore(qualityScore, joinLikelihoodScore, blockingSeverity);
+    : computeAdvanceScore(
+        capabilityScore,
+        relevanceScore,
+        joinLikelihoodScore,
+        blockingSeverity,
+      );
   const useProvidedAdvanceRecommendation =
     item.advance_recommendation != null && blockingSeverity === rawBlockingSeverity;
   const advanceRecommendation = normalizeAdvanceRecommendation(
@@ -2334,6 +2327,7 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
     ["strong_now", "consider_next", "do_not_show"] as const,
     deriveSuitabilityBucket({
       qualityScore,
+      overallScore: advanceScore,
       advanceRecommendation,
       blockingSeverity,
       constraintVerdicts,
@@ -2346,8 +2340,9 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
     fit_decision: fitDecision,
     actionability,
     bucket,
-    match_score: qualityScore,
+    match_score: advanceScore,
     quality_score: qualityScore,
+    overall_score: advanceScore,
     advance_score: advanceScore,
     advance_recommendation: advanceRecommendation,
     primary_risk:
@@ -2367,6 +2362,7 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
         normalizeStringArray(item.join_likelihood_reasons, 6),
       ),
       quality_score: qualityScore,
+      overall_score: advanceScore,
       advance_score: advanceScore,
     },
     constraint_verdicts: constraintVerdicts,
@@ -3336,7 +3332,11 @@ function buildBrightDataCandidateRows(
         ? item.skills
         : (profile.skills || []).slice(0, 10),
       experience_years: item.experience_years,
-      match_score: item.suitability.quality_score || item.suitability.match_score || 50,
+      match_score:
+        item.suitability.overall_score ||
+        item.suitability.advance_score ||
+        item.suitability.match_score ||
+        50,
       match_reasons:
         item.suitability.why_this_candidate.length > 0
           ? item.suitability.why_this_candidate
@@ -3354,6 +3354,7 @@ function buildBrightDataCandidateRows(
         judge_delta: item.judge_delta ?? 0,
         judge_conflict: item.judge_conflict ?? false,
         quality_score: item.suitability.quality_score,
+        overall_score: item.suitability.overall_score,
         advance_score: item.suitability.advance_score,
         advance_recommendation: item.suitability.advance_recommendation,
         bucket: item.suitability.bucket,
@@ -3456,7 +3457,8 @@ function mergeJudgeResults(
         : "none";
   const qualityScore = computeQualityScore(capabilityScore, relevanceScore);
   const advanceScore = computeAdvanceScore(
-    qualityScore,
+    capabilityScore,
+    relevanceScore,
     joinLikelihoodScore,
     blockingSeverity,
   );
@@ -3501,6 +3503,7 @@ function mergeJudgeResults(
       bucket: "do_not_show",
       match_score: 0,
       quality_score: 0,
+      overall_score: 0,
       advance_score: 0,
       advance_recommendation: "reject",
       primary_risk: "Scoring response was incomplete.",
@@ -3514,6 +3517,7 @@ function mergeJudgeResults(
         join_likelihood_score: 0,
         join_likelihood_reasons: [],
         quality_score: 0,
+        overall_score: 0,
         advance_score: 0,
       },
       constraint_verdicts: {
@@ -4141,6 +4145,7 @@ function selectTopDeepAssessments(
   const bucketedAssessments = assessments.map((assessment) => {
     const bucket = deriveSuitabilityBucket({
       qualityScore: assessment.suitability.quality_score,
+      overallScore: assessment.suitability.overall_score ?? assessment.suitability.advance_score,
       advanceRecommendation: assessment.suitability.advance_recommendation,
       blockingSeverity: assessment.suitability.blocking_severity,
       constraintVerdicts: assessment.suitability.constraint_verdicts,
@@ -4149,7 +4154,8 @@ function selectTopDeepAssessments(
     });
     const upgradedBucket =
       bucket === "strong_now" &&
-      assessment.suitability.quality_score < strongNowQualityScore
+      (assessment.suitability.overall_score ?? assessment.suitability.advance_score) <
+        strongNowQualityScore
         ? "consider_next"
         : bucket;
     return {
@@ -5906,13 +5912,12 @@ async function runSearchPipeline(job: SearchJobRow) {
     const billing = await getBillingSummaryForUser(supabaseAdmin, job.user_id);
     planCode = normalizeSearchPlanCode(billing.plan.code);
   }
-  const activationRun = isActivationRun(existingParsed);
   const storedInitialProfileName = normalizeSearchExecutionProfileName(
     existingParsed?.execution_profile,
   );
   const initialExecutionProfile = storedInitialProfileName
     ? getSearchExecutionProfile(storedInitialProfileName)
-    : getInitialSearchExecutionProfile(planCode, { activationRun });
+    : getInitialSearchExecutionProfile(planCode);
 
   const context: PipelineContext = {
     searchId: job.search_id,
@@ -5947,7 +5952,7 @@ async function runSearchPipeline(job: SearchJobRow) {
         Number((search as SearchRow).parsed_requirements?.outreach_pool_target) ||
         context.outreachPoolTarget,
       plan_code: planCode,
-      activation_run: activationRun,
+      activation_run: false,
       recall_provider: "brightdata_dataset",
       recall_spec: normalizeRecallSpec(
         (search as SearchRow).parsed_requirements?.recall_spec,
@@ -5980,61 +5985,6 @@ async function runSearchPipeline(job: SearchJobRow) {
     }
 
     if (!initialExecutionProfile.allowPhaseTwo) {
-      const activationTopUpProfile = getFullSearchExecutionProfile(planCode, {
-        activationRun: isActivationRun(phase1Parsed),
-      });
-      const hiringBrief = sanitizeHiringBrief(phase1Parsed.hiring_brief, phase1Parsed);
-      if (
-        activationTopUpProfile &&
-        shouldRunFreeActivationTopUp(hiringBrief, phase1Result.displayStats)
-      ) {
-        const topUpParsed = withExecutionState(
-          {
-            ...phase1Parsed,
-            phase_1_display_stats: phase1Result.displayStats,
-            phase_1_recall_metadata: phase1Parsed.recall_metadata ?? null,
-            phase_1_execution_profile: initialExecutionProfile.name,
-          },
-          activationTopUpProfile,
-          {
-            planCode,
-            searchPhase: "phase_1",
-            resultStage: "final",
-            searchPhaseCount: 2,
-            displayCount: activationTopUpProfile.finalResultCap,
-          },
-        );
-        delete topUpParsed.recall_metadata;
-
-        const topUpResult = await buildBrightDataDatasetCandidates(
-          context,
-          topUpParsed,
-          activationTopUpProfile,
-        );
-        if (!topUpResult?.finalRows.length) {
-          throw new Error("Activation top-up returned no candidates.");
-        }
-
-        await completeSearch(
-          context,
-          topUpParsed,
-          topUpResult.finalRows,
-          mergeCostEstimates(
-            buildSearchDisplayStats({
-              ...topUpResult.displayStats,
-              search_phase_count: 2,
-              topup_triggered: true,
-            }),
-            normalizeSearchDisplayStats(phase1Result.displayStats),
-          ),
-          topUpResult.warningMessage,
-          {
-            runtime: getExecutionRuntime(activationTopUpProfile),
-          },
-        );
-        return;
-      }
-
       const finalPhase1Parsed = withExecutionState(phase1Parsed, initialExecutionProfile, {
         planCode,
         searchPhase: "phase_1",

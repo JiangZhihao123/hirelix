@@ -21,8 +21,7 @@ export async function POST(req: NextRequest) {
     const { jd_text, candidate_count } = await req.json();
     const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
-    const activationRun = planCode === "free" && billing.usage.searchesUsed === 0;
-    const searchTargets = getInitialSearchTargets(planCode, { activationRun });
+    const searchTargets = getInitialSearchTargets(planCode);
     const requestedCandidates = Math.min(
       Math.max(Number(candidate_count) || searchTargets.highlightCount, 1),
       searchTargets.candidateCount,
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
         {
           error:
             billing.plan.code === "free"
-              ? "You have used all 3 free searches for this month. Upgrade to Pro to unlock contact details, export, and outreach execution."
+              ? "You have used your 1 free shortlist for this month. Upgrade to Pro to unlock more searches, contact details, export, and outreach execution."
               : "You have reached this month's search limit. Add a Search Pack or wait for your next billing cycle.",
         },
         { status: 403 },
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
           launch_mode: "paid_beta",
           launch_scope: "us_only",
           execution_profile: searchTargets.executionProfile,
-          activation_run: activationRun,
+          activation_run: false,
           search_phase: "phase_1",
         },
         queued_at: timestamp,
@@ -102,7 +101,7 @@ export async function POST(req: NextRequest) {
         launch_mode: "paid_beta",
         launch_scope: "us_only",
         execution_profile: searchTargets.executionProfile,
-        activation_run: activationRun,
+        activation_run: false,
       },
     });
 

@@ -94,6 +94,7 @@ type ScoringBreakdown = {
   join_likelihood_score?: number;
   join_likelihood_reasons?: string[];
   quality_score?: number;
+  overall_score?: number;
   advance_score?: number;
 };
 
@@ -103,6 +104,7 @@ type CandidateSuitability = {
   bucket?: "strong_now" | "consider_next" | "do_not_show";
   match_score?: number;
   quality_score?: number;
+  overall_score?: number;
   advance_score?: number;
   advance_recommendation?: "advance" | "hold" | "reject";
   primary_risk?: string | null;
@@ -140,6 +142,7 @@ type CandidateRow = {
     preliminary?: boolean;
     pool_type?: "top_pick" | "outreach_pool" | "main" | "extended";
     quality_score?: number;
+    overall_score?: number;
     advance_score?: number;
     advance_recommendation?: "advance" | "hold" | "reject";
     bucket?: "strong_now" | "consider_next" | "do_not_show";
@@ -164,6 +167,8 @@ type CandidateRow = {
     about?: string | null;
   } | null;
 };
+
+type CandidateSortMode = "overall" | "capability" | "relevance" | "join_likelihood";
 
 type SearchDisplayStats = {
   retrieval_count?: number;
@@ -253,7 +258,7 @@ function ScoreBadge({ score }: { score: number }) {
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}
     >
-      {score}% quality
+      {score}% overall
     </span>
   );
 }
@@ -351,6 +356,34 @@ function formatDisplayCount(value: number) {
   if (value >= 100) return `${Math.floor(value / 50) * 50}+`;
   if (value >= 10) return `${Math.floor(value / 5) * 5}+`;
   return `${value}`;
+}
+
+function getCandidateScoringBreakdown(candidate: CandidateRow) {
+  return candidate.metadata?.scoring_breakdown || candidate.metadata?.suitability?.scoring_breakdown;
+}
+
+function getCandidateOverallScore(candidate: CandidateRow) {
+  return (
+    candidate.metadata?.overall_score ??
+    candidate.metadata?.advance_score ??
+    candidate.metadata?.suitability?.overall_score ??
+    candidate.metadata?.suitability?.advance_score ??
+    getCandidateScoringBreakdown(candidate)?.overall_score ??
+    getCandidateScoringBreakdown(candidate)?.advance_score ??
+    candidate.match_score
+  );
+}
+
+function getCandidateCapabilityScore(candidate: CandidateRow) {
+  return getCandidateScoringBreakdown(candidate)?.capability_score ?? 0;
+}
+
+function getCandidateRelevanceScore(candidate: CandidateRow) {
+  return getCandidateScoringBreakdown(candidate)?.relevance_score ?? 0;
+}
+
+function getCandidateJoinLikelihoodScore(candidate: CandidateRow) {
+  return getCandidateScoringBreakdown(candidate)?.join_likelihood_score ?? 0;
 }
 
 function CandidateCard({
@@ -462,18 +495,14 @@ function CandidateCard({
   const displayableEducation = (candidate.metadata?.education || []).filter(
     (edu) => edu.school || edu.degree || edu.major,
   );
-  const scoringBreakdown =
-    candidate.metadata?.scoring_breakdown || candidate.metadata?.suitability?.scoring_breakdown;
+  const scoringBreakdown = getCandidateScoringBreakdown(candidate);
   const suitability = candidate.metadata?.suitability;
+  const overallScore = getCandidateOverallScore(candidate);
   const qualityScore =
     candidate.metadata?.quality_score ??
     suitability?.quality_score ??
     scoringBreakdown?.quality_score ??
-    candidate.match_score;
-  const advanceScore =
-    candidate.metadata?.advance_score ??
-    suitability?.advance_score ??
-    scoringBreakdown?.advance_score;
+    overallScore;
   const advanceRecommendation =
     candidate.metadata?.advance_recommendation ??
     suitability?.advance_recommendation;
@@ -544,7 +573,7 @@ function CandidateCard({
               </span>
             )}
             <ActionabilityBadge candidate={candidate} />
-            <ScoreBadge score={candidate.match_score} />
+            <ScoreBadge score={overallScore} />
             {!candidate.email && (
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
                 <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
@@ -564,6 +593,22 @@ function CandidateCard({
           <p className="mt-0.5 truncate text-xs text-muted">
             {candidate.headline || (candidate.skills.length > 0 ? candidate.skills.slice(0, 3).join(" · ") : "Professional")}
           </p>
+          {scoringBreakdown && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                能力 {scoringBreakdown.capability_score ?? "?"}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                匹配 {scoringBreakdown.relevance_score ?? "?"}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                愿意来 {scoringBreakdown.join_likelihood_score ?? "?"}
+              </span>
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                综合 {overallScore}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {candidate.location && (
@@ -688,15 +733,35 @@ function CandidateCard({
                   </p>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Quality score</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Overall score</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">
-                        {qualityScore ?? "?"} · {formatDimensionLabel(qualityScore)}
+                        {overallScore ?? "?"} · {formatDimensionLabel(overallScore)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Advance score</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Capability score</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">
-                        {advanceScore ?? "?"} · {formatDimensionLabel(advanceScore)}
+                        {scoringBreakdown?.capability_score ?? "?"} · {formatDimensionLabel(scoringBreakdown?.capability_score)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Fit score</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {scoringBreakdown?.relevance_score ?? "?"} · {formatDimensionLabel(scoringBreakdown?.relevance_score)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Join likelihood</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {scoringBreakdown?.join_likelihood_score ?? "?"} · {formatDimensionLabel(scoringBreakdown?.join_likelihood_score)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Quality score</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">
+                        {qualityScore ?? "?"} · {formatDimensionLabel(qualityScore)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
@@ -705,26 +770,6 @@ function CandidateCard({
                         {advanceRecommendation
                           ? advanceRecommendation.charAt(0).toUpperCase() + advanceRecommendation.slice(1)
                           : "Unknown"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Capability</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {scoringBreakdown.capability_score ?? "?"} · {formatDimensionLabel(scoringBreakdown.capability_score)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">JD relevance</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {scoringBreakdown.relevance_score ?? "?"} · {formatDimensionLabel(scoringBreakdown.relevance_score)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Engagement likelihood</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {scoringBreakdown.join_likelihood_score ?? "?"} · {formatDimensionLabel(scoringBreakdown.join_likelihood_score)}
                       </p>
                     </div>
                   </div>
@@ -1215,6 +1260,7 @@ export default function SearchResultPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
+  const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
   const [, setUpgradeError] = useState<string | null>(null);
   const hasTrackedProcessingViewRef = useRef(false);
   const hasTrackedResultsViewRef = useRef(false);
@@ -1259,7 +1305,7 @@ export default function SearchResultPage() {
 
   function exportCSV(rows: CandidateRow[]) {
     if (rows.length === 0) return;
-    const headers = ["Name", "Headline", "Location", "Match Score", "Skills", "Experience Years", "Profile URL", "Email", "Status", "Match Reasons"];
+    const headers = ["Name", "Headline", "Location", "Overall Score", "Skills", "Experience Years", "Profile URL", "Email", "Status", "Match Reasons"];
     const csvRows = rows.map((c) => [
       c.name,
       c.headline || "",
@@ -1620,15 +1666,30 @@ export default function SearchResultPage() {
     positiveInt(reqs?.highlight_count) ??
     5;
   const allCandidates = [...candidates].sort((left, right) => {
-    const rightTrigger =
+    const scoreFor = (candidate: CandidateRow) => {
+      switch (sortMode) {
+        case "capability":
+          return getCandidateCapabilityScore(candidate);
+        case "relevance":
+          return getCandidateRelevanceScore(candidate);
+        case "join_likelihood":
+          return getCandidateJoinLikelihoodScore(candidate);
+        case "overall":
+        default:
+          return getCandidateOverallScore(candidate);
+      }
+    };
+    const rightPrimary = scoreFor(right);
+    const leftPrimary = scoreFor(left);
+    const rightSecondary =
       right.metadata?.subscription_trigger_score ??
       right.metadata?.suitability?.subscription_trigger_score ??
-      right.match_score;
-    const leftTrigger =
+      getCandidateOverallScore(right);
+    const leftSecondary =
       left.metadata?.subscription_trigger_score ??
       left.metadata?.suitability?.subscription_trigger_score ??
-      left.match_score;
-    return rightTrigger - leftTrigger || right.match_score - left.match_score;
+      getCandidateOverallScore(left);
+    return rightPrimary - leftPrimary || rightSecondary - leftSecondary;
   });
   const strongNowCandidates = allCandidates.filter(
     (candidate) =>
@@ -1723,8 +1784,6 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.prescreen_blocked_count) ?? 0;
   const qualityFloorApplied =
     rawDisplayStats?.quality_floor_applied === true;
-  const activationRun =
-    rawDisplayStats?.activation_run === true || reqs?.activation_run === true;
   const advanceableCount =
     positiveInt(rawDisplayStats?.advanceable_count) ??
     allCandidates.filter(
@@ -2193,8 +2252,8 @@ export default function SearchResultPage() {
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 />
                 <p className="text-xs text-slate-600">
-                  {activationRun
-                    ? `${topupTriggered ? "This first search auto-expanded recall for quality." : "Your first search already used extra recall budget to surface stronger matches."}`
+                  {topupTriggered
+                    ? "Hirelix expanded recall depth to protect shortlist quality."
                     : "You can already review fit evidence now. Upgrade when you want to actually work the shortlist."}
                 </p>
               </div>
@@ -2210,7 +2269,7 @@ export default function SearchResultPage() {
               <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
                 {highlightedCandidates.length > 0 && (
                   <>
-                    <span>Quality avg: {averageQuality}%</span>
+                    <span>Overall avg: {averageQuality}%</span>
                     <span>·</span>
                     <span>Range: {Math.min(...highlightedCandidates.map((c) => c.match_score))}–{Math.max(...highlightedCandidates.map((c) => c.match_score))}%</span>
                   </>
@@ -2240,6 +2299,19 @@ export default function SearchResultPage() {
             </div>
             {isReviewable && (
               <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  <span>Sort by</span>
+                  <select
+                    value={sortMode}
+                    onChange={(event) => setSortMode(event.target.value as CandidateSortMode)}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+                  >
+                    <option value="overall">Overall score</option>
+                    <option value="capability">Capability</option>
+                    <option value="relevance">Fit</option>
+                    <option value="join_likelihood">Join likelihood</option>
+                  </select>
+                </label>
                 {billing?.usage.exportEnabled && allCandidates.some((candidate) => candidate.email) && (
                   <>
                     <button
