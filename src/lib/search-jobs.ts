@@ -4572,13 +4572,42 @@ async function scoreBrightDataProfiles(
   const renderProfileEntries = brightProfiles.map((profile, index) =>
     brightDataProfileToRichText(profile, index),
   );
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const locationPolicy = normalizeLocationConstraint(hiringBrief);
+  const locationGateResults = brightProfiles.map((profile) => evaluateCandidateLocationGate(
+    locationPolicy,
+    extractCandidateLocationEvidence(
+      profile.city,
+      profile.country_code,
+      profile.headline,
+      profile.about,
+    ),
+  ));
+  const gateEligibleIndexes = locationGateResults
+    .map((result, index) => ({ result, index }))
+    .filter(({ result }) => !result.is_hard_block)
+    .map(({ index }) => index);
+  const preGateHardBlockedCount = brightProfiles.length - gateEligibleIndexes.length;
+  const preGateReviewCount = gateEligibleIndexes.filter(
+    (index) => locationGateResults[index]?.decision === "review",
+  ).length;
+
+  if (preGateHardBlockedCount > 0 || preGateReviewCount > 0) {
+    logSearchEvent("search_location_gate_applied", {
+      stage: "bright_pre_gate",
+      hard_blocked_count: preGateHardBlockedCount,
+      review_count: preGateReviewCount,
+      passed_count: gateEligibleIndexes.length - preGateReviewCount,
+      total_count: brightProfiles.length,
+    });
+  }
 
   // LLM 预筛：过滤掉明显不可能入职的人，再进入双 Judge 深评
   const lightModel = getHaikuModel();
   const prescreenResults = await runWithConcurrency(
-    brightProfiles.map((profile, index) => ({ profile, index })),
-    resolveStageConcurrency(PRE_SCREEN_CONCURRENCY, brightProfiles.length),
-    async ({ index }) => {
+    gateEligibleIndexes,
+    resolveStageConcurrency(PRE_SCREEN_CONCURRENCY, gateEligibleIndexes.length),
+    async (index) => {
       const profileText = renderProfileEntries[index];
       const prompt = `You are doing a first-pass screen for a hiring pipeline.
 
@@ -4622,19 +4651,19 @@ Rules:
     .sort((a, b) => b.score - a.score)
     .map(r => r.index);
 
-  const prescreenBlockedCount = brightProfiles.length - keptIndexes.length;
+  const prescreenBlockedCount = gateEligibleIndexes.length - keptIndexes.length;
   if (prescreenBlockedCount > 0) {
     logSearchEvent("search_bright_prescreen_applied", {
       stage: "bright_prescreen",
-      blocked_count: prescreenBlockedCount,
+      blocked_count: gateEligibleIndexes.length - keptIndexes.length,
       kept_count: keptIndexes.length,
-      total_count: brightProfiles.length,
+      total_count: gateEligibleIndexes.length,
     });
   }
 
   const selectedIndexes = keptIndexes.length > 0
     ? keptIndexes
-    : Array.from({ length: brightProfiles.length }, (_, i) => i); // 全挂时兜底
+    : gateEligibleIndexes; // 全挂时兜底，但不重新放回已被 hard block 的候选人
 
   const deepAssessments = await deepScoreSelectedProfiles(
     aiClient,
@@ -4646,19 +4675,13 @@ Rules:
     brightProfiles.length,
   );
 
-  // 应用 deterministic location gate 到 deep scoring 结果
-  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const locationPolicy = normalizeLocationConstraint(hiringBrief);
-
   const assessmentsWithGate = deepAssessments.map(assessment => {
-    const profile = brightProfiles[assessment.index];
-    const evidence = extractCandidateLocationEvidence(
-      profile.city,
-      profile.country_code,
-      profile.headline,
-      profile.about,
-    );
-    const gateResult = evaluateCandidateLocationGate(locationPolicy, evidence);
+    const gateResult = locationGateResults[assessment.index] || {
+      decision: "review",
+      location_fit: "unknown",
+      reason: "Location evidence missing",
+      is_hard_block: false,
+    };
 
     // 如果是 hard block，强制覆盖 suitability
     const finalSuitability = applyLocationGateToSuitability(
