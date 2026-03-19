@@ -1387,21 +1387,106 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     typeof item.recall_latency_ms === "number" && Number.isFinite(item.recall_latency_ms)
       ? Math.max(0, Math.round(item.recall_latency_ms))
       : null;
+  const cost =
+    typeof item.cost === "number" && Number.isFinite(item.cost)
+      ? Math.max(0, item.cost)
+      : null;
+  const bright_profile_budget =
+    typeof item.bright_profile_budget === "number" && Number.isFinite(item.bright_profile_budget)
+      ? Math.max(0, Math.round(item.bright_profile_budget))
+      : null;
+  const bright_profiles_requested =
+    typeof item.bright_profiles_requested === "number" &&
+      Number.isFinite(item.bright_profiles_requested)
+      ? Math.max(0, Math.round(item.bright_profiles_requested))
+      : null;
+  const bright_profiles_returned =
+    typeof item.bright_profiles_returned === "number" &&
+      Number.isFinite(item.bright_profiles_returned)
+      ? Math.max(0, Math.round(item.bright_profiles_returned))
+      : null;
   const requested_at = normalizeNullableString(item.requested_at);
   const completed_at = normalizeNullableString(item.completed_at);
+  const rawFilterSummary =
+    item.filter_summary && typeof item.filter_summary === "object"
+      ? (item.filter_summary as Record<string, unknown>)
+      : null;
+  const filter_summary = rawFilterSummary
+    ? {
+      title_terms: normalizeStringArray(rawFilterSummary.title_terms, 12),
+      country_codes: normalizeStringArray(rawFilterSummary.country_codes, 6),
+      location_terms: normalizeStringArray(rawFilterSummary.location_terms, 10),
+    }
+    : null;
+  const judge_mode =
+    item.judge_mode === "single" || item.judge_mode === "dual"
+      ? item.judge_mode
+      : null;
 
   return {
     provider,
     snapshot_id: snapshotId,
     dataset_size,
     recall_latency_ms,
+    cost,
+    bright_profile_budget,
+    bright_profiles_requested,
+    bright_profiles_returned,
+    judge_mode,
     requested_at,
     completed_at,
     status:
       status === "submitted" || status === "polling" || status === "ready"
         ? status
         : undefined,
+    filter_summary,
   };
+}
+
+function normalizeSummaryTerms(values: string[] | undefined) {
+  return [...(values || [])]
+    .map((value) => normalizeText(value))
+    .filter(Boolean)
+    .sort();
+}
+
+function hasRecallSnapshotDrift(
+  metadata: RecallMetadata | null,
+  filterSummary: { title_terms: string[]; country_codes: string[]; location_terms: string[] },
+  executionProfile: SearchExecutionProfile,
+  runtime: SearchExecutionRuntime,
+  requestedLimit: number,
+) {
+  if (!metadata || metadata.provider !== "brightdata_dataset") return false;
+  if (!metadata.snapshot_id) return false;
+
+  const sameTitleTerms =
+    JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.title_terms)) ===
+    JSON.stringify(normalizeSummaryTerms(filterSummary.title_terms));
+  const sameCountryCodes =
+    JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.country_codes)) ===
+    JSON.stringify(normalizeSummaryTerms(filterSummary.country_codes));
+  const sameLocationTerms =
+    JSON.stringify(normalizeSummaryTerms(metadata.filter_summary?.location_terms)) ===
+    JSON.stringify(normalizeSummaryTerms(filterSummary.location_terms));
+  const sameBudget =
+    metadata.bright_profile_budget == null ||
+    metadata.bright_profile_budget === executionProfile.filterLimit;
+  const sameRequested =
+    metadata.bright_profiles_requested == null ||
+    metadata.bright_profiles_requested === requestedLimit;
+  const sameJudgeMode =
+    metadata.judge_mode == null ||
+    metadata.judge_mode === runtime.judgeMode;
+
+  return !(
+    sameTitleTerms &&
+    sameCountryCodes &&
+    sameLocationTerms &&
+    sameBudget &&
+    sameRequested &&
+    sameJudgeMode
+  );
 }
 
 function canReuseParsedRequirements(search: SearchRow) {
@@ -3669,6 +3754,33 @@ async function buildBrightDataDatasetCandidates(
       .filter((term) => term.length >= 3)
       .slice(0, 3),
   };
+
+  if (
+    hasRecallSnapshotDrift(
+      existingRecallMetadata,
+      filterSummary,
+      executionProfile,
+      runtime,
+      recallRequest.recordsLimit,
+    )
+  ) {
+    logSearchEvent("search_recall_snapshot_invalidated", {
+      search_id: context.searchId,
+      old_snapshot_id: existingRecallMetadata?.snapshot_id,
+      execution_profile: executionProfile.name,
+      previous_filter_summary: existingRecallMetadata?.filter_summary ?? null,
+      next_filter_summary: filterSummary,
+      previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
+      next_budget: executionProfile.filterLimit,
+      previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
+      next_judge_mode: runtime.judgeMode,
+      job_id: context.jobId,
+    });
+    snapshotId = null;
+    requestedAt = Number.NaN;
+    parsed.recall_metadata = undefined;
+    await updateSearchParsedRequirements(context.searchId, parsed);
+  }
 
   if (!snapshotId) {
     snapshotId = await triggerDatasetFilter(brightDataToken, recallRequest);
