@@ -1016,21 +1016,21 @@ export function brightDataProfileToRichText(profile: BrightDataProfile, index: n
     lines.push(`  Location: ${[profile.city, profile.country_code].filter(Boolean).join(", ")}`);
   }
   if (profile.about) {
-    lines.push(`  About: ${profile.about.substring(0, 300)}`);
+    lines.push(`  About: ${profile.about}`);
   }
 
-  const experience = (profile.experience || []).slice(0, 5);
+  const experience = profile.experience || [];
   if (experience.length > 0) {
     lines.push(`  Experience:`);
     for (const exp of experience) {
       lines.push(`    - ${exp.title || "N/A"} at ${exp.company || "N/A"} (${exp.duration || "N/A"})`);
       if (exp.description) {
-        lines.push(`      ${exp.description.substring(0, 150)}`);
+        lines.push(`      ${exp.description}`);
       }
     }
   }
 
-  const education = (profile.education || []).slice(0, 3);
+  const education = profile.education || [];
   if (education.length > 0) {
     lines.push(`  Education:`);
     for (const edu of education) {
@@ -1038,13 +1038,25 @@ export function brightDataProfileToRichText(profile: BrightDataProfile, index: n
     }
   }
 
-  const skills = (profile.skills || []).slice(0, 12);
+  const skills = profile.skills || [];
   if (skills.length > 0) {
     lines.push(`  Skills: ${skills.join(", ")}`);
   }
 
   if (profile.languages?.length) {
     lines.push(`  Languages: ${profile.languages.join(", ")}`);
+  }
+
+  if (profile.certifications?.length) {
+    lines.push(`  Certifications: ${profile.certifications.map(c => c.authority ? `${c.name} (${c.authority})` : c.name).join(", ")}`);
+  }
+
+  const activitySignals: string[] = [];
+  if (profile.connections != null) activitySignals.push(`${profile.connections} connections`);
+  if (profile.followers != null) activitySignals.push(`${profile.followers} followers`);
+  if (profile.recommendations_count != null) activitySignals.push(`${profile.recommendations_count} recommendations`);
+  if (activitySignals.length > 0) {
+    lines.push(`  Activity: ${activitySignals.join(", ")}`);
   }
 
   lines.push(`  LinkedIn: ${profile.url || profile.input?.url || "N/A"}`);

@@ -395,6 +395,9 @@ type RecallSpec = {
   countries: string[];
   title_variants: string[];
   core_skill_terms: string[];
+  differentiating_skill_terms: string[];
+  baseline_skill_terms: string[];
+  domain_terms: string[];
   location_terms: string[];
   strict_location_terms: string[];
   nearby_location_terms: string[];
@@ -403,6 +406,9 @@ type RecallSpec = {
   geo_strategy: string | null;
   recall_confidence: "high" | "medium" | "low";
   role_breadth: "narrow" | "balanced" | "broad";
+  lateral_title_variants: string[];
+  target_companies: string[];
+  recall_strategy: "standard" | "multi_round";
   record_limit: number;
 };
 
@@ -541,6 +547,7 @@ type ScoredCandidateAssessment = {
   skills: string[];
   experience_years: number | null;
   location: string | null;
+  why_reachable_now?: string | null;
   scoring_method?: "dual_review_auto" | "dual_review_arbitrated" | "single_judge_debug";
   judge_delta?: number;
   judge_conflict?: boolean;
@@ -562,6 +569,7 @@ type JudgeScoreResult = {
   skills: string[];
   experience_years: number | null;
   location: string | null;
+  why_reachable_now: string | null;
 };
 
 type PipelineContext = {
@@ -1095,6 +1103,9 @@ function normalizeRecallSpec(
     : [];
   const title_variants = normalizeStringArray(item.title_variants, 8);
   const core_skill_terms = normalizeStringArray(item.core_skill_terms, 12);
+  const differentiating_skill_terms = normalizeStringArray(item.differentiating_skill_terms, 5);
+  const baseline_skill_terms = normalizeStringArray(item.baseline_skill_terms, 6);
+  const domain_terms = normalizeStringArray(item.domain_terms, 3);
   const location_terms = normalizeStringArray(item.location_terms, 10);
   const strict_location_terms = normalizeStringArray(
     item.strict_location_terms ?? item.location_terms,
@@ -1114,6 +1125,13 @@ function normalizeRecallSpec(
     ["narrow", "balanced", "broad"] as const,
     "balanced",
   );
+  const lateral_title_variants = normalizeStringArray(item.lateral_title_variants, 6);
+  const target_companies = normalizeStringArray(item.target_companies, 15);
+  const recall_strategy = normalizeEnumValue(
+    item.recall_strategy,
+    ["standard", "multi_round"] as const,
+    "standard",
+  );
   const requestedLimit =
     typeof options?.recordLimitOverride === "number" &&
     Number.isFinite(options.recordLimitOverride)
@@ -1126,6 +1144,9 @@ function normalizeRecallSpec(
     countries,
     title_variants,
     core_skill_terms,
+    differentiating_skill_terms,
+    baseline_skill_terms,
+    domain_terms,
     location_terms,
     strict_location_terms,
     nearby_location_terms,
@@ -1134,6 +1155,9 @@ function normalizeRecallSpec(
     geo_strategy,
     recall_confidence,
     role_breadth,
+    lateral_title_variants,
+    target_companies,
+    recall_strategy,
     record_limit:
       typeof options?.recordLimitOverride === "number" &&
       Number.isFinite(options.recordLimitOverride)
@@ -1303,6 +1327,16 @@ function enrichRecallSpecFromJd(
   const coreSkillTerms = recallSpec.core_skill_terms.length > 0
     ? recallSpec.core_skill_terms
     : deriveCoreSkillsFromJdText(jdText, 12);
+  // New tiered skill terms — fallback to core_skill_terms split if LLM didn't provide them
+  const differentiatingSkillTerms = recallSpec.differentiating_skill_terms.length > 0
+    ? recallSpec.differentiating_skill_terms
+    : [];
+  const baselineSkillTerms = recallSpec.baseline_skill_terms.length > 0
+    ? recallSpec.baseline_skill_terms
+    : [];
+  const domainTerms = recallSpec.domain_terms.length > 0
+    ? recallSpec.domain_terms
+    : [];
   const countries = recallSpec.countries.length > 0
     ? recallSpec.countries
     : inferCountriesFromJdText(jdText);
@@ -1326,6 +1360,9 @@ function enrichRecallSpecFromJd(
     ...recallSpec,
     title_variants: titleVariants.slice(0, 8),
     core_skill_terms: coreSkillTerms.slice(0, 12),
+    differentiating_skill_terms: differentiatingSkillTerms.slice(0, 5),
+    baseline_skill_terms: baselineSkillTerms.slice(0, 6),
+    domain_terms: domainTerms.slice(0, 3),
     countries: countries.slice(0, 5),
     location_terms: locationTerms.slice(0, 16),
     strict_location_terms:
@@ -1341,6 +1378,9 @@ function enrichRecallSpecFromJd(
     geo_strategy: recallSpec.geo_strategy || geo.geoStrategy,
     recall_confidence: recallSpec.recall_confidence,
     role_breadth: recallSpec.role_breadth,
+    lateral_title_variants: recallSpec.lateral_title_variants.slice(0, 6),
+    target_companies: recallSpec.target_companies.slice(0, 15),
+    recall_strategy: recallSpec.recall_strategy,
   };
 }
 
@@ -1904,11 +1944,11 @@ function buildPromptSearchContext(parsed: Record<string, unknown>) {
   lines.push(
     `Location Flexibility: ${hiringBrief.location_flexibility} | Relocation Allowed: ${hiringBrief.relocation_allowed}`,
   );
+  if (hiringBrief.company_stage_expectation !== "unknown") {
+    lines.push(`Hiring Company Stage: ${hiringBrief.company_stage_expectation}`);
+  }
   if (hiringBrief.role_core.required_skills.length > 0) {
     lines.push(`Must-Have Skills: ${hiringBrief.role_core.required_skills.slice(0, 10).join(", ")}`);
-  }
-  if (hiringBrief.company_stage_expectation !== "unknown") {
-    lines.push(`Company Stage Expectation: ${hiringBrief.company_stage_expectation}`);
   }
   if (hiringBrief.must_have_constraints.length > 0) {
     lines.push(`Must-Have Constraints: ${hiringBrief.must_have_constraints.slice(0, 6).join(" | ")}`);
@@ -2199,9 +2239,9 @@ function computeSubscriptionTriggerScore(
     Math.min(
       100,
       Math.round(
-        qualityScore * 0.45 +
+        qualityScore * 0.35 +
           advanceScore * 0.25 +
-          joinLikelihoodScore * 0.15 +
+          joinLikelihoodScore * 0.25 +
           locationBonus +
           mustHaveBonus +
           evidenceBonus,
@@ -2867,7 +2907,8 @@ function buildJudgeScorePrompt(
   "evidence_quality": "high | medium | low",
   "skills": ["string"],
   "experience_years": 0,
-  "location": "string | null"
+  "location": "string | null",
+  "why_reachable_now": "string | null"
 }`
     : `[
   {
@@ -2892,7 +2933,8 @@ function buildJudgeScorePrompt(
     "evidence_quality": "high | medium | low",
     "skills": ["string"],
     "experience_years": 0,
-    "location": "string | null"
+    "location": "string | null",
+    "why_reachable_now": "string | null"
   }
 ]`;
   const indexRule = poolSize === 1
@@ -2919,8 +2961,8 @@ ${jsonShape}
 Rules:
 - ${styleHint}
 - ${indexRule}
-- capability_score measures how strong the person is overall in seniority, depth, and execution track record.
-- relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain.
+- capability_score measures how strong the person is overall in seniority, depth, and execution track record. Profiles with only bootcamp credentials and no professional engineering tenure beyond internships should receive capability_score <= 40.
+- relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain. Domain experience in the hiring company's industry (stated in hiring_brief) should boost relevance_score — a candidate who has worked in the same industry as the hiring company is significantly more relevant than one who hasn't, especially for startup roles where ramp-up time matters.
 - join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity.
 - Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
 - blocking_severity should be hard only for explicit incompatibilities.
@@ -2931,6 +2973,8 @@ Rules:
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
 - bucket should be strong_now for first-screen candidates, consider_next for credible second-layer candidates, and do_not_show for hidden-by-default candidates.
 - Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
+- For startup/growth-stage roles: evaluate startup affinity holistically based on career trajectory. Penalize candidates with 7+ years at a single large company AND zero startup/small-company experience AND no entrepreneurial signals — they are unlikely to make the leap. But a big-company engineer with prior startup stints, side projects, open-source, or "0 to 1" language is a strong prospect — large-company rigor combined with startup adaptability is valuable. Boost join_likelihood when career trajectory shows startup affinity (multiple startup stints, founding experience, decreasing company size over career, or entrepreneurial language in about/experience).
+- A realistic candidate who would actually respond to cold outreach is more valuable than a dream candidate who never will. Factor reachability into advance_recommendation.
 - Do not collapse quality because of sparse evidence alone. Use evidence_quality + risk fields to express uncertainty.
 - When title/about/current role strongly align but details are sparse, capability/relevance can still be moderate.
 - Reserve very low capability/relevance for explicit mismatch, not just missing fields.
@@ -2939,6 +2983,7 @@ Rules:
 - Keep join_likelihood_reasons concrete and evidence-based. Max 3 items, each under 16 words.
 - Keep risk_flags concrete and short. Max 3 items, each under 10 words.
 - first_contact_confidence should reflect whether a recruiter would feel good reaching out immediately.
+- why_reachable_now: one sentence explaining why this specific person might be open to this opportunity RIGHT NOW. Look for timing signals: recent job change (< 6 months at current role), career trajectory shift (big company → startup pattern), active LinkedIn profile (high connections/followers), explicit "open to opportunities" language, short tenure at current company, or industry/domain alignment that makes this role a natural next step. Return null only if there are zero timing signals. This field is shown directly to the hiring manager — make it specific and actionable, not generic.
 - Do not speculate about relocation or work authorization.
 - Return ONLY valid JSON. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json or \`\`\`). Return raw JSON directly.`;
 }
@@ -3015,7 +3060,8 @@ Rules:
     "skills": ["string"],
     "experience_years": 0,
     "location": "string | null",
-    "evidence_quality": "high | medium | low"
+    "evidence_quality": "high | medium | low",
+    "why_reachable_now": "string | null"
   }
 ]
 - Return ONLY valid JSON array with one object.`;
@@ -3041,6 +3087,7 @@ function parseScoredAssessments(
         skills: normalizeStringArray(item.skills, 10),
         experience_years: normalizeExperienceYears(item.experience_years),
         location: normalizeNullableString(item.location),
+        why_reachable_now: normalizeNullableString(item.why_reachable_now),
       };
     })
     .filter((entry): entry is ScoredCandidateAssessment => Boolean(entry))
@@ -3103,6 +3150,7 @@ function parseJudgeScoreResults(
         skills: normalizeStringArray(item.skills, 10),
         experience_years: normalizeExperienceYears(item.experience_years),
         location: normalizeNullableString(item.location),
+        why_reachable_now: normalizeNullableString(item.why_reachable_now),
       };
     })
     .filter((entry): entry is JudgeScoreResult => Boolean(entry));
@@ -3178,6 +3226,21 @@ async function updateSearchParsedRequirements(
       updated_at: nowIso(),
     })
     .eq("id", searchId);
+}
+
+async function updateSearchDisplayStat(
+  searchId: string,
+  parsed: Record<string, unknown>,
+  key: string,
+  value: number,
+) {
+  const reqs = parsed as Record<string, unknown>;
+  const stats = (reqs.display_stats && typeof reqs.display_stats === "object"
+    ? reqs.display_stats
+    : {}) as Record<string, unknown>;
+  stats[key] = value;
+  reqs.display_stats = stats;
+  await updateSearchParsedRequirements(searchId, reqs);
 }
 
 async function updateSearchUsageEventMetadata(
@@ -3373,6 +3436,7 @@ function buildBrightDataCandidateRows(
         constraint_risks: item.suitability.constraint_risks,
         risk_flags: item.suitability.risk_flags,
         join_likelihood_reasons: item.suitability.scoring_breakdown.join_likelihood_reasons,
+        why_reachable_now: item.why_reachable_now ?? null,
         why_not_higher: item.suitability.why_not_higher,
         work_history: (profile.experience || [])
           .slice(0, 5)
@@ -3534,6 +3598,7 @@ function mergeJudgeResults(
     skills: Array.from(new Set([...judgeA.skills, ...judgeB.skills])).slice(0, 10),
     experience_years: judgeA.experience_years ?? judgeB.experience_years,
     location: judgeA.location ?? judgeB.location,
+    why_reachable_now: judgeA.why_reachable_now ?? judgeB.why_reachable_now,
     scoring_method: "dual_review_auto",
     judge_delta: Math.max(
       Math.abs(judgeA.capability_score - judgeB.capability_score),
@@ -3616,6 +3681,24 @@ function buildBrightDataRecallFilter(
     .filter((term) => term.length >= 3)
     .slice(0, 8);
 
+  const skillTerms = recallSpec.core_skill_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2)
+    .slice(0, 5);
+  const differentiatingTerms = recallSpec.differentiating_skill_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2)
+    .slice(0, 5);
+  const baselineTerms = recallSpec.baseline_skill_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2)
+    .slice(0, 6);
+  const domainTerms = recallSpec.domain_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2)
+    .slice(0, 3);
+  const titleTermLower = new Set(titleTerms.map((t) => t.toLowerCase()));
+
   const rootFilters: BrightDataFilterRule[] = [
     {
       operator: "or",
@@ -3646,6 +3729,50 @@ function buildBrightDataRecallFilter(
     );
   }
 
+  // Skill relevance: use tiered skill terms if available, fallback to core_skill_terms.
+  // Differentiating terms (e.g. "LLM", "LangChain") are what make THIS role unique.
+  // Baseline terms (e.g. "Python", "Node.js") are standard stack requirements.
+  // Domain terms (e.g. "CPG", "fintech") surface industry-relevant candidates.
+  const hasLayeredSkills = differentiatingTerms.length > 0 || baselineTerms.length > 0;
+  const effectiveSkillTerms = hasLayeredSkills
+    ? [...differentiatingTerms, ...baselineTerms]
+    : skillTerms;
+
+  if (effectiveSkillTerms.length > 0 || domainTerms.length > 0) {
+    const skillFilters: BrightDataFilterRule[] = [];
+    // Differentiating + baseline skills in about field
+    for (const term of effectiveSkillTerms) {
+      skillFilters.push({
+        name: "about",
+        operator: "includes",
+        value: term,
+      });
+    }
+    // Domain terms in about field (industry relevance)
+    for (const term of domainTerms) {
+      skillFilters.push({
+        name: "about",
+        operator: "includes",
+        value: term,
+      });
+    }
+    // Fallback: also match skills in position for candidates with empty about
+    for (const term of effectiveSkillTerms) {
+      if (!titleTermLower.has(term.toLowerCase())) {
+        skillFilters.push({
+          name: "position",
+          operator: "includes",
+          value: term,
+        });
+      }
+    }
+    // Bright Data API limits each OR group to 20 items
+    rootFilters.push({
+      operator: "or",
+      filters: skillFilters.slice(0, 20),
+    });
+  }
+
   if (
     hiringBrief.location_flexibility === "strict" &&
     (strictLocationTerms.length > 0 || nearbyLocationTerms.length > 0 || locationTerms.length > 0)
@@ -3661,7 +3788,36 @@ function buildBrightDataRecallFilter(
         value: term,
       })),
     });
+  } else if (
+    hiringBrief.location_flexibility === "moderate" &&
+    (strictLocationTerms.length > 0 || nearbyLocationTerms.length > 0 || locationTerms.length > 0)
+  ) {
+    rootFilters.push({
+      operator: "or",
+      filters: compactNormalizedTerms(
+        [...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms],
+        16,
+      ).map((term) => ({
+        name: "location",
+        operator: "includes",
+        value: term,
+      })),
+    });
   }
+
+  // Exclude profiles with default avatars (inactive / low-quality accounts)
+  rootFilters.push({
+    name: "default_avatar",
+    operator: "=",
+    value: false,
+  });
+
+  // Require minimum connections to filter out inactive / zombie accounts
+  rootFilters.push({
+    name: "connections",
+    operator: ">=",
+    value: 50,
+  });
 
   return {
     datasetId,
@@ -3674,6 +3830,125 @@ function buildBrightDataRecallFilter(
           filters: rootFilters,
         },
   };
+}
+
+type RecallRound = {
+  round: "standard" | "hidden_gem" | "company_target";
+  request: BrightDataDatasetFilterRequest;
+};
+
+function buildBrightDataRecallFilters(
+  parsed: Record<string, unknown>,
+  candidateCount: number,
+  executionProfile: SearchExecutionProfile,
+): RecallRound[] {
+  const standardRequest = buildBrightDataRecallFilter(parsed, candidateCount, executionProfile);
+  if (!standardRequest) return [];
+
+  const rounds: RecallRound[] = [{ round: "standard", request: standardRequest }];
+
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount, {
+    recordLimitOverride: executionProfile.filterLimit,
+  });
+  if (recallSpec.recall_strategy !== "multi_round") return rounds;
+
+  const datasetId = standardRequest.datasetId;
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const countryCodes = recallSpec.countries
+    .map((country) => normalizeCountryCode(country))
+    .filter((country): country is string => Boolean(country))
+    .slice(0, 4);
+
+  // Shared quality gates for all rounds
+  const qualityFilters: BrightDataFilterRule[] = [
+    { name: "default_avatar", operator: "=", value: false },
+    { name: "connections", operator: ">=", value: 50 },
+  ];
+
+  // Shared country filter
+  const countryFilter: BrightDataFilterRule | null =
+    countryCodes.length === 1
+      ? { name: "country_code", operator: "=", value: countryCodes[0] }
+      : countryCodes.length > 1
+        ? { operator: "or", filters: countryCodes.map((c) => ({ name: "country_code", operator: "=", value: c })) }
+        : null;
+
+  // Shared location filter (reuse from standard round logic)
+  const strictLocationTerms = recallSpec.strict_location_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 3).slice(0, 12);
+  const nearbyLocationTerms = recallSpec.nearby_location_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 3).slice(0, 8);
+  const locationTerms = recallSpec.location_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 3).slice(0, 16);
+  const allLocationTerms = compactNormalizedTerms([...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms], 16);
+
+  const locationFilter: BrightDataFilterRule | null =
+    (hiringBrief.location_flexibility === "strict" || hiringBrief.location_flexibility === "moderate") && allLocationTerms.length > 0
+      ? {
+          operator: "or",
+          filters: allLocationTerms.map((term) => ({
+            name: hiringBrief.location_flexibility === "strict" ? "city" : "location",
+            operator: "includes",
+            value: term,
+          })),
+        }
+      : null;
+
+  // --- Round 2: Hidden Gem (lateral titles + differentiating skills) ---
+  const lateralTitles = recallSpec.lateral_title_variants.filter((t) => t.length >= 3);
+  const differentiatingTerms = recallSpec.differentiating_skill_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 2).slice(0, 5);
+
+  if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
+    const hiddenGemFilters: BrightDataFilterRule[] = [
+      {
+        operator: "or",
+        filters: lateralTitles.map((term) => ({ name: "position", operator: "includes", value: term })),
+      },
+    ];
+    if (countryFilter) hiddenGemFilters.push(countryFilter);
+    // Only differentiating skills — not baseline. This ensures lateral-title candidates
+    // must have the unique skills that make THIS role special.
+    hiddenGemFilters.push({
+      operator: "or",
+      filters: differentiatingTerms.map((term) => ({ name: "about", operator: "includes", value: term })),
+    });
+    if (locationFilter) hiddenGemFilters.push(locationFilter);
+    hiddenGemFilters.push(...qualityFilters);
+
+    rounds.push({
+      round: "hidden_gem",
+      request: {
+        datasetId,
+        recordsLimit: 100,
+        filter: { operator: "and", filters: hiddenGemFilters },
+      },
+    });
+  }
+
+  // --- Round 3: Company Target (target companies, no title filter) ---
+  const targetCompanies = recallSpec.target_companies.filter((c) => c.length >= 2);
+  if (targetCompanies.length > 0) {
+    const companyFilters: BrightDataFilterRule[] = [
+      {
+        operator: "or",
+        filters: targetCompanies.slice(0, 15).map((company) => ({
+          name: "current_company_name",
+          operator: "includes",
+          value: company,
+        })),
+      },
+    ];
+    if (countryFilter) companyFilters.push(countryFilter);
+    companyFilters.push(...qualityFilters);
+
+    rounds.push({
+      round: "company_target",
+      request: {
+        datasetId,
+        recordsLimit: 100,
+        filter: { operator: "and", filters: companyFilters },
+      },
+    });
+  }
+
+  return rounds;
 }
 
 async function upsertCandidatesForSearch(
@@ -3738,6 +4013,39 @@ async function upsertCandidatesForSearch(
       await supabaseAdmin.from("hirelix_candidates").delete().in("id", idsToDelete);
     }
   }
+}
+
+async function upsertSingleCandidate(searchId: string, row: CandidateRowInput) {
+  const payload = {
+    search_id: searchId,
+    name: row.name,
+    headline: row.headline,
+    location: row.location,
+    skills: row.skills,
+    experience_years: row.experience_years,
+    match_score: row.match_score,
+    match_reasons: row.match_reasons,
+    profile_url: row.profile_url,
+    github_url: row.github_url,
+    email: row.email,
+    outreach_draft: row.outreach_draft,
+    metadata: row.metadata,
+  };
+  // Try update by profile_url first, then insert
+  if (row.profile_url) {
+    const { data: existing } = await supabaseAdmin
+      .from("hirelix_candidates")
+      .select("id")
+      .eq("search_id", searchId)
+      .eq("profile_url", row.profile_url)
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      await supabaseAdmin.from("hirelix_candidates").update(payload).eq("id", existing.id);
+      return;
+    }
+  }
+  await supabaseAdmin.from("hirelix_candidates").insert(payload);
 }
 
 async function parseJobDescription(
@@ -4199,7 +4507,9 @@ function selectTopDeepAssessments(
     .filter((assessment) => assessment.suitability.bucket === "consider_next")
     .sort(sortCandidateAssessments);
   const rankedEligible = [...strongNow, ...considerNext];
-  const selected = rankedEligible.slice(0, finalResultCap);
+  // No hard cap — LLM's advance_recommendation decides who gets through.
+  // eligibleAssessments already excludes "do_not_show" bucket (rejected by deriveSuitabilityBucket).
+  const selected = rankedEligible;
   const selectedCount = selected.length;
   const selectedRate = selectedCount / rankedEligible.length;
 
@@ -4337,6 +4647,7 @@ async function buildBrightDataDatasetCandidates(
   if (!brightDataToken || !recallRequest) {
     return null;
   }
+  const pipelineStartMs = Date.now();
 
   await setSearchStatus(
     context.searchId,
@@ -4408,6 +4719,24 @@ async function buildBrightDataDatasetCandidates(
   if (!snapshotId) {
     snapshotId = await triggerDatasetFilter(brightDataToken, recallRequest);
     requestedAt = Date.now();
+
+    // Fire additional rounds (hidden_gem, company_target) immediately — don't wait for standard to finish
+    const recallRounds = buildBrightDataRecallFilters(parsed, context.candidateCount, executionProfile);
+    const additionalRounds = recallRounds.filter((r) => r.round !== "standard");
+    const additionalSnapshotPromises = additionalRounds.map(async (round) => {
+      const roundSnapshotId = await triggerDatasetFilter(brightDataToken, round.request);
+      logSearchEvent("search_multi_round_triggered", {
+        search_id: context.searchId,
+        round: round.round,
+        snapshot_id: roundSnapshotId,
+        records_limit: round.request.recordsLimit,
+        job_id: context.jobId,
+      });
+      return { round: round.round, snapshotId: roundSnapshotId, request: round.request };
+    });
+    // Store promises for later — all snapshots are now building in parallel
+    (parsed as Record<string, unknown>).__additional_snapshot_promises = additionalSnapshotPromises;
+
     parsed.recall_provider = "brightdata_dataset";
     parsed.recall_metadata = {
       provider: "brightdata_dataset",
@@ -4495,6 +4824,14 @@ async function buildBrightDataDatasetCandidates(
     return null;
   }
 
+  logSearchEvent("search_timing", {
+    search_id: context.searchId,
+    phase: "standard_recall_complete",
+    elapsed_ms: Date.now() - pipelineStartMs,
+    profiles_count: profiles.length,
+    job_id: context.jobId,
+  });
+
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_metadata = {
     provider: "brightdata_dataset",
@@ -4513,6 +4850,88 @@ async function buildBrightDataDatasetCandidates(
   };
   await updateSearchParsedRequirements(context.searchId, parsed);
 
+  // --- Multi-round recall: collect results from pre-triggered additional snapshots ---
+  let allProfiles = profiles;
+  const additionalSnapshotPromises = ((parsed as Record<string, unknown>).__additional_snapshot_promises ?? []) as
+    Promise<{ round: string; snapshotId: string; request: BrightDataDatasetFilterRequest }>[];
+  let totalRecallCost = metadata.cost ?? 0;
+
+  if (additionalSnapshotPromises.length > 0) {
+    // Resolve the trigger promises first (they were fired in parallel with standard)
+    const triggeredRounds = await Promise.allSettled(additionalSnapshotPromises);
+    // Now wait for all additional snapshots to complete (they've been building in parallel the whole time)
+    const successfulTriggers = triggeredRounds
+      .filter((r): r is PromiseFulfilledResult<{ round: string; snapshotId: string; request: BrightDataDatasetFilterRequest }> => r.status === "fulfilled");
+    const additionalResults = await Promise.allSettled(
+      successfulTriggers.map(async (r) => {
+          const { round, snapshotId: roundSnapId } = r.value;
+          const roundPollWindowMs = Math.min(BRIGHTDATA_FILTER_POLL_WINDOW_MS, BRIGHTDATA_FILTER_TIMEOUT_MS);
+          const result = await waitForDatasetSnapshot(brightDataToken, roundSnapId, {
+            timeoutMs: roundPollWindowMs,
+            pollIntervalMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
+          });
+          return { round, ...result, snapshotId: roundSnapId };
+        }),
+    );
+
+    // Merge successful rounds, skip failed ones (non-blocking)
+    const seenIds = new Set<string>();
+    for (const profile of allProfiles) {
+      const key = profile.linkedin_id || profile.url || profile.name;
+      if (key) seenIds.add(key);
+    }
+
+    for (const result of additionalResults) {
+      if (result.status === "rejected") {
+        logSearchEvent("search_multi_round_failed", {
+          search_id: context.searchId,
+          error: String(result.reason),
+          job_id: context.jobId,
+        });
+        continue;
+      }
+      const { round, profiles: roundProfiles, metadata: roundMeta, snapshotId: roundSnapId } = result.value;
+      if (!roundProfiles || roundProfiles.length === 0) {
+        logSearchEvent("search_multi_round_empty", {
+          search_id: context.searchId,
+          round,
+          snapshot_id: roundSnapId,
+          job_id: context.jobId,
+        });
+        continue;
+      }
+      let addedCount = 0;
+      for (const profile of roundProfiles) {
+        const key = profile.linkedin_id || profile.url || profile.name;
+        if (key && seenIds.has(key)) continue;
+        if (key) seenIds.add(key);
+        // Tag the profile with recall source for prescreen context
+        (profile as Record<string, unknown>).__recall_source = round;
+        allProfiles.push(profile);
+        addedCount++;
+      }
+      if (roundMeta?.cost) totalRecallCost += roundMeta.cost;
+      logSearchEvent("search_multi_round_completed", {
+        search_id: context.searchId,
+        round,
+        snapshot_id: roundSnapId,
+        profiles_returned: roundProfiles.length,
+        unique_added: addedCount,
+        job_id: context.jobId,
+      });
+    }
+  }
+
+  logSearchEvent("search_timing", {
+    search_id: context.searchId,
+    phase: "all_recall_complete",
+    elapsed_ms: Date.now() - pipelineStartMs,
+    total_profiles: allProfiles.length,
+    standard_profiles: profiles.length,
+    additional_profiles: allProfiles.length - profiles.length,
+    job_id: context.jobId,
+  });
+
   if (isPhaseTwoRefinement) {
     await setSearchStatus(context.searchId, "deep_scoring", {
       search_completed_at: nowIso(),
@@ -4528,9 +4947,10 @@ async function buildBrightDataDatasetCandidates(
     provider: "brightdata_dataset",
     execution_profile: executionProfile.name,
     snapshot_id: snapshotId,
-    result_count: profiles.length,
+    result_count: allProfiles.length,
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
+    additional_rounds: additionalSnapshotPromises.length,
     job_id: context.jobId,
   });
 
@@ -4543,7 +4963,7 @@ async function buildBrightDataDatasetCandidates(
     deep_scoring_batch_size: DEEP_SCORING_BATCH_SIZE,
     deep_scoring_concurrency: resolveStageConcurrency(
       DEEP_SCORING_CONCURRENCY,
-      Math.ceil(profiles.length / DEEP_SCORING_BATCH_SIZE),
+      Math.ceil(allProfiles.length / DEEP_SCORING_BATCH_SIZE),
     ),
     low_cost_mode: executionProfile.lowCostMode,
     single_judge_mode: executionProfile.singleJudgeMode,
@@ -4558,16 +4978,16 @@ async function buildBrightDataDatasetCandidates(
   const scored = await scoreBrightDataProfiles(
     context,
     parsed,
-    profiles,
-    profiles.length,
+    allProfiles,
+    allProfiles.length,
     executionProfile,
   );
   scored.displayStats = buildSearchDisplayStats({
     ...scored.displayStats,
-    bright_snapshot_cost: metadata.cost ?? undefined,
+    bright_snapshot_cost: totalRecallCost || (metadata.cost ?? undefined),
     bright_profile_budget: executionProfile.filterLimit,
     bright_profiles_requested: recallRequest.recordsLimit,
-    bright_profiles_returned: profiles.length,
+    bright_profiles_returned: allProfiles.length,
     search_phase_count: Number(parsed.search_phase_count) || 1,
     judge_mode: runtime.judgeMode,
   });
@@ -4579,8 +4999,15 @@ async function buildBrightDataDatasetCandidates(
     provider: "brightdata_dataset",
     execution_profile: executionProfile.name,
     result_count: scored.finalRows.length,
-    retrieved_count: profiles.length,
+    retrieved_count: allProfiles.length,
     shortlist_count: scored.displayStats.shortlist_count,
+    job_id: context.jobId,
+  });
+
+  logSearchEvent("search_timing", {
+    search_id: context.searchId,
+    phase: "pipeline_complete",
+    total_elapsed_ms: Date.now() - pipelineStartMs,
     job_id: context.jobId,
   });
 
@@ -5059,9 +5486,13 @@ async function deepScoreSelectedProfiles(
   profileTexts: string[],
   selectedIndexes: number[],
   totalPoolSize: number,
+  options?: {
+    onCandidateScored?: (assessment: ScoredCandidateAssessment, completedCount: number) => void | Promise<void>;
+  },
 ): Promise<ScoredCandidateAssessment[]> {
   if (!selectedIndexes.length) return [];
 
+  let completedCount = 0;
   // Each candidate spawns two judge calls and occasionally an arbiter call.
   // Hard cap concurrency to avoid judge/arbiter API saturation.
   const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, selectedIndexes.length);
@@ -5069,6 +5500,29 @@ async function deepScoreSelectedProfiles(
     selectedIndexes,
     workerCount,
     async (selectedIndex) => {
+      const result = await scoreSingleCandidate(aiClient, runtime, parsed, jdText, profileTexts, selectedIndex, totalPoolSize);
+      if (result) {
+        completedCount++;
+        try { await options?.onCandidateScored?.(result, completedCount); } catch { /* non-blocking */ }
+      }
+      return result;
+    },
+  );
+
+  return assessments
+    .filter((assessment): assessment is ScoredCandidateAssessment => Boolean(assessment))
+    .sort(sortCandidateAssessments);
+}
+
+async function scoreSingleCandidate(
+  aiClient: ReturnType<typeof createAIClient>,
+  runtime: SearchExecutionRuntime,
+  parsed: Record<string, unknown>,
+  jdText: string,
+  profileTexts: string[],
+  selectedIndex: number,
+  totalPoolSize: number,
+): Promise<ScoredCandidateAssessment | null> {
       if (runtime.judgeMode === "single") {
         try {
           const judgeResults = await judgeScoreBatch(
@@ -5175,12 +5629,6 @@ async function deepScoreSelectedProfiles(
           judge_conflict: true,
         };
       }
-    },
-  );
-
-  return assessments
-    .filter((assessment): assessment is ScoredCandidateAssessment => Boolean(assessment))
-    .sort(sortCandidateAssessments);
 }
 
 async function scoreBrightDataProfiles(
@@ -5190,6 +5638,7 @@ async function scoreBrightDataProfiles(
   retrievalCount: number,
   executionProfile: SearchExecutionProfile,
 ): Promise<SearchPipelineResult> {
+  const scoringStartMs = Date.now();
   const aiClient = createAIClient();
   const runtime = getExecutionRuntime(executionProfile);
   const renderProfileEntries = brightProfiles.map((profile, index) =>
@@ -5231,81 +5680,41 @@ async function scoreBrightDataProfiles(
     });
   }
 
-  const deterministicPreScreen = gateEligibleIndexes.map((index) => {
-    const profile = brightProfiles[index];
-    const profileText = normalizeText(
-      [
-        profile.name,
-        profile.headline,
-        profile.city,
-        profile.about,
-        ...(profile.skills || []),
-        ...(profile.experience || []).flatMap((entry) => [entry.title, entry.company, entry.description]),
-      ]
-        .filter(Boolean)
-        .join(" "),
-    );
-    const mustHaveHits = recallSpec.must_have_signals.filter((signal) =>
-      profileText.includes(normalizeText(signal)),
-    ).length;
-    const avoidHits = recallSpec.avoid_profiles.filter((term) =>
-      profileText.includes(normalizeText(term)),
-    ).length;
-    const locationFit = locationGateResults[index]?.location_fit ?? "unknown";
-    const locationBonus = locationFit === "local" ? 15 : locationFit === "nearby" ? 8 : 0;
-    const titleSignals = recallSpec.title_variants.filter((term) =>
-      profileText.includes(normalizeText(term)),
-    ).length;
-    const score = Math.max(
-      0,
-      Math.min(
-        100,
-        30 + mustHaveHits * 12 + titleSignals * 8 + locationBonus - avoidHits * 18,
-      ),
-    );
-    const bucket: BrightPreScreenBucket =
-      avoidHits > 0 && mustHaveHits === 0
-        ? "reject"
-        : mustHaveHits >= 2 && locationFit !== "non_local"
-          ? "strong_now"
-          : "consider_next";
-    return {
-      index,
-      bucket,
-      score,
-      mustHaveHits,
-      avoidHits,
-    };
-  });
-  const deterministicRejectedCount = deterministicPreScreen.filter(
-    (item) => item.bucket === "reject",
-  ).length;
-
-  // LLM 预筛：过滤掉明显不可能入职的人，再进入双 Judge 深评
+  // LLM 预筛：所有候选人直接进 LLM 判断，不做 deterministic 规则过滤
   const lightModel = getHaikuModel();
   const prescreenResults = await runWithConcurrency(
-    deterministicPreScreen.filter((item) => item.bucket !== "reject"),
+    gateEligibleIndexes,
     resolveStageConcurrency(
       PRE_SCREEN_CONCURRENCY,
-      deterministicPreScreen.filter((item) => item.bucket !== "reject").length,
+      gateEligibleIndexes.length,
     ),
     async (index) => {
-      const profileIndex = typeof index === "number" ? index : index.index;
+      const profileIndex = index;
       const profileText = renderProfileEntries[profileIndex];
+      const recallSource = (brightProfiles[profileIndex] as Record<string, unknown>).__recall_source as string | undefined;
+      const recallSourceContext = recallSource === "hidden_gem"
+        ? "\n\nRecall source: hidden_gem\n(This candidate was recalled via lateral title matching. Their job title differs from the target role but skills may overlap. Evaluate based on actual capability evidence in about/experience, not title match.)"
+        : recallSource === "company_target"
+          ? "\n\nRecall source: company_target\n(This candidate works at a company in the target industry/competitive set. Evaluate domain knowledge and transferable skills even if title/stack differs slightly.)"
+          : "";
       const prompt = `You are doing a first-pass screen for a hiring pipeline.
 
 ## Search Intent
 ${buildPromptSearchContext(parsed)}
 
 ## Candidate Profile
-${profileText}
+${profileText}${recallSourceContext}
 
 ## Task
 Decide how this candidate should be treated before expensive deep review. Return ONLY valid JSON:
 {"bucket": "strong_now | consider_next | reject", "match_score": 0, "fit_reason": "one short sentence", "primary_risk": "one short sentence or null"}
 
 Rules:
-- reject for: wrong function, obvious non-startup shape mismatch, clearly wrong seniority, or no must-have signal.
+- reject for: clearly wrong function (e.g. frontend-only for a backend role), clearly wrong seniority (e.g. student/intern for a senior role), or the profile is clearly spam/fake.
+- Do NOT reject based on keyword matching against must-have signals — engineers rarely use JD language to describe their own experience. Judge holistically based on career trajectory and overall profile.
+- For startup/growth-stage hiring companies: evaluate startup affinity holistically based on career trajectory, not company name alone. Reject candidates with 7+ years at a single large company AND zero startup/small-company experience AND no entrepreneurial signals (side projects, open-source, "0-to-1" language). But a big-company engineer with prior startup stints or clear entrepreneurial signals is a strong prospect — do not reject based on current employer alone.
+- Reject profiles that show only bootcamp credentials with no professional engineering tenure: headline patterns like "Tech1 | Tech2 | Tech3 | ..." listing 5+ pipe-separated basic skills (HTML, CSS, JavaScript, React, Node) with no company or role context are strong bootcamp signals.
+- When the hiring company operates in a specific domain (e.g. CPG, fintech, healthcare), boost candidates whose experience or about section mentions that domain — domain familiarity reduces ramp-up time and is a strong signal for startup roles.
 - strong_now for first-screen worthy candidates with strong role shape, clear must-have evidence, and usable location/work-model fit.
 - consider_next for credible but less exciting candidates.
 - Do not reward prestige alone.
@@ -5346,25 +5755,22 @@ Rules:
     })
     .map((result) => result.index);
 
-  const prescreenBlockedCount =
-    deterministicRejectedCount +
-    prescreenResults.filter((result) => result.bucket === "reject").length;
+  const prescreenBlockedCount = prescreenResults.filter((result) => result.bucket === "reject").length;
   if (prescreenBlockedCount > 0) {
     logSearchEvent("search_bright_prescreen_applied", {
       stage: "bright_prescreen",
       blocked_count: prescreenBlockedCount,
       kept_count: keptIndexes.length,
       total_count: gateEligibleIndexes.length,
+      prescreen_elapsed_ms: Date.now() - scoringStartMs,
     });
   }
 
   const selectedIndexes = keptIndexes.length > 0
     ? keptIndexes
-    : deterministicPreScreen
-      .filter((item) => item.bucket !== "reject")
-      .sort((left, right) => right.score - left.score)
-      .map((item) => item.index);
+    : gateEligibleIndexes;
 
+  const streamedCount = { value: 0 };
   const deepAssessments = await deepScoreSelectedProfiles(
     aiClient,
     runtime,
@@ -5373,7 +5779,39 @@ Rules:
     renderProfileEntries,
     selectedIndexes,
     brightProfiles.length,
+    {
+      onCandidateScored: async (assessment, completedCount) => {
+        // Apply location gate
+        const gateResult = locationGateResults[assessment.index] || {
+          decision: "review", location_fit: "unknown", reason: "Location evidence missing", is_hard_block: false,
+        };
+        const gatedSuitability = applyLocationGateToSuitability(assessment.suitability, gateResult);
+        // Only stream advance candidates
+        if (gatedSuitability.advance_recommendation !== "advance") return;
+        if (gatedSuitability.blocking_severity === "hard") return;
+        const gatedAssessment = { ...assessment, suitability: gatedSuitability };
+        const rows = buildBrightDataCandidateRows(brightProfiles, [gatedAssessment], 1, "outreach_pool");
+        if (rows.length > 0) {
+          await upsertSingleCandidate(context.searchId, rows[0]);
+          streamedCount.value++;
+        }
+        // Update progress every 5 candidates
+        if (completedCount % 5 === 0) {
+          await updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedCount);
+        }
+      },
+    },
   );
+
+  logSearchEvent("search_timing", {
+    search_id: context.searchId,
+    phase: "scoring_complete",
+    scoring_elapsed_ms: Date.now() - scoringStartMs,
+    prescreen_input: gateEligibleIndexes.length,
+    deep_review_input: selectedIndexes.length,
+    deep_review_output: deepAssessments.length,
+    job_id: context.jobId,
+  });
 
   const assessmentsWithGate = deepAssessments.map(assessment => {
     const gateResult = locationGateResults[assessment.index] || {

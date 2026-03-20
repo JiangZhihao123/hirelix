@@ -398,6 +398,7 @@ function CandidateCard({
   refreshBilling,
   onUpgradeClick,
   highlighted,
+  isNew,
 }: {
   candidate: CandidateRow;
   onStatusChange: (id: string, status: string) => void;
@@ -410,6 +411,7 @@ function CandidateCard({
   refreshBilling: () => Promise<void>;
   onUpgradeClick: (surface: string) => void;
   highlighted?: boolean;
+  isNew?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
@@ -570,6 +572,11 @@ function CandidateCard({
             {highlighted && (
               <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
                 Top pick
+              </span>
+            )}
+            {isNew && (
+              <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
+                New
               </span>
             )}
             <ActionabilityBadge candidate={candidate} />
@@ -1255,6 +1262,7 @@ export default function SearchResultPage() {
   const { billing, refresh: refreshBilling } = useBilling();
   const [search, setSearch] = useState<SearchRow | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const [newCandidateIds, setNewCandidateIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1268,6 +1276,7 @@ export default function SearchResultPage() {
   const hasTrackedDegradedRef = useRef(false);
   const hasTrackedProcessingReassuranceRef = useRef(false);
   const hasTrackedUpgradeValueExposedRef = useRef(false);
+  const seenCandidateIdsRef = useRef<Set<string>>(new Set());
   const analyticsContext = getAnalyticsContextFromBrowser({
     entry_mode: searchParams.get("entry") === "landing"
       ? "landing"
@@ -1396,6 +1405,17 @@ export default function SearchResultPage() {
       setSearch(normalizedSearch);
     }
     if (candidatesData) {
+      // Track new candidates for highlight (diff against previously seen)
+      const newIds = new Set<string>();
+      candidatesData.forEach((c) => {
+        if (!seenCandidateIdsRef.current.has(c.id)) newIds.add(c.id);
+        seenCandidateIdsRef.current.add(c.id);
+      });
+      if (newIds.size > 0) {
+        setNewCandidateIds(newIds);
+        // Clear highlight after 4 seconds
+        setTimeout(() => setNewCandidateIds(new Set()), 4000);
+      }
       // Sort: candidates with email first, then by match score
       const sorted = candidatesData.sort((a, b) => {
         const aHasEmail = !!a.email;
@@ -2045,10 +2065,12 @@ export default function SearchResultPage() {
               </p>
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-sky-500" />
+                  <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
                   {isPhaseTwoRunning
                     ? "Background refinement is still running a deeper Bright pass, but the shortlist is already reviewable"
-                    : "Background refinement is still tightening fit reasons and ranking, but the full candidate list is already reviewable"}
+                    : candidates.length > 0
+                      ? `Found ${candidates.length} matching candidate${candidates.length === 1 ? "" : "s"} so far — still evaluating${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
+                      : "AI is evaluating candidates — results will appear here as they're found..."}
                 </div>
               )}
               {!search.warning_message && (
@@ -2376,6 +2398,7 @@ export default function SearchResultPage() {
                     refreshBilling={refreshBilling}
                     onUpgradeClick={handleUpgradeClick}
                     highlighted={highlightedIds.has(c.id)}
+                    isNew={isImprovingInBackground && newCandidateIds.has(c.id)}
                   />
                 </div>
               ))}

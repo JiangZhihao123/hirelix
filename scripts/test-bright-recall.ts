@@ -14,8 +14,8 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-process.env.SEARCH_RECALL_PROVIDER = 'serper';
-process.env.SEARCH_RECALL_FALLBACK_PROVIDER = 'serper';
+process.env.SEARCH_RECALL_PROVIDER = 'brightdata_dataset';
+process.env.SEARCH_RECALL_FALLBACK_PROVIDER = 'brightdata_dataset';
 process.env.SEARCH_BRIGHTDATA_FILTER_LIMIT = '100';
 process.env.SEARCH_TARGET_SCRAPE_COUNT = '10';
 process.env.AI_PROVIDER = 'deepseek';
@@ -31,7 +31,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-const JD_PATH = '/Users/noah/projects/hirelix/test-jd-bluecargo.md';
+const JD_PATH = '/Users/noah/projects/hirelix/test-jd-glimpse-real.md';
 const USER_ID = 'b602172d-f7d4-4f01-b835-3feff9eae346';
 
 async function main() {
@@ -90,23 +90,36 @@ async function main() {
         .eq('search_id', searchId)
         .order('match_score', { ascending: false });
 
-      console.log('[FINAL_JSON]' + JSON.stringify({
-        search_id: searchId,
-        final_status: currentSearch.status,
-        final_step: currentSearch.pipeline_step,
-        candidate_count: count || 0,
-        error_message: currentSearch.error_message || null,
-        warning_message: currentSearch.warning_message || null,
-        display_stats: (currentSearch.parsed_requirements as any)?.display_stats || {},
-        recall_metadata: (currentSearch.parsed_requirements as any)?.recall_metadata || null,
-        top_candidates: (candidates || []).slice(0, 25).map((c: any) => ({
-          name: c.name,
-          headline: c.headline,
-          location: c.location,
-          match_score: c.match_score,
-          skills: c.skills,
-        })),
+      const topCandidates = (candidates || []).slice(0, 15).map((c: any) => ({
+        name: c.name,
+        headline: c.headline,
+        location: c.location,
+        match_score: c.match_score,
+        skills: c.skills,
+        metadata_source: c.metadata?.source,
       }));
+
+      console.log('\n========== RESULTS ==========');
+      console.log(`Status: ${currentSearch.status}`);
+      console.log(`Step: ${currentSearch.pipeline_step}`);
+      console.log(`Candidate count: ${count || 0}`);
+      if (currentSearch.error_message) console.log(`Error: ${currentSearch.error_message}`);
+      if (currentSearch.warning_message) console.log(`Warning: ${currentSearch.warning_message}`);
+
+      const recallMeta = (currentSearch.parsed_requirements as any)?.recall_metadata;
+      if (recallMeta) {
+        console.log(`\n--- Recall Metadata ---`);
+        console.log(`Provider: ${recallMeta.provider}`);
+        console.log(`Dataset size: ${recallMeta.dataset_size}`);
+        console.log(`Snapshot: ${recallMeta.snapshot_id}`);
+      }
+
+      console.log(`\n--- Top ${topCandidates.length} Candidates ---`);
+      topCandidates.forEach((c, i) => {
+        console.log(`${i + 1}. [${c.match_score}] ${c.name} | ${c.headline} | ${c.location}`);
+        if (c.skills?.length) console.log(`   Skills: ${c.skills.slice(0, 5).join(', ')}`);
+      });
+
       return;
     }
 
