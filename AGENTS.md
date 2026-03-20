@@ -162,6 +162,19 @@ PGPASSWORD='jiangzhihao123' /opt/homebrew/opt/libpq/bin/psql \
 | SUPABASE_URL | `https://orftlxqgxsezreyzsnot.supabase.co` |
 | 代理地址 | `http://127.0.0.1:7890` |
 
+### 测试账号
+
+**Web 登录测试账号（Supabase Auth）：**
+
+| 类型 | 值 |
+|------|-----|
+| 邮箱 | `jzh_spring@163.com` |
+| 密码 | `88888888` |
+
+说明：
+- 这组账号用于站点登录测试，不是数据库连接账号
+- 如密码失效，优先到 Supabase Auth 后台确认是否被修改
+
 ### OpenRouter AI 模型代理配置
 
 **开发环境自动使用代理访问 OpenRouter**（绕过地域限制）
