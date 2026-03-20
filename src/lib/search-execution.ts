@@ -30,7 +30,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     finalResultCap: 25,
     highlightCount: 5,
     minVisibleQualityScore: 55,
-    strongNowQualityScore: 72,
+    strongNowQualityScore: 78,
     lowCostMode: false,
     singleJudgeMode: false,
     allowPhaseTwo: false,
@@ -52,7 +52,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     finalResultCap: 25,
     highlightCount: 5,
     minVisibleQualityScore: 0,
-    strongNowQualityScore: 70,
+    strongNowQualityScore: 78,
     lowCostMode: false,
     singleJudgeMode: false,
     allowPhaseTwo: false,
@@ -90,7 +90,7 @@ export function getInitialSearchExecutionProfile(
   planCode: SearchPlanCode,
 ): SearchExecutionProfile {
   return isProPlanCode(planCode)
-    ? SEARCH_EXECUTION_PROFILES.bright_fast_pro
+    ? SEARCH_EXECUTION_PROFILES.bright_full_pro
     : SEARCH_EXECUTION_PROFILES.bright_fast_free;
 }
 

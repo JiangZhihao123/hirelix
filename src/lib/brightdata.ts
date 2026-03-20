@@ -7,6 +7,7 @@
  * Pricing: ~$1.50/1k records ($0.0015/profile)
  * Flow: trigger → snapshot_id → poll until ready → get JSON results
  */
+import { createHash } from "node:crypto";
 import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
@@ -427,6 +428,37 @@ async function runWithConcurrency<TInput, TOutput>(
   );
   await Promise.all(workers);
   return results;
+}
+
+// ──────────────────── Filter hash (for snapshot cache) ────────────────────
+
+function sortDeep(obj: unknown): unknown {
+  if (Array.isArray(obj)) {
+    return obj
+      .map(sortDeep)
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (obj !== null && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => [k, sortDeep(v)]),
+    );
+  }
+  return obj;
+}
+
+/**
+ * Compute a stable 32-char hex hash for a Bright Data filter request.
+ * Same filter params → same hash → allows snapshot cache lookup.
+ */
+export function computeFilterHash(request: BrightDataDatasetFilterRequest): string {
+  const stable = JSON.stringify({
+    datasetId: request.datasetId,
+    filter: sortDeep(request.filter),
+    recordsLimit: request.recordsLimit,
+  });
+  return createHash("sha256").update(stable).digest("hex").slice(0, 32);
 }
 
 // ──────────────────── Dataset filter recall ────────────────────
@@ -1009,8 +1041,10 @@ export function brightDataProfileToRichText(profile: BrightDataProfile, index: n
     lines.push(`  Headline: ${profile.headline}`);
   }
 
-  if (profile.current_company) {
-    lines.push(`  Current: ${profile.current_company.title || "N/A"} at ${profile.current_company.name || "N/A"}`);
+  if (profile.current_company?.name) {
+    lines.push(`  Current: ${profile.current_company.title || "N/A"} at ${profile.current_company.name}`);
+  } else {
+    lines.push(`  Current: not currently employed`);
   }
   if (profile.city || profile.country_code) {
     lines.push(`  Location: ${[profile.city, profile.country_code].filter(Boolean).join(", ")}`);

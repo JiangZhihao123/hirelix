@@ -147,6 +147,7 @@ Rules:
 - Do NOT use speculative language like "may relocate", "might move", or "likely willing to relocate".
 - Apply strong downward pressure when the candidate appears unlikely to join because of company-stage mismatch, role-level mismatch, overqualification, or location/work-model mismatch.
 - join_likelihood_score can influence advance_score, but it must not directly drag down quality_score.
+- When assessing join_likelihood_score, actively look for availability signals in the profile: (1) no current employer listed, (2) most recent role has an explicit end date with no subsequent role, (3) profile text contains phrases like "open to opportunities", "seeking", "available", or "#opentowork". Any of these signals should meaningfully boost join_likelihood_score, as the candidate is likely available or actively looking.
 - If there is a meaningful blocker, make it explicit in blocking_constraints rather than only hinting with a low score.
 - Use blocking_severity=hard only for explicit incompatibility (for example clear non-local conflict for strict onsite, clear work-model conflict, clear authorization blocker).
 - If evidence is missing, sparse, unknown, or unverifiable, use blocking_severity=soft.

@@ -21,6 +21,7 @@ import {
   triggerDatasetFilter,
   getDatasetSnapshotMetadata,
   waitForDatasetSnapshot,
+  computeFilterHash,
   type BrightDataFilterRule,
   type BrightDataDatasetFilterRequest,
   type BrightDataProfile,
@@ -140,7 +141,7 @@ const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
 );
 const DEEP_SCORING_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_CONCURRENCY",
-  64,
+  25,
   { max: 200 },
 );
 const DEEP_REVIEW_CONCURRENCY = getConfiguredPositiveInt(
@@ -192,11 +193,6 @@ const STOP_MIN_GAIN_RATIO = getConfiguredNumber(
   0.08,
   { min: 0, max: 1 },
 );
-const FINAL_RESULT_CAP = getConfiguredPositiveInt(
-  "SEARCH_FINAL_RESULT_CAP",
-  25,
-  { min: 1, max: 250 },
-);
 const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
   "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
   false,
@@ -228,7 +224,7 @@ const BRIGHTDATA_FILTER_POLL_INTERVAL_MS = getConfiguredPositiveInt(
 );
 const FULL_STAGE_PARALLELISM = getConfiguredBoolean(
   "SEARCH_FULL_STAGE_PARALLELISM",
-  true,
+  false,
 );
 const SEARCH_LOW_COST_MODE = getConfiguredBoolean(
   "SEARCH_LOW_COST_MODE",
@@ -2555,7 +2551,7 @@ function getArbiterModel() {
   );
 }
 
-function getHaikuModel() {
+function getLightModel() {
   const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
   if (provider === "openrouter") {
     return (
@@ -2717,10 +2713,11 @@ async function generateOutreachDraftsForRows(
 
       try {
         const { text } = await withTimeout(
-          generateText({
-            model: aiClient(getHaikuModel()),
+          (signal) => generateText({
+            model: aiClient(getLightModel()),
             prompt: buildSearchOutreachPrompt(parsed, context.jdText, row),
             maxOutputTokens: runtime.outreachMaxOutputTokens,
+            abortSignal: signal,
           }),
           60000,
           `Outreach draft for ${row.name}`,
@@ -2963,7 +2960,7 @@ Rules:
 - ${indexRule}
 - capability_score measures how strong the person is overall in seniority, depth, and execution track record. Profiles with only bootcamp credentials and no professional engineering tenure beyond internships should receive capability_score <= 40.
 - relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain. Domain experience in the hiring company's industry (stated in hiring_brief) should boost relevance_score — a candidate who has worked in the same industry as the hiring company is significantly more relevant than one who hasn't, especially for startup roles where ramp-up time matters.
-- join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity.
+- join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity. Actively look for job-seeking signals and boost join_likelihood_score when present: (1) "Current: not currently employed" — candidate is between jobs, significantly more likely to respond; (2) most recent experience ended recently (within ~12 months) with no current role — likely just left and open to opportunities; (3) visible employment gap in experience timeline — may be actively looking; (4) explicit language in about/headline such as "open to opportunities", "seeking", "available", "#opentowork" or similar. Any of these signals warrants a meaningful boost (+10 to +20 points) to join_likelihood_score.
 - Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
 - blocking_severity should be hard only for explicit incompatibilities.
 - If evidence is missing, unclear, or unverifiable, use soft (not hard).
@@ -2971,7 +2968,7 @@ Rules:
 - For roles with explicit city/country hard constraints, treat explicit out-of-region evidence as a hard blocker and reflect it in blocking_constraints.
 - For explicit out-of-region hard blockers, do not output advance_recommendation=advance.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
-- bucket should be strong_now for first-screen candidates, consider_next for credible second-layer candidates, and do_not_show for hidden-by-default candidates.
+- bucket should be strong_now for candidates you would reach out to today — confirmed location, clear skill match, no hard blockers. Use consider_next for credible candidates with one unresolved uncertainty (location unclear, one soft blocker, or partial skill match). Use do_not_show for clear rejects or hard-blocked candidates.
 - Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
 - For startup/growth-stage roles: evaluate startup affinity holistically based on career trajectory. Penalize candidates with 7+ years at a single large company AND zero startup/small-company experience AND no entrepreneurial signals — they are unlikely to make the leap. But a big-company engineer with prior startup stints, side projects, open-source, or "0 to 1" language is a strong prospect — large-company rigor combined with startup adaptability is valuable. Boost join_likelihood when career trajectory shows startup affinity (multiple startup stints, founding experience, decreasing company size over career, or entrepreneurial language in about/experience).
 - A realistic candidate who would actually respond to cold outreach is more valuable than a dream candidate who never will. Factor reachability into advance_recommendation.
@@ -3031,7 +3028,7 @@ Rules:
 - If location, work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
 - For explicit city/country hard constraints in the JD, explicit out-of-region evidence should remain a hard blocker in the final arbitration.
 - Use hard blocker only for explicit conflicts; unknown or sparse evidence must be soft.
-- bucket should describe whether this candidate belongs on the first screen, second layer, or hidden by default.
+- bucket should be strong_now for candidates worth reaching out to today — location confirmed, clear skill match, no hard blockers. Use consider_next for borderline candidates with one unresolved uncertainty. Use do_not_show for rejects or hard-blocked candidates.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
 [
@@ -3156,22 +3153,38 @@ function parseJudgeScoreResults(
     .filter((entry): entry is JudgeScoreResult => Boolean(entry));
 }
 
+function createTimeoutSignal(timeoutMs: number, label: string): {
+  signal: AbortSignal;
+  clear: () => void;
+} {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error(`${label} timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeoutId),
+  };
+}
+
 async function withTimeout<T>(
-  promise: Promise<T>,
+  fn: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
   label: string,
 ): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-  });
-
+  const { signal, clear } = createTimeoutSignal(timeoutMs, label);
   try {
-    return await Promise.race([promise, timeoutPromise]);
+    const result = await fn(signal);
+    return result;
+  } catch (error) {
+    if (signal.aborted) {
+      throw signal.reason instanceof Error
+        ? signal.reason
+        : new Error(`${label} timed out after ${timeoutMs}ms`);
+    }
+    throw error;
   } finally {
-    if (timeoutId) clearTimeout(timeoutId);
+    clear();
   }
 }
 
@@ -3213,6 +3226,81 @@ async function setSearchStatus(
   };
 
   await supabaseAdmin.from("hirelix_searches").update(payload).eq("id", searchId);
+}
+
+// ──────────────────── Snapshot cache helpers ────────────────────
+
+/** Look up a non-expired cached snapshot for the given filter hash. */
+async function lookupCachedSnapshot(filterHash: string): Promise<string | null> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("hirelix_dataset_snapshots")
+      .select("snapshot_id")
+      .eq("filter_hash", filterHash)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.snapshot_id ?? null;
+  } catch {
+    return null; // cache miss on any error — never block the main flow
+  }
+}
+
+/** Write a newly-triggered snapshot into the cache. Fire-and-forget safe. */
+async function cacheSnapshotEntry(params: {
+  snapshotId: string;
+  round: string;
+  filterHash: string;
+  filterSummary: unknown;
+  recordsLimit: number;
+}): Promise<void> {
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  try {
+    await supabaseAdmin.from("hirelix_dataset_snapshots").upsert(
+      {
+        snapshot_id: params.snapshotId,
+        round: params.round,
+        filter_hash: params.filterHash,
+        filter_summary: params.filterSummary ?? null,
+        records_limit: params.recordsLimit,
+        expires_at: expiresAt,
+      },
+      { onConflict: "snapshot_id" },
+    );
+  } catch {
+    // Non-critical — log silently and continue
+  }
+}
+
+/** Evict a snapshot from the cache — used when a snapshot is confirmed stuck. */
+async function evictStuckSnapshot(snapshotId: string): Promise<void> {
+  try {
+    await supabaseAdmin
+      .from("hirelix_dataset_snapshots")
+      .delete()
+      .eq("snapshot_id", snapshotId);
+  } catch {
+    // Non-critical
+  }
+}
+
+/** Update dataset_size and cost once a snapshot finishes downloading. */
+async function updateCachedSnapshotMetadata(
+  snapshotId: string,
+  update: { datasetSize?: number | null; cost?: number | null },
+): Promise<void> {
+  try {
+    await supabaseAdmin
+      .from("hirelix_dataset_snapshots")
+      .update({
+        ...(update.datasetSize != null && { dataset_size: update.datasetSize }),
+        ...(update.cost != null && { cost: update.cost }),
+      })
+      .eq("snapshot_id", snapshotId);
+  } catch {
+    // Non-critical
+  }
 }
 
 async function updateSearchParsedRequirements(
@@ -3905,9 +3993,13 @@ function buildBrightDataRecallFilters(
     if (countryFilter) hiddenGemFilters.push(countryFilter);
     // Only differentiating skills — not baseline. This ensures lateral-title candidates
     // must have the unique skills that make THIS role special.
+    // Match in both "about" and "position" — candidates often describe skills in position titles too.
     hiddenGemFilters.push({
       operator: "or",
-      filters: differentiatingTerms.map((term) => ({ name: "about", operator: "includes", value: term })),
+      filters: [
+        ...differentiatingTerms.map((term) => ({ name: "about", operator: "includes" as const, value: term })),
+        ...differentiatingTerms.map((term) => ({ name: "position", operator: "includes" as const, value: term })),
+      ].slice(0, 20),
     });
     if (locationFilter) hiddenGemFilters.push(locationFilter);
     hiddenGemFilters.push(...qualityFilters);
@@ -3922,7 +4014,7 @@ function buildBrightDataRecallFilters(
     });
   }
 
-  // --- Round 3: Company Target (target companies, no title filter) ---
+  // --- Round 3: Company Target (target companies + title OR skill filter) ---
   const targetCompanies = recallSpec.target_companies.filter((c) => c.length >= 2);
   if (targetCompanies.length > 0) {
     const companyFilters: BrightDataFilterRule[] = [
@@ -3936,6 +4028,16 @@ function buildBrightDataRecallFilters(
       },
     ];
     if (countryFilter) companyFilters.push(countryFilter);
+    // Require title OR core skill match — prevents pulling unrelated roles from target companies.
+    const companyTitleTerms = recallSpec.title_variants.slice(0, 6);
+    const companySkillTerms = [...differentiatingTerms, ...recallSpec.core_skill_terms.slice(0, 6)];
+    const companyRelevanceFilters: BrightDataFilterRule[] = [
+      ...companyTitleTerms.map((term) => ({ name: "position", operator: "includes" as const, value: term })),
+      ...companySkillTerms.map((term) => ({ name: "about", operator: "includes" as const, value: term })),
+    ].slice(0, 20);
+    if (companyRelevanceFilters.length > 0) {
+      companyFilters.push({ operator: "or", filters: companyRelevanceFilters });
+    }
     companyFilters.push(...qualityFilters);
 
     rounds.push({
@@ -4067,11 +4169,12 @@ async function parseJobDescription(
   for (let attempt = 1; attempt <= PARSE_MAX_ATTEMPTS; attempt += 1) {
     try {
       const { text } = await withTimeout(
-        generateText({
+        (signal) => generateText({
           model: aiClient(getAIModel()),
           system: JD_SEARCH_INTENT_PROMPT,
           prompt: context.jdText,
           maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
+          abortSignal: signal,
         }),
         60000,
         "Search intent generation",
@@ -4441,7 +4544,6 @@ function selectTopLightCandidates(
 
 function selectTopDeepAssessments(
   assessments: ScoredCandidateAssessment[],
-  finalResultCap: number,
   minVisibleQualityScore: number,
   options?: {
     strictLocalRole?: boolean;
@@ -4449,7 +4551,7 @@ function selectTopDeepAssessments(
   },
 ) {
   const strictLocalRole = options?.strictLocalRole === true;
-  const strongNowQualityScore = options?.strongNowQualityScore ?? 72;
+  const strongNowQualityScore = options?.strongNowQualityScore ?? 78;
   const bucketedAssessments = assessments.map((assessment) => {
     const bucket = deriveSuitabilityBucket({
       qualityScore: assessment.suitability.quality_score,
@@ -4490,7 +4592,6 @@ function selectTopDeepAssessments(
       selected: [] as ScoredCandidateAssessment[],
       selectedCount: 0,
       selectedRate: 0,
-      target: finalResultCap,
       eligibleCount: 0,
       excludedCount: assessments.length,
       qualityFloorApplied: assessments.length > 0,
@@ -4507,17 +4608,21 @@ function selectTopDeepAssessments(
     .filter((assessment) => assessment.suitability.bucket === "consider_next")
     .sort(sortCandidateAssessments);
   const rankedEligible = [...strongNow, ...considerNext];
-  // No hard cap — LLM's advance_recommendation decides who gets through.
-  // eligibleAssessments already excludes "do_not_show" bucket (rejected by deriveSuitabilityBucket).
-  const selected = rankedEligible;
+  // Output strong_now only. consider_next is preserved in metadata but not surfaced to users.
+  // Fallback: if strong_now < 5, fill up to 15 total from top consider_next to avoid empty results.
+  const STRONG_NOW_FALLBACK_THRESHOLD = 5;
+  const FALLBACK_TOTAL_CAP = 15;
+  const selected =
+    strongNow.length >= STRONG_NOW_FALLBACK_THRESHOLD
+      ? strongNow
+      : [...strongNow, ...considerNext.slice(0, FALLBACK_TOTAL_CAP - strongNow.length)];
   const selectedCount = selected.length;
-  const selectedRate = selectedCount / rankedEligible.length;
+  const selectedRate = rankedEligible.length > 0 ? selectedCount / rankedEligible.length : 0;
 
   return {
     selected,
     selectedCount,
     selectedRate,
-    target: finalResultCap,
     eligibleCount: eligibleAssessments.length,
     excludedCount: Math.max(assessments.length - eligibleAssessments.length, 0),
     qualityFloorApplied: eligibleAssessments.length !== assessments.length,
@@ -4536,14 +4641,15 @@ async function preScreenSerperCandidate(
 ): Promise<SerperPreScreenedCandidate> {
   const prompt = buildSerperSingleCandidatePrompt(parsed, jdText, candidate);
 
-  const lightModel = getHaikuModel();
+  const lightModel = getLightModel();
 
   try {
     const { text } = await withTimeout(
-      generateText({
+      (signal) => generateText({
         model: aiClient(lightModel),
         prompt,
         maxOutputTokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
+        abortSignal: signal,
       }),
       15000,
       "Serper candidate pre-screen",
@@ -4717,21 +4823,66 @@ async function buildBrightDataDatasetCandidates(
   }
 
   if (!snapshotId) {
-    snapshotId = await triggerDatasetFilter(brightDataToken, recallRequest);
+    // Check cache before paying for a new snapshot
+    const standardHash = computeFilterHash(recallRequest);
+    const cachedStandardId = await lookupCachedSnapshot(standardHash);
+    if (cachedStandardId) {
+      snapshotId = cachedStandardId;
+      logSearchEvent("search_snapshot_cache_hit", {
+        search_id: context.searchId,
+        round: "standard",
+        snapshot_id: snapshotId,
+        job_id: context.jobId,
+      });
+    } else {
+      snapshotId = await triggerDatasetFilter(brightDataToken, recallRequest);
+      void cacheSnapshotEntry({
+        snapshotId,
+        round: "standard",
+        filterHash: standardHash,
+        filterSummary: filterSummary,
+        recordsLimit: recallRequest.recordsLimit,
+      });
+      logSearchEvent("search_snapshot_cache_miss", {
+        search_id: context.searchId,
+        round: "standard",
+        job_id: context.jobId,
+      });
+    }
     requestedAt = Date.now();
 
-    // Fire additional rounds (hidden_gem, company_target) immediately — don't wait for standard to finish
+    // Fire additional rounds (hidden_gem, company_target) — check cache per round
     const recallRounds = buildBrightDataRecallFilters(parsed, context.candidateCount, executionProfile);
     const additionalRounds = recallRounds.filter((r) => r.round !== "standard");
     const additionalSnapshotPromises = additionalRounds.map(async (round) => {
-      const roundSnapshotId = await triggerDatasetFilter(brightDataToken, round.request);
-      logSearchEvent("search_multi_round_triggered", {
-        search_id: context.searchId,
-        round: round.round,
-        snapshot_id: roundSnapshotId,
-        records_limit: round.request.recordsLimit,
-        job_id: context.jobId,
-      });
+      const roundHash = computeFilterHash(round.request);
+      const cachedRoundId = await lookupCachedSnapshot(roundHash);
+      let roundSnapshotId: string;
+      if (cachedRoundId) {
+        roundSnapshotId = cachedRoundId;
+        logSearchEvent("search_snapshot_cache_hit", {
+          search_id: context.searchId,
+          round: round.round,
+          snapshot_id: roundSnapshotId,
+          job_id: context.jobId,
+        });
+      } else {
+        roundSnapshotId = await triggerDatasetFilter(brightDataToken, round.request);
+        void cacheSnapshotEntry({
+          snapshotId: roundSnapshotId,
+          round: round.round,
+          filterHash: roundHash,
+          filterSummary: null,
+          recordsLimit: round.request.recordsLimit,
+        });
+        logSearchEvent("search_multi_round_triggered", {
+          search_id: context.searchId,
+          round: round.round,
+          snapshot_id: roundSnapshotId,
+          records_limit: round.request.recordsLimit,
+          job_id: context.jobId,
+        });
+      }
       return { round: round.round, snapshotId: roundSnapshotId, request: round.request };
     });
     // Store promises for later — all snapshots are now building in parallel
@@ -4779,14 +4930,25 @@ async function buildBrightDataDatasetCandidates(
   const totalElapsedMs = Math.max(0, Date.now() - requestedAt);
   let remainingTimeoutMs = Math.max(0, BRIGHTDATA_FILTER_TIMEOUT_MS - totalElapsedMs);
   if (remainingTimeoutMs <= 0) {
-    // A resumed job may come back after the original wait budget has elapsed even though
-    // the remote snapshot finished building in the meantime. In that case, prefer using
-    // the ready snapshot instead of failing over to another provider.
+    // The main timeout budget has elapsed. Check the current state before deciding what to do.
     const latestMetadata = await getDatasetSnapshotMetadata(brightDataToken, snapshotId);
+    if (latestMetadata.status === "failed") {
+      // Snapshot explicitly failed — re-trigger on the next attempt.
+      void evictStuckSnapshot(snapshotId);
+      parsed.recall_provider = "brightdata_dataset";
+      parsed.recall_metadata = undefined;
+      await updateSearchParsedRequirements(context.searchId, parsed);
+      throw new Error(`Bright Data snapshot ${snapshotId} failed — re-triggering`);
+    }
     if (latestMetadata.status !== "ready") {
+      // Still building after 15+ minutes — the filter timed out.
       throw new Error(`Bright Data dataset recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms`);
     }
-    remainingTimeoutMs = BRIGHTDATA_FILTER_POLL_INTERVAL_MS;
+    // Snapshot is ready per metadata but the download may still be finalising on Bright
+    // Data's CDN (they have an eventual-consistency lag of a few minutes between metadata
+    // status and download availability). Give each job execution a fixed 60-second window
+    // to attempt the download, then requeue with the same snapshot_id to try again.
+    remainingTimeoutMs = 60_000;
   }
 
   const pollWindowMs = Math.min(BRIGHTDATA_FILTER_POLL_WINDOW_MS, remainingTimeoutMs);
@@ -4849,9 +5011,16 @@ async function buildBrightDataDatasetCandidates(
     filter_summary: filterSummary,
   };
   await updateSearchParsedRequirements(context.searchId, parsed);
+  void updateCachedSnapshotMetadata(snapshotId, {
+    datasetSize: metadata.dataset_size ?? profiles.length,
+    cost: metadata.cost ?? null,
+  });
 
   // --- Multi-round recall: collect results from pre-triggered additional snapshots ---
-  let allProfiles = profiles;
+  // NOTE: use spread to create a new array so `profiles.length` remains unchanged
+  // and the "standard_profiles" log metric stays accurate.
+  const standardProfileCount = profiles.length;
+  let allProfiles = [...profiles];
   const additionalSnapshotPromises = ((parsed as Record<string, unknown>).__additional_snapshot_promises ?? []) as
     Promise<{ round: string; snapshotId: string; request: BrightDataDatasetFilterRequest }>[];
   let totalRecallCost = metadata.cost ?? 0;
@@ -4911,6 +5080,10 @@ async function buildBrightDataDatasetCandidates(
         addedCount++;
       }
       if (roundMeta?.cost) totalRecallCost += roundMeta.cost;
+      void updateCachedSnapshotMetadata(roundSnapId, {
+        datasetSize: roundMeta?.dataset_size ?? roundProfiles.length,
+        cost: roundMeta?.cost ?? null,
+      });
       logSearchEvent("search_multi_round_completed", {
         search_id: context.searchId,
         round,
@@ -4927,8 +5100,8 @@ async function buildBrightDataDatasetCandidates(
     phase: "all_recall_complete",
     elapsed_ms: Date.now() - pipelineStartMs,
     total_profiles: allProfiles.length,
-    standard_profiles: profiles.length,
-    additional_profiles: allProfiles.length - profiles.length,
+    standard_profiles: standardProfileCount,
+    additional_profiles: allProfiles.length - standardProfileCount,
     job_id: context.jobId,
   });
 
@@ -5082,7 +5255,7 @@ async function buildSerperCandidates(
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             const results = await withTimeout(
-              serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
+              (_signal) => serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
               25000,
               `Serper query "${query}" page ${page}`,
             );
@@ -5283,7 +5456,7 @@ async function buildSerperCandidates(
       : preScreened;
   const fallbackRows = buildSerperCandidateRows(
     fallbackSeed,
-    Math.max(context.candidateCount, FINAL_RESULT_CAP),
+    context.candidateCount,
   );
 
   logSearchEvent("search_step_completed", {
@@ -5347,10 +5520,11 @@ async function judgeScoreBatch(
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const { text } = await withTimeout(
-        generateText({
+        (signal) => generateText({
           model: aiClient(judgeModel),
           prompt,
           maxOutputTokens: runtime.judgeMaxOutputTokens,
+          abortSignal: signal,
         }),
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,
@@ -5431,10 +5605,11 @@ async function arbitrateCandidateScore(
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const { text } = await withTimeout(
-        generateText({
+        (signal) => generateText({
           model: aiClient(getArbiterModel()),
           prompt,
           maxOutputTokens: runtime.arbiterMaxOutputTokens,
+          abortSignal: signal,
         }),
         ARBITER_SCORING_TIMEOUT_MS,
         `Arbiter scoring (attempt ${attempt})`,
@@ -5681,7 +5856,7 @@ async function scoreBrightDataProfiles(
   }
 
   // LLM 预筛：所有候选人直接进 LLM 判断，不做 deterministic 规则过滤
-  const lightModel = getHaikuModel();
+  const lightModel = getLightModel();
   const prescreenResults = await runWithConcurrency(
     gateEligibleIndexes,
     resolveStageConcurrency(
@@ -5724,10 +5899,11 @@ Rules:
 
       try {
         const { text } = await withTimeout(
-          generateText({
+          (signal) => generateText({
             model: aiClient(lightModel),
             prompt,
             maxOutputTokens: runtime.lightPrescreenMaxOutputTokens,
+            abortSignal: signal,
           }),
           15000,
           "Bright profile pre-screen",
@@ -5876,7 +6052,6 @@ Rules:
   ).length;
   const deepSelection = selectTopDeepAssessments(
     assessmentsWithGate,
-    executionProfile.finalResultCap,
     executionProfile.minVisibleQualityScore,
     {
       strictLocalRole,
@@ -5897,7 +6072,7 @@ Rules:
     deepRows,
     [],
     highlightTarget,
-    finalTargetCount,
+    deepRows.length,
   );
   const shortlistedCount = finalRows.filter(
     (row) => row.metadata?.pool_type === "top_pick",
@@ -6090,9 +6265,7 @@ async function refineSerperCandidates(
     arbiter_max_output_tokens: ARBITER_MAX_OUTPUT_TOKENS,
     outreach_max_output_tokens: OUTREACH_MAX_OUTPUT_TOKENS,
     scrape_request_count: urlsToScrape.length,
-    final_result_cap: FINAL_RESULT_CAP,
     light_stage_target_count: PRE_SCREEN_TARGET,
-    deep_stage_target_count: FINAL_RESULT_CAP,
     job_id: context.jobId,
   });
 
@@ -6137,7 +6310,6 @@ async function refineSerperCandidates(
       shortlist_count: scored.displayStats.shortlist_count,
       deep_review_requested_count: scored.displayStats.deep_review_requested_count,
       deep_review_completed_count: scored.displayStats.deep_review_completed_count,
-      final_result_cap: FINAL_RESULT_CAP,
       job_id: context.jobId,
     });
 
