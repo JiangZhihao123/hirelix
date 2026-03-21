@@ -111,7 +111,7 @@ const SERPER_PAGES_PER_QUERY_EXPANDED = getConfiguredPositiveInt(
 );
 const PRE_SCREEN_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_CONCURRENCY",
-  10,
+  20,
   { max: 100 },
 );
 const BRIGHTDATA_BATCH_SIZE = getConfiguredPositiveInt(
@@ -141,12 +141,12 @@ const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
 );
 const DEEP_SCORING_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_CONCURRENCY",
-  10,
+  25,
   { max: 200 },
 );
 const DEEP_REVIEW_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_REVIEW_CONCURRENCY",
-  10,
+  24,
   { max: 100 },
 );
 const JUDGE_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(
