@@ -3096,11 +3096,10 @@ Rules:
 - relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain. Domain experience in the hiring company's industry (stated in hiring_brief) should boost relevance_score — a candidate who has worked in the same industry as the hiring company is significantly more relevant than one who hasn't, especially for startup roles where ramp-up time matters.
 - join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity. Actively look for job-seeking signals and boost join_likelihood_score when present: (1) "Current: not currently employed" — candidate is between jobs, significantly more likely to respond; (2) most recent experience ended recently (within ~12 months) with no current role — likely just left and open to opportunities; (3) visible employment gap in experience timeline — may be actively looking; (4) explicit language in about/headline such as "open to opportunities", "seeking", "available", "#opentowork" or similar. Any of these signals warrants a meaningful boost (+10 to +20 points) to join_likelihood_score.
 - Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
-- blocking_severity should be hard only for explicit incompatibilities.
+- blocking_severity should be hard only for explicit incompatibilities unrelated to location (location is pre-assessed by a dedicated module — do not hard-block based on location alone).
 - If evidence is missing, unclear, or unverifiable, use soft (not hard).
-- For single-city onsite/hybrid roles, mark non-local candidates as hard unless profile has explicit relocation proof.
-- For roles with explicit city/country hard constraints, treat explicit out-of-region evidence as a hard blocker and reflect it in blocking_constraints.
-- For explicit out-of-region hard blockers, do not output advance_recommendation=advance.
+- Use hard only for clear seniority mismatch, wrong function (e.g. frontend for a backend role), or explicit work-authorization conflict.
+- For explicit out-of-region hard blockers confirmed by location evidence, reflect in blocking_constraints but still use soft — let the location module own the hard gate.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
 - bucket should be strong_now for candidates you would reach out to today — confirmed location, clear skill match, no hard blockers. Use consider_next for credible candidates with one unresolved uncertainty (location unclear, one soft blocker, or partial skill match). Use do_not_show for clear rejects or hard-blocked candidates.
 - Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
@@ -3158,10 +3157,9 @@ Rules:
 - join_likelihood_score can influence advance_score but must not directly drag down quality_score.
 - Sparse or incomplete profile evidence should lower confidence tags first, not automatically collapse quality_score.
 - Reserve very low quality_score for clear mismatch, not mere missing details.
-- For single-city onsite/hybrid roles, non-local location_fit should normally be a hard blocker unless explicit relocation evidence exists.
-- If location, work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
-- For explicit city/country hard constraints in the JD, explicit out-of-region evidence should remain a hard blocker in the final arbitration.
-- Use hard blocker only for explicit conflicts; unknown or sparse evidence must be soft.
+- Location eligibility is pre-assessed by a dedicated module — do not hard-block based on location alone. Focus arbitration on capability, relevance, and join likelihood.
+- If work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
+- Use hard blocker only for explicit, unambiguous conflicts (wrong function, clear seniority mismatch, explicit authorization barrier); unknown or sparse evidence must be soft.
 - bucket should be strong_now for candidates worth reaching out to today — location confirmed, clear skill match, no hard blockers. Use consider_next for borderline candidates with one unresolved uncertainty. Use do_not_show for rejects or hard-blocked candidates.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
@@ -3735,10 +3733,13 @@ function mergeJudgeResults(
   const joinLikelihoodScore = Math.round(
     (judgeA.join_likelihood_score + judgeB.join_likelihood_score) / 2,
   );
+  // Both judges must agree on "hard" to produce a hard block.
+  // If they disagree (one hard, one soft/none), use soft — the arbiter can still weigh in.
   const blockingSeverity: BlockingSeverity =
-    judgeA.blocking_severity === "hard" || judgeB.blocking_severity === "hard"
+    judgeA.blocking_severity === "hard" && judgeB.blocking_severity === "hard"
       ? "hard"
-      : judgeA.blocking_severity === "soft" || judgeB.blocking_severity === "soft"
+      : judgeA.blocking_severity === "soft" || judgeB.blocking_severity === "soft" ||
+        judgeA.blocking_severity === "hard" || judgeB.blocking_severity === "hard"
         ? "soft"
         : "none";
   const qualityScore = computeQualityScore(capabilityScore, relevanceScore);
