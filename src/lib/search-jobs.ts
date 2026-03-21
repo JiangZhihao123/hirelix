@@ -882,7 +882,7 @@ function deriveLocationTerms(locationScope: string | null): string[] {
   );
 }
 
-// ──────────────────── Deterministic Location Gate ────────────────────
+// ──────────────────── Deterministic Location Gate (legacy / fallback) ────────────────────
 
 type LocationPolicy = {
   mode: "strict" | "moderate" | "flexible";
@@ -1083,6 +1083,139 @@ function applyLocationGateToSuitability(
     advance_recommendation: "reject",
     advance_score: Math.min(suitability.advance_score || 0, 20),
   };
+}
+
+// ──────────────────── LLM Location Gate ────────────────────
+
+const LLM_LOCATION_GATE_BATCH_SIZE = 15;
+
+type LlmLocationInput = {
+  city: string | null;
+  country_code: string | null;
+  headline: string | null;
+  about: string | null;
+  current_company_location: string | null;
+};
+
+/**
+ * Uses an LLM to evaluate location eligibility for a batch of candidates.
+ * Much more robust than string matching — handles abbreviations, metro names,
+ * "Greater X Area", "Tri-State", etc.
+ */
+async function llmEvaluateLocationGateBatch(
+  aiClient: ReturnType<typeof createAIClient>,
+  model: string,
+  policy: LocationPolicy,
+  profiles: LlmLocationInput[],
+): Promise<LocationGateResult[]> {
+  if (profiles.length === 0) return [];
+
+  const targetDesc = policy.strict_terms.length > 0
+    ? policy.strict_terms.slice(0, 4).join(" / ")
+    : "unspecified location";
+
+  const candidateLines = profiles.map((p, i) => {
+    const parts = [
+      `city: ${p.city || "unknown"}`,
+      `country: ${p.country_code || "unknown"}`,
+      p.current_company_location ? `company_location: ${p.current_company_location}` : null,
+      p.headline ? `headline: ${p.headline.slice(0, 100)}` : null,
+      p.about ? `about_excerpt: ${p.about.slice(0, 150)}` : null,
+    ].filter(Boolean).join(" | ");
+    return `[${i + 1}] ${parts}`;
+  }).join("\n");
+
+  const workModelDesc = policy.work_model === "onsite" ? "onsite (in-person required)"
+    : policy.work_model === "hybrid" ? "hybrid (partial in-person)"
+    : "remote-friendly";
+
+  const prompt = `You are a location eligibility screener for a job opening.
+
+Job location requirement: ${targetDesc}
+Work model: ${workModelDesc}
+Location strictness: ${policy.mode}
+
+For each candidate, decide if they qualify locationally. Return a JSON array with exactly ${profiles.length} objects, one per candidate, in order:
+[{"decision":"pass"|"review"|"block","location_fit":"local"|"nearby"|"non_local"|"unknown","reason":"<10 words max>"},...]
+
+Rules:
+- "pass" (local): candidate is clearly in the target area (city/metro match, including abbreviations like "NY", "NYC", "Greater New York", "Tri-State Area", "Bay Area" for SF, etc.)
+- "review" (nearby/unclear): candidate location is ambiguous, says "Remote", open to relocate, or is in a nearby metro
+- "block" (non_local): candidate is clearly in a different region (e.g. target=NYC but candidate is in SF, London, Austin, etc.)
+- "unknown": no location info at all → always "review"
+
+${policy.mode === "strict" ? 'Since strictness is "strict", only clearly local candidates should pass. Nearby/remote = review.' : ''}
+
+Candidates:
+${candidateLines}
+
+Return only the JSON array, no explanation.`;
+
+  try {
+    const { text } = await generateText({
+      model: aiClient(model),
+      prompt,
+      maxOutputTokens: 60 * profiles.length + 50,
+    });
+
+    const parsed: Array<{ decision: string; location_fit: string; reason: string }> = JSON.parse(extractJSON(text));
+
+    return parsed.map((item) => {
+      const decision = (["pass", "review", "block"].includes(item.decision) ? item.decision : "review") as "pass" | "review" | "block";
+      const location_fit = (["local", "nearby", "non_local", "unknown"].includes(item.location_fit) ? item.location_fit : "unknown") as LocationGateResult["location_fit"];
+      const is_hard_block = decision === "block" && policy.requires_local_presence;
+      return {
+        decision,
+        location_fit,
+        reason: item.reason || "LLM location assessment",
+        is_hard_block,
+      };
+    });
+  } catch {
+    // Fallback: all review on LLM failure
+    return profiles.map(() => ({
+      decision: "review" as const,
+      location_fit: "unknown" as const,
+      reason: "LLM location gate failed, defaulting to review",
+      is_hard_block: false,
+    }));
+  }
+}
+
+/**
+ * Evaluates location eligibility for all profiles using LLM, in batches.
+ */
+async function llmEvaluateAllLocationGates(
+  aiClient: ReturnType<typeof createAIClient>,
+  model: string,
+  policy: LocationPolicy,
+  profiles: BrightDataProfile[],
+): Promise<LocationGateResult[]> {
+  // flexible policy: skip LLM, pass everything
+  if (policy.mode === "flexible") {
+    return profiles.map(() => ({
+      decision: "pass" as const,
+      location_fit: "local" as const,
+      reason: "Flexible location policy",
+      is_hard_block: false,
+    }));
+  }
+
+  const inputs: LlmLocationInput[] = profiles.map((p) => ({
+    city: p.city,
+    country_code: p.country_code,
+    headline: p.headline,
+    about: p.about,
+    current_company_location: p.current_company?.location ?? null,
+  }));
+
+  const results: LocationGateResult[] = [];
+  for (let i = 0; i < inputs.length; i += LLM_LOCATION_GATE_BATCH_SIZE) {
+    const batch = inputs.slice(i, i + LLM_LOCATION_GATE_BATCH_SIZE);
+    const batchResults = await llmEvaluateLocationGateBatch(aiClient, model, policy, batch);
+    results.push(...batchResults);
+  }
+  return results;
 }
 
 function normalizeRecallSpec(
@@ -5840,15 +5973,12 @@ async function scoreBrightDataProfiles(
   const strictLocalRole =
     (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
     hiringBrief.location_flexibility === "strict";
-  const locationGateResults = brightProfiles.map((profile) => evaluateCandidateLocationGate(
+  const locationGateResults = await llmEvaluateAllLocationGates(
+    aiClient,
+    getLightModel(),
     locationPolicy,
-    extractCandidateLocationEvidence(
-      profile.city,
-      profile.country_code,
-      profile.headline,
-      profile.about,
-    ),
-  ));
+    brightProfiles,
+  );
   const gateEligibleIndexes = locationGateResults
     .map((result, index) => ({ result, index }))
     .filter(({ result }) => !result.is_hard_block)
