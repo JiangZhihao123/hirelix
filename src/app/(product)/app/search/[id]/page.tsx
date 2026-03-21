@@ -925,7 +925,7 @@ function CandidateCard({
                           <p className="text-xs text-muted">
                             {job.company || "Unknown Company"}
                             {job.start_date && (
-                              <span className="text-muted-light"> · {job.start_date}{job.end_date ? ` – ${job.end_date}` : " – Present"}</span>
+                              <span className="text-muted-light"> · {job.start_date.includes(" - ") ? job.start_date : (job.end_date ? `${job.start_date} – ${job.end_date}` : `${job.start_date} – Present`)}</span>
                             )}
                           </p>
                           {job.summary && (
