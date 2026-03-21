@@ -251,7 +251,7 @@ const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
 );
 const ARBITER_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_ARBITER_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 320 : 500,
+  SEARCH_LOW_COST_MODE ? 400 : 800,
   { min: 120, max: 2000 },
 );
 const OUTREACH_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
@@ -297,7 +297,7 @@ function getExecutionRuntime(
   return {
     lightPrescreenMaxOutputTokens: 200,
     judgeMaxOutputTokens: 700,
-    arbiterMaxOutputTokens: 500,
+    arbiterMaxOutputTokens: ARBITER_MAX_OUTPUT_TOKENS,
     outreachMaxOutputTokens: 700,
     judgeMaxAttempts: 2,
     arbiterMaxAttempts: 2,
