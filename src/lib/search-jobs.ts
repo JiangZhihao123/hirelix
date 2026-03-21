@@ -2657,6 +2657,22 @@ function createAIClient() {
   });
 }
 
+/**
+ * Creates an Anthropic client as a fallback when the primary provider (e.g. DeepSeek)
+ * times out. Returns null if primary is already Anthropic or if ANTHROPIC_API_KEY is missing.
+ */
+function createFallbackAIClient(): ReturnType<typeof createAIClient> | null {
+  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
+  if (provider === "anthropic") return null; // already using anthropic, no fallback needed
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicApiKey) return null;
+  return createAnthropic({ apiKey: anthropicApiKey });
+}
+
+function getFallbackJudgeModel(): string {
+  return process.env.ANTHROPIC_HAIKU_MODEL || "claude-haiku-4-5-20251001";
+}
+
 function buildSearchOutreachPrompt(
   parsed: Record<string, unknown>,
   jdText: string,
@@ -5148,6 +5164,18 @@ async function buildBrightDataDatasetCandidates(
     job_id: context.jobId,
   });
 
+  // Dedup allProfiles by linkedin_id/url/name before scoring to prevent
+  // concurrent upsert race conditions when the same person appears twice in the dataset.
+  {
+    const seen = new Set<string>();
+    allProfiles = allProfiles.filter((profile) => {
+      const key = (profile.linkedin_id || profile.url || profile.name || "").toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   const scored = await scoreBrightDataProfiles(
     context,
     parsed,
@@ -5518,16 +5546,23 @@ async function judgeScoreBatch(
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    // On retry after a timeout, switch to Anthropic Haiku as fallback instead of
+    // hammering the same slow primary provider again.
+    const usingFallback = attempt > 1 && lastError?.message.includes("timed out");
+    const fallbackClient = usingFallback ? createFallbackAIClient() : null;
+    const activeClient = fallbackClient ?? aiClient;
+    const activeModel = fallbackClient ? getFallbackJudgeModel() : judgeModel;
+
     try {
       const { text } = await withTimeout(
         (signal) => generateText({
-          model: aiClient(judgeModel),
+          model: activeClient(activeModel),
           prompt,
           maxOutputTokens: runtime.judgeMaxOutputTokens,
           abortSignal: signal,
         }),
         JUDGE_SCORING_TIMEOUT_MS,
-        `${judgeLabel} scoring (attempt ${attempt})`,
+        `${judgeLabel} scoring (attempt ${attempt}${usingFallback ? "/fallback" : ""})`,
       );
 
       let judgeResult;
@@ -5603,16 +5638,21 @@ async function arbitrateCandidateScore(
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const usingFallback = attempt > 1 && lastError?.message.includes("timed out");
+    const fallbackClient = usingFallback ? createFallbackAIClient() : null;
+    const activeClient = fallbackClient ?? aiClient;
+    const activeModel = fallbackClient ? getFallbackJudgeModel() : getArbiterModel();
+
     try {
       const { text } = await withTimeout(
         (signal) => generateText({
-          model: aiClient(getArbiterModel()),
+          model: activeClient(activeModel),
           prompt,
           maxOutputTokens: runtime.arbiterMaxOutputTokens,
           abortSignal: signal,
         }),
         ARBITER_SCORING_TIMEOUT_MS,
-        `Arbiter scoring (attempt ${attempt})`,
+        `Arbiter scoring (attempt ${attempt}${usingFallback ? "/fallback" : ""})`,
       );
 
       const assessment = parseScoredAssessments(

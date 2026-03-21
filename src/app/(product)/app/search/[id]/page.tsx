@@ -603,16 +603,16 @@ function CandidateCard({
           {scoringBreakdown && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                能力 {scoringBreakdown.capability_score ?? "?"}
+                Cap {scoringBreakdown.capability_score ?? "?"}
               </span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                匹配 {scoringBreakdown.relevance_score ?? "?"}
+                Fit {scoringBreakdown.relevance_score ?? "?"}
               </span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                愿意来 {scoringBreakdown.join_likelihood_score ?? "?"}
+                Join {scoringBreakdown.join_likelihood_score ?? "?"}
               </span>
               <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                综合 {overallScore}
+                Overall {overallScore}
               </span>
             </div>
           )}
