@@ -214,22 +214,30 @@ SEARCH_ARBITER_MODEL=anthropic/claude-sonnet-4.6
 
 ### Bright Data 召回成本
 
-当前项目使用的 Bright Data 数据集计费单价已经确认：
+当前项目搜索召回实际使用的是 **Bright Data Dataset Filter API**，不是 Web Scraper API。
+
+已确认的价格口径：
 
 - 数据集：`dataset Linkedin people profiles`
-- 单价：`$1.5 / 1000 records`
-- 折算：`$0.0015 / record`
+- 产品线：`Datasets / Marketplace Dataset API`
+- 单价：`$250 / 100,000 records`
+- 折算：`$2.5 / 1000 records`
+- 再折算：`$0.0025 / record`
 
 常用召回成本速查：
 
-- `200` 条：`$0.30`
-- `300` 条：`$0.45`
-- `400` 条：`$0.60`
+- `10` 条：约 `$0.025`（后台可能显示为 `$0.02`，存在四舍五入）
+- `100` 条：`$0.25`
+- `200` 条：`$0.50`
+- `300` 条：`$0.75`
+- `400` 条：`$1.00`
 
 说明：
 - 当前多轮召回常见结构是：`standard 200 + hidden_gem 100 + company_target 100`
-- 三轮都触发且都跑满时，Bright Data 召回成本按 `400 × 0.0015 = $0.60`
+- 三轮都触发且都跑满时，Bright Data 召回成本按 `400 × 0.0025 = $1.00`
 - 实际返回条数可能因去重少于请求条数，但 Bright Data 计费按 records 单价理解和估算
+- `snapshot metadata.cost` 在实际运行中可能返回 `0`，不能当作最终账单真相；最终账单优先以 Bright Data Cost Explorer 为准
+- 不要把 `Web Scraper API` 的 `$1.5 / 1000 records` 价格套用到当前搜索召回链路上；当前链路用的是 `Dataset Filter API`
 
 ### 注意事项
 
