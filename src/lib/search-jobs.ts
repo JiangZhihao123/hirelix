@@ -5457,7 +5457,7 @@ async function buildSerperCandidates(
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             const results = await withTimeout(
-              (_signal) => serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
+              () => serperSearch(serperApiKey, query, SERPER_RESULTS_PER_PAGE, page),
               25000,
               `Serper query "${query}" page ${page}`,
             );
@@ -6022,9 +6022,6 @@ async function scoreBrightDataProfiles(
     brightDataProfileToRichText(profile, index),
   );
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const recallSpec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
-    recordLimitOverride: executionProfile.filterLimit,
-  });
   const locationPolicy = normalizeLocationConstraint(hiringBrief);
   const strictLocalRole =
     (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
