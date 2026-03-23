@@ -464,6 +464,7 @@ type ScoringBreakdown = {
 
 type AdvanceRecommendation = "advance" | "hold" | "reject";
 type BlockingSeverity = "hard" | "soft" | "none";
+type ShortlistDecision = "yes" | "no";
 
 type CandidateSuitability = {
   fit_decision: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
@@ -477,6 +478,8 @@ type CandidateSuitability = {
   primary_risk: string | null;
   first_contact_confidence: "high" | "medium" | "low";
   subscription_trigger_score: number;
+  shortlist_decision: ShortlistDecision;
+  shortlist_reason: string | null;
   blocking_constraints: string[];
   blocking_severity: BlockingSeverity;
   scoring_breakdown: ScoringBreakdown;
@@ -566,6 +569,8 @@ type JudgeScoreResult = {
   blocking_constraints: string[];
   blocking_severity: BlockingSeverity;
   advance_recommendation: AdvanceRecommendation;
+  shortlist_decision: ShortlistDecision;
+  shortlist_reason: string | null;
   constraint_verdicts: ConstraintVerdict;
   evidence_quality: "high" | "medium" | "low";
   skills: string[];
@@ -623,6 +628,8 @@ type SearchDisplayStats = {
   strong_now_count?: number;
   consider_next_count?: number;
   do_not_show_count?: number;
+  shortlist_yes_count?: number;
+  shortlist_no_count?: number;
   clear_location_fit_count?: number;
   must_have_strong_count?: number;
   first_contact_confidence_count?: number;
@@ -2418,6 +2425,14 @@ function deriveSuitabilityBucket(
   return "consider_next";
 }
 
+function deriveShortlistDecision(
+  advanceRecommendation: AdvanceRecommendation,
+  blockingSeverity: BlockingSeverity,
+): ShortlistDecision {
+  if (blockingSeverity === "hard") return "no";
+  return advanceRecommendation === "reject" ? "no" : "yes";
+}
+
 function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -2510,6 +2525,16 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
       minVisibleQualityScore: 60,
     }),
   );
+  const shortlistDecision = normalizeEnumValue(
+    item.shortlist_decision,
+    ["yes", "no"] as const,
+    deriveShortlistDecision(advanceRecommendation, blockingSeverity),
+  );
+  const shortlistReason =
+    normalizeNullableString(item.shortlist_reason) ||
+    normalizeNullableString(item.primary_risk) ||
+    normalizeStringArray(item.short_reasons ?? item.why_this_candidate, 1)[0] ||
+    null;
 
   return {
     fit_decision: fitDecision,
@@ -2527,6 +2552,8 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
       null,
     first_contact_confidence: firstContactConfidence,
     subscription_trigger_score: subscriptionTriggerScore,
+    shortlist_decision: shortlistDecision,
+    shortlist_reason: shortlistReason,
     blocking_constraints: blockingConstraints,
     blocking_severity: blockingSeverity,
     scoring_breakdown: {
@@ -2610,6 +2637,13 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
     right.suitability.scoring_breakdown.relevance_score - left.suitability.scoring_breakdown.relevance_score ||
     right.suitability.scoring_breakdown.capability_score - left.suitability.scoring_breakdown.capability_score ||
     evidenceRank[left.suitability.evidence_quality] - evidenceRank[right.suitability.evidence_quality]
+  );
+}
+
+function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
+  return (
+    assessment.suitability.shortlist_decision === "yes" &&
+    assessment.suitability.blocking_severity !== "hard"
   );
 }
 
@@ -3074,7 +3108,6 @@ function buildJudgeScorePrompt(
   const jsonShape = poolSize === 1
     ? `{
   "index": 0,
-  "bucket": "strong_now | consider_next | do_not_show",
   "capability_score": 0,
   "relevance_score": 0,
   "join_likelihood_score": 0,
@@ -3089,6 +3122,8 @@ function buildJudgeScorePrompt(
   "blocking_constraints": ["string"],
   "blocking_severity": "hard | soft | none",
   "advance_recommendation": "advance | hold | reject",
+  "shortlist_decision": "yes | no",
+  "shortlist_reason": "string | null",
   "short_reasons": ["string"],
   "risk_flags": ["string"],
   "evidence_quality": "high | medium | low",
@@ -3100,7 +3135,6 @@ function buildJudgeScorePrompt(
     : `[
   {
     "index": 0,
-    "bucket": "strong_now | consider_next | do_not_show",
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
@@ -3115,6 +3149,8 @@ function buildJudgeScorePrompt(
     "blocking_constraints": ["string"],
     "blocking_severity": "hard | soft | none",
     "advance_recommendation": "advance | hold | reject",
+    "shortlist_decision": "yes | no",
+    "shortlist_reason": "string | null",
     "short_reasons": ["string"],
     "risk_flags": ["string"],
     "evidence_quality": "high | medium | low",
@@ -3157,7 +3193,10 @@ Rules:
 - Use hard only for clear seniority mismatch, wrong function (e.g. frontend for a backend role), or explicit work-authorization conflict.
 - For explicit out-of-region hard blockers confirmed by location evidence, reflect in blocking_constraints but still use soft — let the location module own the hard gate.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
-- bucket should be strong_now for candidates you would reach out to today — confirmed location, clear skill match, no hard blockers. Use consider_next for credible candidates with one unresolved uncertainty (location unclear, one soft blocker, or partial skill match). Use do_not_show for clear rejects or hard-blocked candidates.
+- shortlist_decision should answer the recruiter question directly: does this person deserve to appear in the shortlist shown to the hiring manager?
+- Use shortlist_decision=yes for candidates you would genuinely include in a recruiter-curated shortlist today, even if they are not perfect.
+- Use shortlist_decision=no for candidates you would keep out of the shortlist because the fit is too weak, too risky, or too speculative.
+- shortlist_reason should be one short recruiter-style explanation for the yes/no decision.
 - Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
 - For startup/growth-stage roles: evaluate startup affinity holistically based on career trajectory. Penalize candidates with 7+ years at a single large company AND zero startup/small-company experience AND no entrepreneurial signals — they are unlikely to make the leap. But a big-company engineer with prior startup stints, side projects, open-source, or "0 to 1" language is a strong prospect — large-company rigor combined with startup adaptability is valuable. Boost join_likelihood when career trajectory shows startup affinity (multiple startup stints, founding experience, decreasing company size over career, or entrepreneurial language in about/experience).
 - A realistic candidate who would actually respond to cold outreach is more valuable than a dream candidate who never will. Factor reachability into advance_recommendation.
@@ -3216,19 +3255,19 @@ Rules:
 - Location eligibility is pre-assessed by a dedicated module — do not hard-block based on location alone. Focus arbitration on capability, relevance, and join likelihood.
 - If work model, authorization, seniority, or company-stage mismatch is a real blocker, list it in blocking_constraints.
 - Use hard blocker only for explicit, unambiguous conflicts (wrong function, clear seniority mismatch, explicit authorization barrier); unknown or sparse evidence must be soft.
-- bucket should be strong_now for candidates worth reaching out to today — location confirmed, clear skill match, no hard blockers. Use consider_next for borderline candidates with one unresolved uncertainty. Use do_not_show for rejects or hard-blocked candidates.
 - Keep text fields concise: max 3 bullets per array, each under 16 words.
 - Return ONLY valid JSON array with one object using this exact shape:
 [
   {
     "index": 0,
-    "bucket": "strong_now | consider_next | do_not_show",
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
     "quality_score": 0,
     "advance_score": 0,
     "advance_recommendation": "advance | hold | reject",
+    "shortlist_decision": "yes | no",
+    "shortlist_reason": "string | null",
     "primary_risk": "string | null",
     "first_contact_confidence": "high | medium | low",
     "blocking_constraints": ["string"],
@@ -3249,6 +3288,8 @@ Rules:
     "why_reachable_now": "string | null"
   }
 ]
+- shortlist_decision should answer whether this candidate belongs in the recruiter-visible shortlist.
+- shortlist_reason should be a short, concrete explanation for that yes/no decision.
 - Return ONLY valid JSON array with one object.`;
 }
 
@@ -3326,6 +3367,15 @@ function parseJudgeScoreResults(
         blocking_constraints: normalizeBlockingConstraints(item.blocking_constraints),
         blocking_severity: normalizeBlockingSeverity(item.blocking_severity),
         advance_recommendation: normalizeAdvanceRecommendation(item.advance_recommendation),
+        shortlist_decision: normalizeEnumValue(
+          item.shortlist_decision,
+          ["yes", "no"] as const,
+          deriveShortlistDecision(
+            normalizeAdvanceRecommendation(item.advance_recommendation),
+            normalizeBlockingSeverity(item.blocking_severity),
+          ),
+        ),
+        shortlist_reason: normalizeNullableString(item.shortlist_reason),
         constraint_verdicts: sanitizeConstraintVerdicts(item.constraint_verdicts),
         evidence_quality: normalizeEnumValue(
           item.evidence_quality,
@@ -3703,6 +3753,8 @@ function buildBrightDataCandidateRows(
         overall_score: item.suitability.overall_score,
         advance_score: item.suitability.advance_score,
         advance_recommendation: item.suitability.advance_recommendation,
+        shortlist_decision: item.suitability.shortlist_decision,
+        shortlist_reason: item.suitability.shortlist_reason,
         bucket: item.suitability.bucket,
         primary_risk: item.suitability.primary_risk,
         first_contact_confidence: item.suitability.first_contact_confidence,
@@ -3780,6 +3832,7 @@ function hasJudgeConflict(
     Math.abs(judgeA.relevance_score - judgeB.relevance_score) > 8 ||
     Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score) > 8 ||
     judgeA.blocking_severity !== judgeB.blocking_severity ||
+    judgeA.shortlist_decision !== judgeB.shortlist_decision ||
     judgeA.advance_recommendation !== judgeB.advance_recommendation ||
     deriveFitDecisionFromScore(judgeAQuality) !== deriveFitDecisionFromScore(judgeBQuality) ||
     (judgeA.relevance_score >= 75 && judgeB.join_likelihood_score <= 35) ||
@@ -3818,6 +3871,10 @@ function mergeJudgeResults(
       : judgeA.advance_recommendation === "hold" || judgeB.advance_recommendation === "hold"
         ? "hold"
         : deriveAdvanceRecommendation(advanceScore, blockingSeverity);
+  const shortlistDecision: ShortlistDecision =
+    judgeA.shortlist_decision === "no" || judgeB.shortlist_decision === "no"
+      ? "no"
+      : "yes";
   const suitability = sanitizeCandidateSuitability({
     capability_score: capabilityScore,
     relevance_score: relevanceScore,
@@ -3825,6 +3882,11 @@ function mergeJudgeResults(
     quality_score: qualityScore,
     advance_score: advanceScore,
     advance_recommendation: advanceRecommendation,
+    shortlist_decision: shortlistDecision,
+    shortlist_reason:
+      normalizeNullableString(judgeA.shortlist_reason) ||
+      normalizeNullableString(judgeB.shortlist_reason) ||
+      null,
     blocking_constraints: Array.from(
       new Set([...judgeA.blocking_constraints, ...judgeB.blocking_constraints]),
     ).slice(0, 8),
@@ -3856,6 +3918,8 @@ function mergeJudgeResults(
       overall_score: 0,
       advance_score: 0,
       advance_recommendation: "reject",
+      shortlist_decision: "no",
+      shortlist_reason: "Scoring response was incomplete.",
       primary_risk: "Scoring response was incomplete.",
       first_contact_confidence: "low",
       subscription_trigger_score: 0,
@@ -4348,6 +4412,30 @@ async function upsertSingleCandidate(searchId: string, row: CandidateRowInput) {
   await supabaseAdmin.from("hirelix_candidates").insert(payload);
 }
 
+async function retagSearchCandidatePoolTypes(searchId: string, highlightCount: number) {
+  const { data: candidates } = await supabaseAdmin
+    .from("hirelix_candidates")
+    .select("id, match_score, metadata")
+    .eq("search_id", searchId)
+    .order("match_score", { ascending: false });
+
+  if (!candidates?.length) return;
+
+  for (const [index, candidate] of candidates.entries()) {
+    const metadata =
+      candidate.metadata && typeof candidate.metadata === "object"
+        ? { ...(candidate.metadata as Record<string, unknown>) }
+        : {};
+    const nextPoolType = index < highlightCount ? "top_pick" : "outreach_pool";
+    if (metadata.pool_type === nextPoolType) continue;
+    metadata.pool_type = nextPoolType;
+    await supabaseAdmin
+      .from("hirelix_candidates")
+      .update({ metadata })
+      .eq("id", candidate.id);
+  }
+}
+
 async function parseJobDescription(
   context: PipelineContext,
   existingParsed?: Record<string, unknown> | null,
@@ -4740,93 +4828,17 @@ function selectTopLightCandidates(
   };
 }
 
-function selectTopDeepAssessments(
-  assessments: ScoredCandidateAssessment[],
-  minVisibleQualityScore: number,
-  options?: {
-    strictLocalRole?: boolean;
-    strongNowQualityScore?: number;
-  },
-) {
-  const strictLocalRole = options?.strictLocalRole === true;
-  const strongNowQualityScore = options?.strongNowQualityScore ?? 78;
-  const bucketedAssessments = assessments.map((assessment) => {
-    const bucket = deriveSuitabilityBucket({
-      qualityScore: assessment.suitability.quality_score,
-      overallScore: assessment.suitability.overall_score ?? assessment.suitability.advance_score,
-      advanceRecommendation: assessment.suitability.advance_recommendation,
-      blockingSeverity: assessment.suitability.blocking_severity,
-      constraintVerdicts: assessment.suitability.constraint_verdicts,
-      strictLocalRole,
-      minVisibleQualityScore,
-    });
-    const upgradedBucket =
-      bucket === "strong_now" &&
-      (assessment.suitability.overall_score ?? assessment.suitability.advance_score) <
-        strongNowQualityScore
-        ? "consider_next"
-        : bucket;
-    return {
-      ...assessment,
-      suitability: {
-        ...assessment.suitability,
-        bucket: upgradedBucket,
-        subscription_trigger_score: computeSubscriptionTriggerScore(
-          assessment.suitability.quality_score,
-          assessment.suitability.advance_score,
-          assessment.suitability.scoring_breakdown.join_likelihood_score,
-          assessment.suitability.evidence_quality,
-          assessment.suitability.constraint_verdicts,
-        ),
-      },
-    };
-  });
-  const eligibleAssessments = bucketedAssessments.filter(
-    (assessment) => assessment.suitability.bucket !== "do_not_show",
-  );
-
-  if (eligibleAssessments.length === 0) {
-    return {
-      selected: [] as ScoredCandidateAssessment[],
-      selectedCount: 0,
-      selectedRate: 0,
-      eligibleCount: 0,
-      excludedCount: assessments.length,
-      qualityFloorApplied: assessments.length > 0,
-      strongNowCount: 0,
-      considerNextCount: 0,
-      doNotShowCount: assessments.length,
-    };
-  }
-
-  const strongNow = eligibleAssessments
-    .filter((assessment) => assessment.suitability.bucket === "strong_now")
+function selectShortlistedAssessments(assessments: ScoredCandidateAssessment[]) {
+  const shortlisted = assessments
+    .filter(shouldDisplayCandidate)
     .sort(sortCandidateAssessments);
-  const considerNext = eligibleAssessments
-    .filter((assessment) => assessment.suitability.bucket === "consider_next")
-    .sort(sortCandidateAssessments);
-  const rankedEligible = [...strongNow, ...considerNext];
-  // Output strong_now only. consider_next is preserved in metadata but not surfaced to users.
-  // Fallback: if strong_now < 5, fill up to 15 total from top consider_next to avoid empty results.
-  const STRONG_NOW_FALLBACK_THRESHOLD = 5;
-  const FALLBACK_TOTAL_CAP = 15;
-  const selected =
-    strongNow.length >= STRONG_NOW_FALLBACK_THRESHOLD
-      ? strongNow
-      : [...strongNow, ...considerNext.slice(0, FALLBACK_TOTAL_CAP - strongNow.length)];
-  const selectedCount = selected.length;
-  const selectedRate = rankedEligible.length > 0 ? selectedCount / rankedEligible.length : 0;
 
   return {
-    selected,
-    selectedCount,
-    selectedRate,
-    eligibleCount: eligibleAssessments.length,
-    excludedCount: Math.max(assessments.length - eligibleAssessments.length, 0),
-    qualityFloorApplied: eligibleAssessments.length !== assessments.length,
-    strongNowCount: strongNow.length,
-    considerNextCount: considerNext.length,
-    doNotShowCount: Math.max(bucketedAssessments.length - eligibleAssessments.length, 0),
+    selected: shortlisted,
+    selectedCount: shortlisted.length,
+    selectedRate: assessments.length > 0 ? shortlisted.length / assessments.length : 0,
+    shortlistYesCount: shortlisted.length,
+    shortlistNoCount: Math.max(assessments.length - shortlisted.length, 0),
   };
 }
 
@@ -6031,9 +6043,6 @@ async function scoreBrightDataProfiles(
   );
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const locationPolicy = normalizeLocationConstraint(hiringBrief);
-  const strictLocalRole =
-    (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
-    hiringBrief.location_flexibility === "strict";
   const locationGateResults = await llmEvaluateAllLocationGates(
     aiClient,
     getLightModel(),
@@ -6166,13 +6175,17 @@ Rules:
           decision: "review", location_fit: "unknown", reason: "Location evidence missing", is_hard_block: false,
         };
         const gatedSuitability = applyLocationGateToSuitability(assessment.suitability, gateResult);
-        // Only stream advance candidates
-        if (gatedSuitability.advance_recommendation !== "advance") return;
-        if (gatedSuitability.blocking_severity === "hard") return;
+        if (
+          gatedSuitability.shortlist_decision !== "yes" ||
+          gatedSuitability.blocking_severity === "hard"
+        ) {
+          return;
+        }
         const gatedAssessment = { ...assessment, suitability: gatedSuitability };
         const rows = buildBrightDataCandidateRows(brightProfiles, [gatedAssessment], 1, "outreach_pool");
         if (rows.length > 0) {
           await upsertSingleCandidate(context.searchId, rows[0]);
+          await retagSearchCandidatePoolTypes(context.searchId, context.highlightCount);
           streamedCount.value++;
         }
         // Update progress every 5 candidates
@@ -6254,15 +6267,15 @@ Rules:
   const advanceableCount = assessmentsWithGate.filter(
     (assessment) => assessment.suitability.advance_recommendation === "advance",
   ).length;
-  const deepSelection = selectTopDeepAssessments(
-    assessmentsWithGate,
-    executionProfile.minVisibleQualityScore,
-    {
-      strictLocalRole,
-      strongNowQualityScore: executionProfile.strongNowQualityScore,
-    },
-  );
+  const deepSelection = selectShortlistedAssessments(assessmentsWithGate);
   const deepSelected = deepSelection.selected;
+  logSearchEvent("search_shortlist_decisions", {
+    search_id: context.searchId,
+    shortlist_yes_count: deepSelection.shortlistYesCount,
+    shortlist_no_count: deepSelection.shortlistNoCount,
+    hard_blocked_count: hardBlockedCount,
+    job_id: context.jobId,
+  });
   const deepRows = buildBrightDataCandidateRows(
     brightProfiles,
     deepSelected,
@@ -6270,8 +6283,7 @@ Rules:
     "outreach_pool",
   );
 
-  const finalTargetCount = executionProfile.finalResultCap;
-  const highlightTarget = Math.min(context.highlightCount, finalTargetCount);
+  const highlightTarget = context.highlightCount;
   const finalRows = tagPoolRows(
     deepRows,
     [],
@@ -6317,21 +6329,8 @@ Rules:
       suitability?.advance_recommendation !== "reject"
     );
   }).length;
-  const strongNowCount = finalRows.filter((row) => {
-    const metadata =
-      row.metadata && typeof row.metadata === "object"
-        ? (row.metadata as Record<string, unknown>)
-        : null;
-    return metadata?.bucket === "strong_now";
-  }).length;
-  const considerNextCount = finalRows.filter((row) => {
-    const metadata =
-      row.metadata && typeof row.metadata === "object"
-        ? (row.metadata as Record<string, unknown>)
-        : null;
-    return metadata?.bucket === "consider_next";
-  }).length;
-  const doNotShowCount = deepSelection.doNotShowCount;
+  const shortlistYesCount = deepSelection.shortlistYesCount;
+  const shortlistNoCount = deepSelection.shortlistNoCount;
   const clearLocationFitCount = finalRows.filter((row) => {
     const metadata =
       row.metadata && typeof row.metadata === "object"
@@ -6384,14 +6383,16 @@ Rules:
       search_phase_count: Number(parsed.search_phase_count) || 1,
       judge_mode: runtime.judgeMode,
       activation_run: isActivationRun(parsed),
-      quality_floor_applied: deepSelection.qualityFloorApplied,
+      quality_floor_applied: false,
       visible_candidate_count: finalRows.length,
       pre_gate_blocked_count: preGateHardBlockedCount,
       prescreen_blocked_count: prescreenBlockedCount,
       contact_unlock_candidates: contactUnlockCandidates,
-      strong_now_count: strongNowCount,
-      consider_next_count: considerNextCount,
-      do_not_show_count: doNotShowCount,
+      strong_now_count: 0,
+      consider_next_count: shortlistYesCount,
+      do_not_show_count: shortlistNoCount,
+      shortlist_yes_count: shortlistYesCount,
+      shortlist_no_count: shortlistNoCount,
       clear_location_fit_count: clearLocationFitCount,
       must_have_strong_count: mustHaveStrongCount,
       first_contact_confidence_count: firstContactConfidenceCount,
@@ -6599,6 +6600,8 @@ async function completeSearch(
     strong_now_count: displayStats.strong_now_count ?? null,
     consider_next_count: displayStats.consider_next_count ?? null,
     do_not_show_count: displayStats.do_not_show_count ?? null,
+    shortlist_yes_count: displayStats.shortlist_yes_count ?? null,
+    shortlist_no_count: displayStats.shortlist_no_count ?? null,
     clear_location_fit_count: displayStats.clear_location_fit_count ?? null,
     must_have_strong_count: displayStats.must_have_strong_count ?? null,
     first_contact_confidence_count: displayStats.first_contact_confidence_count ?? null,
@@ -6664,6 +6667,8 @@ async function persistProvisionalSearch(
     strong_now_count: displayStats.strong_now_count ?? null,
     consider_next_count: displayStats.consider_next_count ?? null,
     do_not_show_count: displayStats.do_not_show_count ?? null,
+    shortlist_yes_count: displayStats.shortlist_yes_count ?? null,
+    shortlist_no_count: displayStats.shortlist_no_count ?? null,
     clear_location_fit_count: displayStats.clear_location_fit_count ?? null,
     must_have_strong_count: displayStats.must_have_strong_count ?? null,
     first_contact_confidence_count: displayStats.first_contact_confidence_count ?? null,
