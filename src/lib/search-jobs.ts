@@ -3366,18 +3366,6 @@ async function cacheSnapshotEntry(params: {
   }
 }
 
-/** Evict a snapshot from the cache — used when a snapshot is confirmed stuck. */
-async function evictStuckSnapshot(snapshotId: string): Promise<void> {
-  try {
-    await supabaseAdmin
-      .from("hirelix_dataset_snapshots")
-      .delete()
-      .eq("snapshot_id", snapshotId);
-  } catch {
-    // Non-critical
-  }
-}
-
 /** Update dataset_size and cost once a snapshot finishes downloading. */
 async function updateCachedSnapshotMetadata(
   snapshotId: string,
@@ -3619,7 +3607,7 @@ async function claimSearchJob(
       .from("hirelix_search_jobs")
       .select("*")
       .eq("search_id", preferredSearchId)
-      .in("status", ["queued", "retryable_error"])
+      .eq("status", "queued")
       .lte("available_at", now)
       .limit(1);
     if (data) candidateRows.push(...data);
@@ -3629,7 +3617,7 @@ async function claimSearchJob(
     const { data } = await supabaseAdmin
       .from("hirelix_search_jobs")
       .select("*")
-      .in("status", ["queued", "retryable_error"])
+      .eq("status", "queued")
       .lte("available_at", now)
       .order("available_at", { ascending: true })
       .limit(10);
@@ -3648,7 +3636,7 @@ async function claimSearchJob(
         last_error: null,
       })
       .eq("id", job.id)
-      .in("status", ["queued", "retryable_error"])
+      .eq("status", "queued")
       .select("*")
       .single();
 
@@ -3664,7 +3652,7 @@ async function hasRunnableSearchJobs() {
   const { count } = await supabaseAdmin
     .from("hirelix_search_jobs")
     .select("id", { count: "exact", head: true })
-    .in("status", ["queued", "retryable_error"])
+    .eq("status", "queued")
     .lte("available_at", nowIso());
 
   return (count || 0) > 0;
@@ -5129,12 +5117,9 @@ async function buildBrightDataDatasetCandidates(
     // The main timeout budget has elapsed. Check the current state before deciding what to do.
     const latestMetadata = await getDatasetSnapshotMetadata(brightDataToken, snapshotId);
     if (latestMetadata.status === "failed") {
-      // Snapshot explicitly failed — re-trigger on the next attempt.
-      void evictStuckSnapshot(snapshotId);
-      parsed.recall_provider = "brightdata_dataset";
-      parsed.recall_metadata = undefined;
-      await updateSearchParsedRequirements(context.searchId, parsed);
-      throw new Error(`Bright Data snapshot ${snapshotId} failed — re-triggering`);
+      throw new Error(
+        `Bright Data snapshot ${snapshotId} failed. Retry from the shortlist page if you want to re-attempt this provider snapshot.`,
+      );
     }
     if (latestMetadata.status !== "ready") {
       // Still building after 15+ minutes — the filter timed out.
@@ -6990,43 +6975,19 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       last_error: null,
     });
   } catch (error) {
-    if (error instanceof DatasetRecallPendingError) {
-      const requeued = await updateRunningJobStatus(job.id, "queued", {
-        available_at: nowIso(),
-        last_error: null,
-        locked_at: null,
-        attempt_count: Math.max((job.attempt_count || 1) - 1, 0),
-      });
-
-      if (!requeued) {
-        return {
-          processed: true,
-          hasMore: await hasRunnableSearchJobs(),
-        };
-      }
-
-      logSearchEvent("search_job_requeued", {
-        search_id: job.search_id,
-        reason: error.message,
-        job_id: job.id,
-      });
-
-      return {
-        processed: true,
-        hasMore: await hasRunnableSearchJobs(),
-      };
-    }
-
-    const message = error instanceof Error ? error.message : "Search job failed";
-    const retryable = job.attempt_count < SEARCH_JOB_MAX_ATTEMPTS;
+    const message = error instanceof DatasetRecallPendingError
+      ? "Bright Data snapshot is still processing. Retry from the shortlist page to download the existing snapshot."
+      : error instanceof Error
+        ? error.message
+        : "Search job failed";
     const updated = await updateRunningJobStatus(
       job.id,
-      retryable ? "retryable_error" : "fatal_error",
+      "fatal_error",
       {
-        available_at: retryable ? nowIso() : null,
+        available_at: null,
         last_error: message,
         locked_at: null,
-        finished_at: retryable ? null : nowIso(),
+        finished_at: nowIso(),
       },
     );
 
@@ -7042,21 +7003,19 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       .select("id", { count: "exact", head: true })
       .eq("search_id", job.search_id);
 
-    if (!retryable) {
-      if ((count || 0) > 0) {
-        await markSearchDegraded(
-          job.search_id,
-          "The shortlist is still usable, but the final refinement pass did not finish.",
-        );
-      } else {
-        await failSearch(job.search_id, message);
-      }
+    if ((count || 0) > 0) {
+      await markSearchDegraded(
+        job.search_id,
+        "The shortlist is still usable, but the remaining provider work did not finish. Retry from the page to continue with the existing snapshot.",
+      );
+    } else {
+      await failSearch(job.search_id, message);
     }
 
     logSearchEvent("search_provider_failed", {
       search_id: job.search_id,
       reason: message,
-      retryable,
+      retryable: false,
       attempt_count: job.attempt_count,
       job_id: job.id,
     });

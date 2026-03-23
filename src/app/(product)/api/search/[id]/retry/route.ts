@@ -53,7 +53,6 @@ export async function POST(
       error_message: null,
       warning_message: null,
       queued_at: timestamp,
-      parse_completed_at: null,
       search_completed_at: null,
       partial_ready_at: null,
       done_at: null,
