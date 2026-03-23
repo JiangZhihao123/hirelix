@@ -3,10 +3,11 @@ import { processNextSearchJob } from "@/lib/search-jobs";
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
 const DEFAULT_MAX_IDLE_POLL_MS = 30000;
+const DEFAULT_CONCURRENCY = 5;
 
 type SchedulerState = {
   started: boolean;
-  startPromise: Promise<void> | null;
+  startPromise: Promise<void[]> | null;
 };
 
 declare global {
@@ -37,11 +38,18 @@ function getConfiguredPollMs(envName: string, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function getConfiguredConcurrency() {
+  return getConfiguredPollMs(
+    "SEARCH_JOB_SCHEDULER_CONCURRENCY",
+    DEFAULT_CONCURRENCY,
+  );
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function runSchedulerLoop() {
+async function runSchedulerLoop(workerIndex: number) {
   const idlePollMs = getConfiguredPollMs(
     "SEARCH_JOB_SCHEDULER_IDLE_POLL_MS",
     DEFAULT_IDLE_POLL_MS,
@@ -68,7 +76,7 @@ async function runSchedulerLoop() {
       await sleep(currentIdleDelay);
       currentIdleDelay = Math.min(currentIdleDelay * 2, maxIdlePollMs);
     } catch (error) {
-      console.error("[search_jobs] Scheduler loop failed:", error);
+      console.error(`[search_jobs] Scheduler worker ${workerIndex} failed:`, error);
       await sleep(errorBackoffMs);
       currentIdleDelay = idlePollMs;
     }
@@ -86,10 +94,16 @@ export function startSearchJobScheduler() {
   }
 
   state.started = true;
-  console.log("[search_jobs] In-process scheduler started");
-  state.startPromise = runSchedulerLoop().catch((error) => {
+  const concurrency = getConfiguredConcurrency();
+  console.log(
+    `[search_jobs] In-process scheduler started with concurrency=${concurrency}`,
+  );
+  state.startPromise = Promise.all(
+    Array.from({ length: concurrency }, (_, index) => runSchedulerLoop(index + 1)),
+  ).catch((error) => {
     state.started = false;
     state.startPromise = null;
     console.error("[search_jobs] Scheduler exited:", error);
+    throw error;
   });
 }
