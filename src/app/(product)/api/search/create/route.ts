@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let createdSearchId: string | null = null;
+
   try {
     const { jd_text, candidate_count } = await req.json();
     const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
@@ -87,23 +89,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await supabaseAdmin.from("hirelix_usage_events").insert({
-      user_id: user.id,
-      event_type: "search_created",
-      related_id: search.id,
-      metadata: {
-        plan_code: billing.plan.code,
-        candidate_count: maxCandidates,
-        display_count: searchTargets.displayCount,
-        highlight_count: searchTargets.highlightCount,
-        requested_candidate_count: requestedCandidates,
-        outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
-        launch_mode: "paid_beta",
-        launch_scope: "us_only",
-        execution_profile: searchTargets.executionProfile,
-        activation_run: false,
-      },
-    });
+    createdSearchId = search.id;
 
     await enqueueSearchJob({
       searchId: search.id,
@@ -112,9 +98,43 @@ export async function POST(req: NextRequest) {
       candidateCount: maxCandidates,
     });
 
+    try {
+      await supabaseAdmin.from("hirelix_usage_events").insert({
+        user_id: user.id,
+        event_type: "search_created",
+        related_id: search.id,
+        metadata: {
+          plan_code: billing.plan.code,
+          candidate_count: maxCandidates,
+          display_count: searchTargets.displayCount,
+          highlight_count: searchTargets.highlightCount,
+          requested_candidate_count: requestedCandidates,
+          outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+          launch_mode: "paid_beta",
+          launch_scope: "us_only",
+          execution_profile: searchTargets.executionProfile,
+          activation_run: false,
+        },
+      });
+    } catch (usageError) {
+      console.error("Search usage event error:", usageError);
+    }
+
     return NextResponse.json({ id: search.id });
   } catch (err) {
     console.error("Search create error:", err);
+    if (createdSearchId) {
+      await supabaseAdmin
+        .from("hirelix_searches")
+        .update({
+          status: "error",
+          pipeline_step: "error",
+          error_message: "Failed to enqueue search job",
+          warning_message: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", createdSearchId);
+    }
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

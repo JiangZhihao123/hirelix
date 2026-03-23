@@ -43,7 +43,7 @@ import {
 export const SEARCH_JOB_MAX_ATTEMPTS = 3;
 const SEARCH_JOB_STALE_MINUTES = getConfiguredPositiveInt(
   "SEARCH_JOB_STALE_MINUTES",
-  15,
+  20,
   { min: 1, max: 1440 },
 );
 
@@ -2925,7 +2925,7 @@ function minutesAgoIso(minutes: number) {
 
 async function reclaimStaleRunningJobs() {
   const cutoff = minutesAgoIso(SEARCH_JOB_STALE_MINUTES);
-  const staleMessage = `Worker lease expired after ${SEARCH_JOB_STALE_MINUTES} minutes`;
+  const staleMessage = `Search job exceeded ${SEARCH_JOB_STALE_MINUTES}-minute execution limit`;
   const { data: staleJobs } = await supabaseAdmin
     .from("hirelix_search_jobs")
     .select("id, search_id, attempt_count")
@@ -2940,10 +2940,11 @@ async function reclaimStaleRunningJobs() {
     const { data: reclaimed } = await supabaseAdmin
       .from("hirelix_search_jobs")
       .update({
-        status: "retryable_error",
+        status: "fatal_error",
         locked_at: null,
         last_error: staleMessage,
-        available_at: nowIso(),
+        available_at: null,
+        finished_at: nowIso(),
         updated_at: nowIso(),
       })
       .eq("id", staleJob.id)
@@ -2953,12 +2954,14 @@ async function reclaimStaleRunningJobs() {
       .single();
 
     if (reclaimed?.id) {
+      await failSearch(staleJob.search_id, staleMessage);
       reclaimedCount += 1;
       logSearchEvent("search_job_reclaimed", {
         job_id: staleJob.id,
         search_id: staleJob.search_id,
         attempt_count: staleJob.attempt_count,
         stale_after_minutes: SEARCH_JOB_STALE_MINUTES,
+        outcome: "timed_out",
       });
     }
   }
@@ -3547,19 +3550,24 @@ async function updateSearchUsageEventMetadata(
     .eq("id", event.id);
 }
 
-async function updateJobStatus(
+async function updateRunningJobStatus(
   jobId: string,
   status: string,
   extra: Record<string, unknown> = {},
 ) {
-  await supabaseAdmin
+  const { data } = await supabaseAdmin
     .from("hirelix_search_jobs")
     .update({
       status,
       updated_at: nowIso(),
       ...extra,
     })
-    .eq("id", jobId);
+    .eq("id", jobId)
+    .eq("status", "running")
+    .select("id")
+    .single();
+
+  return Boolean(data?.id);
 }
 
 async function claimSearchJob(
@@ -7005,19 +7013,26 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
 
   try {
     await runSearchPipeline(job);
-    await updateJobStatus(job.id, "done", {
+    await updateRunningJobStatus(job.id, "done", {
       finished_at: nowIso(),
       locked_at: null,
       last_error: null,
     });
   } catch (error) {
     if (error instanceof DatasetRecallPendingError) {
-      await updateJobStatus(job.id, "queued", {
+      const requeued = await updateRunningJobStatus(job.id, "queued", {
         available_at: nowIso(),
         last_error: null,
         locked_at: null,
         attempt_count: Math.max((job.attempt_count || 1) - 1, 0),
       });
+
+      if (!requeued) {
+        return {
+          processed: true,
+          hasMore: await hasRunnableSearchJobs(),
+        };
+      }
 
       logSearchEvent("search_job_requeued", {
         search_id: job.search_id,
@@ -7033,12 +7048,23 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
 
     const message = error instanceof Error ? error.message : "Search job failed";
     const retryable = job.attempt_count < SEARCH_JOB_MAX_ATTEMPTS;
-    await updateJobStatus(job.id, retryable ? "retryable_error" : "fatal_error", {
-      available_at: retryable ? nowIso() : null,
-      last_error: message,
-      locked_at: null,
-      finished_at: retryable ? null : nowIso(),
-    });
+    const updated = await updateRunningJobStatus(
+      job.id,
+      retryable ? "retryable_error" : "fatal_error",
+      {
+        available_at: retryable ? nowIso() : null,
+        last_error: message,
+        locked_at: null,
+        finished_at: retryable ? null : nowIso(),
+      },
+    );
+
+    if (!updated) {
+      return {
+        processed: true,
+        hasMore: await hasRunnableSearchJobs(),
+      };
+    }
 
     const { count } = await supabaseAdmin
       .from("hirelix_candidates")

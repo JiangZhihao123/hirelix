@@ -36,26 +36,6 @@ export async function POST(
     return NextResponse.json({ error: "Only failed or stalled searches can be retried" }, { status: 400 });
   }
 
-  // Reset search status
-  await supabaseAdmin
-    .from("hirelix_searches")
-    .update({
-      status: "queued",
-      pipeline_step: "queued",
-      error_message: null,
-      warning_message: null,
-      queued_at: new Date().toISOString(),
-      parse_completed_at: null,
-      search_completed_at: null,
-      partial_ready_at: null,
-      done_at: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  // Delete old candidates if any
-  await supabaseAdmin.from("hirelix_candidates").delete().eq("search_id", id);
-
   const candidateCount = (search.parsed_requirements as Record<string, unknown>)?.candidate_count as number || 5;
   await enqueueSearchJob({
     searchId: id,
@@ -63,6 +43,23 @@ export async function POST(
     jdText: search.jd_text,
     candidateCount,
   });
+
+  const timestamp = new Date().toISOString();
+  await supabaseAdmin
+    .from("hirelix_searches")
+    .update({
+      status: "queued",
+      pipeline_step: "queued",
+      error_message: null,
+      warning_message: null,
+      queued_at: timestamp,
+      parse_completed_at: null,
+      search_completed_at: null,
+      partial_ready_at: null,
+      done_at: null,
+      updated_at: timestamp,
+    })
+    .eq("id", id);
 
   return NextResponse.json({ ok: true });
 }

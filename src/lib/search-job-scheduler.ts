@@ -85,6 +85,9 @@ async function runSchedulerLoop(workerIndex: number) {
 
 export function startSearchJobScheduler() {
   if (!getSchedulerEnabled()) {
+    console.warn(
+      `[search_jobs] In-process scheduler disabled (env=${process.env.NODE_ENV ?? "unknown"})`,
+    );
     return;
   }
 
