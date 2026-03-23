@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kickSearchJobRunner, processNextSearchJob } from "@/lib/search-jobs";
+import { processNextSearchJob } from "@/lib/search-jobs";
 
 export const maxDuration = 300;
 
@@ -22,9 +22,6 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await processNextSearchJob(searchId);
-  if (result.hasMore) {
-    kickSearchJobRunner(req.nextUrl.origin);
-  }
 
   return NextResponse.json(result);
 }

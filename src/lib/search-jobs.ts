@@ -41,6 +41,11 @@ import {
 } from "@/lib/search-execution";
 
 export const SEARCH_JOB_MAX_ATTEMPTS = 3;
+const SEARCH_JOB_STALE_MINUTES = getConfiguredPositiveInt(
+  "SEARCH_JOB_STALE_MINUTES",
+  15,
+  { min: 1, max: 1440 },
+);
 
 export const REVIEWABLE_SEARCH_STATUSES = [
   "deep_scoring",
@@ -361,6 +366,7 @@ type SearchJobRow = {
   available_at: string;
   started_at: string | null;
   locked_at: string | null;
+  updated_at?: string | null;
 };
 
 type SearchRow = {
@@ -2913,6 +2919,53 @@ export function kickSearchJobRunner(
   });
 }
 
+function minutesAgoIso(minutes: number) {
+  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
+async function reclaimStaleRunningJobs() {
+  const cutoff = minutesAgoIso(SEARCH_JOB_STALE_MINUTES);
+  const staleMessage = `Worker lease expired after ${SEARCH_JOB_STALE_MINUTES} minutes`;
+  const { data: staleJobs } = await supabaseAdmin
+    .from("hirelix_search_jobs")
+    .select("id, search_id, attempt_count")
+    .eq("status", "running")
+    .lt("locked_at", cutoff)
+    .limit(50);
+
+  if (!staleJobs?.length) return 0;
+
+  let reclaimedCount = 0;
+  for (const staleJob of staleJobs) {
+    const { data: reclaimed } = await supabaseAdmin
+      .from("hirelix_search_jobs")
+      .update({
+        status: "retryable_error",
+        locked_at: null,
+        last_error: staleMessage,
+        available_at: nowIso(),
+        updated_at: nowIso(),
+      })
+      .eq("id", staleJob.id)
+      .eq("status", "running")
+      .lt("locked_at", cutoff)
+      .select("id")
+      .single();
+
+    if (reclaimed?.id) {
+      reclaimedCount += 1;
+      logSearchEvent("search_job_reclaimed", {
+        job_id: staleJob.id,
+        search_id: staleJob.search_id,
+        attempt_count: staleJob.attempt_count,
+        stale_after_minutes: SEARCH_JOB_STALE_MINUTES,
+      });
+    }
+  }
+
+  return reclaimedCount;
+}
+
 export async function enqueueSearchJob(input: {
   searchId: string;
   userId: string;
@@ -3512,6 +3565,8 @@ async function updateJobStatus(
 async function claimSearchJob(
   preferredSearchId?: string | null,
 ): Promise<SearchJobRow | null> {
+  await reclaimStaleRunningJobs();
+
   const now = nowIso();
   const candidateRows: SearchJobRow[] = [];
 
