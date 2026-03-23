@@ -212,6 +212,25 @@ SEARCH_ARBITER_MODEL=anthropic/claude-sonnet-4.6
 - ❌ 用户设置中的 PDL API Key 配置已移除
 - ✅ 现在只使用 Serper.dev + Bright Data 作为数据源
 
+### Bright Data 召回成本
+
+当前项目使用的 Bright Data 数据集计费单价已经确认：
+
+- 数据集：`dataset Linkedin people profiles`
+- 单价：`$1.5 / 1000 records`
+- 折算：`$0.0015 / record`
+
+常用召回成本速查：
+
+- `200` 条：`$0.30`
+- `300` 条：`$0.45`
+- `400` 条：`$0.60`
+
+说明：
+- 当前多轮召回常见结构是：`standard 200 + hidden_gem 100 + company_target 100`
+- 三轮都触发且都跑满时，Bright Data 召回成本按 `400 × 0.0015 = $0.60`
+- 实际返回条数可能因去重少于请求条数，但 Bright Data 计费按 records 单价理解和估算
+
 ### 注意事项
 
 - Management API 的 access token 有效期有限，过期后需重新 `supabase login`
