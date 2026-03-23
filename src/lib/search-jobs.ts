@@ -3319,6 +3319,30 @@ async function setSearchStatus(
   };
 
   await supabaseAdmin.from("hirelix_searches").update(payload).eq("id", searchId);
+
+  if (status === "error" || status === "degraded" || status === "done") {
+    const terminalJobPayload: Record<string, unknown> = {
+      status: status === "error" ? "fatal_error" : "done",
+      updated_at: nowIso(),
+      locked_at: null,
+      finished_at: nowIso(),
+      last_error: status === "error"
+        ? (typeof extra.error_message === "string" && extra.error_message.length > 0
+          ? extra.error_message
+          : "Search entered an error state")
+        : null,
+    };
+
+    if (status === "error") {
+      terminalJobPayload.available_at = null;
+    }
+
+    await supabaseAdmin
+      .from("hirelix_search_jobs")
+      .update(terminalJobPayload)
+      .eq("search_id", searchId)
+      .eq("status", "running");
+  }
 }
 
 // ──────────────────── Snapshot cache helpers ────────────────────

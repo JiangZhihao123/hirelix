@@ -14,6 +14,7 @@ import {
   SEARCH_PACK,
   type BillingSummary,
 } from "@/lib/billing";
+import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 
 interface CompanyProfile {
@@ -944,15 +945,13 @@ export default function SettingsPage() {
   );
 
   async function handleSaveCompany() {
-    if (!session?.access_token) return;
     setSavingCompany(true);
     setCompanyMessage(null);
     try {
-      const res = await fetch("/api/settings", {
+      const res = await fetchWithUserSession("/api/settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ company_profile: companyProfile }),
       });
@@ -960,7 +959,14 @@ export default function SettingsPage() {
         setCompanyMessage({ type: "success", text: "Company profile saved." });
         void refreshBilling();
       } else {
-        setCompanyMessage({ type: "error", text: "Failed to save company profile." });
+        const data = await res.json().catch(() => ({}));
+        setCompanyMessage({
+          type: "error",
+          text:
+            typeof data.error === "string" && data.error.length > 0
+              ? data.error
+              : "Failed to save company profile.",
+        });
       }
     } catch {
       setCompanyMessage({ type: "error", text: "Network error while saving company profile." });

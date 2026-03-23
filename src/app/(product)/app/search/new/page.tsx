@@ -9,6 +9,7 @@ import {
   getAnalyticsContextFromParams,
   trackEvent,
 } from "@/lib/analytics";
+import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import {
   ArrowRight,
@@ -65,11 +66,6 @@ export default function NewSearchPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!jdText.trim() || !session) return;
-    if (billing?.usage.searchesRemaining === 0) {
-      setStatus("error");
-      setErrorMsg("You have reached this month's shortlist limit. Upgrade to Pro or wait for the next billing cycle.");
-      return;
-    }
 
     trackEvent(ANALYTICS_EVENTS.primaryProductCtaClick, {
       ...analyticsContext,
@@ -84,17 +80,19 @@ export default function NewSearchPage() {
     setErrorMsg("");
 
     try {
-      const res = await fetch("/api/search/create", {
+      const res = await fetchWithUserSession("/api/search/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ jd_text: jdText.trim(), candidate_count: FIXED_CANDIDATE_COUNT }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          void refresh();
+        }
         throw new Error(data.error || "Failed to create shortlist");
       }
 
@@ -265,7 +263,7 @@ export default function NewSearchPage() {
             </div>
             <button
               type="submit"
-              disabled={status === "loading" || isNavigating || jdText.trim().length < 50 || billing?.usage.searchesRemaining === 0}
+              disabled={status === "loading" || isNavigating || jdText.trim().length < 50}
               className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
             >
               {status === "loading" || isNavigating ? (
