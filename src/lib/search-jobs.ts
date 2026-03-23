@@ -497,15 +497,6 @@ type SerperPreScreenDecision = {
   reason: string;
 };
 
-type BrightPreScreenBucket = "strong_now" | "consider_next" | "reject";
-
-type BrightPreScreenDecision = {
-  bucket: BrightPreScreenBucket;
-  match_score: number;
-  fit_reason: string;
-  primary_risk: string | null;
-};
-
 type SerperPreScreenedCandidate = {
   serperCandidate: SerperCandidate;
   preScreen: SerperPreScreenDecision;
@@ -1071,164 +1062,6 @@ function evaluateCandidateLocationGate(
     reason: "Non-local candidate for moderate location constraint",
     is_hard_block: false,
   };
-}
-
-function applyLocationGateToSuitability(
-  suitability: CandidateSuitability,
-  gateResult: LocationGateResult,
-): CandidateSuitability {
-  if (!gateResult.is_hard_block) {
-    return suitability;
-  }
-
-  // 强制覆盖为 hard block
-  return {
-    ...suitability,
-    constraint_verdicts: {
-      ...suitability.constraint_verdicts,
-      location_fit: gateResult.location_fit,
-    },
-    blocking_constraints: [
-      ...suitability.blocking_constraints.filter(c => !c.toLowerCase().includes("location")),
-      gateResult.reason,
-    ],
-    blocking_severity: "hard",
-    advance_recommendation: "reject",
-    advance_score: Math.min(suitability.advance_score || 0, 20),
-  };
-}
-
-// ──────────────────── LLM Location Gate ────────────────────
-
-const LLM_LOCATION_GATE_BATCH_SIZE = 15;
-
-type LlmLocationInput = {
-  city: string | null;
-  country_code: string | null;
-  headline: string | null;
-  about: string | null;
-  current_company_location: string | null;
-};
-
-/**
- * Uses an LLM to evaluate location eligibility for a batch of candidates.
- * Much more robust than string matching — handles abbreviations, metro names,
- * "Greater X Area", "Tri-State", etc.
- */
-async function llmEvaluateLocationGateBatch(
-  aiClient: ReturnType<typeof createAIClient>,
-  model: string,
-  policy: LocationPolicy,
-  profiles: LlmLocationInput[],
-): Promise<LocationGateResult[]> {
-  if (profiles.length === 0) return [];
-
-  const targetDesc = policy.strict_terms.length > 0
-    ? policy.strict_terms.slice(0, 4).join(" / ")
-    : "unspecified location";
-
-  const candidateLines = profiles.map((p, i) => {
-    const parts = [
-      `city: ${p.city || "unknown"}`,
-      `country: ${p.country_code || "unknown"}`,
-      p.current_company_location ? `company_location: ${p.current_company_location}` : null,
-      p.headline ? `headline: ${p.headline.slice(0, 100)}` : null,
-      p.about ? `about_excerpt: ${p.about.slice(0, 150)}` : null,
-    ].filter(Boolean).join(" | ");
-    return `[${i + 1}] ${parts}`;
-  }).join("\n");
-
-  const workModelDesc = policy.work_model === "onsite" ? "onsite (in-person required)"
-    : policy.work_model === "hybrid" ? "hybrid (partial in-person)"
-    : "remote-friendly";
-
-  const prompt = `You are a location eligibility screener for a job opening.
-
-Job location requirement: ${targetDesc}
-Work model: ${workModelDesc}
-Location strictness: ${policy.mode}
-
-For each candidate, decide if they qualify locationally. Return a JSON array with exactly ${profiles.length} objects, one per candidate, in order:
-[{"decision":"pass"|"review"|"block","location_fit":"local"|"nearby"|"non_local"|"unknown","reason":"<10 words max>"},...]
-
-Rules:
-- "pass" (local): candidate is clearly in the target area (city/metro match, including abbreviations like "NY", "NYC", "Greater New York", "Tri-State Area", "Bay Area" for SF, etc.)
-- "review" (nearby/unclear): candidate location is ambiguous, says "Remote", open to relocate, or is in a nearby metro
-- "block" (non_local): candidate is clearly in a different region (e.g. target=NYC but candidate is in SF, London, Austin, etc.)
-- "unknown": no location info at all → always "review"
-
-${policy.mode === "strict" ? 'Since strictness is "strict", only clearly local candidates should pass. Nearby/remote = review.' : ''}
-
-Candidates:
-${candidateLines}
-
-Return only the JSON array, no explanation.`;
-
-  try {
-    const { text } = await generateText({
-      model: aiClient(model),
-      prompt,
-      maxOutputTokens: 60 * profiles.length + 50,
-    });
-
-    const parsed: Array<{ decision: string; location_fit: string; reason: string }> = JSON.parse(extractJSON(text));
-
-    return parsed.map((item) => {
-      const decision = (["pass", "review", "block"].includes(item.decision) ? item.decision : "review") as "pass" | "review" | "block";
-      const location_fit = (["local", "nearby", "non_local", "unknown"].includes(item.location_fit) ? item.location_fit : "unknown") as LocationGateResult["location_fit"];
-      const is_hard_block = decision === "block" && policy.requires_local_presence;
-      return {
-        decision,
-        location_fit,
-        reason: item.reason || "LLM location assessment",
-        is_hard_block,
-      };
-    });
-  } catch {
-    // Fallback: all review on LLM failure
-    return profiles.map(() => ({
-      decision: "review" as const,
-      location_fit: "unknown" as const,
-      reason: "LLM location gate failed, defaulting to review",
-      is_hard_block: false,
-    }));
-  }
-}
-
-/**
- * Evaluates location eligibility for all profiles using LLM, in batches.
- */
-async function llmEvaluateAllLocationGates(
-  aiClient: ReturnType<typeof createAIClient>,
-  model: string,
-  policy: LocationPolicy,
-  profiles: BrightDataProfile[],
-): Promise<LocationGateResult[]> {
-  // flexible policy: skip LLM, pass everything
-  if (policy.mode === "flexible") {
-    return profiles.map(() => ({
-      decision: "pass" as const,
-      location_fit: "local" as const,
-      reason: "Flexible location policy",
-      is_hard_block: false,
-    }));
-  }
-
-  const inputs: LlmLocationInput[] = profiles.map((p) => ({
-    city: p.city,
-    country_code: p.country_code,
-    headline: p.headline,
-    about: p.about,
-    current_company_location: p.current_company?.location ?? null,
-  }));
-
-  const results: LocationGateResult[] = [];
-  for (let i = 0; i < inputs.length; i += LLM_LOCATION_GATE_BATCH_SIZE) {
-    const batch = inputs.slice(i, i + LLM_LOCATION_GATE_BATCH_SIZE);
-    const batchResults = await llmEvaluateLocationGateBatch(aiClient, model, policy, batch);
-    results.push(...batchResults);
-  }
-  return results;
 }
 
 function normalizeRecallSpec(
@@ -2599,27 +2432,6 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
     reason:
       normalizeNullableString(item.reason) ||
       "Potential fit based on title, snippet, and keyword overlap.",
-  };
-}
-
-function sanitizeBrightPreScreenDecision(value: unknown): BrightPreScreenDecision | null {
-  if (!value || typeof value !== "object") return null;
-  const item = value as Record<string, unknown>;
-  return {
-    bucket: normalizeEnumValue(
-      item.bucket,
-      ["strong_now", "consider_next", "reject"] as const,
-      "consider_next",
-    ),
-    match_score:
-      typeof item.match_score === "number" && Number.isFinite(item.match_score)
-        ? Math.max(0, Math.min(100, Math.round(item.match_score)))
-        : 50,
-    fit_reason:
-      normalizeNullableString(item.fit_reason) ||
-      normalizeNullableString(item.reason) ||
-      "Reasonable first-pass fit for deeper review.",
-    primary_risk: normalizeNullableString(item.primary_risk),
   };
 }
 
@@ -6041,125 +5853,8 @@ async function scoreBrightDataProfiles(
   const renderProfileEntries = brightProfiles.map((profile, index) =>
     brightDataProfileToRichText(profile, index),
   );
-  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const locationPolicy = normalizeLocationConstraint(hiringBrief);
-  const locationGateResults = await llmEvaluateAllLocationGates(
-    aiClient,
-    getLightModel(),
-    locationPolicy,
-    brightProfiles,
-  );
-  const gateEligibleIndexes = locationGateResults
-    .map((result, index) => ({ result, index }))
-    .filter(({ result }) => !result.is_hard_block)
-    .map(({ index }) => index);
-  const preGateHardBlockedCount = brightProfiles.length - gateEligibleIndexes.length;
-  const preGateReviewCount = gateEligibleIndexes.filter(
-    (index) => locationGateResults[index]?.decision === "review",
-  ).length;
+  const selectedIndexes = brightProfiles.map((_, index) => index);
 
-  if (preGateHardBlockedCount > 0 || preGateReviewCount > 0) {
-    logSearchEvent("search_location_gate_applied", {
-      stage: "bright_pre_gate",
-      hard_blocked_count: preGateHardBlockedCount,
-      review_count: preGateReviewCount,
-      passed_count: gateEligibleIndexes.length - preGateReviewCount,
-      total_count: brightProfiles.length,
-    });
-  }
-
-  // LLM 预筛：所有候选人直接进 LLM 判断，不做 deterministic 规则过滤
-  const lightModel = getLightModel();
-  const prescreenResults = await runWithConcurrency(
-    gateEligibleIndexes,
-    resolveStageConcurrency(
-      PRE_SCREEN_CONCURRENCY,
-      gateEligibleIndexes.length,
-    ),
-    async (index) => {
-      const profileIndex = index;
-      const profileText = renderProfileEntries[profileIndex];
-      const recallSource = (brightProfiles[profileIndex] as Record<string, unknown>).__recall_source as string | undefined;
-      const recallSourceContext = recallSource === "hidden_gem"
-        ? "\n\nRecall source: hidden_gem\n(This candidate was recalled via lateral title matching. Their job title differs from the target role but skills may overlap. Evaluate based on actual capability evidence in about/experience, not title match.)"
-        : recallSource === "company_target"
-          ? "\n\nRecall source: company_target\n(This candidate works at a company in the target industry/competitive set. Evaluate domain knowledge and transferable skills even if title/stack differs slightly.)"
-          : "";
-      const prompt = `You are doing a first-pass screen for a hiring pipeline.
-
-## Search Intent
-${buildPromptSearchContext(parsed)}
-
-## Candidate Profile
-${profileText}${recallSourceContext}
-
-## Task
-Decide how this candidate should be treated before expensive deep review. Return ONLY valid JSON:
-{"bucket": "strong_now | consider_next | reject", "match_score": 0, "fit_reason": "one short sentence", "primary_risk": "one short sentence or null"}
-
-Rules:
-- reject for: clearly wrong function (e.g. frontend-only for a backend role), clearly wrong seniority (e.g. student/intern for a senior role), or the profile is clearly spam/fake.
-- Do NOT reject based on keyword matching against must-have signals — engineers rarely use JD language to describe their own experience. Judge holistically based on career trajectory and overall profile.
-- For startup/growth-stage hiring companies: evaluate startup affinity holistically based on career trajectory, not company name alone. Reject candidates with 7+ years at a single large company AND zero startup/small-company experience AND no entrepreneurial signals (side projects, open-source, "0-to-1" language). But a big-company engineer with prior startup stints or clear entrepreneurial signals is a strong prospect — do not reject based on current employer alone.
-- Reject profiles that show only bootcamp credentials with no professional engineering tenure: headline patterns like "Tech1 | Tech2 | Tech3 | ..." listing 5+ pipe-separated basic skills (HTML, CSS, JavaScript, React, Node) with no company or role context are strong bootcamp signals.
-- When the hiring company operates in a specific domain (e.g. CPG, fintech, healthcare), boost candidates whose experience or about section mentions that domain — domain familiarity reduces ramp-up time and is a strong signal for startup roles.
-- strong_now for first-screen worthy candidates with strong role shape, clear must-have evidence, and usable location/work-model fit.
-- consider_next for credible but less exciting candidates.
-- Do not reward prestige alone.
-- Penalize pure ML/platform/manager profiles when the role is product/full-stack oriented.
-- match_score 0-100 for ranking within the bucket.
-- Keep fit_reason and primary_risk under 18 words. Raw JSON only.`;
-
-      try {
-        const { text } = await withTimeout(
-          (signal) => generateText({
-            model: aiClient(lightModel),
-            prompt,
-            maxOutputTokens: runtime.lightPrescreenMaxOutputTokens,
-            abortSignal: signal,
-          }),
-          15000,
-          "Bright profile pre-screen",
-        );
-        const decision = sanitizeBrightPreScreenDecision(JSON.parse(extractJSON(text)));
-        return {
-          index: profileIndex,
-          bucket: decision?.bucket ?? "consider_next",
-          score: decision?.match_score ?? 50,
-          fit_reason: decision?.fit_reason ?? "Reasonable fit",
-          primary_risk: decision?.primary_risk ?? null,
-        };
-      } catch {
-        return { index: profileIndex, bucket: "consider_next" as const, score: 50, fit_reason: "Fallback keep", primary_risk: null };
-      }
-    },
-  );
-
-  const keptIndexes = prescreenResults
-    .filter((result) => result.bucket !== "reject")
-    .sort((left, right) => {
-      const bucketRank = (value: BrightPreScreenBucket) =>
-        value === "strong_now" ? 0 : value === "consider_next" ? 1 : 2;
-      return bucketRank(left.bucket) - bucketRank(right.bucket) || right.score - left.score;
-    })
-    .map((result) => result.index);
-
-  const prescreenBlockedCount = prescreenResults.filter((result) => result.bucket === "reject").length;
-  if (prescreenBlockedCount > 0) {
-    logSearchEvent("search_bright_prescreen_applied", {
-      stage: "bright_prescreen",
-      blocked_count: prescreenBlockedCount,
-      kept_count: keptIndexes.length,
-      total_count: gateEligibleIndexes.length,
-      prescreen_elapsed_ms: Date.now() - scoringStartMs,
-    });
-  }
-
-  const selectedIndexes = keptIndexes.length > 0
-    ? keptIndexes
-    : gateEligibleIndexes;
-
-  const streamedCount = { value: 0 };
   const deepAssessments = await deepScoreSelectedProfiles(
     aiClient,
     runtime,
@@ -6170,23 +5865,13 @@ Rules:
     brightProfiles.length,
     {
       onCandidateScored: async (assessment, completedCount) => {
-        // Apply location gate
-        const gateResult = locationGateResults[assessment.index] || {
-          decision: "review", location_fit: "unknown", reason: "Location evidence missing", is_hard_block: false,
-        };
-        const gatedSuitability = applyLocationGateToSuitability(assessment.suitability, gateResult);
-        if (
-          gatedSuitability.shortlist_decision !== "yes" ||
-          gatedSuitability.blocking_severity === "hard"
-        ) {
+        if (!shouldDisplayCandidate(assessment)) {
           return;
         }
-        const gatedAssessment = { ...assessment, suitability: gatedSuitability };
-        const rows = buildBrightDataCandidateRows(brightProfiles, [gatedAssessment], 1, "outreach_pool");
+        const rows = buildBrightDataCandidateRows(brightProfiles, [assessment], 1, "outreach_pool");
         if (rows.length > 0) {
           await upsertSingleCandidate(context.searchId, rows[0]);
           await retagSearchCandidatePoolTypes(context.searchId, context.highlightCount);
-          streamedCount.value++;
         }
         // Update progress every 5 candidates
         if (completedCount % 5 === 0) {
@@ -6200,39 +5885,19 @@ Rules:
     search_id: context.searchId,
     phase: "scoring_complete",
     scoring_elapsed_ms: Date.now() - scoringStartMs,
-    prescreen_input: gateEligibleIndexes.length,
+    recall_profile_count: brightProfiles.length,
     deep_review_input: selectedIndexes.length,
     deep_review_output: deepAssessments.length,
     job_id: context.jobId,
-  });
-
-  const assessmentsWithGate = deepAssessments.map(assessment => {
-    const gateResult = locationGateResults[assessment.index] || {
-      decision: "review",
-      location_fit: "unknown",
-      reason: "Location evidence missing",
-      is_hard_block: false,
-    };
-
-    // 如果是 hard block，强制覆盖 suitability
-    const finalSuitability = applyLocationGateToSuitability(
-      assessment.suitability,
-      gateResult,
-    );
-
-    return {
-      ...assessment,
-      suitability: finalSuitability,
-    };
   });
 
   if (DEEP_REVIEW_DEBUG_LOGS) {
     logSearchEvent("deep_review_distribution", {
       search_id: context.searchId,
       requested_count: selectedIndexes.length,
-      completed_count: assessmentsWithGate.length,
+      completed_count: deepAssessments.length,
       selected_indexes: selectedIndexes,
-      scores: assessmentsWithGate.map((assessment) => ({
+      scores: deepAssessments.map((assessment) => ({
         index: assessment.index,
         match_score: assessment.suitability.match_score,
         quality_score: assessment.suitability.quality_score,
@@ -6248,26 +5913,17 @@ Rules:
       })),
     });
   }
-  const fullDetailIncomplete = assessmentsWithGate.length < selectedIndexes.length;
-  const hardBlockedCount = assessmentsWithGate.filter(
+  const fullDetailIncomplete = deepAssessments.length < selectedIndexes.length;
+  const hardBlockedCount = deepAssessments.filter(
     (assessment) => assessment.suitability.blocking_severity === "hard",
   ).length;
-  const softBlockedCount = assessmentsWithGate.filter(
+  const softBlockedCount = deepAssessments.filter(
     (assessment) => assessment.suitability.blocking_severity === "soft",
   ).length;
-  if (assessmentsWithGate.length > 0) {
-    logSearchEvent("search_location_gate_applied", {
-      stage: "bright_deep_gate",
-      hard_blocked_count: hardBlockedCount,
-      soft_blocked_count: softBlockedCount,
-      passed_count: assessmentsWithGate.length - hardBlockedCount,
-      total_count: assessmentsWithGate.length,
-    });
-  }
-  const advanceableCount = assessmentsWithGate.filter(
+  const advanceableCount = deepAssessments.filter(
     (assessment) => assessment.suitability.advance_recommendation === "advance",
   ).length;
-  const deepSelection = selectShortlistedAssessments(assessmentsWithGate);
+  const deepSelection = selectShortlistedAssessments(deepAssessments);
   const deepSelected = deepSelection.selected;
   logSearchEvent("search_shortlist_decisions", {
     search_id: context.searchId,
@@ -6385,12 +6041,12 @@ Rules:
       activation_run: isActivationRun(parsed),
       quality_floor_applied: false,
       visible_candidate_count: finalRows.length,
-      pre_gate_blocked_count: preGateHardBlockedCount,
-      prescreen_blocked_count: prescreenBlockedCount,
+      pre_gate_blocked_count: 0,
+      prescreen_blocked_count: 0,
       contact_unlock_candidates: contactUnlockCandidates,
       strong_now_count: 0,
-      consider_next_count: shortlistYesCount,
-      do_not_show_count: shortlistNoCount,
+      consider_next_count: 0,
+      do_not_show_count: 0,
       shortlist_yes_count: shortlistYesCount,
       shortlist_no_count: shortlistNoCount,
       clear_location_fit_count: clearLocationFitCount,

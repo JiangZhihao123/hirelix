@@ -102,6 +102,8 @@ type CandidateSuitability = {
   fit_decision?: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
   actionability?: "ready_to_act" | "needs_review" | "not_actionable";
   bucket?: "strong_now" | "consider_next" | "do_not_show";
+  shortlist_decision?: "yes" | "no";
+  shortlist_reason?: string | null;
   match_score?: number;
   quality_score?: number;
   overall_score?: number;
@@ -146,6 +148,8 @@ type CandidateRow = {
     advance_score?: number;
     advance_recommendation?: "advance" | "hold" | "reject";
     bucket?: "strong_now" | "consider_next" | "do_not_show";
+    shortlist_decision?: "yes" | "no";
+    shortlist_reason?: string | null;
     primary_risk?: string | null;
     first_contact_confidence?: "high" | "medium" | "low";
     subscription_trigger_score?: number;
@@ -206,6 +210,8 @@ type SearchDisplayStats = {
   strong_now_count?: number;
   consider_next_count?: number;
   do_not_show_count?: number;
+  shortlist_yes_count?: number;
+  shortlist_no_count?: number;
   clear_location_fit_count?: number;
   must_have_strong_count?: number;
   first_contact_confidence_count?: number;
@@ -527,6 +533,10 @@ function CandidateCard({
     candidate.metadata?.risk_flags ||
     candidate.metadata?.suitability?.risk_flags ||
     [];
+  const shortlistReason =
+    candidate.metadata?.shortlist_reason ??
+    suitability?.shortlist_reason ??
+    null;
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -768,15 +778,18 @@ function CandidateCard({
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
                       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Quality score</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">
-                        {qualityScore ?? "?"} · {formatDimensionLabel(qualityScore)}
+                      {qualityScore ?? "?"} · {formatDimensionLabel(qualityScore)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Advance verdict</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Shortlist verdict</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">
-                        {advanceRecommendation
-                          ? advanceRecommendation.charAt(0).toUpperCase() + advanceRecommendation.slice(1)
-                          : "Unknown"}
+                        {candidate.metadata?.shortlist_decision === "yes" ||
+                        suitability?.shortlist_decision === "yes"
+                          ? "Shortlisted"
+                          : advanceRecommendation
+                            ? advanceRecommendation.charAt(0).toUpperCase() + advanceRecommendation.slice(1)
+                            : "Unknown"}
                       </p>
                     </div>
                   </div>
@@ -836,7 +849,7 @@ function CandidateCard({
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
                       {highlighted
                         ? "Why this candidate is a top pick"
-                        : "Why this candidate is in the final 25"}
+                        : "Why this candidate made the shortlist"}
                     </p>
                   {candidate.metadata?.preliminary && (
                     <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
@@ -844,6 +857,11 @@ function CandidateCard({
                     </span>
                   )}
                 </div>
+                {shortlistReason && (
+                  <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                    {shortlistReason}
+                  </p>
+                )}
                 <ul className="space-y-1.5">
                   {candidate.match_reasons.map((reason, i) => (
                     <li
@@ -1198,8 +1216,8 @@ function ProcessingSteps({
           ? "Launching the deeper Bright refinement pass..."
           : "Searching the Bright candidate pool..."
         : pipelineStep === "screening"
-          ? `Scoring the best ${displayTarget} candidates...`
-          : `Scoring the best ${displayTarget} candidates...`;
+          ? "Running recruiter judgments across recalled profiles..."
+          : "Running recruiter judgments across recalled profiles...";
 
   return (
     <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
@@ -1245,7 +1263,7 @@ function ProcessingSteps({
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Often ready in a few minutes</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Safe to leave and come back</span>
         <span className="rounded-full border border-sky-100 bg-white px-3 py-1">
-          Top {Math.min(3, displayTarget)} highlighted first, strongest {displayTarget} visible next
+          Top {Math.min(3, displayTarget)} picks highlighted first
         </span>
       </div>
       <p className="mt-4 text-xs text-muted">
@@ -1711,31 +1729,13 @@ export default function SearchResultPage() {
       getCandidateOverallScore(left);
     return rightPrimary - leftPrimary || rightSecondary - leftSecondary;
   });
-  const strongNowCandidates = allCandidates.filter(
-    (candidate) =>
-      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "strong_now",
-  );
-  const considerNextCandidates = allCandidates.filter(
-    (candidate) =>
-      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "consider_next",
-  );
-  const defaultVisibleCandidates =
-    strongNowCandidates.length > 0 ? [...strongNowCandidates, ...considerNextCandidates] : allCandidates;
   const highlightedIds = new Set(
-    strongNowCandidates.slice(0, highlightCount).map((candidate) => candidate.id),
+    allCandidates.slice(0, highlightCount).map((candidate) => candidate.id),
   );
   const visibleCandidates = showOnlyWithEmail
-    ? defaultVisibleCandidates.filter((candidate) => candidate.email)
-    : defaultVisibleCandidates;
-  const visibleStrongCandidates = visibleCandidates.filter(
-    (candidate) =>
-      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "strong_now",
-  );
-  const visibleConsiderCandidates = visibleCandidates.filter(
-    (candidate) =>
-      (candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket) === "consider_next",
-  );
-  const highlightedCandidates = visibleStrongCandidates.slice(0, Math.min(highlightCount, visibleStrongCandidates.length));
+    ? allCandidates.filter((candidate) => candidate.email)
+    : allCandidates;
+  const highlightedCandidates = visibleCandidates.slice(0, Math.min(highlightCount, visibleCandidates.length));
   const averageQuality = highlightedCandidates.length
     ? Math.round(
         highlightedCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
@@ -1783,9 +1783,6 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.deep_review_completed_count) ??
     positiveInt(rawDisplayStats?.deep_review_count) ??
     Math.max(allCandidates.length, 0);
-  const qualifiedCount =
-    positiveInt(rawDisplayStats?.qualified_count) ??
-    Math.max(allCandidates.length, 0);
   const outreachPoolCount = Math.min(
     positiveInt(rawDisplayStats?.outreach_pool_count) ?? Math.max(allCandidates.length, 0),
     displayTarget,
@@ -1798,10 +1795,6 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.hard_blocked_count) ?? 0;
   const softBlockedCount =
     positiveInt(rawDisplayStats?.soft_blocked_count) ?? 0;
-  const preGateBlockedCount =
-    positiveInt(rawDisplayStats?.pre_gate_blocked_count) ?? 0;
-  const prescreenBlockedCount =
-    positiveInt(rawDisplayStats?.prescreen_blocked_count) ?? 0;
   const qualityFloorApplied =
     rawDisplayStats?.quality_floor_applied === true;
   const advanceableCount =
@@ -1809,12 +1802,6 @@ export default function SearchResultPage() {
     allCandidates.filter(
       (candidate) => candidate.metadata?.suitability?.advance_recommendation === "advance",
     ).length;
-  const topQualityScore =
-    positiveInt(rawDisplayStats?.top_quality_score) ??
-    Math.max(0, ...allCandidates.map((candidate) => candidate.match_score));
-  const top50QualityCutoff =
-    positiveInt(rawDisplayStats?.top50_quality_cutoff) ??
-    (allCandidates.length > 0 ? allCandidates[allCandidates.length - 1]?.match_score ?? 0 : 0);
   const isProvisional = resultStage === "provisional";
   const isPhaseTwoRunning = isImprovingInBackground && searchPhase === "phase_2";
   const readyToActCount = allCandidates.filter(
@@ -1837,13 +1824,11 @@ export default function SearchResultPage() {
     const coverage = candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage;
     return coverage === "strong";
   }).length;
-  const topStartCount = Math.min(highlightCount, visibleStrongCandidates.length || allCandidates.length);
-  const strongNowCount =
-    positiveInt(rawDisplayStats?.strong_now_count) ?? strongNowCandidates.length;
-  const considerNextCount =
-    positiveInt(rawDisplayStats?.consider_next_count) ?? considerNextCandidates.length;
-  const doNotShowCount =
-    positiveInt(rawDisplayStats?.do_not_show_count) ?? 0;
+  const topStartCount = Math.min(highlightCount, allCandidates.length);
+  const shortlistYesCount =
+    positiveInt(rawDisplayStats?.shortlist_yes_count) ?? allCandidates.length;
+  const shortlistNoCount =
+    positiveInt(rawDisplayStats?.shortlist_no_count) ?? 0;
   const recallProfileCount =
     positiveInt(rawDisplayStats?.recall_profile_count) ?? brightProfilesReturned ?? retrievalCount;
   const clearLocationFitDisplayCount =
@@ -1860,8 +1845,8 @@ export default function SearchResultPage() {
   const topupTriggered = rawDisplayStats?.topup_triggered === true;
   const finalReadyHeadline =
     visibleCandidateCount <= topStartCount
-      ? `We found ${visibleCandidateCount} strong candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`
-      : `Your strongest ${visibleCandidateCount} candidates are ready to review`;
+      ? `We shortlisted ${visibleCandidateCount} candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`
+      : `Your shortlist is ready to review`;
   const entryQuery =
     analyticsContext.entry_mode === "workspace"
       ? ""
@@ -2001,7 +1986,7 @@ export default function SearchResultPage() {
             Building your shortlist
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            Building your {displayTarget}-candidate list
+            Reviewing recalled profiles for your shortlist
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
             {searchPhase === "phase_2"
@@ -2042,7 +2027,7 @@ export default function SearchResultPage() {
                 {isReadyWithWarning
                   ? "Your candidate list is ready with a warning"
                   : isPhaseTwoRunning
-                    ? `Your provisional ${displayTarget}-candidate shortlist is ready`
+                    ? "Your provisional shortlist is ready"
                     : isImprovingInBackground
                       ? "Your candidates are already usable now"
                     : finalReadyHeadline}
@@ -2051,10 +2036,10 @@ export default function SearchResultPage() {
                 {search.warning_message
                   ? search.warning_message
                   : isPhaseTwoRunning
-                    ? `Hirelix already delivered the Bright fast-pass shortlist. A deeper Bright pass is still running in the background and may expand this list beyond ${displayTarget} candidates.`
+                    ? "Hirelix already delivered the Bright fast-pass shortlist. A deeper Bright pass is still running in the background and may add stronger candidates to this list."
                     : qualityFloorApplied
-                      ? `Hirelix searched a Bright LinkedIn pool, filtered out weak or mismatched tails, and kept only the candidates that already look credible to review now.`
-                      : `Hirelix searched across a Bright LinkedIn candidate pool, ranked the most realistic matches to advance, and prepared a focused review list with the top ${highlightCount} highlighted first.`}
+                      ? "Hirelix searched a Bright LinkedIn pool and kept the candidates that already look credible to review now."
+                      : `Hirelix searched across a Bright LinkedIn candidate pool, let the recruiter model judge each recalled profile directly, and highlights the current top ${highlightCount} picks first.`}
               </p>
               <p className="mt-3 max-w-2xl text-xs text-slate-500">
                 Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
@@ -2138,17 +2123,19 @@ export default function SearchResultPage() {
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Strong candidates shown</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Candidates shown</p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</p>
-                <p className="mt-1 text-xs text-slate-500">{formatDisplayCount(qualifiedCount)} candidates made the final ranked pool</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {formatDisplayCount(shortlistYesCount)} shortlisted so far
+                </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top quality band</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{topQualityScore}% / {top50QualityCutoff}%</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Shortlist decisions</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{shortlistYesCount} yes / {shortlistNoCount} no</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {hardBlockedCount > 0 || softBlockedCount > 0 || preGateBlockedCount > 0 || prescreenBlockedCount > 0
-                    ? `${preGateBlockedCount} pre-gated, ${prescreenBlockedCount} pre-screened out, ${doNotShowCount} hidden by quality rules`
-                    : `${outreachPoolCount > 0 ? outreachPoolCount : allCandidates.length} candidates returned`}
+                  {hardBlockedCount > 0 || softBlockedCount > 0
+                    ? `${hardBlockedCount} hard blocked, ${softBlockedCount} soft risks flagged`
+                    : `${outreachPoolCount > 0 ? outreachPoolCount : allCandidates.length} candidates currently returned`}
                 </p>
               </div>
             </div>
@@ -2226,7 +2213,7 @@ export default function SearchResultPage() {
         <div className="space-y-3">
           <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-4 py-4 text-sm text-slate-600 shadow-sm">
             {allCandidates.length === 0 ? (
-              "No candidates met the current outreach threshold yet. Refine the role or widen the search to unlock more viable outreach targets."
+              "No candidates have passed the recruiter shortlist yet. Refine the role or widen the search to unlock more viable targets."
             ) : isImprovingInBackground ? (
               <>
                 <span className="font-semibold text-slate-950">Your candidate list is reviewable now.</span>
@@ -2258,8 +2245,8 @@ export default function SearchResultPage() {
                 Upgrade to unlock contact details, export, and outreach execution the moment you are ready to work this shortlist.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{strongNowCount} top strong matches</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{considerNextCount} more worth reviewing</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistYesCount} shortlisted</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistNoCount} screened out</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{firstContactConfidenceCount} high-confidence first contacts</span>
@@ -2370,17 +2357,17 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {visibleStrongCandidates.length > 0 && (
+          {visibleCandidates.length > 0 && (
             <div className="space-y-3">
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                  Top strong matches
+                  Recruiter-ranked shortlist
                 </p>
                 <p className="mt-1 text-sm text-slate-700">
-                  Start here. These candidates have the clearest combination of location fit, must-have coverage, and first-contact confidence.
+                  Every candidate here passed the recruiter model&apos;s shortlist decision. The first {topStartCount} are highlighted as the current top picks.
                 </p>
               </div>
-              {visibleStrongCandidates.map((c, idx) => (
+              {visibleCandidates.map((c, idx) => (
                 <div
                   key={c.id}
                   className="animate-fade-in-up"
@@ -2404,47 +2391,14 @@ export default function SearchResultPage() {
               ))}
             </div>
           )}
-          {visibleConsiderCandidates.length > 0 && (
-            <div className="space-y-3 pt-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
-                  More matches worth reviewing
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  These candidates still passed the quality floor, but the top block above should drive first contact decisions.
-                </p>
-              </div>
-              {visibleConsiderCandidates.map((c, idx) => (
-                <div
-                  key={c.id}
-                  className="animate-fade-in-up"
-                  style={{ animationDelay: `${(visibleStrongCandidates.length + idx) * 100}ms` }}
-                >
-                  <CandidateCard
-                    candidate={c}
-                    onStatusChange={handleStatusChange}
-                    onExpand={handleCandidateExpand}
-                    requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
-                    selected={selectedIds.has(c.id)}
-                    onToggleSelect={() => toggleSelect(c.id)}
-                    billingPlanCode={billing?.subscription.planCode || "free"}
-                    enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
-                    refreshBilling={refreshBilling}
-                    onUpgradeClick={handleUpgradeClick}
-                    highlighted={false}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
       {isReviewable && allCandidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <p className="text-muted">No candidates met the current outreach threshold yet.</p>
+          <p className="text-muted">No candidates passed the shortlist decision yet.</p>
           <p className="mt-2 max-w-md text-center text-sm text-muted">
-            Hirelix did not find enough candidates who satisfy the current outreach threshold for this role. Tighten the JD, relax location requirements, or widen the target profile to unlock a larger funnel.
+            Hirelix did not find enough candidates the recruiter model felt confident adding to this shortlist. Tighten the JD, relax location requirements, or widen the target profile to unlock a larger funnel.
           </p>
           <Link
             href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
