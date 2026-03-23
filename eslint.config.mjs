@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local utility scripts are not part of the web app lint gate.
+    "scripts/**",
   ]),
 ]);
 
