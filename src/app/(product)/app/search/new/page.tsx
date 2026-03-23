@@ -135,12 +135,12 @@ export default function NewSearchPage() {
         <h1 className="mt-2 text-3xl font-bold tracking-tight">
           {isFocusedFlow
             ? "Your JD is ready. Build the shortlist."
-            : "Search broadly. Review the best matches in minutes."}
+            : "Search broadly. Watch the shortlist start to grow."}
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           {isFocusedFlow
-            ? "You are still in the same flow from the landing page. Confirm the search settings below and Hirelix will move straight into ranked matches."
-            : "Paste one full job description and Hirelix will search across LinkedIn profile data, compare candidate fit, and build a shortlist you can review before deciding on outreach."}
+            ? "You are still in the same flow from the landing page. Confirm the search settings below and Hirelix will start profile recall first, then grow the shortlist as recruiter-reviewed candidates pass."
+            : "Paste one full job description and Hirelix will start with external profile recall, then stream recruiter-reviewed candidates into a shortlist you can review before the full run is finished."}
         </p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
           <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">
@@ -165,7 +165,7 @@ export default function NewSearchPage() {
               </div>
               <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Expected time</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">Often ready in a few minutes</p>
+                <p className="mt-1 text-sm font-medium text-slate-950">First candidates usually appear before the full shortlist is done</p>
               </div>
               <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -182,7 +182,7 @@ export default function NewSearchPage() {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-600">
-              {["Read role", "Search pool", "Rank best matches", "Review shortlist"].map((step) => (
+              {["Understand role", "Recall profiles", "Review candidates", "Shortlist grows"].map((step) => (
                 <span key={step} className="rounded-full border border-sky-100 bg-white/75 px-3 py-1">
                   {step}
                 </span>
@@ -193,15 +193,15 @@ export default function NewSearchPage() {
           <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-600">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
               <Clock3 className="h-3.5 w-3.5 text-primary" />
-              Search across LinkedIn
+              Profile recall starts first
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-              AI narrows to strongest matches
+              Recruiter review starts as soon as profiles arrive
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Review before you upgrade
+              Review a growing shortlist before you upgrade
             </span>
           </div>
         )}
@@ -216,7 +216,7 @@ export default function NewSearchPage() {
           <p className="mb-4 max-w-2xl text-sm text-muted">
             {isFocusedFlow
               ? "Make any final edits here. We already preserved the JD you brought from the landing page."
-              : "Paste the full role, not just the title, so Hirelix has enough signal to search broadly and rank the right candidates."}
+              : "Paste the full role, not just the title, so Hirelix has enough signal to recall the right profiles first and then rank the best candidates as the shortlist grows."}
           </p>
           <textarea
             value={jdText}

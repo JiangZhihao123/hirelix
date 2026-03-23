@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
         error_message: null,
         warning_message: null,
         parsed_requirements: {
+          search_started_at: timestamp,
           candidate_count: maxCandidates,
           display_count: searchTargets.displayCount,
           highlight_count: searchTargets.highlightCount,
