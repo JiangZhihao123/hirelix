@@ -27,9 +27,11 @@ const PROXY_AGENT = PROXY_URL ? new ProxyAgent(PROXY_URL) : null;
 if (!API_TOKEN) throw new Error("Missing BRIGHTDATA_API_TOKEN");
 if (!DATASET_ID) throw new Error("Missing BRIGHTDATA_DATASET_ID");
 
+const REQUEST_LIMIT = Math.max(1, Number(process.argv[2] || "10"));
+
 const FILTER_REQUEST = {
   dataset_id: DATASET_ID,
-  records_limit: 10,
+  records_limit: REQUEST_LIMIT,
   filter: {
     operator: "and",
     filters: [
