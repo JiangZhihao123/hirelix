@@ -46,6 +46,11 @@ const SEARCH_JOB_STALE_MINUTES = getConfiguredPositiveInt(
   20,
   { min: 1, max: 1440 },
 );
+const SEARCH_JOB_STARTUP_STALL_SECONDS = getConfiguredPositiveInt(
+  "SEARCH_JOB_STARTUP_STALL_SECONDS",
+  60,
+  { min: 15, max: 900 },
+);
 
 export const REVIEWABLE_SEARCH_STATUSES = [
   "deep_scoring",
@@ -2812,7 +2817,76 @@ function minutesAgoIso(minutes: number) {
   return new Date(Date.now() - minutes * 60 * 1000).toISOString();
 }
 
+function secondsAgoIso(seconds: number) {
+  return new Date(Date.now() - seconds * 1000).toISOString();
+}
+
+async function reclaimStuckStartingJobs() {
+  const cutoff = secondsAgoIso(SEARCH_JOB_STARTUP_STALL_SECONDS);
+  const restartMessage =
+    `Scheduler worker stopped before parsing began; re-queueing after ${SEARCH_JOB_STARTUP_STALL_SECONDS}s startup stall`;
+  const { data: stuckJobs } = await supabaseAdmin
+    .from("hirelix_search_jobs")
+    .select("id, search_id, attempt_count, locked_at")
+    .eq("status", "running")
+    .lt("locked_at", cutoff)
+    .limit(50);
+
+  if (!stuckJobs?.length) return 0;
+
+  let reclaimedCount = 0;
+  for (const stuckJob of stuckJobs) {
+    const { data: search } = await supabaseAdmin
+      .from("hirelix_searches")
+      .select("status, pipeline_step, parse_completed_at, partial_ready_at, search_completed_at")
+      .eq("id", stuckJob.search_id)
+      .maybeSingle();
+
+    if (!search) continue;
+
+    const hasStartedPipeline =
+      search.status !== "queued" ||
+      search.pipeline_step !== "queued" ||
+      Boolean(search.parse_completed_at) ||
+      Boolean(search.partial_ready_at) ||
+      Boolean(search.search_completed_at);
+
+    if (hasStartedPipeline) continue;
+
+    const { data: reclaimed } = await supabaseAdmin
+      .from("hirelix_search_jobs")
+      .update({
+        status: "queued",
+        locked_at: null,
+        started_at: null,
+        finished_at: null,
+        updated_at: nowIso(),
+        last_error: restartMessage,
+      })
+      .eq("id", stuckJob.id)
+      .eq("status", "running")
+      .lt("locked_at", cutoff)
+      .select("id")
+      .single();
+
+    if (!reclaimed?.id) continue;
+
+    reclaimedCount += 1;
+    logSearchEvent("search_job_reclaimed", {
+      job_id: stuckJob.id,
+      search_id: stuckJob.search_id,
+      attempt_count: stuckJob.attempt_count,
+      startup_stall_seconds: SEARCH_JOB_STARTUP_STALL_SECONDS,
+      outcome: "requeued_before_parse",
+    });
+  }
+
+  return reclaimedCount;
+}
+
 async function reclaimStaleRunningJobs() {
+  await reclaimStuckStartingJobs();
+
   const cutoff = minutesAgoIso(SEARCH_JOB_STALE_MINUTES);
   const staleMessage = `Search job exceeded ${SEARCH_JOB_STALE_MINUTES}-minute execution limit`;
   const { data: staleJobs } = await supabaseAdmin

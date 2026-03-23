@@ -1,15 +1,36 @@
 "use client";
 
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
-export async function getClientAccessToken(): Promise<string | null> {
+const ACCESS_TOKEN_REFRESH_BUFFER_SECONDS = 60;
+
+async function getClientSession(): Promise<Session | null> {
   const { data, error } = await supabase.auth.getSession();
   if (error) {
     console.error("[client-auth] Failed to get session:", error.message);
     return null;
   }
 
-  return data.session?.access_token ?? null;
+  return data.session ?? null;
+}
+
+function isSessionExpiringSoon(session: Session | null) {
+  if (!session?.expires_at) return false;
+  return session.expires_at - Math.floor(Date.now() / 1000) <= ACCESS_TOKEN_REFRESH_BUFFER_SECONDS;
+}
+
+export async function getClientAccessToken(): Promise<string | null> {
+  const session = await getClientSession();
+  if (!session) {
+    return null;
+  }
+
+  if (isSessionExpiringSoon(session)) {
+    return refreshClientAccessToken();
+  }
+
+  return session.access_token ?? null;
 }
 
 export async function refreshClientAccessToken(): Promise<string | null> {

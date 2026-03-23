@@ -1297,11 +1297,12 @@ function ProcessingSteps({
           : standardRecallReady
             ? "The first Bright batch is back. Hirelix is now reviewing recalled profiles and will show the shortlist as soon as candidates pass recruiter review."
             : "Hirelix is preparing to review recalled profiles as soon as the first provider batch lands.";
+  const statusEyebrow = pipelineStep === "queued" ? "Search accepted" : "Search started";
 
   return (
     <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-        Search started
+        {statusEyebrow}
       </p>
       <div className="mb-2 mt-2 flex items-center gap-2">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -2099,7 +2100,9 @@ export default function SearchResultPage() {
           <h2 className="mt-2 text-xl font-semibold text-slate-950">
             {standardRecallReady
               ? "The first profile batch is back"
-              : "Hirelix has started your shortlist search"}
+              : (search?.pipeline_step ?? search?.status ?? "queued") === "queued"
+                ? "Hirelix has accepted your shortlist request"
+                : "Hirelix has started your shortlist search"}
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
             {standardRecallReady
