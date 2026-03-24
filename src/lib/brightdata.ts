@@ -45,12 +45,24 @@ export type BrightDataSnapshotMetadata = {
   file_size?: number;
   cost?: number;
   error_code?: string | number;
+  warning?: string;
+  warning_code?: string | number;
 };
 
 class BrightDataSnapshotNotReadyError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "BrightDataSnapshotNotReadyError";
+  }
+}
+
+export class BrightDataSnapshotFailedError extends Error {
+  metadata: BrightDataSnapshotMetadata;
+
+  constructor(message: string, metadata: BrightDataSnapshotMetadata) {
+    super(message);
+    this.name = "BrightDataSnapshotFailedError";
+    this.metadata = metadata;
   }
 }
 
@@ -565,11 +577,16 @@ export async function waitForDatasetSnapshot(
       };
     }
     if (metadata.status === "failed") {
-      const errorCode =
-        typeof metadata.error_code === "string" || typeof metadata.error_code === "number"
-          ? ` (error_code=${String(metadata.error_code)})`
-          : "";
-      throw new Error(`Bright Data snapshot ${snapshotId} failed${errorCode}`);
+      const failureCode =
+        typeof metadata.warning_code === "string" || typeof metadata.warning_code === "number"
+          ? ` (warning_code=${String(metadata.warning_code)})`
+          : typeof metadata.error_code === "string" || typeof metadata.error_code === "number"
+            ? ` (error_code=${String(metadata.error_code)})`
+            : "";
+      throw new BrightDataSnapshotFailedError(
+        `Bright Data snapshot ${snapshotId} failed${failureCode}`,
+        metadata,
+      );
     }
     await sleep(pollIntervalMs);
   }

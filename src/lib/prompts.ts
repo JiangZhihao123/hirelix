@@ -25,12 +25,15 @@ Read the job description and identify:
 - **Baseline skills**: 3-6 standard technical stack requirements (e.g. "Python", "Node.js", "Next.js"). These serve as a safety net to ensure candidates have the basic stack.
 - **Domain terms**: 0-3 industry or domain keywords from the hiring company's business context (e.g. "CPG", "fintech", "healthcare", "e-commerce"). These help surface candidates with relevant industry experience.
 - Think about what keywords a recruiter would type into LinkedIn search to find this person — differentiating skills are the FIRST keywords they type, baseline skills are the obvious ones they add after.
+- Prefer concrete profile-language terms over abstract recruiting language. Good: "Kafka", "GraphQL", "payments", "observability". Bad: "production scale", "high ownership", "fast-moving".
 
 3. **Location and work model**
 - Decide whether geography is a hard constraint, a soft preference, or mostly irrelevant.
 - If the job is clearly onsite or strict hybrid in a named city, preserve that clearly in the hiring brief.
 - If relocation is allowed or the job is remote, avoid over-narrowing the recall.
 - Do not confuse company HQ location with candidate location requirements.
+- If the role is remote but limited to a country (for example, "US-only remote"), put that country in \`countries\` and describe it in \`geo_strategy\`, but do NOT repeat the country name in \`strict_location_terms\` or \`nearby_location_terms\`.
+- Only use \`strict_location_terms\` / \`nearby_location_terms\` for real city, metro, or regional constraints that should map to candidate location text.
 
 4. **Recall behavior**
 - Think like a recruiter: the first pass should avoid obviously wrong candidates, but should not become so narrow that it misses strong matches.

@@ -17,9 +17,11 @@ import {
   triggerDatasetFilter,
   getDatasetSnapshotMetadata,
   waitForDatasetSnapshot,
+  BrightDataSnapshotFailedError,
   computeFilterHash,
   type BrightDataFilterRule,
   type BrightDataDatasetFilterRequest,
+  type BrightDataSnapshotMetadata,
   type BrightDataProfile,
 } from "@/lib/brightdata";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
@@ -237,7 +239,7 @@ const BRIGHTDATA_FILTER_TIMEOUT_MS = getConfiguredPositiveInt(
 );
 const BRIGHTDATA_FILTER_POLL_WINDOW_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_POLL_WINDOW_MS",
-  60000,
+  900000,
   { min: 5000, max: 900000 },
 );
 const BRIGHTDATA_FILTER_POLL_INTERVAL_MS = getConfiguredPositiveInt(
@@ -1214,6 +1216,8 @@ const FALLBACK_SAAS_BACKEND_TARGET_COMPANIES = [
   "Airtable",
 ];
 
+type RecallFilterMode = "primary" | "relaxed";
+
 function deriveCoreSkillsFromJdText(jdText: string, maxItems = 12) {
   const lower = jdText.toLowerCase();
   const deduped = new Set<string>();
@@ -1226,6 +1230,147 @@ function deriveCoreSkillsFromJdText(jdText: string, maxItems = 12) {
     }
   }
   return Array.from(deduped);
+}
+
+function getCountryLocationAliases(countryCodes: string[]) {
+  const aliases = new Set<string>();
+  const displayNames =
+    typeof Intl !== "undefined" && typeof Intl.DisplayNames === "function"
+      ? new Intl.DisplayNames(["en"], { type: "region" })
+      : null;
+
+  for (const countryCode of countryCodes) {
+    const normalizedCode = normalizeCountryCode(countryCode);
+    if (!normalizedCode) continue;
+    aliases.add(normalizeText(normalizedCode));
+    const displayName = displayNames?.of(normalizedCode);
+    if (displayName) aliases.add(normalizeText(displayName));
+
+    if (normalizedCode === "US") {
+      aliases.add("us");
+      aliases.add("usa");
+      aliases.add("u s");
+      aliases.add("united states");
+      aliases.add("united states of america");
+    }
+    if (normalizedCode === "GB") {
+      aliases.add("uk");
+      aliases.add("u k");
+      aliases.add("great britain");
+      aliases.add("united kingdom");
+    }
+  }
+
+  return aliases;
+}
+
+function buildRecallLocationFilter(
+  hiringBrief: HiringBrief,
+  recallSpec: RecallSpec,
+  countryCodes: string[],
+  mode: RecallFilterMode,
+): BrightDataFilterRule | null {
+  if (hiringBrief.location_flexibility !== "strict" && hiringBrief.location_flexibility !== "moderate") {
+    return null;
+  }
+
+  const countryAliases = getCountryLocationAliases(countryCodes);
+  const strictLocationTerms = recallSpec.strict_location_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 3);
+  const nearbyLocationTerms = recallSpec.nearby_location_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 3);
+  const locationTerms = recallSpec.location_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 3);
+
+  const nonCountryLocationTerms = compactNormalizedTerms(
+    [...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms],
+    16,
+  ).filter((term) => !countryAliases.has(term));
+
+  if (nonCountryLocationTerms.length === 0) {
+    return null;
+  }
+
+  const strictModeTerms = compactNormalizedTerms(
+    [...strictLocationTerms, ...nearbyLocationTerms],
+    12,
+  ).filter((term) => !countryAliases.has(term));
+
+  const effectiveTerms =
+    hiringBrief.location_flexibility === "strict"
+      ? strictModeTerms
+      : mode === "relaxed"
+        ? strictModeTerms
+        : nonCountryLocationTerms;
+
+  if (effectiveTerms.length === 0) {
+    return null;
+  }
+
+  return {
+    operator: "or",
+    filters: effectiveTerms.map((term) => ({
+      name: hiringBrief.location_flexibility === "strict" ? "city" : "location",
+      operator: "includes",
+      value: term,
+    })),
+  };
+}
+
+function buildStandardSkillTerms(recallSpec: RecallSpec, mode: RecallFilterMode) {
+  const baselineTerms = recallSpec.baseline_skill_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2);
+  const coreTerms = recallSpec.core_skill_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2);
+  const differentiatingTerms = recallSpec.differentiating_skill_terms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2);
+
+  const primaryTerms = baselineTerms.length > 0
+    ? baselineTerms
+    : coreTerms.slice(0, mode === "relaxed" ? 3 : 5);
+  const supplementalDifferentiatingTerms =
+    mode === "primary"
+      ? differentiatingTerms.filter((term) => !primaryTerms.includes(term)).slice(0, 2)
+      : [];
+
+  return compactNormalizedTerms(
+    [...primaryTerms, ...supplementalDifferentiatingTerms],
+    mode === "relaxed" ? 4 : 6,
+  );
+}
+
+function buildStandardSkillFilter(recallSpec: RecallSpec, mode: RecallFilterMode): BrightDataFilterRule | null {
+  const standardSkillTerms = buildStandardSkillTerms(recallSpec, mode);
+  if (standardSkillTerms.length === 0) {
+    return null;
+  }
+
+  const filters: BrightDataFilterRule[] = [];
+  for (const term of standardSkillTerms) {
+    filters.push({
+      name: "about",
+      operator: "includes",
+      value: term,
+    });
+  }
+  for (const term of standardSkillTerms) {
+    filters.push({
+      name: "position",
+      operator: "includes",
+      value: term,
+    });
+  }
+
+  return {
+    operator: "or",
+    filters: filters.slice(0, 12),
+  };
 }
 
 function deriveStableRecallStrategy(input: {
@@ -1294,6 +1439,14 @@ function inferTargetCompaniesFromParsed(
   }
 
   return [];
+}
+
+function isNoRecordsFoundSnapshotError(error: unknown): error is BrightDataSnapshotFailedError {
+  return (
+    error instanceof BrightDataSnapshotFailedError &&
+    (error.metadata.warning_code === "no_records_found" ||
+      error.metadata.warning === "Provided filter did not match any records")
+  );
 }
 
 function inferCountriesFromJdText(jdText: string) {
@@ -4115,6 +4268,7 @@ function buildBrightDataRecallFilter(
   parsed: Record<string, unknown>,
   candidateCount: number,
   executionProfile: SearchExecutionProfile,
+  options?: { mode?: RecallFilterMode },
 ): BrightDataDatasetFilterRequest | null {
   const datasetId =
     process.env.BRIGHTDATA_RECALL_DATASET_ID ||
@@ -4124,6 +4278,7 @@ function buildBrightDataRecallFilter(
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
+  const mode = options?.mode ?? "primary";
   const titleTerms = (recallSpec.title_variants.length > 0
     ? recallSpec.title_variants
     : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value)))
@@ -4136,36 +4291,6 @@ function buildBrightDataRecallFilter(
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4);
-  const locationTerms = recallSpec.location_terms
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 3)
-    .slice(0, 16);
-  const strictLocationTerms = recallSpec.strict_location_terms
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 3)
-    .slice(0, 12);
-  const nearbyLocationTerms = recallSpec.nearby_location_terms
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 3)
-    .slice(0, 8);
-
-  const skillTerms = recallSpec.core_skill_terms
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 2)
-    .slice(0, 5);
-  const differentiatingTerms = recallSpec.differentiating_skill_terms
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 2)
-    .slice(0, 5);
-  const baselineTerms = recallSpec.baseline_skill_terms
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 2)
-    .slice(0, 6);
-  const domainTerms = recallSpec.domain_terms
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 2)
-    .slice(0, 3);
-  const titleTermLower = new Set(titleTerms.map((t) => t.toLowerCase()));
 
   const rootFilters: BrightDataFilterRule[] = [
     {
@@ -4197,80 +4322,14 @@ function buildBrightDataRecallFilter(
     );
   }
 
-  // Skill relevance: use tiered skill terms if available, fallback to core_skill_terms.
-  // Differentiating terms (e.g. "LLM", "LangChain") are what make THIS role unique.
-  // Baseline terms (e.g. "Python", "Node.js") are standard stack requirements.
-  // Domain terms (e.g. "CPG", "fintech") surface industry-relevant candidates.
-  const hasLayeredSkills = differentiatingTerms.length > 0 || baselineTerms.length > 0;
-  const effectiveSkillTerms = hasLayeredSkills
-    ? [...differentiatingTerms, ...baselineTerms]
-    : skillTerms;
-
-  if (effectiveSkillTerms.length > 0 || domainTerms.length > 0) {
-    const skillFilters: BrightDataFilterRule[] = [];
-    // Differentiating + baseline skills in about field
-    for (const term of effectiveSkillTerms) {
-      skillFilters.push({
-        name: "about",
-        operator: "includes",
-        value: term,
-      });
-    }
-    // Domain terms in about field (industry relevance)
-    for (const term of domainTerms) {
-      skillFilters.push({
-        name: "about",
-        operator: "includes",
-        value: term,
-      });
-    }
-    // Fallback: also match skills in position for candidates with empty about
-    for (const term of effectiveSkillTerms) {
-      if (!titleTermLower.has(term.toLowerCase())) {
-        skillFilters.push({
-          name: "position",
-          operator: "includes",
-          value: term,
-        });
-      }
-    }
-    // Bright Data API limits each OR group to 20 items
-    rootFilters.push({
-      operator: "or",
-      filters: skillFilters.slice(0, 20),
-    });
+  const standardSkillFilter = buildStandardSkillFilter(recallSpec, mode);
+  if (standardSkillFilter) {
+    rootFilters.push(standardSkillFilter);
   }
 
-  if (
-    hiringBrief.location_flexibility === "strict" &&
-    (strictLocationTerms.length > 0 || nearbyLocationTerms.length > 0 || locationTerms.length > 0)
-  ) {
-    rootFilters.push({
-      operator: "or",
-      filters: compactNormalizedTerms(
-        [...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms],
-        16,
-      ).map((term) => ({
-        name: "city",
-        operator: "includes",
-        value: term,
-      })),
-    });
-  } else if (
-    hiringBrief.location_flexibility === "moderate" &&
-    (strictLocationTerms.length > 0 || nearbyLocationTerms.length > 0 || locationTerms.length > 0)
-  ) {
-    rootFilters.push({
-      operator: "or",
-      filters: compactNormalizedTerms(
-        [...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms],
-        16,
-      ).map((term) => ({
-        name: "location",
-        operator: "includes",
-        value: term,
-      })),
-    });
+  const locationFilter = buildRecallLocationFilter(hiringBrief, recallSpec, countryCodes, mode);
+  if (locationFilter) {
+    rootFilters.push(locationFilter);
   }
 
   // Exclude profiles with default avatars (inactive / low-quality accounts)
@@ -4340,28 +4399,18 @@ function buildBrightDataRecallFilters(
       : countryCodes.length > 1
         ? { operator: "or", filters: countryCodes.map((c) => ({ name: "country_code", operator: "=", value: c })) }
         : null;
-
-  // Shared location filter (reuse from standard round logic)
-  const strictLocationTerms = recallSpec.strict_location_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 3).slice(0, 12);
-  const nearbyLocationTerms = recallSpec.nearby_location_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 3).slice(0, 8);
-  const locationTerms = recallSpec.location_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 3).slice(0, 16);
-  const allLocationTerms = compactNormalizedTerms([...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms], 16);
-
-  const locationFilter: BrightDataFilterRule | null =
-    (hiringBrief.location_flexibility === "strict" || hiringBrief.location_flexibility === "moderate") && allLocationTerms.length > 0
-      ? {
-          operator: "or",
-          filters: allLocationTerms.map((term) => ({
-            name: hiringBrief.location_flexibility === "strict" ? "city" : "location",
-            operator: "includes",
-            value: term,
-          })),
-        }
-      : null;
+  const locationFilter = buildRecallLocationFilter(hiringBrief, recallSpec, countryCodes, "primary");
 
   // --- Round 2: Hidden Gem (lateral titles + differentiating skills) ---
   const lateralTitles = recallSpec.lateral_title_variants.filter((t) => t.length >= 3);
-  const differentiatingTerms = recallSpec.differentiating_skill_terms.map((t) => normalizeText(t)).filter((t) => t.length >= 2).slice(0, 5);
+  const differentiatingTerms = (
+    recallSpec.differentiating_skill_terms.length > 0
+      ? recallSpec.differentiating_skill_terms
+      : recallSpec.core_skill_terms.slice(0, 3)
+  )
+    .map((t) => normalizeText(t))
+    .filter((t) => t.length >= 2)
+    .slice(0, 5);
 
   if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
     const hiddenGemFilters: BrightDataFilterRule[] = [
@@ -5100,14 +5149,21 @@ async function buildBrightDataDatasetCandidates(
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
-  const recallRequest = buildBrightDataRecallFilter(
+  const primaryRecallRequest = buildBrightDataRecallFilter(
     parsed,
     context.candidateCount,
     executionProfile,
   );
-  if (!brightDataToken || !recallRequest) {
+  if (!brightDataToken || !primaryRecallRequest) {
     return null;
   }
+  const relaxedRecallRequest = buildBrightDataRecallFilter(
+    parsed,
+    context.candidateCount,
+    executionProfile,
+    { mode: "relaxed" },
+  );
+  let recallRequest = primaryRecallRequest;
   const pipelineStartMs = Date.now();
 
   await setSearchStatus(
@@ -5161,6 +5217,59 @@ async function buildBrightDataDatasetCandidates(
       .slice(0, 10),
   };
 
+  const submitStandardSnapshot = async (
+    request: BrightDataDatasetFilterRequest,
+    options?: { relaxed?: boolean },
+  ) => {
+    const standardHash = computeFilterHash(request);
+    const cachedStandardId = await lookupCachedSnapshot(standardHash);
+    if (cachedStandardId) {
+      snapshotId = cachedStandardId;
+      logSearchEvent("search_snapshot_cache_hit", {
+        search_id: context.searchId,
+        round: options?.relaxed ? "standard_relaxed" : "standard",
+        snapshot_id: snapshotId,
+        job_id: context.jobId,
+      });
+    } else {
+      snapshotId = await triggerDatasetFilter(brightDataToken, request);
+      void cacheSnapshotEntry({
+        snapshotId,
+        round: options?.relaxed ? "standard_relaxed" : "standard",
+        filterHash: standardHash,
+        filterSummary: filterSummary,
+        recordsLimit: request.recordsLimit,
+      });
+      logSearchEvent(options?.relaxed ? "search_standard_round_relaxed" : "search_snapshot_cache_miss", {
+        search_id: context.searchId,
+        round: options?.relaxed ? "standard_relaxed" : "standard",
+        snapshot_id: snapshotId,
+        job_id: context.jobId,
+      });
+    }
+
+    requestedAt = Date.now();
+    recallRequest = request;
+    parsed.recall_provider = "brightdata_dataset";
+    parsed.recall_metadata = {
+      provider: "brightdata_dataset",
+      snapshot_id: snapshotId,
+      requested_at: new Date(requestedAt).toISOString(),
+      status: "submitted",
+      filter_summary: filterSummary,
+      bright_profile_budget: executionProfile.filterLimit,
+      bright_profiles_requested: request.recordsLimit,
+      judge_mode: runtime.judgeMode,
+      additional_snapshots: additionalSnapshotRefs.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        records_limit: round.recordsLimit,
+        status: "submitted" as const,
+      })),
+    } satisfies RecallMetadata;
+    await updateSearchParsedRequirements(context.searchId, parsed);
+  };
+
   if (
     hasRecallSnapshotDrift(
       existingRecallMetadata,
@@ -5189,33 +5298,7 @@ async function buildBrightDataDatasetCandidates(
   }
 
   if (!snapshotId) {
-    // Check cache before paying for a new snapshot
-    const standardHash = computeFilterHash(recallRequest);
-    const cachedStandardId = await lookupCachedSnapshot(standardHash);
-    if (cachedStandardId) {
-      snapshotId = cachedStandardId;
-      logSearchEvent("search_snapshot_cache_hit", {
-        search_id: context.searchId,
-        round: "standard",
-        snapshot_id: snapshotId,
-        job_id: context.jobId,
-      });
-    } else {
-      snapshotId = await triggerDatasetFilter(brightDataToken, recallRequest);
-      void cacheSnapshotEntry({
-        snapshotId,
-        round: "standard",
-        filterHash: standardHash,
-        filterSummary: filterSummary,
-        recordsLimit: recallRequest.recordsLimit,
-      });
-      logSearchEvent("search_snapshot_cache_miss", {
-        search_id: context.searchId,
-        round: "standard",
-        job_id: context.jobId,
-      });
-    }
-    requestedAt = Date.now();
+    await submitStandardSnapshot(recallRequest);
 
     // Fire additional rounds (hidden_gem, company_target) — check cache per round
     additionalSnapshotRefs = await Promise.all(additionalRounds.map(async (round) => {
@@ -5257,8 +5340,12 @@ async function buildBrightDataDatasetCandidates(
 
     parsed.recall_provider = "brightdata_dataset";
     parsed.recall_metadata = {
+      ...(normalizeRecallMetadata(parsed.recall_metadata) ?? {
+        provider: "brightdata_dataset" as const,
+        snapshot_id: snapshotId!,
+      }),
       provider: "brightdata_dataset",
-      snapshot_id: snapshotId,
+      snapshot_id: snapshotId!,
       requested_at: new Date(requestedAt).toISOString(),
       status: "submitted",
       filter_summary: filterSummary,
@@ -5279,7 +5366,7 @@ async function buildBrightDataDatasetCandidates(
       provider: "brightdata_dataset",
       execution_profile: executionProfile.name,
       record_limit: recallRequest.recordsLimit,
-      snapshot_id: snapshotId,
+      snapshot_id: snapshotId!,
       filter_summary: filterSummary,
       job_id: context.jobId,
     });
@@ -5310,14 +5397,19 @@ async function buildBrightDataDatasetCandidates(
     });
   }
 
+  if (!snapshotId) {
+    throw new Error("Bright Data snapshot submission did not return a snapshot id.");
+  }
+  let activeSnapshotId = snapshotId;
+
   const totalElapsedMs = Math.max(0, Date.now() - requestedAt);
   let remainingTimeoutMs = Math.max(0, BRIGHTDATA_FILTER_TIMEOUT_MS - totalElapsedMs);
   if (remainingTimeoutMs <= 0) {
     // The main timeout budget has elapsed. Check the current state before deciding what to do.
-    const latestMetadata = await getDatasetSnapshotMetadata(brightDataToken, snapshotId);
+    const latestMetadata = await getDatasetSnapshotMetadata(brightDataToken, activeSnapshotId);
     if (latestMetadata.status === "failed") {
       throw new Error(
-        `Bright Data snapshot ${snapshotId} failed. Retry from the shortlist page if you want to re-attempt this provider snapshot.`,
+        `Bright Data snapshot ${activeSnapshotId} failed. Retry from the shortlist page if you want to re-attempt this provider snapshot.`,
       );
     }
     if (latestMetadata.status !== "ready") {
@@ -5332,16 +5424,59 @@ async function buildBrightDataDatasetCandidates(
   }
 
   const pollWindowMs = Math.min(BRIGHTDATA_FILTER_POLL_WINDOW_MS, remainingTimeoutMs);
-  const { metadata, profiles } = await waitForDatasetSnapshot(brightDataToken, snapshotId, {
-    timeoutMs: pollWindowMs,
-    pollIntervalMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
-  });
+  let metadata: BrightDataSnapshotMetadata | null = null;
+  let profiles: BrightDataProfile[] | null = null;
+  let standardRoundFailedEmpty = false;
+
+  const loadStandardSnapshot = async () => {
+    const result = await waitForDatasetSnapshot(brightDataToken, activeSnapshotId, {
+      timeoutMs: pollWindowMs,
+      pollIntervalMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
+    });
+    metadata = result.metadata;
+    profiles = result.profiles;
+  };
+
+  try {
+    await loadStandardSnapshot();
+  } catch (error) {
+    const canRelaxStandardRecall =
+      isNoRecordsFoundSnapshotError(error) &&
+      relaxedRecallRequest != null &&
+      computeFilterHash(relaxedRecallRequest) !== computeFilterHash(recallRequest);
+
+    if (canRelaxStandardRecall) {
+      logSearchEvent("search_standard_round_retrying_relaxed", {
+        search_id: context.searchId,
+        snapshot_id: activeSnapshotId,
+        job_id: context.jobId,
+      });
+      await submitStandardSnapshot(relaxedRecallRequest, { relaxed: true });
+      activeSnapshotId = snapshotId!;
+      try {
+        await loadStandardSnapshot();
+      } catch (relaxedError) {
+        if (!isNoRecordsFoundSnapshotError(relaxedError)) {
+          throw relaxedError;
+        }
+        standardRoundFailedEmpty = true;
+        metadata = relaxedError.metadata;
+        profiles = [];
+      }
+    } else if (isNoRecordsFoundSnapshotError(error)) {
+      standardRoundFailedEmpty = true;
+      metadata = error.metadata;
+      profiles = [];
+    } else {
+      throw error;
+    }
+  }
 
   if (!metadata || !profiles) {
     parsed.recall_provider = "brightdata_dataset";
     parsed.recall_metadata = {
       provider: "brightdata_dataset",
-      snapshot_id: snapshotId,
+      snapshot_id: activeSnapshotId,
       requested_at: new Date(requestedAt).toISOString(),
       status: "polling",
       filter_summary: filterSummary,
@@ -5357,16 +5492,16 @@ async function buildBrightDataDatasetCandidates(
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
     throw new DatasetRecallPendingError(
-      `Bright Data dataset recall still processing for snapshot ${snapshotId}`,
+      `Bright Data dataset recall still processing for snapshot ${activeSnapshotId}`,
     );
   }
 
-  if (!profiles.length) {
+  if (!profiles.length && additionalSnapshotRefs.length === 0) {
     logSearchEvent("search_provider_failed", {
       search_id: context.searchId,
       provider: "brightdata_dataset",
       reason: "no_results",
-      snapshot_id: snapshotId,
+      snapshot_id: activeSnapshotId,
       job_id: context.jobId,
     });
     return null;
@@ -5377,6 +5512,7 @@ async function buildBrightDataDatasetCandidates(
     phase: "standard_recall_complete",
     elapsed_ms: Date.now() - pipelineStartMs,
     profiles_count: profiles.length,
+    empty_standard_round: standardRoundFailedEmpty,
     job_id: context.jobId,
   });
 
@@ -5387,7 +5523,7 @@ async function buildBrightDataDatasetCandidates(
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_metadata = {
     provider: "brightdata_dataset",
-    snapshot_id: snapshotId,
+    snapshot_id: activeSnapshotId,
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
     cost: metadata.cost ?? null,
@@ -5422,7 +5558,7 @@ async function buildBrightDataDatasetCandidates(
     time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
   });
   await updateSearchParsedRequirements(context.searchId, parsed);
-  void updateCachedSnapshotMetadata(snapshotId, {
+  void updateCachedSnapshotMetadata(activeSnapshotId, {
     datasetSize: metadata.dataset_size ?? profiles.length,
     cost: metadata.cost ?? null,
   });
@@ -5436,7 +5572,7 @@ async function buildBrightDataDatasetCandidates(
     step: "searching",
     provider: "brightdata_dataset",
     execution_profile: executionProfile.name,
-    snapshot_id: snapshotId,
+    snapshot_id: activeSnapshotId,
     result_count: profiles.length,
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
@@ -5471,17 +5607,38 @@ async function buildBrightDataDatasetCandidates(
     await markSearchReviewable(context, parsed, statsPatch);
   };
 
-  let combinedResult = await scoreBrightDataProfiles(
-    context,
-    parsed,
-    profiles,
-    profiles.length,
-    executionProfile,
-    {
-      progressOffset: 0,
-      onFirstVisibleCandidate: handleFirstVisibleCandidate,
-    },
-  );
+  let combinedResult: SearchPipelineResult;
+  if (profiles.length > 0) {
+    combinedResult = await scoreBrightDataProfiles(
+      context,
+      parsed,
+      profiles,
+      profiles.length,
+      executionProfile,
+      {
+        progressOffset: 0,
+        onFirstVisibleCandidate: handleFirstVisibleCandidate,
+      },
+    );
+  } else {
+    combinedResult = {
+      finalRows: [],
+      assessments: [],
+      warningMessage: null,
+      displayStats: buildSearchDisplayStats({
+        bright_profile_budget: executionProfile.filterLimit,
+        bright_profiles_requested: recallRequest.recordsLimit,
+        bright_profiles_returned: 0,
+        recall_profile_count: 0,
+        retrieval_count: 0,
+        deep_review_requested_count: 0,
+        deep_review_completed_count: 0,
+        judge_mode: runtime.judgeMode,
+        time_to_ack_ms: 0,
+        time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
+      }),
+    };
+  }
   combinedResult.displayStats = buildSearchDisplayStats({
     ...combinedResult.displayStats,
     bright_snapshot_cost: metadata.cost ?? undefined,
