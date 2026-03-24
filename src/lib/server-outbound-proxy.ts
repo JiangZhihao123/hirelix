@@ -14,6 +14,7 @@ function getConfiguredBoolean(envName: string) {
 
 function getProxyUrl() {
   return (
+    process.env.PROXY_URL ||
     process.env.OUTBOUND_PROXY_URL ||
     process.env.HTTP_PROXY ||
     process.env.http_proxy ||
@@ -24,7 +25,9 @@ function getProxyUrl() {
 }
 
 function shouldEnableProxy(proxyUrl: string | null) {
-  const explicit = getConfiguredBoolean("OUTBOUND_PROXY_ENABLED");
+  const explicit =
+    getConfiguredBoolean("PROXY_ENABLED") ??
+    getConfiguredBoolean("OUTBOUND_PROXY_ENABLED");
   if (explicit != null) {
     return explicit && Boolean(proxyUrl);
   }
