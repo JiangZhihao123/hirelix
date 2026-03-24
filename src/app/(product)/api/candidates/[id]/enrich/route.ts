@@ -7,6 +7,7 @@ import {
   getDefaultOpenRouterModel,
   getOpenRouterApiKey,
 } from "@/lib/openrouter";
+import { buildOutreachDraftJsonSchema } from "@/lib/openrouter-schemas";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 /**
@@ -172,6 +173,9 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
           prompt,
           maxOutputTokens: 1000,
           temperature: 0,
+          jsonSchema: buildOutreachDraftJsonSchema({
+            includeEmail: hasEmail,
+          }),
         });
         updates.outreach_draft = JSON.stringify(draft);
         console.log(`[enrich] Outreach generated for ${candidate.name}`);

@@ -27,6 +27,13 @@ import {
   generateOpenRouterJson,
 } from "@/lib/openrouter";
 import {
+  ARBITER_SCORE_JSON_SCHEMA,
+  buildJudgeScoreJsonSchema,
+  buildOutreachDraftJsonSchema,
+  JD_SEARCH_INTENT_JSON_SCHEMA,
+  SERPER_PRESCREEN_JSON_SCHEMA,
+} from "@/lib/openrouter-schemas";
+import {
   getInitialSearchExecutionProfile,
   getSearchExecutionProfile,
   normalizeSearchExecutionProfileName,
@@ -2491,6 +2498,7 @@ async function generateOutreachDraftsForRows(
             abortSignal: signal,
             timeoutMs: 60000,
             temperature: 0,
+            jsonSchema: buildOutreachDraftJsonSchema(),
           }),
           60000,
           `Outreach draft for ${row.name}`,
@@ -4271,6 +4279,7 @@ async function parseJobDescription(
           abortSignal: signal,
           timeoutMs: 60000,
           temperature: 0,
+          jsonSchema: JD_SEARCH_INTENT_JSON_SCHEMA,
         }),
         60000,
         "Search intent generation",
@@ -4669,6 +4678,7 @@ async function preScreenSerperCandidate(
         abortSignal: signal,
         timeoutMs: 15000,
         temperature: 0,
+        jsonSchema: SERPER_PRESCREEN_JSON_SCHEMA,
       }),
       15000,
       "Serper candidate pre-screen",
@@ -5655,6 +5665,7 @@ async function judgeScoreBatch(
           abortSignal: signal,
           timeoutMs: JUDGE_SCORING_TIMEOUT_MS,
           temperature: 0,
+          jsonSchema: buildJudgeScoreJsonSchema(batchIndexes.length),
         }),
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,
@@ -5721,6 +5732,7 @@ async function arbitrateCandidateScore(
           abortSignal: signal,
           timeoutMs: ARBITER_SCORING_TIMEOUT_MS,
           temperature: 0,
+          jsonSchema: ARBITER_SCORE_JSON_SCHEMA,
         }),
         ARBITER_SCORING_TIMEOUT_MS,
         `Arbiter scoring (attempt ${attempt})`,

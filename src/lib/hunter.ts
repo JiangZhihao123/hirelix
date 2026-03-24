@@ -17,6 +17,7 @@ import {
   getDefaultOpenRouterModel,
   getOpenRouterApiKey,
 } from "@/lib/openrouter";
+import { COMPANY_INFO_EXTRACTION_JSON_SCHEMA } from "@/lib/openrouter-schemas";
 
 const HUNTER_BASE = "https://api.hunter.io/v2";
 
@@ -103,6 +104,7 @@ If uncertain, return null for that field. Return ONLY valid JSON, no markdown.`;
       prompt,
       maxOutputTokens: 300,
       temperature: 0,
+      jsonSchema: COMPANY_INFO_EXTRACTION_JSON_SCHEMA,
     });
     return {
       companyName: data.company_name || null,

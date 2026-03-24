@@ -15,6 +15,7 @@ import {
   getDefaultOpenRouterModel,
   getOpenRouterApiKey,
 } from "@/lib/openrouter";
+import { AI_COMPANY_RESPONSE_JSON_SCHEMA } from "@/lib/openrouter-schemas";
 
 type CompanyProfile = {
   name: string;
@@ -107,6 +108,7 @@ async function generateCompanyProfileFromPrompt(
     prompt,
     maxOutputTokens: 1800,
     temperature: 0,
+    jsonSchema: AI_COMPANY_RESPONSE_JSON_SCHEMA,
   });
   return sanitizeAiResponse(data, website);
 }

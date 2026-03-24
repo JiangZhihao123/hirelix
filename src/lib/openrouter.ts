@@ -2,7 +2,7 @@ import {
   OpenRouter,
 } from "@openrouter/sdk";
 
-type OpenRouterJsonSchemaConfig = {
+export type OpenRouterJsonSchemaConfig = {
   name: string;
   description?: string;
   schema?: Record<string, unknown>;
