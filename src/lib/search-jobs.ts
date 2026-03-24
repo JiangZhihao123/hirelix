@@ -187,6 +187,16 @@ const PRE_SCREEN_TARGET = getConfiguredPositiveInt(
   200,
   { min: 25, max: 1000 },
 );
+const PRE_SCREEN_SCORE_DIFF_THRESHOLD = getConfiguredPositiveInt(
+  "SEARCH_PRE_SCREEN_SCORE_DIFF_THRESHOLD",
+  15,
+  { max: 100 },
+);
+const PRE_SCREEN_KEEP_MISMATCH_PENALTY = getConfiguredPositiveInt(
+  "SEARCH_PRE_SCREEN_KEEP_MISMATCH_PENALTY",
+  100,
+  { max: 200 },
+);
 const SOURCE_RULE_PASS_SCORE = getConfiguredPositiveInt(
   "SEARCH_SOURCE_RULE_PASS_SCORE",
   60,
@@ -508,6 +518,10 @@ type SerperPreScreenDecision = {
     stack_match: number;
     execution_signal: number;
   };
+};
+
+type SerperPreScreenSample = {
+  decision: SerperPreScreenDecision;
 };
 
 type SerperPreScreenedCandidate = {
@@ -2373,6 +2387,92 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
   };
 }
 
+function getPrescreenDecisionDistance(
+  left: SerperPreScreenDecision,
+  right: SerperPreScreenDecision,
+) {
+  const scoreDistance = Math.abs(left.match_score - right.match_score);
+  const keepPenalty = left.keep === right.keep ? 0 : PRE_SCREEN_KEEP_MISMATCH_PENALTY;
+  return scoreDistance + keepPenalty;
+}
+
+function averageRounded(left: number, right: number) {
+  return Math.round((left + right) / 2);
+}
+
+function mergePrescreenDecisionPair(
+  left: SerperPreScreenDecision,
+  right: SerperPreScreenDecision,
+  fallbackKeep?: boolean,
+): SerperPreScreenDecision {
+  const matchScore = averageRounded(left.match_score, right.match_score);
+  const dimensionScores = {
+    role_relevance: averageRounded(
+      left.dimension_scores.role_relevance,
+      right.dimension_scores.role_relevance,
+    ),
+    stack_match: averageRounded(
+      left.dimension_scores.stack_match,
+      right.dimension_scores.stack_match,
+    ),
+    execution_signal: averageRounded(
+      left.dimension_scores.execution_signal,
+      right.dimension_scores.execution_signal,
+    ),
+  };
+  const keep =
+    left.keep === right.keep
+      ? left.keep
+      : fallbackKeep ?? matchScore >= 60;
+  const leftDistance = getPrescreenDecisionDistance(left, {
+    ...left,
+    keep,
+    match_score: matchScore,
+    dimension_scores: dimensionScores,
+  });
+  const rightDistance = getPrescreenDecisionDistance(right, {
+    ...right,
+    keep,
+    match_score: matchScore,
+    dimension_scores: dimensionScores,
+  });
+
+  return {
+    keep,
+    match_score: matchScore,
+    reason: leftDistance <= rightDistance ? left.reason : right.reason,
+    dimension_scores: dimensionScores,
+  };
+}
+
+async function requestSerperPreScreenSample(
+  lightModel: string,
+  prompt: string,
+): Promise<SerperPreScreenSample> {
+  const { data } = await withTimeout(
+    (signal) => generateOpenRouterJson<Record<string, unknown>>({
+      model: lightModel,
+      prompt,
+      maxOutputTokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
+      abortSignal: signal,
+      timeoutMs: 15000,
+      temperature: 0,
+      jsonSchema: SERPER_PRESCREEN_JSON_SCHEMA,
+    }),
+    15000,
+    "Serper candidate pre-screen",
+  );
+
+  const decision = sanitizeSerperPreScreenDecision(data);
+  if (!decision) {
+    throw new Error("Serper pre-screen returned an invalid decision payload");
+  }
+
+  return {
+    decision,
+  };
+}
+
 function sortCandidateAssessments(left: ScoredCandidateAssessment, right: ScoredCandidateAssessment) {
   const evidenceRank: Record<CandidateSuitability["evidence_quality"], number> = {
     high: 0,
@@ -2449,7 +2549,7 @@ function getLightModel() {
     process.env.DEEPSEEK_LIGHT_MODEL ||
     process.env.AI_MODEL ||
     process.env.DEEPSEEK_MODEL ||
-    "deepseek/deepseek-chat-v3.1"
+    "deepseek/deepseek-chat-v3-0324"
   );
 }
 
@@ -4704,27 +4804,51 @@ async function preScreenSerperCandidate(
   const lightModel = getLightModel();
 
   try {
-    const { data } = await withTimeout(
-      (signal) => generateOpenRouterJson<Record<string, unknown>>({
-        model: lightModel,
-        prompt,
-        maxOutputTokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
-        abortSignal: signal,
-        timeoutMs: 15000,
-        temperature: 0,
-        jsonSchema: SERPER_PRESCREEN_JSON_SCHEMA,
-      }),
-      15000,
-      "Serper candidate pre-screen",
-    );
+    const firstSample = await requestSerperPreScreenSample(lightModel, prompt);
+    const secondSample = await requestSerperPreScreenSample(lightModel, prompt);
+    const firstDecision = firstSample.decision;
+    const secondDecision = secondSample.decision;
+    const scoreDiff = Math.abs(firstDecision.match_score - secondDecision.match_score);
+    const keepMismatch = firstDecision.keep !== secondDecision.keep;
 
-    const decision = sanitizeSerperPreScreenDecision(data);
-    if (decision) {
+    if (!keepMismatch && scoreDiff <= PRE_SCREEN_SCORE_DIFF_THRESHOLD) {
       return {
         serperCandidate: candidate,
-        preScreen: decision,
+        preScreen: mergePrescreenDecisionPair(firstDecision, secondDecision),
       };
     }
+
+    const thirdSample = await requestSerperPreScreenSample(lightModel, prompt);
+    const thirdDecision = thirdSample.decision;
+    const distanceToFirst = getPrescreenDecisionDistance(firstDecision, thirdDecision);
+    const distanceToSecond = getPrescreenDecisionDistance(secondDecision, thirdDecision);
+    const pairedDecision =
+      distanceToFirst <= distanceToSecond ? firstDecision : secondDecision;
+    const majorityKeep =
+      [firstDecision, secondDecision, thirdDecision].filter((item) => item.keep).length >= 2;
+
+    logSearchEvent("search_prescreen_tiebreak_applied", {
+      model: lightModel,
+      candidate_url: candidate.linkedin_url,
+      first_keep: firstDecision.keep,
+      second_keep: secondDecision.keep,
+      third_keep: thirdDecision.keep,
+      first_score: firstDecision.match_score,
+      second_score: secondDecision.match_score,
+      third_score: thirdDecision.match_score,
+      score_diff: scoreDiff,
+      keep_mismatch: keepMismatch,
+      paired_with: distanceToFirst <= distanceToSecond ? "first" : "second",
+    });
+
+    return {
+      serperCandidate: candidate,
+      preScreen: mergePrescreenDecisionPair(
+        pairedDecision,
+        thirdDecision,
+        majorityKeep,
+      ),
+    };
   } catch (error) {
     logSearchEvent("search_prescreen_failed", {
       provider: (process.env.AI_PROVIDER || "openrouter").trim().toLowerCase(),
