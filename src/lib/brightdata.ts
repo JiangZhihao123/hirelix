@@ -8,20 +8,9 @@
  * Flow: trigger → snapshot_id → poll until ready → get JSON results
  */
 import { createHash } from "node:crypto";
-import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
 const BRIGHTDATA_FILTER_API_BASE = "https://api.brightdata.com/datasets";
-const BRIGHTDATA_PROXY_URL =
-  process.env.HTTP_PROXY ||
-  process.env.http_proxy ||
-  process.env.HTTPS_PROXY ||
-  process.env.https_proxy ||
-  null;
-const BRIGHTDATA_PROXY_AGENT =
-  process.env.NODE_ENV === "development" && BRIGHTDATA_PROXY_URL
-    ? new ProxyAgent(BRIGHTDATA_PROXY_URL)
-    : null;
 
 type BrightDataScrapeOptions = {
   batchSize?: number;
@@ -151,15 +140,7 @@ function sleep(ms: number) {
 }
 
 async function brightDataFetch(input: RequestInfo | URL, init?: RequestInit) {
-  if (!BRIGHTDATA_PROXY_AGENT) {
-    return fetch(input, init);
-  }
-
-  const requestInit = (init ?? {}) as Record<string, unknown>;
-  return undiciFetch(input as never, {
-    ...requestInit,
-    dispatcher: BRIGHTDATA_PROXY_AGENT,
-  } as never) as unknown as Promise<Response>;
+  return fetch(input, init);
 }
 
 function asString(value: unknown): string | null {

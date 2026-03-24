@@ -3,6 +3,9 @@ export async function register() {
     return;
   }
 
+  const { initializeGlobalOutboundProxy } = await import("@/lib/server-outbound-proxy");
+  initializeGlobalOutboundProxy();
+
   const { startSearchJobScheduler } = await import("@/lib/search-job-scheduler");
   startSearchJobScheduler();
 }

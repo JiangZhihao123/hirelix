@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server";
 import type { User } from "@supabase/supabase-js";
-import { fetch as undiciFetch, ProxyAgent } from "undici";
 
 function getBearerToken(req: NextRequest) {
   const auth = req.headers.get("authorization");
@@ -21,27 +20,14 @@ export async function getUserFromApiRequest(req: NextRequest): Promise<User | nu
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const authUrl = `${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`;
-  const proxyUrl =
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy;
 
   try {
-    const response = process.env.NODE_ENV === "development" && proxyUrl
-      ? await undiciFetch(authUrl, {
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${token}`,
-          },
-          dispatcher: new ProxyAgent(proxyUrl),
-        })
-      : await fetch(authUrl, {
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${token}`,
-          },
-        });
+    const response = await fetch(authUrl, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     if (!response.ok) {
       const text = await response.text();

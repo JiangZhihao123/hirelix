@@ -6,28 +6,9 @@
  *
  * Free tier: 2,500 searches/month, then $1/1000 searches
  */
-import { fetch as undiciFetch, ProxyAgent } from "undici";
-
 const SERPER_BASE = "https://google.serper.dev";
-const SERPER_PROXY_URL =
-  process.env.HTTP_PROXY ||
-  process.env.http_proxy ||
-  process.env.HTTPS_PROXY ||
-  process.env.https_proxy ||
-  null;
-const SERPER_PROXY_AGENT =
-  process.env.NODE_ENV === "development" && SERPER_PROXY_URL
-    ? new ProxyAgent(SERPER_PROXY_URL)
-    : null;
 
 async function serperFetch(input: string, init: RequestInit): Promise<Response> {
-  if (SERPER_PROXY_AGENT) {
-    const requestInit = (init ?? {}) as Record<string, unknown>;
-    return (undiciFetch(input, {
-      ...requestInit,
-      dispatcher: SERPER_PROXY_AGENT,
-    } as never) as unknown) as Response;
-  }
   return fetch(input, init);
 }
 

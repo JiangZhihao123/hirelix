@@ -1,8 +1,6 @@
 import {
-  HTTPClient,
   OpenRouter,
 } from "@openrouter/sdk";
-import { ProxyAgent } from "undici";
 
 type OpenRouterJsonSchemaConfig = {
   name: string;
@@ -42,32 +40,6 @@ type OpenRouterTextResult = {
 };
 
 let cachedClient: OpenRouter | null = null;
-let cachedHttpClient: HTTPClient | null = null;
-
-function getProxyUrl() {
-  return (
-    process.env.HTTP_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.https_proxy ||
-    null
-  );
-}
-
-function createProxyFetcher(): typeof fetch | undefined {
-  if (process.env.NODE_ENV !== "development") return undefined;
-
-  const proxyUrl = getProxyUrl();
-  if (!proxyUrl) return undefined;
-
-  const dispatcher = new ProxyAgent(proxyUrl);
-
-  return ((input: RequestInfo | URL, init?: RequestInit) =>
-    globalThis.fetch(input, {
-      ...(init ?? {}),
-      dispatcher,
-    } as RequestInit)) satisfies typeof fetch;
-}
 
 function getAppReferer() {
   return process.env.OPENROUTER_HTTP_REFERER || "https://hirelix.com";
@@ -101,25 +73,14 @@ export function getDefaultOpenRouterModel() {
   );
 }
 
-function getOpenRouterHttpClient(): HTTPClient | undefined {
-  const proxyFetcher = createProxyFetcher();
-  if (!proxyFetcher) return undefined;
-
-  if (cachedHttpClient) return cachedHttpClient;
-  cachedHttpClient = new HTTPClient({ fetcher: proxyFetcher });
-  return cachedHttpClient;
-}
-
 export function getOpenRouterClient() {
   if (cachedClient) return cachedClient;
 
-  const httpClient = getOpenRouterHttpClient();
   cachedClient = new OpenRouter({
     apiKey: getOpenRouterApiKey(),
     serverURL: getOpenRouterBaseUrl(),
     httpReferer: getAppReferer(),
     xTitle: getAppTitle(),
-    ...(httpClient ? { httpClient } : {}),
   });
 
   return cachedClient;
