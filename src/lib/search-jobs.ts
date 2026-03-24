@@ -15,6 +15,8 @@ import {
   scrapeLinkedInProfiles,
   brightDataProfileToRichText,
   adaptDatasetRecordToBrightDataProfile,
+  BrightDataRequestTimeoutError,
+  BrightDataSnapshotNotReadyError,
   triggerDatasetFilter,
   getDatasetSnapshotMetadata,
   downloadDatasetSnapshot,
@@ -1445,6 +1447,13 @@ function mapSnapshotStatus(
   if (metadata.status === "ready") return "ready";
   if (metadata.status === "failed") return "failed";
   return "polling";
+}
+
+function isTransientSnapshotDownloadError(error: unknown) {
+  return (
+    error instanceof BrightDataSnapshotNotReadyError ||
+    error instanceof BrightDataRequestTimeoutError
+  );
 }
 
 function inferCountriesFromJdText(jdText: string) {
@@ -5481,8 +5490,40 @@ async function buildBrightDataDatasetCandidates(
   }
 
   if (metadata?.status === "ready") {
-    const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
-    profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
+    try {
+      const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
+      profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
+    } catch (error) {
+      if (!isTransientSnapshotDownloadError(error)) {
+        throw error;
+      }
+      parsed.recall_provider = "brightdata_dataset";
+      parsed.recall_metadata = {
+        provider: "brightdata_dataset",
+        snapshot_id: activeSnapshotId,
+        requested_at: new Date(requestedAt).toISOString(),
+        status: "polling",
+        filter_summary: filterSummary,
+        bright_profile_budget: executionProfile.filterLimit,
+        bright_profiles_requested: recallRequest.recordsLimit,
+        judge_mode: runtime.judgeMode,
+        additional_snapshots: additionalSnapshotStates.map((round) => ({
+          round: round.round,
+          snapshot_id: round.snapshotId,
+          records_limit: round.recordsLimit,
+          status: mapSnapshotStatus(round.metadata),
+          completed_at:
+            round.metadata.status === "ready" || round.metadata.status === "failed"
+              ? nowIso()
+              : null,
+        })),
+      } satisfies RecallMetadata;
+      await updateSearchParsedRequirements(context.searchId, parsed);
+      throw new DatasetRecallPendingError(
+        `Bright Data snapshot ${activeSnapshotId} is ready but the download is still finalizing`,
+        { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+      );
+    }
   }
 
   if (!profiles.length && additionalSnapshotRefs.length === 0) {
@@ -5662,8 +5703,19 @@ async function buildBrightDataDatasetCandidates(
         });
         continue;
       }
-      const roundProfiles = (await downloadDatasetSnapshot(brightDataToken, roundSnapId))
-        .map(adaptDatasetRecordToBrightDataProfile);
+      let roundProfiles: BrightDataProfile[];
+      try {
+        roundProfiles = (await downloadDatasetSnapshot(brightDataToken, roundSnapId))
+          .map(adaptDatasetRecordToBrightDataProfile);
+      } catch (error) {
+        if (!isTransientSnapshotDownloadError(error)) {
+          throw error;
+        }
+        throw new DatasetRecallPendingError(
+          `Bright Data additional snapshot ${roundSnapId} is ready but the download is still finalizing`,
+          { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+        );
+      }
       if (roundProfiles.length === 0) {
         logSearchEvent("search_multi_round_empty", {
           search_id: context.searchId,

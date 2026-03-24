@@ -53,7 +53,7 @@ export type BrightDataSnapshotMetadata = {
   warning_code?: string | number;
 };
 
-class BrightDataSnapshotNotReadyError extends Error {
+export class BrightDataSnapshotNotReadyError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "BrightDataSnapshotNotReadyError";
@@ -67,6 +67,13 @@ export class BrightDataSnapshotFailedError extends Error {
     super(message);
     this.name = "BrightDataSnapshotFailedError";
     this.metadata = metadata;
+  }
+}
+
+export class BrightDataRequestTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BrightDataRequestTimeoutError";
   }
 }
 
@@ -168,6 +175,45 @@ async function brightDataFetch(input: RequestInfo | URL, init?: RequestInit) {
   return fetch(input, {
     ...init,
     signal: mergeAbortSignals(init?.signal, BRIGHTDATA_REQUEST_TIMEOUT_MS),
+  });
+}
+
+async function readResponseTextWithTimeout(
+  response: Response,
+  context: string,
+  timeoutMs: number = BRIGHTDATA_REQUEST_TIMEOUT_MS,
+) {
+  return await new Promise<string>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(async () => {
+      if (settled) return;
+      settled = true;
+      try {
+        await response.body?.cancel();
+      } catch {
+        // Best-effort cancel only
+      }
+      reject(
+        new BrightDataRequestTimeoutError(
+          `${context} timed out while reading response body after ${timeoutMs}ms`,
+        ),
+      );
+    }, timeoutMs);
+
+    response.text().then(
+      (text) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(text);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
   });
 }
 
@@ -510,7 +556,10 @@ export async function getDatasetSnapshotMetadata(
   );
 
   if (!res.ok) {
-    const text = await res.text();
+    const text = await readResponseTextWithTimeout(
+      res,
+      `Bright Data snapshot metadata ${snapshotId}`,
+    );
     throw new Error(`Bright Data snapshot metadata failed (${res.status}): ${text}`);
   }
 
@@ -529,11 +578,17 @@ export async function downloadDatasetSnapshot(
   );
 
   if (!res.ok) {
-    const text = await res.text();
+    const text = await readResponseTextWithTimeout(
+      res,
+      `Bright Data snapshot download ${snapshotId}`,
+    );
     throw new Error(`Bright Data snapshot download failed (${res.status}): ${text}`);
   }
 
-  const rawText = await res.text();
+  const rawText = await readResponseTextWithTimeout(
+    res,
+    `Bright Data snapshot download ${snapshotId}`,
+  );
   if (!rawText.trim()) {
     throw new BrightDataSnapshotNotReadyError(
       `Bright Data snapshot ${snapshotId} download returned an empty body`,
