@@ -102,25 +102,26 @@ export function getDefaultOpenRouterModel() {
   );
 }
 
-function getOpenRouterHttpClient() {
+function getOpenRouterHttpClient(): HTTPClient | undefined {
+  const proxyFetcher = createProxyFetcher();
+  if (!proxyFetcher) return undefined;
+
   if (cachedHttpClient) return cachedHttpClient;
 
-  cachedHttpClient = new HTTPClient({
-    fetcher: createProxyFetcher(),
-  });
-
+  cachedHttpClient = new HTTPClient({ fetcher: proxyFetcher });
   return cachedHttpClient;
 }
 
 export function getOpenRouterClient() {
   if (cachedClient) return cachedClient;
 
+  const httpClient = getOpenRouterHttpClient();
   cachedClient = new OpenRouter({
     apiKey: getOpenRouterApiKey(),
     serverURL: getOpenRouterBaseUrl(),
     httpReferer: getAppReferer(),
     xTitle: getAppTitle(),
-    httpClient: getOpenRouterHttpClient(),
+    ...(httpClient ? { httpClient } : {}),
   });
 
   return cachedClient;

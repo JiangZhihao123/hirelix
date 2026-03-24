@@ -965,7 +965,7 @@ export default function Home() {
               Pricing that protects speed, not complexity
             </h2>
             <p className="mt-3 text-base text-slate-600">
-              Start free with one high-conviction shortlist per month, sourced from a 200-profile Bright search and ranked into roughly 25 candidates. Upgrade the moment you want contact unlock, export, and outreach execution. The launch version is a US-only paid beta for recruiters, founders, and hiring teams.
+              Start free with one high-conviction shortlist per month, sourced from a Bright LinkedIn search and ranked into roughly 25 candidates. Upgrade the moment you want contact unlock, export, and outreach execution. The launch version is a US-only paid beta for recruiters, founders, and hiring teams.
             </p>
           </div>
 
