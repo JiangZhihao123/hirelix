@@ -4342,7 +4342,7 @@ function buildBrightDataRecallFilters(
       round: "hidden_gem",
       request: {
         datasetId,
-        recordsLimit: 100,
+        recordsLimit: 50,
         filter: { operator: "and", filters: hiddenGemFilters },
       },
     });
@@ -4378,7 +4378,7 @@ function buildBrightDataRecallFilters(
       round: "company_target",
       request: {
         datasetId,
-        recordsLimit: 100,
+        recordsLimit: 50,
         filter: { operator: "and", filters: companyFilters },
       },
     });

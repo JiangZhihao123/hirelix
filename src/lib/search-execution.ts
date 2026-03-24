@@ -26,7 +26,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
 > = {
   bright_fast_free: {
     name: "bright_fast_free",
-    filterLimit: 200,
+    filterLimit: 100,
     finalResultCap: 25,
     highlightCount: 5,
     minVisibleQualityScore: 55,
@@ -48,7 +48,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
   },
   bright_full_pro: {
     name: "bright_full_pro",
-    filterLimit: 200,
+    filterLimit: 100,
     finalResultCap: 25,
     highlightCount: 5,
     minVisibleQualityScore: 0,
