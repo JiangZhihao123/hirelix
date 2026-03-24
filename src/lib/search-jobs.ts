@@ -2491,9 +2491,24 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
 }
 
 function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
+  const suitability = assessment.suitability;
+  const breakdown = suitability.scoring_breakdown;
+  const isStrongAdvance =
+    suitability.advance_recommendation === "advance" &&
+    suitability.match_score >= 70 &&
+    breakdown.relevance_score >= 65 &&
+    breakdown.capability_score >= 65;
+  const isHighConfidenceHold =
+    suitability.advance_recommendation === "hold" &&
+    suitability.match_score >= 78 &&
+    breakdown.relevance_score >= 72 &&
+    breakdown.capability_score >= 72 &&
+    breakdown.join_likelihood_score >= 55;
+
   return (
-    assessment.suitability.shortlist_decision === "yes" &&
-    assessment.suitability.blocking_severity !== "hard"
+    suitability.shortlist_decision === "yes" &&
+    suitability.blocking_severity !== "hard" &&
+    (isStrongAdvance || isHighConfidenceHold)
   );
 }
 
