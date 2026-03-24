@@ -1115,11 +1115,19 @@ function normalizeRecallSpec(
   );
   const lateral_title_variants = normalizeStringArray(item.lateral_title_variants, 6);
   const target_companies = normalizeStringArray(item.target_companies, 15);
-  const recall_strategy = normalizeEnumValue(
+  const requested_recall_strategy = normalizeEnumValue(
     item.recall_strategy,
     ["standard", "multi_round"] as const,
     "standard",
   );
+  const recall_strategy = deriveStableRecallStrategy({
+    requestedStrategy: requested_recall_strategy,
+    differentiatingSkillTerms: differentiating_skill_terms,
+    lateralTitleVariants: lateral_title_variants,
+    targetCompanies: target_companies,
+    roleBreadth: role_breadth,
+    recallConfidence: recall_confidence,
+  });
   const requestedLimit =
     typeof options?.recordLimitOverride === "number" &&
     Number.isFinite(options.recordLimitOverride)
@@ -1188,6 +1196,24 @@ const FALLBACK_CORE_SKILL_TERMS = [
   "ai agent",
 ];
 
+const FALLBACK_SAAS_BACKEND_TARGET_COMPANIES = [
+  "Stripe",
+  "Twilio",
+  "Shopify",
+  "Atlassian",
+  "HubSpot",
+  "Zoom",
+  "Snowflake",
+  "Datadog",
+  "MongoDB",
+  "Elastic",
+  "Auth0",
+  "Plaid",
+  "Brex",
+  "Notion",
+  "Airtable",
+];
+
 function deriveCoreSkillsFromJdText(jdText: string, maxItems = 12) {
   const lower = jdText.toLowerCase();
   const deduped = new Set<string>();
@@ -1200,6 +1226,74 @@ function deriveCoreSkillsFromJdText(jdText: string, maxItems = 12) {
     }
   }
   return Array.from(deduped);
+}
+
+function deriveStableRecallStrategy(input: {
+  requestedStrategy: RecallSpec["recall_strategy"];
+  differentiatingSkillTerms: string[];
+  lateralTitleVariants: string[];
+  targetCompanies: string[];
+  roleBreadth: RecallSpec["role_breadth"];
+  recallConfidence: RecallSpec["recall_confidence"];
+}) {
+  const differentiatingTerms = input.differentiatingSkillTerms
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2);
+  const lateralTitles = input.lateralTitleVariants
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 3);
+  const targetCompanies = input.targetCompanies
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2);
+
+  const hasHiddenGemSignals = lateralTitles.length >= 2 && differentiatingTerms.length >= 2;
+  const hasCompanyTargetSignals = targetCompanies.length >= 5;
+  const hasEnoughExpansionSignals =
+    hasCompanyTargetSignals ||
+    hasHiddenGemSignals ||
+    (
+      input.roleBreadth !== "narrow" &&
+      input.recallConfidence !== "low" &&
+      (
+        (lateralTitles.length >= 2 && differentiatingTerms.length >= 1) ||
+        (targetCompanies.length >= 3 && differentiatingTerms.length >= 1)
+      )
+    );
+
+  if (hasEnoughExpansionSignals) {
+    return "multi_round" as const;
+  }
+
+  return input.requestedStrategy;
+}
+
+function inferTargetCompaniesFromParsed(
+  parsed: Record<string, unknown>,
+  title: string | null,
+  coreSkillTerms: string[],
+  domainTerms: string[],
+) {
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const normalizedTitle = normalizeText(title);
+  const normalizedDomainTerms = domainTerms.map((term) => normalizeText(term));
+  const normalizedCoreSkills = coreSkillTerms.map((term) => normalizeText(term));
+  const normalizedRequiredSkills = hiringBrief.role_core.required_skills.map((term) => normalizeText(term));
+  const allSkillSignals = new Set([...normalizedCoreSkills, ...normalizedRequiredSkills]);
+
+  const backendRole =
+    /(backend|software engineer|platform|api|distributed systems|infrastructure)/.test(normalizedTitle) ||
+    hiringBrief.role_core.function_focus === "backend";
+  const saasSignals =
+    normalizedDomainTerms.some((term) => ["b2b", "saas", "fintech", "developer tools"].includes(term)) ||
+    ["growth", "enterprise"].includes(hiringBrief.company_stage_expectation) ||
+    ["node.js", "typescript", "postgresql", "aws", "distributed systems", "api development", "microservices", "serverless", "lambda", "kubernetes"]
+      .some((term) => allSkillSignals.has(term));
+
+  if (backendRole && saasSignals) {
+    return FALLBACK_SAAS_BACKEND_TARGET_COMPANIES.slice(0, 15);
+  }
+
+  return [];
 }
 
 function inferCountriesFromJdText(jdText: string) {
@@ -1297,6 +1391,17 @@ function enrichRecallSpecFromJd(
   const avoidProfiles = recallSpec.avoid_profiles.length > 0
     ? recallSpec.avoid_profiles
     : deriveAvoidProfilesFromParsed(parsed, jdText);
+  const targetCompanies = recallSpec.target_companies.length > 0
+    ? recallSpec.target_companies
+    : inferTargetCompaniesFromParsed(parsed, title, coreSkillTerms, domainTerms);
+  const recallStrategy = deriveStableRecallStrategy({
+    requestedStrategy: recallSpec.recall_strategy,
+    differentiatingSkillTerms: differentiatingSkillTerms,
+    lateralTitleVariants: recallSpec.lateral_title_variants,
+    targetCompanies: targetCompanies,
+    roleBreadth: recallSpec.role_breadth,
+    recallConfidence: recallSpec.recall_confidence,
+  });
 
   return {
     ...recallSpec,
@@ -1321,8 +1426,8 @@ function enrichRecallSpecFromJd(
     recall_confidence: recallSpec.recall_confidence,
     role_breadth: recallSpec.role_breadth,
     lateral_title_variants: recallSpec.lateral_title_variants.slice(0, 6),
-    target_companies: recallSpec.target_companies.slice(0, 15),
-    recall_strategy: recallSpec.recall_strategy,
+    target_companies: targetCompanies.slice(0, 15),
+    recall_strategy: recallStrategy,
   };
 }
 
