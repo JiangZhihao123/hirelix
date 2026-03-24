@@ -389,12 +389,12 @@ function formatElapsedMinutes(ms: number | null) {
 
 function getProviderDelayCopy(elapsedMs: number | null) {
   if (!elapsedMs || elapsedMs < 90_000) {
-    return "Hirelix accepted the search and is waiting for Bright Data to return the first profile batch.";
+    return "Hirelix is waiting for Bright to return recalled profiles.";
   }
   if (elapsedMs < 210_000) {
-    return "Bright Data recall is taking longer than usual, but this still looks like a normal provider delay.";
+    return "Bright recall is taking longer than usual.";
   }
-  return "Bright Data recall is unusually slow right now. You can leave this page and come back once the shortlist starts to grow.";
+  return "Bright recall is unusually slow right now. You can leave this page and come back later.";
 }
 
 function getSearchErrorPresentation(errorMessage: string | null | undefined) {
@@ -1277,7 +1277,7 @@ function ProcessingSteps({
       : pipelineStep === "parsing"
       ? "Turning the JD into a search brief"
       : pipelineStep === "searching"
-        ? "Waiting for the first Bright profile batch"
+        ? "Recalling profiles from Bright"
       : pipelineStep === "screening"
           ? "Reviewing recalled profiles"
           : "Ranking the shortlist";
@@ -1289,8 +1289,8 @@ function ProcessingSteps({
       ? "Extracting the role, constraints, and recruiter signal from the JD."
       : pipelineStep === "searching"
         ? standardRecallReady
-          ? "The first provider batch is back. Reviewing profiles now."
-          : "Waiting for Bright Data to return the first provider batch."
+          ? "Bright recall is back. Reviewing profiles now."
+          : "Waiting for Bright to return recalled profiles."
         : pipelineStep === "screening"
           ? "Hirelix is reviewing recalled profiles and filtering for credible matches."
         : firstShortlistCandidateAt
@@ -2088,7 +2088,7 @@ export default function SearchResultPage() {
           </p>
           <h2 className="mt-2 text-xl font-semibold text-slate-950">
             {standardRecallReady
-              ? "The first profile batch is back"
+              ? "Profiles are ready for review"
               : (search?.pipeline_step ?? search?.status ?? "queued") === "queued"
                 ? "Hirelix has accepted your shortlist request"
                 : (search?.pipeline_step ?? search?.status ?? "queued") === "parsing"
@@ -2102,17 +2102,12 @@ export default function SearchResultPage() {
                 ? "Your request is queued. Hirelix will interpret the role first, then begin recalling profiles."
                 : (search?.pipeline_step ?? search?.status ?? "queued") === "parsing"
                   ? "Hirelix is extracting the role shape, constraints, and fit signals from the JD before recall begins."
-                  : "Hirelix is waiting for the first provider batch so candidate review can begin."}
+                  : "Hirelix is waiting for Bright recall so candidate review can begin."}
           </p>
           <p className="mt-3 max-w-2xl text-xs text-slate-500">
             {standardRecallReady
               ? `Standard recall finished in ${standardRecallReadyLabel}.`
-              : getProviderDelayCopy(providerDelayMs)}{" "}
-            If this shortlist looks off, email{" "}
-            <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
-              support@hirelix.online
-            </a>
-            .
+              : getProviderDelayCopy(providerDelayMs)}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
@@ -2127,7 +2122,7 @@ export default function SearchResultPage() {
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
               {standardRecallReady
                 ? "Results will appear as candidates pass review"
-                : "Results start once the first profile batch arrives"}
+                : "Results start once recalled profiles are ready for review"}
             </span>
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">You can come back to this shortlist any time</span>
           </div>
