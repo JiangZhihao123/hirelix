@@ -1,6 +1,7 @@
 import { load } from "cheerio";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { getOutboundProxySettings } from "@/lib/server-outbound-proxy";
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (compatible; HirelixBot/1.0; +https://hirelix.app)";
@@ -121,7 +122,8 @@ async function fetchWithTimeout(url: string) {
 
 async function fetchWithCurl(url: string) {
   try {
-    const { stdout } = await execFileAsync("curl", [
+    const { proxyUrl } = getOutboundProxySettings();
+    const args = [
       "-L",
       "--silent",
       "--show-error",
@@ -129,8 +131,11 @@ async function fetchWithCurl(url: string) {
       String(Math.ceil(PAGE_FETCH_TIMEOUT_MS / 1000)),
       "--user-agent",
       DEFAULT_USER_AGENT,
+      ...(proxyUrl ? ["--proxy", proxyUrl] : []),
       url,
-    ]);
+    ];
+
+    const { stdout } = await execFileAsync("curl", args);
     return stdout;
   } catch {
     return null;

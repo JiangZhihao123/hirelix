@@ -32,12 +32,21 @@ function shouldEnableProxy(proxyUrl: string | null) {
   return process.env.NODE_ENV === "development" && Boolean(proxyUrl);
 }
 
+export function getOutboundProxySettings() {
+  const proxyUrl = getProxyUrl();
+  const enabled = shouldEnableProxy(proxyUrl);
+  return {
+    enabled,
+    proxyUrl: enabled ? proxyUrl : null,
+  };
+}
+
 export function initializeGlobalOutboundProxy() {
   if (initialized) return;
   initialized = true;
 
-  const proxyUrl = getProxyUrl();
-  if (!shouldEnableProxy(proxyUrl) || !proxyUrl) {
+  const { enabled, proxyUrl } = getOutboundProxySettings();
+  if (!enabled || !proxyUrl) {
     return;
   }
 
