@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { findEmail } from "@/lib/hunter";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import {
+  generateOpenRouterJson,
+  getDefaultOpenRouterModel,
+  getOpenRouterApiKey,
+} from "@/lib/openrouter";
 import { supabaseAdmin } from "@/lib/supabase-server";
-
-/** Strip markdown code fences from Claude responses and fix truncated JSON */
-function extractJSON(text: string): string {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  let result = fenced ? fenced[1].trim() : text.trim();
-  if (result.startsWith("{") && !result.endsWith("}")) {
-    const lastBrace = result.lastIndexOf("}");
-    if (lastBrace > 0) result = result.substring(0, lastBrace + 1);
-  }
-  return result;
-}
 
 /**
  * POST /api/candidates/[id]/enrich
@@ -82,9 +74,12 @@ export async function POST(
 
     const apolloApiKey = process.env.APOLLO_API_KEY || null;
     const hunterApiKey = process.env.HUNTER_API_KEY || null;
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-    const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
-    const anthropicModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+    let openRouterConfigured = true;
+    try {
+      getOpenRouterApiKey();
+    } catch {
+      openRouterConfigured = false;
+    }
 
     const updates: Record<string, unknown> = {};
 
@@ -116,12 +111,8 @@ export async function POST(
     }
 
     // ── Step 2: Generate outreach draft (if not already generated) ──
-    if (needsDraftBackfill && anthropicApiKey) {
-      const anthropic = createAnthropic({
-        apiKey: anthropicApiKey,
-        ...(anthropicBaseUrl ? { baseURL: anthropicBaseUrl } : {}),
-      });
-
+    if (needsDraftBackfill && openRouterConfigured) {
+      const model = getDefaultOpenRouterModel();
       const parsed = candidate.search?.parsed_requirements || {};
       const roleTitle = parsed.title || "this role";
       const email = updates.email || candidate.email;
@@ -169,16 +160,19 @@ Location: ${candidate.location || "N/A"}
 - linkedin: string (LinkedIn InMail, under 80 words, casual, starts with "Hi ${firstName},")
 ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal, starts with "Hi ${firstName},")` : ""}
 
-Return ONLY valid JSON, no markdown.`;
+      Return ONLY valid JSON, no markdown.`;
 
       try {
-        const { text } = await generateText({
-          model: anthropic(anthropicModel),
+        const { data: draft } = await generateOpenRouterJson<{
+          subject?: string;
+          linkedin?: string;
+          email?: string;
+        }>({
+          model,
           prompt,
           maxOutputTokens: 1000,
+          temperature: 0,
         });
-
-        const draft = JSON.parse(extractJSON(text));
         updates.outreach_draft = JSON.stringify(draft);
         console.log(`[enrich] Outreach generated for ${candidate.name}`);
       } catch (err) {

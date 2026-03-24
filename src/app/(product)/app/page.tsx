@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { DashboardPageSkeleton } from "@/components/ProductSkeletons";
 import { supabase } from "@/lib/supabase";
 import { useBilling } from "@/lib/use-billing";
+import { getSearchDisplayTitle } from "@/lib/search-title";
 import {
   getSearchStatusBucket,
   getStalledSearchMessage,
@@ -399,7 +400,11 @@ export default function DashboardPage() {
           {primaryContext.search && (
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
               <span className="font-medium text-slate-900">
-                {primaryContext.search.title || "Untitled shortlist"}
+                {getSearchDisplayTitle({
+                  title: primaryContext.search.title,
+                  jdText: primaryContext.search.jd_text,
+                  fallback: "Untitled shortlist",
+                })}
               </span>
               <span className="text-slate-300">·</span>
               <span>{getSearchContextLabel(primaryContext.search.status, primaryContext.search.created_at, primaryContext.search.updated_at)}</span>
@@ -545,7 +550,11 @@ export default function DashboardPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold">
-                      {s.title || "Untitled shortlist"}
+                      {getSearchDisplayTitle({
+                        title: s.title,
+                        jdText: s.jd_text,
+                        fallback: "Untitled shortlist",
+                      })}
                     </p>
                     {statusIcon(s.status)}
                   </div>

@@ -1,7 +1,3 @@
-import { generateText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { fetch as undiciFetch, ProxyAgent } from "undici";
 import {
   CANDIDATE_SUITABILITY_PROMPT,
   JD_SEARCH_INTENT_PROMPT,
@@ -28,17 +24,17 @@ import {
 } from "@/lib/brightdata";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
-  getFullSearchExecutionProfile,
+  generateOpenRouterJson,
+} from "@/lib/openrouter";
+import {
   getInitialSearchExecutionProfile,
   getSearchExecutionProfile,
-  isProPlanCode,
   normalizeSearchExecutionProfileName,
   normalizeSearchPlanCode,
   type SearchExecutionProfile,
-  type SearchPhase,
   type SearchPlanCode,
-  type SearchResultStage,
 } from "@/lib/search-execution";
+import { extractLikelyTitleFromJdText } from "@/lib/search-title";
 
 export const SEARCH_JOB_MAX_ATTEMPTS = 3;
 const SEARCH_JOB_STALE_MINUTES = getConfiguredPositiveInt(
@@ -325,7 +321,7 @@ function estimateTokensFromText(text: string | null | undefined, minimum = 0) {
 }
 
 function getEstimatedModelPricing() {
-  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
+  const provider = (process.env.AI_PROVIDER || "openrouter").trim().toLowerCase();
   if (provider === "deepseek") {
     return {
       provider: "deepseek",
@@ -611,7 +607,6 @@ type SearchDisplayStats = {
   bright_snapshot_cost?: number;
   estimated_llm_cost?: number;
   estimated_search_total_cost?: number;
-  search_phase_count?: number;
   judge_mode?: "single" | "dual";
   activation_run?: boolean;
   quality_floor_applied?: boolean;
@@ -620,7 +615,6 @@ type SearchDisplayStats = {
   prescreen_blocked_count?: number;
   contact_unlock_candidates?: number;
   recall_profile_count?: number;
-  topup_triggered?: boolean;
   strong_now_count?: number;
   consider_next_count?: number;
   do_not_show_count?: number;
@@ -715,39 +709,6 @@ function nowIso() {
 
 function logSearchEvent(eventName: string, payload: Record<string, unknown>) {
   console.log(`[search:${eventName}] ${JSON.stringify(payload)}`);
-}
-
-function extractJSON(text: string): string {
-  // 策略 1: 尝试提取 markdown 代码块中的 JSON
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenced && fenced[1].trim().length > 0) {
-    let result = fenced[1].trim();
-    // 修复不完整的数组
-    if (result.startsWith("[") && !result.endsWith("]")) {
-      const lastBrace = result.lastIndexOf("}");
-      if (lastBrace > 0) {
-        result = result.substring(0, lastBrace + 1) + "]";
-      }
-    }
-    return result;
-  }
-  
-  // 策略 2: 尝试查找第一个 { 或 [ 到最后一个 } 或 ]
-  const firstBrace = Math.min(
-    text.indexOf("{") >= 0 ? text.indexOf("{") : Infinity,
-    text.indexOf("[") >= 0 ? text.indexOf("[") : Infinity
-  );
-  const lastBrace = Math.max(
-    text.lastIndexOf("}"),
-    text.lastIndexOf("]")
-  );
-  
-  if (firstBrace < Infinity && lastBrace > firstBrace) {
-    return text.substring(firstBrace, lastBrace + 1);
-  }
-  
-  // 策略 3: 返回原始文本（去除首尾空白）
-  return text.trim();
 }
 
 function normalizeNullableString(value: unknown): string | null {
@@ -1171,52 +1132,6 @@ function normalizeExperienceYears(value: unknown): number | null {
   return null;
 }
 
-function extractLikelyTitleFromJdText(jdText: string) {
-  const proseSource = jdText.replace(/\s+/g, " ").trim();
-  const roleIntroPatterns = [
-    /\b(?:we\s+are|we're)?\s*(?:hiring|looking\s+for|seeking)\s+(?:an?|our\s+next)\s+(.{4,80}?)\s+(?:to|who|for|with|based|located|in)\b/i,
-    /^\s*(.{4,80}?)\s+(?:to|who|for|with|based|located|in)\b/i,
-  ];
-  const looksLikeRoleTitle = (value: string) =>
-    /\b(engineer|developer|manager|designer|scientist|analyst|architect|specialist|recruiter|marketer|operator|director|lead|head)\b/i.test(value);
-  const normalizeTitle = (value: string) =>
-    value
-      .replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((word) => {
-        if (/^(ai|ml|qa|ui|ux|sre|ios)$/i.test(word)) return word.toUpperCase();
-        if (/^node\.js$/i.test(word)) return "Node.js";
-        if (/^typescript$/i.test(word)) return "TypeScript";
-        if (/^javascript$/i.test(word)) return "JavaScript";
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      })
-      .join(" ");
-
-  for (const pattern of roleIntroPatterns) {
-    const match = proseSource.match(pattern);
-    const candidate = match?.[1]?.trim();
-    if (candidate && looksLikeRoleTitle(candidate)) {
-      return normalizeTitle(candidate);
-    }
-  }
-
-  const lines = jdText
-    .split("\n")
-    .map((line) => line.replace(/[#*`>-]/g, " ").trim())
-    .filter(Boolean);
-
-  for (const line of lines.slice(0, 12)) {
-    if (line.length < 4 || line.length > 90) continue;
-    if (/^(location|company|about|requirements|responsibilities|nice to have|compensation)\s*:/i.test(line)) {
-      continue;
-    }
-    return normalizeTitle(line);
-  }
-
-  return null;
-}
-
 function isPlaceholderTitle(title: string | null | undefined) {
   if (!title) return true;
   return normalizeText(title) === "untitled role";
@@ -1475,9 +1390,6 @@ function buildSearchDisplayStats(
     ...(typeof overrides.estimated_search_total_cost === "number"
       ? { estimated_search_total_cost: Math.max(0, overrides.estimated_search_total_cost) }
       : {}),
-    ...(typeof overrides.search_phase_count === "number"
-      ? { search_phase_count: Math.max(1, Math.round(overrides.search_phase_count)) }
-      : {}),
     ...(overrides.judge_mode === "single" || overrides.judge_mode === "dual"
       ? { judge_mode: overrides.judge_mode }
       : {}),
@@ -1501,9 +1413,6 @@ function buildSearchDisplayStats(
       : {}),
     ...(typeof overrides.recall_profile_count === "number"
       ? { recall_profile_count: Math.max(0, Math.round(overrides.recall_profile_count)) }
-      : {}),
-    ...(typeof overrides.topup_triggered === "boolean"
-      ? { topup_triggered: overrides.topup_triggered }
       : {}),
     ...(typeof overrides.strong_now_count === "number"
       ? { strong_now_count: Math.max(0, Math.round(overrides.strong_now_count)) }
@@ -1626,36 +1535,6 @@ function estimateBrightPipelineLlmCost(params: {
   };
 }
 
-function mergeCostEstimates(
-  current: SearchDisplayStats,
-  previous?: SearchDisplayStats | null,
-): SearchDisplayStats {
-  const brightSnapshotCost = roundCurrency(
-    (previous?.bright_snapshot_cost ?? 0) + (current.bright_snapshot_cost ?? 0),
-  );
-  const estimatedLlmCost = roundCurrency(
-    (previous?.estimated_llm_cost ?? 0) + (current.estimated_llm_cost ?? 0),
-  );
-  const estimatedSearchTotalCost = roundCurrency(
-    brightSnapshotCost + estimatedLlmCost,
-  );
-
-  return buildSearchDisplayStats({
-    ...current,
-    bright_snapshot_cost: brightSnapshotCost,
-    estimated_llm_cost: estimatedLlmCost,
-    estimated_search_total_cost: estimatedSearchTotalCost,
-  });
-}
-
-function normalizeSearchPhase(value: unknown): SearchPhase {
-  return value === "phase_2" ? "phase_2" : "phase_1";
-}
-
-function normalizeSearchResultStage(value: unknown): SearchResultStage {
-  return value === "final" ? "final" : "provisional";
-}
-
 function normalizeSearchDisplayStats(value: unknown): SearchDisplayStats | null {
   return value && typeof value === "object"
     ? buildSearchDisplayStats(value as Partial<SearchDisplayStats>)
@@ -1667,9 +1546,6 @@ function withExecutionState(
   executionProfile: SearchExecutionProfile,
   options: {
     planCode: SearchPlanCode;
-    searchPhase: SearchPhase;
-    resultStage: SearchResultStage;
-    searchPhaseCount: number;
     displayCount?: number;
   },
 ): Record<string, unknown> {
@@ -1677,9 +1553,8 @@ function withExecutionState(
     ...parsed,
     plan_code: options.planCode,
     execution_profile: executionProfile.name,
-    search_phase: options.searchPhase,
-    result_stage: options.resultStage,
-    search_phase_count: options.searchPhaseCount,
+    search_phase: "phase_1",
+    result_stage: "final",
     judge_mode: executionProfile.singleJudgeMode ? "single" : "dual",
     display_count: options.displayCount ?? executionProfile.finalResultCap,
   };
@@ -1687,20 +1562,6 @@ function withExecutionState(
 
 function isActivationRun(parsed: Record<string, unknown> | null | undefined) {
   return parsed?.activation_run === true;
-}
-
-function shouldUpgradeToFullPass(
-  hiringBrief: HiringBrief,
-  displayStats: SearchDisplayStats,
-) {
-  const hasStrictLocalConstraint =
-    (hiringBrief.work_model === "onsite" || hiringBrief.work_model === "hybrid") &&
-    hiringBrief.location_flexibility === "strict";
-  if (hasStrictLocalConstraint) return true;
-  if ((displayStats.qualified_count ?? 0) < 10) return true;
-  if ((displayStats.advanceable_count ?? 0) < 8) return true;
-  if ((displayStats.top_quality_score ?? 0) < 70) return true;
-  return false;
 }
 
 function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
@@ -2524,170 +2385,43 @@ function trimBrightDataProfileForMetadata(profile: BrightDataProfile) {
 }
 
 function getAIModel() {
-  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
-  if (provider === "openrouter") {
-    return process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
-  }
-  if (provider === "deepseek") {
-    return process.env.AI_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
-  }
-  return process.env.ANTHROPIC_MODEL || process.env.AI_MODEL || "claude-sonnet-4-20250514";
+  return (
+    process.env.AI_MODEL ||
+    process.env.SEARCH_JUDGE_MODEL ||
+    process.env.DEEPSEEK_MODEL ||
+    "deepseek/deepseek-chat"
+  );
 }
 
 function getJudgeModel() {
-  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
-  if (provider === "openrouter") {
-    return (
-      process.env.SEARCH_JUDGE_MODEL ||
-      process.env.OPENROUTER_JUDGE_MODEL ||
-      process.env.AI_MODEL ||
-      "anthropic/claude-sonnet-4.6"
-    );
-  }
-  if (provider === "deepseek") {
-    return (
-      process.env.SEARCH_JUDGE_MODEL ||
-      process.env.DEEPSEEK_JUDGE_MODEL ||
-      process.env.AI_MODEL ||
-      process.env.DEEPSEEK_MODEL ||
-      "deepseek-chat"
-    );
-  }
   return (
     process.env.SEARCH_JUDGE_MODEL ||
-    process.env.ANTHROPIC_JUDGE_MODEL ||
-    process.env.ANTHROPIC_MODEL ||
-    "claude-sonnet-4-20250514"
+    process.env.OPENROUTER_JUDGE_MODEL ||
+    process.env.AI_MODEL ||
+    process.env.DEEPSEEK_JUDGE_MODEL ||
+    process.env.DEEPSEEK_MODEL ||
+    "deepseek/deepseek-chat"
   );
 }
 
 function getArbiterModel() {
-  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
-  if (provider === "openrouter") {
-    return (
-      process.env.SEARCH_ARBITER_MODEL ||
-      process.env.OPENROUTER_ARBITER_MODEL ||
-      getJudgeModel()
-    );
-  }
-  if (provider === "deepseek") {
-    return (
-      process.env.SEARCH_ARBITER_MODEL ||
-      process.env.DEEPSEEK_ARBITER_MODEL ||
-      getJudgeModel()
-    );
-  }
   return (
     process.env.SEARCH_ARBITER_MODEL ||
-    process.env.ANTHROPIC_ARBITER_MODEL ||
+    process.env.OPENROUTER_ARBITER_MODEL ||
+    process.env.DEEPSEEK_ARBITER_MODEL ||
     getJudgeModel()
   );
 }
 
 function getLightModel() {
-  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
-  if (provider === "openrouter") {
-    return (
-      process.env.SEARCH_LIGHT_MODEL ||
-      process.env.OPENROUTER_HAIKU_MODEL ||
-      "claude-haiku-4-5-20251001"
-    );
-  }
-  if (provider === "deepseek") {
-    return (
-      process.env.SEARCH_LIGHT_MODEL ||
-      process.env.DEEPSEEK_LIGHT_MODEL ||
-      process.env.DEEPSEEK_MODEL ||
-      process.env.AI_MODEL ||
-      "deepseek-chat"
-    );
-  }
   return (
     process.env.SEARCH_LIGHT_MODEL ||
-    process.env.ANTHROPIC_HAIKU_MODEL ||
-    process.env.ANTHROPIC_MODEL ||
+    process.env.OPENROUTER_LIGHT_MODEL ||
+    process.env.DEEPSEEK_LIGHT_MODEL ||
     process.env.AI_MODEL ||
-    "claude-sonnet-4-20250514"
+    process.env.DEEPSEEK_MODEL ||
+    "deepseek/deepseek-chat"
   );
-}
-
-function createAIClient() {
-  const provider = (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase();
-  
-  if (provider === "openrouter") {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENROUTER_API_KEY is missing");
-    }
-
-    const config: {
-      apiKey: string;
-      baseURL: string;
-      fetch?: typeof fetch;
-    } = {
-      apiKey,
-      baseURL: "https://openrouter.ai/api/v1",
-    };
-
-    if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
-      const proxyAgent = new ProxyAgent(process.env.HTTP_PROXY);
-
-      config.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-        const requestInit = (init ?? {}) as Record<string, unknown>;
-        return undiciFetch(input as never, {
-          ...requestInit,
-          dispatcher: proxyAgent,
-        } as never) as unknown as Promise<Response>;
-      }) as typeof fetch;
-    }
-
-    return createOpenAI(config);
-  }
-
-  if (provider === "deepseek") {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      throw new Error("DEEPSEEK_API_KEY is missing");
-    }
-
-    const config: {
-      apiKey: string;
-      baseURL: string;
-      fetch?: typeof fetch;
-    } = {
-      apiKey,
-      baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
-    };
-
-    if (process.env.NODE_ENV === "development" && process.env.HTTP_PROXY) {
-      const proxyAgent = new ProxyAgent(process.env.HTTP_PROXY);
-
-      config.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-        const requestInit = (init ?? {}) as Record<string, unknown>;
-        return undiciFetch(input as never, {
-          ...requestInit,
-          dispatcher: proxyAgent,
-        } as never) as unknown as Promise<Response>;
-      }) as typeof fetch;
-    }
-
-    const deepseekClient = createOpenAI(config);
-    const chatPreferredClient = ((modelId: string) =>
-      deepseekClient.chat(modelId)) as typeof deepseekClient;
-    Object.assign(chatPreferredClient, deepseekClient);
-    return chatPreferredClient;
-  }
-  
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-  if (!anthropicApiKey) {
-    throw new Error("ANTHROPIC_API_KEY is missing");
-  }
-  return createAnthropic({
-    apiKey: anthropicApiKey,
-    ...(process.env.ANTHROPIC_BASE_URL
-      ? { baseURL: process.env.ANTHROPIC_BASE_URL }
-      : {}),
-  });
 }
 
 
@@ -2740,24 +2474,27 @@ async function generateOutreachDraftsForRows(
 ) {
   if (rows.length === 0) return rows;
 
-  const aiClient = createAIClient();
   const draftedRows = await Promise.all(
     rows.map(async (row) => {
       if (row.outreach_draft) return row;
 
       try {
-        const { text } = await withTimeout(
-          (signal) => generateText({
-            model: aiClient(getLightModel()),
+        const { data: parsedDraft } = await withTimeout(
+          (signal) => generateOpenRouterJson<{
+            subject?: string;
+            linkedin?: string;
+            email?: string;
+          }>({
+            model: getLightModel(),
             prompt: buildSearchOutreachPrompt(parsed, context.jdText, row),
             maxOutputTokens: runtime.outreachMaxOutputTokens,
             abortSignal: signal,
+            timeoutMs: 60000,
+            temperature: 0,
           }),
           60000,
           `Outreach draft for ${row.name}`,
         );
-
-        const parsedDraft = JSON.parse(extractJSON(text));
         return {
           ...row,
           outreach_draft: JSON.stringify({
@@ -4519,27 +4256,26 @@ async function parseJobDescription(
     job_id: context.jobId,
   });
 
-  const aiClient = createAIClient();
   let parsed: Record<string, unknown> | null = null;
   let lastParseError: string | null = null;
   let estimatedParseCost = 0;
 
   for (let attempt = 1; attempt <= PARSE_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const { text } = await withTimeout(
-        (signal) => generateText({
-          model: aiClient(getAIModel()),
+      const { text, data: candidate } = await withTimeout(
+        (signal) => generateOpenRouterJson<Record<string, unknown>>({
+          model: getAIModel(),
           system: JD_SEARCH_INTENT_PROMPT,
           prompt: context.jdText,
           maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
           abortSignal: signal,
+          timeoutMs: 60000,
+          temperature: 0,
         }),
         60000,
         "Search intent generation",
       );
       estimatedParseCost += estimateSearchIntentCost(context.jdText, text);
-
-      const candidate = JSON.parse(extractJSON(text)) as Record<string, unknown>;
       if (isWeakParsedIntent(candidate, context.candidateCount)) {
         lastParseError = "weak_parsed_intent";
         logSearchEvent("search_parse_retry", {
@@ -4916,7 +4652,6 @@ function selectShortlistedAssessments(assessments: ScoredCandidateAssessment[]) 
 
 
 async function preScreenSerperCandidate(
-  aiClient: ReturnType<typeof createAIClient>,
   parsed: Record<string, unknown>,
   jdText: string,
   candidate: SerperCandidate,
@@ -4926,18 +4661,20 @@ async function preScreenSerperCandidate(
   const lightModel = getLightModel();
 
   try {
-    const { text } = await withTimeout(
-      (signal) => generateText({
-        model: aiClient(lightModel),
+    const { data } = await withTimeout(
+      (signal) => generateOpenRouterJson<Record<string, unknown>>({
+        model: lightModel,
         prompt,
         maxOutputTokens: LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS,
         abortSignal: signal,
+        timeoutMs: 15000,
+        temperature: 0,
       }),
       15000,
       "Serper candidate pre-screen",
     );
 
-    const decision = sanitizeSerperPreScreenDecision(JSON.parse(extractJSON(text)));
+    const decision = sanitizeSerperPreScreenDecision(data);
     if (decision) {
       return {
         serperCandidate: candidate,
@@ -4946,7 +4683,7 @@ async function preScreenSerperCandidate(
     }
   } catch (error) {
     logSearchEvent("search_prescreen_failed", {
-      provider: (process.env.AI_PROVIDER || "anthropic").trim().toLowerCase(),
+      provider: (process.env.AI_PROVIDER || "openrouter").trim().toLowerCase(),
       model: lightModel,
       candidate_url: candidate.linkedin_url,
       error: error instanceof Error ? error.message : String(error),
@@ -4965,7 +4702,6 @@ async function preScreenSerperCandidate(
 }
 
 async function preScreenAllCandidates(
-  aiClient: ReturnType<typeof createAIClient>,
   parsed: Record<string, unknown>,
   jdText: string,
   candidates: SerperCandidate[],
@@ -5006,7 +4742,7 @@ async function preScreenAllCandidates(
   const preScreened = await runWithConcurrency(
     eligibleCandidates.map(({ candidate }) => candidate),
     resolveStageConcurrency(PRE_SCREEN_CONCURRENCY, eligibleCandidates.length),
-    async (candidate) => preScreenSerperCandidate(aiClient, parsed, jdText, candidate),
+    async (candidate) => preScreenSerperCandidate(parsed, jdText, candidate),
   );
 
   return preScreened.sort(
@@ -5021,9 +4757,6 @@ async function buildBrightDataDatasetCandidates(
 ): Promise<SearchPipelineResult | null> {
   const brightDataToken = process.env.BRIGHTDATA_API_TOKEN;
   const runtime = getExecutionRuntime(executionProfile);
-  const isPhaseTwoRefinement =
-    normalizeSearchPhase(parsed.search_phase) === "phase_2" &&
-    normalizeSearchResultStage(parsed.result_stage) === "provisional";
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
@@ -5039,7 +4772,7 @@ async function buildBrightDataDatasetCandidates(
 
   await setSearchStatus(
     context.searchId,
-    isPhaseTwoRefinement ? "deep_scoring" : "searching",
+    "searching",
   );
   const existingRecallMetadata = normalizeRecallMetadata(parsed.recall_metadata);
   let snapshotId = existingRecallMetadata?.snapshot_id ?? null;
@@ -5381,7 +5114,6 @@ async function buildBrightDataDatasetCandidates(
     bright_profiles_returned: profiles.length,
     recall_profile_count: profiles.length,
     retrieval_count: profiles.length,
-    search_phase_count: Number(parsed.search_phase_count) || 1,
     judge_mode: runtime.judgeMode,
     time_to_ack_ms: 0,
     time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
@@ -5535,7 +5267,6 @@ async function buildBrightDataDatasetCandidates(
           bright_profiles_returned: allProfiles.length,
           bright_snapshot_cost:
             totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? undefined),
-          search_phase_count: Number(parsed.search_phase_count) || 1,
           judge_mode: runtime.judgeMode,
           top50_quality_cutoff:
             mergedRows.length > 0 ? mergedRows[mergedRows.length - 1]?.match_score ?? 0 : 0,
@@ -5575,16 +5306,15 @@ async function buildBrightDataDatasetCandidates(
 
   return {
     ...combinedResult,
-    displayStats: mergeCostEstimates(buildSearchDisplayStats({
+    displayStats: buildSearchDisplayStats({
       ...(normalizeSearchDisplayStats(parsed.display_stats) ?? buildSearchDisplayStats({})),
       ...combinedResult.displayStats,
       bright_snapshot_cost: totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? undefined),
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: recallRequest.recordsLimit,
       bright_profiles_returned: allProfiles.length,
-      search_phase_count: Number(parsed.search_phase_count) || 1,
       judge_mode: runtime.judgeMode,
-    })),
+    }),
   };
 }
 
@@ -5599,7 +5329,6 @@ async function buildSerperCandidates(
     return null;
   }
 
-  const aiClient = createAIClient();
   await setSearchStatus(context.searchId, "searching");
   const searchPlan = buildLinkedInSearchPlan(parsed);
   const sourceRuleContext = buildSerperSourceRuleContext(parsed, context.jdText);
@@ -5737,7 +5466,6 @@ async function buildSerperCandidates(
     // retrieved candidates so ranking can happen over the full source pool.
     const sourceRulePassedCandidates = newTierCandidates;
     const tierPreScreened = await preScreenAllCandidates(
-      aiClient,
       parsed,
       context.jdText,
       sourceRulePassedCandidates,
@@ -5895,7 +5623,6 @@ async function buildSerperCandidates(
 }
 
 async function judgeScoreBatch(
-  aiClient: ReturnType<typeof createAIClient>,
   runtime: SearchExecutionRuntime,
   parsed: Record<string, unknown>,
   jdText: string,
@@ -5920,36 +5647,18 @@ async function judgeScoreBatch(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const { text } = await withTimeout(
-        (signal) => generateText({
-          model: aiClient(judgeModel),
+      const { data: judgeResult } = await withTimeout(
+        (signal) => generateOpenRouterJson<unknown>({
+          model: judgeModel,
           prompt,
           maxOutputTokens: runtime.judgeMaxOutputTokens,
           abortSignal: signal,
+          timeoutMs: JUDGE_SCORING_TIMEOUT_MS,
+          temperature: 0,
         }),
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,
       );
-
-      let judgeResult;
-      try {
-        const extracted = extractJSON(text);
-        judgeResult = JSON.parse(extracted);
-      } catch (error) {
-        console.error(`[search:judge_json_parse_error] Failed to parse JSON from ${judgeLabel}:`, {
-          attempt,
-          error: error instanceof Error ? error.message : String(error),
-          raw_text: text.substring(0, 500),
-          extracted_attempt: (() => {
-            try {
-              return extractJSON(text).substring(0, 500);
-            } catch {
-              return null;
-            }
-          })(),
-        });
-        throw new Error(`${judgeLabel} returned invalid JSON`);
-      }
 
       const parsed = parseJudgeScoreResults(
         judgeResult,
@@ -5984,7 +5693,6 @@ async function judgeScoreBatch(
 }
 
 async function arbitrateCandidateScore(
-  aiClient: ReturnType<typeof createAIClient>,
   runtime: SearchExecutionRuntime,
   parsed: Record<string, unknown>,
   jdText: string,
@@ -6005,21 +5713,20 @@ async function arbitrateCandidateScore(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const { text } = await withTimeout(
-        (signal) => generateText({
-          model: aiClient(getArbiterModel()),
+      const { data } = await withTimeout(
+        (signal) => generateOpenRouterJson<unknown>({
+          model: getArbiterModel(),
           prompt,
           maxOutputTokens: runtime.arbiterMaxOutputTokens,
           abortSignal: signal,
+          timeoutMs: ARBITER_SCORING_TIMEOUT_MS,
+          temperature: 0,
         }),
         ARBITER_SCORING_TIMEOUT_MS,
         `Arbiter scoring (attempt ${attempt})`,
       );
 
-      const assessment = parseScoredAssessments(
-        JSON.parse(extractJSON(text)),
-        totalPoolSize,
-      )[0];
+      const assessment = parseScoredAssessments(data, totalPoolSize)[0];
       if (!assessment) {
         throw new Error("Arbiter returned no valid assessment");
       }
@@ -6055,7 +5762,6 @@ async function arbitrateCandidateScore(
 }
 
 async function deepScoreSelectedProfiles(
-  aiClient: ReturnType<typeof createAIClient>,
   runtime: SearchExecutionRuntime,
   parsed: Record<string, unknown>,
   jdText: string,
@@ -6076,7 +5782,7 @@ async function deepScoreSelectedProfiles(
     selectedIndexes,
     workerCount,
     async (selectedIndex) => {
-      const result = await scoreSingleCandidate(aiClient, runtime, parsed, jdText, profileTexts, selectedIndex, totalPoolSize);
+      const result = await scoreSingleCandidate(runtime, parsed, jdText, profileTexts, selectedIndex, totalPoolSize);
       if (result) {
         completedCount++;
         try { await options?.onCandidateScored?.(result, completedCount); } catch { /* non-blocking */ }
@@ -6091,7 +5797,6 @@ async function deepScoreSelectedProfiles(
 }
 
 async function scoreSingleCandidate(
-  aiClient: ReturnType<typeof createAIClient>,
   runtime: SearchExecutionRuntime,
   parsed: Record<string, unknown>,
   jdText: string,
@@ -6102,7 +5807,6 @@ async function scoreSingleCandidate(
       if (runtime.judgeMode === "single") {
         try {
           const judgeResults = await judgeScoreBatch(
-            aiClient,
             runtime,
             parsed,
             jdText,
@@ -6130,8 +5834,8 @@ async function scoreSingleCandidate(
 
       const judgeBatch = [selectedIndex];
       const [judgeAResults, judgeBResults] = await Promise.allSettled([
-        judgeScoreBatch(aiClient, runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge A"),
-        judgeScoreBatch(aiClient, runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge B"),
+        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge A"),
+        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge B"),
       ]);
 
       const judgeA = judgeAResults.status === "fulfilled" ? judgeAResults.value[0] : null;
@@ -6179,7 +5883,6 @@ async function scoreSingleCandidate(
 
       try {
         const arbitrated = await arbitrateCandidateScore(
-          aiClient,
           runtime,
           parsed,
           jdText,
@@ -6219,7 +5922,6 @@ async function scoreBrightDataProfiles(
   },
 ): Promise<SearchPipelineResult> {
   const scoringStartMs = Date.now();
-  const aiClient = createAIClient();
   const runtime = getExecutionRuntime(executionProfile);
   const renderProfileEntries = brightProfiles.map((profile, index) =>
     brightDataProfileToRichText(profile, index),
@@ -6229,7 +5931,6 @@ async function scoreBrightDataProfiles(
   let firstVisibleSignalled = false;
 
   const deepAssessments = await deepScoreSelectedProfiles(
-    aiClient,
     runtime,
     parsed,
     context.jdText,
@@ -6422,7 +6123,6 @@ async function scoreBrightDataProfiles(
       bright_profiles_returned: brightProfiles.length,
       estimated_llm_cost: estimatedCosts.estimatedLlmCost,
       estimated_search_total_cost: estimatedCosts.estimatedSearchTotalCost,
-      search_phase_count: Number(parsed.search_phase_count) || 1,
       judge_mode: runtime.judgeMode,
       activation_run: isActivationRun(parsed),
       quality_floor_applied: false,
@@ -6637,7 +6337,6 @@ async function completeSearch(
     execution_profile: finalParsed.execution_profile ?? null,
     search_phase: finalParsed.search_phase ?? null,
     result_stage: finalParsed.result_stage ?? null,
-    search_phase_count: finalDisplayStats.search_phase_count ?? finalParsed.search_phase_count ?? 1,
     activation_run: finalDisplayStats.activation_run ?? finalParsed.activation_run ?? null,
     quality_floor_applied: finalDisplayStats.quality_floor_applied ?? null,
     visible_candidate_count: finalDisplayStats.visible_candidate_count ?? draftedRows.length,
@@ -6645,7 +6344,6 @@ async function completeSearch(
     prescreen_blocked_count: finalDisplayStats.prescreen_blocked_count ?? null,
     contact_unlock_candidates: finalDisplayStats.contact_unlock_candidates ?? draftedRows.length,
     recall_profile_count: finalDisplayStats.recall_profile_count ?? null,
-    topup_triggered: finalDisplayStats.topup_triggered ?? null,
     strong_now_count: finalDisplayStats.strong_now_count ?? null,
     consider_next_count: finalDisplayStats.consider_next_count ?? null,
     do_not_show_count: finalDisplayStats.do_not_show_count ?? null,
@@ -6672,74 +6370,6 @@ async function completeSearch(
     bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
     estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,
     estimated_search_total_cost: finalDisplayStats.estimated_search_total_cost ?? null,
-    job_id: context.jobId,
-  });
-}
-
-async function persistProvisionalSearch(
-  context: PipelineContext,
-  parsed: Record<string, unknown>,
-  finalRows: CandidateRowInput[],
-  displayStats: SearchDisplayStats,
-) {
-  if (finalRows.length > 0) {
-    await upsertCandidatesForSearch(context.searchId, finalRows, {
-      replaceMissing: true,
-    });
-  }
-
-  const provisionalParsed = withDisplayStats(parsed, displayStats);
-  const createdAtMs = context.createdAt ? Date.parse(context.createdAt) : Number.NaN;
-  const provisionalReadyLatencyMs = Number.isFinite(createdAtMs)
-    ? Math.max(0, Date.now() - createdAtMs)
-    : null;
-  await setSearchStatus(context.searchId, "deep_scoring", {
-    partial_ready_at: nowIso(),
-    error_message: null,
-    warning_message: null,
-    parsed_requirements: provisionalParsed,
-  });
-
-  await updateSearchUsageEventMetadata(context.searchId, {
-    execution_profile: provisionalParsed.execution_profile ?? null,
-    search_phase: provisionalParsed.search_phase ?? null,
-    result_stage: provisionalParsed.result_stage ?? null,
-    search_phase_count: displayStats.search_phase_count ?? provisionalParsed.search_phase_count ?? 1,
-    activation_run: displayStats.activation_run ?? provisionalParsed.activation_run ?? null,
-    quality_floor_applied: displayStats.quality_floor_applied ?? null,
-    visible_candidate_count: displayStats.visible_candidate_count ?? finalRows.length,
-    pre_gate_blocked_count: displayStats.pre_gate_blocked_count ?? null,
-    prescreen_blocked_count: displayStats.prescreen_blocked_count ?? null,
-    contact_unlock_candidates: displayStats.contact_unlock_candidates ?? finalRows.length,
-    recall_profile_count: displayStats.recall_profile_count ?? null,
-    topup_triggered: displayStats.topup_triggered ?? null,
-    strong_now_count: displayStats.strong_now_count ?? null,
-    consider_next_count: displayStats.consider_next_count ?? null,
-    do_not_show_count: displayStats.do_not_show_count ?? null,
-    shortlist_yes_count: displayStats.shortlist_yes_count ?? null,
-    shortlist_no_count: displayStats.shortlist_no_count ?? null,
-    clear_location_fit_count: displayStats.clear_location_fit_count ?? null,
-    must_have_strong_count: displayStats.must_have_strong_count ?? null,
-    first_contact_confidence_count: displayStats.first_contact_confidence_count ?? null,
-    bright_profile_budget: displayStats.bright_profile_budget ?? null,
-    bright_profiles_requested: displayStats.bright_profiles_requested ?? null,
-    bright_profiles_returned: displayStats.bright_profiles_returned ?? null,
-    bright_snapshot_cost: displayStats.bright_snapshot_cost ?? null,
-    estimated_llm_cost: displayStats.estimated_llm_cost ?? null,
-    estimated_search_total_cost: displayStats.estimated_search_total_cost ?? null,
-    provisional_ready_latency_ms: provisionalReadyLatencyMs,
-    judge_mode: displayStats.judge_mode ?? provisionalParsed.judge_mode ?? null,
-  });
-
-  logSearchEvent("search_provisional_ready", {
-    search_id: context.searchId,
-    candidate_count: finalRows.length,
-    execution_profile: provisionalParsed.execution_profile ?? null,
-    search_phase: provisionalParsed.search_phase ?? null,
-    provisional_ready_latency_ms: provisionalReadyLatencyMs,
-    bright_snapshot_cost: displayStats.bright_snapshot_cost ?? null,
-    estimated_llm_cost: displayStats.estimated_llm_cost ?? null,
-    estimated_search_total_cost: displayStats.estimated_search_total_cost ?? null,
     job_id: context.jobId,
   });
 }
@@ -6829,234 +6459,32 @@ async function runSearchPipeline(job: SearchJobRow) {
     }
     : await parseJobDescription(context, (search as SearchRow).parsed_requirements);
 
-  let activePhase = normalizeSearchPhase(parsed.search_phase);
-  if (activePhase === "phase_1") {
-    parsed.recall_provider = "brightdata_dataset";
-    parsed.recall_spec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
-      recordLimitOverride: initialExecutionProfile.filterLimit,
-    });
-    const phase1Parsed = withExecutionState(parsed, initialExecutionProfile, {
-      planCode,
-      searchPhase: "phase_1",
-      resultStage: isProPlanCode(planCode) ? "provisional" : "final",
-      searchPhaseCount: 1,
-      displayCount: initialExecutionProfile.finalResultCap,
-    });
+  parsed.recall_provider = "brightdata_dataset";
+  parsed.recall_spec = normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
+    recordLimitOverride: initialExecutionProfile.filterLimit,
+  });
+  const phase1Parsed = withExecutionState(parsed, initialExecutionProfile, {
+    planCode,
+    displayCount: initialExecutionProfile.finalResultCap,
+  });
 
-    const phase1Result = await buildBrightDataDatasetCandidates(
-      context,
-      phase1Parsed,
-      initialExecutionProfile,
-    );
-    if (!phase1Result?.finalRows.length) {
-      throw new Error("Bright Data recall returned no candidates.");
-    }
-
-    if (!initialExecutionProfile.allowPhaseTwo) {
-      const finalPhase1Parsed = withExecutionState(phase1Parsed, initialExecutionProfile, {
-        planCode,
-        searchPhase: "phase_1",
-        resultStage: "final",
-        searchPhaseCount: 1,
-        displayCount: initialExecutionProfile.finalResultCap,
-      });
-      await completeSearch(
-        context,
-        finalPhase1Parsed,
-        phase1Result.finalRows,
-        buildSearchDisplayStats({
-          ...phase1Result.displayStats,
-          search_phase_count: 1,
-          topup_triggered: false,
-        }),
-        phase1Result.warningMessage,
-        {
-          runtime: getExecutionRuntime(initialExecutionProfile),
-        },
-      );
-      return;
-    }
-
-    const hiringBrief = sanitizeHiringBrief(phase1Parsed.hiring_brief, phase1Parsed);
-    if (!shouldUpgradeToFullPass(hiringBrief, phase1Result.displayStats)) {
-      const fastFinalParsed = withExecutionState(phase1Parsed, initialExecutionProfile, {
-        planCode,
-        searchPhase: "phase_1",
-        resultStage: "final",
-        searchPhaseCount: 1,
-        displayCount: initialExecutionProfile.finalResultCap,
-      });
-      await completeSearch(
-        context,
-        fastFinalParsed,
-        phase1Result.finalRows,
-        buildSearchDisplayStats({
-          ...phase1Result.displayStats,
-          search_phase_count: 1,
-          topup_triggered: false,
-        }),
-        phase1Result.warningMessage,
-        {
-          runtime: getExecutionRuntime(initialExecutionProfile),
-        },
-      );
-      return;
-    }
-
-    const fullExecutionProfile = getFullSearchExecutionProfile(planCode);
-    if (!fullExecutionProfile) {
-      throw new Error("Full Bright profile is unavailable for this plan.");
-    }
-
-    const phase2Parsed = withExecutionState(
-      {
-        ...phase1Parsed,
-        phase_1_display_stats: phase1Result.displayStats,
-        phase_1_recall_metadata: phase1Parsed.recall_metadata ?? null,
-        phase_1_execution_profile: initialExecutionProfile.name,
-      },
-      fullExecutionProfile,
-      {
-        planCode,
-        searchPhase: "phase_2",
-        resultStage: "provisional",
-        searchPhaseCount: 2,
-        displayCount: initialExecutionProfile.finalResultCap,
-      },
-    );
-    delete phase2Parsed.recall_metadata;
-
-    await persistProvisionalSearch(
-      context,
-      phase2Parsed,
-      phase1Result.finalRows,
-        buildSearchDisplayStats({
-          ...phase1Result.displayStats,
-          search_phase_count: 2,
-          topup_triggered: false,
-        }),
-    );
-
-    parsed.recall_metadata = null;
-    Object.assign(parsed, phase2Parsed);
-    activePhase = "phase_2";
-  }
-
-  if (activePhase !== "phase_2") {
-    return;
-  }
-
-  const fullExecutionProfile = getFullSearchExecutionProfile(planCode);
-  if (!fullExecutionProfile) {
-    throw new Error("Full Bright profile is unavailable for this plan.");
-  }
-
-  const phase2Parsed = withExecutionState(
-    {
-      ...parsed,
-      display_count:
-        Number(parsed.display_count) || initialExecutionProfile.finalResultCap,
-    },
-    fullExecutionProfile,
-    {
-      planCode,
-      searchPhase: "phase_2",
-      resultStage: "provisional",
-      searchPhaseCount: 2,
-      displayCount:
-        Number(parsed.display_count) || initialExecutionProfile.finalResultCap,
-    },
+  const phase1Result = await buildBrightDataDatasetCandidates(
+    context,
+    phase1Parsed,
+    initialExecutionProfile,
   );
-
-  try {
-    const phase2Result = await buildBrightDataDatasetCandidates(
-      context,
-      phase2Parsed,
-      fullExecutionProfile,
-    );
-    if (!phase2Result?.finalRows.length) {
-      throw new Error("Full Bright pass returned no candidates.");
-    }
-
-    const finalPhase2Parsed = withExecutionState(
-      phase2Parsed,
-      fullExecutionProfile,
-      {
-        planCode,
-        searchPhase: "phase_2",
-        resultStage: "final",
-        searchPhaseCount: 2,
-        displayCount: fullExecutionProfile.finalResultCap,
-      },
-    );
-
-    await completeSearch(
-      context,
-      finalPhase2Parsed,
-      phase2Result.finalRows,
-      mergeCostEstimates(
-        buildSearchDisplayStats({
-          ...phase2Result.displayStats,
-          search_phase_count: 2,
-          topup_triggered: false,
-        }),
-        normalizeSearchDisplayStats(parsed.phase_1_display_stats),
-      ),
-      phase2Result.warningMessage,
-      {
-        runtime: getExecutionRuntime(fullExecutionProfile),
-      },
-    );
-    return;
-  } catch (error) {
-    if (error instanceof DatasetRecallPendingError) {
-      throw error;
-    }
-
-    const phase1DisplayStats = normalizeSearchDisplayStats(parsed.phase_1_display_stats);
-    const degradedParsed = withExecutionState(
-      phase2Parsed,
-      fullExecutionProfile,
-      {
-        planCode,
-        searchPhase: "phase_2",
-        resultStage: "provisional",
-        searchPhaseCount: 2,
-        displayCount:
-          Number(parsed.display_count) || initialExecutionProfile.finalResultCap,
-      },
-    );
-    await setSearchStatus(context.searchId, "degraded", {
-      done_at: nowIso(),
-      warning_message:
-        "Deeper Bright refinement did not finish. Showing the fast-pass shortlist.",
-      error_message: null,
-      parsed_requirements: phase1DisplayStats
-        ? withDisplayStats(degradedParsed, buildSearchDisplayStats({
-          ...phase1DisplayStats,
-          search_phase_count: 2,
-        }))
-        : degradedParsed,
-    });
-
-    await updateSearchUsageEventMetadata(context.searchId, {
-      execution_profile: fullExecutionProfile.name,
-      search_phase: "phase_2",
-      result_stage: "provisional",
-      search_phase_count: 2,
-      bright_snapshot_cost: phase1DisplayStats?.bright_snapshot_cost ?? null,
-      estimated_llm_cost: phase1DisplayStats?.estimated_llm_cost ?? null,
-      estimated_search_total_cost: phase1DisplayStats?.estimated_search_total_cost ?? null,
-      judge_mode: "dual",
-    });
-
-    logSearchEvent("search_degraded", {
-      search_id: context.searchId,
-      provider: "brightdata_dataset",
-      reason: error instanceof Error ? error.message : String(error),
-      job_id: context.jobId,
-    });
+  if (!phase1Result?.finalRows.length) {
+    throw new Error("Bright Data recall returned no candidates.");
   }
+
+  await completeSearch(
+    context,
+    phase1Parsed,
+    phase1Result.finalRows,
+    buildSearchDisplayStats(phase1Result.displayStats),
+    phase1Result.warningMessage,
+    { runtime: getExecutionRuntime(initialExecutionProfile) },
+  );
 }
 
 export async function processNextSearchJob(preferredSearchId?: string | null) {

@@ -12,8 +12,11 @@
  * 5. Email pattern guessing + Hunter email-verifier
  */
 
-import { generateText } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
+import {
+  generateOpenRouterJson,
+  getDefaultOpenRouterModel,
+  getOpenRouterApiKey,
+} from "@/lib/openrouter";
 
 const HUNTER_BASE = "https://api.hunter.io/v2";
 
@@ -70,11 +73,9 @@ async function extractCompanyInfo(
   metadata: Record<string, unknown>,
   headline: string | null,
 ): Promise<{ companyName: string | null; domain: string | null }> {
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-  const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
-  const anthropicModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
-
-  if (!anthropicApiKey) {
+  try {
+    getOpenRouterApiKey();
+  } catch {
     return { companyName: null, domain: null };
   }
 
@@ -87,29 +88,25 @@ Headline: ${headline || "N/A"}
 Work History: ${workHistory ? JSON.stringify(workHistory.slice(0, 3)) : "N/A"}
 About: ${about?.substring(0, 300) || "N/A"}
 
-Return JSON with:
+  Return JSON with:
 - company_name: string (current employer, e.g. "Stripe", "Google", "Microsoft")
 - domain: string (company website domain without https://, e.g. "stripe.com", "google.com")
 
 If uncertain, return null for that field. Return ONLY valid JSON, no markdown.`;
 
   try {
-    const anthropic = createAnthropic({
-      apiKey: anthropicApiKey,
-      ...(anthropicBaseUrl ? { baseURL: anthropicBaseUrl } : {}),
-    });
-
-    const { text } = await generateText({
-      model: anthropic(anthropicModel),
+    const { data } = await generateOpenRouterJson<{
+      company_name?: string | null;
+      domain?: string | null;
+    }>({
+      model: getDefaultOpenRouterModel(),
       prompt,
       maxOutputTokens: 300,
+      temperature: 0,
     });
-
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const result = JSON.parse(cleaned);
     return {
-      companyName: result.company_name || null,
-      domain: result.domain || null,
+      companyName: data.company_name || null,
+      domain: data.domain || null,
     };
   } catch (err) {
     console.log(`[email] LLM company extraction failed: ${err instanceof Error ? err.message : String(err)}`);

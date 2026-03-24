@@ -12,12 +12,9 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.49",
-    "@ai-sdk/openai": "^3.0.41",
+    "@openrouter/sdk": "^0.9.11",
     "@supabase/supabase-js": "^2.99.1",
-    "ai": "^6.0.104",
     "cheerio": "^1.2.0",
-    "https-proxy-agent": "^8.0.0",
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "pg": "^8.20.0",

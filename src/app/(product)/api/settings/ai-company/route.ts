@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateText } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import {
   collectCompanyEvidence,
   normalizeCompanyUrl,
@@ -12,16 +10,11 @@ import {
   COMPANY_PROFILE_FROM_EVIDENCE_PROMPT,
 } from "@/lib/prompts";
 import { getUserFromApiRequest } from "@/lib/api-auth";
-
-function extractJSON(text: string): string {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  let result = fenced ? fenced[1].trim() : text.trim();
-  if (result.startsWith("{") && !result.endsWith("}")) {
-    const lastBrace = result.lastIndexOf("}");
-    if (lastBrace > 0) result = result.substring(0, lastBrace + 1);
-  }
-  return result;
-}
+import {
+  generateOpenRouterJson,
+  getDefaultOpenRouterModel,
+  getOpenRouterApiKey,
+} from "@/lib/openrouter";
 
 type CompanyProfile = {
   name: string;
@@ -105,18 +98,17 @@ Company website/domain: ${website}`;
 }
 
 async function generateCompanyProfileFromPrompt(
-  anthropic: ReturnType<typeof createAnthropic>,
   model: string,
   prompt: string,
   website: string,
 ) {
-  const { text } = await generateText({
-    model: anthropic(model),
+  const { data } = await generateOpenRouterJson<AiCompanyResponse>({
+    model,
     prompt,
     maxOutputTokens: 1800,
+    temperature: 0,
   });
-
-  return sanitizeAiResponse(JSON.parse(extractJSON(text)), website);
+  return sanitizeAiResponse(data, website);
 }
 
 function logCompanyResearch(eventName: string, payload: Record<string, unknown>) {
@@ -126,7 +118,7 @@ function logCompanyResearch(eventName: string, payload: Record<string, unknown>)
 /**
  * POST /api/settings/ai-company
  *
- * Uses Claude to research a company based on its website and return a structured profile.
+ * Uses OpenRouter to research a company based on its website and return a structured profile.
  */
 export async function POST(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
@@ -137,21 +129,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Website is required" }, { status: 400 });
   }
 
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-  const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
-  const anthropicModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
-
-  if (!anthropicApiKey) {
+  try {
+    getOpenRouterApiKey();
+  } catch {
     return NextResponse.json({ error: "AI not configured" }, { status: 500 });
   }
 
   try {
     const normalizedUrl = normalizeCompanyUrl(website);
     const normalizedWebsite = normalizedUrl.toString();
-    const anthropic = createAnthropic({
-      apiKey: anthropicApiKey,
-      ...(anthropicBaseUrl ? { baseURL: anthropicBaseUrl } : {}),
-    });
+    const model = process.env.AI_MODEL || getDefaultOpenRouterModel();
     logCompanyResearch("fetch_started", {
       user_id: user.id,
       website: normalizedWebsite,
@@ -168,8 +155,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const result = await generateCompanyProfileFromPrompt(
-          anthropic,
-          anthropicModel,
+          model,
           buildEvidencePrompt(evidence),
           normalizedWebsite,
         );
@@ -205,8 +191,7 @@ export async function POST(req: NextRequest) {
     }
 
     const fallbackResult = await generateCompanyProfileFromPrompt(
-      anthropic,
-      anthropicModel,
+      model,
       buildFallbackPrompt(normalizedWebsite),
       normalizedWebsite,
     );

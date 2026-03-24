@@ -6,6 +6,7 @@ import {
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { extractLikelyTitleFromJdText } from "@/lib/search-title";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const maxDuration = 30;
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
       .from("hirelix_searches")
       .insert({
         user_id: user.id,
+        title: extractLikelyTitleFromJdText(jd_text.trim()),
         jd_text: jd_text.trim(),
         status: "queued",
         pipeline_step: "queued",

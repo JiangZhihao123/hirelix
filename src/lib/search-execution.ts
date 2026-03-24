@@ -2,11 +2,9 @@ export type SearchPlanCode = "free" | "pro_monthly" | "pro_annual";
 
 export type SearchExecutionProfileName =
   | "bright_fast_free"
-  | "bright_fast_pro"
   | "bright_full_pro";
 
-export type SearchPhase = "phase_1" | "phase_2";
-export type SearchResultStage = "provisional" | "final";
+export type SearchPhase = "phase_1";
 
 export type SearchExecutionProfile = {
   name: SearchExecutionProfileName;
@@ -17,7 +15,6 @@ export type SearchExecutionProfile = {
   strongNowQualityScore: number;
   lowCostMode: boolean;
   singleJudgeMode: boolean;
-  allowPhaseTwo: boolean;
 };
 
 const SEARCH_EXECUTION_PROFILES: Record<
@@ -33,18 +30,6 @@ const SEARCH_EXECUTION_PROFILES: Record<
     strongNowQualityScore: 72,
     lowCostMode: false,
     singleJudgeMode: false,
-    allowPhaseTwo: false,
-  },
-  bright_fast_pro: {
-    name: "bright_fast_pro",
-    filterLimit: 40,
-    finalResultCap: 10,
-    highlightCount: 5,
-    minVisibleQualityScore: 0,
-    strongNowQualityScore: 70,
-    lowCostMode: true,
-    singleJudgeMode: true,
-    allowPhaseTwo: true,
   },
   bright_full_pro: {
     name: "bright_full_pro",
@@ -55,7 +40,6 @@ const SEARCH_EXECUTION_PROFILES: Record<
     strongNowQualityScore: 72,
     lowCostMode: false,
     singleJudgeMode: false,
-    allowPhaseTwo: false,
   },
 };
 
@@ -64,7 +48,6 @@ export function normalizeSearchExecutionProfileName(
 ): SearchExecutionProfileName | null {
   switch (value) {
     case "bright_fast_free":
-    case "bright_fast_pro":
     case "bright_full_pro":
       return value;
     default:
@@ -92,15 +75,6 @@ export function getInitialSearchExecutionProfile(
   return isProPlanCode(planCode)
     ? SEARCH_EXECUTION_PROFILES.bright_full_pro
     : SEARCH_EXECUTION_PROFILES.bright_fast_free;
-}
-
-export function getFullSearchExecutionProfile(
-  planCode: SearchPlanCode,
-): SearchExecutionProfile | null {
-  if (isProPlanCode(planCode)) {
-    return SEARCH_EXECUTION_PROFILES.bright_full_pro;
-  }
-  return null;
 }
 
 export function getInitialSearchTargets(

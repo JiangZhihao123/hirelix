@@ -8,6 +8,7 @@ import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { ResultPageSkeleton } from "@/components/ProductSkeletons";
 import { supabase } from "@/lib/supabase";
 import { useBilling } from "@/lib/use-billing";
+import { getSearchDisplayTitle } from "@/lib/search-title";
 import {
   isReviewableSearchStatus,
   isRunningSearchStatus,
@@ -197,7 +198,6 @@ type SearchDisplayStats = {
   bright_snapshot_cost?: number;
   estimated_llm_cost?: number;
   estimated_search_total_cost?: number;
-  search_phase_count?: number;
   judge_mode?: "single" | "dual";
   activation_run?: boolean;
   quality_floor_applied?: boolean;
@@ -206,7 +206,6 @@ type SearchDisplayStats = {
   prescreen_blocked_count?: number;
   contact_unlock_candidates?: number;
   recall_profile_count?: number;
-  topup_triggered?: boolean;
   strong_now_count?: number;
   consider_next_count?: number;
   do_not_show_count?: number;
@@ -1254,16 +1253,12 @@ function CandidateCard({
 
 function ProcessingSteps({
   pipelineStep,
-  searchPhase,
   standardRecallReady,
   firstShortlistCandidateAt,
-  providerDelayMs,
 }: {
   pipelineStep: string | null;
-  searchPhase: string | null;
   standardRecallReady: boolean;
   firstShortlistCandidateAt: string | null;
-  providerDelayMs: number | null;
 }) {
   const steps = [
     { icon: FileText, label: "Understanding the role", activeFor: ["queued", "parsing"] },
@@ -1278,31 +1273,28 @@ function ProcessingSteps({
 
   const progressTitle =
     pipelineStep === "parsing"
-      ? "Understanding the role and extracting the hiring signal..."
+      ? "Turning the JD into a search brief"
       : pipelineStep === "searching"
-        ? searchPhase === "phase_2"
-          ? "Launching the deeper Bright refinement pass..."
-          : "Recalling the first Bright profile batch..."
+        ? "Waiting for the first Bright profile batch"
         : pipelineStep === "screening"
-          ? "Reviewing recalled profiles for shortlist decisions..."
-          : "Running recruiter judgments across recalled profiles...";
+          ? "Reviewing recalled profiles"
+          : "Running recruiter judgments";
 
   const progressBody =
     pipelineStep === "parsing"
-      ? "Hirelix has accepted the search and is turning the JD into a recruiter-ready search brief."
+      ? "Extracting the role, constraints, and recruiter signal from the JD."
       : pipelineStep === "searching"
-        ? getProviderDelayCopy(providerDelayMs)
+        ? standardRecallReady
+          ? "The first provider batch is back. Reviewing profiles now."
+          : "Waiting for Bright Data to return the first provider batch."
         : firstShortlistCandidateAt
-          ? "The shortlist is already usable, and Hirelix is still reviewing more recalled profiles in the background."
-          : standardRecallReady
-            ? "The first Bright batch is back. Hirelix is now reviewing recalled profiles and will show the shortlist as soon as candidates pass recruiter review."
-            : "Hirelix is preparing to review recalled profiles as soon as the first provider batch lands.";
-  const statusEyebrow = pipelineStep === "queued" ? "Search accepted" : "Search started";
+          ? "The shortlist is already live and still improving in the background."
+          : "Hirelix is reviewing recalled profiles now.";
 
   return (
     <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-        {statusEyebrow}
+        Current stage
       </p>
       <div className="mb-2 mt-2 flex items-center gap-2">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -1339,14 +1331,6 @@ function ProcessingSteps({
           );
         })}
       </div>
-      <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
-        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Results appear as candidates pass recruiter review</span>
-        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Safe to leave and come back</span>
-        <span className="rounded-full border border-sky-100 bg-white px-3 py-1">Top picks update as stronger profiles arrive</span>
-      </div>
-      <p className="mt-4 text-xs text-muted">
-        You do not need to stay on this page. Hirelix will keep recalling profiles, reviewing them, and growing the shortlist in the background.
-      </p>
     </div>
   );
 }
@@ -1428,7 +1412,12 @@ export default function SearchResultPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${search?.title || "candidates"}.csv`;
+    a.download = `${getSearchDisplayTitle({
+      title: search?.title,
+      jdText: search?.jd_text,
+      parsedRequirements: search?.parsed_requirements,
+      fallback: "candidates",
+    })}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1761,11 +1750,9 @@ export default function SearchResultPage() {
   const relocationAllowed = typeof hiringBrief?.relocation_allowed === "string" ? hiringBrief.relocation_allowed : null;
   const constraintReasoning = typeof hiringBrief?.constraint_reasoning === "string" ? hiringBrief.constraint_reasoning : null;
   const executionProfile = typeof reqs?.execution_profile === "string" ? reqs.execution_profile : null;
-  const searchPhase = typeof reqs?.search_phase === "string" ? reqs.search_phase : null;
   const resultStage = typeof reqs?.result_stage === "string" ? reqs.result_stage : null;
   const launchMode = typeof reqs?.launch_mode === "string" ? reqs.launch_mode : null;
   const launchScope = typeof reqs?.launch_scope === "string" ? reqs.launch_scope : null;
-  const searchPhaseCount = positiveInt(reqs?.search_phase_count);
   const isReviewable = isReviewableSearchStatus(search.status);
   const isImprovingInBackground = search.status === "deep_scoring";
   const isReadyWithWarning = search.status === "degraded";
@@ -1911,8 +1898,6 @@ export default function SearchResultPage() {
     allCandidates.filter(
       (candidate) => candidate.metadata?.suitability?.advance_recommendation === "advance",
     ).length;
-  const isProvisional = resultStage === "provisional";
-  const isPhaseTwoRunning = isImprovingInBackground && searchPhase === "phase_2";
   const readyToActCount = allCandidates.filter(
     (candidate) =>
       candidate.metadata?.suitability?.advance_recommendation === "advance" ||
@@ -1951,7 +1936,6 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
-  const topupTriggered = rawDisplayStats?.topup_triggered === true;
   const finalReadyHeadline =
     visibleCandidateCount <= topStartCount
       ? `We shortlisted ${visibleCandidateCount} candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`
@@ -1978,7 +1962,11 @@ export default function SearchResultPage() {
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
-            {search.title || "Untitled shortlist"}
+            {getSearchDisplayTitle({
+              title: search.title,
+              jdText: search.jd_text,
+              parsedRequirements: search.parsed_requirements,
+            })}
           </h1>
           {isReviewable && (
             <div className="flex flex-wrap items-center gap-2">
@@ -2077,11 +2065,6 @@ export default function SearchResultPage() {
                   {resultStage}
                 </span>
               )}
-              {searchPhaseCount && searchPhaseCount > 1 && (
-                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  {searchPhaseCount} phases
-                </span>
-              )}
             </div>
             {constraintReasoning && (
               <p className="max-w-3xl text-xs text-muted">
@@ -2121,7 +2104,7 @@ export default function SearchResultPage() {
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-              {searchPhase === "phase_2" ? "Deep Bright refinement in progress" : "Bright recall running"}
+              {"Bright recall running"}
             </span>
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">Results will appear as candidates pass review</span>
             <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">You can come back to this shortlist any time</span>
@@ -2136,29 +2119,23 @@ export default function SearchResultPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                 {isReadyWithWarning
                   ? "Ready with a warning"
-                  : isPhaseTwoRunning
-                    ? "Provisional shortlist ready"
-                    : isImprovingInBackground
-                      ? "Usable now, still refining"
-                    : "Candidates ready"}
+                  : isImprovingInBackground
+                    ? "Usable now, still refining"
+                  : "Candidates ready"}
               </p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">
                 {isReadyWithWarning
                   ? "Your candidate list is ready with a warning"
-                  : isPhaseTwoRunning
-                    ? "Your provisional shortlist is ready"
-                    : isImprovingInBackground
-                      ? "Your candidates are already usable now"
-                    : finalReadyHeadline}
+                  : isImprovingInBackground
+                    ? "Your candidates are already usable now"
+                  : finalReadyHeadline}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 {search.warning_message
                   ? search.warning_message
-                  : isPhaseTwoRunning
-                    ? "Hirelix already delivered the Bright fast-pass shortlist. A deeper Bright pass is still running in the background and may add stronger candidates to this list."
-                    : qualityFloorApplied
-                      ? "Hirelix searched a Bright LinkedIn pool and kept the candidates that already look credible to review now."
-                      : `Hirelix is already showing recruiter-approved candidates. The shortlist started growing after ${firstVisibleLabel}, and the current top ${highlightCount} are highlighted first.`}
+                  : qualityFloorApplied
+                    ? "Hirelix searched a Bright LinkedIn pool and kept the candidates that already look credible to review now."
+                    : `Hirelix is already showing recruiter-approved candidates. The shortlist started growing after ${firstVisibleLabel}, and the current top ${highlightCount} are highlighted first.`}
               </p>
               <p className="mt-3 max-w-2xl text-xs text-slate-500">
                 Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
@@ -2170,18 +2147,14 @@ export default function SearchResultPage() {
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
-                  {isPhaseTwoRunning
-                    ? "Background refinement is still running a deeper Bright pass, but the shortlist is already reviewable"
-                    : candidates.length > 0
-                      ? `Found ${candidates.length} shortlist candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
-                      : "The shortlist is still growing as more recalled profiles are reviewed..."}
+                  {candidates.length > 0
+                    ? `Found ${candidates.length} shortlist candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
+                    : "The shortlist is still growing as more recalled profiles are reviewed..."}
                 </div>
               )}
               {!search.warning_message && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
-                  {isProvisional
-                    ? `Start with the highlighted top ${highlightCount} now. Hirelix will replace this provisional list if the deeper Bright pass finds stronger matches.`
-                    : `Start with the highlighted top ${highlightCount}, then unlock contact details and outreach execution for the candidates you actually want to work.`}
+                  {`Start with the highlighted top ${highlightCount}, then unlock contact details and outreach execution for the candidates you actually want to work.`}
                 </p>
               )}
               {(brightProfileBudget || judgeMode || brightSnapshotCost != null) && (
@@ -2229,7 +2202,7 @@ export default function SearchResultPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Candidates considered</p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(recallProfileCount)}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {topupTriggered ? "Expanded recall after first-pass quality check" : "From a broader LinkedIn search"}
+                  {"From a broader LinkedIn search"}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -2274,10 +2247,8 @@ export default function SearchResultPage() {
       {isPreResultsProcessing && (
         <ProcessingSteps
           pipelineStep={search.pipeline_step}
-          searchPhase={searchPhase}
           standardRecallReady={standardRecallReady}
           firstShortlistCandidateAt={firstShortlistCandidateAt}
-          providerDelayMs={providerDelayMs}
         />
       )}
 
@@ -2378,9 +2349,7 @@ export default function SearchResultPage() {
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 />
                 <p className="text-xs text-slate-600">
-                  {topupTriggered
-                    ? "Hirelix expanded recall depth to protect shortlist quality."
-                    : "You can already review fit evidence now. Upgrade when you want to actually work the shortlist."}
+                  {"You can already review fit evidence now. Upgrade when you want to actually work the shortlist."}
                 </p>
               </div>
             </div>
