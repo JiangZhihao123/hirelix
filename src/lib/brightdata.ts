@@ -11,6 +11,10 @@ import { createHash } from "node:crypto";
 
 const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
 const BRIGHTDATA_FILTER_API_BASE = "https://api.brightdata.com/datasets";
+const BRIGHTDATA_REQUEST_TIMEOUT_MS = Math.max(
+  5000,
+  Number.parseInt(process.env.SEARCH_BRIGHTDATA_REQUEST_TIMEOUT_MS || "", 10) || 30000,
+);
 
 type BrightDataScrapeOptions = {
   batchSize?: number;
@@ -151,8 +155,20 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function mergeAbortSignals(signal: AbortSignal | null | undefined, timeoutMs: number) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  if (!signal) return timeoutSignal;
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([signal, timeoutSignal]);
+  }
+  return timeoutSignal;
+}
+
 async function brightDataFetch(input: RequestInfo | URL, init?: RequestInit) {
-  return fetch(input, init);
+  return fetch(input, {
+    ...init,
+    signal: mergeAbortSignals(init?.signal, BRIGHTDATA_REQUEST_TIMEOUT_MS),
+  });
 }
 
 function asString(value: unknown): string | null {
