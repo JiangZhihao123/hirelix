@@ -69,7 +69,7 @@ export function getDefaultOpenRouterModel() {
   return (
     process.env.AI_MODEL ||
     process.env.SEARCH_JUDGE_MODEL ||
-    "deepseek/deepseek-chat"
+    "deepseek/deepseek-chat-v3.1"
   );
 }
 
