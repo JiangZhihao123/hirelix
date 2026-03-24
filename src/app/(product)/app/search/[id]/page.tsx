@@ -466,7 +466,6 @@ function CandidateCard({
   enrichesRemaining,
   refreshBilling,
   onUpgradeClick,
-  highlighted,
   isNew,
 }: {
   candidate: CandidateRow;
@@ -479,7 +478,6 @@ function CandidateCard({
   enrichesRemaining: number;
   refreshBilling: () => Promise<void>;
   onUpgradeClick: (surface: string) => void;
-  highlighted?: boolean;
   isNew?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -618,11 +616,7 @@ function CandidateCard({
 
   return (
     <div
-      className={`rounded-xl border bg-background transition-colors hover:border-muted-light ${
-        highlighted
-          ? "border-amber-300 ring-1 ring-amber-200 shadow-[0_12px_30px_rgba(245,158,11,0.10)]"
-          : "border-border"
-      }`}
+      className="rounded-xl border border-border bg-background transition-colors hover:border-muted-light"
     >
       {/* Header */}
       <div className="flex w-full items-center gap-4 p-5 text-left">
@@ -642,11 +636,6 @@ function CandidateCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <p className="truncate text-sm font-semibold">{candidate.name}</p>
-            {highlighted && (
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                Top pick
-              </span>
-            )}
             {isNew && (
               <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
                 New
@@ -910,9 +899,7 @@ function CandidateCard({
                 <div>
                   <div className="mb-2 flex items-center gap-2">
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
-                      {highlighted
-                        ? "Why this candidate is a top pick"
-                        : "Why this candidate made the shortlist"}
+                      Why this candidate made the shortlist
                     </p>
                   {candidate.metadata?.preliminary && (
                     <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
@@ -1771,9 +1758,6 @@ export default function SearchResultPage() {
     positiveInt(reqs?.display_count) ??
     positiveInt(reqs?.candidate_count) ??
     25;
-  const highlightCount =
-    positiveInt(reqs?.highlight_count) ??
-    5;
   const allCandidates = [...candidates].sort((left, right) => {
     const scoreFor = (candidate: CandidateRow) => {
       switch (sortMode) {
@@ -1800,17 +1784,13 @@ export default function SearchResultPage() {
       getCandidateOverallScore(left);
     return rightPrimary - leftPrimary || rightSecondary - leftSecondary;
   });
-  const highlightedIds = new Set(
-    allCandidates.slice(0, highlightCount).map((candidate) => candidate.id),
-  );
   const visibleCandidates = showOnlyWithEmail
     ? allCandidates.filter((candidate) => candidate.email)
     : allCandidates;
-  const highlightedCandidates = visibleCandidates.slice(0, Math.min(highlightCount, visibleCandidates.length));
-  const averageQuality = highlightedCandidates.length
+  const averageQuality = visibleCandidates.length
     ? Math.round(
-        highlightedCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
-          highlightedCandidates.length,
+        visibleCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
+          visibleCandidates.length,
       )
     : 0;
   const rawDisplayStats =
@@ -1924,7 +1904,6 @@ export default function SearchResultPage() {
     const coverage = candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage;
     return coverage === "strong";
   }).length;
-  const topStartCount = Math.min(highlightCount, allCandidates.length);
   const shortlistYesCount =
     positiveInt(rawDisplayStats?.shortlist_yes_count) ?? allCandidates.length;
   const shortlistNoCount =
@@ -1943,9 +1922,7 @@ export default function SearchResultPage() {
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
   const finalReadyHeadline =
-    visibleCandidateCount <= topStartCount
-      ? `We shortlisted ${visibleCandidateCount} candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`
-      : `Your shortlist is ready to review`;
+    `We shortlisted ${visibleCandidateCount} candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`;
   const firstVisibleLabel = formatElapsedMinutes(timeToFirstShortlistCandidateMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation(search.error_message);
@@ -2148,11 +2125,11 @@ export default function SearchResultPage() {
                   : finalReadyHeadline}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                {search.warning_message
+                {search.warning_message && !search.warning_message.includes("highlighted candidates")
                   ? search.warning_message
                   : qualityFloorApplied
                     ? "Hirelix searched a Bright LinkedIn pool and kept the candidates that already look credible to review now."
-                    : `Hirelix is already showing recruiter-approved candidates. The shortlist started growing after ${firstVisibleLabel}, and the current top ${highlightCount} are highlighted first.`}
+                    : `Hirelix is already showing recruiter-approved candidates. The shortlist started growing after ${firstVisibleLabel}, and the results are sorted by recruiter score.`}
               </p>
               <p className="mt-3 max-w-2xl text-xs text-slate-500">
                 Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
@@ -2169,9 +2146,9 @@ export default function SearchResultPage() {
                     : "The shortlist is still growing as more recalled profiles are reviewed..."}
                 </div>
               )}
-              {!search.warning_message && (
+              {(!search.warning_message || search.warning_message.includes("highlighted candidates")) && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
-                  {`Start with the highlighted top ${highlightCount}, then unlock contact details and outreach execution for the candidates you actually want to work.`}
+                  Start with the highest-scoring candidates, then unlock contact details and outreach execution for the people you actually want to work.
                 </p>
               )}
               {(brightProfileBudget || judgeMode || brightSnapshotCost != null) && (
@@ -2329,12 +2306,12 @@ export default function SearchResultPage() {
                 <span className="font-semibold text-slate-950">
                   {shortlistReadyCount} candidate{shortlistReadyCount === 1 ? "" : "s"} ready to review
                 </span>
-                {" "}— top {topStartCount} are highlighted first
+                {" "}— sorted by recruiter score
               </>
             ) : (
               <>
                 <span className="font-semibold text-slate-950">This list is worth working from now</span>
-                {" "}— {visibleCandidateCount} candidate{visibleCandidateCount === 1 ? "" : "s"} are shown, the top {topStartCount} are highlighted, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the leading candidates already have clear fit signals"}
+                {" "}— {visibleCandidateCount} candidate{visibleCandidateCount === 1 ? "" : "s"} are shown, sorted by recruiter score, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the leading candidates already have clear fit signals"}
               </>
             )}
           </div>
@@ -2379,11 +2356,11 @@ export default function SearchResultPage() {
                   : `${allCandidates.length} candidates ready to review`}
               </p>
               <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
-                {highlightedCandidates.length > 0 && (
+                {visibleCandidates.length > 0 && (
                   <>
                     <span>Overall avg: {averageQuality}%</span>
                     <span>·</span>
-                    <span>Range: {Math.min(...highlightedCandidates.map((c) => c.match_score))}–{Math.max(...highlightedCandidates.map((c) => c.match_score))}%</span>
+                    <span>Range: {Math.min(...visibleCandidates.map((c) => c.match_score))}–{Math.max(...visibleCandidates.map((c) => c.match_score))}%</span>
                   </>
                 )}
                 {(hardBlockedCount > 0 || advanceableCount > 0) && (
@@ -2406,7 +2383,7 @@ export default function SearchResultPage() {
                   </>
                 )}
                 <span>·</span>
-                <span>Top {topStartCount} highlighted first</span>
+                <span>Sorted by recruiter score</span>
               </div>
             </div>
             {isReviewable && (
@@ -2467,7 +2444,7 @@ export default function SearchResultPage() {
                   Recruiter-ranked shortlist
                 </p>
                 <p className="mt-1 text-sm text-slate-700">
-                  Every candidate here passed the recruiter model&apos;s shortlist decision. The first {topStartCount} are highlighted as the current top picks.
+                  Every candidate here passed the recruiter model&apos;s shortlist decision and is sorted by recruiter score.
                 </p>
               </div>
               {visibleCandidates.map((c, idx) => (
@@ -2487,7 +2464,6 @@ export default function SearchResultPage() {
                     enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
                     refreshBilling={refreshBilling}
                     onUpgradeClick={handleUpgradeClick}
-                    highlighted={highlightedIds.has(c.id)}
                     isNew={isImprovingInBackground && newCandidateIds.has(c.id)}
                   />
                 </div>

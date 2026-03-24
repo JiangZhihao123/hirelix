@@ -2798,20 +2798,20 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   const breakdown = suitability.scoring_breakdown;
   const isStrongAdvance =
     suitability.advance_recommendation === "advance" &&
-    suitability.match_score >= 70 &&
-    breakdown.relevance_score >= 65 &&
-    breakdown.capability_score >= 65;
-  const isHighConfidenceHold =
+    suitability.match_score >= 58 &&
+    breakdown.relevance_score >= 54 &&
+    breakdown.capability_score >= 54;
+  const isViableHold =
     suitability.advance_recommendation === "hold" &&
-    suitability.match_score >= 78 &&
-    breakdown.relevance_score >= 72 &&
-    breakdown.capability_score >= 72 &&
-    breakdown.join_likelihood_score >= 55;
+    suitability.match_score >= 64 &&
+    breakdown.relevance_score >= 58 &&
+    breakdown.capability_score >= 58 &&
+    breakdown.join_likelihood_score >= 40;
 
   return (
     suitability.shortlist_decision === "yes" &&
     suitability.blocking_severity !== "hard" &&
-    (isStrongAdvance || isHighConfidenceHold)
+    (isStrongAdvance || isViableHold)
   );
 }
 
@@ -3977,7 +3977,7 @@ function buildBrightDataCandidateRows(
   profiles: BrightDataProfile[],
   selected: ScoredCandidateAssessment[],
   limit: number,
-  poolType: "top_pick" | "outreach_pool",
+  poolType: "main" | "outreach_pool",
 ) {
   const rows: CandidateRowInput[] = [];
 
@@ -4231,7 +4231,6 @@ function mergeJudgeResults(
 function tagPoolRows(
   primaryRows: CandidateRowInput[],
   supplementalRows: CandidateRowInput[],
-  highlightCount: number,
   candidateLimit: number,
 ) {
   const finalRows = mergeCandidateRows(primaryRows, supplementalRows, candidateLimit).sort(
@@ -4253,11 +4252,11 @@ function tagPoolRows(
       );
     },
   );
-  return finalRows.map((row, index) => ({
+  return finalRows.map((row) => ({
     ...row,
     metadata: {
       ...row.metadata,
-      pool_type: index < highlightCount ? "top_pick" : "outreach_pool",
+      pool_type: "main",
     },
   }));
 }
@@ -4577,7 +4576,7 @@ async function upsertSingleCandidate(searchId: string, row: CandidateRowInput) {
   await supabaseAdmin.from("hirelix_candidates").insert(payload);
 }
 
-async function retagSearchCandidatePoolTypes(searchId: string, highlightCount: number) {
+async function retagSearchCandidatePoolTypes(searchId: string) {
   const { data: candidates } = await supabaseAdmin
     .from("hirelix_candidates")
     .select("id, match_score, metadata")
@@ -4586,12 +4585,12 @@ async function retagSearchCandidatePoolTypes(searchId: string, highlightCount: n
 
   if (!candidates?.length) return;
 
-  for (const [index, candidate] of candidates.entries()) {
+  for (const candidate of candidates) {
     const metadata =
       candidate.metadata && typeof candidate.metadata === "object"
         ? { ...(candidate.metadata as Record<string, unknown>) }
         : {};
-    const nextPoolType = index < highlightCount ? "top_pick" : "outreach_pool";
+    const nextPoolType = "main";
     if (metadata.pool_type === nextPoolType) continue;
     metadata.pool_type = nextPoolType;
     await supabaseAdmin
@@ -5757,7 +5756,6 @@ async function buildBrightDataDatasetCandidates(
     const mergedRows = tagPoolRows(
       combinedResult.finalRows,
       additionalResult.finalRows,
-      context.highlightCount,
       combinedResult.finalRows.length + additionalResult.finalRows.length,
     );
     combinedResult = {
@@ -6467,7 +6465,7 @@ async function scoreBrightDataProfiles(
         const rows = buildBrightDataCandidateRows(brightProfiles, [assessment], 1, "outreach_pool");
         if (rows.length > 0) {
           await upsertSingleCandidate(context.searchId, rows[0]);
-          await retagSearchCandidatePoolTypes(context.searchId, context.highlightCount);
+          await retagSearchCandidatePoolTypes(context.searchId);
           if (!firstVisibleSignalled) {
             firstVisibleSignalled = true;
             await options?.onFirstVisibleCandidate?.({
@@ -6540,19 +6538,14 @@ async function scoreBrightDataProfiles(
     brightProfiles,
     deepSelected,
     deepSelected.length,
-    "outreach_pool",
+    "main",
   );
 
-  const highlightTarget = context.highlightCount;
   const finalRows = tagPoolRows(
     deepRows,
     [],
-    highlightTarget,
     deepRows.length,
   );
-  const shortlistedCount = finalRows.filter(
-    (row) => row.metadata?.pool_type === "top_pick",
-  ).length;
   const topQualityScore = deepAssessments.reduce(
     (best, assessment) => Math.max(best, assessment.suitability.quality_score),
     0,
@@ -6567,8 +6560,6 @@ async function scoreBrightDataProfiles(
     warningMessage = "No candidates were ranked into the final result set.";
   } else if (fullDetailIncomplete) {
     warningMessage = "Some deep reviews timed out, and only completed deep scores were ranked.";
-  } else if (shortlistedCount < highlightTarget) {
-    warningMessage = `Only ${shortlistedCount} highlighted candidate${shortlistedCount === 1 ? "" : "s"} are available in the final ranking.`;
   }
   const estimatedCosts = estimateBrightPipelineLlmCost({
     context,
