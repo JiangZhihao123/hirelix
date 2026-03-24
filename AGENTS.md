@@ -20,3 +20,9 @@ SEARCH_JOB_SCHEDULER_ENABLED=true npm run dev
 ```
 
 默认跑在 http://localhost:3000
+
+## Network Notes
+
+- 在中国大陆本地开发时，服务端访问 Supabase 和其他外部服务默认需要通过本地代理。
+- 默认代理地址是 `http://127.0.0.1:7890`。
+- 生产环境默认不需要代理；不要把“本地需要代理”的假设带到生产配置里。
