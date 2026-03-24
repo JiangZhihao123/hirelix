@@ -2359,16 +2359,6 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
       dimensionScores.execution_signal * 0.2,
   );
 
-  if (
-    typeof item.match_score === "number" &&
-    Number.isFinite(item.match_score)
-  ) {
-    const rawMatchScore = Math.max(0, Math.min(100, Math.round(item.match_score)));
-    if (Math.abs(rawMatchScore - matchScore) <= 10) {
-      matchScore = rawMatchScore;
-    }
-  }
-
   // Keep score range sane, but avoid forcing everything across pass threshold.
   if (keep && matchScore < 40) matchScore = 40;
   if (!keep && matchScore > 80) matchScore = 80;
