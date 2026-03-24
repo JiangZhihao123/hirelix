@@ -2,7 +2,7 @@ import {
   HTTPClient,
   OpenRouter,
 } from "@openrouter/sdk";
-import { fetch as undiciFetch, ProxyAgent } from "undici";
+import { ProxyAgent } from "undici";
 
 type OpenRouterJsonSchemaConfig = {
   name: string;
@@ -54,20 +54,19 @@ function getProxyUrl() {
   );
 }
 
-function createProxyFetcher() {
+function createProxyFetcher(): typeof fetch | undefined {
   if (process.env.NODE_ENV !== "development") return undefined;
+
   const proxyUrl = getProxyUrl();
   if (!proxyUrl) return undefined;
 
-  const proxyAgent = new ProxyAgent(proxyUrl);
+  const dispatcher = new ProxyAgent(proxyUrl);
 
-  return ((input: RequestInfo | URL, init?: RequestInit) => {
-    const requestInit = (init ?? {}) as Record<string, unknown>;
-    return undiciFetch(input as never, {
-      ...requestInit,
-      dispatcher: proxyAgent,
-    } as never) as unknown as Promise<Response>;
-  }) satisfies typeof fetch;
+  return ((input: RequestInfo | URL, init?: RequestInit) =>
+    globalThis.fetch(input, {
+      ...(init ?? {}),
+      dispatcher,
+    } as RequestInit)) satisfies typeof fetch;
 }
 
 function getAppReferer() {
@@ -107,7 +106,6 @@ function getOpenRouterHttpClient(): HTTPClient | undefined {
   if (!proxyFetcher) return undefined;
 
   if (cachedHttpClient) return cachedHttpClient;
-
   cachedHttpClient = new HTTPClient({ fetcher: proxyFetcher });
   return cachedHttpClient;
 }
