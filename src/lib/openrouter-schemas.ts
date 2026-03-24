@@ -219,11 +219,21 @@ export const SERPER_PRESCREEN_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["keep", "match_score", "reason"],
+    required: ["keep", "match_score", "reason", "dimension_scores"],
     properties: {
       keep: { type: "boolean" },
       match_score: { type: "number" },
       reason: { type: "string" },
+      dimension_scores: {
+        type: "object",
+        additionalProperties: false,
+        required: ["role_relevance", "stack_match", "execution_signal"],
+        properties: {
+          role_relevance: { type: "number" },
+          stack_match: { type: "number" },
+          execution_signal: { type: "number" },
+        },
+      },
     },
   },
 };

@@ -503,6 +503,11 @@ type SerperPreScreenDecision = {
   keep: boolean;
   match_score: number;
   reason: string;
+  dimension_scores: {
+    role_relevance: number;
+    stack_match: number;
+    execution_signal: number;
+  };
 };
 
 type SerperPreScreenedCandidate = {
@@ -2333,10 +2338,36 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   const keep = item.keep === true;
-  let matchScore =
-    typeof item.match_score === "number" && Number.isFinite(item.match_score)
-      ? Math.max(0, Math.min(100, Math.round(item.match_score)))
+  const rawDimensionScores =
+    item.dimension_scores && typeof item.dimension_scores === "object"
+      ? (item.dimension_scores as Record<string, unknown>)
+      : {};
+  const normalizeDimensionScore = (field: string) => {
+    const raw = rawDimensionScores[field];
+    return typeof raw === "number" && Number.isFinite(raw)
+      ? Math.max(0, Math.min(100, Math.round(raw)))
       : 0;
+  };
+  const dimensionScores = {
+    role_relevance: normalizeDimensionScore("role_relevance"),
+    stack_match: normalizeDimensionScore("stack_match"),
+    execution_signal: normalizeDimensionScore("execution_signal"),
+  };
+  let matchScore = Math.round(
+    dimensionScores.role_relevance * 0.4 +
+      dimensionScores.stack_match * 0.4 +
+      dimensionScores.execution_signal * 0.2,
+  );
+
+  if (
+    typeof item.match_score === "number" &&
+    Number.isFinite(item.match_score)
+  ) {
+    const rawMatchScore = Math.max(0, Math.min(100, Math.round(item.match_score)));
+    if (Math.abs(rawMatchScore - matchScore) <= 10) {
+      matchScore = rawMatchScore;
+    }
+  }
 
   // Keep score range sane, but avoid forcing everything across pass threshold.
   if (keep && matchScore < 40) matchScore = 40;
@@ -2348,6 +2379,7 @@ function sanitizeSerperPreScreenDecision(value: unknown): SerperPreScreenDecisio
     reason:
       normalizeNullableString(item.reason) ||
       "Potential fit based on title, snippet, and keyword overlap.",
+    dimension_scores: dimensionScores,
   };
 }
 
@@ -2742,13 +2774,25 @@ Return ONLY valid JSON with this exact shape:
 {
   "keep": true,
   "match_score": 0,
-  "reason": "one short sentence"
+  "reason": "one short sentence",
+  "dimension_scores": {
+    "role_relevance": 0,
+    "stack_match": 0,
+    "execution_signal": 0
+  }
 }
 
 Rules:
 - This is a snippet-level decision, but precision matters more than recall.
 - Keep indicates whether this candidate looks worth scraping for richer LinkedIn data.
-- match_score is used for ranking candidates against each other. Keep score granularity meaningful.
+- Score these three dimensions from 0 to 100 as integers:
+  - role_relevance: title/seniority/domain/location/work-model alignment to the role.
+  - stack_match: explicit evidence for the required technical stack and must-have skills.
+  - execution_signal: evidence of engineering scope, product/backend ownership, scale, and caliber.
+- match_score is used for ranking candidates against each other and should roughly reflect:
+  - 40% role_relevance
+  - 40% stack_match
+  - 20% execution_signal
 - Default to keep=false when evidence is sparse or ambiguous.
 - Keep=true should require at least two clear positive signals (title alignment, stack signal, seniority fit, or location/work-model feasibility).
 - For onsite/hybrid roles with a target location, unknown/non-local location should be strongly penalized.
@@ -4707,6 +4751,11 @@ async function preScreenSerperCandidate(
       keep: false,
       match_score: 0,
       reason: "LLM prescreen failed; candidate held for manual fallback only.",
+      dimension_scores: {
+        role_relevance: 0,
+        stack_match: 0,
+        execution_signal: 0,
+      },
     },
   };
 }
