@@ -438,7 +438,7 @@ export default function Home() {
     },
     {
       title: "Do I need a card to start?",
-      body: "No. The Free plan lets you start with 3 searches per month before upgrading.",
+      body: "No. The Free plan gives you 1 high-conviction shortlist per month before you upgrade.",
     },
   ];
 

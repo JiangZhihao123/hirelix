@@ -249,6 +249,12 @@ export function LoginForm({
 
       if (error) throw error;
 
+      // Force Supabase to persist a fresh session before the first product API call.
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        logAuthDebug("post-password refresh failed", refreshError);
+      }
+
       onSuccessStart?.();
       router.push(nextPath);
     } catch (err) {
@@ -275,6 +281,11 @@ export function LoginForm({
       });
 
       if (error) throw error;
+
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        logAuthDebug("post-otp refresh failed", refreshError);
+      }
 
       trackEvent(ANALYTICS_EVENTS.emailOtpVerified, {
         ...getAnalyticsContextFromBrowser(),
