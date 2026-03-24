@@ -1,4 +1,5 @@
 import {
+  HTTPClient,
   OpenRouter,
 } from "@openrouter/sdk";
 
@@ -41,6 +42,32 @@ type OpenRouterTextResult = {
 
 let cachedClient: OpenRouter | null = null;
 
+function buildSdkCompatibleFetcher() {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (input instanceof Request) {
+      const requestInit: RequestInit = {
+        method: input.method,
+        headers: input.headers,
+        body: input.body,
+        cache: input.cache,
+        credentials: input.credentials,
+        integrity: input.integrity,
+        keepalive: input.keepalive,
+        mode: input.mode,
+        redirect: input.redirect,
+        referrer: input.referrer,
+        referrerPolicy: input.referrerPolicy,
+        signal: init?.signal ?? input.signal,
+        ...(input.body ? { duplex: "half" as const } : {}),
+        ...(init ?? {}),
+      };
+      return fetch(input.url, requestInit);
+    }
+
+    return fetch(input, init);
+  };
+}
+
 function getAppReferer() {
   return process.env.OPENROUTER_HTTP_REFERER || "https://hirelix.com";
 }
@@ -81,6 +108,9 @@ export function getOpenRouterClient() {
     serverURL: getOpenRouterBaseUrl(),
     httpReferer: getAppReferer(),
     xTitle: getAppTitle(),
+    httpClient: new HTTPClient({
+      fetcher: buildSdkCompatibleFetcher(),
+    }),
   });
 
   return cachedClient;
