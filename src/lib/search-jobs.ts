@@ -237,7 +237,7 @@ const BRIGHTDATA_FILTER_TIMEOUT_MS = getConfiguredPositiveInt(
 );
 const BRIGHTDATA_FILTER_POLL_WINDOW_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_POLL_WINDOW_MS",
-  900000,
+  60000,
   { min: 5000, max: 900000 },
 );
 const BRIGHTDATA_FILTER_POLL_INTERVAL_MS = getConfiguredPositiveInt(
