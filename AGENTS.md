@@ -228,16 +228,59 @@ SEARCH_ARBITER_MODEL=anthropic/claude-sonnet-4.6
 
 - `10` 条：约 `$0.025`（后台可能显示为 `$0.02`，存在四舍五入）
 - `100` 条：`$0.25`
+- `150` 条：`$0.375`
 - `200` 条：`$0.50`
 - `300` 条：`$0.75`
 - `400` 条：`$1.00`
 
 说明：
-- 当前多轮召回常见结构是：`standard 200 + hidden_gem 100 + company_target 100`
-- 三轮都触发且都跑满时，Bright Data 召回成本按 `400 × 0.0025 = $1.00`
+- 当前代码中的召回结构已下调为：`standard 100 + hidden_gem 50 + company_target 50`
+- 当前满配召回成本：`200 × 0.0025 = $0.50`
+- 历史旧配额曾是：`standard 200 + hidden_gem 100 + company_target 100`
+- 历史旧配额满配召回成本：`400 × 0.0025 = $1.00`
 - 实际返回条数可能因去重少于请求条数，但 Bright Data 计费按 records 单价理解和估算
 - `snapshot metadata.cost` 在实际运行中可能返回 `0`，不能当作最终账单真相；最终账单优先以 Bright Data Cost Explorer 为准
 - 不要把 `Web Scraper API` 的 `$1.5 / 1000 records` 价格套用到当前搜索召回链路上；当前链路用的是 `Dataset Filter API`
+
+### LLM 成本
+
+当前搜索链路的 LLM 调用：
+
+- Provider 通道：OpenRouter
+- 主模型：`deepseek/deepseek-chat`
+- judge / arbiter：也使用 `deepseek/deepseek-chat`
+- 实际调用成本参考 OpenRouter 历史日志估算，而不是只按理论单价拍脑袋推断
+
+已验证的经验口径：
+
+- 单次 DeepSeek V3 调用常见成本约：`$0.00040 ~ $0.00059`
+- 经验均值可按：`$0.00048 / request` 估算
+
+单任务 LLM 成本估算：
+
+- 当前新配额 `100 + 50 + 50`：
+  - 约 `440 ~ 450` 次模型调用
+  - LLM 成本约：`$0.21 ~ $0.22 / task`
+- 历史旧配额 `200 + 100 + 100`：
+  - 约 `870 ~ 880` 次模型调用
+  - LLM 成本约：`$0.42 / task`
+
+单任务总成本速查：
+
+- 当前新配额：
+  - Bright 约：`$0.50`
+  - LLM 约：`$0.21 ~ $0.22`
+  - 总计约：`$0.71 ~ $0.72 / task`
+- 历史旧配额：
+  - Bright 约：`$1.00`
+  - LLM 约：`$0.42`
+  - 总计约：`$1.42 / task`
+
+说明：
+
+- 上述 LLM 成本是按当前链路结构估算：`parse + 全量候选人双 judge + 部分 arbiter + 少量收尾/outreach`
+- 如果 judge 数量、arbiter 比例、召回人数发生变化，LLM 成本会同步变化
+- 当前链路的 LLM 成本大头来自“请求次数”，不只是单次 token 多少
 
 ### 注意事项
 
