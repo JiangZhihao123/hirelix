@@ -675,9 +675,19 @@ type SerperBuildResult = {
   stopReason: string | null;
 };
 
+type AdditionalRecallSnapshot = {
+  round: string;
+  snapshot_id: string;
+  records_limit?: number | null;
+  status?: "submitted" | "polling" | "ready" | "failed";
+  completed_at?: string | null;
+  profiles_returned?: number | null;
+};
+
 type RecallMetadata = {
   provider: RecallProvider;
   snapshot_id: string;
+  additional_snapshots?: AdditionalRecallSnapshot[];
   dataset_size?: number | null;
   recall_latency_ms?: number | null;
   cost?: number | null;
@@ -1629,6 +1639,42 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
   const standard_recall_requested_at = normalizeNullableString(item.standard_recall_requested_at);
   const standard_recall_completed_at = normalizeNullableString(item.standard_recall_completed_at);
   const all_recall_completed_at = normalizeNullableString(item.all_recall_completed_at);
+  const additional_snapshots = Array.isArray(item.additional_snapshots)
+    ? item.additional_snapshots
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const snapshot = entry as Record<string, unknown>;
+        const round = normalizeNullableString(snapshot.round);
+        const snapshotId = normalizeNullableString(snapshot.snapshot_id);
+        if (!round || !snapshotId) return null;
+        const records_limit =
+          typeof snapshot.records_limit === "number" && Number.isFinite(snapshot.records_limit)
+            ? Math.max(0, Math.round(snapshot.records_limit))
+            : null;
+        const completed_at = normalizeNullableString(snapshot.completed_at);
+        const profiles_returned =
+          typeof snapshot.profiles_returned === "number" && Number.isFinite(snapshot.profiles_returned)
+            ? Math.max(0, Math.round(snapshot.profiles_returned))
+            : null;
+        const status = normalizeNullableString(snapshot.status);
+        const normalizedStatus: AdditionalRecallSnapshot["status"] =
+          status === "submitted" ||
+          status === "polling" ||
+          status === "ready" ||
+          status === "failed"
+            ? status
+            : undefined;
+        return {
+          round,
+          snapshot_id: snapshotId,
+          records_limit,
+          completed_at,
+          profiles_returned,
+          status: normalizedStatus,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    : [];
   const rawFilterSummary =
     item.filter_summary && typeof item.filter_summary === "object"
       ? (item.filter_summary as Record<string, unknown>)
@@ -1664,6 +1710,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     standard_recall_requested_at,
     standard_recall_completed_at,
     all_recall_completed_at,
+    additional_snapshots,
     status:
       status === "submitted" || status === "polling" || status === "ready"
         ? status
@@ -4967,6 +5014,17 @@ async function buildBrightDataDatasetCandidates(
   let requestedAt = existingRecallMetadata?.requested_at
     ? Date.parse(existingRecallMetadata.requested_at)
     : Number.NaN;
+  const recallRounds = buildBrightDataRecallFilters(parsed, context.candidateCount, executionProfile);
+  const additionalRounds = recallRounds.filter((round) => round.round !== "standard");
+  const persistedAdditionalSnapshots = new Map(
+    (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
+  );
+  let additionalSnapshotRefs: Array<{
+    round: string;
+    snapshotId: string;
+    request: BrightDataDatasetFilterRequest;
+    recordsLimit: number;
+  }> = [];
 
   const filterSummary = {
     title_terms: recallSpec.title_variants.length > 0
@@ -5055,9 +5113,7 @@ async function buildBrightDataDatasetCandidates(
     requestedAt = Date.now();
 
     // Fire additional rounds (hidden_gem, company_target) — check cache per round
-    const recallRounds = buildBrightDataRecallFilters(parsed, context.candidateCount, executionProfile);
-    const additionalRounds = recallRounds.filter((r) => r.round !== "standard");
-    const additionalSnapshotPromises = additionalRounds.map(async (round) => {
+    additionalSnapshotRefs = await Promise.all(additionalRounds.map(async (round) => {
       const roundHash = computeFilterHash(round.request);
       const cachedRoundId = await lookupCachedSnapshot(roundHash);
       let roundSnapshotId: string;
@@ -5086,10 +5142,13 @@ async function buildBrightDataDatasetCandidates(
           job_id: context.jobId,
         });
       }
-      return { round: round.round, snapshotId: roundSnapshotId, request: round.request };
-    });
-    // Store promises for later — all snapshots are now building in parallel
-    (parsed as Record<string, unknown>).__additional_snapshot_promises = additionalSnapshotPromises;
+      return {
+        round: round.round,
+        snapshotId: roundSnapshotId,
+        request: round.request,
+        recordsLimit: round.request.recordsLimit,
+      };
+    }));
 
     parsed.recall_provider = "brightdata_dataset";
     parsed.recall_metadata = {
@@ -5101,6 +5160,12 @@ async function buildBrightDataDatasetCandidates(
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: recallRequest.recordsLimit,
       judge_mode: runtime.judgeMode,
+      additional_snapshots: additionalSnapshotRefs.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        records_limit: round.recordsLimit,
+        status: "submitted" as const,
+      })),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
     logSearchEvent("search_step_started", {
@@ -5114,6 +5179,16 @@ async function buildBrightDataDatasetCandidates(
       job_id: context.jobId,
     });
   } else {
+    additionalSnapshotRefs = additionalRounds.flatMap((round) => {
+      const persisted = persistedAdditionalSnapshots.get(round.round);
+      if (!persisted?.snapshot_id) return [];
+      return [{
+        round: round.round,
+        snapshotId: persisted.snapshot_id,
+        request: round.request,
+        recordsLimit: round.request.recordsLimit,
+      }];
+    });
     if (!Number.isFinite(requestedAt)) {
       requestedAt = Date.now();
     }
@@ -5168,6 +5243,12 @@ async function buildBrightDataDatasetCandidates(
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: recallRequest.recordsLimit,
       judge_mode: runtime.judgeMode,
+      additional_snapshots: additionalSnapshotRefs.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        records_limit: round.recordsLimit,
+        status: "submitted" as const,
+      })),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
     throw new DatasetRecallPendingError(
@@ -5213,6 +5294,12 @@ async function buildBrightDataDatasetCandidates(
     completed_at: standardRecallCompletedAt,
     standard_recall_requested_at: new Date(requestedAt).toISOString(),
     standard_recall_completed_at: standardRecallCompletedAt,
+    additional_snapshots: additionalSnapshotRefs.map((round) => ({
+      round: round.round,
+      snapshot_id: round.snapshotId,
+      records_limit: round.recordsLimit,
+      status: "submitted" as const,
+    })),
     status: "ready",
     filter_summary: filterSummary,
   };
@@ -5248,9 +5335,7 @@ async function buildBrightDataDatasetCandidates(
     result_count: profiles.length,
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
-    additional_rounds_in_progress: (
-      ((parsed as Record<string, unknown>).__additional_snapshot_promises ?? []) as unknown[]
-    ).length,
+    additional_rounds_in_progress: additionalSnapshotRefs.length,
     job_id: context.jobId,
   });
   logSearchEvent("search_step_started", {
@@ -5275,8 +5360,6 @@ async function buildBrightDataDatasetCandidates(
   const standardProfileCount = profiles.length;
   const allProfiles = [...profiles];
   const additionalUniqueProfiles: BrightDataProfile[] = [];
-  const additionalSnapshotPromises = ((parsed as Record<string, unknown>).__additional_snapshot_promises ?? []) as
-    Promise<{ round: string; snapshotId: string; request: BrightDataDatasetFilterRequest }>[];
   let totalRecallCost = metadata.cost ?? 0;
 
   const handleFirstVisibleCandidate = async (statsPatch: Partial<SearchDisplayStats>) => {
@@ -5308,15 +5391,10 @@ async function buildBrightDataDatasetCandidates(
   });
   await updateSearchDisplayStats(context.searchId, parsed, combinedResult.displayStats);
 
-  if (additionalSnapshotPromises.length > 0) {
-    // Resolve the trigger promises first (they were fired in parallel with standard)
-    const triggeredRounds = await Promise.allSettled(additionalSnapshotPromises);
-    // Now wait for all additional snapshots to complete (they've been building in parallel the whole time)
-    const successfulTriggers = triggeredRounds
-      .filter((r): r is PromiseFulfilledResult<{ round: string; snapshotId: string; request: BrightDataDatasetFilterRequest }> => r.status === "fulfilled");
+  if (additionalSnapshotRefs.length > 0) {
     const additionalResults = await Promise.allSettled(
-      successfulTriggers.map(async (r) => {
-          const { round, snapshotId: roundSnapId } = r.value;
+      additionalSnapshotRefs.map(async (roundRef) => {
+          const { round, snapshotId: roundSnapId } = roundRef;
           const roundPollWindowMs = Math.min(BRIGHTDATA_FILTER_POLL_WINDOW_MS, BRIGHTDATA_FILTER_TIMEOUT_MS);
           const result = await waitForDatasetSnapshot(brightDataToken, roundSnapId, {
             timeoutMs: roundPollWindowMs,
@@ -5399,6 +5477,12 @@ async function buildBrightDataDatasetCandidates(
     standard_recall_requested_at: new Date(requestedAt).toISOString(),
     standard_recall_completed_at: standardRecallCompletedAt,
     all_recall_completed_at: allRecallCompletedAt,
+    additional_snapshots: additionalSnapshotRefs.map((round) => ({
+      round: round.round,
+      snapshot_id: round.snapshotId,
+      records_limit: round.recordsLimit,
+      status: "ready" as const,
+    })),
     status: "ready",
     filter_summary: filterSummary,
   };
