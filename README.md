@@ -21,3 +21,15 @@ npm run dev
 ```
 
 Then open `http://localhost:3000`.
+
+### Local Proxy
+
+If local server-side outbound traffic needs to go through a proxy, set:
+
+```bash
+PROXY_ENABLED=true
+PROXY_URL=http://127.0.0.1:7890
+```
+
+`PROXY_ENABLED` / `PROXY_URL` are the preferred names.
+Older `OUTBOUND_PROXY_ENABLED` / `OUTBOUND_PROXY_URL` are still supported for compatibility.
