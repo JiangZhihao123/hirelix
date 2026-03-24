@@ -14,10 +14,10 @@ import {
 import {
   scrapeLinkedInProfiles,
   brightDataProfileToRichText,
+  adaptDatasetRecordToBrightDataProfile,
   triggerDatasetFilter,
   getDatasetSnapshotMetadata,
-  waitForDatasetSnapshot,
-  BrightDataSnapshotFailedError,
+  downloadDatasetSnapshot,
   computeFilterHash,
   type BrightDataFilterRule,
   type BrightDataDatasetFilterRequest,
@@ -236,11 +236,6 @@ const BRIGHTDATA_FILTER_TIMEOUT_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_TIMEOUT_MS",
   900000,
   { min: 10000, max: 900000 },
-);
-const BRIGHTDATA_FILTER_POLL_WINDOW_MS = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_FILTER_POLL_WINDOW_MS",
-  900000,
-  { min: 5000, max: 900000 },
 );
 const BRIGHTDATA_FILTER_POLL_INTERVAL_MS = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_POLL_INTERVAL_MS",
@@ -731,11 +726,13 @@ type SearchCostEstimate = {
 
 class DatasetRecallPendingError extends Error {
   retryImmediately: boolean;
+  retryDelayMs: number;
 
-  constructor(message: string) {
+  constructor(message: string, options?: { retryImmediately?: boolean; retryDelayMs?: number }) {
     super(message);
     this.name = "DatasetRecallPendingError";
-    this.retryImmediately = true;
+    this.retryImmediately = options?.retryImmediately ?? true;
+    this.retryDelayMs = Math.max(1000, options?.retryDelayMs ?? BRIGHTDATA_FILTER_POLL_INTERVAL_MS);
   }
 }
 
@@ -1441,12 +1438,13 @@ function inferTargetCompaniesFromParsed(
   return [];
 }
 
-function isNoRecordsFoundSnapshotError(error: unknown): error is BrightDataSnapshotFailedError {
-  return (
-    error instanceof BrightDataSnapshotFailedError &&
-    (error.metadata.warning_code === "no_records_found" ||
-      error.metadata.warning === "Provided filter did not match any records")
-  );
+function mapSnapshotStatus(
+  metadata: BrightDataSnapshotMetadata | null | undefined,
+): AdditionalRecallSnapshot["status"] {
+  if (!metadata) return "submitted";
+  if (metadata.status === "ready") return "ready";
+  if (metadata.status === "failed") return "failed";
+  return "polling";
 }
 
 function inferCountriesFromJdText(jdText: string) {
@@ -5400,79 +5398,64 @@ async function buildBrightDataDatasetCandidates(
   if (!snapshotId) {
     throw new Error("Bright Data snapshot submission did not return a snapshot id.");
   }
-  let activeSnapshotId = snapshotId;
+  const activeSnapshotId = snapshotId;
 
   const totalElapsedMs = Math.max(0, Date.now() - requestedAt);
-  let remainingTimeoutMs = Math.max(0, BRIGHTDATA_FILTER_TIMEOUT_MS - totalElapsedMs);
+  const remainingTimeoutMs = Math.max(0, BRIGHTDATA_FILTER_TIMEOUT_MS - totalElapsedMs);
   if (remainingTimeoutMs <= 0) {
-    // The main timeout budget has elapsed. Check the current state before deciding what to do.
-    const latestMetadata = await getDatasetSnapshotMetadata(brightDataToken, activeSnapshotId);
-    if (latestMetadata.status === "failed") {
-      throw new Error(
-        `Bright Data snapshot ${activeSnapshotId} failed. Retry from the shortlist page if you want to re-attempt this provider snapshot.`,
-      );
-    }
-    if (latestMetadata.status !== "ready") {
-      // Still building after 15+ minutes — the filter timed out.
-      throw new Error(`Bright Data dataset recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms`);
-    }
-    // Snapshot is ready per metadata but the download may still be finalising on Bright
-    // Data's CDN (they have an eventual-consistency lag of a few minutes between metadata
-    // status and download availability). Give each job execution a fixed 60-second window
-    // to attempt the download, then requeue with the same snapshot_id to try again.
-    remainingTimeoutMs = 60_000;
+    throw new Error(`Bright Data dataset recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms`);
   }
 
-  const pollWindowMs = Math.min(BRIGHTDATA_FILTER_POLL_WINDOW_MS, remainingTimeoutMs);
   let metadata: BrightDataSnapshotMetadata | null = null;
-  let profiles: BrightDataProfile[] | null = null;
+  let profiles: BrightDataProfile[] = [];
   let standardRoundFailedEmpty = false;
 
-  const loadStandardSnapshot = async () => {
-    const result = await waitForDatasetSnapshot(brightDataToken, activeSnapshotId, {
-      timeoutMs: pollWindowMs,
-      pollIntervalMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
-    });
-    metadata = result.metadata;
-    profiles = result.profiles;
-  };
-
   try {
-    await loadStandardSnapshot();
+    metadata = await getDatasetSnapshotMetadata(brightDataToken, activeSnapshotId);
   } catch (error) {
-    const canRelaxStandardRecall =
-      isNoRecordsFoundSnapshotError(error) &&
-      relaxedRecallRequest != null &&
-      computeFilterHash(relaxedRecallRequest) !== computeFilterHash(recallRequest);
-
-    if (canRelaxStandardRecall) {
-      logSearchEvent("search_standard_round_retrying_relaxed", {
-        search_id: context.searchId,
-        snapshot_id: activeSnapshotId,
-        job_id: context.jobId,
-      });
-      await submitStandardSnapshot(relaxedRecallRequest, { relaxed: true });
-      activeSnapshotId = snapshotId!;
-      try {
-        await loadStandardSnapshot();
-      } catch (relaxedError) {
-        if (!isNoRecordsFoundSnapshotError(relaxedError)) {
-          throw relaxedError;
-        }
-        standardRoundFailedEmpty = true;
-        metadata = relaxedError.metadata;
-        profiles = [];
-      }
-    } else if (isNoRecordsFoundSnapshotError(error)) {
-      standardRoundFailedEmpty = true;
-      metadata = error.metadata;
-      profiles = [];
-    } else {
-      throw error;
-    }
+    throw error;
   }
 
-  if (!metadata || !profiles) {
+  const additionalSnapshotStates = await Promise.all(
+    additionalSnapshotRefs.map(async (round) => {
+      const roundMetadata = await getDatasetSnapshotMetadata(brightDataToken, round.snapshotId);
+      return { ...round, metadata: roundMetadata };
+    }),
+  );
+
+  const canRelaxStandardRecall =
+    metadata?.status === "failed" &&
+    metadata.warning_code === "no_records_found" &&
+    relaxedRecallRequest != null &&
+    computeFilterHash(relaxedRecallRequest) !== computeFilterHash(recallRequest);
+
+  if (canRelaxStandardRecall) {
+    logSearchEvent("search_standard_round_retrying_relaxed", {
+      search_id: context.searchId,
+      snapshot_id: activeSnapshotId,
+      job_id: context.jobId,
+    });
+    await submitStandardSnapshot(relaxedRecallRequest, { relaxed: true });
+    throw new DatasetRecallPendingError(
+      `Bright Data relaxed recall submitted for snapshot ${snapshotId}`,
+      { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+    );
+  }
+
+  if (metadata?.status === "failed" && metadata.warning_code === "no_records_found") {
+    standardRoundFailedEmpty = true;
+  } else if (metadata?.status === "failed") {
+    throw new Error(
+      `Bright Data snapshot ${activeSnapshotId} failed${metadata.error_code ? ` (error_code=${String(metadata.error_code)})` : ""}`,
+    );
+  }
+
+  const waitingOnStandard = metadata?.status !== "ready" && !standardRoundFailedEmpty;
+  const waitingOnAdditional = additionalSnapshotStates.some(
+    (round) => round.metadata.status === "scheduled" || round.metadata.status === "building",
+  );
+
+  if (waitingOnStandard || waitingOnAdditional) {
     parsed.recall_provider = "brightdata_dataset";
     parsed.recall_metadata = {
       provider: "brightdata_dataset",
@@ -5483,17 +5466,24 @@ async function buildBrightDataDatasetCandidates(
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: recallRequest.recordsLimit,
       judge_mode: runtime.judgeMode,
-      additional_snapshots: additionalSnapshotRefs.map((round) => ({
+      additional_snapshots: additionalSnapshotStates.map((round) => ({
         round: round.round,
         snapshot_id: round.snapshotId,
         records_limit: round.recordsLimit,
-        status: "submitted" as const,
+        status: mapSnapshotStatus(round.metadata),
+        completed_at: round.metadata.status === "ready" || round.metadata.status === "failed" ? nowIso() : null,
       })),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
     throw new DatasetRecallPendingError(
       `Bright Data dataset recall still processing for snapshot ${activeSnapshotId}`,
+      { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
     );
+  }
+
+  if (metadata?.status === "ready") {
+    const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
+    profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
   }
 
   if (!profiles.length && additionalSnapshotRefs.length === 0) {
@@ -5535,11 +5525,13 @@ async function buildBrightDataDatasetCandidates(
     completed_at: standardRecallCompletedAt,
     standard_recall_requested_at: new Date(requestedAt).toISOString(),
     standard_recall_completed_at: standardRecallCompletedAt,
-    additional_snapshots: additionalSnapshotRefs.map((round) => ({
+    additional_snapshots: additionalSnapshotStates.map((round) => ({
       round: round.round,
       snapshot_id: round.snapshotId,
       records_limit: round.recordsLimit,
-      status: "submitted" as const,
+      status: mapSnapshotStatus(round.metadata),
+      completed_at: round.metadata.status === "ready" || round.metadata.status === "failed" ? nowIso() : null,
+      profiles_returned: round.metadata.dataset_size ?? null,
     })),
     status: "ready",
     filter_summary: filterSummary,
@@ -5654,36 +5646,26 @@ async function buildBrightDataDatasetCandidates(
   await updateSearchDisplayStats(context.searchId, parsed, combinedResult.displayStats);
 
   if (additionalSnapshotRefs.length > 0) {
-    const additionalResults = await Promise.allSettled(
-      additionalSnapshotRefs.map(async (roundRef) => {
-          const { round, snapshotId: roundSnapId } = roundRef;
-          const roundPollWindowMs = Math.min(BRIGHTDATA_FILTER_POLL_WINDOW_MS, BRIGHTDATA_FILTER_TIMEOUT_MS);
-          const result = await waitForDatasetSnapshot(brightDataToken, roundSnapId, {
-            timeoutMs: roundPollWindowMs,
-            pollIntervalMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
-          });
-          return { round, ...result, snapshotId: roundSnapId };
-        }),
-    );
-
-    // Merge successful rounds, skip failed ones (non-blocking)
     const seenIds = new Set<string>();
     for (const profile of allProfiles) {
       const key = profile.linkedin_id || profile.url || profile.name;
       if (key) seenIds.add(key);
     }
 
-    for (const result of additionalResults) {
-      if (result.status === "rejected") {
-        logSearchEvent("search_multi_round_failed", {
+    for (const roundRef of additionalSnapshotStates) {
+      const { round, snapshotId: roundSnapId, metadata: roundMeta } = roundRef;
+      if (roundMeta.status !== "ready") {
+        logSearchEvent("search_multi_round_empty", {
           search_id: context.searchId,
-          error: String(result.reason),
+          round,
+          snapshot_id: roundSnapId,
           job_id: context.jobId,
         });
         continue;
       }
-      const { round, profiles: roundProfiles, metadata: roundMeta, snapshotId: roundSnapId } = result.value;
-      if (!roundProfiles || roundProfiles.length === 0) {
+      const roundProfiles = (await downloadDatasetSnapshot(brightDataToken, roundSnapId))
+        .map(adaptDatasetRecordToBrightDataProfile);
+      if (roundProfiles.length === 0) {
         logSearchEvent("search_multi_round_empty", {
           search_id: context.searchId,
           round,
@@ -7037,6 +7019,18 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       last_error: null,
     });
   } catch (error) {
+    if (error instanceof DatasetRecallPendingError) {
+      await updateRunningJobStatus(job.id, "queued", {
+        available_at: new Date(Date.now() + error.retryDelayMs).toISOString(),
+        locked_at: null,
+        last_error: null,
+      });
+      return {
+        processed: true,
+        hasMore: await hasRunnableSearchJobs(),
+      };
+    }
+
     const message = error instanceof DatasetRecallPendingError
       ? "Bright Data snapshot is still processing. Retry from the shortlist page to download the existing snapshot."
       : error instanceof Error
