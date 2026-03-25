@@ -1941,7 +1941,7 @@ export default function SearchResultPage() {
   const encodedJd = encodeURIComponent(search.jd_text);
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto w-full max-w-7xl">
       {/* Header */}
       <div className="mb-6">
         <Link
