@@ -679,8 +679,16 @@ type AdditionalRecallSnapshot = {
   snapshot_id: string;
   records_limit?: number | null;
   status?: "submitted" | "polling" | "ready" | "failed";
+  submitted_at?: string | null;
+  ready_at?: string | null;
+  failed_at?: string | null;
+  last_polled_at?: string | null;
+  download_started_at?: string | null;
+  download_completed_at?: string | null;
   completed_at?: string | null;
   profiles_returned?: number | null;
+  poll_attempt_count?: number | null;
+  download_attempt_count?: number | null;
 };
 
 type RecallMetadata = {
@@ -697,7 +705,10 @@ type RecallMetadata = {
   requested_at?: string | null;
   completed_at?: string | null;
   standard_recall_requested_at?: string | null;
+  standard_recall_ready_at?: string | null;
   standard_recall_completed_at?: string | null;
+  standard_download_started_at?: string | null;
+  standard_download_completed_at?: string | null;
   all_recall_completed_at?: string | null;
   status?: "submitted" | "polling" | "ready";
   filter_summary?: {
@@ -1902,7 +1913,10 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
   const requested_at = normalizeNullableString(item.requested_at);
   const completed_at = normalizeNullableString(item.completed_at);
   const standard_recall_requested_at = normalizeNullableString(item.standard_recall_requested_at);
+  const standard_recall_ready_at = normalizeNullableString(item.standard_recall_ready_at);
   const standard_recall_completed_at = normalizeNullableString(item.standard_recall_completed_at);
+  const standard_download_started_at = normalizeNullableString(item.standard_download_started_at);
+  const standard_download_completed_at = normalizeNullableString(item.standard_download_completed_at);
   const all_recall_completed_at = normalizeNullableString(item.all_recall_completed_at);
   const additional_snapshots = Array.isArray(item.additional_snapshots)
     ? item.additional_snapshots
@@ -1916,10 +1930,25 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           typeof snapshot.records_limit === "number" && Number.isFinite(snapshot.records_limit)
             ? Math.max(0, Math.round(snapshot.records_limit))
             : null;
+        const submitted_at = normalizeNullableString(snapshot.submitted_at);
+        const ready_at = normalizeNullableString(snapshot.ready_at);
+        const failed_at = normalizeNullableString(snapshot.failed_at);
+        const last_polled_at = normalizeNullableString(snapshot.last_polled_at);
+        const download_started_at = normalizeNullableString(snapshot.download_started_at);
+        const download_completed_at = normalizeNullableString(snapshot.download_completed_at);
         const completed_at = normalizeNullableString(snapshot.completed_at);
         const profiles_returned =
           typeof snapshot.profiles_returned === "number" && Number.isFinite(snapshot.profiles_returned)
             ? Math.max(0, Math.round(snapshot.profiles_returned))
+            : null;
+        const poll_attempt_count =
+          typeof snapshot.poll_attempt_count === "number" && Number.isFinite(snapshot.poll_attempt_count)
+            ? Math.max(0, Math.round(snapshot.poll_attempt_count))
+            : null;
+        const download_attempt_count =
+          typeof snapshot.download_attempt_count === "number" &&
+          Number.isFinite(snapshot.download_attempt_count)
+            ? Math.max(0, Math.round(snapshot.download_attempt_count))
             : null;
         const status = normalizeNullableString(snapshot.status);
         const normalizedStatus: AdditionalRecallSnapshot["status"] =
@@ -1933,8 +1962,16 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           round,
           snapshot_id: snapshotId,
           records_limit,
+          submitted_at,
+          ready_at,
+          failed_at,
+          last_polled_at,
+          download_started_at,
+          download_completed_at,
           completed_at,
           profiles_returned,
+          poll_attempt_count,
+          download_attempt_count,
           status: normalizedStatus,
         };
       })
@@ -1973,7 +2010,10 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     requested_at,
     completed_at,
     standard_recall_requested_at,
+    standard_recall_ready_at,
     standard_recall_completed_at,
+    standard_download_started_at,
+    standard_download_completed_at,
     all_recall_completed_at,
     additional_snapshots,
     status:
@@ -1989,6 +2029,50 @@ function normalizeSummaryTerms(values: string[] | undefined) {
     .map((value) => normalizeText(value))
     .filter(Boolean)
     .sort();
+}
+
+function buildAdditionalSnapshotMetadata(params: {
+  round: string;
+  snapshotId: string;
+  recordsLimit?: number | null;
+  existing?: AdditionalRecallSnapshot | null;
+  status?: AdditionalRecallSnapshot["status"];
+  submittedAt?: string | null;
+  readyAt?: string | null;
+  failedAt?: string | null;
+  lastPolledAt?: string | null;
+  downloadStartedAt?: string | null;
+  downloadCompletedAt?: string | null;
+  profilesReturned?: number | null;
+  incrementPollAttempt?: boolean;
+  incrementDownloadAttempt?: boolean;
+}) {
+  const existing = params.existing ?? null;
+  const readyAt = params.readyAt ?? existing?.ready_at ?? null;
+  const failedAt = params.failedAt ?? existing?.failed_at ?? null;
+  return {
+    round: params.round,
+    snapshot_id: params.snapshotId,
+    records_limit: params.recordsLimit ?? existing?.records_limit ?? null,
+    status: params.status ?? existing?.status,
+    submitted_at: params.submittedAt ?? existing?.submitted_at ?? null,
+    ready_at: readyAt,
+    failed_at: failedAt,
+    last_polled_at: params.lastPolledAt ?? existing?.last_polled_at ?? null,
+    download_started_at: params.downloadStartedAt ?? existing?.download_started_at ?? null,
+    download_completed_at: params.downloadCompletedAt ?? existing?.download_completed_at ?? null,
+    completed_at:
+      readyAt ??
+      failedAt ??
+      params.downloadCompletedAt ??
+      existing?.completed_at ??
+      null,
+    profiles_returned: params.profilesReturned ?? existing?.profiles_returned ?? null,
+    poll_attempt_count:
+      (existing?.poll_attempt_count ?? 0) + (params.incrementPollAttempt ? 1 : 0),
+    download_attempt_count:
+      (existing?.download_attempt_count ?? 0) + (params.incrementDownloadAttempt ? 1 : 0),
+  } satisfies AdditionalRecallSnapshot;
 }
 
 function hasRecallSnapshotDrift(
@@ -5191,6 +5275,7 @@ async function buildBrightDataDatasetCandidates(
     snapshotId: string;
     request: BrightDataDatasetFilterRequest;
     recordsLimit: number;
+    submittedAt?: string;
   }> = [];
 
   const filterSummary = {
@@ -5227,6 +5312,7 @@ async function buildBrightDataDatasetCandidates(
     request: BrightDataDatasetFilterRequest,
     options?: { relaxed?: boolean },
   ) => {
+    const submittedAt = nowIso();
     const standardHash = computeFilterHash(request);
     const cachedStandardId = await lookupCachedSnapshot(standardHash);
     if (cachedStandardId) {
@@ -5260,17 +5346,22 @@ async function buildBrightDataDatasetCandidates(
     parsed.recall_metadata = {
       provider: "brightdata_dataset",
       snapshot_id: snapshotId,
-      requested_at: new Date(requestedAt).toISOString(),
+      requested_at: submittedAt,
       status: "submitted",
       filter_summary: filterSummary,
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: request.recordsLimit,
       judge_mode: runtime.judgeMode,
+      standard_recall_requested_at: submittedAt,
       additional_snapshots: additionalSnapshotRefs.map((round) => ({
-        round: round.round,
-        snapshot_id: round.snapshotId,
-        records_limit: round.recordsLimit,
-        status: "submitted" as const,
+        ...buildAdditionalSnapshotMetadata({
+          round: round.round,
+          snapshotId: round.snapshotId,
+          recordsLimit: round.recordsLimit,
+          existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+          status: "submitted",
+          submittedAt,
+        }),
       })),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
@@ -5308,6 +5399,7 @@ async function buildBrightDataDatasetCandidates(
 
     // Fire additional rounds (hidden_gem, company_target) — check cache per round
     additionalSnapshotRefs = await Promise.all(additionalRounds.map(async (round) => {
+      const submittedAt = nowIso();
       const roundHash = computeFilterHash(round.request);
       const cachedRoundId = await lookupCachedSnapshot(roundHash);
       let roundSnapshotId: string;
@@ -5341,6 +5433,7 @@ async function buildBrightDataDatasetCandidates(
         snapshotId: roundSnapshotId,
         request: round.request,
         recordsLimit: round.request.recordsLimit,
+        submittedAt,
       };
     }));
 
@@ -5359,10 +5452,14 @@ async function buildBrightDataDatasetCandidates(
       bright_profiles_requested: recallRequest.recordsLimit,
       judge_mode: runtime.judgeMode,
       additional_snapshots: additionalSnapshotRefs.map((round) => ({
-        round: round.round,
-        snapshot_id: round.snapshotId,
-        records_limit: round.recordsLimit,
-        status: "submitted" as const,
+        ...buildAdditionalSnapshotMetadata({
+          round: round.round,
+          snapshotId: round.snapshotId,
+          recordsLimit: round.recordsLimit,
+          existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+          status: "submitted",
+          submittedAt: round.submittedAt,
+        }),
       })),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
@@ -5385,6 +5482,7 @@ async function buildBrightDataDatasetCandidates(
         snapshotId: persisted.snapshot_id,
         request: round.request,
         recordsLimit: round.request.recordsLimit,
+        submittedAt: persisted.submitted_at ?? undefined,
       }];
     });
     if (!Number.isFinite(requestedAt)) {
@@ -5430,6 +5528,25 @@ async function buildBrightDataDatasetCandidates(
       return { ...round, metadata: roundMetadata };
     }),
   );
+  const pollRecordedAt = nowIso();
+  for (const round of additionalSnapshotStates) {
+    persistedAdditionalSnapshots.set(
+      round.round,
+      buildAdditionalSnapshotMetadata({
+        round: round.round,
+        snapshotId: round.snapshotId,
+        recordsLimit: round.recordsLimit,
+        existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+        status: mapSnapshotStatus(round.metadata),
+        submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
+        readyAt: round.metadata.status === "ready" ? pollRecordedAt : undefined,
+        failedAt: round.metadata.status === "failed" ? pollRecordedAt : undefined,
+        lastPolledAt: pollRecordedAt,
+        profilesReturned: round.metadata.dataset_size ?? null,
+        incrementPollAttempt: true,
+      }),
+    );
+  }
 
   const canRelaxStandardRecall =
     metadata?.status === "failed" &&
@@ -5474,12 +5591,26 @@ async function buildBrightDataDatasetCandidates(
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: recallRequest.recordsLimit,
       judge_mode: runtime.judgeMode,
+      standard_recall_requested_at:
+        normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_requested_at ??
+        new Date(requestedAt).toISOString(),
+      standard_recall_ready_at:
+        metadata?.status === "ready"
+          ? normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt
+          : normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? null,
       additional_snapshots: additionalSnapshotStates.map((round) => ({
-        round: round.round,
-        snapshot_id: round.snapshotId,
-        records_limit: round.recordsLimit,
-        status: mapSnapshotStatus(round.metadata),
-        completed_at: round.metadata.status === "ready" || round.metadata.status === "failed" ? nowIso() : null,
+        ...buildAdditionalSnapshotMetadata({
+          round: round.round,
+          snapshotId: round.snapshotId,
+          recordsLimit: round.recordsLimit,
+          existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+          status: mapSnapshotStatus(round.metadata),
+          submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
+          readyAt: round.metadata.status === "ready" ? pollRecordedAt : undefined,
+          failedAt: round.metadata.status === "failed" ? pollRecordedAt : undefined,
+          lastPolledAt: pollRecordedAt,
+          profilesReturned: round.metadata.dataset_size ?? null,
+        }),
       })),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
@@ -5490,9 +5621,26 @@ async function buildBrightDataDatasetCandidates(
   }
 
   if (metadata?.status === "ready") {
+    const standardDownloadStartedAt = nowIso();
     try {
       const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
       profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
+      parsed.recall_metadata = {
+        ...(normalizeRecallMetadata(parsed.recall_metadata) ?? {
+          provider: "brightdata_dataset" as const,
+          snapshot_id: activeSnapshotId,
+        }),
+        provider: "brightdata_dataset",
+        snapshot_id: activeSnapshotId,
+        requested_at: new Date(requestedAt).toISOString(),
+        standard_recall_requested_at:
+          normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_requested_at ??
+          new Date(requestedAt).toISOString(),
+        standard_recall_ready_at:
+          normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt,
+        standard_download_started_at: standardDownloadStartedAt,
+        standard_download_completed_at: nowIso(),
+      } satisfies RecallMetadata;
     } catch (error) {
       if (!isTransientSnapshotDownloadError(error)) {
         throw error;
@@ -5507,15 +5655,25 @@ async function buildBrightDataDatasetCandidates(
         bright_profile_budget: executionProfile.filterLimit,
         bright_profiles_requested: recallRequest.recordsLimit,
         judge_mode: runtime.judgeMode,
+        standard_recall_requested_at:
+          normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_requested_at ??
+          new Date(requestedAt).toISOString(),
+        standard_recall_ready_at:
+          normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt,
+        standard_download_started_at: standardDownloadStartedAt,
         additional_snapshots: additionalSnapshotStates.map((round) => ({
-          round: round.round,
-          snapshot_id: round.snapshotId,
-          records_limit: round.recordsLimit,
-          status: mapSnapshotStatus(round.metadata),
-          completed_at:
-            round.metadata.status === "ready" || round.metadata.status === "failed"
-              ? nowIso()
-              : null,
+          ...buildAdditionalSnapshotMetadata({
+            round: round.round,
+            snapshotId: round.snapshotId,
+            recordsLimit: round.recordsLimit,
+            existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+            status: mapSnapshotStatus(round.metadata),
+            submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
+            readyAt: round.metadata.status === "ready" ? pollRecordedAt : undefined,
+            failedAt: round.metadata.status === "failed" ? pollRecordedAt : undefined,
+            lastPolledAt: pollRecordedAt,
+            profilesReturned: round.metadata.dataset_size ?? null,
+          }),
         })),
       } satisfies RecallMetadata;
       await updateSearchParsedRequirements(context.searchId, parsed);
@@ -5564,14 +5722,27 @@ async function buildBrightDataDatasetCandidates(
     requested_at: new Date(requestedAt).toISOString(),
     completed_at: standardRecallCompletedAt,
     standard_recall_requested_at: new Date(requestedAt).toISOString(),
+    standard_recall_ready_at: standardRecallCompletedAt,
     standard_recall_completed_at: standardRecallCompletedAt,
+    standard_download_started_at:
+      normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_started_at ??
+      standardRecallCompletedAt,
+    standard_download_completed_at:
+      normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
+      standardRecallCompletedAt,
     additional_snapshots: additionalSnapshotStates.map((round) => ({
-      round: round.round,
-      snapshot_id: round.snapshotId,
-      records_limit: round.recordsLimit,
-      status: mapSnapshotStatus(round.metadata),
-      completed_at: round.metadata.status === "ready" || round.metadata.status === "failed" ? nowIso() : null,
-      profiles_returned: round.metadata.dataset_size ?? null,
+      ...buildAdditionalSnapshotMetadata({
+        round: round.round,
+        snapshotId: round.snapshotId,
+        recordsLimit: round.recordsLimit,
+        existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+        status: mapSnapshotStatus(round.metadata),
+        submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
+        readyAt: round.metadata.status === "ready" ? standardRecallCompletedAt : undefined,
+        failedAt: round.metadata.status === "failed" ? standardRecallCompletedAt : undefined,
+        lastPolledAt: pollRecordedAt,
+        profilesReturned: round.metadata.dataset_size ?? null,
+      }),
     })),
     status: "ready",
     filter_summary: filterSummary,
@@ -5704,6 +5875,7 @@ async function buildBrightDataDatasetCandidates(
         continue;
       }
       let roundProfiles: BrightDataProfile[];
+      const roundDownloadStartedAt = nowIso();
       try {
         roundProfiles = (await downloadDatasetSnapshot(brightDataToken, roundSnapId))
           .map(adaptDatasetRecordToBrightDataProfile);
@@ -5716,6 +5888,23 @@ async function buildBrightDataDatasetCandidates(
           { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
         );
       }
+      persistedAdditionalSnapshots.set(
+        round,
+        buildAdditionalSnapshotMetadata({
+          round,
+          snapshotId: roundSnapId,
+          recordsLimit: roundRef.recordsLimit,
+          existing: persistedAdditionalSnapshots.get(round) ?? null,
+          status: "ready",
+          submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
+          readyAt: persistedAdditionalSnapshots.get(round)?.ready_at ?? nowIso(),
+          lastPolledAt: persistedAdditionalSnapshots.get(round)?.last_polled_at ?? nowIso(),
+          downloadStartedAt: roundDownloadStartedAt,
+          downloadCompletedAt: nowIso(),
+          profilesReturned: roundMeta?.dataset_size ?? roundProfiles.length,
+          incrementDownloadAttempt: true,
+        }),
+      );
       if (roundProfiles.length === 0) {
         logSearchEvent("search_multi_round_empty", {
           search_id: context.searchId,
@@ -5770,13 +5959,32 @@ async function buildBrightDataDatasetCandidates(
     requested_at: new Date(requestedAt).toISOString(),
     completed_at: standardRecallCompletedAt,
     standard_recall_requested_at: new Date(requestedAt).toISOString(),
+    standard_recall_ready_at:
+      normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ??
+      standardRecallCompletedAt,
     standard_recall_completed_at: standardRecallCompletedAt,
+    standard_download_started_at:
+      normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_started_at ??
+      standardRecallCompletedAt,
+    standard_download_completed_at:
+      normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
+      standardRecallCompletedAt,
     all_recall_completed_at: allRecallCompletedAt,
     additional_snapshots: additionalSnapshotRefs.map((round) => ({
-      round: round.round,
-      snapshot_id: round.snapshotId,
-      records_limit: round.recordsLimit,
-      status: "ready" as const,
+      ...buildAdditionalSnapshotMetadata({
+        round: round.round,
+        snapshotId: round.snapshotId,
+        recordsLimit: round.recordsLimit,
+        existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+        status: persistedAdditionalSnapshots.get(round.round)?.status ?? "ready",
+        submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
+        readyAt: persistedAdditionalSnapshots.get(round.round)?.ready_at ?? null,
+        failedAt: persistedAdditionalSnapshots.get(round.round)?.failed_at ?? null,
+        lastPolledAt: persistedAdditionalSnapshots.get(round.round)?.last_polled_at ?? null,
+        downloadStartedAt: persistedAdditionalSnapshots.get(round.round)?.download_started_at ?? null,
+        downloadCompletedAt: persistedAdditionalSnapshots.get(round.round)?.download_completed_at ?? null,
+        profilesReturned: persistedAdditionalSnapshots.get(round.round)?.profiles_returned ?? null,
+      }),
     })),
     status: "ready",
     filter_summary: filterSummary,
