@@ -247,37 +247,37 @@ const BRIGHTDATA_COMPANY_TARGET_LIMIT = getConfiguredPositiveInt(
 );
 const SHORTLIST_ADVANCE_MATCH_SCORE_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_ADVANCE_MATCH_SCORE_MIN",
-  66,
+  80,
   { min: 1, max: 100 },
 );
 const SHORTLIST_ADVANCE_RELEVANCE_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_ADVANCE_RELEVANCE_MIN",
-  62,
+  75,
   { min: 1, max: 100 },
 );
 const SHORTLIST_ADVANCE_CAPABILITY_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_ADVANCE_CAPABILITY_MIN",
-  62,
+  70,
   { min: 1, max: 100 },
 );
 const SHORTLIST_HOLD_MATCH_SCORE_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_HOLD_MATCH_SCORE_MIN",
-  74,
+  80,
   { min: 1, max: 100 },
 );
 const SHORTLIST_HOLD_RELEVANCE_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_HOLD_RELEVANCE_MIN",
-  68,
+  72,
   { min: 1, max: 100 },
 );
 const SHORTLIST_HOLD_CAPABILITY_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_HOLD_CAPABILITY_MIN",
-  68,
+  72,
   { min: 1, max: 100 },
 );
 const SHORTLIST_HOLD_JOIN_LIKELIHOOD_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_HOLD_JOIN_LIKELIHOOD_MIN",
-  50,
+  55,
   { min: 1, max: 100 },
 );
 const PARSE_MAX_ATTEMPTS = getConfiguredPositiveInt(
