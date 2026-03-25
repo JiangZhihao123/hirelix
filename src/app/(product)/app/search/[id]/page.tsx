@@ -374,8 +374,29 @@ function positiveInt(value: unknown) {
 
 function formatDisplayCount(value: number) {
   if (value >= 100) return `${Math.floor(value / 50) * 50}+`;
-  if (value >= 10) return `${Math.floor(value / 5) * 5}+`;
   return `${value}`;
+}
+
+function formatLocationFlexibilityTag(value: string) {
+  switch (value) {
+    case "strict":
+      return "strict location";
+    case "flexible":
+      return "location flexible";
+    default:
+      return value.replace(/_/g, " ");
+  }
+}
+
+function formatRelocationTag(value: string) {
+  switch (value) {
+    case "no":
+      return "no relocation";
+    case "yes":
+      return "relocation okay";
+    default:
+      return `relocation ${value.replace(/_/g, " ")}`;
+  }
 }
 
 function formatElapsedMinutes(ms: number | null) {
@@ -1742,8 +1763,6 @@ export default function SearchResultPage() {
   const locationFlexibility = typeof hiringBrief?.location_flexibility === "string" ? hiringBrief.location_flexibility : null;
   const relocationAllowed = typeof hiringBrief?.relocation_allowed === "string" ? hiringBrief.relocation_allowed : null;
   const constraintReasoning = typeof hiringBrief?.constraint_reasoning === "string" ? hiringBrief.constraint_reasoning : null;
-  const executionProfile = typeof reqs?.execution_profile === "string" ? reqs.execution_profile : null;
-  const resultStage = typeof reqs?.result_stage === "string" ? reqs.result_stage : null;
   const launchMode = typeof reqs?.launch_mode === "string" ? reqs.launch_mode : null;
   const launchScope = typeof reqs?.launch_scope === "string" ? reqs.launch_scope : null;
   const isReviewable = isReviewableSearchStatus(search.status);
@@ -1754,10 +1773,6 @@ export default function SearchResultPage() {
     search.status === "parsing" ||
     search.status === "searching" ||
     search.status === "screening";
-  const displayTarget =
-    positiveInt(reqs?.display_count) ??
-    positiveInt(reqs?.candidate_count) ??
-    25;
   const allCandidates = [...candidates].sort((left, right) => {
     const scoreFor = (candidate: CandidateRow) => {
       switch (sortMode) {
@@ -1828,32 +1843,8 @@ export default function SearchResultPage() {
       ? Math.max(0, Date.now() - Date.parse(searchStartedAt))
       : null;
   const standardRecallReady = Boolean(standardRecallCompletedAt);
-  const brightProfileBudget =
-    positiveInt(rawDisplayStats?.bright_profile_budget) ??
-    positiveInt(reqs?.bright_profile_budget) ??
-    null;
-  const brightProfilesRequested =
-    positiveInt(rawDisplayStats?.bright_profiles_requested) ?? null;
   const brightProfilesReturned =
     positiveInt(rawDisplayStats?.bright_profiles_returned) ?? null;
-  const brightSnapshotCost =
-    typeof rawDisplayStats?.bright_snapshot_cost === "number"
-      ? rawDisplayStats.bright_snapshot_cost
-      : null;
-  const estimatedLlmCost =
-    typeof rawDisplayStats?.estimated_llm_cost === "number"
-      ? rawDisplayStats.estimated_llm_cost
-      : null;
-  const estimatedSearchTotalCost =
-    typeof rawDisplayStats?.estimated_search_total_cost === "number"
-      ? rawDisplayStats.estimated_search_total_cost
-      : null;
-  const judgeMode =
-    rawDisplayStats?.judge_mode === "single" || rawDisplayStats?.judge_mode === "dual"
-      ? rawDisplayStats.judge_mode
-      : typeof reqs?.judge_mode === "string" && (reqs.judge_mode === "single" || reqs.judge_mode === "dual")
-        ? reqs.judge_mode
-        : null;
   const retrievalCount =
     positiveInt(rawDisplayStats?.retrieval_count) ??
     Math.max(allCandidates.length, 0);
@@ -1865,25 +1856,12 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.deep_review_completed_count) ??
     positiveInt(rawDisplayStats?.deep_review_count) ??
     Math.max(allCandidates.length, 0);
-  const outreachPoolCount = Math.min(
-    positiveInt(rawDisplayStats?.outreach_pool_count) ?? Math.max(allCandidates.length, 0),
-    displayTarget,
-  );
   const shortlistReadyCount =
     positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
   const visibleCandidateCount =
     positiveInt(rawDisplayStats?.visible_candidate_count) ?? shortlistReadyCount;
-  const hardBlockedCount =
-    positiveInt(rawDisplayStats?.hard_blocked_count) ?? 0;
-  const softBlockedCount =
-    positiveInt(rawDisplayStats?.soft_blocked_count) ?? 0;
   const qualityFloorApplied =
     rawDisplayStats?.quality_floor_applied === true;
-  const advanceableCount =
-    positiveInt(rawDisplayStats?.advanceable_count) ??
-    allCandidates.filter(
-      (candidate) => candidate.metadata?.suitability?.advance_recommendation === "advance",
-    ).length;
   const readyToActCount = allCandidates.filter(
     (candidate) =>
       candidate.metadata?.suitability?.advance_recommendation === "advance" ||
@@ -1922,7 +1900,7 @@ export default function SearchResultPage() {
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
   const finalReadyHeadline =
-    `We shortlisted ${visibleCandidateCount} candidate${visibleCandidateCount === 1 ? "" : "s"} worth reviewing now`;
+    `${visibleCandidateCount} candidate${visibleCandidateCount === 1 ? "" : "s"} ${visibleCandidateCount === 1 ? "is" : "are"} ready to review`;
   const firstVisibleLabel = formatElapsedMinutes(timeToFirstShortlistCandidateMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation(search.error_message);
@@ -2020,32 +1998,22 @@ export default function SearchResultPage() {
               )}
               {locationFlexibility && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  location: {locationFlexibility}
+                  {formatLocationFlexibilityTag(locationFlexibility)}
                 </span>
               )}
               {relocationAllowed && relocationAllowed !== "unknown" && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  relocation: {relocationAllowed}
-                </span>
-              )}
-              {executionProfile && (
-                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  {executionProfile}
+                  {formatRelocationTag(relocationAllowed)}
                 </span>
               )}
               {launchMode === "paid_beta" && (
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
-                  paid beta
+                  Paid beta
                 </span>
               )}
               {launchScope === "us_only" && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  US-only
-                </span>
-              )}
-              {resultStage && (
-                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  {resultStage}
+                  US only
                 </span>
               )}
             </div>
@@ -2148,47 +2116,8 @@ export default function SearchResultPage() {
               )}
               {(!search.warning_message || search.warning_message.includes("highlighted candidates")) && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
-                  Start with the highest-scoring candidates, then unlock contact details and outreach execution for the people you actually want to work.
+                  Start with the highest-scoring candidates, then unlock contact details and outreach when you&apos;re ready to reach out.
                 </p>
-              )}
-              {(brightProfileBudget || judgeMode || brightSnapshotCost != null) && (
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                  {brightProfileBudget ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      Bright budget: {brightProfileBudget} profiles
-                    </span>
-                  ) : null}
-                  {brightProfilesRequested ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      Requested: {brightProfilesRequested}
-                    </span>
-                  ) : null}
-                  {brightProfilesReturned ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      Returned: {brightProfilesReturned}
-                    </span>
-                  ) : null}
-                  {judgeMode ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      Judge mode: {judgeMode}
-                    </span>
-                  ) : null}
-                  {typeof brightSnapshotCost === "number" ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      Snapshot cost: {brightSnapshotCost.toFixed(2)}
-                    </span>
-                  ) : null}
-                  {typeof estimatedLlmCost === "number" ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      Est. LLM cost: {estimatedLlmCost.toFixed(2)}
-                    </span>
-                  ) : null}
-                  {typeof estimatedSearchTotalCost === "number" ? (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      Est. total cost: {estimatedSearchTotalCost.toFixed(2)}
-                    </span>
-                  ) : null}
-                </div>
               )}
             </div>
             <div className="grid min-w-[220px] gap-3 sm:grid-cols-2 lg:grid-cols-2">
@@ -2212,16 +2141,18 @@ export default function SearchResultPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Candidates shown</p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {formatDisplayCount(shortlistYesCount)} shortlisted so far
+                  {visibleCandidateCount === shortlistYesCount
+                    ? "Currently visible in the shortlist"
+                    : `${shortlistYesCount} shortlisted so far`}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Shortlist decisions</p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">{shortlistYesCount} yes / {shortlistNoCount} no</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {hardBlockedCount > 0 || softBlockedCount > 0
-                    ? `${hardBlockedCount} hard blocked, ${softBlockedCount} soft risks flagged`
-                    : `${outreachPoolCount > 0 ? outreachPoolCount : allCandidates.length} candidates currently returned`}
+                  {shortlistNoCount > 0
+                    ? `${shortlistNoCount} screened out in the final pass`
+                    : `${shortlistYesCount} moved into the shortlist`}
                 </p>
               </div>
             </div>
@@ -2310,8 +2241,8 @@ export default function SearchResultPage() {
               </>
             ) : (
               <>
-                <span className="font-semibold text-slate-950">This list is worth working from now</span>
-                {" "}— {visibleCandidateCount} candidate{visibleCandidateCount === 1 ? "" : "s"} are shown, sorted by recruiter score, and {readyToActCount > 0 ? `${readyToActCount} already look ready to act on` : "the leading candidates already have clear fit signals"}
+                <span className="font-semibold text-slate-950">This shortlist is ready to work from.</span>
+                {" "}{visibleCandidateCount} candidate{visibleCandidateCount === 1 ? "" : "s"} {visibleCandidateCount === 1 ? "is" : "are"} shown and sorted by recruiter score{readyToActCount > 0 ? `, with ${readyToActCount} already looking ready to act on.` : "."}
               </>
             )}
           </div>
@@ -2321,10 +2252,10 @@ export default function SearchResultPage() {
                 Action unlock
               </p>
               <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                These candidates are worth contacting.
+                Unlock outreach for the strongest matches.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Upgrade to unlock contact details, export, and outreach execution the moment you are ready to work this shortlist.
+                Upgrade to unlock contact details, CSV export, and outreach when you&apos;re ready to work this shortlist.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistYesCount} shortlisted</span>
@@ -2343,7 +2274,7 @@ export default function SearchResultPage() {
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 />
                 <p className="text-xs text-slate-600">
-                  {"You can already review fit evidence now. Upgrade when you want to actually work the shortlist."}
+                  You can already review fit evidence now. Upgrade when you&apos;re ready to reach out.
                 </p>
               </div>
             </div>
@@ -2363,10 +2294,10 @@ export default function SearchResultPage() {
                     <span>Range: {Math.min(...visibleCandidates.map((c) => c.match_score))}–{Math.max(...visibleCandidates.map((c) => c.match_score))}%</span>
                   </>
                 )}
-                {(hardBlockedCount > 0 || advanceableCount > 0) && (
+                {contactUnlockCandidates > 0 && (
                   <>
                     <span>·</span>
-                    <span>{advanceableCount} advanceable / {hardBlockedCount} hard blocked</span>
+                    <span>{contactUnlockCandidates} ready for contact unlock</span>
                   </>
                 )}
                 {billing?.usage.exportEnabled ? (
@@ -2379,7 +2310,7 @@ export default function SearchResultPage() {
                 ) : (
                   <>
                     <span>·</span>
-                    <span>Profiles sourced from LinkedIn</span>
+                    <span>Real LinkedIn profiles</span>
                   </>
                 )}
                 <span>·</span>

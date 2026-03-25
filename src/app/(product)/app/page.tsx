@@ -322,6 +322,15 @@ export default function DashboardPage() {
     return `${diffDays}d ago`;
   };
 
+  const buildSearchPreview = (title: string, jdText: string) => {
+    const normalizedJd = jdText.replace(/\s+/g, " ").trim();
+    if (!normalizedJd) return "No job description preview available.";
+
+    const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const deduped = normalizedJd.replace(new RegExp(`^${escapedTitle}[\\s:,.\\-–—|]*`, "i"), "").trim();
+    return (deduped || normalizedJd).slice(0, 80);
+  };
+
   const getSearchContextLabel = (status: string, createdAt: string, updatedAt: string) => {
     if (["queued", "parsing", "searching", "screening"].includes(status)) {
       return `Still running · started ${formatRelativeTime(createdAt)}`;
@@ -494,7 +503,7 @@ export default function DashboardPage() {
               className="inline-flex items-center justify-center gap-2 text-sm font-medium text-muted transition-colors hover:text-foreground"
             >
               {isNavigating && pendingHref === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Create another shortlist
+              New shortlist
             </button>
           </div>
           {/* Status filter tabs */}
@@ -525,6 +534,12 @@ export default function DashboardPage() {
           {filteredSearches.map((s) => {
             const stats = candidateCounts[s.id];
             const isPrimarySearch = primaryContext.search?.id === s.id;
+            const displayTitle = getSearchDisplayTitle({
+              title: s.title,
+              jdText: s.jd_text,
+              fallback: "Untitled shortlist",
+            });
+            const previewText = buildSearchPreview(displayTitle, s.jd_text);
             return (
               <Link
                 key={s.id}
@@ -550,17 +565,13 @@ export default function DashboardPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold">
-                      {getSearchDisplayTitle({
-                        title: s.title,
-                        jdText: s.jd_text,
-                        fallback: "Untitled shortlist",
-                      })}
+                      {displayTitle}
                     </p>
                     {statusIcon(s.status)}
                   </div>
                   <div className="mt-0.5 flex items-center gap-3">
                     <p className="truncate text-xs text-muted">
-                      {s.jd_text.slice(0, 80)}...
+                      {previewText}...
                     </p>
                     {stats && (
                       <div className="hidden shrink-0 items-center gap-2 text-[10px] text-muted-light sm:flex">

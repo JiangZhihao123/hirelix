@@ -273,7 +273,7 @@ export default function SettingsPage() {
           Manage your account, billing, and company profile.
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Manage login access, workspace limits, and the company profile Hirelix uses for
+          Manage login access, this cycle&apos;s limits, and the company profile Hirelix uses for
           sourcing and outreach.
         </p>
       </div>
@@ -445,7 +445,7 @@ export default function SettingsPage() {
               <div className="space-y-5">
                 <SettingsFieldGroup
                   title="Current plan"
-                  description="This is the active plan and renewal state for your workspace."
+                  description="This is the active plan and renewal state for your account."
                 >
                   <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:p-5">
                     <div className="space-y-5">
@@ -600,9 +600,9 @@ export default function SettingsPage() {
                           </div>
 
                           <div className="mt-5 space-y-2 text-sm text-slate-600">
-                            <p>{plan.searchesPerMonth} searches / month</p>
+                            <p>{plan.searchesPerMonth} {plan.searchesPerMonth === 1 ? "search" : "searches"} / month</p>
                             <p>{plan.candidateLimitPerSearch} candidates / search</p>
-                            <p>{plan.enrichesPerMonth} email enriches / month</p>
+                            <p>{plan.enrichesPerMonth} {plan.enrichesPerMonth === 1 ? "contact enrich" : "contact enriches"} / month</p>
                             <p className="inline-flex items-center gap-1.5">
                               <Download className="h-3.5 w-3.5" />
                               {plan.exportEnabled ? "CSV export included" : "CSV export locked"}

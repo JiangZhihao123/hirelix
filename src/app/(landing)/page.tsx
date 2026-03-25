@@ -997,9 +997,9 @@ export default function Home() {
                 </div>
 
                 <div className="mt-8 space-y-3 text-sm text-slate-700">
-                  <p>{plan.searchesPerMonth} searches each month</p>
+                  <p>{plan.searchesPerMonth} {plan.searchesPerMonth === 1 ? "search" : "searches"} each month</p>
                   <p>{plan.candidateLimitPerSearch} candidates per search</p>
-                  <p>{plan.enrichesPerMonth} email + draft enriches</p>
+                  <p>{plan.enrichesPerMonth} {plan.enrichesPerMonth === 1 ? "email + draft enrich" : "email + draft enriches"}</p>
                   <p>{plan.exportEnabled ? "CSV export included" : "CSV export on paid plans"}</p>
                 </div>
 
