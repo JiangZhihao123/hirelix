@@ -17,7 +17,7 @@ function cleanCandidateTitle(value: string) {
   return value
     .replace(/\s+/g, " ")
     .replace(/\b(?:about\s+(?:the\s+)?company|about\s+us|who\s+we\s+are|what\s+you(?:'|’)ll\s+do|what\s+we(?:'|’)re\s+looking\s+for)\b.*$/i, "")
-    .replace(/\b(?:we\s+are|we(?:'|’)re)\s+(?:hiring|looking\s+for|seeking))\b.*$/i, "")
+    .replace(/\b(?:we\s+are|we(?:'|’)re)\s+(?:hiring|looking\s+for|seeking)\b.*$/i, "")
     .replace(/\s*[-|:]\s*$/, "")
     .trim();
 }
