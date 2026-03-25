@@ -45,6 +45,7 @@ import {
   type SearchExecutionProfile,
   type SearchPlanCode,
 } from "@/lib/search-execution";
+import { queueOrSendSearchNotification } from "@/lib/search-notifications";
 import { extractLikelyTitleFromJdText } from "@/lib/search-title";
 
 export const SEARCH_JOB_MAX_ATTEMPTS = 3;
@@ -648,9 +649,11 @@ type SearchDisplayStats = {
   clear_location_fit_count?: number;
   must_have_strong_count?: number;
   first_contact_confidence_count?: number;
+  brief_ready_at?: string;
   first_shortlist_candidate_at?: string;
   reviewable_at?: string;
   time_to_ack_ms?: number;
+  time_to_brief_ready_ms?: number;
   time_to_standard_recall_ready_ms?: number;
   time_to_first_shortlist_candidate_ms?: number;
   time_to_reviewable_ms?: number;
@@ -1744,6 +1747,10 @@ function buildSearchDisplayStats(
     ...(typeof overrides.first_contact_confidence_count === "number"
       ? { first_contact_confidence_count: Math.max(0, Math.round(overrides.first_contact_confidence_count)) }
       : {}),
+    ...(typeof overrides.brief_ready_at === "string" &&
+      overrides.brief_ready_at.length > 0
+      ? { brief_ready_at: overrides.brief_ready_at }
+      : {}),
     ...(typeof overrides.first_shortlist_candidate_at === "string" &&
       overrides.first_shortlist_candidate_at.length > 0
       ? { first_shortlist_candidate_at: overrides.first_shortlist_candidate_at }
@@ -1754,6 +1761,10 @@ function buildSearchDisplayStats(
       : {}),
     ...(typeof overrides.time_to_ack_ms === "number" && Number.isFinite(overrides.time_to_ack_ms)
       ? { time_to_ack_ms: Math.max(0, Math.round(overrides.time_to_ack_ms)) }
+      : {}),
+    ...(typeof overrides.time_to_brief_ready_ms === "number" &&
+      Number.isFinite(overrides.time_to_brief_ready_ms)
+      ? { time_to_brief_ready_ms: Math.max(0, Math.round(overrides.time_to_brief_ready_ms)) }
       : {}),
     ...(typeof overrides.time_to_standard_recall_ready_ms === "number" &&
       Number.isFinite(overrides.time_to_standard_recall_ready_ms)
@@ -3825,80 +3836,6 @@ function elapsedSince(startedAt: string | null | undefined, endAt: string) {
   return Math.max(0, Math.round(endAtMs - startedAtMs));
 }
 
-function mergeSearchDisplayStats(
-  left: SearchDisplayStats,
-  right: SearchDisplayStats,
-  overrides: Partial<SearchDisplayStats> = {},
-) {
-  return buildSearchDisplayStats({
-    ...left,
-    ...right,
-    retrieval_count: (left.retrieval_count ?? 0) + (right.retrieval_count ?? 0),
-    deep_review_count: (left.deep_review_count ?? 0) + (right.deep_review_count ?? 0),
-    deep_review_requested_count:
-      (left.deep_review_requested_count ?? 0) + (right.deep_review_requested_count ?? 0),
-    deep_review_completed_count:
-      (left.deep_review_completed_count ?? 0) + (right.deep_review_completed_count ?? 0),
-    qualified_count: (left.qualified_count ?? 0) + (right.qualified_count ?? 0),
-    outreach_pool_count: (left.outreach_pool_count ?? 0) + (right.outreach_pool_count ?? 0),
-    shortlist_count: (left.shortlist_count ?? 0) + (right.shortlist_count ?? 0),
-    brightdata_scrape_count:
-      (left.brightdata_scrape_count ?? 0) + (right.brightdata_scrape_count ?? 0),
-    hard_blocked_count: (left.hard_blocked_count ?? 0) + (right.hard_blocked_count ?? 0),
-    soft_blocked_count: (left.soft_blocked_count ?? 0) + (right.soft_blocked_count ?? 0),
-    advanceable_count: (left.advanceable_count ?? 0) + (right.advanceable_count ?? 0),
-    visible_candidate_count:
-      (left.visible_candidate_count ?? 0) + (right.visible_candidate_count ?? 0),
-    contact_unlock_candidates:
-      (left.contact_unlock_candidates ?? 0) + (right.contact_unlock_candidates ?? 0),
-    recall_profile_count: (left.recall_profile_count ?? 0) + (right.recall_profile_count ?? 0),
-    strong_now_count: (left.strong_now_count ?? 0) + (right.strong_now_count ?? 0),
-    consider_next_count: (left.consider_next_count ?? 0) + (right.consider_next_count ?? 0),
-    do_not_show_count: (left.do_not_show_count ?? 0) + (right.do_not_show_count ?? 0),
-    shortlist_yes_count: (left.shortlist_yes_count ?? 0) + (right.shortlist_yes_count ?? 0),
-    shortlist_no_count: (left.shortlist_no_count ?? 0) + (right.shortlist_no_count ?? 0),
-    clear_location_fit_count:
-      (left.clear_location_fit_count ?? 0) + (right.clear_location_fit_count ?? 0),
-    must_have_strong_count:
-      (left.must_have_strong_count ?? 0) + (right.must_have_strong_count ?? 0),
-    first_contact_confidence_count:
-      (left.first_contact_confidence_count ?? 0) + (right.first_contact_confidence_count ?? 0),
-    top_quality_score: Math.max(left.top_quality_score ?? 0, right.top_quality_score ?? 0),
-    bright_snapshot_cost: roundCurrency(
-      (left.bright_snapshot_cost ?? 0) + (right.bright_snapshot_cost ?? 0),
-    ),
-    estimated_llm_cost: roundCurrency(
-      (left.estimated_llm_cost ?? 0) + (right.estimated_llm_cost ?? 0),
-    ),
-    estimated_search_total_cost: roundCurrency(
-      (left.estimated_search_total_cost ?? 0) + (right.estimated_search_total_cost ?? 0),
-    ),
-    ...overrides,
-    first_shortlist_candidate_at:
-      overrides.first_shortlist_candidate_at ??
-      left.first_shortlist_candidate_at ??
-      right.first_shortlist_candidate_at,
-    reviewable_at:
-      overrides.reviewable_at ?? left.reviewable_at ?? right.reviewable_at,
-    time_to_ack_ms:
-      overrides.time_to_ack_ms ?? left.time_to_ack_ms ?? right.time_to_ack_ms,
-    time_to_standard_recall_ready_ms:
-      overrides.time_to_standard_recall_ready_ms ??
-      left.time_to_standard_recall_ready_ms ??
-      right.time_to_standard_recall_ready_ms,
-    time_to_first_shortlist_candidate_ms:
-      overrides.time_to_first_shortlist_candidate_ms ??
-      left.time_to_first_shortlist_candidate_ms ??
-      right.time_to_first_shortlist_candidate_ms,
-    time_to_reviewable_ms:
-      overrides.time_to_reviewable_ms ??
-      left.time_to_reviewable_ms ??
-      right.time_to_reviewable_ms,
-    time_to_done_ms:
-      overrides.time_to_done_ms ?? left.time_to_done_ms ?? right.time_to_done_ms,
-  });
-}
-
 async function markSearchReviewable(
   context: PipelineContext,
   parsed: Record<string, unknown>,
@@ -3928,6 +3865,9 @@ async function markSearchReviewable(
     parsed_requirements: reqs,
     error_message: null,
     warning_message: null,
+  });
+  void queueOrSendSearchNotification(context.searchId, "first_shortlist_ready").catch((error) => {
+    console.error("[search_notifications] Failed to queue first shortlist notification:", error);
   });
 }
 
@@ -4825,12 +4765,22 @@ async function parseJobDescription(
   if (existingRecallMetadata?.provider === "brightdata_dataset") {
     parsed.recall_metadata = existingRecallMetadata;
   }
+  const parseCompletedAt = nowIso();
+  const startedAt = getSearchStartedAt(parsed, context);
+  const currentStats = normalizeSearchDisplayStats(parsed.display_stats) ?? buildSearchDisplayStats({});
+  parsed.display_stats = buildSearchDisplayStats({
+    ...currentStats,
+    brief_ready_at: parseCompletedAt,
+    time_to_ack_ms: currentStats.time_to_ack_ms ?? 0,
+    time_to_brief_ready_ms:
+      currentStats.time_to_brief_ready_ms ?? elapsedSince(startedAt, parseCompletedAt),
+  });
   await supabaseAdmin
     .from("hirelix_searches")
     .update({
       title: parsed.title || "Untitled Role",
       parsed_requirements: parsed,
-      parse_completed_at: nowIso(),
+      parse_completed_at: parseCompletedAt,
       updated_at: nowIso(),
     })
     .eq("id", context.searchId);
@@ -4838,6 +4788,14 @@ async function parseJobDescription(
   logSearchEvent("search_step_completed", {
     search_id: context.searchId,
     step: "parsing",
+    brief_ready_at: parseCompletedAt,
+    time_to_brief_ready_ms:
+      (parsed.display_stats as SearchDisplayStats | undefined)?.time_to_brief_ready_ms ?? null,
+    job_id: context.jobId,
+  });
+  logSearchEvent("search_brief_ready", {
+    search_id: context.searchId,
+    brief_ready_at: parseCompletedAt,
     job_id: context.jobId,
   });
 
@@ -5766,95 +5724,10 @@ async function buildBrightDataDatasetCandidates(
     cost: metadata.cost ?? null,
   });
 
-  await setSearchStatus(context.searchId, "screening", {
-    search_completed_at: standardRecallCompletedAt,
-    parsed_requirements: parsed,
-  });
-  logSearchEvent("search_step_completed", {
-    search_id: context.searchId,
-    step: "searching",
-    provider: "brightdata_dataset",
-    execution_profile: executionProfile.name,
-    snapshot_id: activeSnapshotId,
-    result_count: profiles.length,
-    dataset_size: metadata.dataset_size ?? profiles.length,
-    recall_latency_ms: Date.now() - requestedAt,
-    additional_rounds_in_progress: additionalSnapshotRefs.length,
-    job_id: context.jobId,
-  });
-  logSearchEvent("search_step_started", {
-    search_id: context.searchId,
-    step: "screening",
-    provider: "brightdata_dataset",
-    execution_profile: executionProfile.name,
-    recall_batch: "standard",
-    deep_scoring_batch_size: DEEP_SCORING_BATCH_SIZE,
-    deep_scoring_concurrency: resolveStageConcurrency(
-      DEEP_SCORING_CONCURRENCY,
-      Math.ceil(profiles.length / DEEP_SCORING_BATCH_SIZE),
-    ),
-    low_cost_mode: executionProfile.lowCostMode,
-    single_judge_mode: executionProfile.singleJudgeMode,
-    job_id: context.jobId,
-  });
-
   // --- Multi-round recall: collect results from pre-triggered additional snapshots ---
-  // NOTE: use spread to create a new array so `profiles.length` remains unchanged
-  // and the "standard_profiles" log metric stays accurate.
   const standardProfileCount = profiles.length;
   const allProfiles = [...profiles];
-  const additionalUniqueProfiles: BrightDataProfile[] = [];
   let totalRecallCost = metadata.cost ?? 0;
-
-  const handleFirstVisibleCandidate = async (statsPatch: Partial<SearchDisplayStats>) => {
-    await markSearchReviewable(context, parsed, statsPatch);
-  };
-
-  let combinedResult: SearchPipelineResult;
-  if (profiles.length > 0) {
-    combinedResult = await scoreBrightDataProfiles(
-      context,
-      parsed,
-      profiles,
-      profiles.length,
-      executionProfile,
-      {
-        progressOffset: 0,
-        onFirstVisibleCandidate: handleFirstVisibleCandidate,
-      },
-    );
-  } else {
-    combinedResult = {
-      finalRows: [],
-      assessments: [],
-      warningMessage: null,
-      displayStats: buildSearchDisplayStats({
-        bright_profile_budget: executionProfile.filterLimit,
-        bright_profiles_requested: recallRequest.recordsLimit,
-        bright_profiles_returned: 0,
-        recall_profile_count: 0,
-        retrieval_count: 0,
-        deep_review_requested_count: 0,
-        deep_review_completed_count: 0,
-        judge_mode: runtime.judgeMode,
-        time_to_ack_ms: 0,
-        time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
-      }),
-    };
-  }
-  combinedResult.displayStats = buildSearchDisplayStats({
-    ...combinedResult.displayStats,
-    bright_snapshot_cost: metadata.cost ?? undefined,
-    bright_profile_budget: executionProfile.filterLimit,
-    bright_profiles_requested: recallRequest.recordsLimit,
-    bright_profiles_returned: profiles.length,
-    recall_profile_count: profiles.length,
-    retrieval_count: profiles.length,
-    judge_mode: runtime.judgeMode,
-    time_to_ack_ms: 0,
-    time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
-  });
-  await updateSearchDisplayStats(context.searchId, parsed, combinedResult.displayStats);
 
   if (additionalSnapshotRefs.length > 0) {
     const seenIds = new Set<string>();
@@ -5919,10 +5792,8 @@ async function buildBrightDataDatasetCandidates(
         const key = profile.linkedin_id || profile.url || profile.name;
         if (key && seenIds.has(key)) continue;
         if (key) seenIds.add(key);
-        // Tag the profile with recall source for prescreen context
         (profile as Record<string, unknown>).__recall_source = round;
         allProfiles.push(profile);
-        additionalUniqueProfiles.push(profile);
         addedCount++;
       }
       if (roundMeta?.cost) totalRecallCost += roundMeta.cost;
@@ -5991,65 +5862,6 @@ async function buildBrightDataDatasetCandidates(
   };
   await updateSearchParsedRequirements(context.searchId, parsed);
 
-  if (additionalUniqueProfiles.length > 0) {
-    await updateSearchDisplayStats(context.searchId, parsed, {
-      bright_profiles_returned: allProfiles.length,
-      recall_profile_count: allProfiles.length,
-      retrieval_count: allProfiles.length,
-      deep_review_requested_count:
-        (combinedResult.displayStats.deep_review_requested_count ?? 0) + additionalUniqueProfiles.length,
-      bright_snapshot_cost: totalRecallCost,
-    });
-
-    const additionalResult = await scoreBrightDataProfiles(
-      context,
-      parsed,
-      additionalUniqueProfiles,
-      additionalUniqueProfiles.length,
-      executionProfile,
-      {
-        progressOffset: combinedResult.displayStats.deep_review_completed_count ?? 0,
-        onFirstVisibleCandidate: handleFirstVisibleCandidate,
-      },
-    );
-
-    const mergedRows = tagPoolRows(
-      combinedResult.finalRows,
-      additionalResult.finalRows,
-      combinedResult.finalRows.length + additionalResult.finalRows.length,
-    );
-    combinedResult = {
-      finalRows: mergedRows,
-      warningMessage:
-        additionalResult.warningMessage ?? combinedResult.warningMessage,
-      assessments: [
-        ...(combinedResult.assessments ?? []),
-        ...(additionalResult.assessments ?? []),
-      ],
-      displayStats: mergeSearchDisplayStats(
-        combinedResult.displayStats,
-        additionalResult.displayStats,
-        {
-          retrieval_count: allProfiles.length,
-          recall_profile_count: allProfiles.length,
-          qualified_count: mergedRows.length,
-          outreach_pool_count: mergedRows.length,
-          shortlist_count: mergedRows.length,
-          visible_candidate_count: mergedRows.length,
-          bright_profile_budget: executionProfile.filterLimit,
-          bright_profiles_requested: recallRequest.recordsLimit,
-          bright_profiles_returned: allProfiles.length,
-          bright_snapshot_cost:
-            totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? undefined),
-          judge_mode: runtime.judgeMode,
-          top50_quality_cutoff:
-            mergedRows.length > 0 ? mergedRows[mergedRows.length - 1]?.match_score ?? 0 : 0,
-        },
-      ),
-    };
-    await updateSearchDisplayStats(context.searchId, parsed, combinedResult.displayStats);
-  }
-
   logSearchEvent("search_timing", {
     search_id: context.searchId,
     phase: "all_recall_complete",
@@ -6059,6 +5871,87 @@ async function buildBrightDataDatasetCandidates(
     additional_profiles: allProfiles.length - standardProfileCount,
     job_id: context.jobId,
   });
+
+  await setSearchStatus(context.searchId, "screening", {
+    search_completed_at: standardRecallCompletedAt,
+    parsed_requirements: parsed,
+  });
+  logSearchEvent("search_step_completed", {
+    search_id: context.searchId,
+    step: "searching",
+    provider: "brightdata_dataset",
+    execution_profile: executionProfile.name,
+    snapshot_id: activeSnapshotId,
+    result_count: allProfiles.length,
+    dataset_size: metadata.dataset_size ?? profiles.length,
+    recall_latency_ms: Date.now() - requestedAt,
+    additional_rounds_in_progress: 0,
+    job_id: context.jobId,
+  });
+  logSearchEvent("search_step_started", {
+    search_id: context.searchId,
+    step: "screening",
+    provider: "brightdata_dataset",
+    execution_profile: executionProfile.name,
+    recall_batch: "unified",
+    deep_scoring_batch_size: DEEP_SCORING_BATCH_SIZE,
+    deep_scoring_concurrency: resolveStageConcurrency(
+      DEEP_SCORING_CONCURRENCY,
+      Math.ceil(allProfiles.length / DEEP_SCORING_BATCH_SIZE),
+    ),
+    low_cost_mode: executionProfile.lowCostMode,
+    single_judge_mode: executionProfile.singleJudgeMode,
+    job_id: context.jobId,
+  });
+
+  await updateSearchDisplayStats(context.searchId, parsed, {
+    bright_profiles_returned: allProfiles.length,
+    recall_profile_count: allProfiles.length,
+    retrieval_count: allProfiles.length,
+    deep_review_requested_count: allProfiles.length,
+    deep_review_completed_count: 0,
+    bright_snapshot_cost: totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? undefined),
+    bright_profile_budget: executionProfile.filterLimit,
+    bright_profiles_requested: recallRequest.recordsLimit,
+    judge_mode: runtime.judgeMode,
+    time_to_ack_ms: 0,
+    time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
+  });
+
+  const handleFirstVisibleCandidate = async (statsPatch: Partial<SearchDisplayStats>) => {
+    await markSearchReviewable(context, parsed, statsPatch);
+  };
+
+  const combinedResult =
+    allProfiles.length > 0
+      ? await scoreBrightDataProfiles(
+        context,
+        parsed,
+        allProfiles,
+        allProfiles.length,
+        executionProfile,
+        {
+          progressOffset: 0,
+          onFirstVisibleCandidate: handleFirstVisibleCandidate,
+        },
+      )
+      : {
+        finalRows: [],
+        assessments: [],
+        warningMessage: null,
+        displayStats: buildSearchDisplayStats({
+          bright_profile_budget: executionProfile.filterLimit,
+          bright_profiles_requested: recallRequest.recordsLimit,
+          bright_profiles_returned: allProfiles.length,
+          recall_profile_count: allProfiles.length,
+          retrieval_count: allProfiles.length,
+          deep_review_requested_count: allProfiles.length,
+          deep_review_completed_count: 0,
+          judge_mode: runtime.judgeMode,
+          time_to_ack_ms: 0,
+          time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
+        }),
+      };
 
   logSearchEvent("search_step_completed", {
     search_id: context.searchId,
@@ -7156,6 +7049,16 @@ async function failSearch(searchId: string, message: string) {
     error_message: message,
     warning_message: null,
   });
+  const { count } = await supabaseAdmin
+    .from("hirelix_candidates")
+    .select("id", { count: "exact", head: true })
+    .eq("search_id", searchId);
+
+  if ((count || 0) === 0) {
+    void queueOrSendSearchNotification(searchId, "search_failed").catch((error) => {
+      console.error("[search_notifications] Failed to queue failure notification:", error);
+    });
+  }
 }
 
 async function runSearchPipeline(job: SearchJobRow) {
