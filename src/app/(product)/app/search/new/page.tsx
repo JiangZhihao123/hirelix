@@ -273,14 +273,19 @@ export default function NewSearchPage() {
               <div className="text-sm text-slate-700">
                 <p className="font-medium text-slate-900">What happens next</p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                  {["Understand role", "Recall profiles", "Review ranked shortlist", "Unlock contact details later"].map((step) => (
+                  {[
+                    "Understand the JD",
+                    "AI searches LinkedIn at scale",
+                    "Rank the strongest matches",
+                    "Deliver contacts and outreach",
+                  ].map((step) => (
                     <span key={step} className="rounded-full border border-slate-200 bg-white px-3 py-1">
                       {step}
                     </span>
                   ))}
                 </div>
                 <p className="mt-3 text-xs leading-relaxed text-slate-600">
-                  Hirelix reads the job description, recalls relevant profiles, and turns the strongest matches into a ranked shortlist you can review first. If you want to reach out later, you can unlock contact details, export, and outreach tools when you need them.
+                  Hirelix first understands the role, then uses AI to search LinkedIn at scale, filters for the strongest candidates, and turns them into a ranked shortlist. When you are ready to act, Hirelix can also help you move from names on a list to contact details and personalized outreach.
                 </p>
               </div>
             </div>
