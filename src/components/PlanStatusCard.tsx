@@ -44,12 +44,11 @@ export function PlanStatusCard({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-        <div className="h-4 w-24 animate-pulse rounded bg-slate-200" />
-        <div className="mt-3 h-6 w-36 animate-pulse rounded bg-slate-200" />
-        <div className="mt-2 h-4 w-full animate-pulse rounded bg-slate-200" />
-        <div className="mt-2 h-4 w-4/5 animate-pulse rounded bg-slate-200" />
-        <div className="mt-4 h-9 w-full animate-pulse rounded-lg bg-slate-200" />
+      <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+        <div className="h-3 w-16 animate-pulse rounded bg-slate-200" />
+        <div className="mt-2 h-5 w-28 animate-pulse rounded bg-slate-200" />
+        <div className="mt-2 h-3.5 w-full animate-pulse rounded bg-slate-200" />
+        <div className="mt-1.5 h-3.5 w-4/5 animate-pulse rounded bg-slate-200" />
       </div>
     );
   }
@@ -62,32 +61,34 @@ export function PlanStatusCard({
         : "border-sky-200 bg-sky-50/70";
 
   return (
-    <div className={`rounded-xl border p-3 ${cardClassName}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        Plan
-      </p>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{copy.title}</p>
-      <p className="mt-2 text-sm text-slate-700">{copy.usageLabel}</p>
-      <p className="mt-1 text-xs leading-relaxed text-slate-600">{copy.capabilityLabel}</p>
+    <div className={`rounded-lg border p-2.5 ${cardClassName}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Plan
+        </p>
+        <Link
+          href={href}
+          onClick={() => {
+            trackEvent(ANALYTICS_EVENTS.planStatusCardClick, {
+              ...getAnalyticsContextFromBrowser(),
+              route: pathname,
+              plan_code: billing?.subscription.planCode ?? "unknown",
+              subscription_status: billing?.subscription.status ?? "unknown",
+              searches_remaining: billing?.usage.searchesRemaining ?? null,
+              enriches_remaining: billing?.usage.enrichesRemaining ?? null,
+            });
+          }}
+          className="text-[11px] font-medium text-slate-600 transition-colors hover:text-slate-900"
+        >
+          {copy.actionLabel}
+        </Link>
+      </div>
+      <p className="mt-1.5 text-sm font-semibold text-slate-950">{copy.title}</p>
+      <p className="mt-1 text-sm text-slate-700">{copy.usageLabel}</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{copy.capabilityLabel}</p>
       {copy.renewalLabel ? (
-        <p className="mt-2 text-[11px] text-slate-500">{copy.renewalLabel}</p>
+        <p className="mt-1.5 text-[11px] text-slate-500">{copy.renewalLabel}</p>
       ) : null}
-      <Link
-        href={href}
-        onClick={() => {
-          trackEvent(ANALYTICS_EVENTS.planStatusCardClick, {
-            ...getAnalyticsContextFromBrowser(),
-            route: pathname,
-            plan_code: billing?.subscription.planCode ?? "unknown",
-            subscription_status: billing?.subscription.status ?? "unknown",
-            searches_remaining: billing?.usage.searchesRemaining ?? null,
-            enriches_remaining: billing?.usage.enrichesRemaining ?? null,
-          });
-        }}
-        className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100"
-      >
-        {copy.actionLabel}
-      </Link>
     </div>
   );
 }
