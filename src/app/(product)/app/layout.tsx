@@ -5,10 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import { PlanStatusCard } from "@/components/PlanStatusCard";
 import { LoginForm } from "@/components/LoginForm";
 import { ProductShellSkeleton } from "@/components/ProductSkeletons";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
-import { BillingProvider } from "@/lib/use-billing";
+import { BillingProvider, useBilling } from "@/lib/use-billing";
 import {
   Search,
   Plus,
@@ -24,7 +25,20 @@ export default function ProductLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <BillingProvider>
+      <ProductLayoutShell>{children}</ProductLayoutShell>
+    </BillingProvider>
+  );
+}
+
+function ProductLayoutShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, loading, signOut } = useAuth();
+  const { billing, loading: billingLoading } = useBilling();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -201,6 +215,7 @@ export default function ProductLayout({
       </nav>
 
       <div className="border-t border-border p-3">
+        <PlanStatusCard billing={billing} loading={billingLoading} />
         <div className="mb-2 px-3 text-xs text-muted-light truncate">
           {user.email}
         </div>
@@ -265,7 +280,7 @@ export default function ProductLayout({
 
       {/* Main content */}
       <main className={`w-full flex-1 p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 lg:pt-8 ${isFocusedNewSearch ? "lg:ml-0" : "lg:ml-60"}`}>
-        <BillingProvider>{children}</BillingProvider>
+        {children}
       </main>
     </div>
   );

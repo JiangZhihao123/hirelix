@@ -12,6 +12,7 @@ import {
   BILLING_PLANS,
   CONTACT_PACK,
   SEARCH_PACK,
+  getPlanStatusCopy,
   type BillingSummary,
 } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
@@ -150,7 +151,7 @@ export default function SettingsPage() {
     {
       id: "billing" as const,
       label: "Billing",
-      detail: billing ? `${billing.plan.name} plan` : "Plan details",
+      detail: billing ? getPlanStatusCopy(billing).title : "Plan details",
     },
     {
       id: "company" as const,

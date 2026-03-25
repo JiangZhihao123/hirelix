@@ -365,7 +365,6 @@ export default function DashboardPage() {
               const stage = getSearchTaskStage(search);
               const displayTitle = getSearchDisplayTitle({
                 title: search.title,
-                jdText: search.jd_text,
                 parsedRequirements: search.parsed_requirements,
                 fallback: "Untitled shortlist",
               });

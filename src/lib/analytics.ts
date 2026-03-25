@@ -28,6 +28,8 @@ export const ANALYTICS_EVENTS = {
   searchTaskView: "search_task_view",
   searchBriefReadyView: "search_brief_ready_view",
   activeSearchesView: "active_searches_view",
+  planStatusCardView: "plan_status_card_view",
+  planStatusCardClick: "plan_status_card_click",
   searchNotificationEmailSent: "search_notification_email_sent",
   searchNotificationEmailFailed: "search_notification_email_failed",
   searchReturnedAfterNotification: "search_returned_after_notification",

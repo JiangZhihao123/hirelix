@@ -1396,7 +1396,6 @@ export default function SearchResultPage() {
     a.href = url;
     a.download = `${getSearchDisplayTitle({
       title: search?.title,
-      jdText: search?.jd_text,
       parsedRequirements: search?.parsed_requirements,
       fallback: "candidates",
     })}.csv`;

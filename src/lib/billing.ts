@@ -52,6 +52,15 @@ export type BillingSummary = {
   };
 };
 
+export type PlanStatusCopy = {
+  title: string;
+  usageLabel: string;
+  capabilityLabel: string;
+  renewalLabel: string | null;
+  actionLabel: string;
+  state: "default" | "warning" | "unavailable";
+};
+
 export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
@@ -152,6 +161,49 @@ export function clampRemaining(limit: number, used: number) {
 
 export function formatPlanLabel(plan: BillingPlan) {
   return `${plan.name} · ${plan.priceLabel}`;
+}
+
+function formatMonthDay(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function getPlanStatusCopy(
+  billing: BillingSummary | null,
+): PlanStatusCopy {
+  if (!billing) {
+    return {
+      title: "Billing unavailable",
+      usageLabel: "Open billing to check your current plan.",
+      capabilityLabel: "Plan details and cycle limits are unavailable right now.",
+      renewalLabel: null,
+      actionLabel: "Open billing",
+      state: "unavailable",
+    };
+  }
+
+  const isFreePlan = billing.subscription.planCode === "free";
+  const searchesRemaining = billing.usage.searchesRemaining;
+  const renewalDate = formatMonthDay(billing.subscription.renewsAt);
+
+  return {
+    title: isFreePlan ? "Free plan" : billing.plan.name,
+    usageLabel:
+      searchesRemaining > 0
+        ? `${searchesRemaining} ${searchesRemaining === 1 ? "search" : "searches"} left this cycle`
+        : "No searches left this cycle",
+    capabilityLabel: isFreePlan
+      ? "Contact details, export, and outreach are on Pro"
+      : "Includes contact details, export, and outreach",
+    renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
+    actionLabel: "Manage plan",
+    state: searchesRemaining === 0 ? "warning" : "default",
+  };
 }
 
 export function getCheckoutConfig(): {

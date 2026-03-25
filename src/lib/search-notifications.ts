@@ -52,7 +52,6 @@ function getSearchNotificationSubject(kind: SearchNotificationKind) {
 function buildNotificationPayload(search: SearchSummary) {
   const roleTitle = getSearchDisplayTitle({
     title: search.title,
-    jdText: search.jd_text,
     parsedRequirements: search.parsed_requirements,
     fallback: "Your search",
   });
