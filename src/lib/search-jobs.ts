@@ -245,6 +245,41 @@ const BRIGHTDATA_COMPANY_TARGET_LIMIT = getConfiguredPositiveInt(
   25,
   { min: 1, max: 5000 },
 );
+const SHORTLIST_ADVANCE_MATCH_SCORE_MIN = getConfiguredPositiveInt(
+  "SEARCH_SHORTLIST_ADVANCE_MATCH_SCORE_MIN",
+  66,
+  { min: 1, max: 100 },
+);
+const SHORTLIST_ADVANCE_RELEVANCE_MIN = getConfiguredPositiveInt(
+  "SEARCH_SHORTLIST_ADVANCE_RELEVANCE_MIN",
+  62,
+  { min: 1, max: 100 },
+);
+const SHORTLIST_ADVANCE_CAPABILITY_MIN = getConfiguredPositiveInt(
+  "SEARCH_SHORTLIST_ADVANCE_CAPABILITY_MIN",
+  62,
+  { min: 1, max: 100 },
+);
+const SHORTLIST_HOLD_MATCH_SCORE_MIN = getConfiguredPositiveInt(
+  "SEARCH_SHORTLIST_HOLD_MATCH_SCORE_MIN",
+  74,
+  { min: 1, max: 100 },
+);
+const SHORTLIST_HOLD_RELEVANCE_MIN = getConfiguredPositiveInt(
+  "SEARCH_SHORTLIST_HOLD_RELEVANCE_MIN",
+  68,
+  { min: 1, max: 100 },
+);
+const SHORTLIST_HOLD_CAPABILITY_MIN = getConfiguredPositiveInt(
+  "SEARCH_SHORTLIST_HOLD_CAPABILITY_MIN",
+  68,
+  { min: 1, max: 100 },
+);
+const SHORTLIST_HOLD_JOIN_LIKELIHOOD_MIN = getConfiguredPositiveInt(
+  "SEARCH_SHORTLIST_HOLD_JOIN_LIKELIHOOD_MIN",
+  50,
+  { min: 1, max: 100 },
+);
 const PARSE_MAX_ATTEMPTS = getConfiguredPositiveInt(
   "SEARCH_PARSE_MAX_ATTEMPTS",
   2,
@@ -2917,15 +2952,15 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   const breakdown = suitability.scoring_breakdown;
   const isStrongAdvance =
     suitability.advance_recommendation === "advance" &&
-    suitability.match_score >= 58 &&
-    breakdown.relevance_score >= 54 &&
-    breakdown.capability_score >= 54;
+    suitability.match_score >= SHORTLIST_ADVANCE_MATCH_SCORE_MIN &&
+    breakdown.relevance_score >= SHORTLIST_ADVANCE_RELEVANCE_MIN &&
+    breakdown.capability_score >= SHORTLIST_ADVANCE_CAPABILITY_MIN;
   const isViableHold =
     suitability.advance_recommendation === "hold" &&
-    suitability.match_score >= 64 &&
-    breakdown.relevance_score >= 58 &&
-    breakdown.capability_score >= 58 &&
-    breakdown.join_likelihood_score >= 40;
+    suitability.match_score >= SHORTLIST_HOLD_MATCH_SCORE_MIN &&
+    breakdown.relevance_score >= SHORTLIST_HOLD_RELEVANCE_MIN &&
+    breakdown.capability_score >= SHORTLIST_HOLD_CAPABILITY_MIN &&
+    breakdown.join_likelihood_score >= SHORTLIST_HOLD_JOIN_LIKELIHOOD_MIN;
 
   return (
     suitability.shortlist_decision === "yes" &&
