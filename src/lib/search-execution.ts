@@ -17,13 +17,24 @@ export type SearchExecutionProfile = {
   singleJudgeMode: boolean;
 };
 
+function getConfiguredPositiveInt(envName: string, fallback: number) {
+  const raw = process.env[envName];
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const STANDARD_RECALL_LIMIT = getConfiguredPositiveInt(
+  "SEARCH_BRIGHTDATA_STANDARD_LIMIT",
+  50,
+);
+
 const SEARCH_EXECUTION_PROFILES: Record<
   SearchExecutionProfileName,
   SearchExecutionProfile
 > = {
   bright_fast_free: {
     name: "bright_fast_free",
-    filterLimit: 100,
+    filterLimit: STANDARD_RECALL_LIMIT,
     finalResultCap: 25,
     highlightCount: 5,
     minVisibleQualityScore: 55,
@@ -33,7 +44,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
   },
   bright_full_pro: {
     name: "bright_full_pro",
-    filterLimit: 100,
+    filterLimit: STANDARD_RECALL_LIMIT,
     finalResultCap: 25,
     highlightCount: 5,
     minVisibleQualityScore: 0,
