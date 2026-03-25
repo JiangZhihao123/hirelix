@@ -9,6 +9,12 @@ import { supabase } from "@/lib/supabase";
 import { useBilling } from "@/lib/use-billing";
 import { getSearchDisplayTitle } from "@/lib/search-title";
 import {
+  getSearchTaskEtaCopy,
+  getSearchTaskStage,
+  getSearchTaskStageLabel,
+  isSearchTaskProcessingStatus,
+} from "@/lib/search-task";
+import {
   getSearchStatusBucket,
   getStalledSearchMessage,
   isReviewableSearchStatus,
@@ -35,8 +41,11 @@ import {
 type SearchRow = {
   id: string;
   title: string | null;
+  parsed_requirements?: Record<string, unknown> | null;
   status: string;
   pipeline_step?: string | null;
+  parse_completed_at?: string | null;
+  partial_ready_at?: string | null;
   created_at: string;
   updated_at: string;
   error_message?: string | null;
@@ -66,6 +75,7 @@ export default function DashboardPage() {
   const [isNavigating, startTransition] = useTransition();
   const hasTrackedDashboardViewRef = useRef(false);
   const hasTrackedWorkspaceContextRef = useRef(false);
+  const hasTrackedActiveSearchesViewRef = useRef(false);
 
   const fetchCandidateCounts = useCallback(async (rows: SearchRow[]) => {
     const doneIds = rows
@@ -103,7 +113,7 @@ export default function DashboardPage() {
     if (!user) return;
     const { data: searchData } = await supabase
       .from("hirelix_searches")
-      .select("id, title, status, pipeline_step, created_at, updated_at, error_message, warning_message, jd_text")
+      .select("id, title, parsed_requirements, status, pipeline_step, parse_completed_at, partial_ready_at, created_at, updated_at, error_message, warning_message, jd_text")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -133,7 +143,7 @@ export default function DashboardPage() {
 
         const { data: refreshedSearches } = await supabase
           .from("hirelix_searches")
-          .select("id, title, status, pipeline_step, created_at, updated_at, error_message, warning_message, jd_text")
+          .select("id, title, parsed_requirements, status, pipeline_step, parse_completed_at, partial_ready_at, created_at, updated_at, error_message, warning_message, jd_text")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
 
@@ -150,6 +160,16 @@ export default function DashboardPage() {
     });
 
     return () => window.cancelAnimationFrame(frame);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [fetchData]);
 
   useEffect(() => {
@@ -170,9 +190,29 @@ export default function DashboardPage() {
   );
   const activeProcessingSearch = useMemo(
     () =>
-      searches.find((search) =>
-        ["queued", "parsing", "searching", "screening"].includes(search.status),
-      ) ?? null,
+      [...searches]
+        .filter((search) => isSearchTaskProcessingStatus(search.status))
+        .sort((left, right) => {
+          const order = { screening: 0, searching: 1, parsing: 2, queued: 3 } as const;
+          const leftRank = order[left.status as keyof typeof order] ?? 99;
+          const rightRank = order[right.status as keyof typeof order] ?? 99;
+          if (leftRank !== rightRank) return leftRank - rightRank;
+          return Date.parse(right.updated_at) - Date.parse(left.updated_at);
+        })[0] ?? null,
+    [searches],
+  );
+  const activeSearches = useMemo(
+    () =>
+      [...searches]
+        .filter((search) => isSearchTaskProcessingStatus(search.status))
+        .sort((left, right) => {
+          const order = { screening: 0, searching: 1, parsing: 2, queued: 3 } as const;
+          const leftRank = order[left.status as keyof typeof order] ?? 99;
+          const rightRank = order[right.status as keyof typeof order] ?? 99;
+          if (leftRank !== rightRank) return leftRank - rightRank;
+          return Date.parse(right.updated_at) - Date.parse(left.updated_at);
+        })
+        .slice(0, 3),
     [searches],
   );
   const latestFailedSearch = useMemo(
@@ -185,6 +225,9 @@ export default function DashboardPage() {
   );
   const filteredSearches = searches.filter(
     (search) => filter === "all" || getSearchStatusBucket(search.status) === filter,
+  );
+  const listSearches = filteredSearches.filter(
+    (search) => !isSearchTaskProcessingStatus(search.status),
   );
   const primaryContext = useMemo(() => {
     if (partialReadySearch) {
@@ -273,6 +316,30 @@ export default function DashboardPage() {
     primaryContext.search?.status,
     searches.length,
   ]);
+
+  useEffect(() => {
+    if (activeSearches.length === 0 || hasTrackedActiveSearchesViewRef.current) return;
+    hasTrackedActiveSearchesViewRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.activeSearchesView, {
+      ...analyticsContext,
+      active_search_count: activeSearches.length,
+      active_search_ids: activeSearches.map((search) => search.id).join(","),
+    });
+  }, [activeSearches, analyticsContext]);
+
+  useEffect(() => {
+    if (activeSearches.length === 0) return;
+    let intervalId: number | null = null;
+    const tick = () => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    };
+    intervalId = window.setInterval(tick, 5000);
+    return () => {
+      if (intervalId != null) window.clearInterval(intervalId);
+    };
+  }, [activeSearches.length, fetchData]);
 
   useEffect(() => {
     if (loading || searches.length > 0 || analyticsContext.entry_mode !== "signin") return;
@@ -464,6 +531,68 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {activeSearches.length > 0 && (
+        <div className="mb-8 rounded-3xl border border-sky-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5faff_100%)] p-5 shadow-[0_16px_40px_rgba(14,165,233,0.08)]">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                Active searches
+              </p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                These tasks are still running in the background.
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600">
+                Open any task to see the brief, the current stage, and when to come back. You do not need to keep the page open.
+              </p>
+            </div>
+            <p className="text-xs text-slate-500">
+              Auto-refreshes every 5 seconds while this page is visible.
+            </p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {activeSearches.map((search) => {
+              const stage = getSearchTaskStage(search);
+              const displayTitle = getSearchDisplayTitle({
+                title: search.title,
+                jdText: search.jd_text,
+                parsedRequirements: search.parsed_requirements,
+                fallback: "Untitled shortlist",
+              });
+              return (
+                <Link
+                  key={search.id}
+                  href={`/app/search/${search.id}`}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:border-sky-300 hover:bg-sky-50/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">{displayTitle}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Started {formatRelativeTime(search.created_at)}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                      {getSearchTaskStageLabel(stage)}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2 text-sm text-slate-600">
+                    <p>{getSearchTaskEtaCopy(search.status)}</p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                        {search.parse_completed_at ? "Brief ready" : "Brief pending"}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                        Open task
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <DashboardPageSkeleton />
     ) : searches.length === 0 ? (
@@ -531,7 +660,7 @@ export default function DashboardPage() {
               );
             })}
           </div>
-          {filteredSearches.map((s) => {
+          {listSearches.map((s) => {
             const stats = candidateCounts[s.id];
             const isPrimarySearch = primaryContext.search?.id === s.id;
             const displayTitle = getSearchDisplayTitle({
@@ -642,9 +771,13 @@ export default function DashboardPage() {
               </Link>
             );
           })}
-          {filteredSearches.length === 0 && (
+          {listSearches.length === 0 && (
             <div className="flex items-center justify-center rounded-xl border border-dashed border-border py-10">
-              <p className="text-sm text-muted">No shortlists with this status.</p>
+              <p className="text-sm text-muted">
+                {filter === "processing" && activeSearches.length > 0
+                  ? "Active searches are shown above."
+                  : "No shortlists with this status."}
+              </p>
             </div>
           )}
         </div>

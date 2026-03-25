@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
-import { enqueueSearchJob } from "@/lib/search-jobs";
+import { enqueueSearchJob, kickSearchJobRunner } from "@/lib/search-jobs";
 import {
   getInitialSearchTargets,
   normalizeSearchPlanCode,
@@ -99,6 +99,9 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       jdText: jd_text.trim(),
       candidateCount: maxCandidates,
+    });
+    kickSearchJobRunner(process.env.APP_BASE_URL || req.nextUrl.origin, {
+      searchId: search.id,
     });
 
     try {

@@ -8,6 +8,15 @@ import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { ResultPageSkeleton } from "@/components/ProductSkeletons";
 import { supabase } from "@/lib/supabase";
 import { useBilling } from "@/lib/use-billing";
+import {
+  getSearchTaskEtaCopy,
+  getSearchTaskStage,
+  getSearchTaskStageLabel,
+  getSearchTaskSummary,
+  getSearchTaskTimelineItems,
+  inferSearchTaskRisks,
+  isSearchTaskProcessingStatus,
+} from "@/lib/search-task";
 import { getSearchDisplayTitle } from "@/lib/search-title";
 import {
   isReviewableSearchStatus,
@@ -36,10 +45,8 @@ import {
   AlertCircle,
   Search,
   RotateCcw,
-  FileText,
-  Users,
-  Star,
-  Send,
+    FileText,
+    Send,
   Download,
   Eye,
   EyeOff,
@@ -214,9 +221,11 @@ type SearchDisplayStats = {
   clear_location_fit_count?: number;
   must_have_strong_count?: number;
   first_contact_confidence_count?: number;
+  brief_ready_at?: string;
   first_shortlist_candidate_at?: string;
   reviewable_at?: string;
   time_to_ack_ms?: number;
+  time_to_brief_ready_ms?: number;
   time_to_standard_recall_ready_ms?: number;
   time_to_first_shortlist_candidate_ms?: number;
   time_to_reviewable_ms?: number;
@@ -406,6 +415,11 @@ function formatElapsedMinutes(ms: number | null) {
   const seconds = totalSeconds % 60;
   if (minutes <= 0) return `${seconds}s`;
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+function formatStartedAgo(value: string) {
+  const elapsedMs = Math.max(0, Date.now() - Date.parse(value));
+  return formatElapsedMinutes(elapsedMs);
 }
 
 function getProviderDelayCopy(elapsedMs: number | null) {
@@ -1259,69 +1273,21 @@ function CandidateCard({
   );
 }
 
-function ProcessingSteps({
-  pipelineStep,
-  standardRecallReady,
-  firstShortlistCandidateAt,
+function TaskTimelinePanel({
+  search,
 }: {
-  pipelineStep: string | null;
-  standardRecallReady: boolean;
-  firstShortlistCandidateAt: string | null;
+  search: Pick<SearchRow, "status" | "pipeline_step" | "parse_completed_at" | "partial_ready_at">;
 }) {
-  const steps = [
-    { icon: FileText, label: "Understanding the role", activeFor: ["queued", "parsing"] },
-    { icon: Users, label: "Recalling profiles", activeFor: ["searching"] },
-    { icon: Star, label: "Reviewing candidates", activeFor: ["screening"] },
-  ];
-
-  const activeIdx = Math.max(
-    steps.findIndex((step) => step.activeFor.includes(pipelineStep || "queued")),
-    0,
-  );
-
-  const progressTitle =
-    pipelineStep === "queued"
-      ? "Queued for processing"
-      : pipelineStep === "parsing"
-      ? "Turning the JD into a search brief"
-      : pipelineStep === "searching"
-        ? "Recalling profiles from Bright"
-      : pipelineStep === "screening"
-          ? "Reviewing recalled profiles"
-          : "Ranking the shortlist";
-
-  const progressBody =
-    pipelineStep === "queued"
-      ? "Hirelix has accepted your request and will start interpreting the role shortly."
-      : pipelineStep === "parsing"
-      ? "Extracting the role, constraints, and recruiter signal from the JD."
-      : pipelineStep === "searching"
-        ? standardRecallReady
-          ? "Bright recall is back. Reviewing profiles now."
-          : "Waiting for Bright to return recalled profiles."
-        : pipelineStep === "screening"
-          ? "Hirelix is reviewing recalled profiles and filtering for credible matches."
-        : firstShortlistCandidateAt
-          ? "The shortlist is already live and still improving in the background."
-          : "Hirelix is ranking the strongest reviewed candidates into your shortlist.";
-
+  const steps = getSearchTaskTimelineItems(search);
   return (
     <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-        Current stage
+        Task timeline
       </p>
-      <div className="mb-2 mt-2 flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        <p className="text-sm font-medium">{progressTitle}</p>
-      </div>
-      <p className="mb-4 max-w-2xl text-sm leading-relaxed text-slate-600">
-        {progressBody}
-      </p>
-      <div className="space-y-3">
+      <div className="mt-4 space-y-3">
         {steps.map((step, i) => {
-          const Icon = step.icon;
-          const isDone = i < activeIdx;
-          const isActive = i === activeIdx;
+          const isDone = step.state === "done";
+          const isActive = step.state === "active";
           return (
             <div key={i} className="flex items-center gap-3">
               <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
@@ -1332,7 +1298,7 @@ function ProcessingSteps({
                 ) : isActive ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                 ) : (
-                  <Icon className="h-3.5 w-3.5 text-gray-400" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
                 )}
               </div>
               <span className={`text-sm ${
@@ -1364,6 +1330,8 @@ export default function SearchResultPage() {
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
   const [, setUpgradeError] = useState<string | null>(null);
+  const hasTrackedTaskViewRef = useRef(false);
+  const hasTrackedBriefReadyViewRef = useRef(false);
   const hasTrackedProcessingViewRef = useRef(false);
   const hasTrackedResultsViewRef = useRef(false);
   const hasTrackedDoneRef = useRef(false);
@@ -1530,12 +1498,50 @@ export default function SearchResultPage() {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [fetchData]);
+
   // Fast poll while search is actively progressing or refining results.
   useEffect(() => {
     if (!search || !isRunningSearchStatus(search.status)) return;
-    const interval = setInterval(fetchData, 1500);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    }, 2000);
     return () => clearInterval(interval);
   }, [fetchData, search]);
+
+  useEffect(() => {
+    if (!search || !isSearchTaskProcessingStatus(search.status) || hasTrackedTaskViewRef.current) {
+      return;
+    }
+    hasTrackedTaskViewRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.searchTaskView, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      pipeline_step: search.pipeline_step ?? "unknown",
+    });
+  }, [analyticsContext, search]);
+
+  useEffect(() => {
+    if (!search?.parse_completed_at || hasTrackedBriefReadyViewRef.current) return;
+    hasTrackedBriefReadyViewRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.searchBriefReadyView, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      pipeline_step: search.pipeline_step ?? "unknown",
+    });
+  }, [analyticsContext, search]);
 
   useEffect(() => {
     if (
@@ -1654,6 +1660,8 @@ export default function SearchResultPage() {
       });
       if (res.ok) {
         // Reset local state to show processing
+        hasTrackedTaskViewRef.current = false;
+        hasTrackedBriefReadyViewRef.current = false;
         hasTrackedProcessingViewRef.current = false;
         hasTrackedResultsViewRef.current = false;
         hasTrackedDoneRef.current = false;
@@ -1824,6 +1832,15 @@ export default function SearchResultPage() {
     recallMetadata?.standard_recall_completed_at ??
     recallMetadata?.completed_at ??
     null;
+  const briefReadyAt =
+    rawDisplayStats?.brief_ready_at ??
+    search.parse_completed_at ??
+    null;
+  const timeToBriefReadyMs =
+    rawDisplayStats?.time_to_brief_ready_ms ??
+    (briefReadyAt && searchStartedAt
+      ? Math.max(0, Date.parse(briefReadyAt) - Date.parse(searchStartedAt))
+      : null);
   const firstShortlistCandidateAt =
     rawDisplayStats?.first_shortlist_candidate_at ??
     search.partial_ready_at ??
@@ -1899,9 +1916,22 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
-  const finalReadyHeadline =
-    `${visibleCandidateCount} candidate${visibleCandidateCount === 1 ? "" : "s"} ${visibleCandidateCount === 1 ? "is" : "are"} ready to review`;
+  const taskStage = getSearchTaskStage(search);
+  const taskRisks = inferSearchTaskRisks({
+    requiredSkills,
+    workModel,
+    locationScope,
+    locationFlexibility,
+    relocationAllowed,
+    constraintReasoning,
+  });
+  const displayTitle = getSearchDisplayTitle({
+    title: search.title,
+    jdText: search.jd_text,
+    parsedRequirements: search.parsed_requirements,
+  });
   const firstVisibleLabel = formatElapsedMinutes(timeToFirstShortlistCandidateMs);
+  const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation(search.error_message);
   const entryQuery =
@@ -1923,11 +1953,7 @@ export default function SearchResultPage() {
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
-            {getSearchDisplayTitle({
-              title: search.title,
-              jdText: search.jd_text,
-              parsedRequirements: search.parsed_requirements,
-            })}
+            {displayTitle}
           </h1>
           {isReviewable && (
             <div className="flex flex-wrap items-center gap-2">
@@ -2027,51 +2053,152 @@ export default function SearchResultPage() {
       </div>
 
       {isPreResultsProcessing && (
-        <div className="mb-6 rounded-2xl border border-sky-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-            Search accepted
-          </p>
-          <h2 className="mt-2 text-xl font-semibold text-slate-950">
-            {standardRecallReady
-              ? "Profiles are ready for review"
-              : (search?.pipeline_step ?? search?.status ?? "queued") === "queued"
-                ? "Hirelix has accepted your shortlist request"
-                : (search?.pipeline_step ?? search?.status ?? "queued") === "parsing"
-                  ? "Hirelix is turning the JD into a search brief"
-                  : "Hirelix is recalling profiles for your shortlist"}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            {standardRecallReady
-              ? "Hirelix is now reviewing recalled profiles. The shortlist will switch from pure progress to a usable, growing candidate list as soon as candidates pass recruiter review."
-              : (search?.pipeline_step ?? search?.status ?? "queued") === "queued"
-                ? "Your request is queued. Hirelix will interpret the role first, then begin recalling profiles."
-                : (search?.pipeline_step ?? search?.status ?? "queued") === "parsing"
-                  ? "Hirelix is extracting the role shape, constraints, and fit signals from the JD before recall begins."
-                  : "Hirelix is waiting for Bright recall so candidate review can begin."}
-          </p>
-          <p className="mt-3 max-w-2xl text-xs text-slate-500">
-            {standardRecallReady
-              ? `Standard recall finished in ${standardRecallReadyLabel}.`
-              : getProviderDelayCopy(providerDelayMs)}
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-              {(search?.pipeline_step ?? search?.status ?? "queued") === "queued"
-                ? "Queued"
-                : (search?.pipeline_step ?? search?.status ?? "queued") === "parsing"
-                  ? "Building search brief"
-                  : standardRecallReady
-                    ? "Candidate review running"
-                    : "Profile recall running"}
-            </span>
-            <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-              {standardRecallReady
-                ? "Results will appear as candidates pass review"
-                : "Results start once recalled profiles are ready for review"}
-            </span>
-            <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">You can come back to this shortlist any time</span>
+        <>
+          <div className="mb-4 grid gap-4 lg:grid-cols-[1.3fr,0.7fr]">
+            <div className="rounded-3xl border border-sky-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5faff_100%)] p-6 shadow-[0_16px_40px_rgba(14,165,233,0.08)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                {getSearchTaskStageLabel(taskStage)}
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+                {taskStage === "accepted"
+                  ? "Your search has been accepted."
+                  : taskStage === "brief_ready"
+                    ? "Hirelix understands the role and is moving into recall."
+                    : taskStage === "provider_recall"
+                      ? "Provider recall is still running."
+                      : "Hirelix is reviewing recalled profiles now."}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
+                {getSearchTaskSummary(taskStage)}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+                <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
+                  Started {formatStartedAgo(search.created_at)} ago
+                </span>
+                <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
+                  {getSearchTaskEtaCopy(search.status)}
+                </span>
+                <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
+                  We&apos;ll email you when the shortlist is ready
+                </span>
+              </div>
+              <p className="mt-4 max-w-2xl text-xs text-slate-500">
+                {standardRecallReady
+                  ? `Provider recall finished in ${standardRecallReadyLabel}. Hirelix is reviewing profiles now.`
+                  : getProviderDelayCopy(providerDelayMs)}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  href="/app"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to dashboard
+                </Link>
+                <Link
+                  href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                >
+                  <FileText className="h-4 w-4" />
+                  Refine JD
+                </Link>
+              </div>
+            </div>
+            <TaskTimelinePanel search={search} />
           </div>
-        </div>
+          <div className="mb-6 grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Search brief
+              </p>
+              {briefReadyAt ? (
+                <>
+                  <h3 className="mt-2 text-lg font-semibold text-slate-950">
+                    {typeof roleCore?.title === "string" && roleCore.title
+                      ? roleCore.title
+                      : displayTitle}
+                  </h3>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Brief ready in {briefReadyLabel}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+                    {typeof roleCore?.seniority === "string" && roleCore.seniority && (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                        {roleCore.seniority}
+                      </span>
+                    )}
+                    {workModel && workModel !== "unknown" && (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                        {workModel}
+                      </span>
+                    )}
+                    {locationScope && (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                        {locationScope}
+                      </span>
+                    )}
+                    {relocationAllowed && relocationAllowed !== "unknown" && (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                        {formatRelocationTag(relocationAllowed)}
+                      </span>
+                    )}
+                  </div>
+                  {requiredSkills.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
+                        Required skills
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {requiredSkills.slice(0, 10).map((skill) => (
+                          <span
+                            key={skill}
+                            className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs text-sky-700"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {constraintReasoning && (
+                    <p className="mt-4 text-sm leading-relaxed text-slate-600">
+                      {constraintReasoning}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
+                  Hirelix is still building the search brief from the JD. This section will fill in as soon as parsing finishes.
+                </div>
+              )}
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Search risks
+              </p>
+              <div className="mt-4 space-y-3">
+                {taskRisks.map((risk) => (
+                  <div
+                    key={risk.key}
+                    className={`rounded-2xl border px-4 py-3 ${
+                      risk.tone === "caution"
+                        ? "border-amber-200 bg-amber-50"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className={`h-4 w-4 ${risk.tone === "caution" ? "text-amber-600" : "text-slate-400"}`} />
+                      <p className="text-sm font-medium text-slate-950">{risk.title}</p>
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                      {risk.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {isReviewable && allCandidates.length > 0 && (
@@ -2082,22 +2209,24 @@ export default function SearchResultPage() {
                 {isReadyWithWarning
                   ? "Ready with a warning"
                   : isImprovingInBackground
-                    ? "Usable now, still refining"
-                  : "Candidates ready"}
+                    ? "Shortlist ready"
+                    : "Shortlist complete"}
               </p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">
                 {isReadyWithWarning
-                  ? "Your candidate list is ready with a warning"
+                  ? "Your shortlist is usable"
                   : isImprovingInBackground
-                    ? "Your candidates are already usable now"
-                  : finalReadyHeadline}
+                    ? "Your shortlist is ready to review"
+                    : "Your shortlist is ready"}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 {search.warning_message && !search.warning_message.includes("highlighted candidates")
                   ? search.warning_message
                   : qualityFloorApplied
                     ? "Hirelix searched a Bright LinkedIn pool and kept the candidates that already look credible to review now."
-                    : `Hirelix is already showing recruiter-approved candidates. The shortlist started growing after ${firstVisibleLabel}, and the results are sorted by recruiter score.`}
+                    : isImprovingInBackground
+                      ? "Hirelix is still refining the remaining scores in the background."
+                      : `Hirelix is already showing recruiter-approved candidates. The shortlist started growing after ${firstVisibleLabel}, and the results are sorted by recruiter score.`}
               </p>
               <p className="mt-3 max-w-2xl text-xs text-slate-500">
                 Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
@@ -2166,15 +2295,6 @@ export default function SearchResultPage() {
           <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">Original Job Description</p>
           <pre className="whitespace-pre-wrap text-sm text-muted leading-relaxed">{search.jd_text}</pre>
         </div>
-      )}
-
-      {/* Processing state with step progress */}
-      {isPreResultsProcessing && (
-        <ProcessingSteps
-          pipelineStep={search.pipeline_step}
-          standardRecallReady={standardRecallReady}
-          firstShortlistCandidateAt={firstShortlistCandidateAt}
-        />
       )}
 
       {/* Error state */}
