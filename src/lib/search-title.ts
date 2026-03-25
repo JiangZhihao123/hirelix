@@ -94,6 +94,5 @@ export function getSearchDisplayTitle(params: {
     : "";
   if (parsedTitle) return parsedTitle;
 
-  const inferred = params.jdText ? extractLikelyTitleFromJdText(params.jdText) : null;
-  return inferred || params.fallback || "Untitled shortlist";
+  return params.fallback || "New shortlist";
 }

@@ -1927,8 +1927,8 @@ export default function SearchResultPage() {
   });
   const displayTitle = getSearchDisplayTitle({
     title: search.title,
-    jdText: search.jd_text,
     parsedRequirements: search.parsed_requirements,
+    fallback: "New shortlist",
   });
   const firstVisibleLabel = formatElapsedMinutes(timeToFirstShortlistCandidateMs);
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);

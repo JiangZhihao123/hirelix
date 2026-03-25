@@ -1565,7 +1565,7 @@ function enrichRecallSpecFromJd(
   const parsedTitle = normalizeNullableString(parsed.title);
   const title = !isPlaceholderTitle(parsedTitle)
     ? parsedTitle
-    : extractLikelyTitleFromJdText(jdText);
+    : null;
   const titleVariants = recallSpec.title_variants.length > 0
     ? recallSpec.title_variants
     : (title ? [title] : []);
@@ -4718,7 +4718,7 @@ async function parseJobDescription(
 
   if (!parsed) {
     parsed = {
-      title: extractLikelyTitleFromJdText(context.jdText) || "Untitled Role",
+      title: "Untitled Role",
       hiring_brief: {
         work_model: "unknown",
         location_scope: null,
@@ -4743,7 +4743,6 @@ async function parseJobDescription(
 
   parsed.title =
     normalizeNullableString(parsed.title) ||
-    extractLikelyTitleFromJdText(context.jdText) ||
     "Untitled Role";
   parsed.hiring_brief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   parsed.candidate_count = context.candidateCount;
