@@ -44,28 +44,37 @@ export function PlanStatusCard({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
-        <div className="h-3 w-16 animate-pulse rounded bg-slate-200" />
-        <div className="mt-2 h-5 w-28 animate-pulse rounded bg-slate-200" />
-        <div className="mt-2 h-3.5 w-full animate-pulse rounded bg-slate-200" />
-        <div className="mt-1.5 h-3.5 w-4/5 animate-pulse rounded bg-slate-200" />
+      <div className="rounded-md bg-slate-50 px-3 py-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="h-4 w-20 animate-pulse rounded bg-slate-200" />
+          <div className="h-4 w-16 animate-pulse rounded bg-slate-200" />
+        </div>
+        <div className="mt-2 h-3.5 w-32 animate-pulse rounded bg-slate-200" />
       </div>
     );
   }
 
-  const cardClassName =
+  const containerClassName =
     copy.state === "warning"
-      ? "border-amber-200 bg-amber-50/70"
+      ? "bg-amber-50/80"
       : copy.state === "unavailable"
-        ? "border-slate-200 bg-slate-50/70"
-        : "border-sky-200 bg-sky-50/70";
+        ? "bg-slate-50"
+        : "bg-slate-50";
 
   return (
-    <div className={`rounded-lg border p-2.5 ${cardClassName}`}>
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-          Plan
-        </p>
+    <div className={`rounded-md px-3 py-2 ${containerClassName}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-semibold text-slate-900">{copy.title}</p>
+            {copy.state === "warning" ? (
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                Limit reached
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-0.5 text-xs text-slate-600">{copy.usageLabel}</p>
+        </div>
         <Link
           href={href}
           onClick={() => {
@@ -78,17 +87,15 @@ export function PlanStatusCard({
               enriches_remaining: billing?.usage.enrichesRemaining ?? null,
             });
           }}
-          className="text-[11px] font-medium text-slate-600 transition-colors hover:text-slate-900"
+          className="shrink-0 text-xs font-medium text-slate-600 transition-colors hover:text-slate-900"
         >
-          {copy.actionLabel}
+          Manage
         </Link>
       </div>
-      <p className="mt-1.5 text-sm font-semibold text-slate-950">{copy.title}</p>
-      <p className="mt-1 text-sm text-slate-700">{copy.usageLabel}</p>
-      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{copy.capabilityLabel}</p>
-      {copy.renewalLabel ? (
-        <p className="mt-1.5 text-[11px] text-slate-500">{copy.renewalLabel}</p>
-      ) : null}
+      <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500">
+        {copy.capabilityLabel}
+        {copy.renewalLabel ? ` · ${copy.renewalLabel}` : ""}
+      </p>
     </div>
   );
 }
