@@ -471,7 +471,7 @@ export default function DashboardPage() {
               <div className="mt-4 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">Search across LinkedIn</span>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">AI-ranked matches</span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">3 free shortlist runs</span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">1 free shortlist run each month</span>
               </div>
               <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-xs text-slate-600">
                 Next step: paste the real role, build the shortlist, then review candidates before deciding whether to unlock outreach.

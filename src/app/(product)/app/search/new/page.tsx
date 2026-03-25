@@ -244,27 +244,27 @@ export default function NewSearchPage() {
                     setStatus("error");
                     setErrorMsg(message);
                   }}
-                  className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 />
               </div>
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-1 flex-wrap items-center gap-3">
-              <p className="text-xs text-muted-light">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+              <p className="text-xs leading-5 text-muted-light">
                 {jdText.length > 0
                   ? `${jdText.split(/\s+/).filter(Boolean).length} words`
                   : "Tip: paste the full JD, not just the title, for stronger matches."}
               </p>
-              <p className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700">
+              <p className="max-w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700 sm:rounded-full sm:py-1">
                 Paid beta: Free gets 1 high-conviction shortlist per month, Pro unlocks contact + outreach execution
               </p>
             </div>
             <button
               type="submit"
               disabled={status === "loading" || isNavigating || jdText.trim().length < 50}
-              className="inline-flex items-center gap-2 cursor-pointer rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50 sm:w-auto"
             >
               {status === "loading" || isNavigating ? (
                 <>

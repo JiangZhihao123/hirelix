@@ -52,6 +52,16 @@ export default function ProductLayout({
   const isFocusedNewSearch =
     pathname === "/app/search/new" && entryMode === "landing" && Boolean(pendingJd);
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
+  const isDashboardRoute = pathname === "/app" || pathname.startsWith("/app/search/");
+  const isNewSearchRoute = pathname === "/app/search/new";
+  const isSettingsRoute = pathname === "/app/settings";
+
+  const getNavClassName = (isActive: boolean) =>
+    `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+      isActive
+        ? "bg-primary/8 text-primary"
+        : "text-muted hover:bg-background hover:text-foreground"
+    }`;
 
   useEffect(() => {
     if (loading || user || hasTrackedSigninViewRef.current) return;
@@ -73,6 +83,20 @@ export default function ProductLayout({
     router.prefetch("/app/search/new");
     router.prefetch("/app/settings");
   }, [router, user]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    if (!mediaQuery.matches) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [sidebarOpen]);
 
   if (loading) {
     return <ProductShellSkeleton />;
@@ -146,7 +170,7 @@ export default function ProductLayout({
             setSidebarOpen(false);
             setPendingPath("/app");
           }}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-background hover:text-foreground"
+          className={getNavClassName(isDashboardRoute)}
         >
           {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           My Shortlists
@@ -157,7 +181,7 @@ export default function ProductLayout({
             setSidebarOpen(false);
             setPendingPath("/app/search/new");
           }}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
+          className={getNavClassName(isNewSearchRoute)}
         >
           {effectivePendingPath === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           New Shortlist
@@ -168,7 +192,7 @@ export default function ProductLayout({
             setSidebarOpen(false);
             setPendingPath("/app/settings");
           }}
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-background hover:text-foreground"
+          className={getNavClassName(isSettingsRoute)}
         >
           {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
           Settings & Billing
@@ -193,7 +217,7 @@ export default function ProductLayout({
   return (
     <div className="flex min-h-screen">
       {/* Mobile top bar */}
-      <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
         <Link
           href="/app"
           onClick={() => setPendingPath("/app")}
@@ -206,9 +230,15 @@ export default function ProductLayout({
           <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-700">
             Focused flow
           </span>
+        ) : sidebarOpen ? (
+          <div aria-hidden="true" className="h-7 w-7" />
         ) : (
-          <button onClick={() => setSidebarOpen(true)} className="cursor-pointer text-muted hover:text-foreground">
-            <Menu className="h-5 w-5" />
+          <button
+            onClick={() => setSidebarOpen((open) => !open)}
+            aria-label={sidebarOpen ? "Close navigation" : "Open navigation"}
+            className="cursor-pointer rounded-md p-1 text-muted hover:bg-background hover:text-foreground"
+          >
+            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         )}
       </div>
@@ -224,7 +254,7 @@ export default function ProductLayout({
       {/* Sidebar — desktop: fixed, mobile: drawer */}
       {!isFocusedNewSearch && (
         <aside
-          className={`fixed left-0 top-0 z-50 flex h-full w-60 flex-col border-r border-border bg-surface transition-transform duration-200 lg:translate-x-0 ${
+          className={`fixed left-0 top-0 z-[60] flex h-full w-60 flex-col border-r border-border bg-surface transition-transform duration-200 lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
