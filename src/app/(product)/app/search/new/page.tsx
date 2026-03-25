@@ -140,18 +140,6 @@ export default function NewSearchPage() {
             ? "You are still in the same flow from the landing page. Confirm the search settings below and Hirelix will start profile recall first, then grow the shortlist as recruiter-reviewed candidates pass."
             : "Paste one full job description and Hirelix will start with external profile recall, then stream recruiter-reviewed candidates into a shortlist you can review before the full run is finished."}
         </p>
-        <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">
-            Paid beta
-          </span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-            US-only at launch
-          </span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-            Support: support@hirelix.online
-          </span>
-        </div>
-
         {isFocusedFlow ? (
           <>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
