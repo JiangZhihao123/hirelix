@@ -35,7 +35,6 @@ import {
   Trash2,
   Users,
   Sparkles,
-  ArrowRight,
 } from "lucide-react";
 
 type SearchRow = {
@@ -61,20 +60,19 @@ type CandidateCount = {
 };
 
 export default function DashboardPage() {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const { billing } = useBilling();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searches, setSearches] = useState<SearchRow[]>([]);
   const [candidateCounts, setCandidateCounts] = useState<Record<string, CandidateCount>>({});
   const [loading, setLoading] = useState(true);
+  const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
   const [filter, setFilter] = useState<"all" | "done" | "processing" | "error">("all");
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState<string | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [isNavigating, startTransition] = useTransition();
   const hasTrackedDashboardViewRef = useRef(false);
-  const hasTrackedWorkspaceContextRef = useRef(false);
   const hasTrackedActiveSearchesViewRef = useRef(false);
 
   const fetchCandidateCounts = useCallback(async (rows: SearchRow[]) => {
@@ -120,6 +118,7 @@ export default function DashboardPage() {
     const nextSearches = searchData || [];
     setSearches(nextSearches);
     setLoading(false);
+    setRelativeTimeNow(Date.now());
     void fetchCandidateCounts(nextSearches);
 
     const staleSearchIds = (searchData || [])
@@ -149,6 +148,7 @@ export default function DashboardPage() {
 
         const nextRefreshedSearches = refreshedSearches || [];
         setSearches(nextRefreshedSearches);
+        setRelativeTimeNow(Date.now());
         void fetchCandidateCounts(nextRefreshedSearches);
       })();
     }
@@ -172,22 +172,11 @@ export default function DashboardPage() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [fetchData]);
 
-  useEffect(() => {
-    setPendingHref(null);
-  }, [searches]);
-
   const analyticsContext = useMemo(
     () => getAnalyticsContextFromParams(searchParams),
     [searchParams],
   );
 
-  const partialReadySearch = useMemo(
-    () =>
-      searches.find(
-        (search) => search.status === "deep_scoring",
-      ) ?? null,
-    [searches],
-  );
   const activeProcessingSearch = useMemo(
     () =>
       [...searches]
@@ -215,73 +204,12 @@ export default function DashboardPage() {
         .slice(0, 3),
     [searches],
   );
-  const latestFailedSearch = useMemo(
-    () => searches.find((search) => search.status === "error") ?? null,
-    [searches],
-  );
-  const latestCompletedSearch = useMemo(
-    () => searches.find((search) => isReviewableSearchStatus(search.status)) ?? null,
-    [searches],
-  );
   const filteredSearches = searches.filter(
     (search) => filter === "all" || getSearchStatusBucket(search.status) === filter,
   );
   const listSearches = filteredSearches.filter(
     (search) => !isSearchTaskProcessingStatus(search.status),
   );
-  const primaryContext = useMemo(() => {
-    if (partialReadySearch) {
-      return {
-        kind: "done" as const,
-        search: partialReadySearch,
-        eyebrow: "Best next move",
-        title: "Review the shortlist that's already usable.",
-        body:
-          partialReadySearch.status === "deep_scoring"
-            ? "Your first ranked candidates are ready now, and Hirelix is still refining the final order in the background."
-            : "You already have a shortlist to review. Start there before you create another one.",
-        ctaLabel: "Review shortlist",
-      };
-    }
-    if (activeProcessingSearch) {
-      return {
-        kind: "processing" as const,
-        search: activeProcessingSearch,
-        eyebrow: "Next best move",
-        title: "Check the shortlist that's still running.",
-        body: "Your shortlist is still running. Open it to see live progress before you decide whether you need anything new.",
-        ctaLabel: "Check progress",
-      };
-    }
-    if (latestFailedSearch) {
-      return {
-        kind: "error" as const,
-        search: latestFailedSearch,
-        eyebrow: "Next best move",
-        title: "Retry the shortlist run that didn't finish.",
-        body: "This run did not complete, but you do not need to start over elsewhere. Retry it here or refine the JD after you review what happened.",
-        ctaLabel: "Retry shortlist run",
-      };
-    }
-    if (latestCompletedSearch) {
-      return {
-        kind: "done" as const,
-        search: latestCompletedSearch,
-        eyebrow: "Next best move",
-        title: "Review the shortlist that's already ready.",
-        body: "You already have ranked candidates to review. Start there before you create another shortlist.",
-        ctaLabel: "Review shortlist",
-      };
-    }
-    return {
-      kind: "empty" as const,
-      search: null,
-      eyebrow: "START WITH ONE JD",
-      title: "Paste one JD and build your first shortlist",
-      body: "Start with the real role. Hirelix searches LinkedIn and live professional profile data, compares fit signals, and turns the strongest matches into a ranked shortlist you can review before upgrading.",
-      ctaLabel: "Build your first shortlist",
-    };
-  }, [activeProcessingSearch, latestCompletedSearch, latestFailedSearch, partialReadySearch]);
 
   useEffect(() => {
     if (loading || hasTrackedDashboardViewRef.current) return;
@@ -294,28 +222,6 @@ export default function DashboardPage() {
       plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
     });
   }, [activeProcessingSearch, analyticsContext, billing, loading, searches.length]);
-
-  useEffect(() => {
-    if (loading || hasTrackedWorkspaceContextRef.current) return;
-
-    hasTrackedWorkspaceContextRef.current = true;
-    trackEvent(ANALYTICS_EVENTS.dashboardPrimaryContextShown, {
-      ...analyticsContext,
-      has_existing_processing_search: Boolean(activeProcessingSearch),
-      search_count: searches.length,
-      context_type: primaryContext.kind,
-      search_status: primaryContext.search?.status ?? "empty",
-      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
-    });
-  }, [
-    activeProcessingSearch,
-    analyticsContext,
-    billing,
-    loading,
-    primaryContext.kind,
-    primaryContext.search?.status,
-    searches.length,
-  ]);
 
   useEffect(() => {
     if (activeSearches.length === 0 || hasTrackedActiveSearchesViewRef.current) return;
@@ -381,7 +287,7 @@ export default function DashboardPage() {
 
   const formatRelativeTime = (value: string) => {
     const date = new Date(value).getTime();
-    const diffMinutes = Math.max(1, Math.round((Date.now() - date) / 60000));
+    const diffMinutes = Math.max(1, Math.round((relativeTimeNow - date) / 60000));
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     const diffHours = Math.round(diffMinutes / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
@@ -420,9 +326,9 @@ export default function DashboardPage() {
       has_existing_processing_search: Boolean(activeProcessingSearch),
       plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
       search_id: searchId ?? null,
-      search_status: primaryContext.search?.status ?? primaryContext.kind,
+      search_status: searchId ? searches.find((search) => search.id === searchId)?.status ?? "unknown" : "workspace",
       cta_surface: surface,
-      primary_context: primaryContext.kind,
+      primary_context: "none",
     });
   };
 
@@ -434,103 +340,8 @@ export default function DashboardPage() {
     });
   };
 
-  async function handleRetrySearch(searchId: string) {
-    if (!session?.access_token) return;
-
-    setRetrying(searchId);
-    trackEvent(ANALYTICS_EVENTS.retrySearchClick, {
-      ...analyticsContext,
-      search_id: searchId,
-      search_status: "error",
-      search_count: searches.length,
-      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
-    });
-
-    try {
-      const res = await fetch(`/api/search/${searchId}/retry`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (res.ok) {
-        await fetchData();
-      }
-    } finally {
-      setRetrying(null);
-    }
-  }
-
   return (
     <div className="mx-auto max-w-5xl">
-      <div className={`mb-10 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between ${primaryContext.kind === "empty" ? "rounded-[30px] border border-sky-200 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.20),_transparent_28%),linear-gradient(180deg,#fbfdff_0%,#f4f9ff_100%)] p-6 shadow-[0_18px_48px_rgba(14,165,233,0.08)]" : ""}`}>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-            {primaryContext.eyebrow}
-          </p>
-          <h1 className="mt-3 max-w-3xl text-3xl font-bold tracking-tight text-slate-950">
-            {primaryContext.title}
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
-            {primaryContext.body}
-          </p>
-          {primaryContext.search && (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
-              <span className="font-medium text-slate-900">
-                {getSearchDisplayTitle({
-                  title: primaryContext.search.title,
-                  jdText: primaryContext.search.jd_text,
-                  fallback: "Untitled shortlist",
-                })}
-              </span>
-              <span className="text-slate-300">·</span>
-              <span>{getSearchContextLabel(primaryContext.search.status, primaryContext.search.created_at, primaryContext.search.updated_at)}</span>
-            </div>
-          )}
-        </div>
-        <div className="shrink-0">
-          {primaryContext.kind === "processing" && primaryContext.search ? (
-            <button
-              type="button"
-              onClick={() => navigateTo(`/app/search/${primaryContext.search!.id}`, "dashboard_processing", primaryContext.search?.id)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-            >
-              {isNavigating && pendingHref === `/app/search/${primaryContext.search.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {primaryContext.ctaLabel}
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : primaryContext.kind === "error" && primaryContext.search ? (
-            <button
-              type="button"
-              onClick={() => void handleRetrySearch(primaryContext.search!.id)}
-              disabled={retrying === primaryContext.search.id}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
-            >
-              {retrying === primaryContext.search.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {primaryContext.ctaLabel}
-            </button>
-          ) : primaryContext.kind === "done" && primaryContext.search ? (
-            <button
-              type="button"
-              onClick={() => navigateTo(`/app/search/${primaryContext.search!.id}`, "dashboard_done", primaryContext.search?.id)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-            >
-              {isNavigating && pendingHref === `/app/search/${primaryContext.search.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {primaryContext.ctaLabel}
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => navigateTo("/app/search/new", "dashboard_empty", null)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-            >
-              {isNavigating && pendingHref === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {primaryContext.ctaLabel}
-            </button>
-          )}
-        </div>
-      </div>
-
       {activeSearches.length > 0 && (
         <div className="mb-8 rounded-3xl border border-sky-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5faff_100%)] p-5 shadow-[0_16px_40px_rgba(14,165,233,0.08)]">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -662,10 +473,8 @@ export default function DashboardPage() {
           </div>
           {listSearches.map((s) => {
             const stats = candidateCounts[s.id];
-            const isPrimarySearch = primaryContext.search?.id === s.id;
             const displayTitle = getSearchDisplayTitle({
               title: s.title,
-              jdText: s.jd_text,
               fallback: "Untitled shortlist",
             });
             const previewText = buildSearchPreview(displayTitle, s.jd_text);
@@ -682,13 +491,9 @@ export default function DashboardPage() {
                     handlePrimaryCtaClick("dashboard_list_error", s.id);
                   }
                 }}
-                className={`group flex items-center gap-4 rounded-xl border p-4 sm:p-5 transition-colors hover:border-muted-light hover:bg-surface ${
-                  isPrimarySearch ? "border-primary/30 bg-primary/[0.03]" : "border-border"
-                }`}
+                className="group flex items-center gap-4 rounded-xl border border-border p-4 transition-colors hover:border-muted-light hover:bg-surface sm:p-5"
               >
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                  isPrimarySearch ? "bg-primary/15" : "bg-primary/10"
-                }`}>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                   <Search className="h-5 w-5 text-primary" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -721,12 +526,6 @@ export default function DashboardPage() {
                     <span>{getSearchContextLabel(s.status, s.created_at, s.updated_at)}</span>
                     <span>·</span>
                     <span>{new Date(s.created_at).toLocaleDateString()}</span>
-                    {isPrimarySearch && (
-                      <>
-                        <span>·</span>
-                        <span className="font-medium text-primary">Best next step</span>
-                      </>
-                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
