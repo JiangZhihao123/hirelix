@@ -74,7 +74,6 @@ const candidateRows = [
       "AWS and reliability-heavy platform work make him unusually credible for a shortlist-first outbound pass.",
     ],
     riskReasons: [
-      "Company-stage fit is inferred from execution speed, not from explicit startup tenure.",
       "No public signal yet on willingness to move into a smaller team environment.",
     ],
     recentExperience: [
