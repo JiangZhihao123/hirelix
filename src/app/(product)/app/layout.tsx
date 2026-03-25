@@ -52,8 +52,9 @@ export default function ProductLayout({
   const isFocusedNewSearch =
     pathname === "/app/search/new" && entryMode === "landing" && Boolean(pendingJd);
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
-  const isDashboardRoute = pathname === "/app" || pathname.startsWith("/app/search/");
   const isNewSearchRoute = pathname === "/app/search/new";
+  const isDashboardRoute =
+    pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
 
   const getNavClassName = (isActive: boolean) =>
