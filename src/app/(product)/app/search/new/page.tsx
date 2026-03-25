@@ -245,9 +245,6 @@ export default function NewSearchPage() {
                   ? `${jdText.split(/\s+/).filter(Boolean).length} words`
                   : "Tip: paste the full JD, not just the title, for stronger matches."}
               </p>
-              <p className="max-w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-700 sm:rounded-full sm:py-1">
-                Paid beta: Free gets 1 high-conviction shortlist per month, Pro unlocks contact + outreach execution
-              </p>
             </div>
             <button
               type="submit"
