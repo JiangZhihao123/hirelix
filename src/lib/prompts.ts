@@ -19,6 +19,8 @@ Read the job description and identify:
 - Example: "Full Stack Engineer + LLM" → lateral variants might be "Machine Learning Engineer", "AI Engineer", "Product Engineer", "Founding Engineer"
 - Example: "DevOps Engineer" → lateral variants might be "Site Reliability Engineer", "Platform Engineer", "Infrastructure Engineer"
 - Only include where genuine skill crossover exists. If the role is very standard with no cross-functional overlap, return an empty array.
+- Prefer titles that candidates really put on LinkedIn profiles. Good: "Platform Engineer", "Site Reliability Engineer", "Backend Engineer", "Machine Learning Engineer". Bad: internal-sounding labels, vague recruiting labels, or overly niche expansions.
+- Do not make lateral_title_variants narrower than the primary role family. Hidden-gem titles should widen recall slightly, not collapse it to a tiny niche.
 
 2. **Core capabilities — split into two tiers**
 - **Differentiating skills**: 3-5 keywords that make THIS role unique compared to other roles with the same title. For example, if the JD is "Full Stack Engineer" but requires LLM experience, the differentiating skills are "LLM", "LangChain", "AI agent" — NOT "Python" or "React" (every full-stack engineer knows those). These are the keywords that separate the right candidates from the generic ones.
@@ -26,6 +28,9 @@ Read the job description and identify:
 - **Domain terms**: 0-3 industry or domain keywords from the hiring company's business context (e.g. "CPG", "fintech", "healthcare", "e-commerce"). These help surface candidates with relevant industry experience.
 - Think about what keywords a recruiter would type into LinkedIn search to find this person — differentiating skills are the FIRST keywords they type, baseline skills are the obvious ones they add after.
 - Prefer concrete profile-language terms over abstract recruiting language. Good: "Kafka", "GraphQL", "payments", "observability". Bad: "production scale", "high ownership", "fast-moving".
+- differentiating_skill_terms must be terms that are likely to literally appear in a LinkedIn headline, about section, experience bullet, or skills list.
+- Avoid abstract capability phrases, recruiting abstractions, and inferred traits. Bad examples: "system ownership", "high ownership", "production scale", "cross-functional", "startup mindset", "fast-moving".
+- If the JD's uniqueness is mostly about scope or seniority rather than a concrete technology/domain keyword, return fewer differentiating terms instead of inventing abstract ones.
 
 3. **Location and work model**
 - Decide whether geography is a hard constraint, a soft preference, or mostly irrelevant.
@@ -75,7 +80,7 @@ Return ONLY valid JSON with this structure:
     "countries": ["ISO country codes where recall should reasonably focus"],
     "title_variants": ["array of 3-8 realistic title variations for recall"],
     "core_skill_terms": ["array of 5-12 concrete, searchable technical keywords — use specific tool/framework/language names (e.g. 'React', 'Kubernetes', 'PostgreSQL') that candidates would write in their LinkedIn headline or about section; avoid soft skills or vague terms like 'leadership' or 'problem solving'"],
-    "differentiating_skill_terms": ["array of 3-5 keywords that make THIS role unique vs other roles with the same title — e.g. for a Full Stack Engineer role requiring LLM experience, use 'LLM', 'LangChain', 'GPT', 'AI agent', NOT 'Python' or 'React'; these are the terms a recruiter types FIRST into LinkedIn search"],
+    "differentiating_skill_terms": ["array of 2-5 concrete, searchable keywords that make THIS role unique vs other roles with the same title — they must be terms a candidate would likely literally write on LinkedIn (e.g. 'LLM', 'LangChain', 'payments', 'observability', 'Kafka'); do NOT use abstract phrases like 'production scale' or 'system ownership'"],
     "baseline_skill_terms": ["array of 3-6 standard stack requirements — e.g. 'Python', 'Node.js', 'Next.js'; these are the obvious technical requirements that most candidates in this role family would have"],
     "domain_terms": ["array of 0-3 industry/domain keywords from the hiring company's business — e.g. 'CPG', 'fintech', 'healthcare', 'e-commerce'; empty array if no clear domain focus"],
     "must_have_signals": ["concrete recruiting signals that should strongly increase fit"],
@@ -85,7 +90,7 @@ Return ONLY valid JSON with this structure:
     "geo_strategy": "how geography should shape recall, in one short sentence",
     "recall_confidence": "high | medium | low",
     "role_breadth": "narrow | balanced | broad",
-    "lateral_title_variants": ["array of 3-6 cross-functional title variants for hidden gem recall — professionals who do NOT hold this exact title but whose skills overlap significantly; empty array if role is standard with no cross-functional overlap"],
+    "lateral_title_variants": ["array of 3-6 realistic LinkedIn title variants for hidden gem recall — professionals who do NOT hold this exact title but whose skills overlap significantly; prefer common public titles like 'Backend Engineer', 'Platform Engineer', 'Site Reliability Engineer'; avoid obscure or overly narrow labels; empty array if role is standard with no cross-functional overlap"],
     "target_companies": ["array of 5-15 competitor or target company names where ideal candidates might work; empty array if insufficient context"],
     "recall_strategy": "standard | multi_round"
   }
