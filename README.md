@@ -33,3 +33,15 @@ PROXY_URL=http://127.0.0.1:7890
 
 `PROXY_ENABLED` / `PROXY_URL` are the preferred names.
 Older `OUTBOUND_PROXY_ENABLED` / `OUTBOUND_PROXY_URL` are still supported for compatibility.
+
+### Bright Recall Limits
+
+You can tune Bright recall volume per round with:
+
+```bash
+SEARCH_BRIGHTDATA_STANDARD_LIMIT=50
+SEARCH_BRIGHTDATA_HIDDEN_GEM_LIMIT=25
+SEARCH_BRIGHTDATA_COMPANY_TARGET_LIMIT=25
+```
+
+`SEARCH_BRIGHTDATA_FILTER_LIMIT` is still supported as the legacy fallback for the standard round.

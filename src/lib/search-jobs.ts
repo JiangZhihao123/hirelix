@@ -225,10 +225,25 @@ const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
   "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
   false,
 );
-const BRIGHTDATA_FILTER_LIMIT = getConfiguredPositiveInt(
+const LEGACY_BRIGHTDATA_FILTER_LIMIT = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_FILTER_LIMIT",
-  TARGET_SCRAPE_COUNT,
-  { min: 100, max: 5000 },
+  50,
+  { min: 1, max: 5000 },
+);
+const BRIGHTDATA_STANDARD_LIMIT = getConfiguredPositiveInt(
+  "SEARCH_BRIGHTDATA_STANDARD_LIMIT",
+  LEGACY_BRIGHTDATA_FILTER_LIMIT,
+  { min: 1, max: 5000 },
+);
+const BRIGHTDATA_HIDDEN_GEM_LIMIT = getConfiguredPositiveInt(
+  "SEARCH_BRIGHTDATA_HIDDEN_GEM_LIMIT",
+  25,
+  { min: 1, max: 5000 },
+);
+const BRIGHTDATA_COMPANY_TARGET_LIMIT = getConfiguredPositiveInt(
+  "SEARCH_BRIGHTDATA_COMPANY_TARGET_LIMIT",
+  25,
+  { min: 1, max: 5000 },
 );
 const PARSE_MAX_ATTEMPTS = getConfiguredPositiveInt(
   "SEARCH_PARSE_MAX_ATTEMPTS",
@@ -1149,7 +1164,7 @@ function normalizeRecallSpec(
       ? Math.round(options.recordLimitOverride)
       : typeof item.record_limit === "number" && Number.isFinite(item.record_limit)
         ? Math.round(item.record_limit)
-        : BRIGHTDATA_FILTER_LIMIT;
+        : BRIGHTDATA_STANDARD_LIMIT;
 
   return {
     countries,
@@ -1174,8 +1189,8 @@ function normalizeRecallSpec(
       Number.isFinite(options.recordLimitOverride)
         ? Math.max(1, requestedLimit)
         : Math.min(
-          Math.max(requestedLimit, Math.max(candidateCount * 10, 25)),
-          BRIGHTDATA_FILTER_LIMIT,
+          Math.max(requestedLimit, 25),
+          BRIGHTDATA_STANDARD_LIMIT,
         ),
   };
 }
@@ -4467,7 +4482,7 @@ function buildBrightDataRecallFilters(
       round: "hidden_gem",
       request: {
         datasetId,
-        recordsLimit: 50,
+        recordsLimit: BRIGHTDATA_HIDDEN_GEM_LIMIT,
         filter: { operator: "and", filters: hiddenGemFilters },
       },
     });
@@ -4503,7 +4518,7 @@ function buildBrightDataRecallFilters(
       round: "company_target",
       request: {
         datasetId,
-        recordsLimit: 50,
+        recordsLimit: BRIGHTDATA_COMPANY_TARGET_LIMIT,
         filter: { operator: "and", filters: companyFilters },
       },
     });
@@ -4709,7 +4724,7 @@ async function parseJobDescription(
         geo_strategy: null,
         recall_confidence: "low",
         role_breadth: "balanced",
-        record_limit: BRIGHTDATA_FILTER_LIMIT,
+        record_limit: BRIGHTDATA_STANDARD_LIMIT,
       },
     };
   }
