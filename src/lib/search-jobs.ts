@@ -46,7 +46,6 @@ import {
   type SearchPlanCode,
 } from "@/lib/search-execution";
 import { queueOrSendSearchNotification } from "@/lib/search-notifications";
-import { extractLikelyTitleFromJdText } from "@/lib/search-title";
 
 export const SEARCH_JOB_MAX_ATTEMPTS = 3;
 const SEARCH_JOB_STALE_MINUTES = getConfiguredPositiveInt(
