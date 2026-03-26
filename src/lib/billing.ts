@@ -189,20 +189,21 @@ export function getPlanStatusCopy(
 
   const isFreePlan = billing.subscription.planCode === "free";
   const searchesRemaining = billing.usage.searchesRemaining;
+  const searchesLimit = billing.usage.searchesLimit;
   const renewalDate = formatMonthDay(billing.subscription.renewsAt);
+  const isExhausted = searchesRemaining === 0;
 
   return {
     title: isFreePlan ? "Free plan" : billing.plan.name,
-    usageLabel:
-      searchesRemaining > 0
-        ? `${searchesRemaining} ${searchesRemaining === 1 ? "search" : "searches"} left this cycle`
-        : "No searches left this cycle",
+    usageLabel: isExhausted
+      ? "No searches left this cycle"
+      : `${searchesRemaining} / ${searchesLimit} searches left this cycle`,
     capabilityLabel: isFreePlan
       ? "Contact details, export, and outreach are on Pro"
       : "Includes contact details, export, and outreach",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
-    actionLabel: "Manage plan",
-    state: searchesRemaining === 0 ? "warning" : "default",
+    actionLabel: billing ? "Manage" : "Open",
+    state: isExhausted ? "warning" : "default",
   };
 }
 

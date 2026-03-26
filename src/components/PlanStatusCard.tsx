@@ -63,18 +63,8 @@ export function PlanStatusCard({
 
   return (
     <div className={`rounded-md px-3 py-2 ${containerClassName}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold text-slate-900">{copy.title}</p>
-            {copy.state === "warning" ? (
-              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                Limit reached
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-0.5 text-xs text-slate-600">{copy.usageLabel}</p>
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-900">{copy.title}</p>
         <Link
           href={href}
           onClick={() => {
@@ -87,12 +77,19 @@ export function PlanStatusCard({
               enriches_remaining: billing?.usage.enrichesRemaining ?? null,
             });
           }}
-          className="shrink-0 text-xs font-medium text-slate-600 transition-colors hover:text-slate-900"
+          className={`shrink-0 text-xs font-medium transition-colors ${
+            copy.state === "warning"
+              ? "text-amber-700 hover:text-amber-900"
+              : "text-slate-500 hover:text-slate-900"
+          }`}
         >
-          Manage
+          {copy.actionLabel}
         </Link>
       </div>
-      <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500">
+      <p className={`mt-1 text-[11px] font-medium ${copy.state === "warning" ? "text-amber-700" : "text-slate-600"}`}>
+        {copy.usageLabel}
+      </p>
+      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">
         {copy.capabilityLabel}
         {copy.renewalLabel ? ` · ${copy.renewalLabel}` : ""}
       </p>
