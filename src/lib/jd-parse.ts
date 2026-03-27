@@ -1,0 +1,432 @@
+import {
+  generateOpenRouterJson,
+  getDefaultOpenRouterModel,
+  getOpenRouterApiKey,
+} from "@/lib/openrouter";
+import { JD_SEARCH_INTENT_JSON_SCHEMA } from "@/lib/openrouter-schemas";
+import { JD_SEARCH_INTENT_PROMPT } from "@/lib/prompts";
+
+const COMMON_SKILLS = [
+  "TypeScript",
+  "JavaScript",
+  "React",
+  "Next.js",
+  "Node.js",
+  "Python",
+  "Java",
+  "Go",
+  "Rust",
+  "Ruby",
+  "Rails",
+  "PostgreSQL",
+  "MySQL",
+  "MongoDB",
+  "Redis",
+  "GraphQL",
+  "REST API",
+  "AWS",
+  "GCP",
+  "Azure",
+  "Docker",
+  "Kubernetes",
+  "Terraform",
+  "CI/CD",
+  "Microservices",
+  "Distributed Systems",
+  "System Design",
+  "Kafka",
+  "Spark",
+  "Airflow",
+  "LLM",
+  "AI Agent",
+  "LangChain",
+  "Prompt Engineering",
+  "Machine Learning",
+  "Data Engineering",
+  "Observability",
+  "DevOps",
+  "SRE",
+  "Backend",
+  "Frontend",
+  "Full Stack",
+];
+
+type ParsedSearchIntent = {
+  title?: unknown;
+  hiring_brief?: unknown;
+  recall_spec?: unknown;
+  required_skills?: unknown;
+  nice_to_have_skills?: unknown;
+  location?: unknown;
+  experience_years_min?: unknown;
+};
+
+type LaunchOptions = {
+  candidateCount: number;
+  displayCount: number;
+  highlightCount: number;
+  outreachPoolTarget: number;
+  planCode: string;
+  executionProfile: string;
+  requestedCandidateCount?: number;
+};
+
+export type ParsedJobSummary = {
+  title: string;
+  requiredSkills: string[];
+  niceToHaveSkills: string[];
+  experienceYearsMin: number | null;
+  workModel: "onsite" | "hybrid" | "remote" | "unknown";
+  locationScope: string | null;
+  locationFlexibility: "strict" | "moderate" | "flexible";
+  relocationAllowed: "yes" | "no" | "unknown";
+  mustHaveConstraints: string[];
+  softConstraints: string[];
+  constraintReasoning: string | null;
+};
+
+function normalizeNullableString(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeStringArray(value: unknown, maxItems: number) {
+  if (!Array.isArray(value)) return [];
+  const deduped = new Set<string>();
+
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    deduped.add(trimmed);
+    if (deduped.size >= maxItems) break;
+  }
+
+  return Array.from(deduped);
+}
+
+function normalizeEnumValue<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  return typeof value === "string" && allowed.includes(value as T)
+    ? (value as T)
+    : fallback;
+}
+
+function inferExperienceYears(jdText: string) {
+  const match = jdText.match(/(\d+)\s*\+?\s*(?:years?|yrs?)(?:\s+of)?\s+(?:software|engineering|professional|relevant|industry)?/i);
+  if (!match) return null;
+  const years = Number.parseInt(match[1] || "", 10);
+  return Number.isFinite(years) ? years : null;
+}
+
+function inferWorkModel(jdText: string) {
+  const lower = jdText.toLowerCase();
+  if (lower.includes("hybrid")) return "hybrid";
+  if (lower.includes("remote")) return "remote";
+  if (lower.includes("onsite") || lower.includes("on-site") || lower.includes("on site")) {
+    return "onsite";
+  }
+  return "unknown";
+}
+
+function inferLocationScope(jdText: string) {
+  const patterns = [
+    /\b(remote in|based in|located in|location[:\s]+)([A-Z][A-Za-z .,-]{2,40})/i,
+    /\b(New York|San Francisco|London|Berlin|Paris|Amsterdam|Toronto|Vancouver|Austin|Seattle|Boston|Los Angeles)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = jdText.match(pattern);
+    const value = match?.[2] || match?.[1];
+    if (value) return value.trim();
+  }
+
+  return null;
+}
+
+function inferCountries(jdText: string) {
+  const lower = jdText.toLowerCase();
+  const countries = new Set<string>();
+  if (/\b(united states|u\.s\.|usa|us-only)\b/.test(lower)) countries.add("US");
+  if (/\b(canada|ca-only)\b/.test(lower)) countries.add("CA");
+  if (/\b(united kingdom|uk-only|u\.k\.)\b/.test(lower)) countries.add("GB");
+  if (/\b(europe|eu-only|european union)\b/.test(lower)) countries.add("EU");
+  return Array.from(countries);
+}
+
+function inferTitle(jdText: string) {
+  const firstLines = jdText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+
+  for (const line of firstLines) {
+    if (line.length <= 80 && /(engineer|developer|manager|lead|architect|scientist|head|recruiter)/i.test(line)) {
+      return line.replace(/[:\-–]\s*$/, "");
+    }
+  }
+
+  return "Untitled Role";
+}
+
+function inferSkills(jdText: string, maxItems: number) {
+  const lower = jdText.toLowerCase();
+  const found = COMMON_SKILLS.filter((skill) => lower.includes(skill.toLowerCase()));
+  return found.slice(0, maxItems);
+}
+
+function sanitizeIntentCandidate(
+  raw: ParsedSearchIntent | null | undefined,
+  jdText: string,
+): ParsedSearchIntent {
+  const title = normalizeNullableString(raw?.title) || inferTitle(jdText);
+  const requiredSkills =
+    normalizeStringArray(
+      raw?.hiring_brief && typeof raw.hiring_brief === "object"
+        ? (raw.hiring_brief as { role_core?: { required_skills?: unknown } }).role_core?.required_skills
+        : raw?.required_skills,
+      12,
+    );
+  const niceToHaveSkills =
+    normalizeStringArray(
+      raw?.hiring_brief && typeof raw.hiring_brief === "object"
+        ? (raw.hiring_brief as { role_core?: { nice_to_have_skills?: unknown } }).role_core?.nice_to_have_skills
+        : raw?.nice_to_have_skills,
+      12,
+    );
+
+  const fallbackCoreSkills = inferSkills(jdText, 10);
+  const hiringBrief =
+    raw?.hiring_brief && typeof raw.hiring_brief === "object"
+      ? (raw.hiring_brief as Record<string, unknown>)
+      : {};
+  const roleCore =
+    hiringBrief.role_core && typeof hiringBrief.role_core === "object"
+      ? (hiringBrief.role_core as Record<string, unknown>)
+      : {};
+  const recallSpec =
+    raw?.recall_spec && typeof raw.recall_spec === "object"
+      ? (raw.recall_spec as Record<string, unknown>)
+      : {};
+
+  const normalizedRequiredSkills =
+    requiredSkills.length > 0 ? requiredSkills : fallbackCoreSkills.slice(0, 6);
+  const normalizedNiceToHaveSkills =
+    niceToHaveSkills.length > 0 ? niceToHaveSkills : fallbackCoreSkills.slice(6, 10);
+  const titleVariants = normalizeStringArray(recallSpec.title_variants, 8);
+  const coreSkillTerms = normalizeStringArray(recallSpec.core_skill_terms, 12);
+
+  return {
+    title,
+    experience_years_min:
+      typeof raw?.experience_years_min === "number"
+        ? raw.experience_years_min
+        : inferExperienceYears(jdText),
+    required_skills: normalizedRequiredSkills,
+    nice_to_have_skills: normalizedNiceToHaveSkills,
+    location:
+      normalizeNullableString(
+        hiringBrief.location_scope ?? raw?.location,
+      ) || inferLocationScope(jdText),
+    hiring_brief: {
+      role_core: {
+        title: normalizeNullableString(roleCore.title) || title,
+        seniority: normalizeNullableString(roleCore.seniority),
+        function_focus: normalizeNullableString(roleCore.function_focus),
+        required_skills: normalizedRequiredSkills,
+        nice_to_have_skills: normalizedNiceToHaveSkills,
+      },
+      work_model: normalizeEnumValue(
+        hiringBrief.work_model,
+        ["onsite", "hybrid", "remote", "unknown"] as const,
+        inferWorkModel(jdText),
+      ),
+      location_scope:
+        normalizeNullableString(hiringBrief.location_scope) || inferLocationScope(jdText),
+      location_flexibility: normalizeEnumValue(
+        hiringBrief.location_flexibility,
+        ["strict", "moderate", "flexible"] as const,
+        "moderate",
+      ),
+      relocation_allowed: normalizeEnumValue(
+        hiringBrief.relocation_allowed,
+        ["yes", "no", "unknown"] as const,
+        "unknown",
+      ),
+      must_have_constraints: normalizeStringArray(hiringBrief.must_have_constraints, 10),
+      soft_constraints: normalizeStringArray(hiringBrief.soft_constraints, 10),
+      company_stage_expectation: normalizeEnumValue(
+        hiringBrief.company_stage_expectation,
+        ["startup", "growth", "enterprise", "unknown"] as const,
+        "unknown",
+      ),
+      constraint_reasoning: normalizeNullableString(hiringBrief.constraint_reasoning),
+    },
+    recall_spec: {
+      countries: normalizeStringArray(recallSpec.countries, 5).length > 0
+        ? normalizeStringArray(recallSpec.countries, 5)
+        : inferCountries(jdText),
+      title_variants: titleVariants.length > 0 ? titleVariants : [title],
+      core_skill_terms: coreSkillTerms.length > 0 ? coreSkillTerms : fallbackCoreSkills,
+      differentiating_skill_terms: normalizeStringArray(recallSpec.differentiating_skill_terms, 5),
+      baseline_skill_terms: normalizeStringArray(recallSpec.baseline_skill_terms, 6),
+      domain_terms: normalizeStringArray(recallSpec.domain_terms, 3),
+      must_have_signals: normalizeStringArray(recallSpec.must_have_signals, 12).length > 0
+        ? normalizeStringArray(recallSpec.must_have_signals, 12)
+        : normalizedRequiredSkills,
+      avoid_profiles: normalizeStringArray(recallSpec.avoid_profiles, 8),
+      strict_location_terms: normalizeStringArray(recallSpec.strict_location_terms, 10),
+      nearby_location_terms: normalizeStringArray(recallSpec.nearby_location_terms, 10),
+      geo_strategy: normalizeNullableString(recallSpec.geo_strategy),
+      recall_confidence: normalizeEnumValue(
+        recallSpec.recall_confidence,
+        ["high", "medium", "low"] as const,
+        "medium",
+      ),
+      role_breadth: normalizeEnumValue(
+        recallSpec.role_breadth,
+        ["narrow", "balanced", "broad"] as const,
+        "balanced",
+      ),
+      lateral_title_variants: normalizeStringArray(recallSpec.lateral_title_variants, 6),
+      target_companies: normalizeStringArray(recallSpec.target_companies, 15),
+      recall_strategy: normalizeEnumValue(
+        recallSpec.recall_strategy,
+        ["standard", "multi_round"] as const,
+        "standard",
+      ),
+    },
+  };
+}
+
+export async function parseJobDescriptionToDraft(jdText: string) {
+  let parsed: ParsedSearchIntent | null = null;
+
+  try {
+    getOpenRouterApiKey();
+    const { data } = await generateOpenRouterJson<ParsedSearchIntent>({
+      model: getDefaultOpenRouterModel(),
+      system: JD_SEARCH_INTENT_PROMPT,
+      prompt: jdText,
+      maxOutputTokens: 2400,
+      temperature: 0,
+      timeoutMs: 60000,
+      jsonSchema: JD_SEARCH_INTENT_JSON_SCHEMA,
+    });
+    parsed = data;
+  } catch {
+    parsed = null;
+  }
+
+  return sanitizeIntentCandidate(parsed, jdText);
+}
+
+export function buildParsedRequirementsForLaunch(
+  draft: ParsedSearchIntent,
+  jdText: string,
+  options: LaunchOptions,
+) {
+  const normalized = sanitizeIntentCandidate(draft, jdText);
+  const timestamp = new Date().toISOString();
+  const hiringBrief =
+    normalized.hiring_brief && typeof normalized.hiring_brief === "object"
+      ? (normalized.hiring_brief as Record<string, unknown>)
+      : {};
+  const recallSpec =
+    normalized.recall_spec && typeof normalized.recall_spec === "object"
+      ? (normalized.recall_spec as Record<string, unknown>)
+      : {};
+
+  return {
+    ...normalized,
+    title: normalizeNullableString(normalized.title) || inferTitle(jdText),
+    required_skills: normalizeStringArray(normalized.required_skills, 12),
+    nice_to_have_skills: normalizeStringArray(normalized.nice_to_have_skills, 12),
+    location: normalizeNullableString(normalized.location),
+    experience_years_min:
+      typeof normalized.experience_years_min === "number"
+        ? normalized.experience_years_min
+        : inferExperienceYears(jdText),
+    candidate_count: options.candidateCount,
+    display_count: options.displayCount,
+    highlight_count: options.highlightCount,
+    requested_candidate_count:
+      options.requestedCandidateCount ?? options.candidateCount,
+    outreach_pool_target: options.outreachPoolTarget,
+    plan_code: options.planCode,
+    launch_mode: "tech_recruiter_mvp",
+    launch_scope: "linkedin_plus_github",
+    execution_profile: options.executionProfile,
+    activation_run: false,
+    search_phase: "mvp_focus",
+    search_started_at: timestamp,
+    hiring_brief: {
+      ...hiringBrief,
+      role_core:
+        hiringBrief.role_core && typeof hiringBrief.role_core === "object"
+          ? hiringBrief.role_core
+          : {
+              title: normalized.title,
+              required_skills: normalized.required_skills,
+              nice_to_have_skills: normalized.nice_to_have_skills,
+            },
+    },
+    recall_spec: {
+      ...recallSpec,
+      title_variants: normalizeStringArray(recallSpec.title_variants, 8).length > 0
+        ? normalizeStringArray(recallSpec.title_variants, 8)
+        : [normalized.title],
+      core_skill_terms: normalizeStringArray(recallSpec.core_skill_terms, 12).length > 0
+        ? normalizeStringArray(recallSpec.core_skill_terms, 12)
+        : normalizeStringArray(normalized.required_skills, 12),
+    },
+  };
+}
+
+export function summarizeParsedJob(draft: ParsedSearchIntent): ParsedJobSummary {
+  const hiringBrief =
+    draft.hiring_brief && typeof draft.hiring_brief === "object"
+      ? (draft.hiring_brief as Record<string, unknown>)
+      : {};
+  const roleCore =
+    hiringBrief.role_core && typeof hiringBrief.role_core === "object"
+      ? (hiringBrief.role_core as Record<string, unknown>)
+      : {};
+
+  return {
+    title: normalizeNullableString(draft.title) || "Untitled Role",
+    requiredSkills: normalizeStringArray(roleCore.required_skills ?? draft.required_skills, 12),
+    niceToHaveSkills: normalizeStringArray(
+      roleCore.nice_to_have_skills ?? draft.nice_to_have_skills,
+      12,
+    ),
+    experienceYearsMin:
+      typeof draft.experience_years_min === "number"
+        ? draft.experience_years_min
+        : null,
+    workModel: normalizeEnumValue(
+      hiringBrief.work_model,
+      ["onsite", "hybrid", "remote", "unknown"] as const,
+      "unknown",
+    ),
+    locationScope: normalizeNullableString(hiringBrief.location_scope ?? draft.location),
+    locationFlexibility: normalizeEnumValue(
+      hiringBrief.location_flexibility,
+      ["strict", "moderate", "flexible"] as const,
+      "moderate",
+    ),
+    relocationAllowed: normalizeEnumValue(
+      hiringBrief.relocation_allowed,
+      ["yes", "no", "unknown"] as const,
+      "unknown",
+    ),
+    mustHaveConstraints: normalizeStringArray(hiringBrief.must_have_constraints, 10),
+    softConstraints: normalizeStringArray(hiringBrief.soft_constraints, 10),
+    constraintReasoning: normalizeNullableString(hiringBrief.constraint_reasoning),
+  };
+}

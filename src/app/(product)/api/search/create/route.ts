@@ -6,6 +6,7 @@ import {
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { buildParsedRequirementsForLaunch } from "@/lib/jd-parse";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const maxDuration = 30;
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   let createdSearchId: string | null = null;
 
   try {
-    const { jd_text, candidate_count } = await req.json();
+    const { jd_text, candidate_count, parsed_requirements_override } = await req.json();
     const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
@@ -50,17 +51,22 @@ export async function POST(req: NextRequest) {
     }
 
     const timestamp = new Date().toISOString();
-    const { data: search, error: insertErr } = await supabaseAdmin
-      .from("hirelix_searches")
-      .insert({
-        user_id: user.id,
-        title: null,
-        jd_text: jd_text.trim(),
-        status: "queued",
-        pipeline_step: "queued",
-        error_message: null,
-        warning_message: null,
-        parsed_requirements: {
+    const parsedRequirements: Record<string, unknown> =
+      parsed_requirements_override && typeof parsed_requirements_override === "object"
+        ? buildParsedRequirementsForLaunch(
+          parsed_requirements_override as Record<string, unknown>,
+          jd_text.trim(),
+          {
+            candidateCount: maxCandidates,
+            displayCount: searchTargets.displayCount,
+            highlightCount: searchTargets.highlightCount,
+            requestedCandidateCount: requestedCandidates,
+            outreachPoolTarget: DEFAULT_OUTREACH_POOL_TARGET,
+            planCode,
+            executionProfile: searchTargets.executionProfile,
+          },
+        )
+        : {
           search_started_at: timestamp,
           candidate_count: maxCandidates,
           display_count: searchTargets.displayCount,
@@ -68,14 +74,31 @@ export async function POST(req: NextRequest) {
           requested_candidate_count: requestedCandidates,
           outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
           plan_code: planCode,
-          launch_mode: "paid_beta",
-          launch_scope: "us_only",
+          launch_mode: "tech_recruiter_mvp",
+          launch_scope: "linkedin_plus_github",
           execution_profile: searchTargets.executionProfile,
           activation_run: false,
-          search_phase: "phase_1",
-        },
+          search_phase: "mvp_focus",
+        };
+    const { data: search, error: insertErr } = await supabaseAdmin
+      .from("hirelix_searches")
+      .insert({
+        user_id: user.id,
+        title:
+          typeof parsedRequirements.title === "string" && parsedRequirements.title.trim().length > 0
+            ? parsedRequirements.title.trim()
+            : null,
+        jd_text: jd_text.trim(),
+        status: "queued",
+        pipeline_step: "queued",
+        error_message: null,
+        warning_message: null,
+        parsed_requirements: parsedRequirements,
         queued_at: timestamp,
-        parse_completed_at: null,
+        parse_completed_at:
+          parsed_requirements_override && typeof parsed_requirements_override === "object"
+            ? timestamp
+            : null,
         search_completed_at: null,
         partial_ready_at: null,
         done_at: null,
@@ -115,8 +138,8 @@ export async function POST(req: NextRequest) {
           highlight_count: searchTargets.highlightCount,
           requested_candidate_count: requestedCandidates,
           outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
-          launch_mode: "paid_beta",
-          launch_scope: "us_only",
+          launch_mode: "tech_recruiter_mvp",
+          launch_scope: "linkedin_plus_github",
           execution_profile: searchTargets.executionProfile,
           activation_run: false,
         },

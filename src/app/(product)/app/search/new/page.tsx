@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, FormEvent, useRef, useTransition } from "react";
+import { useState, useEffect, type FormEvent, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   ANALYTICS_EVENTS,
@@ -13,38 +12,253 @@ import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import {
   ArrowRight,
-  Loader2,
-  FileText,
-  Clock3,
+  Brain,
   CheckCircle2,
+  FileText,
+  Loader2,
+  MapPin,
+  Plus,
   Sparkles,
+  X,
 } from "lucide-react";
 
-const FIXED_CANDIDATE_COUNT = 25;
+const FIXED_CANDIDATE_COUNT = 20;
+
+type WorkModel = "onsite" | "hybrid" | "remote" | "unknown";
+type LocationFlexibility = "strict" | "moderate" | "flexible";
+type RelocationAllowed = "yes" | "no" | "unknown";
+
+type ParsedSummary = {
+  title: string;
+  requiredSkills: string[];
+  niceToHaveSkills: string[];
+  experienceYearsMin: number | null;
+  workModel: WorkModel;
+  locationScope: string | null;
+  locationFlexibility: LocationFlexibility;
+  relocationAllowed: RelocationAllowed;
+  mustHaveConstraints: string[];
+  softConstraints: string[];
+  constraintReasoning: string | null;
+};
+
+type ParsedResponse = {
+  parsed_requirements: Record<string, unknown>;
+  summary: ParsedSummary;
+};
+
+type EditableBrief = {
+  title: string;
+  requiredSkills: string[];
+  niceToHaveSkills: string[];
+  experienceYearsMin: string;
+  workModel: WorkModel;
+  locationScope: string;
+  locationFlexibility: LocationFlexibility;
+  relocationAllowed: RelocationAllowed;
+  mustHaveConstraints: string[];
+  softConstraints: string[];
+  constraintReasoning: string;
+};
+
+function normalizeTag(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function TagEditor({
+  label,
+  description,
+  tags,
+  onChange,
+  accent = "sky",
+  placeholder,
+}: {
+  label: string;
+  description: string;
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  accent?: "sky" | "amber" | "slate";
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState("");
+  const accentStyles = {
+    sky: "border-sky-200 bg-sky-50 text-sky-800",
+    amber: "border-amber-200 bg-amber-50 text-amber-800",
+    slate: "border-slate-200 bg-slate-50 text-slate-800",
+  } as const;
+
+  function addTag(rawValue: string) {
+    const next = normalizeTag(rawValue);
+    if (!next) return;
+    if (tags.some((tag) => tag.toLowerCase() === next.toLowerCase())) {
+      setDraft("");
+      return;
+    }
+    onChange([...tags, next]);
+    setDraft("");
+  }
+
+  function removeTag(tagToRemove: string) {
+    onChange(tags.filter((tag) => tag !== tagToRemove));
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-950">{label}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium ${accentStyles[accent]}`}
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => removeTag(tag)}
+              className="rounded-full p-0.5 transition-colors hover:bg-black/5"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        {tags.length === 0 && (
+          <span className="rounded-full border border-dashed border-slate-200 px-3 py-1 text-xs text-slate-400">
+            No tags yet
+          </span>
+        )}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <input
+          type="text"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              addTag(draft);
+            }
+          }}
+          placeholder={placeholder}
+          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+        />
+        <button
+          type="button"
+          onClick={() => addTag(draft)}
+          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          <Plus className="h-4 w-4" />
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function buildEditorState(summary: ParsedSummary): EditableBrief {
+  return {
+    title: summary.title,
+    requiredSkills: summary.requiredSkills,
+    niceToHaveSkills: summary.niceToHaveSkills,
+    experienceYearsMin:
+      typeof summary.experienceYearsMin === "number"
+        ? String(summary.experienceYearsMin)
+        : "",
+    workModel: summary.workModel,
+    locationScope: summary.locationScope || "",
+    locationFlexibility: summary.locationFlexibility,
+    relocationAllowed: summary.relocationAllowed,
+    mustHaveConstraints: summary.mustHaveConstraints,
+    softConstraints: summary.softConstraints,
+    constraintReasoning: summary.constraintReasoning || "",
+  };
+}
+
+function buildParsedOverride(
+  base: Record<string, unknown>,
+  brief: EditableBrief,
+) {
+  const hiringBrief =
+    base.hiring_brief && typeof base.hiring_brief === "object"
+      ? { ...(base.hiring_brief as Record<string, unknown>) }
+      : {};
+  const roleCore =
+    hiringBrief.role_core && typeof hiringBrief.role_core === "object"
+      ? { ...(hiringBrief.role_core as Record<string, unknown>) }
+      : {};
+  const recallSpec =
+    base.recall_spec && typeof base.recall_spec === "object"
+      ? { ...(base.recall_spec as Record<string, unknown>) }
+      : {};
+
+  return {
+    ...base,
+    title: brief.title.trim(),
+    required_skills: brief.requiredSkills,
+    nice_to_have_skills: brief.niceToHaveSkills,
+    location: brief.locationScope.trim() || null,
+    experience_years_min:
+      brief.experienceYearsMin.trim().length > 0
+        ? Number.parseInt(brief.experienceYearsMin, 10)
+        : null,
+    hiring_brief: {
+      ...hiringBrief,
+      role_core: {
+        ...roleCore,
+        title: brief.title.trim(),
+        required_skills: brief.requiredSkills,
+        nice_to_have_skills: brief.niceToHaveSkills,
+      },
+      work_model: brief.workModel,
+      location_scope: brief.locationScope.trim() || null,
+      location_flexibility: brief.locationFlexibility,
+      relocation_allowed: brief.relocationAllowed,
+      must_have_constraints: brief.mustHaveConstraints,
+      soft_constraints: brief.softConstraints,
+      constraint_reasoning: brief.constraintReasoning.trim() || null,
+    },
+    recall_spec: {
+      ...recallSpec,
+      title_variants:
+        Array.isArray(recallSpec.title_variants) && recallSpec.title_variants.length > 0
+          ? recallSpec.title_variants
+          : [brief.title.trim()],
+      core_skill_terms: brief.requiredSkills.length > 0
+        ? brief.requiredSkills
+        : Array.isArray(recallSpec.core_skill_terms)
+          ? recallSpec.core_skill_terms
+          : [],
+      must_have_signals: brief.requiredSkills,
+    },
+  };
+}
 
 export default function NewSearchPage() {
-  const { session } = useAuth();
   const { billing, refresh } = useBilling();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [jdText, setJdText] = useState("");
+  const [parsedResponse, setParsedResponse] = useState<ParsedResponse | null>(null);
+  const [editor, setEditor] = useState<EditableBrief | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [parseStatus, setParseStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
   const [isNavigating, startTransition] = useTransition();
   const hasTrackedViewRef = useRef(false);
-  const hasTrackedConfirmationViewRef = useRef(false);
   const analyticsContext = getAnalyticsContextFromParams(searchParams);
   const prefilledJd = searchParams.get("jd")?.trim() || "";
-  const isFocusedFlow = analyticsContext.entry_mode === "landing" && Boolean(prefilledJd);
 
   useEffect(() => {
     const prefill = searchParams.get("jd");
     if (prefill) setJdText(prefill);
   }, [searchParams]);
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     if (hasTrackedViewRef.current) return;
-
     hasTrackedViewRef.current = true;
     trackEvent(ANALYTICS_EVENTS.newSearchView, {
       ...analyticsContext,
@@ -52,28 +266,58 @@ export default function NewSearchPage() {
     });
   }, [analyticsContext, prefilledJd]);
 
-  useEffect(() => {
-    if (!isFocusedFlow || hasTrackedConfirmationViewRef.current) return;
+  function updateEditor<K extends keyof EditableBrief>(key: K, value: EditableBrief[K]) {
+    setEditor((current) => (current ? { ...current, [key]: value } : current));
+  }
 
-    hasTrackedConfirmationViewRef.current = true;
-    trackEvent(ANALYTICS_EVENTS.searchConfirmationView, {
-      ...analyticsContext,
-      has_prefilled_jd: true,
-      jd_word_count: prefilledJd.split(/\s+/).filter(Boolean).length,
-    });
-  }, [analyticsContext, isFocusedFlow, prefilledJd]);
+  async function handleAnalyze() {
+    if (jdText.trim().length < 50) {
+      setParseStatus("error");
+      setErrorMsg("请先粘贴完整 JD，至少 50 个字符。");
+      return;
+    }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!jdText.trim() || !session) return;
+    setParseStatus("loading");
+    setErrorMsg("");
+
+    try {
+      const res = await fetchWithUserSession("/api/search/parse", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ jd_text: jdText.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to parse JD");
+      }
+
+      const data = (await res.json()) as ParsedResponse;
+      setParsedResponse(data);
+      setEditor(buildEditorState(data.summary));
+      setParseStatus("ready");
+    } catch (error) {
+      setParseStatus("error");
+      setErrorMsg(error instanceof Error ? error.message : "Failed to parse JD");
+    }
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!editor || !parsedResponse) {
+      await handleAnalyze();
+      return;
+    }
 
     trackEvent(ANALYTICS_EVENTS.primaryProductCtaClick, {
       ...analyticsContext,
       candidate_count: FIXED_CANDIDATE_COUNT,
       jd_word_count: jdText.trim().split(/\s+/).filter(Boolean).length,
       plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
-      cta_surface: isFocusedFlow ? "new_search_focused" : "new_search",
-      primary_context: isFocusedFlow ? "confirmation" : "start",
+      cta_surface: "job_brief_confirmed",
+      primary_context: "start",
     });
 
     setStatus("loading");
@@ -85,7 +329,14 @@ export default function NewSearchPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ jd_text: jdText.trim(), candidate_count: FIXED_CANDIDATE_COUNT }),
+        body: JSON.stringify({
+          jd_text: jdText.trim(),
+          candidate_count: FIXED_CANDIDATE_COUNT,
+          parsed_requirements_override: buildParsedOverride(
+            parsedResponse.parsed_requirements,
+            editor,
+          ),
+        }),
       });
 
       if (!res.ok) {
@@ -93,16 +344,11 @@ export default function NewSearchPage() {
         if (res.status === 403) {
           void refresh();
         }
-        throw new Error(data.error || "Failed to create shortlist");
+        throw new Error(data.error || "Failed to create sourcing task");
       }
 
       const { id } = await res.json();
       void refresh();
-      trackEvent(ANALYTICS_EVENTS.searchJobEnqueued, {
-        ...analyticsContext,
-        candidate_count: FIXED_CANDIDATE_COUNT,
-        search_id: id,
-      });
       trackEvent(ANALYTICS_EVENTS.searchCreateSuccess, {
         ...analyticsContext,
         candidate_count: FIXED_CANDIDATE_COUNT,
@@ -110,188 +356,326 @@ export default function NewSearchPage() {
         search_id: id,
       });
       startTransition(() => {
-        const nextPath =
-          analyticsContext.entry_mode === "workspace"
-            ? `/app/search/${id}`
-            : `/app/search/${id}?entry=${analyticsContext.entry_mode}`;
-        router.push(nextPath);
+        router.push(`/app/search/${id}`);
       });
-    } catch (err) {
+    } catch (error) {
       setStatus("error");
       setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong",
+        error instanceof Error ? error.message : "Something went wrong",
       );
     }
   }
 
-  return (
-    <div className={`mx-auto ${isFocusedFlow ? "max-w-4xl" : "max-w-3xl"}`}>
-      <div className={`mb-8 ${isFocusedFlow ? "rounded-[32px] border border-sky-200 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.28),_transparent_28%),linear-gradient(180deg,#fbfdff_0%,#f2f8ff_100%)] p-6 shadow-[0_22px_60px_rgba(14,165,233,0.10)] sm:p-8" : ""}`}>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">
-          {isFocusedFlow ? "Shortlist confirmation" : "Create shortlist"}
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">
-          {isFocusedFlow
-            ? "Your JD is ready. Build the shortlist."
-            : "Search broadly. Watch the shortlist start to grow."}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          {isFocusedFlow
-            ? "You are still in the same flow from the landing page. Confirm the search settings below and Hirelix will start profile recall first, then grow the shortlist as recruiter-reviewed candidates pass."
-            : "Paste one full job description and Hirelix will start with external profile recall, then stream recruiter-reviewed candidates into a shortlist you can review before the full run is finished."}
-        </p>
-        {isFocusedFlow ? (
-          <>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">JD ready</p>
-                <p className="mt-1 line-clamp-2 text-sm font-medium text-slate-950">
-                  {jdText.split("\n").map((line) => line.trim()).find(Boolean) || "Full job description attached"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Expected time</p>
-                <p className="mt-1 text-sm font-medium text-slate-950">First candidates usually appear before the full shortlist is done</p>
-              </div>
-              <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  {billing?.plan.code === "free" ? "Free plan remaining" : "Current plan"}
-                </p>
-                <p className="mt-1 text-sm font-medium text-slate-950">
-                  {billing
-                    ? billing.plan.code === "free"
-                      ? `${billing.usage.searchesRemaining} shortlist runs left`
-                      : `${billing.plan.name} active`
-                    : "Checking plan limits..."}
-                </p>
-              </div>
-            </div>
+  const canAnalyze = jdText.trim().length >= 50 && parseStatus !== "loading";
+  const isReadyToLaunch = Boolean(editor && parsedResponse);
 
-            <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-600">
-              {["Understand role", "Recall profiles", "Review candidates", "Shortlist grows"].map((step) => (
-                <span key={step} className="rounded-full border border-sky-100 bg-white/75 px-3 py-1">
-                  {step}
-                </span>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-600">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-              <Clock3 className="h-3.5 w-3.5 text-primary" />
-              Profile recall starts first
+  return (
+    <div className="mx-auto max-w-6xl">
+      <div className="rounded-[32px] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.30),_transparent_28%),linear-gradient(180deg,#fdfefe_0%,#f5f8fc_100%)] p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+          Hirelix MVP workflow
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+          Paste the JD, confirm the brief, then start sourcing.
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+          这条主线现在只做一件事：帮技术猎头把 JD 变成可编辑的搜索 brief，再进入候选人列表、GitHub 信号验证和个性化触达。
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-600">
+          {[
+            "1. Parse job description",
+            "2. Confirm must-have skills",
+            "3. Source top 20 candidates",
+            "4. Review GitHub-backed profiles",
+          ].map((step) => (
+            <span key={step} className="rounded-full border border-white/80 bg-white/80 px-3 py-1 shadow-sm">
+              {step}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-              Recruiter review starts as soon as profiles arrive
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Review a growing shortlist before you upgrade
-            </span>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className={`rounded-xl border border-border bg-background p-6 ${isFocusedFlow ? "shadow-[0_18px_48px_rgba(15,23,42,0.06)]" : ""}`}>
-          <div className="mb-4 flex items-center gap-2 text-sm font-medium text-foreground">
-            <FileText className="h-4 w-4 text-primary" />
-            {isFocusedFlow ? "Review the job description before launch" : "Job Description"}
+      <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <FileText className="h-4 w-4 text-sky-600" />
+            Original JD
           </div>
-          <p className="mb-4 max-w-2xl text-sm text-muted">
-            {isFocusedFlow
-              ? "Make any final edits here. We already preserved the JD you brought from the landing page."
-              : "Paste the full role, not just the title, so Hirelix has enough signal to recall the right profiles first and then rank the best candidates as the shortlist grows."}
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            先贴完整 JD。Hirelix 会提取 must-have、加分项、年限和地域约束，给你一个可以手动调整的技术猎头 brief。
           </p>
           <textarea
             value={jdText}
-            onChange={(e) => setJdText(e.target.value)}
-            placeholder="Paste the full job description here...&#10;&#10;For example:&#10;We are hiring a Senior Software Engineer to build backend services, APIs, and distributed systems for a B2B SaaS product..."
+            onChange={(event) => {
+              setJdText(event.target.value);
+              setParsedResponse(null);
+              setEditor(null);
+              setParseStatus("idle");
+            }}
             rows={14}
-            className="w-full resize-none rounded-lg border border-border bg-surface p-4 text-sm leading-relaxed text-foreground placeholder:text-muted-light focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="Paste the full job description here..."
+            className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
           />
 
           {billing?.usage.searchesRemaining === 0 && billing.plan.code === "free" && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-amber-900">
-                  You&apos;ve used all shortlist runs for this billing cycle. Upgrade to continue now, or wait for the next reset.
+                  You&apos;ve used all sourcing runs for this billing cycle. Upgrade to continue.
                 </p>
                 <PaddleCheckoutButton
                   checkout={{ type: "plan", planCode: "pro_monthly" }}
                   label="Upgrade plan"
-                  onClick={() =>
-                    trackEvent(ANALYTICS_EVENTS.upgradeCtaClick, {
-                      ...analyticsContext,
-                      plan_code: billing.subscription.planCode,
-                      upgrade_surface: "new_search_limit_banner",
-                    })
-                  }
                   onError={(message) => {
                     setStatus("error");
                     setErrorMsg(message);
                   }}
-                  className="inline-flex w-full items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-50 sm:w-auto"
                 />
               </div>
             </div>
           )}
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-              <p className="text-xs leading-5 text-muted-light">
-                {jdText.length > 0
-                  ? `${jdText.split(/\s+/).filter(Boolean).length} words`
-                  : "Tip: paste the full JD, not just the title, for stronger matches."}
-              </p>
-            </div>
+            <p className="text-xs text-slate-500">
+              {jdText.trim().length > 0
+                ? `${jdText.trim().split(/\s+/).filter(Boolean).length} words`
+                : "Tip: the fuller the JD, the cleaner the parsed brief."}
+            </p>
             <button
-              type="submit"
-              disabled={status === "loading" || isNavigating || jdText.trim().length < 50}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-50 sm:w-auto"
+              type="button"
+              onClick={() => void handleAnalyze()}
+              disabled={!canAnalyze}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {status === "loading" || isNavigating ? (
+              {parseStatus === "loading" ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {isNavigating ? "Opening shortlist..." : "Building your shortlist..."}
+                  Parsing JD...
                 </>
               ) : (
                 <>
-                    {isFocusedFlow ? "Build the shortlist" : "Build shortlist"} <ArrowRight className="h-4 w-4" />
+                  <Brain className="h-4 w-4" />
+                  Analyze JD
                 </>
               )}
             </button>
           </div>
-
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-              <div className="text-sm text-slate-700">
-                <p className="font-medium text-slate-900">What happens next</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                  {[
-                    "Understand the JD",
-                    "AI searches LinkedIn at scale",
-                    "Rank the strongest matches",
-                    "Deliver contacts and outreach",
-                  ].map((step) => (
-                    <span key={step} className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                      {step}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-3 text-xs leading-relaxed text-slate-600">
-                  Hirelix first understands the role, then uses AI to search LinkedIn at scale, filters for the strongest candidates, and turns them into a ranked shortlist. When you are ready to act, Hirelix can also help you move from names on a list to contact details and personalized outreach.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {status === "error" && (
-          <p className="mt-4 text-sm text-red-500">{errorMsg}</p>
+        {editor && (
+          <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                  Confirm search brief
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+                  Review what Hirelix will search for
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  这里就是发起搜索前的人工校准层。你可以改 title、技能、年限和地域，避免 AI 误解 JD。
+                </p>
+              </div>
+              <div className="rounded-2xl border border-sky-100 bg-white px-4 py-3 text-xs text-slate-600 shadow-sm">
+                <p className="font-semibold text-slate-900">Result size</p>
+                <p className="mt-1">Top {FIXED_CANDIDATE_COUNT} candidates per run</p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <label className="text-sm font-semibold text-slate-900">Role title</label>
+                <input
+                  type="text"
+                  value={editor.title}
+                  onChange={(event) => updateEditor("title", event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <label className="text-sm font-semibold text-slate-900">Min years</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editor.experienceYearsMin}
+                    onChange={(event) => updateEditor("experienceYearsMin", event.target.value)}
+                    placeholder="Optional"
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                  />
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <label className="text-sm font-semibold text-slate-900">Work model</label>
+                  <select
+                    value={editor.workModel}
+                    onChange={(event) => updateEditor("workModel", event.target.value as WorkModel)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                  >
+                    <option value="unknown">Unknown</option>
+                    <option value="remote">Remote</option>
+                    <option value="hybrid">Hybrid</option>
+                    <option value="onsite">Onsite</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 lg:col-span-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <MapPin className="h-4 w-4 text-sky-600" />
+                  Location scope
+                </label>
+                <input
+                  type="text"
+                  value={editor.locationScope}
+                  onChange={(event) => updateEditor("locationScope", event.target.value)}
+                  placeholder="Remote, NYC, London, EU, etc."
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                />
+              </div>
+              <div className="grid gap-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <label className="text-sm font-semibold text-slate-900">Location flexibility</label>
+                  <select
+                    value={editor.locationFlexibility}
+                    onChange={(event) =>
+                      updateEditor("locationFlexibility", event.target.value as LocationFlexibility)
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                  >
+                    <option value="strict">Strict</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="flexible">Flexible</option>
+                  </select>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <label className="text-sm font-semibold text-slate-900">Relocation</label>
+                  <select
+                    value={editor.relocationAllowed}
+                    onChange={(event) =>
+                      updateEditor("relocationAllowed", event.target.value as RelocationAllowed)
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                  >
+                    <option value="unknown">Unknown</option>
+                    <option value="yes">Allowed</option>
+                    <option value="no">Not allowed</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <TagEditor
+                label="Must-have skills"
+                description="这些技能会直接影响候选人排序和 GitHub 信号解读。"
+                tags={editor.requiredSkills}
+                onChange={(tags) => updateEditor("requiredSkills", tags)}
+                accent="sky"
+                placeholder="Add a required skill"
+              />
+              <TagEditor
+                label="Nice-to-have skills"
+                description="加分项用于解释性排序，不会像 must-have 一样强约束。"
+                tags={editor.niceToHaveSkills}
+                onChange={(tags) => updateEditor("niceToHaveSkills", tags)}
+                accent="amber"
+                placeholder="Add a nice-to-have skill"
+              />
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <TagEditor
+                label="Must-have constraints"
+                description="例如 location、visa、团队阶段偏好等。"
+                tags={editor.mustHaveConstraints}
+                onChange={(tags) => updateEditor("mustHaveConstraints", tags)}
+                accent="slate"
+                placeholder="Add a hard constraint"
+              />
+              <TagEditor
+                label="Soft constraints"
+                description="会显示在结果解释里，帮助你理解为什么有人分数略低。"
+                tags={editor.softConstraints}
+                onChange={(tags) => updateEditor("softConstraints", tags)}
+                accent="slate"
+                placeholder="Add a soft preference"
+              />
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <label className="text-sm font-semibold text-slate-900">Constraint reasoning</label>
+              <textarea
+                value={editor.constraintReasoning}
+                onChange={(event) => updateEditor("constraintReasoning", event.target.value)}
+                rows={4}
+                placeholder="Explain how strict the search should be..."
+                className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+              />
+            </div>
+          </div>
         )}
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">What happens after launch</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                {[
+                  "LinkedIn recall",
+                  "Top 20 ranked candidates",
+                  "Resume + GitHub signal view",
+                  "Personalized outreach drafts",
+                ].map((item) => (
+                  <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={
+                status === "loading" ||
+                isNavigating ||
+                parseStatus === "loading" ||
+                !isReadyToLaunch ||
+                (billing?.usage.searchesRemaining === 0 && billing.plan.code === "free")
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {status === "loading" || isNavigating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Opening workbench...
+                </>
+              ) : !isReadyToLaunch ? (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Analyze JD first
+                </>
+              ) : (
+                <>
+                  Start sourcing <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
+          <p className="mt-4 text-xs leading-6 text-slate-500">
+            搜索启动后，结果页会聚焦在技术猎头工作台：左侧候选人列表，右侧画像和 GitHub 信号，右下角生成触达邮件。
+          </p>
+          {parseStatus === "ready" && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Brief ready for launch
+            </p>
+          )}
+          {(status === "error" || parseStatus === "error") && (
+            <p className="mt-3 text-sm text-red-500">{errorMsg}</p>
+          )}
+        </div>
       </form>
     </div>
   );
