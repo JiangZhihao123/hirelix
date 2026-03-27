@@ -51,3 +51,4 @@ next-env.d.ts
 # local tooling state
 /supabase/.temp/
 .windsurfrules
+.env*.local
