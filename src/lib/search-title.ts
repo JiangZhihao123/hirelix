@@ -11,5 +11,5 @@ export function getSearchDisplayTitle(params: {
     : "";
   if (parsedTitle) return parsedTitle;
 
-  return params.fallback || "New shortlist";
+  return params.fallback || "New sourcing task";
 }

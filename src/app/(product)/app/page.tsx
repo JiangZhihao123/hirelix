@@ -259,7 +259,7 @@ export default function DashboardPage() {
   async function deleteSearch(e: React.MouseEvent, searchId: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("Delete this shortlist and all its candidates?")) return;
+    if (!confirm("Delete this sourcing task and all its candidates?")) return;
     setDeleting(searchId);
     await supabase.from("hirelix_candidates").delete().eq("search_id", searchId);
     await supabase.from("hirelix_searches").delete().eq("id", searchId);
@@ -366,7 +366,7 @@ export default function DashboardPage() {
               const displayTitle = getSearchDisplayTitle({
                 title: search.title,
                 parsedRequirements: search.parsed_requirements,
-                fallback: "Untitled shortlist",
+                fallback: "Untitled sourcing task",
               });
               return (
                 <Link
@@ -412,17 +412,17 @@ export default function DashboardPage() {
               <Sparkles className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">What you&apos;ll get in your first shortlist</h2>
+              <h2 className="text-lg font-semibold text-slate-950">What your first sourcing task includes</h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Start with one full JD. Hirelix searches broadly, narrows the strongest matches, and gives you a shortlist you can review before paying for contact unlocks.
+                Start with one full JD. Hirelix parses the brief, finds the best-fit technical candidates, and opens a recruiter workbench you can review before unlocking contact actions.
               </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">Search across LinkedIn</span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">AI-ranked matches</span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">1 free shortlist run each month</span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">JD parsing + editable brief</span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">LinkedIn ranking</span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">1 free sourcing run each month</span>
               </div>
               <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-xs text-slate-600">
-                Next step: paste the real role, build the shortlist, then review candidates before deciding whether to unlock outreach.
+                Next step: paste the real role, confirm the brief, then open the workbench and review candidates.
               </div>
             </div>
           </div>
@@ -431,9 +431,9 @@ export default function DashboardPage() {
         <div className="space-y-3">
           <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-950">Your shortlists</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-slate-950">Your sourcing tasks</h2>
               <p className="mt-1 text-sm text-muted">
-                Review what is ready now, retry what stalled, or create another shortlist when you are ready.
+                Review what is ready now, retry what stalled, or launch another sourcing task when you are ready.
               </p>
             </div>
             <button
@@ -442,7 +442,7 @@ export default function DashboardPage() {
               className="inline-flex items-center justify-center gap-2 text-sm font-medium text-muted transition-colors hover:text-foreground"
             >
               {isNavigating && pendingHref === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              New shortlist
+              New sourcing task
             </button>
           </div>
           {/* Status filter tabs */}
@@ -474,7 +474,7 @@ export default function DashboardPage() {
             const stats = candidateCounts[s.id];
             const displayTitle = getSearchDisplayTitle({
               title: s.title,
-              fallback: "Untitled shortlist",
+              fallback: "Untitled sourcing task",
             });
             const previewText = buildSearchPreview(displayTitle, s.jd_text);
             return (
@@ -557,7 +557,7 @@ export default function DashboardPage() {
                     onClick={(e) => deleteSearch(e, s.id)}
                     disabled={deleting === s.id}
                     className="rounded-md p-1.5 cursor-pointer text-muted-light opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                    title="Delete shortlist"
+                    title="Delete sourcing task"
                   >
                     {deleting === s.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -574,7 +574,7 @@ export default function DashboardPage() {
               <p className="text-sm text-muted">
                 {filter === "processing" && activeSearches.length > 0
                   ? "Active searches are shown above."
-                  : "No shortlists with this status."}
+                  : "No sourcing tasks with this status."}
               </p>
             </div>
           )}
