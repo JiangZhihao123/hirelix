@@ -54,6 +54,7 @@ import {
   ChevronsUp,
   GraduationCap,
   Building2,
+  X,
 } from "lucide-react";
 
 type SearchRow = {
@@ -177,6 +178,7 @@ type CandidateRow = {
     canonical_profile?: Record<string, unknown>;
     raw_profile?: Record<string, unknown>;
     about?: string | null;
+    github_signals?: GithubSignals;
   } | null;
 };
 
@@ -252,6 +254,14 @@ type RecallMetadataView = {
   standard_recall_requested_at?: string | null;
   standard_recall_completed_at?: string | null;
   all_recall_completed_at?: string | null;
+};
+
+type GithubSignals = {
+  activity_trend?: string | null;
+  top_languages?: string[];
+  merged_pr_count?: number | null;
+  commit_message_quality?: string | null;
+  highlight?: string | null;
 };
 
 const avatarColors = [
@@ -488,6 +498,26 @@ function getCandidateRelevanceScore(candidate: CandidateRow) {
 
 function getCandidateJoinLikelihoodScore(candidate: CandidateRow) {
   return getCandidateScoringBreakdown(candidate)?.join_likelihood_score ?? 0;
+}
+
+function getCandidateGithubSignals(candidate: CandidateRow): GithubSignals | null {
+  const value = candidate.metadata?.github_signals;
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  return {
+    activity_trend:
+      typeof item.activity_trend === "string" ? item.activity_trend : null,
+    top_languages: Array.isArray(item.top_languages)
+      ? item.top_languages.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    merged_pr_count:
+      typeof item.merged_pr_count === "number" ? item.merged_pr_count : null,
+    commit_message_quality:
+      typeof item.commit_message_quality === "string"
+        ? item.commit_message_quality
+        : null,
+    highlight: typeof item.highlight === "string" ? item.highlight : null,
+  };
 }
 
 function CandidateCard({
@@ -1315,6 +1345,596 @@ function TaskTimelinePanel({
   );
 }
 
+function CandidateWorkbenchListItem({
+  candidate,
+  selected,
+  onSelect,
+  isNew,
+}: {
+  candidate: CandidateRow;
+  selected: boolean;
+  onSelect: () => void;
+  isNew?: boolean;
+}) {
+  const overallScore = getCandidateOverallScore(candidate);
+  const progressWidth = Math.max(6, Math.min(100, overallScore));
+  const githubSignals = getCandidateGithubSignals(candidate);
+
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full rounded-2xl border p-4 text-left transition ${
+        selected
+          ? "border-sky-300 bg-sky-50 shadow-sm"
+          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <InitialsAvatar name={candidate.name} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold text-slate-950">{candidate.name}</p>
+            <ScoreBadge score={overallScore} />
+            {isNew && (
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                New
+              </span>
+            )}
+          </div>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
+            {candidate.headline || "LinkedIn profile"}
+          </p>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-[linear-gradient(90deg,#0f172a_0%,#38bdf8_100%)]"
+              style={{ width: `${progressWidth}%` }}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {candidate.location && (
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
+                {candidate.location}
+              </span>
+            )}
+            {githubSignals ? (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
+                GitHub verified
+              </span>
+            ) : (
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
+                GitHub pending
+              </span>
+            )}
+            {candidate.email && (
+              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
+                Contact ready
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function CandidateWorkbenchDetail({
+  candidate,
+  requiredSkills,
+  billingPlanCode,
+  enrichesRemaining,
+  refreshBilling,
+  onUpgradeClick,
+  onStatusChange,
+}: {
+  candidate: CandidateRow;
+  requiredSkills: string[];
+  billingPlanCode: "free" | "pro_monthly" | "pro_annual";
+  enrichesRemaining: number;
+  refreshBilling: () => Promise<void>;
+  onUpgradeClick: (surface: string) => void;
+  onStatusChange: (id: string, status: string) => void;
+}) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [copied, setCopied] = useState<string | false>(false);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [localCandidate, setLocalCandidate] = useState(candidate);
+  const { session } = useAuth();
+
+  useEffect(() => {
+    setLocalCandidate(candidate);
+  }, [candidate]);
+
+  const displayableWorkHistory = (localCandidate.metadata?.work_history || []).filter(
+    (job) => job.title || job.company || job.summary,
+  );
+  const displayableEducation = (localCandidate.metadata?.education || []).filter(
+    (edu) => edu.school || edu.degree || edu.major,
+  );
+  const scoringBreakdown = getCandidateScoringBreakdown(localCandidate);
+  const suitability = localCandidate.metadata?.suitability;
+  const githubSignals = getCandidateGithubSignals(localCandidate);
+  const outreach = parseOutreach(localCandidate.outreach_draft);
+  const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
+  const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
+  const [editedSubject, setEditedSubject] = useState(outreach.subject);
+  const [editedLinkedin, setEditedLinkedin] = useState(outreach.linkedin);
+  const [editedEmail, setEditedEmail] = useState(outreach.email);
+
+  useEffect(() => {
+    const next = parseOutreach(localCandidate.outreach_draft);
+    setEditedSubject(next.subject);
+    setEditedLinkedin(next.linkedin);
+    setEditedEmail(next.email);
+    setOutreachTab(localCandidate.email ? "email" : "linkedin");
+  }, [localCandidate.email, localCandidate.outreach_draft]);
+
+  const overallScore = getCandidateOverallScore(localCandidate);
+  const activeBody = outreachTab === "linkedin" ? editedLinkedin : editedEmail;
+  const setActiveBody = outreachTab === "linkedin" ? setEditedLinkedin : setEditedEmail;
+  const shortlistReason =
+    localCandidate.metadata?.shortlist_reason ??
+    suitability?.shortlist_reason ??
+    null;
+  const whyNotHigher = Array.isArray(localCandidate.metadata?.why_not_higher)
+    ? localCandidate.metadata.why_not_higher
+    : [];
+  const riskFlags = Array.isArray(localCandidate.metadata?.risk_flags)
+    ? localCandidate.metadata.risk_flags
+    : [];
+  const githubSignalCards = [
+    {
+      label: "Activity trend",
+      value: githubSignals?.activity_trend || "No public GitHub data",
+    },
+    {
+      label: "Real stack",
+      value:
+        githubSignals?.top_languages && githubSignals.top_languages.length > 0
+          ? githubSignals.top_languages.slice(0, 3).join(", ")
+          : "Only LinkedIn evidence available",
+    },
+    {
+      label: "Merged PRs",
+      value:
+        typeof githubSignals?.merged_pr_count === "number"
+          ? `${githubSignals.merged_pr_count}`
+          : "Not available",
+    },
+    {
+      label: "Commit hygiene",
+      value: githubSignals?.commit_message_quality || "Not evaluated yet",
+    },
+  ];
+
+  async function handleEnrich() {
+    if (enriching || !session?.access_token) return;
+    setEnrichError(null);
+    setEnriching(true);
+    try {
+      const res = await fetch(`/api/candidates/${candidate.id}/enrich`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "We couldn't enrich this candidate.");
+      }
+      const data = await res.json();
+      setLocalCandidate((prev) => ({
+        ...prev,
+        email: data.email || prev.email,
+        outreach_draft: data.outreach_draft || prev.outreach_draft,
+      }));
+      await refreshBilling();
+    } catch (error) {
+      setEnrichError(error instanceof Error ? error.message : "We couldn't enrich this candidate.");
+    } finally {
+      setEnriching(false);
+    }
+  }
+
+  function copyText(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function copyAll() {
+    const full = outreachTab === "email" && editedSubject
+      ? `Subject: ${editedSubject}\n\n${activeBody}`
+      : activeBody;
+    copyText(full, "all");
+  }
+
+  return (
+    <>
+      <div className="relative rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <InitialsAvatar name={localCandidate.name} />
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                  {localCandidate.name}
+                </h2>
+                <ActionabilityBadge candidate={localCandidate} />
+                <ScoreBadge score={overallScore} />
+              </div>
+              <p className="mt-1 text-sm text-slate-600">
+                {localCandidate.headline || "LinkedIn profile"}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                {localCandidate.location && (
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                    {localCandidate.location}
+                  </span>
+                )}
+                {localCandidate.experience_years && (
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                    {localCandidate.experience_years}+ years
+                  </span>
+                )}
+                {localCandidate.profile_url && (
+                  <a
+                    href={localCandidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700 transition hover:bg-slate-100"
+                  >
+                    LinkedIn profile
+                  </a>
+                )}
+                {localCandidate.github_url && (
+                  <a
+                    href={localCandidate.github_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700 transition hover:bg-slate-100"
+                  >
+                    GitHub
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {["new", "starred", "contacted", "replied", "rejected"].map((status) => (
+              <button
+                key={status}
+                onClick={() => onStatusChange(localCandidate.id, status)}
+                className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${
+                  localCandidate.status === status
+                    ? "bg-slate-950 text-white"
+                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Why this candidate scored well
+              </p>
+              {shortlistReason && (
+                <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  {shortlistReason}
+                </p>
+              )}
+              <ul className="mt-3 space-y-2">
+                {localCandidate.match_reasons.map((reason, index) => (
+                  <li key={index} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+                    <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    GitHub signals
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    这是产品护城河位置。当前版本在没有公开 GitHub 数据时会明确降级，不会直接报错或误伤评分。
+                  </p>
+                </div>
+                <Github className="h-5 w-5 text-slate-400" />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {githubSignalCards.map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      {item.label}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-slate-900">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              {githubSignals?.highlight ? (
+                <p className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
+                  {githubSignals.highlight}
+                </p>
+              ) : (
+                <p className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
+                  No public GitHub data found yet. Current ranking stays based on LinkedIn evidence only.
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                LinkedIn resume
+              </p>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Work history</p>
+                  <div className="mt-3 space-y-3">
+                    {displayableWorkHistory.length > 0 ? displayableWorkHistory.map((job, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">
+                            {job.title || "Unknown role"}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {[job.company, job.start_date].filter(Boolean).join(" · ")}
+                          </p>
+                          {job.summary && (
+                            <p className="mt-1 text-sm leading-6 text-slate-600">{job.summary}</p>
+                          )}
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-slate-500">No work history available.</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Education</p>
+                  <div className="mt-3 space-y-3">
+                    {displayableEducation.length > 0 ? displayableEducation.map((edu, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">
+                            {edu.school || "Education"}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {[edu.degree, edu.major].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-slate-500">No education details available.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Match explanation
+              </p>
+              <div className="mt-3 grid gap-3">
+                <div className="rounded-2xl border border-white bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Overall score
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">
+                    {overallScore} · {formatDimensionLabel(overallScore)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Capability / fit / join
+                  </p>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {scoringBreakdown?.capability_score ?? "?"} / {scoringBreakdown?.relevance_score ?? "?"} / {scoringBreakdown?.join_likelihood_score ?? "?"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Must-have overlap
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(localCandidate.skills || [])
+                      .filter((skill) =>
+                        requiredSkills.some((required) =>
+                          skill.toLowerCase().includes(required.toLowerCase()) ||
+                          required.toLowerCase().includes(skill.toLowerCase()),
+                        ),
+                      )
+                      .slice(0, 6)
+                      .map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    {requiredSkills.length === 0 && (
+                      <p className="text-sm text-slate-500">No required skills set.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {(whyNotHigher.length > 0 || riskFlags.length > 0) && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                  What to verify before outreach
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {[...whyNotHigher, ...riskFlags].slice(0, 5).map((reason) => (
+                    <li key={reason} className="flex items-start gap-2 text-sm leading-6 text-amber-900">
+                      <AlertCircle className="mt-1 h-4 w-4 shrink-0 text-amber-600" />
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="absolute bottom-6 right-6 inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
+        >
+          <Send className="h-4 w-4" />
+          Generate outreach
+        </button>
+      </div>
+
+      {drawerOpen && (
+        <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/20 backdrop-blur-[1px]">
+          <div className="h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Personalized outreach
+                </p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">{localCandidate.name}</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  优先引用候选人的具体代码工作；如果没有公开 GitHub 证据，就退回 LinkedIn 亮点。
+                </p>
+              </div>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {!localCandidate.outreach_draft ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+                <Mail className="mx-auto h-8 w-8 text-slate-400" />
+                <p className="mt-4 text-sm font-medium text-slate-900">
+                  Outreach copy is not ready yet
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {billingPlanCode === "free"
+                    ? "Upgrade when you want to unlock contact details and personalized outreach."
+                    : "Generate the email and contact details when you're ready to act on this candidate."}
+                </p>
+                {billingPlanCode === "free" ? (
+                  <PaddleCheckoutButton
+                    checkout={{ type: "plan", planCode: "pro_monthly" }}
+                    label="Unlock outreach"
+                    onClick={() => onUpgradeClick("workbench_outreach_drawer")}
+                    onError={(message) => setEnrichError(message)}
+                    className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                  />
+                ) : enrichesRemaining <= 0 ? (
+                  <PaddleCheckoutButton
+                    checkout={{ type: "add_on", addOn: "contact_pack" }}
+                    label="Buy Contact Pack"
+                    onClick={() => onUpgradeClick("workbench_contact_pack")}
+                    onError={(message) => setEnrichError(message)}
+                    className="mt-4 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  />
+                ) : (
+                  <button
+                    onClick={handleEnrich}
+                    disabled={enriching}
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Generate outreach
+                  </button>
+                )}
+                {enrichError && (
+                  <p className="mt-3 text-sm text-red-500">{enrichError}</p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setOutreachTab("linkedin")}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      outreachTab === "linkedin"
+                        ? "bg-[#0077B5]/10 text-[#0077B5]"
+                        : "text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    LinkedIn
+                  </button>
+                  {hasRealEmail && (
+                    <button
+                      onClick={() => setOutreachTab("email")}
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        outreachTab === "email"
+                          ? "bg-slate-950 text-white"
+                          : "text-slate-500 hover:bg-slate-50"
+                      }`}
+                    >
+                      Email
+                    </button>
+                  )}
+                  <button
+                    onClick={copyAll}
+                    className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    {copied === "all" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                    {copied === "all" ? "Copied" : "Copy all"}
+                  </button>
+                </div>
+
+                {outreachTab === "email" && (
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Subject
+                    </label>
+                    <input
+                      type="text"
+                      value={editedSubject}
+                      onChange={(event) => setEditedSubject(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Message
+                  </label>
+                  <textarea
+                    value={activeBody}
+                    onChange={(event) => setActiveBody(event.target.value)}
+                    rows={12}
+                    className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                  />
+                </div>
+
+                {localCandidate.email && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    {localCandidate.email}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function SearchResultPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -1329,6 +1949,7 @@ export default function SearchResultPage() {
   const [retrying, setRetrying] = useState(false);
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
+  const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
   const [, setUpgradeError] = useState<string | null>(null);
   const hasTrackedTaskViewRef = useRef(false);
   const hasTrackedBriefReadyViewRef = useRef(false);
@@ -1809,6 +2430,11 @@ export default function SearchResultPage() {
   const visibleCandidates = showOnlyWithEmail
     ? allCandidates.filter((candidate) => candidate.email)
     : allCandidates;
+  const activeCandidate =
+    visibleCandidates.find((candidate) => candidate.id === activeCandidateId) ||
+    visibleCandidates[0] ||
+    null;
+
   const averageQuality = visibleCandidates.length
     ? Math.round(
         visibleCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
@@ -1878,11 +2504,6 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.visible_candidate_count) ?? shortlistReadyCount;
   const qualityFloorApplied =
     rawDisplayStats?.quality_floor_applied === true;
-  const readyToActCount = allCandidates.filter(
-    (candidate) =>
-      candidate.metadata?.suitability?.advance_recommendation === "advance" ||
-      candidate.metadata?.suitability?.actionability === "ready_to_act",
-  ).length;
   const contactUnlockCandidates =
     positiveInt(rawDisplayStats?.contact_unlock_candidates) ??
     allCandidates.filter(
@@ -2031,14 +2652,14 @@ export default function SearchResultPage() {
                   {formatRelocationTag(relocationAllowed)}
                 </span>
               )}
-              {launchMode === "paid_beta" && (
+              {launchMode === "tech_recruiter_mvp" && (
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
-                  Paid beta
+                  Tech recruiter MVP
                 </span>
               )}
-              {launchScope === "us_only" && (
+              {launchScope === "linkedin_plus_github" && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  US only
+                  LinkedIn + GitHub
                 </span>
               )}
             </div>
@@ -2348,20 +2969,20 @@ export default function SearchResultPage() {
               "No candidates have passed the recruiter shortlist yet. Refine the role or widen the search to unlock more viable targets."
             ) : isImprovingInBackground ? (
               <>
-                <span className="font-semibold text-slate-950">Your candidate list is reviewable now.</span>
-                {" "}Hirelix is still refining the remaining scores in the background.
+                <span className="font-semibold text-slate-950">Your sourcing workbench is live.</span>
+                {" "}Candidates are already reviewable, and Hirelix is still refining the remaining scores in the background.
               </>
             ) : isReadyWithWarning ? (
               <>
                 <span className="font-semibold text-slate-950">
                   {shortlistReadyCount} candidate{shortlistReadyCount === 1 ? "" : "s"} ready to review
                 </span>
-                {" "}— sorted by recruiter score
+                {" "}— open any profile in the workbench to inspect the evidence
               </>
             ) : (
               <>
-                <span className="font-semibold text-slate-950">This shortlist is ready to work from.</span>
-                {" "}{visibleCandidateCount} candidate{visibleCandidateCount === 1 ? "" : "s"} {visibleCandidateCount === 1 ? "is" : "are"} shown and sorted by recruiter score{readyToActCount > 0 ? `, with ${readyToActCount} already looking ready to act on.` : "."}
+                <span className="font-semibold text-slate-950">This recruiter workbench is ready.</span>
+                {" "}Left side shows the ranked candidate list. Right side focuses on LinkedIn resume, GitHub signals, and outreach.
               </>
             )}
           </div>
@@ -2488,37 +3109,80 @@ export default function SearchResultPage() {
             )}
           </div>
           {visibleCandidates.length > 0 && (
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                  Recruiter-ranked shortlist
-                </p>
-                <p className="mt-1 text-sm text-slate-700">
-                  Every candidate here passed the recruiter model&apos;s shortlist decision and is sorted by recruiter score.
-                </p>
-              </div>
-              {visibleCandidates.map((c, idx) => (
-                <div
-                  key={c.id}
-                  className="animate-fade-in-up"
-                  style={{ animationDelay: `${idx * 100}ms` }}
-                >
-                  <CandidateCard
-                    candidate={c}
-                    onStatusChange={handleStatusChange}
-                    onExpand={handleCandidateExpand}
-                    requiredSkills={reqs && Array.isArray(reqs.required_skills) ? (reqs.required_skills as string[]) : []}
-                    selected={selectedIds.has(c.id)}
-                    onToggleSelect={() => toggleSelect(c.id)}
+            <>
+              {activeCandidate && (
+                <div className="hidden gap-4 xl:grid xl:grid-cols-[320px_minmax(0,1fr)]">
+                  <aside className="rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-sm">
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Candidate list
+                      </p>
+                      <h3 className="mt-2 text-lg font-semibold text-slate-950">
+                        Top {visibleCandidates.length} matches
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        点左侧切换右边画像。右侧会展示履历、GitHub 信号和触达入口。
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      {visibleCandidates.map((candidate) => (
+                        <CandidateWorkbenchListItem
+                          key={candidate.id}
+                          candidate={candidate}
+                          selected={candidate.id === activeCandidate.id}
+                          onSelect={() => {
+                            setActiveCandidateId(candidate.id);
+                            handleCandidateExpand(candidate);
+                          }}
+                          isNew={isImprovingInBackground && newCandidateIds.has(candidate.id)}
+                        />
+                      ))}
+                    </div>
+                  </aside>
+                  <CandidateWorkbenchDetail
+                    candidate={activeCandidate}
+                    requiredSkills={requiredSkills}
                     billingPlanCode={billing?.subscription.planCode || "free"}
                     enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
                     refreshBilling={refreshBilling}
                     onUpgradeClick={handleUpgradeClick}
-                    isNew={isImprovingInBackground && newCandidateIds.has(c.id)}
+                    onStatusChange={handleStatusChange}
                   />
                 </div>
-              ))}
-            </div>
+              )}
+
+              <div className="space-y-3 xl:hidden">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                    Recruiter-ranked shortlist
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    Mobile keeps the card view. Desktop now uses the split workbench layout.
+                  </p>
+                </div>
+                {visibleCandidates.map((c, idx) => (
+                  <div
+                    key={c.id}
+                    className="animate-fade-in-up"
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                  >
+                    <CandidateCard
+                      candidate={c}
+                      onStatusChange={handleStatusChange}
+                      onExpand={handleCandidateExpand}
+                      requiredSkills={requiredSkills}
+                      selected={selectedIds.has(c.id)}
+                      onToggleSelect={() => toggleSelect(c.id)}
+                      billingPlanCode={billing?.subscription.planCode || "free"}
+                      enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
+                      refreshBilling={refreshBilling}
+                      onUpgradeClick={handleUpgradeClick}
+                      isNew={isImprovingInBackground && newCandidateIds.has(c.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

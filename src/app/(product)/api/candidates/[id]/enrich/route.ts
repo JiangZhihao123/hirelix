@@ -119,6 +119,14 @@ export async function POST(
       const email = updates.email || candidate.email;
       const hasEmail = !!email;
       const firstName = (candidate.name || "").split(" ")[0];
+      const githubSignals =
+        candidate.metadata?.github_signals && typeof candidate.metadata.github_signals === "object"
+          ? (candidate.metadata.github_signals as Record<string, unknown>)
+          : null;
+      const githubHighlight =
+        githubSignals && typeof githubSignals.highlight === "string"
+          ? githubSignals.highlight
+          : null;
 
       // Build company context section
       let companySection = "";
@@ -148,9 +156,11 @@ Skills: ${(Array.isArray(candidate.skills) ? candidate.skills : []).slice(0, 6).
 Experience: ${candidate.experience_years || "?"} years
 Match reasons: ${(Array.isArray(candidate.match_reasons) ? candidate.match_reasons : []).slice(0, 3).join("; ")}
 Location: ${candidate.location || "N/A"}
+GitHub evidence: ${githubHighlight || "No public GitHub evidence found, so rely on LinkedIn specifics only"}
 
 ## Guidelines
 - Reference something SPECIFIC from the candidate's background (a skill, company, or achievement)
+- If GitHub evidence exists, use that concrete code/project/PR detail. Otherwise use a concrete LinkedIn detail.
 - If company info is provided, mention 1-2 compelling things about the company (mission, growth, tech stack, culture)
 - Connect the candidate's experience to WHY they'd be excited about this opportunity
 - Sound like a real person, not a template. No buzzwords.

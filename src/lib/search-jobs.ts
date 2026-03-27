@@ -3011,6 +3011,21 @@ function buildSearchOutreachPrompt(
   const roleTitle = normalizeNullableString(parsed.title) || "this role";
   const skills = candidate.skills.slice(0, 8).join(", ");
   const matchReasons = candidate.match_reasons.slice(0, 3).join("; ");
+  const githubSignals =
+    candidate.metadata.github_signals && typeof candidate.metadata.github_signals === "object"
+      ? (candidate.metadata.github_signals as Record<string, unknown>)
+      : null;
+  const githubHighlight =
+    githubSignals && typeof githubSignals.highlight === "string"
+      ? githubSignals.highlight
+      : null;
+  const githubLanguages =
+    githubSignals && Array.isArray(githubSignals.top_languages)
+      ? (githubSignals.top_languages as string[]).slice(0, 3).join(", ")
+      : "";
+  const githubSection = githubSignals
+    ? `GitHub highlight: ${githubHighlight || "Public GitHub evidence exists"}\nGitHub languages: ${githubLanguages || "Unknown"}`
+    : "GitHub highlight: No public GitHub evidence found. Fall back to LinkedIn specifics only.";
 
   return `Write tailored recruiting outreach drafts for this candidate.
 
@@ -3026,6 +3041,7 @@ Headline: ${candidate.headline || "Professional"}
 Location: ${candidate.location || "Unknown"}
 Skills: ${skills || "Unknown"}
 Match reasons: ${matchReasons || "Strong fit for the role"}
+${githubSection}
 
 ## Task
 Return ONLY valid JSON with this exact shape:
@@ -3037,6 +3053,7 @@ Return ONLY valid JSON with this exact shape:
 
 Rules:
 - Make both drafts specific to this person and this role.
+- If GitHub evidence exists, reference one concrete code/project/PR detail. If not, use one concrete LinkedIn career detail instead.
 - Keep the LinkedIn InMail under 80 words and casual.
 - Keep the email body under 120 words and slightly more formal.
 - Both drafts must start with "Hi ${firstName},"
