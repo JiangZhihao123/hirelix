@@ -23,7 +23,7 @@ test.describe("Responsive - Landing Page", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /Sign in on this device/i }).click();
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Sign in to continue to Hirelix." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in and keep moving." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toHaveCount(0);
   });
 
@@ -41,7 +41,7 @@ test.describe("Responsive - Auth Page", () => {
 
   test("should display login form correctly on mobile", async ({ page }) => {
     await page.goto("/app");
-    await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();

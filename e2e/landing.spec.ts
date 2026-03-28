@@ -14,17 +14,16 @@ test.describe("Landing Page", () => {
 
   test("should display hero section with a single desktop primary CTA", async ({ page }) => {
     await expect(page.getByRole("heading", { name: /Paste a JD\./i })).toBeVisible();
-    await expect(page.getByText(/real linkedin candidates, ranked match reasons, and outreach-ready drafts in minutes/i)).toBeVisible();
-    await expect(page.getByTestId("hero-primary-cta")).toHaveText(/See Matching Candidates/i);
-    await expect(page.getByText("Under 5 minutes", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/Review real LinkedIn candidates, see why they fit, and leave with ready-to-send outreach/i)).toBeVisible();
+    await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Get Shortlist \+ Outreach/i);
+    await expect(page.getByText("Shortlist + outreach").first()).toBeVisible();
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
   });
 
   test("should display the desktop shortlist demo", async ({ page }) => {
-    await expect(page.getByText("Preview the shortlist")).toBeVisible();
+    await expect(page.getByText("AI ranked from large-scale search")).toBeVisible();
     await expect(page.getByText("James Liu")).toBeVisible();
     await expect(page.getByText("Anika Nair")).toBeVisible();
-    await expect(page.getByText("Marco Rossi")).toBeVisible();
   });
 
   test("should display proof and objection sections for high-intent visitors", async ({ page }) => {
@@ -48,7 +47,7 @@ test.describe("Landing Page", () => {
 
     await expect(page).toHaveURL("/");
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Sign in to run this shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "One more step to open your shortlist." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
@@ -64,7 +63,7 @@ test.describe("Landing Page", () => {
 
     await expect(page).toHaveURL("/");
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Sign in to run this shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "One more step to open your shortlist." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toHaveText("Senior Software Engineer");
   });
 
@@ -73,7 +72,7 @@ test.describe("Landing Page", () => {
 
     await expect(page).toHaveURL("/");
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Sign in to continue to Hirelix." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in and keep moving." })).toBeVisible();
     await expect(page.getByText("Return to your sourcing workspace instantly")).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();

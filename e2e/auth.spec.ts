@@ -7,8 +7,8 @@ test.describe("Authentication Page", () => {
 
   test("should show login form when not authenticated", async ({ page }) => {
     // Should show sign-in page with logo
-    await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
-    await expect(page.getByText("Use Google, email, or password to get started")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByText("Use Google, email, or password to continue into the next shortlist flow.")).toBeVisible();
   });
 
   test("should display Google OAuth button", async ({ page }) => {
@@ -45,6 +45,6 @@ test.describe("Authentication Page", () => {
     // Try submit with empty fields — form should use native validation
     await page.getByRole("button", { name: "Continue with email" }).click();
     // Should still be on the auth page
-    await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
   });
 });
