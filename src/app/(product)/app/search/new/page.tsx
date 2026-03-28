@@ -684,6 +684,10 @@ export default function NewSearchPage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Opening workbench...
                 </>
+              ) : billing?.usage.searchesRemaining === 0 && billing.plan.code === "free" ? (
+                <>
+                  No searches left — upgrade to launch
+                </>
               ) : !isReadyToLaunch ? (
                 <>
                   <Sparkles className="h-4 w-4" />

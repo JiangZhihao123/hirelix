@@ -782,7 +782,7 @@ function CandidateCard({
         <InitialsAvatar name={candidate.name} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <p className="truncate text-sm font-semibold">{candidate.name}</p>
+            <p className="truncate text-sm font-semibold">{candidate.name.replace(/[.,;]+$/, "").trim()}</p>
             {isNew && (
               <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
                 New
@@ -1460,7 +1460,7 @@ function CandidateWorkbenchListItem({
         <InitialsAvatar name={candidate.name} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-semibold text-slate-950">{candidate.name}</p>
+            <p className="truncate text-sm font-semibold text-slate-950">{candidate.name.replace(/[.,;]+$/, "").trim()}</p>
             <ScoreBadge score={overallScore} />
             {isNew && (
               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
@@ -1675,7 +1675,7 @@ function CandidateWorkbenchDetail({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                  {localCandidate.name}
+                  {localCandidate.name.replace(/[.,;]+$/, "").trim()}
                 </h2>
                 <ActionabilityBadge candidate={localCandidate} />
                 <ScoreBadge score={overallScore} />
@@ -1887,7 +1887,7 @@ function CandidateWorkbenchDetail({
                     Best opening angle
                   </p>
                   <p className="mt-2 text-sm text-slate-700">
-                    {githubSignals?.outreach_angle || "Lead with the strongest concrete proof you can verify quickly."}
+                    {githubSignals?.outreach_angle || (hasVerifiedGithub ? "Lead with the strongest visible GitHub contribution." : "No public GitHub found — reference their most relevant LinkedIn experience directly in the opening line.")}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
@@ -1948,7 +1948,7 @@ function CandidateWorkbenchDetail({
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Personalized outreach
                 </p>
-                <h3 className="mt-2 text-xl font-semibold text-slate-950">{localCandidate.name}</h3>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">{localCandidate.name.replace(/[.,;]+$/, "").trim()}</h3>
                 <p className="mt-1 text-sm text-slate-600">
                   Leads with the candidate's specific code contributions; falls back to LinkedIn highlights when no public GitHub evidence is available.
                 </p>
