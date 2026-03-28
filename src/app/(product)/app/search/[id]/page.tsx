@@ -408,6 +408,15 @@ function formatDisplayCount(value: number) {
   return `${value}`;
 }
 
+// LinkedIn scraper sometimes strips newlines without inserting a space, causing words to
+// be concatenated (e.g. "anddesign", "iterativedevelopment"). This inserts a space after
+// common English conjunctions/prepositions when they are directly followed by another word.
+function fixScrapedText(text: string): string {
+  return text
+    .replace(/\b(and|or|to|for|from|with|the|in|of|on|at|by|as|an|a|is|are|was|were|has|have|had|be|been|its|our|their|this|that|these|those|not|no|but|so|yet|if|then|when|where)([a-z])/g, "$1 $2")
+    .replace(/([a-z])(And|Or|To|For|From|With|The|In|Of|On|At|By|As|An|A|Is|Are|Was|Were|Has|Have|Had|Be|Been|Its|Our|Their|This|That|These|Those|Not|No|But|So|Yet|If|Then|When|Where)\b/g, "$1 $2");
+}
+
 function formatLocationFlexibilityTag(value: string) {
   switch (value) {
     case "strict":
@@ -1146,7 +1155,7 @@ function CandidateCard({
                             )}
                           </p>
                           {job.summary && (
-                            <p className="mt-1 text-xs text-muted">{job.summary.split("\uF0D8")[0].trim()}</p>
+                            <p className="mt-1 text-xs text-muted">{fixScrapedText(job.summary.split("\uF0D8")[0].trim())}</p>
                           )}
                         </div>
                       </div>
@@ -1835,7 +1844,7 @@ function CandidateWorkbenchDetail({
                           {job.summary && (
                             <ul className="mt-1 space-y-1">
                               {job.summary.split("\uF0D8").map((s) => s.trim()).filter(Boolean).map((segment, si) => (
-                                <li key={si} className="text-sm leading-6 text-slate-600">{segment}</li>
+                                <li key={si} className="text-sm leading-6 text-slate-600">{fixScrapedText(segment)}</li>
                               ))}
                             </ul>
                           )}
@@ -3035,7 +3044,7 @@ export default function SearchResultPage() {
                 <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {visibleCandidateCount === shortlistYesCount
-                    ? "Currently visible in the shortlist"
+                    ? "Top-ranked after AI shortlist pass"
                     : `${shortlistYesCount} shortlisted so far`}
                 </p>
               </div>

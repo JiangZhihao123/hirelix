@@ -69,6 +69,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
   const [filter, setFilter] = useState<"all" | "done" | "processing" | "error">("all");
+  const [query, setQuery] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [isNavigating, startTransition] = useTransition();
@@ -204,9 +205,16 @@ export default function DashboardPage() {
         .slice(0, 3),
     [searches],
   );
-  const filteredSearches = searches.filter(
-    (search) => filter === "all" || getSearchStatusBucket(search.status) === filter,
-  );
+  const filteredSearches = searches.filter((search) => {
+    if (filter !== "all" && getSearchStatusBucket(search.status) !== filter) return false;
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      const title = (search.title ?? "").toLowerCase();
+      const jd = (search.jd_text ?? "").toLowerCase();
+      if (!title.includes(q) && !jd.includes(q)) return false;
+    }
+    return true;
+  });
   const listSearches = filteredSearches.filter(
     (search) => !isSearchTaskProcessingStatus(search.status),
   );
@@ -445,10 +453,22 @@ export default function DashboardPage() {
               New sourcing task
             </button>
           </div>
-          {/* Status filter tabs */}
+          {/* Search + status filter */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[160px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-light pointer-events-none" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Filter by role or JD..."
+                className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-light focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
           <div className="flex flex-wrap gap-1 rounded-lg bg-surface p-1">
             {(["all", "done", "processing", "error"] as const).map((f) => {
-              const count = f === "all" ? searches.length : searches.filter((s) => getSearchStatusBucket(s.status) === f).length;
+              const base = query.trim() ? filteredSearches : searches;
+              const count = f === "all" ? base.length : base.filter((s) => getSearchStatusBucket(s.status) === f).length;
               const labels = { all: "All", done: "Ready", processing: "In Progress", error: "Failed" };
               return (
                 <button
@@ -469,6 +489,7 @@ export default function DashboardPage() {
                 </button>
               );
             })}
+          </div>
           </div>
           {listSearches.map((s) => {
             const stats = candidateCounts[s.id];
