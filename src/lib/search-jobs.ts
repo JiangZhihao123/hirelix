@@ -37,6 +37,8 @@ import {
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
   generateOpenRouterJson,
+  generateOpenRouterText,
+  extractJsonText,
 } from "@/lib/openrouter";
 import {
   ARBITER_SCORE_JSON_SCHEMA,
@@ -4070,6 +4072,52 @@ function buildSerperCandidateRows(
   });
 }
 
+// 使用 LLM 修复 LinkedIn 抓取导致的单词粘连问题（如 "anddesign" → "and design"）。
+// 直接 mutate profiles，失败则静默 fallback 到原始文本。
+async function cleanBrightDataDescriptions(profiles: BrightDataProfile[]): Promise<void> {
+  const toClean: { profileIdx: number; entryIdx: number; text: string }[] = [];
+  for (let pi = 0; pi < profiles.length; pi++) {
+    const exp = profiles[pi].experience ?? [];
+    for (let ei = 0; ei < Math.min(exp.length, 5); ei++) {
+      const desc = exp[ei].description;
+      if (desc && typeof desc === "string" && desc.trim()) {
+        toClean.push({ profileIdx: pi, entryIdx: ei, text: desc.trim() });
+      }
+    }
+  }
+  if (toClean.length === 0) return;
+
+  const prompt = `These are LinkedIn work history descriptions scraped from the web. Line breaks were stripped during scraping, causing some words to be accidentally concatenated without spaces (e.g. "anddesign" → "and design", "iterativedevelopment" → "iterative development", "builtsystems" → "built systems").
+
+Fix ONLY the word concatenation artifacts. Do NOT paraphrase, summarize, or change any actual content. Preserve all special characters exactly as-is.
+
+Return ONLY a JSON object in this exact format: {"cleaned": ["text0", "text1", ...]} with exactly ${toClean.length} items in the same order as the input.
+
+Input texts:
+${toClean.map((x, i) => `[${i}]: ${x.text}`).join("\n\n")}`;
+
+  try {
+    const result = await generateOpenRouterText({
+      model: getAIModel(),
+      prompt,
+      jsonMode: true,
+      maxOutputTokens: 8000,
+      timeoutMs: 30000,
+    });
+    const parsed = JSON.parse(extractJsonText(result.text)) as { cleaned?: unknown[] };
+    if (!Array.isArray(parsed.cleaned) || parsed.cleaned.length !== toClean.length) return;
+    for (let i = 0; i < toClean.length; i++) {
+      const { profileIdx, entryIdx } = toClean[i];
+      const cleaned = parsed.cleaned[i];
+      if (typeof cleaned === "string" && cleaned.trim()) {
+        profiles[profileIdx].experience![entryIdx].description = cleaned;
+      }
+    }
+  } catch {
+    // 静默 fallback，不影响主流程
+  }
+}
+
 function buildBrightDataCandidateRows(
   profiles: BrightDataProfile[],
   selected: ScoredCandidateAssessment[],
@@ -6689,6 +6737,7 @@ async function scoreBrightDataProfiles(
   },
 ): Promise<SearchPipelineResult> {
   const scoringStartMs = Date.now();
+  await cleanBrightDataDescriptions(brightProfiles);
   const runtime = getExecutionRuntime(executionProfile);
   const renderProfileEntries = brightProfiles.map((profile, index) =>
     brightDataProfileToRichText(profile, index),
