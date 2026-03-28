@@ -408,7 +408,12 @@ function formatDisplayCount(value: number) {
   return `${value}`;
 }
 
-// LinkedIn scraper sometimes strips newlines without inserting a space, causing words to
+// LinkedIn scraper strips newlines without inserting spaces, so sentence boundaries appear as
+// "sentence one.Next sentence". This fixes that by adding a space after sentence-ending
+// punctuation followed immediately by a capital letter.
+function fixSentenceSpacing(text: string): string {
+  return text.replace(/([.!?])([A-Z])/g, "$1 $2");
+}
 
 function formatLocationFlexibilityTag(value: string) {
   switch (value) {
@@ -1148,7 +1153,7 @@ function CandidateCard({
                             )}
                           </p>
                           {job.summary && (
-                            <p className="mt-1 text-xs text-muted">{job.summary.split("\uF0D8")[0].trim()}</p>
+                            <p className="mt-1 text-xs text-muted">{fixSentenceSpacing(job.summary.split("\uF0D8")[0].trim())}</p>
                           )}
                         </div>
                       </div>
@@ -1837,7 +1842,7 @@ function CandidateWorkbenchDetail({
                           {job.summary && (
                             <ul className="mt-1 space-y-1">
                               {job.summary.split("\uF0D8").map((s) => s.trim()).filter(Boolean).map((segment, si) => (
-                                <li key={si} className="text-sm leading-6 text-slate-600">{segment}</li>
+                                <li key={si} className="text-sm leading-6 text-slate-600">{fixSentenceSpacing(segment)}</li>
                               ))}
                             </ul>
                           )}
