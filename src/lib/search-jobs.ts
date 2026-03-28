@@ -30,6 +30,10 @@ import {
   applyGithubSignalsToCandidateRow,
   enrichGithubSignalsForCandidate,
 } from "@/lib/github-signals";
+import {
+  buildFallbackOutreachDraft,
+  buildRecruiterOutreachEvidence,
+} from "@/lib/recruiter-outreach";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
   generateOpenRouterJson,
@@ -3013,23 +3017,17 @@ function buildSearchOutreachPrompt(
 ) {
   const firstName = candidate.name.split(/\s+/).filter(Boolean)[0] || "there";
   const roleTitle = normalizeNullableString(parsed.title) || "this role";
-  const skills = candidate.skills.slice(0, 8).join(", ");
-  const matchReasons = candidate.match_reasons.slice(0, 3).join("; ");
   const githubSignals =
     candidate.metadata.github_signals && typeof candidate.metadata.github_signals === "object"
       ? (candidate.metadata.github_signals as Record<string, unknown>)
       : null;
-  const githubHighlight =
-    githubSignals && typeof githubSignals.highlight === "string"
-      ? githubSignals.highlight
-      : null;
-  const githubLanguages =
-    githubSignals && Array.isArray(githubSignals.top_languages)
-      ? (githubSignals.top_languages as string[]).slice(0, 3).join(", ")
-      : "";
-  const githubSection = githubSignals
-    ? `GitHub highlight: ${githubHighlight || "Public GitHub evidence exists"}\nGitHub languages: ${githubLanguages || "Unknown"}`
-    : "GitHub highlight: No public GitHub evidence found. Fall back to LinkedIn specifics only.";
+  const evidence = buildRecruiterOutreachEvidence({
+    candidateName: candidate.name,
+    headline: candidate.headline,
+    skills: candidate.skills,
+    matchReasons: candidate.match_reasons,
+    githubSignals,
+  });
 
   return `Write tailored recruiting outreach drafts for this candidate.
 
@@ -3043,9 +3041,13 @@ Title: ${roleTitle}
 Name: ${candidate.name}
 Headline: ${candidate.headline || "Professional"}
 Location: ${candidate.location || "Unknown"}
-Skills: ${skills || "Unknown"}
-Match reasons: ${matchReasons || "Strong fit for the role"}
-${githubSection}
+Skills: ${candidate.skills.slice(0, 8).join(", ") || "Unknown"}
+Match reasons: ${candidate.match_reasons.slice(0, 3).join("; ") || "Strong fit for the role"}
+Evidence source: ${evidence.evidenceSourceLabel}
+Evidence strength: ${evidence.evidenceStrength}
+Recruiter summary: ${evidence.recruiterSummary}
+Proof to reference: ${evidence.proofToReference}
+Outreach angle: ${evidence.outreachAngle}
 
 ## Task
 Return ONLY valid JSON with this exact shape:
@@ -3057,7 +3059,9 @@ Return ONLY valid JSON with this exact shape:
 
 Rules:
 - Make both drafts specific to this person and this role.
-- If GitHub evidence exists, reference one concrete code/project/PR detail. If not, use one concrete LinkedIn career detail instead.
+- You must reference the proof line above. Do not ignore it.
+- If the evidence source is GitHub, keep the message anchored in that concrete code/project/PR detail.
+- If the evidence source is LinkedIn, use one concrete career detail instead of inventing GitHub proof.
 - Keep the LinkedIn InMail under 80 words and casual.
 - Keep the email body under 120 words and slightly more formal.
 - Both drafts must start with "Hi ${firstName},"
@@ -3113,13 +3117,26 @@ async function generateOutreachDraftsForRows(
           error: error instanceof Error ? error.message : String(error),
         });
         const firstName = row.name.split(/\s+/).filter(Boolean)[0] || "there";
+        const evidence = buildRecruiterOutreachEvidence({
+          candidateName: row.name,
+          headline: row.headline,
+          skills: row.skills,
+          matchReasons: row.match_reasons,
+          githubSignals:
+            row.metadata?.github_signals && typeof row.metadata.github_signals === "object"
+              ? row.metadata.github_signals
+              : null,
+        });
         return {
           ...row,
-          outreach_draft: JSON.stringify({
-            subject: `${normalizeNullableString(parsed.title) || "Opportunity"} opportunity`,
-            linkedin: `Hi ${firstName}, I came across your profile and thought your background looked relevant for our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?`,
-            email: `Hi ${firstName}, I came across your background and thought it looked relevant for our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?\n\nBest regards`,
-          }),
+          outreach_draft: JSON.stringify(
+            buildFallbackOutreachDraft({
+              firstName,
+              roleTitle: normalizeNullableString(parsed.title) || "open role",
+              evidence,
+              hasEmail: true,
+            }),
+          ),
         };
       }
     }),

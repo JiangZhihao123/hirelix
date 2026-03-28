@@ -27,6 +27,7 @@ const STANDARD_RECALL_LIMIT = getConfiguredPositiveInt(
   "SEARCH_BRIGHTDATA_STANDARD_LIMIT",
   50,
 );
+const DEFAULT_SHORTLIST_CAP = 20;
 
 const SEARCH_EXECUTION_PROFILES: Record<
   SearchExecutionProfileName,
@@ -35,7 +36,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
   bright_fast_free: {
     name: "bright_fast_free",
     filterLimit: STANDARD_RECALL_LIMIT,
-    finalResultCap: 25,
+    finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 5,
     minVisibleQualityScore: 55,
     strongNowQualityScore: 72,
@@ -45,7 +46,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
   bright_full_pro: {
     name: "bright_full_pro",
     filterLimit: STANDARD_RECALL_LIMIT,
-    finalResultCap: 25,
+    finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 5,
     minVisibleQualityScore: 0,
     strongNowQualityScore: 72,
@@ -93,7 +94,7 @@ export function getInitialSearchTargets(
 ) {
   const profile = getInitialSearchExecutionProfile(planCode);
   return {
-    candidateCount: isProPlanCode(planCode) ? 25 : profile.finalResultCap,
+    candidateCount: profile.finalResultCap,
     displayCount: profile.finalResultCap,
     highlightCount: Math.min(profile.highlightCount, profile.finalResultCap),
     executionProfile: profile.name,

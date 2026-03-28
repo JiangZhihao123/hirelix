@@ -10,7 +10,7 @@ import { buildParsedRequirementsForLaunch } from "@/lib/jd-parse";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const maxDuration = 30;
-const DEFAULT_OUTREACH_POOL_TARGET = 25;
+const DEFAULT_OUTREACH_POOL_TARGET = 20;
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromApiRequest(req);

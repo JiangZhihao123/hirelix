@@ -178,6 +178,35 @@ function buildEditorState(summary: ParsedSummary): EditableBrief {
   };
 }
 
+function inferTitleFromJdText(jdText: string) {
+  const firstMeaningfulLine = jdText
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length >= 4);
+  if (!firstMeaningfulLine) return "";
+  return firstMeaningfulLine
+    .replace(/^job title[:\s-]*/i, "")
+    .replace(/^role[:\s-]*/i, "")
+    .slice(0, 80)
+    .trim();
+}
+
+function buildFallbackEditorState(jdText: string): EditableBrief {
+  return {
+    title: inferTitleFromJdText(jdText),
+    requiredSkills: [],
+    niceToHaveSkills: [],
+    experienceYearsMin: "",
+    workModel: "unknown",
+    locationScope: "",
+    locationFlexibility: "moderate",
+    relocationAllowed: "unknown",
+    mustHaveConstraints: [],
+    softConstraints: [],
+    constraintReasoning: "AI parse did not finish cleanly, so this brief is in manual mode.",
+  };
+}
+
 function buildParsedOverride(
   base: Record<string, unknown>,
   brief: EditableBrief,
@@ -301,12 +330,14 @@ export default function NewSearchPage() {
     } catch (error) {
       setParseStatus("error");
       setErrorMsg(error instanceof Error ? error.message : "Failed to parse JD");
+      setEditor(buildFallbackEditorState(jdText));
+      setParsedResponse(null);
     }
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!editor || !parsedResponse) {
+    if (!editor) {
       await handleAnalyze();
       return;
     }
@@ -333,7 +364,7 @@ export default function NewSearchPage() {
           jd_text: jdText.trim(),
           candidate_count: FIXED_CANDIDATE_COUNT,
           parsed_requirements_override: buildParsedOverride(
-            parsedResponse.parsed_requirements,
+            parsedResponse?.parsed_requirements || {},
             editor,
           ),
         }),
@@ -367,7 +398,7 @@ export default function NewSearchPage() {
   }
 
   const canAnalyze = jdText.trim().length >= 50 && parseStatus !== "loading";
-  const isReadyToLaunch = Boolean(editor && parsedResponse);
+  const isReadyToLaunch = Boolean(editor);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -463,7 +494,7 @@ export default function NewSearchPage() {
           </div>
         </div>
 
-        {editor && (
+          {editor && (
           <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -474,7 +505,9 @@ export default function NewSearchPage() {
                   Review what Hirelix will search for
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  这里就是发起搜索前的人工校准层。你可以改 title、技能、年限和地域，避免 AI 误解 JD。
+                  {parseStatus === "error"
+                    ? "AI parse 这次没有稳定完成，所以这里已经切到手动 brief 模式。你仍然可以补 title、技能、年限和地域后继续发起搜索。"
+                    : "这里就是发起搜索前的人工校准层。你可以改 title、技能、年限和地域，避免 AI 误解 JD。"}
                 </p>
               </div>
               <div className="rounded-2xl border border-sky-100 bg-white px-4 py-3 text-xs text-slate-600 shadow-sm">
@@ -670,6 +703,12 @@ export default function NewSearchPage() {
             <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Brief ready for launch
+            </p>
+          )}
+          {parseStatus === "error" && editor && (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Manual brief mode is ready
             </p>
           )}
           {(status === "error" || parseStatus === "error") && (

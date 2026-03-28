@@ -267,6 +267,11 @@ type GithubSignals = {
   highlight?: string | null;
   discovery_confidence?: number;
   github_signal_score?: number | null;
+  evidence_strength?: "strong" | "medium" | "weak" | "none";
+  recruiter_summary?: string | null;
+  outreach_angle?: string | null;
+  verification_risks?: string[];
+  discovery_notes?: string[];
   evidence_summary?: string[];
   last_enriched_at?: string | null;
 };
@@ -425,6 +430,38 @@ function formatRelocationTag(value: string) {
   }
 }
 
+function deriveCurrentCompany(candidate: CandidateRow) {
+  const fromWorkHistory = candidate.metadata?.work_history?.find((entry) => entry.company)?.company?.trim();
+  if (fromWorkHistory) return fromWorkHistory;
+  const headline = candidate.headline || "";
+  const match = headline.match(/\bat\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+function deriveCurrentRole(candidate: CandidateRow) {
+  const fromWorkHistory = candidate.metadata?.work_history?.find((entry) => entry.title)?.title?.trim();
+  if (fromWorkHistory) return fromWorkHistory;
+  const headline = candidate.headline || "";
+  return headline.split(" at ")[0]?.trim() || headline || "LinkedIn profile";
+}
+
+function formatEvidenceStrength(value: GithubSignals["evidence_strength"]) {
+  switch (value) {
+    case "strong":
+      return "Strong evidence";
+    case "medium":
+      return "Medium evidence";
+    case "weak":
+      return "Weak evidence";
+    default:
+      return "LinkedIn-only";
+  }
+}
+
+function getEvidenceSourceLabel(signals: GithubSignals | null) {
+  return signals?.status === "verified" ? "GitHub evidence" : "LinkedIn evidence";
+}
+
 function formatElapsedMinutes(ms: number | null) {
   if (!ms || !Number.isFinite(ms) || ms <= 0) return "just now";
   const totalSeconds = Math.max(1, Math.round(ms / 1000));
@@ -537,6 +574,23 @@ function getCandidateGithubSignals(candidate: CandidateRow): GithubSignals | nul
       typeof item.discovery_confidence === "number" ? item.discovery_confidence : undefined,
     github_signal_score:
       typeof item.github_signal_score === "number" ? item.github_signal_score : null,
+    evidence_strength:
+      item.evidence_strength === "strong" ||
+      item.evidence_strength === "medium" ||
+      item.evidence_strength === "weak" ||
+      item.evidence_strength === "none"
+        ? item.evidence_strength
+        : undefined,
+    recruiter_summary:
+      typeof item.recruiter_summary === "string" ? item.recruiter_summary : null,
+    outreach_angle:
+      typeof item.outreach_angle === "string" ? item.outreach_angle : null,
+    verification_risks: Array.isArray(item.verification_risks)
+      ? item.verification_risks.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    discovery_notes: Array.isArray(item.discovery_notes)
+      ? item.discovery_notes.filter((entry): entry is string => typeof entry === "string")
+      : [],
     evidence_summary: Array.isArray(item.evidence_summary)
       ? item.evidence_summary.filter((entry): entry is string => typeof entry === "string")
       : [],
@@ -687,6 +741,10 @@ function CandidateCard({
     candidate.metadata?.shortlist_reason ??
     suitability?.shortlist_reason ??
     null;
+  const githubSignals = getCandidateGithubSignals(candidate);
+  const hasVerifiedGithub = githubSignals?.status === "verified";
+  const currentCompany = deriveCurrentCompany(candidate);
+  const currentRole = deriveCurrentRole(candidate);
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -732,14 +790,13 @@ function CandidateCard({
             )}
             <ActionabilityBadge candidate={candidate} />
             <ScoreBadge score={overallScore} />
-            {!candidate.email && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                </svg>
-                LinkedIn only
-              </span>
-            )}
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+              hasVerifiedGithub
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-blue-50 text-blue-700"
+            }`}>
+              {hasVerifiedGithub ? "GitHub verified" : "LinkedIn only"}
+            </span>
             {candidate.status !== "new" && (
               <span
                 className={`text-xs font-medium capitalize ${statusColors[candidate.status] || ""}`}
@@ -749,8 +806,11 @@ function CandidateCard({
             )}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted">
-            {candidate.headline || (candidate.skills.length > 0 ? candidate.skills.slice(0, 3).join(" · ") : "Professional")}
+            {currentRole || (candidate.skills.length > 0 ? candidate.skills.slice(0, 3).join(" · ") : "Professional")}
           </p>
+          {currentCompany && (
+            <p className="mt-1 truncate text-[11px] text-muted-light">{currentCompany}</p>
+          )}
           {scoringBreakdown && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
@@ -1384,6 +1444,8 @@ function CandidateWorkbenchListItem({
   const progressWidth = Math.max(6, Math.min(100, overallScore));
   const githubSignals = getCandidateGithubSignals(candidate);
   const hasVerifiedGithub = githubSignals?.status === "verified";
+  const currentCompany = deriveCurrentCompany(candidate);
+  const currentRole = deriveCurrentRole(candidate);
 
   return (
     <button
@@ -1407,8 +1469,13 @@ function CandidateWorkbenchListItem({
             )}
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
-            {candidate.headline || "LinkedIn profile"}
+            {currentRole}
           </p>
+          {currentCompany && (
+            <p className="mt-1 text-xs text-slate-500">
+              {currentCompany}
+            </p>
+          )}
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-[linear-gradient(90deg,#0f172a_0%,#38bdf8_100%)]"
@@ -1430,6 +1497,9 @@ function CandidateWorkbenchListItem({
                 LinkedIn-only
               </span>
             )}
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
+              {formatEvidenceStrength(githubSignals?.evidence_strength)}
+            </span>
             {candidate.email && (
               <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
                 Contact ready
@@ -1476,7 +1546,8 @@ function CandidateWorkbenchDetail({
   const displayableEducation = (localCandidate.metadata?.education || []).filter(
     (edu) => edu.school || edu.degree || edu.major,
   );
-  const scoringBreakdown = getCandidateScoringBreakdown(localCandidate);
+  const currentCompany = deriveCurrentCompany(localCandidate);
+  const currentRole = deriveCurrentRole(localCandidate);
   const suitability = localCandidate.metadata?.suitability;
   const githubSignals = getCandidateGithubSignals(localCandidate);
   const outreach = parseOutreach(localCandidate.outreach_draft);
@@ -1508,6 +1579,7 @@ function CandidateWorkbenchDetail({
     ? localCandidate.metadata.risk_flags
     : [];
   const hasVerifiedGithub = githubSignals?.status === "verified";
+  const evidenceSourceLabel = getEvidenceSourceLabel(githubSignals);
   const githubSignalCards = [
     {
       label: "Activity trend",
@@ -1536,6 +1608,21 @@ function CandidateWorkbenchDetail({
         : "Not evaluated yet",
     },
   ];
+  const whyContactSummary =
+    githubSignals?.recruiter_summary ||
+    shortlistReason ||
+    localCandidate.match_reasons[0] ||
+    `${localCandidate.name} looks relevant based on current LinkedIn evidence.`;
+  const proofToReference =
+    githubSignals?.highlight ||
+    githubSignals?.evidence_summary?.[0] ||
+    localCandidate.match_reasons[0] ||
+    "No specific proof line is ready yet.";
+  const verificationChecklist = [
+    ...(githubSignals?.verification_risks || []),
+    ...whyNotHigher,
+    ...riskFlags,
+  ].slice(0, 5);
 
   async function handleEnrich() {
     if (enriching || !session?.access_token) return;
@@ -1594,9 +1681,14 @@ function CandidateWorkbenchDetail({
                 <ScoreBadge score={overallScore} />
               </div>
               <p className="mt-1 text-sm text-slate-600">
-                {localCandidate.headline || "LinkedIn profile"}
+                {currentRole}
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                {currentCompany && (
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                    {currentCompany}
+                  </span>
+                )}
                 {localCandidate.location && (
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
                     {localCandidate.location}
@@ -1627,6 +1719,9 @@ function CandidateWorkbenchDetail({
                     GitHub
                   </a>
                 )}
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                  {formatEvidenceStrength(githubSignals?.evidence_strength)}
+                </span>
               </div>
             </div>
           </div>
@@ -1651,13 +1746,11 @@ function CandidateWorkbenchDetail({
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Why this candidate scored well
+                Why contact this person
               </p>
-              {shortlistReason && (
-                <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                  {shortlistReason}
-                </p>
-              )}
+              <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">
+                {whyContactSummary}
+              </p>
               <ul className="mt-3 space-y-2">
                 {localCandidate.match_reasons.map((reason, index) => (
                   <li key={index} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
@@ -1672,14 +1765,38 @@ function CandidateWorkbenchDetail({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    GitHub signals
+                    Proof you can reference
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    这是产品护城河位置。当前版本在没有公开 GitHub 数据时会明确降级，不会直接报错或误伤评分。
+                    这里优先展示可直接写进触达里的证据，再把原始 GitHub 指标作为次级信息保留。
                   </p>
                 </div>
                 <Github className="h-5 w-5 text-slate-400" />
               </div>
+              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                  {evidenceSourceLabel}
+                </p>
+                <p className="mt-2">{proofToReference}</p>
+              </div>
+              {githubSignals?.outreach_angle && (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Outreach angle
+                  </p>
+                  <p className="mt-2">{githubSignals.outreach_angle}</p>
+                </div>
+              )}
+              {githubSignals?.evidence_summary && githubSignals.evidence_summary.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {githubSignals.evidence_summary.slice(0, 3).map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+                      <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-sky-600" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {githubSignalCards.map((item) => (
                   <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -1690,11 +1807,7 @@ function CandidateWorkbenchDetail({
                   </div>
                 ))}
               </div>
-              {hasVerifiedGithub && githubSignals?.highlight ? (
-                <p className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-                  {githubSignals.highlight}
-                </p>
-              ) : (
+              {!hasVerifiedGithub && (
                 <p className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
                   No public GitHub data found yet. Current ranking stays based on LinkedIn evidence only.
                 </p>
@@ -1756,9 +1869,23 @@ function CandidateWorkbenchDetail({
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Match explanation
+                Personalized outreach
               </p>
               <div className="mt-3 grid gap-3">
+                <div className="rounded-2xl border border-white bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Evidence source
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{evidenceSourceLabel}</p>
+                </div>
+                <div className="rounded-2xl border border-white bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Best opening angle
+                  </p>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {githubSignals?.outreach_angle || "Lead with the strongest concrete proof you can verify quickly."}
+                  </p>
+                </div>
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Overall score
@@ -1767,56 +1894,34 @@ function CandidateWorkbenchDetail({
                     {overallScore} · {formatDimensionLabel(overallScore)}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white bg-white px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Capability / fit / join
-                  </p>
-                  <p className="mt-2 text-sm text-slate-700">
-                    {scoringBreakdown?.capability_score ?? "?"} / {scoringBreakdown?.relevance_score ?? "?"} / {scoringBreakdown?.join_likelihood_score ?? "?"}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white bg-white px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Must-have overlap
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(localCandidate.skills || [])
-                      .filter((skill) =>
-                        requiredSkills.some((required) =>
-                          skill.toLowerCase().includes(required.toLowerCase()) ||
-                          required.toLowerCase().includes(skill.toLowerCase()),
-                        ),
-                      )
-                      .slice(0, 6)
-                      .map((skill) => (
-                        <span
-                          key={skill}
-                          className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    {requiredSkills.length === 0 && (
-                      <p className="text-sm text-slate-500">No required skills set.</p>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
 
-            {(whyNotHigher.length > 0 || riskFlags.length > 0) && (
+            {(verificationChecklist.length > 0 || requiredSkills.length > 0) && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
                   What to verify before outreach
                 </p>
                 <ul className="mt-3 space-y-2">
-                  {[...whyNotHigher, ...riskFlags].slice(0, 5).map((reason) => (
+                  {verificationChecklist.map((reason) => (
                     <li key={reason} className="flex items-start gap-2 text-sm leading-6 text-amber-900">
                       <AlertCircle className="mt-1 h-4 w-4 shrink-0 text-amber-600" />
                       {reason}
                     </li>
                   ))}
                 </ul>
+                {requiredSkills.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {requiredSkills.slice(0, 6).map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] text-amber-800"
+                      >
+                        Check {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1842,6 +1947,9 @@ function CandidateWorkbenchDetail({
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">{localCandidate.name}</h3>
                 <p className="mt-1 text-sm text-slate-600">
                   优先引用候选人的具体代码工作；如果没有公开 GitHub 证据，就退回 LinkedIn 亮点。
+                </p>
+                <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
+                  Current source: {evidenceSourceLabel}
                 </p>
               </div>
               <button

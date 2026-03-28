@@ -9,6 +9,10 @@ import {
 } from "@/lib/openrouter";
 import { buildOutreachDraftJsonSchema } from "@/lib/openrouter-schemas";
 import { enrichGithubSignalsForCandidate } from "@/lib/github-signals";
+import {
+  buildFallbackOutreachDraft,
+  buildRecruiterOutreachEvidence,
+} from "@/lib/recruiter-outreach";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 /**
@@ -178,10 +182,13 @@ export async function POST(
       const email = updates.email || candidate.email;
       const hasEmail = !!email;
       const firstName = (candidate.name || "").split(" ")[0];
-      const githubHighlight =
-        effectiveGithubSignals && typeof effectiveGithubSignals.highlight === "string"
-          ? effectiveGithubSignals.highlight
-          : null;
+      const evidence = buildRecruiterOutreachEvidence({
+        candidateName: candidate.name,
+        headline: candidate.headline,
+        skills: Array.isArray(candidate.skills) ? candidate.skills : [],
+        matchReasons: Array.isArray(candidate.match_reasons) ? candidate.match_reasons : [],
+        githubSignals: effectiveGithubSignals,
+      });
 
       // Build company context section
       let companySection = "";
@@ -211,11 +218,17 @@ Skills: ${(Array.isArray(candidate.skills) ? candidate.skills : []).slice(0, 6).
 Experience: ${candidate.experience_years || "?"} years
 Match reasons: ${(Array.isArray(candidate.match_reasons) ? candidate.match_reasons : []).slice(0, 3).join("; ")}
 Location: ${candidate.location || "N/A"}
-GitHub evidence: ${githubHighlight || "No public GitHub evidence found, so rely on LinkedIn specifics only"}
+Evidence source: ${evidence.evidenceSourceLabel}
+Evidence strength: ${evidence.evidenceStrength}
+Recruiter summary: ${evidence.recruiterSummary}
+Proof to reference: ${evidence.proofToReference}
+Outreach angle: ${evidence.outreachAngle}
 
 ## Guidelines
 - Reference something SPECIFIC from the candidate's background (a skill, company, or achievement)
-- If GitHub evidence exists, use that concrete code/project/PR detail. Otherwise use a concrete LinkedIn detail.
+- You must use the proof line above. Do not invent extra proof.
+- If the evidence source is GitHub, use that concrete code/project/PR detail.
+- If the evidence source is LinkedIn, use a concrete LinkedIn detail instead.
 - If company info is provided, mention 1-2 compelling things about the company (mission, growth, tech stack, culture)
 - Connect the candidate's experience to WHY they'd be excited about this opportunity
 - Sound like a real person, not a template. No buzzwords.
@@ -247,12 +260,14 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
       } catch (err) {
         console.log(`[enrich] Outreach generation failed: ${err instanceof Error ? err.message : String(err)}`);
         // Fallback
-        const firstName = (candidate.name || "").split(" ")[0];
-        updates.outreach_draft = JSON.stringify({
-          subject: `${roleTitle} opportunity`,
-          linkedin: `Hi ${firstName}, I came across your profile and thought your background would be a great fit for our ${roleTitle} role. Would you be open to a quick chat?`,
-          ...(hasEmail ? { email: `Hi ${firstName}, I came across your profile and thought your background would be a great fit for our ${roleTitle} role. Would you be open to a quick chat?\n\nBest regards` } : {}),
-        });
+        updates.outreach_draft = JSON.stringify(
+          buildFallbackOutreachDraft({
+            firstName,
+            roleTitle: String(roleTitle),
+            evidence,
+            hasEmail,
+          }),
+        );
       }
     }
 
