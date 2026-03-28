@@ -257,11 +257,18 @@ type RecallMetadataView = {
 };
 
 type GithubSignals = {
+  status?: "verified" | "missing_public_data" | "ambiguous_match" | "api_error";
+  profile_url?: string | null;
+  profile_login?: string | null;
   activity_trend?: string | null;
   top_languages?: string[];
   merged_pr_count?: number | null;
   commit_message_quality?: string | null;
   highlight?: string | null;
+  discovery_confidence?: number;
+  github_signal_score?: number | null;
+  evidence_summary?: string[];
+  last_enriched_at?: string | null;
 };
 
 const avatarColors = [
@@ -505,6 +512,15 @@ function getCandidateGithubSignals(candidate: CandidateRow): GithubSignals | nul
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   return {
+    status:
+      item.status === "verified" ||
+      item.status === "missing_public_data" ||
+      item.status === "ambiguous_match" ||
+      item.status === "api_error"
+        ? item.status
+        : undefined,
+    profile_url: typeof item.profile_url === "string" ? item.profile_url : null,
+    profile_login: typeof item.profile_login === "string" ? item.profile_login : null,
     activity_trend:
       typeof item.activity_trend === "string" ? item.activity_trend : null,
     top_languages: Array.isArray(item.top_languages)
@@ -517,6 +533,14 @@ function getCandidateGithubSignals(candidate: CandidateRow): GithubSignals | nul
         ? item.commit_message_quality
         : null,
     highlight: typeof item.highlight === "string" ? item.highlight : null,
+    discovery_confidence:
+      typeof item.discovery_confidence === "number" ? item.discovery_confidence : undefined,
+    github_signal_score:
+      typeof item.github_signal_score === "number" ? item.github_signal_score : null,
+    evidence_summary: Array.isArray(item.evidence_summary)
+      ? item.evidence_summary.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    last_enriched_at: typeof item.last_enriched_at === "string" ? item.last_enriched_at : null,
   };
 }
 
@@ -1359,6 +1383,7 @@ function CandidateWorkbenchListItem({
   const overallScore = getCandidateOverallScore(candidate);
   const progressWidth = Math.max(6, Math.min(100, overallScore));
   const githubSignals = getCandidateGithubSignals(candidate);
+  const hasVerifiedGithub = githubSignals?.status === "verified";
 
   return (
     <button
@@ -1396,13 +1421,13 @@ function CandidateWorkbenchListItem({
                 {candidate.location}
               </span>
             )}
-            {githubSignals ? (
+            {hasVerifiedGithub ? (
               <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
                 GitHub verified
               </span>
             ) : (
               <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-                GitHub pending
+                LinkedIn-only
               </span>
             )}
             {candidate.email && (
@@ -1482,28 +1507,33 @@ function CandidateWorkbenchDetail({
   const riskFlags = Array.isArray(localCandidate.metadata?.risk_flags)
     ? localCandidate.metadata.risk_flags
     : [];
+  const hasVerifiedGithub = githubSignals?.status === "verified";
   const githubSignalCards = [
     {
       label: "Activity trend",
-      value: githubSignals?.activity_trend || "No public GitHub data",
+      value: hasVerifiedGithub
+        ? githubSignals?.activity_trend || "No activity trend computed"
+        : "No public GitHub data",
     },
     {
       label: "Real stack",
       value:
-        githubSignals?.top_languages && githubSignals.top_languages.length > 0
+        hasVerifiedGithub && githubSignals?.top_languages && githubSignals.top_languages.length > 0
           ? githubSignals.top_languages.slice(0, 3).join(", ")
           : "Only LinkedIn evidence available",
     },
     {
       label: "Merged PRs",
       value:
-        typeof githubSignals?.merged_pr_count === "number"
+        hasVerifiedGithub && typeof githubSignals?.merged_pr_count === "number"
           ? `${githubSignals.merged_pr_count}`
           : "Not available",
     },
     {
       label: "Commit hygiene",
-      value: githubSignals?.commit_message_quality || "Not evaluated yet",
+      value: hasVerifiedGithub
+        ? githubSignals?.commit_message_quality || "Not evaluated yet"
+        : "Not evaluated yet",
     },
   ];
 
@@ -1524,7 +1554,9 @@ function CandidateWorkbenchDetail({
       setLocalCandidate((prev) => ({
         ...prev,
         email: data.email || prev.email,
+        github_url: data.github_url || prev.github_url,
         outreach_draft: data.outreach_draft || prev.outreach_draft,
+        metadata: data.metadata || prev.metadata,
       }));
       await refreshBilling();
     } catch (error) {
@@ -1658,7 +1690,7 @@ function CandidateWorkbenchDetail({
                   </div>
                 ))}
               </div>
-              {githubSignals?.highlight ? (
+              {hasVerifiedGithub && githubSignals?.highlight ? (
                 <p className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
                   {githubSignals.highlight}
                 </p>

@@ -26,6 +26,10 @@ import {
   type BrightDataSnapshotMetadata,
   type BrightDataProfile,
 } from "@/lib/brightdata";
+import {
+  applyGithubSignalsToCandidateRow,
+  enrichGithubSignalsForCandidate,
+} from "@/lib/github-signals";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
   generateOpenRouterJson,
@@ -4166,6 +4170,41 @@ function mergeCandidateRows(
   return merged;
 }
 
+async function enrichRowsWithGithubSignals(
+  parsed: Record<string, unknown>,
+  rows: CandidateRowInput[],
+) {
+  if (rows.length === 0) return rows;
+
+  const requiredSkills = sanitizeHiringBrief(parsed.hiring_brief, parsed).role_core.required_skills;
+  const githubLimit = Math.min(
+    Number(parsed.display_count) || rows.length,
+    rows.length,
+    20,
+  );
+  const prefix = rows.slice(0, githubLimit);
+  const suffix = rows.slice(githubLimit);
+
+  const enrichedPrefix = await runWithConcurrency(prefix, 3, async (row) => {
+    const enrichment = await enrichGithubSignalsForCandidate({
+      name: row.name,
+      headline: row.headline,
+      location: row.location,
+      skills: row.skills,
+      githubUrl: row.github_url,
+      metadata: row.metadata,
+      requiredSkills,
+    });
+
+    return applyGithubSignalsToCandidateRow({
+      candidate: row,
+      enrichment,
+    });
+  });
+
+  return [...enrichedPrefix, ...suffix].sort((left, right) => right.match_score - left.match_score);
+}
+
 function hasJudgeConflict(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
@@ -6736,11 +6775,12 @@ async function scoreBrightDataProfiles(
     "main",
   );
 
-  const finalRows = tagPoolRows(
+  const taggedRows = tagPoolRows(
     deepRows,
     [],
     deepRows.length,
   );
+  const finalRows = await enrichRowsWithGithubSignals(parsed, taggedRows);
   const topQualityScore = deepAssessments.reduce(
     (best, assessment) => Math.max(best, assessment.suitability.quality_score),
     0,

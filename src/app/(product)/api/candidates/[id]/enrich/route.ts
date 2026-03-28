@@ -8,6 +8,7 @@ import {
   getOpenRouterApiKey,
 } from "@/lib/openrouter";
 import { buildOutreachDraftJsonSchema } from "@/lib/openrouter-schemas";
+import { enrichGithubSignalsForCandidate } from "@/lib/github-signals";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 /**
@@ -83,6 +84,61 @@ export async function POST(
     }
 
     const updates: Record<string, unknown> = {};
+    const parsedRequirements =
+      candidate.search?.parsed_requirements && typeof candidate.search.parsed_requirements === "object"
+        ? (candidate.search.parsed_requirements as Record<string, unknown>)
+        : {};
+    const hiringBrief =
+      parsedRequirements.hiring_brief && typeof parsedRequirements.hiring_brief === "object"
+        ? (parsedRequirements.hiring_brief as Record<string, unknown>)
+        : {};
+    const roleCore =
+      hiringBrief.role_core && typeof hiringBrief.role_core === "object"
+        ? (hiringBrief.role_core as Record<string, unknown>)
+        : {};
+    const requiredSkills = Array.isArray(roleCore.required_skills)
+      ? roleCore.required_skills.filter((value): value is string => typeof value === "string")
+      : Array.isArray(parsedRequirements.required_skills)
+        ? parsedRequirements.required_skills.filter((value): value is string => typeof value === "string")
+        : [];
+    const currentMetadata =
+      candidate.metadata && typeof candidate.metadata === "object"
+        ? (candidate.metadata as Record<string, unknown>)
+        : {};
+
+    let effectiveMetadata = { ...currentMetadata };
+    let effectiveGithubSignals =
+      effectiveMetadata.github_signals && typeof effectiveMetadata.github_signals === "object"
+        ? (effectiveMetadata.github_signals as Record<string, unknown>)
+        : null;
+    let effectiveGithubUrl = typeof candidate.github_url === "string" ? candidate.github_url : null;
+
+    if (!effectiveGithubSignals || effectiveGithubSignals.status !== "verified") {
+      const githubEnrichment = await enrichGithubSignalsForCandidate({
+        name: candidate.name,
+        headline: candidate.headline,
+        location: candidate.location,
+        skills: Array.isArray(candidate.skills) ? candidate.skills : [],
+        githubUrl: effectiveGithubUrl,
+        metadata: effectiveMetadata,
+        requiredSkills,
+      });
+      effectiveGithubSignals =
+        githubEnrichment.githubSignals && typeof githubEnrichment.githubSignals === "object"
+          ? (githubEnrichment.githubSignals as unknown as Record<string, unknown>)
+          : null;
+      effectiveGithubUrl = githubEnrichment.githubUrl || effectiveGithubUrl;
+      effectiveMetadata = {
+        ...effectiveMetadata,
+        github_signals: githubEnrichment.githubSignals,
+        github_signal_score: githubEnrichment.githubSignalScore,
+        github_discovery_confidence: githubEnrichment.githubDiscoveryConfidence,
+      };
+      updates.metadata = effectiveMetadata;
+      if (effectiveGithubUrl && effectiveGithubUrl !== candidate.github_url) {
+        updates.github_url = effectiveGithubUrl;
+      }
+    }
 
     // ── Step 1: Find email (if not already found) ──
     if (needsContactLookup && (apolloApiKey || hunterApiKey)) {
@@ -114,18 +170,17 @@ export async function POST(
     // ── Step 2: Generate outreach draft (if not already generated) ──
     if (needsDraftBackfill && openRouterConfigured) {
       const model = getDefaultOpenRouterModel();
-      const parsed = candidate.search?.parsed_requirements || {};
+      const parsed = parsedRequirements;
       const roleTitle = parsed.title || "this role";
+      const parsedRequiredSkills = Array.isArray(parsed.required_skills)
+        ? parsed.required_skills.filter((value): value is string => typeof value === "string")
+        : requiredSkills;
       const email = updates.email || candidate.email;
       const hasEmail = !!email;
       const firstName = (candidate.name || "").split(" ")[0];
-      const githubSignals =
-        candidate.metadata?.github_signals && typeof candidate.metadata.github_signals === "object"
-          ? (candidate.metadata.github_signals as Record<string, unknown>)
-          : null;
       const githubHighlight =
-        githubSignals && typeof githubSignals.highlight === "string"
-          ? githubSignals.highlight
+        effectiveGithubSignals && typeof effectiveGithubSignals.highlight === "string"
+          ? effectiveGithubSignals.highlight
           : null;
 
       // Build company context section
@@ -147,7 +202,7 @@ export async function POST(
 
 ## Job Description
 Role: ${roleTitle}${parsed.company ? ` at ${parsed.company}` : ""}
-${parsed.required_skills ? `Key skills: ${parsed.required_skills.join(", ")}` : ""}
+${parsedRequiredSkills.length > 0 ? `Key skills: ${parsedRequiredSkills.join(", ")}` : ""}
 ${companySection}
 ## Candidate
 Name: ${candidate.name}
@@ -226,6 +281,8 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
     return NextResponse.json({
       ok: true,
       email: updates.email || candidate.email || null,
+      github_url: updates.github_url || effectiveGithubUrl || candidate.github_url || null,
+      metadata: updates.metadata || effectiveMetadata,
       outreach_draft: updates.outreach_draft || candidate.outreach_draft || null,
     });
   } catch (err) {
