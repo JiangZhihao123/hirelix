@@ -78,6 +78,7 @@ const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
 const CONTRIBUTION_REPO_LIMIT = 8;
 const RECENT_COMMIT_SAMPLE_LIMIT = 25;
 const GITHUB_MATCH_CONFIDENCE_THRESHOLD = 0.58;
+const SERPER_API_BASE = "https://google.serper.dev";
 
 function normalizeText(value: string | null | undefined) {
   return (value || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -174,6 +175,27 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
   }
 
   return payload.data as T;
+}
+
+async function serperGithubSearch(apiKey: string, query: string) {
+  const response = await fetch(`${SERPER_API_BASE}/search`, {
+    method: "POST",
+    headers: {
+      "X-API-KEY": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ q: query, num: 5, page: 1 }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Serper search failed (${response.status}): ${text.slice(0, 300)}`);
+  }
+
+  const payload = (await response.json()) as {
+    organic?: Array<{ link?: string | null }>;
+  };
+  return payload.organic || [];
 }
 
 function extractDiscoveryTexts(input: GithubCandidateInput) {
@@ -362,12 +384,22 @@ async function discoverGithubIdentity(input: GithubCandidateInput): Promise<Gith
   const best = ranked[0];
   const second = ranked[1];
   if (!best || best.score < GITHUB_MATCH_CONFIDENCE_THRESHOLD || (second && best.score - second.score < 0.12)) {
+    const serperFallback = await discoverGithubIdentityViaSerper(input).catch(() => null);
+    if (serperFallback?.username && serperFallback.url) {
+      return serperFallback;
+    }
     return {
       username: null,
       url: null,
       confidence: best?.score || 0,
       source: "none",
-      notes: best ? best.notes : ["no_match"],
+      notes: compactStringArray(
+        [
+          ...(best ? best.notes : ["no_match"]),
+          getSerperApiKey() ? null : "external_search_unconfigured",
+        ],
+        6,
+      ),
     };
   }
 
@@ -378,6 +410,77 @@ async function discoverGithubIdentity(input: GithubCandidateInput): Promise<Gith
     source: "github_search",
     notes: best.notes,
   };
+}
+
+async function discoverGithubIdentityViaSerper(input: GithubCandidateInput): Promise<GithubDiscoveryResult | null> {
+  const apiKey = getSerperApiKey();
+  if (!apiKey) return null;
+
+  const query = compactStringArray(
+    [
+      `site:github.com ${input.name} ${input.headline || ""}`.trim(),
+      `site:github.com ${input.name} ${compactStringArray(input.skills || [], 2).join(" ")}`.trim(),
+    ],
+    2,
+  )[0];
+  if (!query) return null;
+
+  const results = await serperGithubSearch(apiKey, query);
+  const candidates = compactStringArray(
+    results
+      .map((result) => {
+        if (!result.link) return null;
+        const match = result.link.match(/github\.com\/([A-Za-z0-9-]+)(?:\/)?$/i);
+        return match?.[1] || null;
+      })
+      .filter((value): value is string => Boolean(value)),
+    5,
+  );
+
+  const scored: Array<{ login: string; url: string; score: number; notes: string[] }> = [];
+  for (const login of candidates) {
+    try {
+      const profile = await githubFetch(`/users/${encodeURIComponent(login)}`) as {
+        login?: string;
+        html_url?: string;
+        name?: string | null;
+        company?: string | null;
+        bio?: string | null;
+        location?: string | null;
+      };
+      const match = computeUserMatchScore({
+        candidateName: input.name,
+        headline: input.headline,
+        location: input.location,
+        requiredSkills: input.requiredSkills || input.skills,
+        profile,
+      });
+      scored.push({
+        login: profile.login || login,
+        url: profile.html_url || `https://github.com/${login}`,
+        score: match.score + 0.08,
+        notes: [...match.notes, "serper_fallback"],
+      });
+    } catch {
+      // Ignore and continue.
+    }
+  }
+
+  const best = scored.sort((left, right) => right.score - left.score)[0];
+  if (!best || best.score < 0.5) return null;
+
+  return {
+    username: best.login,
+    url: best.url,
+    confidence: clamp(round(best.score, 3), 0, 1),
+    source: "github_search",
+    notes: best.notes,
+  };
+}
+
+function getSerperApiKey() {
+  const key = process.env.SERPER_API_KEY || "";
+  return key.trim() || null;
 }
 
 export function classifyActivityTrendFromWeeks(days: ContributionDay[]) {
