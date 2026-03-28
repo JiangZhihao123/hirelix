@@ -302,7 +302,7 @@ export default function NewSearchPage() {
   async function handleAnalyze() {
     if (jdText.trim().length < 50) {
       setParseStatus("error");
-      setErrorMsg("请先粘贴完整 JD，至少 50 个字符。");
+      setErrorMsg("Please paste a full job description (at least 50 characters) before continuing.");
       return;
     }
 
@@ -404,13 +404,13 @@ export default function NewSearchPage() {
     <div className="mx-auto max-w-6xl">
       <div className="rounded-[32px] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.30),_transparent_28%),linear-gradient(180deg,#fdfefe_0%,#f5f8fc_100%)] p-6 shadow-[0_24px_60px_rgba(15,23,42,0.06)] sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-          Hirelix MVP workflow
+          New sourcing run
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
           Paste the JD, confirm the brief, then start sourcing.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-          这条主线现在只做一件事：帮技术猎头把 JD 变成可编辑的搜索 brief，再进入候选人列表、GitHub 信号验证和个性化触达。
+          Hirelix extracts must-have skills, experience requirements, and location constraints from your JD, then builds a ranked shortlist with outreach drafts ready to send.
         </p>
         <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-600">
           {[
@@ -433,7 +433,7 @@ export default function NewSearchPage() {
             Original JD
           </div>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            先贴完整 JD。Hirelix 会提取 must-have、加分项、年限和地域约束，给你一个可以手动调整的技术猎头 brief。
+            Paste the full JD. Hirelix will extract must-have skills, nice-to-haves, experience level, and location constraints into an editable brief you can adjust before launching.
           </p>
           <textarea
             value={jdText}
@@ -506,8 +506,8 @@ export default function NewSearchPage() {
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                   {parseStatus === "error"
-                    ? "AI parse 这次没有稳定完成，所以这里已经切到手动 brief 模式。你仍然可以补 title、技能、年限和地域后继续发起搜索。"
-                    : "这里就是发起搜索前的人工校准层。你可以改 title、技能、年限和地域，避免 AI 误解 JD。"}
+                    ? "The AI parse didn't complete cleanly, so the brief is in manual mode. You can still fill in the title, skills, experience, and location before launching."
+                    : "Review and adjust the brief before launching. Correct the title, skills, experience, or location if the AI misread anything in the JD."}
                 </p>
               </div>
               <div className="rounded-2xl border border-sky-100 bg-white px-4 py-3 text-xs text-slate-600 shadow-sm">
@@ -603,7 +603,7 @@ export default function NewSearchPage() {
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <TagEditor
                 label="Must-have skills"
-                description="这些技能会直接影响候选人排序和 GitHub 信号解读。"
+                description="These skills drive candidate ranking and GitHub signal interpretation."
                 tags={editor.requiredSkills}
                 onChange={(tags) => updateEditor("requiredSkills", tags)}
                 accent="sky"
@@ -611,7 +611,7 @@ export default function NewSearchPage() {
               />
               <TagEditor
                 label="Nice-to-have skills"
-                description="加分项用于解释性排序，不会像 must-have 一样强约束。"
+                description="Nice-to-haves inform explanatory ranking but don't hard-filter candidates."
                 tags={editor.niceToHaveSkills}
                 onChange={(tags) => updateEditor("niceToHaveSkills", tags)}
                 accent="amber"
@@ -622,7 +622,7 @@ export default function NewSearchPage() {
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <TagEditor
                 label="Must-have constraints"
-                description="例如 location、visa、团队阶段偏好等。"
+                description="Hard gates like location, visa eligibility, or team stage preference."
                 tags={editor.mustHaveConstraints}
                 onChange={(tags) => updateEditor("mustHaveConstraints", tags)}
                 accent="slate"
@@ -630,7 +630,7 @@ export default function NewSearchPage() {
               />
               <TagEditor
                 label="Soft constraints"
-                description="会显示在结果解释里，帮助你理解为什么有人分数略低。"
+                description="Shown in result explanations to help you understand why a candidate scored lower."
                 tags={editor.softConstraints}
                 onChange={(tags) => updateEditor("softConstraints", tags)}
                 accent="slate"
@@ -697,7 +697,7 @@ export default function NewSearchPage() {
             </button>
           </div>
           <p className="mt-4 text-xs leading-6 text-slate-500">
-            搜索启动后，结果页会聚焦在技术猎头工作台：左侧候选人列表，右侧画像和 GitHub 信号，右下角生成触达邮件。
+            Once launched, results open in the sourcing workbench: candidate list on the left, profile and GitHub signals on the right, outreach drafts at the bottom.
           </p>
           {parseStatus === "ready" && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">

@@ -1146,7 +1146,7 @@ function CandidateCard({
                             )}
                           </p>
                           {job.summary && (
-                            <p className="mt-1 text-xs text-muted">{job.summary}</p>
+                            <p className="mt-1 text-xs text-muted">{job.summary.split("\uF0D8")[0].trim()}</p>
                           )}
                         </div>
                       </div>
@@ -1768,7 +1768,7 @@ function CandidateWorkbenchDetail({
                     Proof you can reference
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    这里优先展示可直接写进触达里的证据，再把原始 GitHub 指标作为次级信息保留。
+                    Specific work you can reference in outreach, with raw GitHub metrics as supporting context.
                   </p>
                 </div>
                 <Github className="h-5 w-5 text-slate-400" />
@@ -1833,7 +1833,11 @@ function CandidateWorkbenchDetail({
                             {[job.company, job.start_date].filter(Boolean).join(" · ")}
                           </p>
                           {job.summary && (
-                            <p className="mt-1 text-sm leading-6 text-slate-600">{job.summary}</p>
+                            <ul className="mt-1 space-y-1">
+                              {job.summary.split("\uF0D8").map((s) => s.trim()).filter(Boolean).map((segment, si) => (
+                                <li key={si} className="text-sm leading-6 text-slate-600">{segment}</li>
+                              ))}
+                            </ul>
                           )}
                         </div>
                       </div>
@@ -1946,7 +1950,7 @@ function CandidateWorkbenchDetail({
                 </p>
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">{localCandidate.name}</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  优先引用候选人的具体代码工作；如果没有公开 GitHub 证据，就退回 LinkedIn 亮点。
+                  Leads with the candidate's specific code contributions; falls back to LinkedIn highlights when no public GitHub evidence is available.
                 </p>
                 <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
                   Current source: {evidenceSourceLabel}
@@ -3261,7 +3265,7 @@ export default function SearchResultPage() {
                         Top {visibleCandidates.length} matches
                       </h3>
                       <p className="mt-1 text-sm text-slate-600">
-                        点左侧切换右边画像。右侧会展示履历、GitHub 信号和触达入口。
+                        Select a candidate on the left to view their profile, GitHub signals, and outreach options on the right.
                       </p>
                     </div>
                     <div className="space-y-3">
