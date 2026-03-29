@@ -3318,6 +3318,14 @@ export function kickSearchJobRunner(
   baseUrl: string,
   options?: { searchId?: string | null },
 ) {
+  const kickEnabled = process.env.SEARCH_JOB_RUNNER_KICK_ENABLED;
+  if (kickEnabled != null) {
+    const normalized = kickEnabled.trim().toLowerCase();
+    if (!["1", "true", "yes", "on"].includes(normalized)) return;
+  } else if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) return;
 
