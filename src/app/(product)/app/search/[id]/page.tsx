@@ -1479,7 +1479,9 @@ function CandidateCard({
 function TaskTimelinePanel({
   search,
 }: {
-  search: Pick<SearchRow, "status" | "pipeline_step" | "parse_completed_at" | "partial_ready_at">;
+  search: Pick<SearchRow, "status" | "pipeline_step" | "parse_completed_at" | "partial_ready_at"> & {
+    standard_recall_completed_at?: string | null;
+  };
 }) {
   const steps = getSearchTaskTimelineItems(search);
   return (
@@ -2728,7 +2730,7 @@ export default function SearchResultPage() {
   const searchStartedAt =
     reqs && typeof reqs.search_started_at === "string"
       ? reqs.search_started_at
-      : search.created_at;
+      : search.queued_at || search.created_at;
   const standardRecallCompletedAt =
     recallMetadata?.standard_recall_completed_at ??
     recallMetadata?.completed_at ??
@@ -2820,7 +2822,10 @@ export default function SearchResultPage() {
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
   const selectedTierLabel = hasTieredPool ? formatTierLabel(candidateTier) : "Candidate pool";
-  const taskStage = getSearchTaskStage(search);
+  const taskStage = getSearchTaskStage({
+    ...search,
+    standard_recall_completed_at: standardRecallCompletedAt,
+  });
   const taskRisks = inferSearchTaskRisks({
     requiredSkills,
     workModel,
@@ -2976,10 +2981,10 @@ export default function SearchResultPage() {
               </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-                  Started {formatStartedAgo(search.created_at)} ago
+                  Started {formatStartedAgo(searchStartedAt)} ago
                 </span>
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-                  {getSearchTaskEtaCopy(search.status)}
+                  {getSearchTaskEtaCopy(search.status, taskStage)}
                 </span>
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
                   We&apos;ll email you when the shortlist is ready
@@ -3007,7 +3012,12 @@ export default function SearchResultPage() {
                 </Link>
               </div>
             </div>
-            <TaskTimelinePanel search={search} />
+            <TaskTimelinePanel
+              search={{
+                ...search,
+                standard_recall_completed_at: standardRecallCompletedAt,
+              }}
+            />
           </div>
           <div className="mb-6 grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

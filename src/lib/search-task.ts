@@ -20,6 +20,7 @@ type SearchTaskLike = {
   pipeline_step?: string | null;
   parse_completed_at?: string | null;
   partial_ready_at?: string | null;
+  standard_recall_completed_at?: string | null;
 };
 
 type SearchRiskInput = {
@@ -51,6 +52,9 @@ export function getSearchTaskStage(search: SearchTaskLike): SearchTaskStage {
 
   const pipelineStep = search.pipeline_step || search.status || "queued";
   if (pipelineStep === "screening") return "reviewing_profiles";
+  if (pipelineStep === "searching" && search.standard_recall_completed_at) {
+    return "reviewing_profiles";
+  }
   if (pipelineStep === "searching") return "provider_recall";
   if (search.parse_completed_at) return "brief_ready";
   return "accepted";
@@ -73,7 +77,14 @@ export function getSearchTaskStageLabel(stage: SearchTaskStage) {
   }
 }
 
-export function getSearchTaskEtaCopy(status: string | null | undefined) {
+export function getSearchTaskEtaCopy(
+  status: string | null | undefined,
+  stage?: SearchTaskStage,
+) {
+  if (stage === "reviewing_profiles") {
+    return "Reviewing profiles now";
+  }
+
   if (status === "deep_scoring") {
     return "Shortlist ready now; background refinement may take 1-3 more minutes";
   }
