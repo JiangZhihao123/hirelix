@@ -683,6 +683,9 @@ type SearchDisplayStats = {
   prescreen_blocked_count?: number;
   contact_unlock_candidates?: number;
   recall_profile_count?: number;
+  priority_outreach_count?: number;
+  worth_reviewing_count?: number;
+  ruled_out_count?: number;
   strong_now_count?: number;
   consider_next_count?: number;
   do_not_show_count?: number;
@@ -700,6 +703,7 @@ type SearchDisplayStats = {
   time_to_first_shortlist_candidate_ms?: number;
   time_to_reviewable_ms?: number;
   time_to_done_ms?: number;
+  excluded_reason_counts?: ExcludedReasonCount[];
 };
 
 type SearchPipelineResult = {
@@ -707,6 +711,21 @@ type SearchPipelineResult = {
   displayStats: SearchDisplayStats;
   warningMessage?: string | null;
   assessments?: ScoredCandidateAssessment[];
+};
+
+type CandidateDisplayTier = "priority_outreach" | "worth_reviewing";
+
+type ExcludedReason =
+  | "stack_gap"
+  | "title_or_seniority_mismatch"
+  | "location_or_work_model"
+  | "evidence_too_weak"
+  | "response_risk"
+  | "multiple_risks";
+
+type ExcludedReasonCount = {
+  reason: ExcludedReason;
+  count: number;
 };
 
 type SerperBuildResult = {
@@ -1680,10 +1699,36 @@ function buildSearchDisplayStats(
     0,
     Math.round(
       overrides.deep_review_completed_count ??
-        overrides.deep_review_count ??
+      overrides.deep_review_count ??
         deepReviewRequestedCount,
     ),
   );
+  const excludedReasonCounts = Array.isArray(overrides.excluded_reason_counts)
+    ? overrides.excluded_reason_counts
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const record = item as Record<string, unknown>;
+        const reason = normalizeEnumValue(
+          record.reason,
+          [
+            "stack_gap",
+            "title_or_seniority_mismatch",
+            "location_or_work_model",
+            "evidence_too_weak",
+            "response_risk",
+            "multiple_risks",
+          ] as const,
+          "multiple_risks",
+        );
+        const count = Math.max(
+          0,
+          Math.round(typeof record.count === "number" ? record.count : 0),
+        );
+        return count > 0 ? { reason, count } : null;
+      })
+      .filter((item): item is ExcludedReasonCount => Boolean(item))
+      .sort((left, right) => right.count - left.count)
+    : [];
   return {
     retrieval_count: Math.max(0, Math.round(overrides.retrieval_count ?? 0)),
     deep_review_count: deepReviewCompletedCount,
@@ -1779,6 +1824,15 @@ function buildSearchDisplayStats(
     ...(typeof overrides.recall_profile_count === "number"
       ? { recall_profile_count: Math.max(0, Math.round(overrides.recall_profile_count)) }
       : {}),
+    ...(typeof overrides.priority_outreach_count === "number"
+      ? { priority_outreach_count: Math.max(0, Math.round(overrides.priority_outreach_count)) }
+      : {}),
+    ...(typeof overrides.worth_reviewing_count === "number"
+      ? { worth_reviewing_count: Math.max(0, Math.round(overrides.worth_reviewing_count)) }
+      : {}),
+    ...(typeof overrides.ruled_out_count === "number"
+      ? { ruled_out_count: Math.max(0, Math.round(overrides.ruled_out_count)) }
+      : {}),
     ...(typeof overrides.strong_now_count === "number"
       ? { strong_now_count: Math.max(0, Math.round(overrides.strong_now_count)) }
       : {}),
@@ -1830,6 +1884,9 @@ function buildSearchDisplayStats(
       : {}),
     ...(typeof overrides.time_to_done_ms === "number" && Number.isFinite(overrides.time_to_done_ms)
       ? { time_to_done_ms: Math.max(0, Math.round(overrides.time_to_done_ms)) }
+      : {}),
+    ...(excludedReasonCounts.length > 0
+      ? { excluded_reason_counts: excludedReasonCounts }
       : {}),
   };
 }
@@ -2959,6 +3016,110 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
     breakdown.capability_score >= SHORTLIST_CAPABILITY_MIN &&
     breakdown.join_likelihood_score >= SHORTLIST_JOIN_LIKELIHOOD_MIN
   );
+}
+
+function getDisplayTierForAssessment(
+  assessment: ScoredCandidateAssessment,
+): CandidateDisplayTier | null {
+  switch (assessment.suitability.bucket) {
+    case "strong_now":
+      return "priority_outreach";
+    case "consider_next":
+      return "worth_reviewing";
+    default:
+      return null;
+  }
+}
+
+function deriveExcludedReason(assessment: ScoredCandidateAssessment): ExcludedReason {
+  const { suitability } = assessment;
+  const verdicts = suitability.constraint_verdicts;
+  const normalizedRiskText = [
+    suitability.primary_risk,
+    ...suitability.blocking_constraints,
+    ...suitability.constraint_risks,
+    ...suitability.risk_flags,
+    ...suitability.why_not_higher,
+  ]
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+
+  if (
+    verdicts.location_fit === "non_local" ||
+    verdicts.work_model_fit === "no"
+  ) {
+    return "location_or_work_model";
+  }
+
+  if (
+    verdicts.must_have_coverage === "weak" ||
+    normalizedRiskText.some((value) =>
+      [
+        "must-have",
+        "must have",
+        "tech stack",
+        "stack gap",
+        "backend-heavy",
+        "backend focus",
+        ".net",
+        "c#",
+        "mongodb",
+        "kubernetes",
+        "asp.net",
+      ].some((term) => value.includes(term))
+    )
+  ) {
+    return "stack_gap";
+  }
+
+  if (
+    normalizedRiskText.some((value) =>
+      [
+        "title",
+        "seniority",
+        "full-stack",
+        "frontend",
+        "manager",
+        "leadership",
+        "function",
+        "scope mismatch",
+      ].some((term) => value.includes(term))
+    )
+  ) {
+    return "title_or_seniority_mismatch";
+  }
+
+  if (
+    suitability.evidence_quality === "low" &&
+    suitability.why_this_candidate.length === 0
+  ) {
+    return "evidence_too_weak";
+  }
+
+  if (suitability.scoring_breakdown.join_likelihood_score < 55) {
+    return "response_risk";
+  }
+
+  if (suitability.evidence_quality === "low") {
+    return "evidence_too_weak";
+  }
+
+  return "multiple_risks";
+}
+
+function buildExcludedReasonCounts(
+  assessments: ScoredCandidateAssessment[],
+): ExcludedReasonCount[] {
+  const counts = new Map<ExcludedReason, number>();
+
+  for (const assessment of assessments) {
+    const reason = deriveExcludedReason(assessment);
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((left, right) => right.count - left.count);
 }
 
 function trimBrightDataProfileForMetadata(profile: BrightDataProfile) {
@@ -4092,6 +4253,7 @@ function buildBrightDataCandidateRows(
     if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= profiles.length) continue;
 
     const profile = profiles[rawIndex];
+    const displayTier = getDisplayTierForAssessment(item);
     const derivedCompanyHeadline = profile.current_company
       ? `${profile.current_company.title || ""} at ${profile.current_company.name || ""}`.trim() || null
       : null;
@@ -4131,6 +4293,7 @@ function buildBrightDataCandidateRows(
         shortlist_decision: item.suitability.shortlist_decision,
         shortlist_reason: item.suitability.shortlist_reason,
         bucket: item.suitability.bucket,
+        ...(displayTier ? { display_tier: displayTier } : {}),
         primary_risk: item.suitability.primary_risk,
         first_contact_confidence: item.suitability.first_contact_confidence,
         subscription_trigger_score: item.suitability.subscription_trigger_score,
@@ -6716,7 +6879,8 @@ async function scoreBrightDataProfiles(
     {
       onCandidateScored: async (assessment, completedCount) => {
         const completedTotal = progressOffset + completedCount;
-        if (!shouldDisplayCandidate(assessment)) {
+        const displayTier = getDisplayTierForAssessment(assessment);
+        if (!displayTier) {
           if (completedTotal % 5 === 0) {
             await updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
           }
@@ -6731,7 +6895,10 @@ async function scoreBrightDataProfiles(
             await options?.onFirstVisibleCandidate?.({
               visible_candidate_count: 1,
               shortlist_count: 1,
-              shortlist_yes_count: 1,
+              priority_outreach_count: displayTier === "priority_outreach" ? 1 : 0,
+              worth_reviewing_count: displayTier === "worth_reviewing" ? 1 : 0,
+              shortlist_yes_count: shouldDisplayCandidate(assessment) ? 1 : 0,
+              shortlist_no_count: shouldDisplayCandidate(assessment) ? 0 : 1,
             });
           }
         }
@@ -6786,7 +6953,16 @@ async function scoreBrightDataProfiles(
     (assessment) => assessment.suitability.advance_recommendation === "advance",
   ).length;
   const deepSelection = selectShortlistedAssessments(deepAssessments);
-  const deepSelected = deepSelection.selected;
+  const priorityAssessments = deepAssessments
+    .filter((assessment) => assessment.suitability.bucket === "strong_now")
+    .sort(sortCandidateAssessments);
+  const worthReviewingAssessments = deepAssessments
+    .filter((assessment) => assessment.suitability.bucket === "consider_next")
+    .sort(sortCandidateAssessments);
+  const ruledOutAssessments = deepAssessments
+    .filter((assessment) => assessment.suitability.bucket === "do_not_show");
+  const visibleAssessments = [...priorityAssessments, ...worthReviewingAssessments];
+  const excludedReasonCounts = buildExcludedReasonCounts(ruledOutAssessments);
   logSearchEvent("search_shortlist_decisions", {
     search_id: context.searchId,
     shortlist_yes_count: deepSelection.shortlistYesCount,
@@ -6796,8 +6972,8 @@ async function scoreBrightDataProfiles(
   });
   const deepRows = buildBrightDataCandidateRows(
     brightProfiles,
-    deepSelected,
-    deepSelected.length,
+    visibleAssessments,
+    visibleAssessments.length,
     "main",
   );
 
@@ -6818,7 +6994,7 @@ async function scoreBrightDataProfiles(
 
   let warningMessage: string | null = null;
   if (finalRows.length === 0) {
-    warningMessage = "No candidates were ranked into the final result set.";
+    warningMessage = "No candidates were ranked into the visible result set.";
   } else if (fullDetailIncomplete) {
     warningMessage = "Some deep reviews timed out, and only completed deep scores were ranked.";
   }
@@ -6900,23 +7076,27 @@ async function scoreBrightDataProfiles(
       pre_gate_blocked_count: 0,
       prescreen_blocked_count: 0,
       contact_unlock_candidates: contactUnlockCandidates,
-      strong_now_count: 0,
-      consider_next_count: 0,
-      do_not_show_count: 0,
       shortlist_yes_count: shortlistYesCount,
       shortlist_no_count: shortlistNoCount,
+      priority_outreach_count: priorityAssessments.length,
+      worth_reviewing_count: worthReviewingAssessments.length,
+      ruled_out_count: ruledOutAssessments.length,
       clear_location_fit_count: clearLocationFitCount,
       must_have_strong_count: mustHaveStrongCount,
       first_contact_confidence_count: firstContactConfidenceCount,
       deep_qualified_rate:
         deepAssessments.length > 0
-          ? deepSelected.length / deepAssessments.length
+          ? visibleAssessments.length / deepAssessments.length
           : 0,
       hard_blocked_count: hardBlockedCount,
       soft_blocked_count: softBlockedCount,
       advanceable_count: advanceableCount,
       top_quality_score: topQualityScore,
       top50_quality_cutoff: top50QualityCutoff,
+      strong_now_count: priorityAssessments.length,
+      consider_next_count: worthReviewingAssessments.length,
+      do_not_show_count: ruledOutAssessments.length,
+      excluded_reason_counts: excludedReasonCounts,
     }),
   };
 }
@@ -7114,6 +7294,9 @@ async function completeSearch(
     prescreen_blocked_count: finalDisplayStats.prescreen_blocked_count ?? null,
     contact_unlock_candidates: finalDisplayStats.contact_unlock_candidates ?? draftedRows.length,
     recall_profile_count: finalDisplayStats.recall_profile_count ?? null,
+    priority_outreach_count: finalDisplayStats.priority_outreach_count ?? null,
+    worth_reviewing_count: finalDisplayStats.worth_reviewing_count ?? null,
+    ruled_out_count: finalDisplayStats.ruled_out_count ?? null,
     strong_now_count: finalDisplayStats.strong_now_count ?? null,
     consider_next_count: finalDisplayStats.consider_next_count ?? null,
     do_not_show_count: finalDisplayStats.do_not_show_count ?? null,

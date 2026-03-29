@@ -152,6 +152,7 @@ type CandidateRow = {
     analysis_stage?: string;
     preliminary?: boolean;
     pool_type?: "top_pick" | "outreach_pool" | "main" | "extended";
+    display_tier?: "priority_outreach" | "worth_reviewing";
     quality_score?: number;
     overall_score?: number;
     advance_score?: number;
@@ -184,6 +185,16 @@ type CandidateRow = {
 
 type CandidateSortMode = "overall" | "capability" | "relevance" | "join_likelihood";
 
+type CandidateDisplayTier = "priority_outreach" | "worth_reviewing";
+
+type ExcludedReason =
+  | "stack_gap"
+  | "title_or_seniority_mismatch"
+  | "location_or_work_model"
+  | "evidence_too_weak"
+  | "response_risk"
+  | "multiple_risks";
+
 type SearchDisplayStats = {
   retrieval_count?: number;
   deep_review_count?: number;
@@ -215,6 +226,9 @@ type SearchDisplayStats = {
   prescreen_blocked_count?: number;
   contact_unlock_candidates?: number;
   recall_profile_count?: number;
+  priority_outreach_count?: number;
+  worth_reviewing_count?: number;
+  ruled_out_count?: number;
   strong_now_count?: number;
   consider_next_count?: number;
   do_not_show_count?: number;
@@ -245,6 +259,10 @@ type SearchDisplayStats = {
     llm_prescreen_pass_count: number;
     llm_prescreen_pass_rate: number;
     stop_reason: string | null;
+  }>;
+  excluded_reason_counts?: Array<{
+    reason: ExcludedReason;
+    count: number;
   }>;
 };
 
@@ -406,6 +424,70 @@ function positiveInt(value: unknown) {
 function formatDisplayCount(value: number) {
   if (value >= 100) return `${Math.floor(value / 50) * 50}+`;
   return `${value}`;
+}
+
+function getCandidateDisplayTier(candidate: CandidateRow): CandidateDisplayTier | null {
+  const explicitTier = candidate.metadata?.display_tier;
+  if (explicitTier === "priority_outreach" || explicitTier === "worth_reviewing") {
+    return explicitTier;
+  }
+  const bucket = candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket;
+  if (bucket === "strong_now") return "priority_outreach";
+  if (bucket === "consider_next") return "worth_reviewing";
+  if ((candidate.metadata?.shortlist_decision ?? candidate.metadata?.suitability?.shortlist_decision) === "yes") {
+    return "priority_outreach";
+  }
+  return null;
+}
+
+function formatTierLabel(value: CandidateDisplayTier) {
+  return value === "priority_outreach" ? "Priority Outreach" : "Worth Reviewing";
+}
+
+function formatExcludedReasonLabel(reason: ExcludedReason) {
+  switch (reason) {
+    case "stack_gap":
+      return "Stack or must-have gap";
+    case "title_or_seniority_mismatch":
+      return "Title or seniority mismatch";
+    case "location_or_work_model":
+      return "Location or work model mismatch";
+    case "evidence_too_weak":
+      return "Evidence too weak";
+    case "response_risk":
+      return "Response risk";
+    case "multiple_risks":
+    default:
+      return "Multiple risks";
+  }
+}
+
+function buildWidenPoolSuggestions(
+  excludedReasonCounts: Array<{ reason: ExcludedReason; count: number }>,
+) {
+  const uniqueReasons = excludedReasonCounts
+    .filter((item) => item.count > 0)
+    .map((item) => item.reason);
+  const suggestions: string[] = [];
+
+  for (const reason of uniqueReasons) {
+    if (reason === "location_or_work_model") {
+      suggestions.push("Loosen location or remote constraints to recover candidates who fit the role but missed the current work-model filter.");
+    } else if (reason === "stack_gap") {
+      suggestions.push("Downgrade one or two must-have technologies to preferred so strong adjacent profiles can move into review.");
+    } else if (reason === "title_or_seniority_mismatch") {
+      suggestions.push("Widen the accepted title family or seniority band so adjacent profiles can enter the review pool.");
+    } else if (reason === "evidence_too_weak") {
+      suggestions.push("Accept a broader evidence mix instead of relying so heavily on public GitHub proof.");
+    } else if (reason === "response_risk") {
+      suggestions.push("Relax tenure or company-stage assumptions if you want more candidates who may still be reachable.");
+    } else if (reason === "multiple_risks") {
+      suggestions.push("Review the JD for combined constraints that may be stacking together and squeezing the pool too hard.");
+    }
+    if (suggestions.length >= 3) break;
+  }
+
+  return suggestions;
 }
 
 // LinkedIn scraper strips newlines without inserting spaces, so sentence boundaries appear as
@@ -1055,7 +1137,7 @@ function CandidateCard({
                 <div>
                   <div className="mb-2 flex items-center gap-2">
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
-                      Why this candidate made the shortlist
+                      Why contact this person
                     </p>
                   {candidate.metadata?.preliminary && (
                     <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
@@ -1105,7 +1187,7 @@ function CandidateCard({
               {Array.isArray(candidate.metadata?.why_not_higher) && candidate.metadata.why_not_higher.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    What to verify before outreach
+                    Why not higher
                   </p>
                   <ul className="space-y-1.5">
                     {candidate.metadata.why_not_higher.map((reason, i) => (
@@ -1627,7 +1709,6 @@ function CandidateWorkbenchDetail({
     "No specific proof line is ready yet.";
   const verificationChecklist = [
     ...(githubSignals?.verification_risks || []),
-    ...whyNotHigher,
     ...riskFlags,
   ].slice(0, 5);
 
@@ -1821,6 +1902,22 @@ function CandidateWorkbenchDetail({
               )}
             </div>
 
+            {whyNotHigher.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Why not higher
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {whyNotHigher.map((reason) => (
+                    <li key={reason} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+                      <AlertCircle className="mt-1 h-4 w-4 shrink-0 text-amber-600" />
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 LinkedIn resume
@@ -1957,7 +2054,7 @@ function CandidateWorkbenchDetail({
                 </p>
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">{localCandidate.name.replace(/[.,;]+$/, "").trim()}</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Leads with the candidate's specific code contributions; falls back to LinkedIn highlights when no public GitHub evidence is available.
+                  Leads with the candidate&apos;s specific code contributions; falls back to LinkedIn highlights when no public GitHub evidence is available.
                 </p>
                 <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
                   Current source: {evidenceSourceLabel}
@@ -2100,6 +2197,7 @@ export default function SearchResultPage() {
   const [retrying, setRetrying] = useState(false);
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
+  const [candidateTier, setCandidateTier] = useState<CandidateDisplayTier>("priority_outreach");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
   const [, setUpgradeError] = useState<string | null>(null);
   const hasTrackedTaskViewRef = useRef(false);
@@ -2118,6 +2216,21 @@ export default function SearchResultPage() {
         ? "signin"
         : "workspace",
   });
+
+  useEffect(() => {
+    const hasPriority = candidates.some(
+      (candidate) => getCandidateDisplayTier(candidate) === "priority_outreach",
+    );
+    const hasWorthReviewing = candidates.some(
+      (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
+    );
+
+    if (candidateTier === "priority_outreach" && !hasPriority && hasWorthReviewing) {
+      setCandidateTier("worth_reviewing");
+    } else if (candidateTier === "worth_reviewing" && !hasWorthReviewing && hasPriority) {
+      setCandidateTier("priority_outreach");
+    }
+  }, [candidateTier, candidates]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -2578,9 +2691,25 @@ export default function SearchResultPage() {
       getCandidateOverallScore(left);
     return rightPrimary - leftPrimary || rightSecondary - leftSecondary;
   });
-  const visibleCandidates = showOnlyWithEmail
-    ? allCandidates.filter((candidate) => candidate.email)
+  const rawDisplayStats =
+    reqs && typeof reqs.display_stats === "object" && reqs.display_stats
+      ? (reqs.display_stats as SearchDisplayStats)
+      : null;
+  const priorityCandidates = allCandidates.filter(
+    (candidate) => getCandidateDisplayTier(candidate) === "priority_outreach",
+  );
+  const worthReviewingCandidates = allCandidates.filter(
+    (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
+  );
+  const hasTieredPool = priorityCandidates.length > 0 || worthReviewingCandidates.length > 0;
+  const tierBaseCandidates = hasTieredPool
+    ? candidateTier === "worth_reviewing"
+      ? worthReviewingCandidates
+      : priorityCandidates
     : allCandidates;
+  const visibleCandidates = showOnlyWithEmail
+    ? tierBaseCandidates.filter((candidate) => candidate.email)
+    : tierBaseCandidates;
   const activeCandidate =
     visibleCandidates.find((candidate) => candidate.id === activeCandidateId) ||
     visibleCandidates[0] ||
@@ -2592,10 +2721,6 @@ export default function SearchResultPage() {
           visibleCandidates.length,
       )
     : 0;
-  const rawDisplayStats =
-    reqs && typeof reqs.display_stats === "object" && reqs.display_stats
-      ? (reqs.display_stats as SearchDisplayStats)
-      : null;
   const recallMetadata =
     reqs && typeof reqs.recall_metadata === "object" && reqs.recall_metadata
       ? (reqs.recall_metadata as RecallMetadataView)
@@ -2617,19 +2742,10 @@ export default function SearchResultPage() {
     (briefReadyAt && searchStartedAt
       ? Math.max(0, Date.parse(briefReadyAt) - Date.parse(searchStartedAt))
       : null);
-  const firstShortlistCandidateAt =
-    rawDisplayStats?.first_shortlist_candidate_at ??
-    search.partial_ready_at ??
-    null;
   const timeToStandardRecallReadyMs =
     rawDisplayStats?.time_to_standard_recall_ready_ms ??
     (standardRecallCompletedAt && searchStartedAt
       ? Math.max(0, Date.parse(standardRecallCompletedAt) - Date.parse(searchStartedAt))
-      : null);
-  const timeToFirstShortlistCandidateMs =
-    rawDisplayStats?.time_to_first_shortlist_candidate_ms ??
-    (firstShortlistCandidateAt && searchStartedAt
-      ? Math.max(0, Date.parse(firstShortlistCandidateAt) - Date.parse(searchStartedAt))
       : null);
   const providerDelayMs =
     !standardRecallCompletedAt && searchStartedAt
@@ -2651,8 +2767,21 @@ export default function SearchResultPage() {
     Math.max(allCandidates.length, 0);
   const shortlistReadyCount =
     positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
+  const priorityOutreachCount =
+    positiveInt(rawDisplayStats?.priority_outreach_count) ??
+    positiveInt(rawDisplayStats?.strong_now_count) ??
+    priorityCandidates.length;
+  const worthReviewingCount =
+    positiveInt(rawDisplayStats?.worth_reviewing_count) ??
+    positiveInt(rawDisplayStats?.consider_next_count) ??
+    worthReviewingCandidates.length;
+  const ruledOutCount =
+    positiveInt(rawDisplayStats?.ruled_out_count) ??
+    positiveInt(rawDisplayStats?.do_not_show_count) ??
+    0;
   const visibleCandidateCount =
-    positiveInt(rawDisplayStats?.visible_candidate_count) ?? shortlistReadyCount;
+    positiveInt(rawDisplayStats?.visible_candidate_count) ??
+    (hasTieredPool ? priorityOutreachCount + worthReviewingCount : shortlistReadyCount);
   const qualityFloorApplied =
     rawDisplayStats?.quality_floor_applied === true;
   const contactUnlockCandidates =
@@ -2670,10 +2799,13 @@ export default function SearchResultPage() {
     const coverage = candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage;
     return coverage === "strong";
   }).length;
-  const shortlistYesCount =
-    positiveInt(rawDisplayStats?.shortlist_yes_count) ?? allCandidates.length;
   const shortlistNoCount =
     positiveInt(rawDisplayStats?.shortlist_no_count) ?? 0;
+  const excludedReasonCounts =
+    Array.isArray(rawDisplayStats?.excluded_reason_counts)
+      ? rawDisplayStats.excluded_reason_counts
+      : [];
+  const widenPoolSuggestions = buildWidenPoolSuggestions(excludedReasonCounts);
   const recallProfileCount =
     positiveInt(rawDisplayStats?.recall_profile_count) ?? brightProfilesReturned ?? retrievalCount;
   const clearLocationFitDisplayCount =
@@ -2687,6 +2819,7 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
+  const selectedTierLabel = hasTieredPool ? formatTierLabel(candidateTier) : "Candidate pool";
   const taskStage = getSearchTaskStage(search);
   const taskRisks = inferSearchTaskRisks({
     requiredSkills,
@@ -2701,7 +2834,6 @@ export default function SearchResultPage() {
     parsedRequirements: search.parsed_requirements,
     fallback: "New shortlist",
   });
-  const firstVisibleLabel = formatElapsedMinutes(timeToFirstShortlistCandidateMs);
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation(search.error_message);
@@ -2985,19 +3117,19 @@ export default function SearchResultPage() {
               </p>
               <h2 className="mt-2 text-xl font-semibold text-slate-950">
                 {isReadyWithWarning
-                  ? "Your shortlist is usable"
+                  ? "Your candidate pool is usable"
                   : isImprovingInBackground
-                    ? "Your shortlist is ready to review"
-                    : "Your shortlist is ready"}
+                    ? "Your candidate pool is ready to review"
+                    : "Your candidate pool is ready"}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 {search.warning_message && !search.warning_message.includes("highlighted candidates")
                   ? search.warning_message
                   : qualityFloorApplied
-                    ? "Hirelix searched a Bright LinkedIn pool and kept the candidates that already look credible to review now."
+                    ? "Hirelix searched a broader recall pool and kept the candidates that already look credible enough to work now."
                     : isImprovingInBackground
                       ? "Hirelix is still refining the remaining scores in the background."
-                      : `Hirelix is already showing recruiter-approved candidates. The shortlist started growing after ${firstVisibleLabel}, and the results are sorted by recruiter score.`}
+                      : `Hirelix turned this search into a workable pool: ${priorityOutreachCount} priority outreach, ${worthReviewingCount} worth reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
               </p>
               <p className="mt-3 max-w-2xl text-xs text-slate-500">
                 Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
@@ -3010,13 +3142,13 @@ export default function SearchResultPage() {
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
                   {candidates.length > 0
-                    ? `Found ${candidates.length} shortlist candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
-                    : "The shortlist is still growing as more recalled profiles are reviewed..."}
+                    ? `Found ${candidates.length} visible candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
+                    : "The visible candidate pool is still growing as more recalled profiles are reviewed..."}
                 </div>
               )}
               {(!search.warning_message || search.warning_message.includes("highlighted candidates")) && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
-                  Start with the highest-scoring candidates, then unlock contact details and outreach when you&apos;re ready to reach out.
+                  Start with Priority Outreach, then move into Worth Reviewing if you need a broader pool before reaching out.
                 </p>
               )}
             </div>
@@ -3038,21 +3170,23 @@ export default function SearchResultPage() {
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Candidates shown</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Visible candidate pool</p>
                 <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {visibleCandidateCount === shortlistYesCount
-                    ? "Top-ranked after AI shortlist pass"
-                    : `${shortlistYesCount} shortlisted so far`}
+                  {priorityOutreachCount > 0 || worthReviewingCount > 0
+                    ? `${priorityOutreachCount} priority outreach · ${worthReviewingCount} worth reviewing`
+                    : `${visibleCandidateCount} ready to review`}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Shortlist decisions</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{shortlistYesCount} yes / {shortlistNoCount} no</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why the pool narrowed</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(ruledOutCount)} ruled out</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {shortlistNoCount > 0
-                    ? `${shortlistNoCount} screened out in the final pass`
-                    : `${shortlistYesCount} moved into the shortlist`}
+                  {excludedReasonCounts[0]
+                    ? `${formatExcludedReasonLabel(excludedReasonCounts[0].reason)} was the biggest filter`
+                    : shortlistNoCount > 0
+                      ? `${shortlistNoCount} screened out in the final pass`
+                      : "This pool stayed tight because the final filters remained strict"}
                 </p>
               </div>
             </div>
@@ -3120,7 +3254,7 @@ export default function SearchResultPage() {
         <div className="space-y-3">
           <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-4 py-4 text-sm text-slate-600 shadow-sm">
             {allCandidates.length === 0 ? (
-              "No candidates have passed the recruiter shortlist yet. Refine the role or widen the search to unlock more viable targets."
+              "No candidates have entered the visible pool yet. Refine the role or widen the search to unlock more viable targets."
             ) : isImprovingInBackground ? (
               <>
                 <span className="font-semibold text-slate-950">Your sourcing workbench is live.</span>
@@ -3129,14 +3263,14 @@ export default function SearchResultPage() {
             ) : isReadyWithWarning ? (
               <>
                 <span className="font-semibold text-slate-950">
-                  {shortlistReadyCount} candidate{shortlistReadyCount === 1 ? "" : "s"} ready to review
+                  {visibleCandidateCount} visible candidate{visibleCandidateCount === 1 ? "" : "s"} ready to review
                 </span>
-                {" "}— open any profile in the workbench to inspect the evidence
+                {" "}— open any profile in the workbench to inspect the evidence and decide who to contact first.
               </>
             ) : (
               <>
                 <span className="font-semibold text-slate-950">This recruiter workbench is ready.</span>
-                {" "}Left side shows the ranked candidate list. Right side focuses on LinkedIn resume, GitHub signals, and outreach.
+                {" "}You now have {priorityOutreachCount} priority outreach candidate{priorityOutreachCount === 1 ? "" : "s"} and {worthReviewingCount} worth reviewing to work through.
               </>
             )}
           </div>
@@ -3149,10 +3283,11 @@ export default function SearchResultPage() {
                 Unlock outreach for the strongest matches.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Upgrade to unlock contact details, CSV export, and outreach when you&apos;re ready to work this shortlist.
+                Upgrade to unlock contact details, CSV export, and outreach when you&apos;re ready to work this candidate pool.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistYesCount} shortlisted</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} priority outreach</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{worthReviewingCount} worth reviewing</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistNoCount} screened out</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
@@ -3178,7 +3313,9 @@ export default function SearchResultPage() {
               <p className="text-sm text-muted">
                 {showOnlyWithEmail
                   ? `${visibleCandidates.length} candidates with contact info`
-                  : `${allCandidates.length} candidates ready to review`}
+                  : hasTieredPool
+                    ? `${visibleCandidates.length} in ${selectedTierLabel.toLowerCase()}`
+                    : `${allCandidates.length} candidates ready to review`}
               </p>
               <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
                 {visibleCandidates.length > 0 && (
@@ -3212,7 +3349,31 @@ export default function SearchResultPage() {
               </div>
             </div>
             {isReviewable && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {hasTieredPool && (
+                  <div className="inline-flex rounded-full border border-border bg-background p-1">
+                    <button
+                      onClick={() => setCandidateTier("priority_outreach")}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        candidateTier === "priority_outreach"
+                          ? "bg-slate-950 text-white"
+                          : "text-muted hover:text-foreground"
+                      }`}
+                    >
+                      Priority Outreach ({priorityOutreachCount})
+                    </button>
+                    <button
+                      onClick={() => setCandidateTier("worth_reviewing")}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        candidateTier === "worth_reviewing"
+                          ? "bg-slate-950 text-white"
+                          : "text-muted hover:text-foreground"
+                      }`}
+                    >
+                      Worth Reviewing ({worthReviewingCount})
+                    </button>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 text-xs text-muted">
                   <span>Sort by</span>
                   <select
@@ -3262,6 +3423,54 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
+          {(excludedReasonCounts.length > 0 || widenPoolSuggestions.length > 0) && (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Why more candidates didn&apos;t make the shortlist
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  {ruledOutCount > 0
+                    ? `${ruledOutCount} deeply reviewed profiles were ruled out from the visible pool.`
+                    : "No ruled-out breakdown is available for this search yet."}
+                </p>
+                <div className="mt-4 space-y-3">
+                  {excludedReasonCounts.map((item) => (
+                    <div key={item.reason}>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-medium text-slate-900">{formatExcludedReasonLabel(item.reason)}</span>
+                        <span className="text-slate-500">{item.count}</span>
+                      </div>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-slate-800"
+                          style={{
+                            width: `${ruledOutCount > 0 ? Math.max(8, Math.round((item.count / ruledOutCount) * 100)) : 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  How to widen this pool
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  If you need more reviewable candidates, these are the first levers worth trying.
+                </p>
+                <ul className="mt-4 space-y-2">
+                  {widenPoolSuggestions.map((suggestion) => (
+                    <li key={suggestion} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+                      <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+                      {suggestion}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
           {visibleCandidates.length > 0 && (
             <>
               {activeCandidate && (
@@ -3272,7 +3481,7 @@ export default function SearchResultPage() {
                         Candidate list
                       </p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                        Top {visibleCandidates.length} matches
+                        {selectedTierLabel} ({visibleCandidates.length})
                       </h3>
                       <p className="mt-1 text-sm text-slate-600">
                         Select a candidate on the left to view their profile, GitHub signals, and outreach options on the right.
@@ -3308,10 +3517,10 @@ export default function SearchResultPage() {
               <div className="space-y-3 xl:hidden">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                    Recruiter-ranked shortlist
+                    {selectedTierLabel}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    Mobile keeps the card view. Desktop now uses the split workbench layout.
+                    Mobile keeps the card view. Desktop uses the split workbench layout.
                   </p>
                 </div>
                 {visibleCandidates.map((c, idx) => (
@@ -3343,10 +3552,21 @@ export default function SearchResultPage() {
 
       {isReviewable && allCandidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <p className="text-muted">No candidates passed the shortlist decision yet.</p>
+          <p className="text-muted">No candidates entered the visible pool yet.</p>
           <p className="mt-2 max-w-md text-center text-sm text-muted">
-            Hirelix did not find enough candidates the recruiter model felt confident adding to this shortlist. Tighten the JD, relax location requirements, or widen the target profile to unlock a larger funnel.
+            {excludedReasonCounts[0]
+              ? `Hirelix deeply reviewed ${formatDisplayCount(deepReviewCompletedCount)} profiles, but ${formatExcludedReasonLabel(excludedReasonCounts[0].reason).toLowerCase()} was the biggest blocker.`
+              : "Hirelix did not find enough candidates the recruiter model felt confident adding to this visible pool yet."}
           </p>
+          {widenPoolSuggestions.length > 0 && (
+            <div className="mt-4 max-w-2xl space-y-2 px-4">
+              {widenPoolSuggestions.map((suggestion) => (
+                <p key={suggestion} className="text-center text-sm text-muted">
+                  {suggestion}
+                </p>
+              ))}
+            </div>
+          )}
           <Link
             href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
             className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
