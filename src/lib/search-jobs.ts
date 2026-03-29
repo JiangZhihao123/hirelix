@@ -3874,17 +3874,30 @@ async function withTimeout<T>(
   label: string,
 ): Promise<T> {
   const { signal, clear } = createTimeoutSignal(timeoutMs, label);
+  let didTimeout = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      didTimeout = true;
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
   try {
-    const result = await fn(signal);
+    const result = await Promise.race([
+      fn(signal),
+      timeoutPromise,
+    ]);
     return result;
   } catch (error) {
-    if (signal.aborted) {
+    if (didTimeout || signal.aborted) {
       throw signal.reason instanceof Error
         ? signal.reason
         : new Error(`${label} timed out after ${timeoutMs}ms`);
     }
     throw error;
   } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
     clear();
   }
 }
