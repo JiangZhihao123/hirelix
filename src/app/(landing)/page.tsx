@@ -861,9 +861,6 @@ export default function Home() {
             <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               What happens after the click
             </h2>
-            <p className="mt-3 text-base text-slate-600">
-              High-intent traffic should understand the next step immediately.
-            </p>
           </div>
 
           <div className="mt-14 grid gap-6 sm:grid-cols-3">
@@ -902,9 +899,6 @@ export default function Home() {
             <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               Why teams switch from manual sourcing
             </h2>
-            <p className="mt-3 text-base text-slate-600">
-              The page should sell time-to-outcome, not a feature list.
-            </p>
           </div>
 
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
@@ -998,8 +992,10 @@ export default function Home() {
                 <div className="mt-8 space-y-3 text-sm text-slate-700">
                   <p>{plan.searchesPerMonth} {plan.searchesPerMonth === 1 ? "search" : "searches"} each month</p>
                   <p>{plan.candidateLimitPerSearch} candidates per search</p>
-                  <p>{plan.enrichesPerMonth} {plan.enrichesPerMonth === 1 ? "email + draft enrich" : "email + draft enriches"}</p>
-                  <p>{plan.exportEnabled ? "CSV export included" : "CSV export on paid plans"}</p>
+                  {plan.enrichesPerMonth > 0 && (
+                    <p>{plan.enrichesPerMonth} {plan.enrichesPerMonth === 1 ? "email + draft enrich" : "email + draft enriches"}</p>
+                  )}
+                  {plan.exportEnabled && <p>CSV export included</p>}
                 </div>
 
                 {user ? (
@@ -1065,9 +1061,6 @@ export default function Home() {
             <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               Objections answered up front
             </h2>
-            <p className="mt-3 text-base text-slate-600">
-              High-intent visitors should not have to dig for the obvious questions.
-            </p>
           </div>
 
           <div className="mt-14 grid gap-4 sm:grid-cols-2">
@@ -1109,9 +1102,6 @@ export default function Home() {
             <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               Billing questions answered up front
             </h2>
-            <p className="mt-3 text-base text-slate-600">
-              Paddle reviewers and serious buyers should be able to find the payment terms without digging.
-            </p>
           </div>
 
           <div className="mt-12 grid gap-4 md:grid-cols-2">

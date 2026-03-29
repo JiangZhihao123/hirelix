@@ -3083,6 +3083,9 @@ export default function SearchResultPage() {
               <p className="mt-2 text-xs text-red-600/90">
                 {errorPresentation.hint}
               </p>
+              <p className="mt-2 text-xs text-red-500/70">
+                Retrying won&apos;t use your monthly search quota.
+              </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {search.error_message?.includes("Settings") && (

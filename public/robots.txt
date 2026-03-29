@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /$
+Allow: /terms
+Allow: /privacy
+Allow: /refund-policy
+Allow: /contact
+Disallow: /app/
+Disallow: /api/
+
+Sitemap: https://hirelix.online/sitemap.xml
