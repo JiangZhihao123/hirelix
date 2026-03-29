@@ -12,6 +12,44 @@ function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
   console.log(`[billing:${eventName}] ${JSON.stringify(payload)}`);
 }
 
+function describeError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  if (error && typeof error === "object") {
+    const typedError = error as Record<string, unknown>;
+    return {
+      code: typedError.code,
+      message: typedError.message,
+      details: typedError.details,
+      hint: typedError.hint,
+      status: typedError.status,
+      error: typedError.error,
+    };
+  }
+
+  return {
+    message: String(error),
+  };
+}
+
+function throwIfSupabaseError(
+  error: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null } | null,
+  context: string,
+) {
+  if (!error) return;
+
+  throw {
+    context,
+    ...error,
+  };
+}
+
 function verifySignature(rawBody: string, signature: string | null) {
   const secret = process.env.PADDLE_WEBHOOK_SECRET;
   if (!secret || !signature) return false;
@@ -82,20 +120,22 @@ async function resolveUserId(data: Record<string, unknown>) {
         : null;
 
   if (subscriptionId) {
-    const { data: bySubscription } = await supabaseAdmin
+    const { data: bySubscription, error } = await supabaseAdmin
       .from("hirelix_user_settings")
       .select("user_id")
       .eq("paddle_subscription_id", subscriptionId)
       .maybeSingle();
+    throwIfSupabaseError(error, "resolve_user_by_subscription");
     if (bySubscription?.user_id) return bySubscription.user_id as string;
   }
 
   if (customerId) {
-    const { data: byCustomer } = await supabaseAdmin
+    const { data: byCustomer, error } = await supabaseAdmin
       .from("hirelix_user_settings")
       .select("user_id")
       .eq("paddle_customer_id", customerId)
       .maybeSingle();
+    throwIfSupabaseError(error, "resolve_user_by_customer");
     if (byCustomer?.user_id) return byCustomer.user_id as string;
   }
 
@@ -155,7 +195,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
         ? data.subscription_id
         : null;
 
-  await supabaseAdmin.from("hirelix_user_settings").upsert(
+  const { error } = await supabaseAdmin.from("hirelix_user_settings").upsert(
     {
       user_id: userId,
       subscription_plan: planCode,
@@ -170,6 +210,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
     },
     { onConflict: "user_id" },
   );
+  throwIfSupabaseError(error, "update_subscription");
 }
 
 async function applyAddOns(data: Record<string, unknown>, userId: string) {
@@ -184,13 +225,14 @@ async function applyAddOns(data: Record<string, unknown>, userId: string) {
 
   if (!addSearchCredits && !addEnrichCredits) return;
 
-  const { data: settings } = await supabaseAdmin
+  const { data: settings, error: settingsError } = await supabaseAdmin
     .from("hirelix_user_settings")
     .select("extra_search_credits, extra_enrich_credits")
     .eq("user_id", userId)
     .maybeSingle();
+  throwIfSupabaseError(settingsError, "load_add_on_credits");
 
-  await supabaseAdmin.from("hirelix_user_settings").upsert(
+  const { error } = await supabaseAdmin.from("hirelix_user_settings").upsert(
     {
       user_id: userId,
       extra_search_credits: (settings?.extra_search_credits ?? 0) + addSearchCredits,
@@ -199,6 +241,7 @@ async function applyAddOns(data: Record<string, unknown>, userId: string) {
     },
     { onConflict: "user_id" },
   );
+  throwIfSupabaseError(error, "apply_add_on_credits");
 }
 
 export async function POST(req: NextRequest) {
@@ -262,10 +305,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    logBillingEvent("webhook_failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    console.error("[paddle-webhook] Error:", err);
+    const errorDetails = describeError(err);
+    logBillingEvent("webhook_failed", errorDetails);
+    console.error("[paddle-webhook] Error:", errorDetails);
     return NextResponse.json({ error: "Webhook handling failed" }, { status: 500 });
   }
 }
