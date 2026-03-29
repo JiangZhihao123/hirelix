@@ -27,13 +27,76 @@
 ## Dev Server
 
 ```bash
-SEARCH_JOB_SCHEDULER_ENABLED=true npm run dev
+npm run dev
 ```
 
-默认跑在 http://localhost:3000
+默认跑在 http://localhost:3000。调度器已从 Next.js 进程中拆离，本地如需同时运行调度器：
+
+```bash
+# 另起一个终端
+npm run scheduler:dev
+```
 
 ## Network Notes
 
 - 在中国大陆本地开发时，服务端访问 Supabase 和其他外部服务默认需要通过本地代理。
 - 默认代理地址是 `http://127.0.0.1:7890`。
-- 生产环境默认不需要代理；不要把“本地需要代理”的假设带到生产配置里。
+- 生产环境默认不需要代理；不要把”本地需要代理”的假设带到生产配置里。
+
+## VPS 生产环境
+
+连接信息与 sibling 项目 `neliva` 共用同一台 Vultr VPS。
+
+- Host: `66.42.53.127`
+- SSH user: `root`
+- SSH port: `2222`
+- 服务器 hostname: `vultr`
+
+直连（需本地代理）：
+
+```bash
+ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -p 2222 root@66.42.53.127
+```
+
+快速连通性检查：
+
+```bash
+ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -o BatchMode=yes -o ConnectTimeout=10 -p 2222 root@66.42.53.127 'echo VPS_OK && hostname'
+```
+
+Hirelix 部署目录：`/opt/hirelix`
+
+## 部署架构
+
+- **Next.js 前端 + API**：部署在 Vercel（不含调度器）
+- **搜索任务调度器**：独立进程，运行在 VPS，systemd 服务 `hirelix-scheduler`
+
+### 调度器部署（VPS）
+
+调度器代码在 `scheduler/` 目录。部署流程：
+
+```bash
+# 1. 同步 scheduler/ 目录（及其他改动的源码）
+rsync -az \
+  -e 'ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -p 2222' \
+  /Users/noah/projects/hirelix/scheduler/ root@66.42.53.127:/opt/hirelix/scheduler/
+
+# 2. 如有新 npm 依赖，在 VPS 上安装
+ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -p 2222 root@66.42.53.127 'cd /opt/hirelix && npm install'
+
+# 3. 重启调度器
+ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -p 2222 root@66.42.53.127 'systemctl restart hirelix-scheduler'
+```
+
+环境变量：`/etc/hirelix.env`（systemd EnvironmentFile，包含所有生产 env vars）
+
+### 服务管理（systemd）
+
+```bash
+# 调度器
+ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -p 2222 root@66.42.53.127 'systemctl status hirelix-scheduler --no-pager'
+ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -p 2222 root@66.42.53.127 'systemctl restart hirelix-scheduler'
+ssh -o “ProxyCommand=nc -x 127.0.0.1:7890 %h %p” -p 2222 root@66.42.53.127 'journalctl -u hirelix-scheduler -f'
+```
+
+生产域名：`hirelix.online`（部署在 Vercel 后，DNS A 记录指向 Vercel）
