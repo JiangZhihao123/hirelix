@@ -18,6 +18,7 @@ import {
   Loader2,
   Menu,
   X,
+  ShieldCheck,
 } from "lucide-react";
 
 export default function ProductLayout({
@@ -70,6 +71,11 @@ function ProductLayoutShell({
   const isDashboardRoute =
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
+  const isAdminRoute = pathname.startsWith("/app/admin");
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const isAdmin = adminEmail
+    ? user?.email?.toLowerCase() === adminEmail.toLowerCase()
+    : false;
 
   const getNavClassName = (isActive: boolean) =>
     `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
@@ -212,6 +218,19 @@ function ProductLayoutShell({
           {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
           Settings & Billing
         </Link>
+        {isAdmin && (
+          <Link
+            href="/app/admin"
+            onClick={() => {
+              setSidebarOpen(false);
+              setPendingPath("/app/admin");
+            }}
+            className={getNavClassName(isAdminRoute)}
+          >
+            {effectivePendingPath === "/app/admin" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            Admin
+          </Link>
+        )}
       </nav>
 
       <div className="border-t border-border p-3">
