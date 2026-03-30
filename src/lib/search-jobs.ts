@@ -4390,7 +4390,7 @@ async function enrichRowsWithGithubSignals(
   const githubLimit = Math.min(
     Number(parsed.display_count) || rows.length,
     rows.length,
-    20,
+    50,
   );
   const prefix = rows.slice(0, githubLimit);
   const suffix = rows.slice(githubLimit);
