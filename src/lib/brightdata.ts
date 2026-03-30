@@ -536,11 +536,12 @@ export async function triggerDatasetFilter(
   });
 
   if (!res.ok) {
-    const text = await res.text();
+    const text = await readResponseTextWithTimeout(res, "Bright Data dataset filter");
     throw new Error(`Bright Data filter failed (${res.status}): ${text}`);
   }
 
-  const data = await res.json();
+  const rawText = await readResponseTextWithTimeout(res, "Bright Data dataset filter");
+  const data = JSON.parse(rawText);
   return data.snapshot_id;
 }
 
@@ -563,7 +564,11 @@ export async function getDatasetSnapshotMetadata(
     throw new Error(`Bright Data snapshot metadata failed (${res.status}): ${text}`);
   }
 
-  return (await res.json()) as BrightDataSnapshotMetadata;
+  const rawText = await readResponseTextWithTimeout(
+    res,
+    `Bright Data snapshot metadata ${snapshotId}`,
+  );
+  return JSON.parse(rawText) as BrightDataSnapshotMetadata;
 }
 
 export async function downloadDatasetSnapshot(
@@ -713,11 +718,12 @@ export async function triggerScrape(
   );
 
   if (!res.ok) {
-    const text = await res.text();
+    const text = await readResponseTextWithTimeout(res, "Bright Data trigger");
     throw new Error(`Bright Data trigger failed (${res.status}): ${text}`);
   }
 
-  const data = await res.json();
+  const rawText = await readResponseTextWithTimeout(res, "Bright Data trigger");
+  const data = JSON.parse(rawText);
   return data.snapshot_id;
 }
 
@@ -741,11 +747,12 @@ export async function pollSnapshot(
     );
 
     if (!res.ok) {
-      const text = await res.text();
+      const text = await readResponseTextWithTimeout(res, `Bright Data snapshot ${snapshotId}`);
       throw new Error(`Bright Data snapshot fetch failed (${res.status}): ${text}`);
     }
 
-    const data = await res.json();
+    const rawText = await readResponseTextWithTimeout(res, `Bright Data snapshot ${snapshotId}`);
+    const data = JSON.parse(rawText);
 
     if (data.status === "running") {
       console.log(`[brightdata] Snapshot still running, waiting...`);
