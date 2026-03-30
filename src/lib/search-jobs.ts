@@ -1395,7 +1395,7 @@ function buildRecallLocationFilter(
   return {
     operator: "or",
     filters: effectiveTerms.map((term) => ({
-      name: hiringBrief.location_flexibility === "strict" ? "city" : "location",
+      name: "location",
       operator: "includes",
       value: term,
     })),
