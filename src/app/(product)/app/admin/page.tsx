@@ -181,7 +181,11 @@ export default function AdminPage() {
     if (!authLoading && user) {
       fetchStats();
     }
-  }, [authLoading, user, fetchStats]);
+    // fetchStats and full user object intentionally omitted: both are re-created on
+    // every token refresh, causing an infinite request loop. We only need to fire
+    // once when the user becomes authenticated.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
     if (tab === "users" && users === null) {
