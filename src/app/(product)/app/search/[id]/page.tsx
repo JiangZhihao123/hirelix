@@ -187,6 +187,8 @@ type CandidateSortMode = "overall" | "capability" | "relevance" | "join_likeliho
 
 type CandidateDisplayTier = "priority_outreach" | "worth_reviewing";
 
+const PRIORITY_OUTREACH_MIN_SCORE = 70;
+
 type ExcludedReason =
   | "stack_gap"
   | "title_or_seniority_mismatch"
@@ -427,21 +429,24 @@ function formatDisplayCount(value: number) {
 }
 
 function getCandidateDisplayTier(candidate: CandidateRow): CandidateDisplayTier | null {
+  const safeScore = typeof candidate.match_score === "number" ? candidate.match_score : 0;
   const explicitTier = candidate.metadata?.display_tier;
-  if (explicitTier === "priority_outreach" || explicitTier === "worth_reviewing") {
-    return explicitTier;
+  if (explicitTier === "priority_outreach") {
+    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE ? "priority_outreach" : "worth_reviewing";
+  }
+  if (explicitTier === "worth_reviewing") {
+    return "worth_reviewing";
   }
   const bucket = candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket;
-  if (bucket === "strong_now") return "priority_outreach";
-  if (bucket === "consider_next") return "worth_reviewing";
-  if ((candidate.metadata?.shortlist_decision ?? candidate.metadata?.suitability?.shortlist_decision) === "yes") {
-    return "priority_outreach";
+  if (bucket === "strong_now") {
+    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE ? "priority_outreach" : "worth_reviewing";
   }
+  if (bucket === "consider_next") return "worth_reviewing";
   return null;
 }
 
 function formatTierLabel(value: CandidateDisplayTier) {
-  return value === "priority_outreach" ? "Priority Outreach" : "Worth Reviewing";
+  return value === "priority_outreach" ? "Reach Out First" : "Keep Reviewing";
 }
 
 function formatExcludedReasonLabel(reason: ExcludedReason) {
@@ -566,11 +571,11 @@ function formatStartedAgo(value: string) {
 }
 
 function getProviderDelayCopy(elapsedMs: number | null) {
-  if (!elapsedMs || elapsedMs < 90_000) {
-    return "Hirelix is waiting for Bright to return recalled profiles.";
+  if (!elapsedMs || elapsedMs < 180_000) {
+    return "Hirelix is waiting for Bright to return recalled profiles. Broader searches can take a few minutes.";
   }
-  if (elapsedMs < 210_000) {
-    return "Bright recall is taking longer than usual.";
+  if (elapsedMs < 360_000) {
+    return "Bright recall is slower than the fastest runs, but still within the normal range.";
   }
   return "Bright recall is unusually slow right now. You can leave this page and come back later.";
 }
@@ -685,6 +690,11 @@ function getCandidateGithubSignals(candidate: CandidateRow): GithubSignals | nul
       : [],
     last_enriched_at: typeof item.last_enriched_at === "string" ? item.last_enriched_at : null,
   };
+}
+
+function hasPublicGithubEvidence(candidate: CandidateRow) {
+  const signals = getCandidateGithubSignals(candidate);
+  return signals?.status === "verified" || Boolean(candidate.github_url);
 }
 
 function CandidateCard({
@@ -2657,7 +2667,6 @@ export default function SearchResultPage() {
   const locationFlexibility = typeof hiringBrief?.location_flexibility === "string" ? hiringBrief.location_flexibility : null;
   const relocationAllowed = typeof hiringBrief?.relocation_allowed === "string" ? hiringBrief.relocation_allowed : null;
   const constraintReasoning = typeof hiringBrief?.constraint_reasoning === "string" ? hiringBrief.constraint_reasoning : null;
-  const launchMode = typeof reqs?.launch_mode === "string" ? reqs.launch_mode : null;
   const launchScope = typeof reqs?.launch_scope === "string" ? reqs.launch_scope : null;
   const isReviewable = isReviewableSearchStatus(search.status);
   const isImprovingInBackground = search.status === "deep_scoring";
@@ -2703,6 +2712,8 @@ export default function SearchResultPage() {
   const worthReviewingCandidates = allCandidates.filter(
     (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
   );
+  const actualPriorityOutreachCount = priorityCandidates.length;
+  const actualWorthReviewingCount = worthReviewingCandidates.length;
   const hasTieredPool = priorityCandidates.length > 0 || worthReviewingCandidates.length > 0;
   const tierBaseCandidates = hasTieredPool
     ? candidateTier === "worth_reviewing"
@@ -2769,21 +2780,14 @@ export default function SearchResultPage() {
     Math.max(allCandidates.length, 0);
   const shortlistReadyCount =
     positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
-  const priorityOutreachCount =
-    positiveInt(rawDisplayStats?.priority_outreach_count) ??
-    positiveInt(rawDisplayStats?.strong_now_count) ??
-    priorityCandidates.length;
-  const worthReviewingCount =
-    positiveInt(rawDisplayStats?.worth_reviewing_count) ??
-    positiveInt(rawDisplayStats?.consider_next_count) ??
-    worthReviewingCandidates.length;
+  const priorityOutreachCount = actualPriorityOutreachCount;
+  const worthReviewingCount = actualWorthReviewingCount;
   const ruledOutCount =
     positiveInt(rawDisplayStats?.ruled_out_count) ??
     positiveInt(rawDisplayStats?.do_not_show_count) ??
     0;
   const visibleCandidateCount =
-    positiveInt(rawDisplayStats?.visible_candidate_count) ??
-    (hasTieredPool ? priorityOutreachCount + worthReviewingCount : shortlistReadyCount);
+    hasTieredPool ? priorityOutreachCount + worthReviewingCount : shortlistReadyCount;
   const qualityFloorApplied =
     rawDisplayStats?.quality_floor_applied === true;
   const contactUnlockCandidates =
@@ -2821,7 +2825,12 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
+  const githubBackedCandidateCount = allCandidates.filter(hasPublicGithubEvidence).length;
+  const githubBackedPriorityCount = priorityCandidates.filter(hasPublicGithubEvidence).length;
+  const githubBackedVisibleCount = visibleCandidates.filter(hasPublicGithubEvidence).length;
   const selectedTierLabel = hasTieredPool ? formatTierLabel(candidateTier) : "Candidate pool";
+  const priorityTierLabel = formatTierLabel("priority_outreach");
+  const worthReviewingTierLabel = formatTierLabel("worth_reviewing");
   const taskStage = getSearchTaskStage({
     ...search,
     standard_recall_completed_at: standardRecallCompletedAt,
@@ -2940,14 +2949,9 @@ export default function SearchResultPage() {
                   {formatRelocationTag(relocationAllowed)}
                 </span>
               )}
-              {launchMode === "tech_recruiter_mvp" && (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
-                  Tech recruiter MVP
-                </span>
-              )}
               {launchScope === "linkedin_plus_github" && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  LinkedIn + GitHub
+                  LinkedIn search + GitHub evidence when available
                 </span>
               )}
             </div>
@@ -3139,14 +3143,12 @@ export default function SearchResultPage() {
                     ? "Hirelix searched a broader recall pool and kept the candidates that already look credible enough to work now."
                     : isImprovingInBackground
                       ? "Hirelix is still refining the remaining scores in the background."
-                      : `Hirelix turned this search into a workable pool: ${priorityOutreachCount} priority outreach, ${worthReviewingCount} worth reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
+                      : `Hirelix turned this search into a workable pool: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
               </p>
               <p className="mt-3 max-w-2xl text-xs text-slate-500">
-                Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
-                <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
-                  support@hirelix.online
-                </a>
-                .
+                {githubBackedCandidateCount > 0
+                  ? `${githubBackedCandidateCount} of ${allCandidates.length} visible candidates currently include public GitHub evidence. The rest rely on LinkedIn evidence only.`
+                  : "This shortlist is currently LinkedIn-led. Hirelix only shows GitHub evidence when it can confidently verify a public match."}
               </p>
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -3158,7 +3160,7 @@ export default function SearchResultPage() {
               )}
               {(!search.warning_message || search.warning_message.includes("highlighted candidates")) && (
                 <p className="mt-2 text-sm font-medium text-slate-950">
-                  Start with Priority Outreach, then move into Worth Reviewing if you need a broader pool before reaching out.
+                  Start with {priorityTierLabel}, then move into {worthReviewingTierLabel} if you need a broader pool before reaching out.
                 </p>
               )}
             </div>
@@ -3184,8 +3186,17 @@ export default function SearchResultPage() {
                 <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {priorityOutreachCount > 0 || worthReviewingCount > 0
-                    ? `${priorityOutreachCount} priority outreach · ${worthReviewingCount} worth reviewing`
+                    ? `${priorityOutreachCount} reach out first · ${worthReviewingCount} keep reviewing`
                     : `${visibleCandidateCount} ready to review`}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">GitHub evidence</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {githubBackedCandidateCount > 0
+                    ? `${githubBackedPriorityCount} in ${priorityTierLabel.toLowerCase()}`
+                    : "Ranking is using LinkedIn evidence only right now"}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -3280,7 +3291,7 @@ export default function SearchResultPage() {
             ) : (
               <>
                 <span className="font-semibold text-slate-950">This recruiter workbench is ready.</span>
-                {" "}You now have {priorityOutreachCount} priority outreach candidate{priorityOutreachCount === 1 ? "" : "s"} and {worthReviewingCount} worth reviewing to work through.
+                {" "}You now have {priorityOutreachCount} candidate{priorityOutreachCount === 1 ? "" : "s"} to reach out to first and {worthReviewingCount} more to keep reviewing.
               </>
             )}
           </div>
@@ -3296,8 +3307,8 @@ export default function SearchResultPage() {
                 Upgrade to unlock contact details, CSV export, and outreach when you&apos;re ready to work this candidate pool.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} priority outreach</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{worthReviewingCount} worth reviewing</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} {priorityTierLabel.toLowerCase()}</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{worthReviewingCount} {worthReviewingTierLabel.toLowerCase()}</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistNoCount} screened out</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
@@ -3341,6 +3352,12 @@ export default function SearchResultPage() {
                     <span>{contactUnlockCandidates} ready for contact unlock</span>
                   </>
                 )}
+                {visibleCandidates.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{githubBackedVisibleCount}/{visibleCandidates.length} with GitHub evidence</span>
+                  </>
+                )}
                 {billing?.usage.exportEnabled ? (
                   <>
                     <span>·</span>
@@ -3370,7 +3387,7 @@ export default function SearchResultPage() {
                           : "text-muted hover:text-foreground"
                       }`}
                     >
-                      Priority Outreach ({priorityOutreachCount})
+                      {priorityTierLabel} ({priorityOutreachCount})
                     </button>
                     <button
                       onClick={() => setCandidateTier("worth_reviewing")}
@@ -3380,7 +3397,7 @@ export default function SearchResultPage() {
                           : "text-muted hover:text-foreground"
                       }`}
                     >
-                      Worth Reviewing ({worthReviewingCount})
+                      {worthReviewingTierLabel} ({worthReviewingCount})
                     </button>
                   </div>
                 )}
@@ -3585,6 +3602,16 @@ export default function SearchResultPage() {
             Refine & Retry
           </Link>
         </div>
+      )}
+
+      {isReviewable && (
+        <p className="mt-8 text-center text-xs text-slate-500">
+          Paid beta, US-only at launch. If your shortlist misses the mark or your billing looks wrong, email{" "}
+          <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
+            support@hirelix.online
+          </a>
+          .
+        </p>
       )}
     </div>
   );

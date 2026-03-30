@@ -394,7 +394,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
                   <div className="mt-4 space-y-2 text-sm text-slate-600">
-                    <p>{getSearchTaskEtaCopy(search.status)}</p>
+                    <p>{getSearchTaskEtaCopy(search.status, stage)}</p>
                     <div className="flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
                         {search.parse_completed_at ? "Brief ready" : "Brief pending"}

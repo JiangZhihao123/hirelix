@@ -81,6 +81,14 @@ export function getSearchTaskEtaCopy(
   status: string | null | undefined,
   stage?: SearchTaskStage,
 ) {
+  if (stage === "accepted") {
+    return "Brief parsing usually finishes in under 1 minute";
+  }
+
+  if (stage === "brief_ready" || stage === "provider_recall") {
+    return "Recall usually takes 2-5 minutes";
+  }
+
   if (stage === "reviewing_profiles") {
     return "Reviewing profiles now";
   }
@@ -93,7 +101,7 @@ export function getSearchTaskEtaCopy(
     return "Usually 3-6 minutes from submission";
   }
 
-  return "Usually under 1 minute to reach recall";
+  return "Brief parsing usually finishes in under 1 minute";
 }
 
 export function getSearchTaskSummary(stage: SearchTaskStage) {

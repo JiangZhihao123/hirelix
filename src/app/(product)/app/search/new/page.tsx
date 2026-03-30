@@ -417,7 +417,7 @@ export default function NewSearchPage() {
             "1. Parse job description",
             "2. Confirm must-have skills",
             "3. Source top 20 candidates",
-            "4. Review GitHub-backed profiles",
+            "4. Review GitHub evidence when available",
           ].map((step) => (
             <span key={step} className="rounded-full border border-white/80 bg-white/80 px-3 py-1 shadow-sm">
               {step}
@@ -603,7 +603,7 @@ export default function NewSearchPage() {
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <TagEditor
                 label="Must-have skills"
-                description="These skills drive candidate ranking and GitHub signal interpretation."
+                description="These skills drive candidate ranking and GitHub evidence interpretation when a public match is available."
                 tags={editor.requiredSkills}
                 onChange={(tags) => updateEditor("requiredSkills", tags)}
                 accent="sky"
@@ -659,7 +659,7 @@ export default function NewSearchPage() {
                 {[
                   "LinkedIn recall",
                   "Top 20 ranked candidates",
-                  "Resume + GitHub signal view",
+                  "LinkedIn profile + GitHub evidence when available",
                   "Personalized outreach drafts",
                 ].map((item) => (
                   <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
@@ -701,7 +701,7 @@ export default function NewSearchPage() {
             </button>
           </div>
           <p className="mt-4 text-xs leading-6 text-slate-500">
-            Once launched, results open in the sourcing workbench: candidate list on the left, profile and GitHub signals on the right, outreach drafts at the bottom.
+            Once launched, results open in the sourcing workbench: candidate list on the left, profile plus GitHub evidence when available on the right, outreach drafts at the bottom.
           </p>
           {parseStatus === "ready" && (
             <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
