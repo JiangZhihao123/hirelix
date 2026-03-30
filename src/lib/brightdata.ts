@@ -185,14 +185,11 @@ async function readResponseTextWithTimeout(
 ) {
   return await new Promise<string>((resolve, reject) => {
     let settled = false;
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      try {
-        await response.body?.cancel();
-      } catch {
-        // Best-effort cancel only
-      }
+      // Best-effort cancel — fire-and-forget so reject fires immediately
+      response.body?.cancel().catch(() => undefined);
       reject(
         new BrightDataRequestTimeoutError(
           `${context} timed out while reading response body after ${timeoutMs}ms`,
