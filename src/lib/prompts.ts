@@ -78,7 +78,7 @@ Return ONLY valid JSON with this structure:
   },
   "recall_spec": {
     "countries": ["ISO country codes where recall should reasonably focus"],
-    "title_variants": ["array of 3-8 realistic title variations for recall"],
+    "title_variants": ["array of 3-8 realistic title variations for recall — these must be standalone job titles that real candidates write on LinkedIn, NOT copied from the JD. Rule: take the core role (e.g. 'Software Engineer') and generate clean seniority+role combinations. Example: JD title 'Senior Software Engineer, Cloud' → variants should be ['Senior Software Engineer', 'Staff Software Engineer', 'Senior Infrastructure Engineer', 'Senior Platform Engineer', 'Staff Engineer']. Never include suffixes after a comma or dash (e.g. ', Cloud', ', Backend', '— Distributed Systems'). Never return fewer than 3 variants."],
     "core_skill_terms": ["array of 5-12 concrete, searchable technical keywords — use specific tool/framework/language names (e.g. 'React', 'Kubernetes', 'PostgreSQL') that candidates would write in their LinkedIn headline or about section; avoid soft skills or vague terms like 'leadership' or 'problem solving'"],
     "differentiating_skill_terms": ["array of 2-5 concrete, searchable keywords that make THIS role unique vs other roles with the same title — they must be terms a candidate would likely literally write on LinkedIn (e.g. 'LLM', 'LangChain', 'payments', 'observability', 'Kafka'); do NOT use abstract phrases like 'production scale' or 'system ownership'"],
     "baseline_skill_terms": ["array of 3-6 standard stack requirements — e.g. 'Python', 'Node.js', 'Next.js'; these are the obvious technical requirements that most candidates in this role family would have"],
