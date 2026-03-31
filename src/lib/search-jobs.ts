@@ -3011,6 +3011,7 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   return (
     suitability.shortlist_decision === "yes" &&
     suitability.blocking_severity !== "hard" &&
+    suitability.constraint_verdicts.location_fit !== "non_local" &&
     suitability.match_score >= SHORTLIST_MATCH_SCORE_MIN &&
     breakdown.relevance_score >= SHORTLIST_RELEVANCE_MIN &&
     breakdown.capability_score >= SHORTLIST_CAPABILITY_MIN &&
@@ -6974,12 +6975,12 @@ async function scoreBrightDataProfiles(
     (assessment) => assessment.suitability.advance_recommendation === "advance",
   ).length;
   const deepSelection = selectShortlistedAssessments(deepAssessments);
-  const priorityAssessments = deepAssessments
-    .filter((assessment) => assessment.suitability.bucket === "strong_now")
-    .sort(sortCandidateAssessments);
-  const worthReviewingAssessments = deepAssessments
-    .filter((assessment) => assessment.suitability.bucket === "consider_next")
-    .sort(sortCandidateAssessments);
+  // Use deepSelection.selected (filtered by shouldDisplayCandidate) as the source for visible
+  // candidates so that score thresholds and location gates are actually enforced.
+  const priorityAssessments = deepSelection.selected
+    .filter((assessment) => assessment.suitability.bucket === "strong_now");
+  const worthReviewingAssessments = deepSelection.selected
+    .filter((assessment) => assessment.suitability.bucket === "consider_next");
   const ruledOutAssessments = deepAssessments
     .filter((assessment) => assessment.suitability.bucket === "do_not_show");
   const visibleAssessments = [...priorityAssessments, ...worthReviewingAssessments];
