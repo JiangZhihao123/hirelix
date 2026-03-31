@@ -5818,10 +5818,15 @@ async function buildBrightDataDatasetCandidates(
       job_id: context.jobId,
     });
     await submitStandardSnapshot(relaxedRecallRequest, { relaxed: true });
-    throw new DatasetRecallPendingError(
-      `Bright Data relaxed recall submitted for snapshot ${snapshotId}`,
-      { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
-    );
+    if (snapshotId === activeSnapshotId) {
+      // Relaxed filter resolved to the same empty snapshot — no point retrying.
+      standardRoundFailedEmpty = true;
+    } else {
+      throw new DatasetRecallPendingError(
+        `Bright Data relaxed recall submitted for snapshot ${snapshotId}`,
+        { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+      );
+    }
   }
 
   if (metadata?.status === "failed" && metadata.warning_code === "no_records_found") {
