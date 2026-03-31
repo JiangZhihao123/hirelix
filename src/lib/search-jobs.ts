@@ -746,6 +746,7 @@ type AdditionalRecallSnapshot = {
   submitted_at?: string | null;
   ready_at?: string | null;
   failed_at?: string | null;
+  failure_code?: string | null;
   last_polled_at?: string | null;
   download_started_at?: string | null;
   download_completed_at?: string | null;
@@ -2158,6 +2159,7 @@ function buildAdditionalSnapshotMetadata(params: {
   submittedAt?: string | null;
   readyAt?: string | null;
   failedAt?: string | null;
+  failureCode?: string | null;
   lastPolledAt?: string | null;
   downloadStartedAt?: string | null;
   downloadCompletedAt?: string | null;
@@ -2168,6 +2170,7 @@ function buildAdditionalSnapshotMetadata(params: {
   const existing = params.existing ?? null;
   const readyAt = params.readyAt ?? existing?.ready_at ?? null;
   const failedAt = params.failedAt ?? existing?.failed_at ?? null;
+  const failureCode = params.failureCode ?? existing?.failure_code ?? null;
   return {
     round: params.round,
     snapshot_id: params.snapshotId,
@@ -2176,6 +2179,7 @@ function buildAdditionalSnapshotMetadata(params: {
     submitted_at: params.submittedAt ?? existing?.submitted_at ?? null,
     ready_at: readyAt,
     failed_at: failedAt,
+    failure_code: failureCode,
     last_polled_at: params.lastPolledAt ?? existing?.last_polled_at ?? null,
     download_started_at: params.downloadStartedAt ?? existing?.download_started_at ?? null,
     download_completed_at: params.downloadCompletedAt ?? existing?.download_completed_at ?? null,
@@ -5791,6 +5795,9 @@ async function buildBrightDataDatasetCandidates(
         submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
         readyAt: round.metadata.status === "ready" ? pollRecordedAt : undefined,
         failedAt: round.metadata.status === "failed" ? pollRecordedAt : undefined,
+        failureCode: round.metadata.status === "failed"
+          ? (String(round.metadata.warning_code ?? round.metadata.error_code ?? "unknown"))
+          : undefined,
         lastPolledAt: pollRecordedAt,
         profilesReturned: round.metadata.dataset_size ?? null,
         incrementPollAttempt: true,
@@ -5858,6 +5865,9 @@ async function buildBrightDataDatasetCandidates(
           submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
           readyAt: round.metadata.status === "ready" ? pollRecordedAt : undefined,
           failedAt: round.metadata.status === "failed" ? pollRecordedAt : undefined,
+          failureCode: round.metadata.status === "failed"
+            ? (String(round.metadata.warning_code ?? round.metadata.error_code ?? "unknown"))
+            : undefined,
           lastPolledAt: pollRecordedAt,
           profilesReturned: round.metadata.dataset_size ?? null,
         }),
@@ -5990,6 +6000,9 @@ async function buildBrightDataDatasetCandidates(
         submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
         readyAt: round.metadata.status === "ready" ? standardRecallCompletedAt : undefined,
         failedAt: round.metadata.status === "failed" ? standardRecallCompletedAt : undefined,
+        failureCode: round.metadata.status === "failed"
+          ? (String(round.metadata.warning_code ?? round.metadata.error_code ?? "unknown"))
+          : undefined,
         lastPolledAt: pollRecordedAt,
         profilesReturned: round.metadata.dataset_size ?? null,
       }),
