@@ -13,10 +13,11 @@ function nullableStringSchema() {
   } as const;
 }
 
-function stringArraySchema() {
+function stringArraySchema(minItems?: number) {
   return {
     type: "array",
     items: { type: "string" },
+    ...(minItems !== undefined ? { minItems } : {}),
   } as const;
 }
 
@@ -313,7 +314,7 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
         ],
         properties: {
           countries: stringArraySchema(),
-          title_variants: stringArraySchema(),
+          title_variants: stringArraySchema(3),
           core_skill_terms: stringArraySchema(),
           differentiating_skill_terms: stringArraySchema(),
           baseline_skill_terms: stringArraySchema(),
