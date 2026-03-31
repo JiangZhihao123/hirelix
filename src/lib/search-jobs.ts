@@ -254,7 +254,7 @@ const BRIGHTDATA_COMPANY_TARGET_LIMIT = getConfiguredPositiveInt(
 );
 const SHORTLIST_MATCH_SCORE_MIN = getConfiguredPositiveInt(
   "SEARCH_SHORTLIST_MATCH_SCORE_MIN",
-  80,
+  60,
   { min: 1, max: 100 },
 );
 const SHORTLIST_RELEVANCE_MIN = getConfiguredPositiveInt(
@@ -4292,9 +4292,9 @@ function buildBrightDataCandidateRows(
         : (profile.skills || []).slice(0, 10),
       experience_years: item.experience_years,
       match_score:
-        item.suitability.overall_score ||
         item.suitability.advance_score ||
         item.suitability.match_score ||
+        item.suitability.overall_score ||
         50,
       match_reasons:
         item.suitability.why_this_candidate.length > 0
