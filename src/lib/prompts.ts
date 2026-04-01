@@ -46,15 +46,18 @@ Read the job description and identify:
 - For flexible roles, widen title variants and geography more confidently.
 
 5. **Target companies**
-- Based on the hiring company's industry, product, and stage, identify 5-15 companies where ideal candidates might currently work.
-- Include: direct competitors, same-vertical companies, companies known for strong engineering in the relevant tech stack, and similar-stage companies.
+- Think like a headhunter: you are building a target list to cold-source from. Which companies would you call first?
+- Include: direct product competitors, companies in the same vertical, companies known for strong engineering talent in this tech stack, and similar-stage companies.
+- Even if the hiring company is not named, infer from clues: industry vertical ("payroll, HR workflows" → Gusto, Rippling, ADP, Bamboo HR, Deel), tech stack ("Kafka, Kubernetes, Python" → Stripe, Databricks, Airbnb), stage ("Series E, workforce management" → Lattice, Leapsome, Workday).
+- Example: HR/payroll SaaS → "Gusto", "Bamboo HR", "ADP", "Workday", "Lattice", "Deel", "Rippling", "Namely", "Paylocity"
 - Example: CPG AI startup → "Spins", "IRI", "Nielsen", "dunnhumby", "Crisp", "Numerator"
 - Do NOT generically include FAANG — only include them if the domain or tech stack specifically aligns.
-- Return an empty array if the JD does not provide enough context to infer target companies.
+- You should almost always be able to generate at least 5 target companies. Only return an empty array if the JD is completely generic with zero industry or company context.
 
 6. **Recall strategy**
-- If the role has clear cross-functional overlap (lateral_title_variants is non-empty) OR target companies can be identified, set recall_strategy to "multi_round".
-- Otherwise set it to "standard".
+- Default to "multi_round" for any JD where you can identify target companies OR lateral title variants.
+- In practice, this means multi_round for the vast majority of real job descriptions — any JD with a company name, industry context, tech stack, or team description gives enough signal.
+- Only use "standard" for completely context-free JDs (e.g. a single-line job title with no company, domain, or tech detail).
 
 Return ONLY valid JSON with this structure:
 {
@@ -90,7 +93,7 @@ Return ONLY valid JSON with this structure:
     "geo_strategy": "how geography should shape recall, in one short sentence",
     "recall_confidence": "high | medium | low",
     "role_breadth": "narrow | balanced | broad",
-    "lateral_title_variants": ["array of 3-6 realistic LinkedIn title variants for hidden gem recall — professionals who do NOT hold this exact title but whose skills overlap significantly; prefer common public titles like 'Backend Engineer', 'Platform Engineer', 'Site Reliability Engineer'; avoid obscure or overly narrow labels; empty array if role is standard with no cross-functional overlap"],
+    "lateral_title_variants": ["array of 3-6 realistic LinkedIn title variants for hidden gem recall — professionals who do NOT hold this exact title but whose skills overlap significantly; prefer common public titles like 'Backend Engineer', 'Platform Engineer', 'Site Reliability Engineer'; avoid obscure or overly narrow labels. Think like a headhunter: who else would you consider for this role? Example: 'Senior Backend Engineer' on a platform infra team → 'Platform Engineer', 'Infrastructure Engineer', 'Site Reliability Engineer', 'Distributed Systems Engineer'. Only return an empty array if the role is so niche or specialized that there are genuinely no adjacent titles worth considering."],
     "target_companies": ["array of 5-15 competitor or target company names where ideal candidates might work; empty array if insufficient context"],
     "recall_strategy": "standard | multi_round"
   }
