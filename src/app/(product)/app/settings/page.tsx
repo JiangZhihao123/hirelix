@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Check, Download, Loader2, Lock, Mail, Search, Sparkles } from "lucide-react";
+import { Check, Download, Loader2, Lock, Mail, Search } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
@@ -18,31 +18,21 @@ import {
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 
-interface CompanyProfile {
-  name: string;
-  website: string;
-  industry: string;
-  size: string;
-  mission: string;
-  culture: string;
-  benefits: string;
-  tech_stack: string;
-  selling_points: string;
+interface HeadhunterProfile {
+  recruiter_name: string;
+  firm_name: string;
+  specialization: string;
+  bio: string;
 }
 
 type MessageState = { type: "success" | "error"; text: string } | null;
-type SettingsSectionId = "account" | "billing" | "company";
+type SettingsSectionId = "account" | "billing" | "profile";
 
-const EMPTY_PROFILE: CompanyProfile = {
-  name: "",
-  website: "",
-  industry: "",
-  size: "",
-  mission: "",
-  culture: "",
-  benefits: "",
-  tech_stack: "",
-  selling_points: "",
+const EMPTY_PROFILE: HeadhunterProfile = {
+  recruiter_name: "",
+  firm_name: "",
+  specialization: "",
+  bio: "",
 };
 
 function SettingsSection({
@@ -128,14 +118,12 @@ export default function SettingsPage() {
   const { billing: sharedBilling, refresh: refreshBilling } = useBilling();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>(EMPTY_PROFILE);
-  const [savingCompany, setSavingCompany] = useState(false);
-  const [companyMessage, setCompanyMessage] = useState<MessageState>(null);
+  const [headhunterProfile, setHeadhunterProfile] = useState<HeadhunterProfile>(EMPTY_PROFILE);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<MessageState>(null);
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
   const [passwordMessage, setPasswordMessage] = useState<MessageState>(null);
-  const [aiLoading, setAiLoading] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const [companyUrl, setCompanyUrl] = useState("");
   const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
   const [passwordForm, setPasswordForm] = useState({ password: "", confirmPassword: "" });
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
@@ -154,9 +142,9 @@ export default function SettingsPage() {
       detail: billing ? getPlanStatusCopy(billing).title : "Plan details",
     },
     {
-      id: "company" as const,
-      label: "Company",
-      detail: companyProfile.name || "Profile details",
+      id: "profile" as const,
+      label: "Profile",
+      detail: headhunterProfile.recruiter_name || "Profile details",
     },
   ];
 
@@ -169,7 +157,7 @@ export default function SettingsPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.company_profile && typeof data.company_profile === "object") {
-          setCompanyProfile({ ...EMPTY_PROFILE, ...data.company_profile });
+          setHeadhunterProfile({ ...EMPTY_PROFILE, ...data.company_profile });
         }
         if (data.billing) {
           setBilling(data.billing as BillingSummary);
@@ -205,7 +193,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const syncActiveSection = () => {
       const hash = window.location.hash.replace("#", "");
-      if (hash === "account" || hash === "billing" || hash === "company") {
+      if (hash === "account" || hash === "billing" || hash === "profile") {
         setActiveSection(hash);
       }
     };
@@ -218,7 +206,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (loading) return;
     const hash = window.location.hash.replace("#", "");
-    if (hash !== "account" && hash !== "billing" && hash !== "company") return;
+    if (hash !== "account" && hash !== "billing" && hash !== "profile") return;
 
     const section = document.getElementById(hash);
     if (!section) return;
@@ -231,7 +219,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (loading) return;
 
-    const sections = ["account", "billing", "company"]
+    const sections = ["account", "billing", "profile"]
       .map((id) => document.getElementById(id))
       .filter((section): section is HTMLElement => Boolean(section));
 
@@ -271,11 +259,11 @@ export default function SettingsPage() {
           Settings
         </p>
         <h1 className="mt-2 text-[32px] font-bold tracking-tight text-slate-950">
-          Manage your account, billing, and company profile.
+          Manage your account, billing, and recruiter profile.
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Manage login access, this cycle&apos;s limits, and the company profile Hirelix uses for
-          sourcing and outreach.
+          Manage login access, this cycle&apos;s limits, and your recruiter profile Hirelix uses for
+          personalizing outreach.
         </p>
       </div>
 
@@ -712,114 +700,42 @@ export default function SettingsPage() {
           </SettingsSection>
 
           <SettingsSection
-            id="company"
-            eyebrow="Company"
-            title="Company profile"
-            description="Keep the company story current so Hirelix can turn sourcing output into outreach that sounds specific and credible."
+            id="profile"
+            eyebrow="Profile"
+            title="Recruiter profile"
+            description="Your profile as a headhunter. Hirelix uses this to personalize outreach — candidates will see your name and firm, not your client's."
           >
             <div className="space-y-5">
               <SettingsFieldGroup
-                title="AI assist"
-                description="Start from your website. Hirelix reads your site and drafts a company profile you can review before saving."
-              >
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="max-w-xl">
-                      <p className="text-sm font-medium text-slate-950">
-                        Start from your company website
-                      </p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        Hirelix reads a few high-signal pages and drafts a profile you can review before saving.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row lg:w-[520px]">
-                      <input
-                        type="text"
-                        value={companyUrl}
-                        onChange={(e) => setCompanyUrl(e.target.value)}
-                        placeholder="e.g. stripe.com or your company website"
-                        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                      />
-                      <button
-                        onClick={handleAiInit}
-                        disabled={aiLoading || !companyUrl.trim()}
-                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {aiLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Reading website...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4" />
-                            Auto-fill with AI
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </SettingsFieldGroup>
-
-              <SettingsFieldGroup
-                title="Basics"
-                description="These fields help Hirelix understand who you are and how to frame the opportunity."
+                title="Identity"
+                description="How you present yourself to candidates. Your client's name stays confidential."
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Company name
+                      Your name
                     </label>
                     <input
                       type="text"
-                      value={companyProfile.name}
+                      value={headhunterProfile.recruiter_name}
                       onChange={(e) =>
-                        setCompanyProfile({ ...companyProfile, name: e.target.value })
+                        setHeadhunterProfile({ ...headhunterProfile, recruiter_name: e.target.value })
                       }
-                      placeholder="e.g. Stripe"
+                      placeholder="e.g. Sarah Chen"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                     />
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Website
+                      Firm / agency name
                     </label>
                     <input
                       type="text"
-                      value={companyProfile.website}
+                      value={headhunterProfile.firm_name}
                       onChange={(e) =>
-                        setCompanyProfile({ ...companyProfile, website: e.target.value })
+                        setHeadhunterProfile({ ...headhunterProfile, firm_name: e.target.value })
                       }
-                      placeholder="e.g. stripe.com"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Industry
-                    </label>
-                    <input
-                      type="text"
-                      value={companyProfile.industry}
-                      onChange={(e) =>
-                        setCompanyProfile({ ...companyProfile, industry: e.target.value })
-                      }
-                      placeholder="e.g. Fintech, SaaS"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Company size
-                    </label>
-                    <input
-                      type="text"
-                      value={companyProfile.size}
-                      onChange={(e) =>
-                        setCompanyProfile({ ...companyProfile, size: e.target.value })
-                      }
-                      placeholder="e.g. 50-200 employees"
+                      placeholder="e.g. Apex Search Partners (optional)"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                     />
                   </div>
@@ -827,91 +743,35 @@ export default function SettingsPage() {
               </SettingsFieldGroup>
 
               <SettingsFieldGroup
-                title="Employer story"
-                description="This is the context candidates should understand before they read the outreach pitch."
+                title="Focus area"
+                description="Your recruiting specialization. Helps Hirelix frame outreach from a credible, relevant angle."
               >
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Mission and what you do
-                    </label>
-                    <textarea
-                      value={companyProfile.mission}
-                      onChange={(e) =>
-                        setCompanyProfile({ ...companyProfile, mission: e.target.value })
-                      }
-                      placeholder="What does your company do, and what problem are you solving?"
-                      rows={4}
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Culture and work environment
-                    </label>
-                    <textarea
-                      value={companyProfile.culture}
-                      onChange={(e) =>
-                        setCompanyProfile({ ...companyProfile, culture: e.target.value })
-                      }
-                      placeholder="Remote style, team dynamics, speed, craft level, and what day-to-day work feels like."
-                      rows={4}
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                    />
-                  </div>
-                </div>
-              </SettingsFieldGroup>
-
-              <SettingsFieldGroup
-                title="Candidate pitch"
-                description="These fields help Hirelix explain why the opportunity is worth a candidate's time."
-              >
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Benefits and perks
-                    </label>
-                    <textarea
-                      value={companyProfile.benefits}
-                      onChange={(e) =>
-                        setCompanyProfile({ ...companyProfile, benefits: e.target.value })
-                      }
-                      placeholder="Competitive salary, equity, health coverage, remote flexibility, learning budget..."
-                      rows={4}
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Tech stack
+                      Specialization
                     </label>
                     <input
                       type="text"
-                      value={companyProfile.tech_stack}
+                      value={headhunterProfile.specialization}
                       onChange={(e) =>
-                        setCompanyProfile({
-                          ...companyProfile,
-                          tech_stack: e.target.value,
-                        })
+                        setHeadhunterProfile({ ...headhunterProfile, specialization: e.target.value })
                       }
-                      placeholder="e.g. React, TypeScript, Node.js, AWS, PostgreSQL"
+                      placeholder="e.g. Senior engineering roles at Series A–C startups"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                     />
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                      Key selling points
+                      Short bio
                     </label>
                     <textarea
-                      value={companyProfile.selling_points}
+                      value={headhunterProfile.bio}
                       onChange={(e) =>
-                        setCompanyProfile({
-                          ...companyProfile,
-                          selling_points: e.target.value,
-                        })
+                        setHeadhunterProfile({ ...headhunterProfile, bio: e.target.value })
                       }
-                      placeholder="Growth, mission, team quality, scale, funding, product complexity, or anything candidates should care about."
-                      rows={4}
+                      placeholder="A sentence or two about your background — used to make outreach feel personal and credible."
+                      rows={3}
                       className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                     />
                   </div>
@@ -920,24 +780,23 @@ export default function SettingsPage() {
 
               <div className="flex flex-col gap-4 border-t border-slate-200/80 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="max-w-2xl text-sm text-slate-600">
-                  Save after you review the AI draft or manual edits. This profile is reused for
-                  future outreach generation.
+                  Outreach drafts will sign off with your name. Client company details remain confidential.
                 </div>
                 <button
-                  onClick={handleSaveCompany}
-                  disabled={savingCompany}
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
                   className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
                 >
-                  {savingCompany ? (
+                  {savingProfile ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Check className="h-4 w-4" />
                   )}
-                  Save company profile
+                  Save profile
                 </button>
               </div>
 
-              <MessageBanner message={companyMessage} />
+              <MessageBanner message={profileMessage} />
             </div>
           </SettingsSection>
         </div>
@@ -945,79 +804,34 @@ export default function SettingsPage() {
     </div>
   );
 
-  async function handleSaveCompany() {
-    setSavingCompany(true);
-    setCompanyMessage(null);
+  async function handleSaveProfile() {
+    setSavingProfile(true);
+    setProfileMessage(null);
     try {
       const res = await fetchWithUserSession("/api/settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ company_profile: companyProfile }),
+        body: JSON.stringify({ company_profile: headhunterProfile }),
       });
       if (res.ok) {
-        setCompanyMessage({ type: "success", text: "Company profile saved." });
+        setProfileMessage({ type: "success", text: "Profile saved." });
         void refreshBilling();
       } else {
         const data = await res.json().catch(() => ({}));
-        setCompanyMessage({
+        setProfileMessage({
           type: "error",
           text:
             typeof data.error === "string" && data.error.length > 0
               ? data.error
-              : "Failed to save company profile.",
+              : "Failed to save profile.",
         });
       }
     } catch {
-      setCompanyMessage({ type: "error", text: "Network error while saving company profile." });
+      setProfileMessage({ type: "error", text: "Network error while saving profile." });
     } finally {
-      setSavingCompany(false);
-    }
-  }
-
-  async function handleAiInit() {
-    if (!session?.access_token || !companyUrl.trim()) return;
-    setAiLoading(true);
-    setCompanyMessage(null);
-    try {
-      const res = await fetch("/api/settings/ai-company", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ website: companyUrl.trim() }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.profile) {
-          setCompanyProfile({ ...EMPTY_PROFILE, ...data.profile });
-          setCompanyMessage(
-            data.research_mode === "website_evidence"
-              ? {
-                  type: "success",
-                  text: "AI filled your profile from your website. Review it and save when ready.",
-                }
-              : {
-                  type: "success",
-                  text: "AI drafted a profile, but website evidence was limited. Review carefully before saving.",
-                },
-          );
-        }
-      } else {
-        setCompanyMessage({
-          type: "error",
-          text: "We couldn't read enough from the website. Try another URL or fill the profile manually.",
-        });
-      }
-    } catch {
-      setCompanyMessage({
-        type: "error",
-        text: "We couldn't read enough from the website. Try another URL or fill the profile manually.",
-      });
-    } finally {
-      setAiLoading(false);
+      setSavingProfile(false);
     }
   }
 

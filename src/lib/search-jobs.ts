@@ -3203,9 +3203,9 @@ function buildSearchOutreachPrompt(
     githubSignals,
   });
 
-  return `Write tailored recruiting outreach drafts for this candidate.
+  return `You are a third-party headhunter writing outreach on behalf of a client company. You must NEVER reveal the client company name. Refer to the opportunity as "one of my clients" or describe the company type (e.g. "a Series B fintech", "a fast-growing infrastructure startup"). Sign off as the recruiter, not the company. Build intrigue — the candidate should want to learn more, not feel like they're being mass-emailed.
 
-## Job Description
+## Job Description (confidential client role)
 ${truncateForPrompt(jdText.trim(), 4000)}
 
 ## Role Summary
@@ -3232,6 +3232,8 @@ Return ONLY valid JSON with this exact shape:
 }
 
 Rules:
+- Write from the perspective of a third-party headhunter, not an in-house recruiter.
+- Never name or hint at the client company. Use "one of my clients" or a generic descriptor (stage, industry, team size).
 - Make both drafts specific to this person and this role.
 - You must reference the proof line above. Do not ignore it.
 - If the evidence source is GitHub, keep the message anchored in that concrete code/project/PR detail.
