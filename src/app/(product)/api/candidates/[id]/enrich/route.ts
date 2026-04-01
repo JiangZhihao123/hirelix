@@ -183,8 +183,9 @@ export async function POST(
       const hasEmail = !!email;
       const firstName = (candidate.name || "").split(" ")[0];
       const evidence = buildRecruiterOutreachEvidence({
-        candidateName: candidate.name,
+        name: candidate.name,
         headline: candidate.headline,
+        location: candidate.location,
         skills: Array.isArray(candidate.skills) ? candidate.skills : [],
         matchReasons: Array.isArray(candidate.match_reasons) ? candidate.match_reasons : [],
         githubSignals: effectiveGithubSignals,

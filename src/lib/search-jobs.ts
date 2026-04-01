@@ -1947,11 +1947,22 @@ function estimateBrightPipelineLlmCost(params: {
 
   const outreachPromptSample =
     params.finalRows.length > 0
-      ? buildSearchOutreachPrompt(
-          params.parsed,
-          params.context.jdText,
-          params.finalRows[0],
-        )
+      ? buildRecruiterOutreachPrompt({
+          roleTitle: normalizeNullableString(params.parsed.title) || "this role",
+          jdText: params.context.jdText,
+          candidate: {
+            name: params.finalRows[0].name,
+            headline: params.finalRows[0].headline,
+            location: params.finalRows[0].location,
+            skills: params.finalRows[0].skills,
+            matchReasons: params.finalRows[0].match_reasons,
+            githubSignals:
+              params.finalRows[0].metadata.github_signals &&
+              typeof params.finalRows[0].metadata.github_signals === "object"
+                ? params.finalRows[0].metadata.github_signals
+                : null,
+          },
+        })
       : null;
   const outreachInputTokens = estimateTokensFromText(outreachPromptSample, 220);
   const outreachOutputTokens = Math.min(params.runtime.outreachMaxOutputTokens, 180);
