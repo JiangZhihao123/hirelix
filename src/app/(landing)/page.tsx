@@ -469,7 +469,7 @@ export default function Home() {
           <div className="lg:flex lg:min-h-full lg:flex-col lg:justify-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/[0.1] px-3 py-1 text-xs font-medium text-sky-100">
               <Sparkles className="h-3.5 w-3.5" />
-              For founders and recruiters filling open roles fast
+              For technical recruiters and headhunters hiring engineers
             </div>
 
             <h1 className="mt-3 max-w-[12.5ch] text-4xl font-extrabold leading-[0.93] tracking-tight text-white sm:text-[2.8rem] lg:text-[3.15rem]">
@@ -479,12 +479,12 @@ export default function Home() {
             </h1>
 
             <p className="mt-2.5 max-w-[33rem] text-[15px] leading-relaxed text-slate-300 sm:text-[0.96rem]">
-              Review real LinkedIn candidates, see why they fit, and leave with ready-to-send outreach from one pasted JD.
+              Review real LinkedIn candidates, inspect GitHub-backed signals when available, and leave with personalized outreach drafts from one pasted JD.
             </p>
 
             <div className="mt-2.5 hidden flex-wrap items-center gap-1.5 text-[11px] text-slate-100 sm:flex">
               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
-                Shortlist + outreach
+                Technical recruiter workflow
               </span>
               <span className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 font-medium text-sky-100">
                 Large-scale LinkedIn search
@@ -493,7 +493,7 @@ export default function Home() {
                 Ranked fit reasons
               </span>
               <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
-                InMail + email drafts ready
+                Personalized outreach drafts
               </span>
             </div>
 
@@ -525,8 +525,9 @@ export default function Home() {
                 </button>
               </p>
               <div className="mt-4 grid gap-2 text-xs text-slate-600">
-                <p>From JD to shortlist and outreach drafts</p>
+                <p>From JD to shortlist and personalized drafts</p>
                 <p>Real LinkedIn profiles with ranked fit reasons</p>
+                <p>GitHub-backed signals when public evidence exists</p>
                 <p>Sign in only when you&apos;re ready to run the search</p>
               </div>
             </div>
@@ -608,7 +609,7 @@ export default function Home() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-sky-100/80">
-                        JD {"->"} ranked shortlist {"->"} outreach ready
+                        JD {"->"} ranked shortlist {"->"} outreach drafts ready
                       </p>
                       <span className="mt-1 block text-base font-semibold text-white">Senior Software Engineer</span>
                     </div>
@@ -842,8 +843,8 @@ export default function Home() {
             },
             {
               icon: Mail,
-              title: "Leave with outreach ready to send",
-              desc: "The workflow ends with a draft, not a blank email tab.",
+              title: "Leave with personalized drafts ready",
+              desc: "The workflow ends with personalized drafts, not a blank outreach tab.",
             },
           ].map((item) => (
             <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
@@ -878,7 +879,7 @@ export default function Home() {
               {
                 step: "3",
                 title: "Review candidates and outreach",
-                desc: "Open the shortlist, inspect match reasons, and move straight into outreach.",
+                desc: "Open the shortlist, inspect fit reasons and evidence, then move straight into personalized drafts.",
               },
             ].map((item) => (
               <div key={item.step} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
@@ -928,7 +929,7 @@ export default function Home() {
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-                  <span>Open a ranked shortlist with fit reasons and outreach ready</span>
+                  <span>Open a ranked shortlist with fit reasons and outreach drafts ready</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
@@ -958,7 +959,7 @@ export default function Home() {
               Pricing that protects speed, not complexity
             </h2>
             <p className="mt-3 text-base text-slate-600">
-              Start free with one high-conviction shortlist per month, sourced from a Bright LinkedIn search and ranked into roughly 25 candidates. Upgrade the moment you want contact unlock, export, and outreach execution. The launch version is a US-only paid beta for recruiters, founders, and hiring teams.
+              Start free with one high-conviction shortlist per month, sourced from a Bright LinkedIn search and ranked into roughly 25 candidates. Upgrade when you need more weekly throughput, exports, and the fuller outreach workflow. The launch version is a US-only paid beta for technical recruiters and headhunters.
             </p>
           </div>
 
@@ -1077,8 +1078,8 @@ export default function Home() {
               },
               {
                 icon: Search,
-                title: "Is this only for recruiters?",
-                desc: "It works for founders and hiring teams alike because the JD is the shared source of truth.",
+                title: "Who is this built for first?",
+                desc: "Hirelix is built first for technical recruiters and headhunters working software roles where resume review alone is not enough.",
               },
               {
                 icon: Mail,
@@ -1167,7 +1168,7 @@ export default function Home() {
             </div>
             <p>AI-powered candidate sourcing from real LinkedIn profiles.</p>
             <p>Hirelix is operated by YieldMirror.</p>
-            <p>US-only paid beta for recruiters, founders, and hiring teams.</p>
+            <p>US-only paid beta for technical recruiters and headhunters.</p>
             <p>Support: <a className="text-sky-700 hover:text-sky-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>
             <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
@@ -1286,7 +1287,7 @@ export default function Home() {
 
                 <div className="mt-6 flex flex-wrap gap-2 text-xs text-slate-200">
                   <span className="rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
-                    {isSearchAuthIntent ? "Shortlist + outreach" : "Continue instantly"}
+                    {isSearchAuthIntent ? "Shortlist + drafts" : "Continue instantly"}
                   </span>
                   <span className="rounded-full border border-sky-300/18 bg-sky-400/10 px-3 py-1 font-medium text-sky-100">
                     {isSearchAuthIntent ? "Ranked match reasons" : "Real LinkedIn sourcing"}
