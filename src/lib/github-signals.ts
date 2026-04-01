@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 type GithubSignalStatus =
   | "verified"
   | "missing_public_data"
@@ -108,6 +110,40 @@ type MergedPrSignal = {
   }>;
 };
 
+type GithubRequestCategory =
+  | "search_users"
+  | "search_issues"
+  | "user_lookup"
+  | "repo_commits"
+  | "graphql_contributions"
+  | "graphql_other"
+  | "other_rest";
+
+type GithubRequestTraceEntry = {
+  category: GithubRequestCategory;
+  path: string;
+  status: number;
+  resource: string | null;
+  limit: number | null;
+  remaining: number | null;
+  used: number | null;
+  resetAt: string | null;
+  retryAfterMs: number | null;
+  durationMs: number;
+  rateLimited: boolean;
+};
+
+type GithubRequestTrace = {
+  candidateName: string;
+  startedAt: number;
+  requestCount: number;
+  rateLimitHits: number;
+  categoryCounts: Partial<Record<GithubRequestCategory, number>>;
+  resourceCounts: Record<string, number>;
+  statusCounts: Record<string, number>;
+  requests: GithubRequestTraceEntry[];
+};
+
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
 const CONTRIBUTION_REPO_LIMIT = 8;
@@ -117,6 +153,7 @@ const SERPER_API_BASE = "https://google.serper.dev";
 const GITHUB_RATE_LIMIT_FALLBACK_COOLDOWN_MS = 60_000;
 
 let githubApiCooldownUntilMs = 0;
+const githubRequestTraceStorage = new AsyncLocalStorage<GithubRequestTrace>();
 
 class GithubRateLimitError extends Error {
   readonly status: number;
@@ -137,6 +174,109 @@ class GithubRateLimitError extends Error {
 
 export function resetGithubApiRateLimitStateForTests() {
   githubApiCooldownUntilMs = 0;
+}
+
+function isGithubTraceLoggingEnabled() {
+  const value = process.env.GITHUB_TRACE_LOGS || "";
+  return ["1", "true", "yes", "on", "debug"].includes(value.trim().toLowerCase());
+}
+
+function parseGithubRateLimitNumber(value: string | null) {
+  const parsed = Number.parseInt(value || "", 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatResetAt(value: string | null) {
+  const epochSeconds = parseGithubRateLimitNumber(value);
+  return epochSeconds ? new Date(epochSeconds * 1000).toISOString() : null;
+}
+
+function readGithubRateLimitHeaders(headers: Headers) {
+  return {
+    resource: headers.get("x-ratelimit-resource"),
+    limit: parseGithubRateLimitNumber(headers.get("x-ratelimit-limit")),
+    remaining: parseGithubRateLimitNumber(headers.get("x-ratelimit-remaining")),
+    used: parseGithubRateLimitNumber(headers.get("x-ratelimit-used")),
+    resetAt: formatResetAt(headers.get("x-ratelimit-reset")),
+    retryAfterMs: resolveRetryAfterMs(headers.get("retry-after")),
+  };
+}
+
+function classifyGithubRestPath(path: string): GithubRequestCategory {
+  if (path.startsWith("/search/users")) return "search_users";
+  if (path.startsWith("/search/issues")) return "search_issues";
+  if (path.startsWith("/users/")) return "user_lookup";
+  if (/^\/repos\/[^/]+\/[^/]+\/commits\?/.test(path)) return "repo_commits";
+  return "other_rest";
+}
+
+function classifyGithubGraphqlQuery(query: string): GithubRequestCategory {
+  if (query.includes("contributionsCollection")) return "graphql_contributions";
+  return "graphql_other";
+}
+
+function createGithubRequestTrace(candidateName: string): GithubRequestTrace {
+  return {
+    candidateName,
+    startedAt: Date.now(),
+    requestCount: 0,
+    rateLimitHits: 0,
+    categoryCounts: {},
+    resourceCounts: {},
+    statusCounts: {},
+    requests: [],
+  };
+}
+
+function recordGithubTraceEntry(entry: GithubRequestTraceEntry) {
+  const trace = githubRequestTraceStorage.getStore();
+  if (!trace) return;
+
+  trace.requestCount += 1;
+  trace.categoryCounts[entry.category] = (trace.categoryCounts[entry.category] || 0) + 1;
+  trace.statusCounts[String(entry.status)] = (trace.statusCounts[String(entry.status)] || 0) + 1;
+  if (entry.resource) {
+    trace.resourceCounts[entry.resource] = (trace.resourceCounts[entry.resource] || 0) + 1;
+  }
+  if (entry.rateLimited) {
+    trace.rateLimitHits += 1;
+  }
+  trace.requests.push(entry);
+
+  if (isGithubTraceLoggingEnabled()) {
+    console.info("[github-signals] request", JSON.stringify({
+      candidate_name: trace.candidateName,
+      ...entry,
+    }));
+  }
+}
+
+function logGithubTraceSummary(params: {
+  outcome: GithubSignalStatus;
+  discoverySource?: GithubDiscoverySource | null;
+  githubLogin?: string | null;
+  error?: string | null;
+}) {
+  const trace = githubRequestTraceStorage.getStore();
+  if (!trace) return;
+
+  const topResources = Object.entries(trace.resourceCounts)
+    .sort((left, right) => right[1] - left[1]);
+  const recentRequests = trace.requests.slice(-8);
+  console.info("[github-signals] summary", JSON.stringify({
+    candidate_name: trace.candidateName,
+    github_login: params.githubLogin || null,
+    outcome: params.outcome,
+    discovery_source: params.discoverySource || null,
+    duration_ms: Date.now() - trace.startedAt,
+    request_count: trace.requestCount,
+    rate_limit_hits: trace.rateLimitHits,
+    category_counts: trace.categoryCounts,
+    status_counts: trace.statusCounts,
+    top_rate_limit_resources: topResources,
+    recent_requests: recentRequests,
+    error: params.error || null,
+  }));
 }
 
 function normalizeText(value: string | null | undefined) {
@@ -323,19 +463,50 @@ async function githubFetch(path: string, init?: RequestInit) {
   }
 
   throwIfGithubApiCoolingDown();
+  const startedAt = Date.now();
+  const category = classifyGithubRestPath(path);
 
   const response = await fetch(`${GITHUB_API_BASE}${path}`, {
     ...init,
     headers: getGitHubRequestHeaders(token, init),
   });
+  const rateLimitHeaders = readGithubRateLimitHeaders(response.headers);
 
   if (!response.ok) {
     const text = await response.text();
+    const rateLimited = isGithubRateLimitResponse(response, text);
+    recordGithubTraceEntry({
+      category,
+      path,
+      status: response.status,
+      resource: rateLimitHeaders.resource,
+      limit: rateLimitHeaders.limit,
+      remaining: rateLimitHeaders.remaining,
+      used: rateLimitHeaders.used,
+      resetAt: rateLimitHeaders.resetAt,
+      retryAfterMs: rateLimitHeaders.retryAfterMs,
+      durationMs: Date.now() - startedAt,
+      rateLimited,
+    });
     if (isGithubRateLimitResponse(response, text)) {
       throw buildGithubRateLimitError(response.status, response.headers);
     }
     throw new Error(`GitHub REST failed (${response.status}): ${text.slice(0, 300)}`);
   }
+
+  recordGithubTraceEntry({
+    category,
+    path,
+    status: response.status,
+    resource: rateLimitHeaders.resource,
+    limit: rateLimitHeaders.limit,
+    remaining: rateLimitHeaders.remaining,
+    used: rateLimitHeaders.used,
+    resetAt: rateLimitHeaders.resetAt,
+    retryAfterMs: rateLimitHeaders.retryAfterMs,
+    durationMs: Date.now() - startedAt,
+    rateLimited: false,
+  });
 
   return response.json();
 }
@@ -347,6 +518,8 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
   }
 
   throwIfGithubApiCoolingDown();
+  const startedAt = Date.now();
+  const category = classifyGithubGraphqlQuery(query);
 
   const response = await fetch(GITHUB_GRAPHQL_URL, {
     method: "POST",
@@ -356,9 +529,24 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
     },
     body: JSON.stringify({ query, variables }),
   });
+  const rateLimitHeaders = readGithubRateLimitHeaders(response.headers);
 
   if (!response.ok) {
     const text = await response.text();
+    const rateLimited = isGithubRateLimitResponse(response, text);
+    recordGithubTraceEntry({
+      category,
+      path: "graphql",
+      status: response.status,
+      resource: rateLimitHeaders.resource,
+      limit: rateLimitHeaders.limit,
+      remaining: rateLimitHeaders.remaining,
+      used: rateLimitHeaders.used,
+      resetAt: rateLimitHeaders.resetAt,
+      retryAfterMs: rateLimitHeaders.retryAfterMs,
+      durationMs: Date.now() - startedAt,
+      rateLimited,
+    });
     if (isGithubRateLimitResponse(response, text)) {
       throw buildGithubRateLimitError(response.status, response.headers);
     }
@@ -367,11 +555,39 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
 
   const payload = (await response.json()) as { data?: T; errors?: Array<{ message?: string }> };
   if (payload.errors?.length) {
-    if (payload.errors.some((entry) => (entry.message || "").toLowerCase().includes("rate limit"))) {
+    const rateLimited = payload.errors.some((entry) => (entry.message || "").toLowerCase().includes("rate limit"));
+    recordGithubTraceEntry({
+      category,
+      path: "graphql",
+      status: response.status,
+      resource: rateLimitHeaders.resource,
+      limit: rateLimitHeaders.limit,
+      remaining: rateLimitHeaders.remaining,
+      used: rateLimitHeaders.used,
+      resetAt: rateLimitHeaders.resetAt,
+      retryAfterMs: rateLimitHeaders.retryAfterMs,
+      durationMs: Date.now() - startedAt,
+      rateLimited,
+    });
+    if (rateLimited) {
       throw buildGithubRateLimitError(response.status || 403, response.headers);
     }
     throw new Error(payload.errors.map((entry) => entry.message || "Unknown GraphQL error").join("; "));
   }
+
+  recordGithubTraceEntry({
+    category,
+    path: "graphql",
+    status: response.status,
+    resource: rateLimitHeaders.resource,
+    limit: rateLimitHeaders.limit,
+    remaining: rateLimitHeaders.remaining,
+    used: rateLimitHeaders.used,
+    resetAt: rateLimitHeaders.resetAt,
+    retryAfterMs: rateLimitHeaders.retryAfterMs,
+    durationMs: Date.now() - startedAt,
+    rateLimited: false,
+  });
 
   return payload.data as T;
 }
@@ -1180,63 +1396,15 @@ function buildGithubHighlight(params: {
 export async function enrichGithubSignalsForCandidate(
   input: GithubCandidateInput,
 ): Promise<GithubEnrichmentResult> {
-  const timestamp = new Date().toISOString();
-  const currentCompany =
-    extractCurrentCompanyFromMetadata(input.metadata) ||
-    extractCurrentCompanyFromHeadline(input.headline);
-  if (!getGitHubToken()) {
-    const readout = buildRecruiterFacingGithubReadout({
-      status: "missing_public_data",
-      candidateName: input.name,
-      headline: input.headline,
-      currentCompany,
-      requiredSkills: input.requiredSkills || [],
-      activityTrend: null,
-      topLanguages: [],
-      mergedPrCount: null,
-      commitMessageQuality: {
-        label: "unknown",
-        detail: "No recent public commit messages available to sample.",
-      },
-      githubSignalScore: null,
-      highlight: null,
-      discoveryConfidence: 0,
-    });
-    return {
-      githubUrl: input.githubUrl || null,
-      githubSignals: {
-        status: "missing_public_data",
-        profile_login: extractUsernameFromGithubUrl(input.githubUrl),
-        profile_url: input.githubUrl || null,
-        activity_trend: null,
-        top_languages: [],
-        merged_pr_count: null,
-        commit_message_quality: null,
-        highlight: null,
-        discovery_confidence: 0,
-        github_signal_score: null,
-        evidence_strength: readout.evidenceStrength,
-        recruiter_summary: readout.recruiterSummary,
-        outreach_angle: readout.outreachAngle,
-        verification_risks: readout.verificationRisks,
-        discovery_notes: ["github_token_missing"],
-        evidence_summary: compactStringArray(
-          [readout.recruiterSummary, "GitHub API token is not configured."],
-          4,
-        ),
-        last_enriched_at: timestamp,
-      },
-      githubSignalScore: null,
-      githubDiscoveryConfidence: 0,
-    };
-  }
+  return githubRequestTraceStorage.run(createGithubRequestTrace(input.name), async () => {
+    const timestamp = new Date().toISOString();
+    const currentCompany =
+      extractCurrentCompanyFromMetadata(input.metadata) ||
+      extractCurrentCompanyFromHeadline(input.headline);
 
-  try {
-    const discovery = await discoverGithubIdentity(input);
-    if (!discovery.username || !discovery.url) {
-      const missingStatus = discovery.confidence > 0 ? "ambiguous_match" : "missing_public_data";
+    if (!getGitHubToken()) {
       const readout = buildRecruiterFacingGithubReadout({
-        status: missingStatus,
+        status: "missing_public_data",
         candidateName: input.name,
         headline: input.headline,
         currentCompany,
@@ -1250,22 +1418,174 @@ export async function enrichGithubSignalsForCandidate(
         },
         githubSignalScore: null,
         highlight: null,
-        discoveryConfidence: round(discovery.confidence, 3),
-        discoveryNotes: discovery.notes,
+        discoveryConfidence: 0,
+      });
+      logGithubTraceSummary({
+        outcome: "missing_public_data",
+        githubLogin: extractUsernameFromGithubUrl(input.githubUrl),
+        error: "GITHUB_TOKEN is missing",
       });
       return {
-        githubUrl: null,
+        githubUrl: input.githubUrl || null,
         githubSignals: {
-          status: missingStatus,
-          profile_login: null,
-          profile_url: null,
+          status: "missing_public_data",
+          profile_login: extractUsernameFromGithubUrl(input.githubUrl),
+          profile_url: input.githubUrl || null,
           activity_trend: null,
           top_languages: [],
           merged_pr_count: null,
           commit_message_quality: null,
           highlight: null,
-          discovery_confidence: round(discovery.confidence, 3),
+          discovery_confidence: 0,
           github_signal_score: null,
+          evidence_strength: readout.evidenceStrength,
+          recruiter_summary: readout.recruiterSummary,
+          outreach_angle: readout.outreachAngle,
+          verification_risks: readout.verificationRisks,
+          discovery_notes: ["github_token_missing"],
+          evidence_summary: compactStringArray(
+            [readout.recruiterSummary, "GitHub API token is not configured."],
+            4,
+          ),
+          last_enriched_at: timestamp,
+        },
+        githubSignalScore: null,
+        githubDiscoveryConfidence: 0,
+      };
+    }
+
+    try {
+      const discovery = await discoverGithubIdentity(input);
+      if (!discovery.username || !discovery.url) {
+        const missingStatus = discovery.confidence > 0 ? "ambiguous_match" : "missing_public_data";
+        const readout = buildRecruiterFacingGithubReadout({
+          status: missingStatus,
+          candidateName: input.name,
+          headline: input.headline,
+          currentCompany,
+          requiredSkills: input.requiredSkills || [],
+          activityTrend: null,
+          topLanguages: [],
+          mergedPrCount: null,
+          commitMessageQuality: {
+            label: "unknown",
+            detail: "No recent public commit messages available to sample.",
+          },
+          githubSignalScore: null,
+          highlight: null,
+          discoveryConfidence: round(discovery.confidence, 3),
+          discoveryNotes: discovery.notes,
+        });
+        logGithubTraceSummary({
+          outcome: missingStatus,
+          discoverySource: discovery.source,
+          error: discovery.notes.join("; "),
+        });
+        return {
+          githubUrl: null,
+          githubSignals: {
+            status: missingStatus,
+            profile_login: null,
+            profile_url: null,
+            activity_trend: null,
+            top_languages: [],
+            merged_pr_count: null,
+            commit_message_quality: null,
+            highlight: null,
+            discovery_confidence: round(discovery.confidence, 3),
+            github_signal_score: null,
+            evidence_strength: readout.evidenceStrength,
+            recruiter_summary: readout.recruiterSummary,
+            outreach_angle: readout.outreachAngle,
+            verification_risks: readout.verificationRisks,
+            discovery_notes: discovery.notes,
+            evidence_summary: compactStringArray(
+              [
+                readout.recruiterSummary,
+                ...discovery.notes,
+              ],
+              6,
+            ),
+            last_enriched_at: timestamp,
+          },
+          githubSignalScore: null,
+          githubDiscoveryConfidence: round(discovery.confidence, 3),
+        };
+      }
+
+      const metadataRepoNames = repoSummariesFromMetadata(input.metadata);
+      const { days, repoSummaries } = await fetchContributionSignals(discovery.username);
+      const mergedPrSignals = await fetchMergedPrSignals(discovery.username);
+
+      const commitSamples = await fetchRecentCommitSamples(
+        discovery.username,
+        metadataRepoNames,
+      ).catch(() => [] as RecentCommitSample[]);
+
+      const repoBackfillSamples = commitSamples.length > 0
+        ? commitSamples
+        : await fetchRecentCommitSamples(
+          discovery.username,
+          repoSummaries.map((entry) => entry.nameWithOwner),
+        );
+
+      const activityTrend = classifyActivityTrendFromWeeks(days);
+      const topLanguageWeights = mergeLanguageWeights(
+        repoSummaries.flatMap((entry) => entry.languageWeights),
+      ).slice(0, 5);
+      const topLanguages = topLanguageWeights.map((entry) => entry.name);
+      const commitMessageQuality = evaluateCommitMessageQuality(
+        repoBackfillSamples.map((entry) => entry.message),
+      );
+      const githubSignalScore = computeGithubSignalScore({
+        requiredSkills: input.requiredSkills || [],
+        activityTrend,
+        topLanguages,
+        mergedPrCount: mergedPrSignals.count,
+        commitMessageQuality,
+      });
+      const highlight = buildGithubHighlight({
+        username: discovery.username,
+        activityTrend,
+        topLanguages,
+        repoSummaries,
+        mergedPrSignals,
+      });
+      const readout = buildRecruiterFacingGithubReadout({
+        status: "verified",
+        candidateName: input.name,
+        headline: input.headline,
+        currentCompany,
+        requiredSkills: input.requiredSkills || [],
+        activityTrend,
+        topLanguages,
+        mergedPrCount: mergedPrSignals.count,
+        commitMessageQuality,
+        githubSignalScore,
+        highlight,
+        discoveryConfidence: round(discovery.confidence, 3),
+        discoveryNotes: discovery.notes,
+      });
+      logGithubTraceSummary({
+        outcome: "verified",
+        discoverySource: discovery.source,
+        githubLogin: discovery.username,
+      });
+
+      return {
+        githubUrl: discovery.url,
+        githubSignals: {
+          status: "verified",
+          profile_login: discovery.username,
+          profile_url: discovery.url,
+          activity_trend: activityTrend,
+          top_languages: topLanguages,
+          top_language_weights: topLanguageWeights,
+          merged_pr_count: mergedPrSignals.count,
+          commit_message_quality: `${commitMessageQuality.label}: ${commitMessageQuality.detail}`,
+          highlight,
+          discovery_confidence: round(discovery.confidence, 3),
+          github_signal_score: githubSignalScore,
           evidence_strength: readout.evidenceStrength,
           recruiter_summary: readout.recruiterSummary,
           outreach_angle: readout.outreachAngle,
@@ -1274,162 +1594,81 @@ export async function enrichGithubSignalsForCandidate(
           evidence_summary: compactStringArray(
             [
               readout.recruiterSummary,
-              ...discovery.notes,
+              highlight,
+              activityTrend,
+              mergedPrSignals.highlights[0]?.title
+                ? `Merged PR proof: ${mergedPrSignals.highlights[0]?.title}${mergedPrSignals.highlights[0]?.repo ? ` in ${mergedPrSignals.highlights[0]?.repo}` : ""}`
+                : mergedPrSignals.count > 0
+                  ? `${mergedPrSignals.count} merged PRs into external repositories`
+                  : null,
+              commitMessageQuality.detail,
             ],
             6,
           ),
           last_enriched_at: timestamp,
         },
-        githubSignalScore: null,
+        githubSignalScore,
         githubDiscoveryConfidence: round(discovery.confidence, 3),
       };
-    }
-
-    const metadataRepoNames = repoSummariesFromMetadata(input.metadata);
-    const { days, repoSummaries } = await fetchContributionSignals(discovery.username);
-    const mergedPrSignals = await fetchMergedPrSignals(discovery.username);
-
-    const commitSamples = await fetchRecentCommitSamples(
-      discovery.username,
-      metadataRepoNames,
-    ).catch(() => [] as RecentCommitSample[]);
-
-    const repoBackfillSamples = commitSamples.length > 0
-      ? commitSamples
-      : await fetchRecentCommitSamples(
-        discovery.username,
-        repoSummaries.map((entry) => entry.nameWithOwner),
-      );
-
-    const activityTrend = classifyActivityTrendFromWeeks(days);
-    const topLanguageWeights = mergeLanguageWeights(
-      repoSummaries.flatMap((entry) => entry.languageWeights),
-    ).slice(0, 5);
-    const topLanguages = topLanguageWeights.map((entry) => entry.name);
-    const commitMessageQuality = evaluateCommitMessageQuality(
-      repoBackfillSamples.map((entry) => entry.message),
-    );
-    const githubSignalScore = computeGithubSignalScore({
-      requiredSkills: input.requiredSkills || [],
-      activityTrend,
-      topLanguages,
-      mergedPrCount: mergedPrSignals.count,
-      commitMessageQuality,
-    });
-    const highlight = buildGithubHighlight({
-      username: discovery.username,
-      activityTrend,
-      topLanguages,
-      repoSummaries,
-      mergedPrSignals,
-    });
-    const readout = buildRecruiterFacingGithubReadout({
-      status: "verified",
-      candidateName: input.name,
-      headline: input.headline,
-      currentCompany,
-      requiredSkills: input.requiredSkills || [],
-      activityTrend,
-      topLanguages,
-      mergedPrCount: mergedPrSignals.count,
-      commitMessageQuality,
-      githubSignalScore,
-      highlight,
-      discoveryConfidence: round(discovery.confidence, 3),
-      discoveryNotes: discovery.notes,
-    });
-
-    return {
-      githubUrl: discovery.url,
-      githubSignals: {
-        status: "verified",
-        profile_login: discovery.username,
-        profile_url: discovery.url,
-        activity_trend: activityTrend,
-        top_languages: topLanguages,
-        top_language_weights: topLanguageWeights,
-        merged_pr_count: mergedPrSignals.count,
-        commit_message_quality: `${commitMessageQuality.label}: ${commitMessageQuality.detail}`,
-        highlight,
-        discovery_confidence: round(discovery.confidence, 3),
-        github_signal_score: githubSignalScore,
-        evidence_strength: readout.evidenceStrength,
-        recruiter_summary: readout.recruiterSummary,
-        outreach_angle: readout.outreachAngle,
-        verification_risks: readout.verificationRisks,
-        discovery_notes: discovery.notes,
-        evidence_summary: compactStringArray(
-          [
-            readout.recruiterSummary,
-            highlight,
-            activityTrend,
-            mergedPrSignals.highlights[0]?.title
-              ? `Merged PR proof: ${mergedPrSignals.highlights[0]?.title}${mergedPrSignals.highlights[0]?.repo ? ` in ${mergedPrSignals.highlights[0]?.repo}` : ""}`
-              : mergedPrSignals.count > 0
-                ? `${mergedPrSignals.count} merged PRs into external repositories`
-                : null,
-            commitMessageQuality.detail,
-          ],
-          6,
-        ),
-        last_enriched_at: timestamp,
-      },
-      githubSignalScore,
-      githubDiscoveryConfidence: round(discovery.confidence, 3),
-    };
-  } catch (error) {
-    const isRateLimited = error instanceof GithubRateLimitError;
-    const rateLimitSummary = isRateLimited
-      ? error.message
-      : "GitHub enrichment hit an API error; verify manually before relying on code evidence.";
-    const readout = buildRecruiterFacingGithubReadout({
-      status: "api_error",
-      candidateName: input.name,
-      headline: input.headline,
-      currentCompany,
-      requiredSkills: input.requiredSkills || [],
-      activityTrend: null,
-      topLanguages: [],
-      mergedPrCount: null,
-      commitMessageQuality: {
-        label: "unknown",
-        detail: "No recent public commit messages available to sample.",
-      },
-      githubSignalScore: null,
-      highlight: null,
-      discoveryConfidence: 0,
-    });
-    return {
-      githubUrl: input.githubUrl || null,
-      githubSignals: {
+    } catch (error) {
+      const isRateLimited = error instanceof GithubRateLimitError;
+      const rateLimitSummary = isRateLimited
+        ? error.message
+        : "GitHub enrichment hit an API error; verify manually before relying on code evidence.";
+      const readout = buildRecruiterFacingGithubReadout({
         status: "api_error",
-        profile_login: extractUsernameFromGithubUrl(input.githubUrl),
-        profile_url: input.githubUrl || null,
-        activity_trend: null,
-        top_languages: [],
-        merged_pr_count: null,
-        commit_message_quality: null,
+        candidateName: input.name,
+        headline: input.headline,
+        currentCompany,
+        requiredSkills: input.requiredSkills || [],
+        activityTrend: null,
+        topLanguages: [],
+        mergedPrCount: null,
+        commitMessageQuality: {
+          label: "unknown",
+          detail: "No recent public commit messages available to sample.",
+        },
+        githubSignalScore: null,
         highlight: null,
-        discovery_confidence: 0,
-        github_signal_score: null,
-        evidence_strength: readout.evidenceStrength,
-        recruiter_summary: readout.recruiterSummary,
-        outreach_angle: readout.outreachAngle,
-        verification_risks: compactStringArray(
-          [...readout.verificationRisks, rateLimitSummary],
-          3,
-        ),
-        discovery_notes: [isRateLimited ? "api_rate_limited" : "api_error"],
-        evidence_summary: compactStringArray(
-          [readout.recruiterSummary, isRateLimited ? rateLimitSummary : (error instanceof Error ? error.message : String(error))],
-          4,
-        ),
-        last_enriched_at: timestamp,
-      },
-      githubSignalScore: null,
-      githubDiscoveryConfidence: 0,
-    };
-  }
+        discoveryConfidence: 0,
+      });
+      logGithubTraceSummary({
+        outcome: "api_error",
+        githubLogin: extractUsernameFromGithubUrl(input.githubUrl),
+        error: isRateLimited ? rateLimitSummary : (error instanceof Error ? error.message : String(error)),
+      });
+      return {
+        githubUrl: input.githubUrl || null,
+        githubSignals: {
+          status: "api_error",
+          profile_login: extractUsernameFromGithubUrl(input.githubUrl),
+          profile_url: input.githubUrl || null,
+          activity_trend: null,
+          top_languages: [],
+          merged_pr_count: null,
+          commit_message_quality: null,
+          highlight: null,
+          discovery_confidence: 0,
+          github_signal_score: null,
+          evidence_strength: readout.evidenceStrength,
+          recruiter_summary: readout.recruiterSummary,
+          outreach_angle: readout.outreachAngle,
+          verification_risks: compactStringArray(
+            [...readout.verificationRisks, rateLimitSummary],
+            3,
+          ),
+          discovery_notes: [isRateLimited ? "api_rate_limited" : "api_error"],
+          evidence_summary: compactStringArray(
+            [readout.recruiterSummary, isRateLimited ? rateLimitSummary : (error instanceof Error ? error.message : String(error))],
+            4,
+          ),
+          last_enriched_at: timestamp,
+        },
+        githubSignalScore: null,
+        githubDiscoveryConfidence: 0,
+      };
+    }
+  });
 }
 
 function repoSummariesFromMetadata(metadata: Record<string, unknown> | null | undefined) {
