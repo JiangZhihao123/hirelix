@@ -469,17 +469,18 @@ export default function Home() {
           <div className="lg:flex lg:min-h-full lg:flex-col lg:justify-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/[0.1] px-3 py-1 text-xs font-medium text-sky-100">
               <Sparkles className="h-3.5 w-3.5" />
-              For technical recruiters and headhunters hiring engineers
+              For technical recruiters and headhunters
             </div>
 
             <h1 className="mt-3 max-w-[12.5ch] text-4xl font-extrabold leading-[0.93] tracking-tight text-white sm:text-[2.8rem] lg:text-[3.15rem]">
               Paste a JD.
               <br />
-              <span className="text-gradient">Get shortlist and outreach in minutes.</span>
+              <span className="text-gradient">Get GitHub-vetted shortlist and outreach in minutes.</span>
             </h1>
 
             <p className="mt-2.5 max-w-[33rem] text-[15px] leading-relaxed text-slate-300 sm:text-[0.96rem]">
-              Review real LinkedIn candidates, inspect GitHub-backed signals when available, and leave with personalized outreach drafts from one pasted JD.
+              Real LinkedIn profiles, cross-referenced with GitHub signals when public evidence exists.
+              One pasted JD gets you a ranked shortlist and personalized outreach drafts.
             </p>
 
             <div className="mt-2.5 hidden flex-wrap items-center gap-1.5 text-[11px] text-slate-100 sm:flex">
@@ -574,7 +575,7 @@ export default function Home() {
                       {isSubmitting ? "Opening your shortlist..." : "Get Shortlist + Outreach"}{" "}
                       <ArrowRight className="h-4 w-4" />
                     </button>
-                    <p className="mt-2.5 text-center text-xs leading-relaxed text-slate-600 lg:hidden">
+                    <p className="mt-2.5 text-center text-xs leading-relaxed text-slate-600">
                       {isSubmitting
                         ? "Taking you to the sign-in step with your JD ready."
                         : "No credit card for the Free plan. Sign in when you are ready to run the search."}
@@ -583,6 +584,10 @@ export default function Home() {
                 </div>
               </div>
             </form>
+
+            <p className="mt-3 hidden text-xs text-slate-300/70 sm:block">
+              Trusted by technical recruiters running high-volume engineering searches.
+            </p>
 
           </div>
 
