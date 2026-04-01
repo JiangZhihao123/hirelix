@@ -445,7 +445,50 @@ export async function parseJobDescriptionToDraft(jdText: string) {
     parsed = null;
   }
 
-  return sanitizeIntentCandidate(parsed, jdText);
+  const result = sanitizeIntentCandidate(parsed, jdText);
+
+  // If LLM didn't populate target_companies, run a focused second call
+  const recallSpec = result.recall_spec as Record<string, unknown> | undefined;
+  const existingCompanies = Array.isArray(recallSpec?.target_companies)
+    ? (recallSpec.target_companies as string[])
+    : [];
+
+  if (existingCompanies.length === 0) {
+    try {
+      const title = typeof result.title === "string" ? result.title : "";
+      const domainTerms = Array.isArray(
+        (result.hiring_brief as Record<string, unknown> | undefined)
+      ) ? [] : (() => {
+        const rs = result.recall_spec as Record<string, unknown> | undefined;
+        const dt = rs?.domain_terms;
+        return Array.isArray(dt) ? (dt as string[]) : [];
+      })();
+      const jdSnippet = jdText.slice(0, 600);
+
+      const { data: companies } = await generateOpenRouterJson<string[]>({
+        model: getDefaultOpenRouterModel(),
+        system: "You are an expert headhunter. When given a job role and context, you immediately know which companies to call first to find passive candidates. Return ONLY a valid JSON array of company name strings — no explanation, no markdown.",
+        prompt: `Role: ${title}\nDomain: ${domainTerms.join(", ") || "technology"}\nJD context:\n${jdSnippet}\n\nList 8-12 companies where the best candidates for this role currently work (competitors, same-vertical, similar-stage companies). Return a JSON array like: ["Company A", "Company B"]`,
+        maxOutputTokens: 400,
+        temperature: 0,
+        timeoutMs: 20000,
+        jsonMode: true,
+      });
+
+      if (Array.isArray(companies) && companies.length > 0) {
+        const validated = companies.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+        if (validated.length > 0 && recallSpec) {
+          recallSpec.target_companies = validated.slice(0, 15);
+          // Re-enforce multi_round now that we have target companies
+          recallSpec.recall_strategy = "multi_round";
+        }
+      }
+    } catch {
+      // Silently ignore — target_companies stays empty, search still runs
+    }
+  }
+
+  return result;
 }
 
 export function buildParsedRequirementsForLaunch(
