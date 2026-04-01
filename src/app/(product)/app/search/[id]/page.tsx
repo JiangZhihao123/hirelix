@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { ResultPageSkeleton } from "@/components/ProductSkeletons";
+import { LinkedInScanAnimation } from "@/components/LinkedInScanAnimation";
 import { supabase } from "@/lib/supabase";
 import { useBilling } from "@/lib/use-billing";
 import {
@@ -649,12 +650,12 @@ function formatStartedAgo(value: string) {
 
 function getProviderDelayCopy(elapsedMs: number | null) {
   if (!elapsedMs || elapsedMs < 180_000) {
-    return "Hirelix is waiting for Bright to return recalled profiles. Broader searches can take a few minutes.";
+    return "Scanning LinkedIn profiles now. Broader searches cover a larger pool and may take a few minutes.";
   }
   if (elapsedMs < 360_000) {
-    return "Bright recall is slower than the fastest runs, but still within the normal range.";
+    return "This search is covering a wider pool than usual. Results will be more comprehensive.";
   }
-  return "Bright recall is unusually slow right now. You can leave this page and come back later.";
+  return "This is taking a bit longer than usual. You can leave — we'll email you when the shortlist is ready.";
 }
 
 function getSearchErrorPresentation(errorMessage: string | null | undefined) {
@@ -662,7 +663,7 @@ function getSearchErrorPresentation(errorMessage: string | null | undefined) {
   if (normalized.includes("insufficient funds")) {
     return {
       title: "External profile provider balance is too low",
-      body: "Bright Data could not start the profile recall because the provider account has insufficient funds.",
+      body: "The LinkedIn search could not start due to a configuration issue on our end. Please retry or contact support.",
       hint: "Top up the provider balance, then retry this shortlist.",
     };
   }
@@ -3078,8 +3079,8 @@ export default function SearchResultPage() {
                   : taskStage === "brief_ready"
                     ? "Hirelix understands the role and is moving into recall."
                     : taskStage === "provider_recall"
-                      ? "Provider recall is still running."
-                      : "Hirelix is reviewing recalled profiles now."}
+                      ? "Scanning LinkedIn at scale."
+                      : "Reviewing your candidates now."}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
                 {getSearchTaskSummary(taskStage)}
@@ -3097,7 +3098,7 @@ export default function SearchResultPage() {
               </div>
               <p className="mt-4 max-w-2xl text-xs text-slate-500">
                 {standardRecallReady
-                  ? `Provider recall finished in ${standardRecallReadyLabel}. Hirelix is reviewing profiles now.`
+                  ? `LinkedIn scan finished in ${standardRecallReadyLabel}. Now reviewing the strongest matches.`
                   : getProviderDelayCopy(providerDelayMs)}
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
@@ -3124,6 +3125,12 @@ export default function SearchResultPage() {
               }}
             />
           </div>
+          {(taskStage === "provider_recall" || taskStage === "reviewing_profiles") && (
+            <LinkedInScanAnimation
+              stage={taskStage}
+              roleTitle={typeof roleCore?.title === "string" && roleCore.title ? roleCore.title : displayTitle}
+            />
+          )}
           <div className="mb-6 grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
