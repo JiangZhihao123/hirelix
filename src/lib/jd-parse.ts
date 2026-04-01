@@ -490,8 +490,8 @@ Return a JSON object with a "companies" key: {"companies": ["Company A", "Compan
         recallSpec.target_companies = companies.slice(0, 15);
         recallSpec.recall_strategy = "multi_round";
       }
-    } catch {
-      // Silently ignore — target_companies stays empty, search still runs
+    } catch (err) {
+      console.error("[jd-parse] target_companies second call failed:", err instanceof Error ? err.message : String(err));
     }
   }
 
