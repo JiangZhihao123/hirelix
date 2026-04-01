@@ -455,33 +455,43 @@ export async function parseJobDescriptionToDraft(jdText: string) {
 
   if (existingCompanies.length === 0) {
     try {
-      const title = typeof result.title === "string" ? result.title : "";
-      const domainTerms = Array.isArray(
-        (result.hiring_brief as Record<string, unknown> | undefined)
-      ) ? [] : (() => {
-        const rs = result.recall_spec as Record<string, unknown> | undefined;
-        const dt = rs?.domain_terms;
-        return Array.isArray(dt) ? (dt as string[]) : [];
-      })();
+      const titleStr = typeof result.title === "string" ? result.title : "";
+      const rs2 = result.recall_spec as Record<string, unknown> | undefined;
+      const domainTerms = Array.isArray(rs2?.domain_terms) ? (rs2.domain_terms as string[]) : [];
+      const coreSkills = Array.isArray(rs2?.core_skill_terms) ? (rs2.core_skill_terms as string[]).slice(0, 4) : [];
       const jdSnippet = jdText.slice(0, 600);
 
-      const { data: companies } = await generateOpenRouterJson<string[]>({
+      const { data: raw } = await generateOpenRouterJson<unknown>({
         model: getDefaultOpenRouterModel(),
-        system: "You are an expert headhunter. When given a job role and context, you immediately know which companies to call first to find passive candidates. Return ONLY a valid JSON array of company name strings — no explanation, no markdown.",
-        prompt: `Role: ${title}\nDomain: ${domainTerms.join(", ") || "technology"}\nJD context:\n${jdSnippet}\n\nList 8-12 companies where the best candidates for this role currently work (competitors, same-vertical, similar-stage companies). Return a JSON array like: ["Company A", "Company B"]`,
-        maxOutputTokens: 400,
+        system: "You are an expert headhunter. Return ONLY a raw JSON array of strings — no wrapper object, no explanation, no markdown.",
+        prompt: `I'm sourcing for: ${titleStr}
+Industry/domain: ${[...domainTerms, ...coreSkills].join(", ") || "technology"}
+JD excerpt: ${jdSnippet}
+
+Name 8-12 companies where strong candidates for this role currently work today — direct competitors, same-vertical companies, or companies known for this type of talent.
+Reply with ONLY a JSON array, like: ["Gusto","Workday","ADP"]`,
+        maxOutputTokens: 300,
         temperature: 0,
-        timeoutMs: 20000,
+        timeoutMs: 25000,
         jsonMode: true,
       });
 
-      if (Array.isArray(companies) && companies.length > 0) {
-        const validated = companies.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
-        if (validated.length > 0 && recallSpec) {
-          recallSpec.target_companies = validated.slice(0, 15);
-          // Re-enforce multi_round now that we have target companies
-          recallSpec.recall_strategy = "multi_round";
+      // Handle both plain array and wrapped object responses from the LLM
+      let companies: string[] = [];
+      if (Array.isArray(raw)) {
+        companies = raw.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+      } else if (raw && typeof raw === "object") {
+        // Some models return {"companies": [...]} or {"target_companies": [...]}
+        const obj = raw as Record<string, unknown>;
+        const val = obj.companies ?? obj.target_companies ?? obj.data ?? Object.values(obj)[0];
+        if (Array.isArray(val)) {
+          companies = val.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
         }
+      }
+
+      if (companies.length > 0 && recallSpec) {
+        recallSpec.target_companies = companies.slice(0, 15);
+        recallSpec.recall_strategy = "multi_round";
       }
     } catch {
       // Silently ignore — target_companies stays empty, search still runs
