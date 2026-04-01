@@ -3078,7 +3078,7 @@ export default function SearchResultPage() {
                   ? "Your search has been accepted."
                   : taskStage === "brief_ready"
                     ? "Hirelix understands the role and is moving into recall."
-                    : taskStage === "provider_recall"
+                    : taskStage === "linkedin_scan"
                       ? "Scanning LinkedIn at scale."
                       : "Reviewing your candidates now."}
               </h2>
@@ -3125,7 +3125,7 @@ export default function SearchResultPage() {
               }}
             />
           </div>
-          {(taskStage === "provider_recall" || taskStage === "reviewing_profiles") && (
+          {(taskStage === "linkedin_scan" || taskStage === "reviewing_profiles") && (
             <LinkedInScanAnimation
               stage={taskStage}
               roleTitle={typeof roleCore?.title === "string" && roleCore.title ? roleCore.title : displayTitle}

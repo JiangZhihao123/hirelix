@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Search } from "lucide-react";
 
 interface LinkedInScanAnimationProps {
-  stage: "provider_recall" | "reviewing_profiles";
+  stage: "linkedin_scan" | "reviewing_profiles";
   roleTitle?: string;
 }
 

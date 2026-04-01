@@ -11,7 +11,7 @@ export type SearchTaskProcessingStatus =
 export type SearchTaskStage =
   | "accepted"
   | "brief_ready"
-  | "provider_recall"
+  | "linkedin_scan"
   | "reviewing_profiles"
   | "shortlist_ready";
 
@@ -55,7 +55,7 @@ export function getSearchTaskStage(search: SearchTaskLike): SearchTaskStage {
   if (pipelineStep === "searching" && search.standard_recall_completed_at) {
     return "reviewing_profiles";
   }
-  if (pipelineStep === "searching") return "provider_recall";
+  if (pipelineStep === "searching") return "linkedin_scan";
   if (search.parse_completed_at) return "brief_ready";
   return "accepted";
 }
@@ -66,7 +66,7 @@ export function getSearchTaskStageLabel(stage: SearchTaskStage) {
       return "Search accepted";
     case "brief_ready":
       return "Understanding the role";
-    case "provider_recall":
+    case "linkedin_scan":
       return "Scanning LinkedIn";
     case "reviewing_profiles":
       return "Reviewing candidates";
@@ -85,7 +85,7 @@ export function getSearchTaskEtaCopy(
     return "Brief parsing usually finishes in under 1 minute";
   }
 
-  if (stage === "brief_ready" || stage === "provider_recall") {
+  if (stage === "brief_ready" || stage === "linkedin_scan") {
     return "LinkedIn search usually takes 2–5 minutes";
   }
 
@@ -110,7 +110,7 @@ export function getSearchTaskSummary(stage: SearchTaskStage) {
       return "Your search has started. You can leave this page while Hirelix prepares the search.";
     case "brief_ready":
       return "Hirelix has turned the JD into a search brief and is preparing the LinkedIn search. You can leave this page.";
-    case "provider_recall":
+    case "linkedin_scan":
       return "We're scanning LinkedIn at scale. This usually takes a few minutes — you can leave this page.";
     case "reviewing_profiles":
       return "We've finished the LinkedIn scan. Now reviewing the strongest matches for this role.";
@@ -127,7 +127,7 @@ export function getSearchTaskTimelineItems(search: SearchTaskLike) {
     ? 0
     : stage === "brief_ready"
       ? 1
-      : stage === "provider_recall"
+      : stage === "linkedin_scan"
         ? 2
         : stage === "reviewing_profiles"
           ? 3
