@@ -433,7 +433,7 @@ export async function parseJobDescriptionToDraft(jdText: string) {
       prompt: jdText,
       maxOutputTokens: 3200,
       temperature: 0,
-      timeoutMs: 60000,
+      timeoutMs: 50000,
       // Use json_mode instead of strict JSON schema â€” the schema constrained the model
       // too much and caused it to return empty arrays for lateral_title_variants and
       // target_companies even with explicit prompt instructions to fill them.
@@ -453,6 +453,8 @@ export async function parseJobDescriptionToDraft(jdText: string) {
     ? (recallSpec.target_companies as string[])
     : [];
 
+  const secondCallDebug: Record<string, unknown> = { entered: existingCompanies.length === 0 };
+
   if (existingCompanies.length === 0) {
     try {
       const titleStr = typeof result.title === "string" ? result.title : "";
@@ -461,7 +463,7 @@ export async function parseJobDescriptionToDraft(jdText: string) {
       const coreSkills = Array.isArray(rs2?.core_skill_terms) ? (rs2.core_skill_terms as string[]).slice(0, 4) : [];
       const jdSnippet = jdText.slice(0, 600);
 
-      const { data: raw } = await generateOpenRouterJson<{ companies: string[] }>({
+      const { data: raw, text: rawText } = await generateOpenRouterJson<{ companies: string[] }>({
         model: getDefaultOpenRouterModel(),
         system: "You are an expert headhunter. Return ONLY valid JSON.",
         prompt: `I'm sourcing for: ${titleStr}
@@ -472,9 +474,12 @@ Name 8-12 companies where strong candidates for this role currently work today â
 Return a JSON object with a "companies" key: {"companies": ["Company A", "Company B", ...]}`,
         maxOutputTokens: 300,
         temperature: 0,
-        timeoutMs: 25000,
+        timeoutMs: 12000,
         jsonMode: true,
       });
+
+      secondCallDebug.rawText = rawText?.slice(0, 200);
+      secondCallDebug.rawType = typeof raw;
 
       // Extract companies array from the response object
       let companies: string[] = [];
@@ -486,14 +491,21 @@ Return a JSON object with a "companies" key: {"companies": ["Company A", "Compan
         }
       }
 
+      secondCallDebug.companiesFound = companies.length;
+
       if (companies.length > 0 && recallSpec) {
         recallSpec.target_companies = companies.slice(0, 15);
         recallSpec.recall_strategy = "multi_round";
       }
     } catch (err) {
-      console.error("[jd-parse] target_companies second call failed:", err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      secondCallDebug.error = msg;
+      console.error("[jd-parse] target_companies second call failed:", msg);
     }
   }
+
+  // Attach debug info as non-enumerable to avoid polluting the result shape
+  Object.defineProperty(result, "_secondCallDebug", { value: secondCallDebug, enumerable: true, writable: true });
 
   return result;
 }
