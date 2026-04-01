@@ -180,6 +180,79 @@ function inferSkills(jdText: string, maxItems: number) {
   return found.slice(0, maxItems);
 }
 
+// Strip role-qualifier suffixes after comma or dash that appear in JD titles
+// e.g. "Senior Software Engineer, Cloud" → "Senior Software Engineer"
+//      "Staff Engineer — Platform" → "Staff Engineer"
+function cleanTitleSuffix(t: string): string {
+  return t.split(/[,\-–—]/)[0]?.trim() ?? t;
+}
+
+// Given a raw title (possibly with suffix), expand to ≥3 LinkedIn-friendly seniority variants
+function expandTitleVariants(rawVariants: string[], mainTitle: string): string[] {
+  const SENIORITY_UPGRADES: Record<string, string[]> = {
+    junior: ["Junior", "Associate", ""],
+    associate: ["Associate", "Junior", ""],
+    mid: ["", "Senior"],
+    senior: ["Senior", "Staff", "Principal", "Lead"],
+    staff: ["Staff", "Senior", "Principal"],
+    principal: ["Principal", "Staff", "Senior"],
+    lead: ["Lead", "Senior", "Staff"],
+    founding: ["Founding", "Senior", "Staff"],
+  };
+
+  // Clean all incoming variants (strip comma/dash suffixes)
+  const cleaned = rawVariants.map(cleanTitleSuffix).filter(Boolean);
+
+  // Also clean and include the main title
+  const cleanMain = cleanTitleSuffix(mainTitle);
+  if (cleanMain && !cleaned.includes(cleanMain)) cleaned.unshift(cleanMain);
+
+  // Check if we already have enough clean variants
+  if (cleaned.length >= 3) {
+    const deduped = [...new Set(cleaned)];
+    if (deduped.length >= 3) return deduped.slice(0, 8);
+  }
+
+  // Need to generate more: detect seniority in the main title
+  const lowerMain = cleanMain.toLowerCase();
+  let matchedSeniority: string | null = null;
+  let baseRole = cleanMain;
+
+  for (const key of Object.keys(SENIORITY_UPGRADES)) {
+    if (lowerMain.startsWith(key + " ")) {
+      matchedSeniority = key;
+      baseRole = cleanMain.slice(key.length + 1).trim();
+      break;
+    }
+  }
+  // Handle "Head of X" / "VP of X" / "Director of X" patterns
+  if (!matchedSeniority) {
+    const headMatch = /^(head of|vp of|director of)\s+(.+)$/i.exec(cleanMain);
+    if (headMatch) {
+      const subject = headMatch[2] ?? "";
+      const generated = [
+        `Head of ${subject}`,
+        `VP of ${subject}`,
+        `Director of ${subject}`,
+        `${subject} Lead`,
+      ].filter(Boolean);
+      return [...new Set([...cleaned, ...generated])].slice(0, 8);
+    }
+  }
+
+  if (matchedSeniority && baseRole) {
+    const prefixes = SENIORITY_UPGRADES[matchedSeniority] ?? [];
+    const expanded = prefixes
+      .map((p) => (p ? `${p} ${baseRole}` : baseRole))
+      .filter(Boolean);
+    const result = [...new Set([...cleaned, ...expanded])];
+    if (result.length >= 3) return result.slice(0, 8);
+  }
+
+  // Last resort: no seniority detected, just return what we have (at least the cleaned main title)
+  return [...new Set(cleaned.length > 0 ? cleaned : [cleanMain])].slice(0, 8);
+}
+
 function sanitizeIntentCandidate(
   raw: ParsedSearchIntent | null | undefined,
   jdText: string,
@@ -218,7 +291,8 @@ function sanitizeIntentCandidate(
     requiredSkills.length > 0 ? requiredSkills : fallbackCoreSkills.slice(0, 6);
   const normalizedNiceToHaveSkills =
     niceToHaveSkills.length > 0 ? niceToHaveSkills : fallbackCoreSkills.slice(6, 10);
-  const titleVariants = normalizeStringArray(recallSpec.title_variants, 8);
+  const rawTitleVariants = normalizeStringArray(recallSpec.title_variants, 8);
+  const titleVariants = expandTitleVariants(rawTitleVariants, title);
   const coreSkillTerms = normalizeStringArray(recallSpec.core_skill_terms, 12);
 
   return {
