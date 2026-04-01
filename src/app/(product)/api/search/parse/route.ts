@@ -25,9 +25,15 @@ export async function POST(req: NextRequest) {
 
     const parsed = await parseJobDescriptionToDraft(jd_text.trim());
 
+    const recallSpec = parsed.recall_spec as Record<string, unknown> | undefined;
     return NextResponse.json({
       parsed_requirements: parsed,
       summary: summarizeParsedJob(parsed),
+      _debug: {
+        recall_strategy: recallSpec?.recall_strategy,
+        target_companies_count: Array.isArray(recallSpec?.target_companies) ? (recallSpec.target_companies as unknown[]).length : -1,
+        lateral_count: Array.isArray(recallSpec?.lateral_title_variants) ? (recallSpec.lateral_title_variants as unknown[]).length : -1,
+      },
     });
   } catch (error) {
     console.error("[search/parse] Error:", error);
