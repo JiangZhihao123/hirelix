@@ -32,6 +32,7 @@ import {
 } from "@/lib/github-signals";
 import {
   buildFallbackOutreachDraft,
+  buildRecruiterOutreachPrompt,
   buildRecruiterOutreachEvidence,
 } from "@/lib/recruiter-outreach";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
@@ -3184,66 +3185,6 @@ function getLightModel() {
 }
 
 
-function buildSearchOutreachPrompt(
-  parsed: Record<string, unknown>,
-  jdText: string,
-  candidate: CandidateRowInput,
-) {
-  const firstName = candidate.name.split(/\s+/).filter(Boolean)[0] || "there";
-  const roleTitle = normalizeNullableString(parsed.title) || "this role";
-  const githubSignals =
-    candidate.metadata.github_signals && typeof candidate.metadata.github_signals === "object"
-      ? (candidate.metadata.github_signals as Record<string, unknown>)
-      : null;
-  const evidence = buildRecruiterOutreachEvidence({
-    candidateName: candidate.name,
-    headline: candidate.headline,
-    skills: candidate.skills,
-    matchReasons: candidate.match_reasons,
-    githubSignals,
-  });
-
-  return `You are a third-party headhunter writing outreach on behalf of a client company. You must NEVER reveal the client company name. Refer to the opportunity as "one of my clients" or describe the company type (e.g. "a Series B fintech", "a fast-growing infrastructure startup"). Sign off as the recruiter, not the company. Build intrigue — the candidate should want to learn more, not feel like they're being mass-emailed.
-
-## Job Description (confidential client role)
-${truncateForPrompt(jdText.trim(), 4000)}
-
-## Role Summary
-Title: ${roleTitle}
-
-## Candidate
-Name: ${candidate.name}
-Headline: ${candidate.headline || "Professional"}
-Location: ${candidate.location || "Unknown"}
-Skills: ${candidate.skills.slice(0, 8).join(", ") || "Unknown"}
-Match reasons: ${candidate.match_reasons.slice(0, 3).join("; ") || "Strong fit for the role"}
-Evidence source: ${evidence.evidenceSourceLabel}
-Evidence strength: ${evidence.evidenceStrength}
-Recruiter summary: ${evidence.recruiterSummary}
-Proof to reference: ${evidence.proofToReference}
-Outreach angle: ${evidence.outreachAngle}
-
-## Task
-Return ONLY valid JSON with this exact shape:
-{
-  "subject": "string",
-  "linkedin": "string",
-  "email": "string"
-}
-
-Rules:
-- Write from the perspective of a third-party headhunter, not an in-house recruiter.
-- Never name or hint at the client company. Use "one of my clients" or a generic descriptor (stage, industry, team size).
-- Make both drafts specific to this person and this role.
-- You must reference the proof line above. Do not ignore it.
-- If the evidence source is GitHub, keep the message anchored in that concrete code/project/PR detail.
-- If the evidence source is LinkedIn, use one concrete career detail instead of inventing GitHub proof.
-- Keep the LinkedIn InMail under 80 words and casual.
-- Keep the email body under 120 words and slightly more formal.
-- Both drafts must start with "Hi ${firstName},"
-- No markdown. No code fences. No extra keys.`;
-}
-
 async function generateOutreachDraftsForRows(
   context: PipelineContext,
   runtime: SearchExecutionRuntime,
@@ -3264,7 +3205,21 @@ async function generateOutreachDraftsForRows(
             email?: string;
           }>({
             model: getLightModel(),
-            prompt: buildSearchOutreachPrompt(parsed, context.jdText, row),
+            prompt: buildRecruiterOutreachPrompt({
+              roleTitle: normalizeNullableString(parsed.title) || "this role",
+              jdText: context.jdText,
+              candidate: {
+                name: row.name,
+                headline: row.headline,
+                location: row.location,
+                skills: row.skills,
+                matchReasons: row.match_reasons,
+                githubSignals:
+                  row.metadata.github_signals && typeof row.metadata.github_signals === "object"
+                    ? row.metadata.github_signals
+                    : null,
+              },
+            }),
             maxOutputTokens: runtime.outreachMaxOutputTokens,
             abortSignal: signal,
             timeoutMs: 60000,
@@ -3294,8 +3249,9 @@ async function generateOutreachDraftsForRows(
         });
         const firstName = row.name.split(/\s+/).filter(Boolean)[0] || "there";
         const evidence = buildRecruiterOutreachEvidence({
-          candidateName: row.name,
+          name: row.name,
           headline: row.headline,
+          location: row.location,
           skills: row.skills,
           matchReasons: row.match_reasons,
           githubSignals:
