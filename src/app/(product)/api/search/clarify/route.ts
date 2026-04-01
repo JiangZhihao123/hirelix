@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getUserFromApiRequest } from "@/lib/api-auth";
+import {
+  parseJobDescriptionToDraft,
+  summarizeParsedJob,
+} from "@/lib/jd-parse";
+import {
+  generateOpenRouterJson,
+  getDefaultOpenRouterModel,
+} from "@/lib/openrouter";
+
+export const maxDuration = 60;
+
+function buildClarifyPrompt(
+  jdText: string,
+  summary: {
+    title: string;
+    requiredSkills: string[];
+    workModel: string;
+    locationScope: string | null;
+    experienceYearsMin: number | null;
+  },
+) {
+  return `You are a smart recruiting assistant helping a headhunter set up a candidate sourcing run.
+
+You've just analyzed a job description. Decide whether you need any clarification before starting the search.
+
+Ask only if the answer would meaningfully change the search strategy. Don't ask about things clearly stated in the JD. Don't ask just to appear thorough. If you have everything you need, confirm briefly and say you're ready.
+
+If you do have questions, ask at most 2, in a natural conversational tone — not a numbered list, not bullet points. Just talk.
+
+## What I understood from the JD
+- Role: ${summary.title}
+- Required skills: ${summary.requiredSkills.join(", ") || "not specified"}
+- Work model: ${summary.workModel}
+- Location: ${summary.locationScope || "not specified"}
+- Min experience: ${summary.experienceYearsMin != null ? `${summary.experienceYearsMin}+ years` : "not specified"}
+
+## Original JD
+${jdText.slice(0, 2000)}${jdText.length > 2000 ? "\n[truncated]" : ""}
+
+Return JSON only: { "message": "string", "ready_to_launch": boolean }
+The message is shown directly to the headhunter — keep it concise, direct, no markdown.`;
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getUserFromApiRequest(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { jd_text } = await req.json();
+
+    if (!jd_text || typeof jd_text !== "string" || jd_text.trim().length < 50) {
+      return NextResponse.json(
+        { error: "Job description is too short (min 50 chars)" },
+        { status: 400 },
+      );
+    }
+
+    const parsed = await parseJobDescriptionToDraft(jd_text.trim());
+    const summary = summarizeParsedJob(parsed);
+
+    const { data: clarification } = await generateOpenRouterJson<{
+      message: string;
+      ready_to_launch: boolean;
+    }>({
+      model: getDefaultOpenRouterModel(),
+      prompt: buildClarifyPrompt(jd_text.trim(), summary),
+      maxOutputTokens: 300,
+      temperature: 0.3,
+    });
+
+    return NextResponse.json({
+      parsed_requirements: parsed,
+      summary,
+      clarification: {
+        message: clarification.message || "Looks good — ready to launch.",
+        ready_to_launch: clarification.ready_to_launch ?? true,
+      },
+    });
+  } catch (error) {
+    console.error("[search/clarify] Error:", error);
+    return NextResponse.json(
+      { error: "Failed to analyze job description" },
+      { status: 500 },
+    );
+  }
+}

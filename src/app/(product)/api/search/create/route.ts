@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   let createdSearchId: string | null = null;
 
   try {
-    const { jd_text, candidate_count, parsed_requirements_override } = await req.json();
+    const { jd_text, candidate_count, parsed_requirements_override, user_clarification } = await req.json();
     const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
@@ -51,10 +51,19 @@ export async function POST(req: NextRequest) {
     }
 
     const timestamp = new Date().toISOString();
-    const parsedRequirements: Record<string, unknown> =
+    const baseOverride =
       parsed_requirements_override && typeof parsed_requirements_override === "object"
+        ? (parsed_requirements_override as Record<string, unknown>)
+        : null;
+    const overrideWithClarification =
+      baseOverride && user_clarification && typeof user_clarification === "string"
+        ? { ...baseOverride, user_clarification: user_clarification.trim() }
+        : baseOverride;
+
+    const parsedRequirements: Record<string, unknown> =
+      overrideWithClarification
         ? buildParsedRequirementsForLaunch(
-          parsed_requirements_override as Record<string, unknown>,
+          overrideWithClarification,
           jd_text.trim(),
           {
             candidateCount: maxCandidates,
