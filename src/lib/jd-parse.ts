@@ -3,7 +3,6 @@ import {
   getDefaultOpenRouterModel,
   getOpenRouterApiKey,
 } from "@/lib/openrouter";
-import { JD_SEARCH_INTENT_JSON_SCHEMA } from "@/lib/openrouter-schemas";
 import { JD_SEARCH_INTENT_PROMPT } from "@/lib/prompts";
 
 const COMMON_SKILLS = [
@@ -253,6 +252,40 @@ function expandTitleVariants(rawVariants: string[], mainTitle: string): string[]
   return [...new Set(cleaned.length > 0 ? cleaned : [cleanMain])].slice(0, 8);
 }
 
+// Role keyword → adjacent lateral titles a headhunter would also target
+const LATERAL_ROLE_MAP: Array<[RegExp, string[]]> = [
+  [/backend engineer|backend developer/i, ["Platform Engineer", "Software Engineer", "Infrastructure Engineer", "Site Reliability Engineer"]],
+  [/software engineer|software developer/i, ["Backend Engineer", "Platform Engineer", "Full Stack Engineer", "Staff Engineer"]],
+  [/frontend engineer|frontend developer|ui engineer/i, ["Full Stack Engineer", "Software Engineer", "React Developer", "Web Engineer"]],
+  [/full.?stack/i, ["Frontend Engineer", "Backend Engineer", "Software Engineer", "Product Engineer"]],
+  [/platform engineer/i, ["Infrastructure Engineer", "Backend Engineer", "Site Reliability Engineer", "DevOps Engineer"]],
+  [/infrastructure engineer/i, ["Platform Engineer", "Site Reliability Engineer", "DevOps Engineer", "Cloud Engineer"]],
+  [/site reliability|sre\b/i, ["Platform Engineer", "Infrastructure Engineer", "DevOps Engineer", "Backend Engineer"]],
+  [/devops engineer/i, ["Site Reliability Engineer", "Platform Engineer", "Infrastructure Engineer", "Cloud Engineer"]],
+  [/cloud engineer/i, ["Infrastructure Engineer", "DevOps Engineer", "Platform Engineer", "Site Reliability Engineer"]],
+  [/data engineer/i, ["Analytics Engineer", "Backend Engineer", "Data Platform Engineer", "Software Engineer"]],
+  [/ml engineer|machine learning engineer/i, ["AI Engineer", "Data Scientist", "Applied Scientist", "Research Engineer"]],
+  [/data scientist/i, ["ML Engineer", "Applied Scientist", "Analytics Engineer", "Research Scientist"]],
+  [/ai engineer|applied scientist/i, ["ML Engineer", "Data Scientist", "Research Engineer", "Software Engineer"]],
+  [/mobile engineer|ios engineer|android engineer/i, ["Software Engineer", "React Native Developer", "iOS Developer", "Android Developer"]],
+  [/security engineer/i, ["Application Security Engineer", "Cloud Security Engineer", "Software Engineer", "Site Reliability Engineer"]],
+  [/staff engineer|principal engineer|lead engineer/i, ["Senior Software Engineer", "Engineering Manager", "Platform Engineer", "Backend Engineer"]],
+];
+
+function inferLateralTitleVariants(mainTitle: string): string[] {
+  const clean = cleanTitleSuffix(mainTitle);
+  for (const [pattern, laterals] of LATERAL_ROLE_MAP) {
+    if (pattern.test(clean)) {
+      // Exclude the main title itself and its close seniority variants
+      const cleanLower = clean.toLowerCase().replace(/^(senior|staff|principal|lead|junior|associate)\s+/, "");
+      return laterals
+        .filter(l => !l.toLowerCase().includes(cleanLower))
+        .slice(0, 4);
+    }
+  }
+  return [];
+}
+
 function sanitizeIntentCandidate(
   raw: ParsedSearchIntent | null | undefined,
   jdText: string,
@@ -367,13 +400,24 @@ function sanitizeIntentCandidate(
         ["narrow", "balanced", "broad"] as const,
         "balanced",
       ),
-      lateral_title_variants: normalizeStringArray(recallSpec.lateral_title_variants, 6),
+      lateral_title_variants: (() => {
+        const fromLlm = normalizeStringArray(recallSpec.lateral_title_variants, 6);
+        return fromLlm.length >= 2 ? fromLlm : inferLateralTitleVariants(title);
+      })(),
       target_companies: normalizeStringArray(recallSpec.target_companies, 15),
-      recall_strategy: normalizeEnumValue(
-        recallSpec.recall_strategy,
-        ["standard", "multi_round"] as const,
-        "standard",
-      ),
+      recall_strategy: (() => {
+        // LLM often defaults to "standard" even when it shouldn't — enforce multi_round
+        // in code whenever we have meaningful lateral variants or target companies
+        const hasLaterals = normalizeStringArray(recallSpec.lateral_title_variants, 6).length >= 2
+          || inferLateralTitleVariants(title).length > 0;
+        const hasTargets = normalizeStringArray(recallSpec.target_companies, 15).length > 0;
+        if (hasLaterals || hasTargets) return "multi_round";
+        return normalizeEnumValue(
+          recallSpec.recall_strategy,
+          ["standard", "multi_round"] as const,
+          "standard",
+        );
+      })(),
     },
   };
 }
@@ -387,10 +431,14 @@ export async function parseJobDescriptionToDraft(jdText: string) {
       model: getDefaultOpenRouterModel(),
       system: JD_SEARCH_INTENT_PROMPT,
       prompt: jdText,
-      maxOutputTokens: 2400,
+      maxOutputTokens: 3200,
       temperature: 0,
       timeoutMs: 60000,
-      jsonSchema: JD_SEARCH_INTENT_JSON_SCHEMA,
+      // Use json_mode instead of strict JSON schema — the schema constrained the model
+      // too much and caused it to return empty arrays for lateral_title_variants and
+      // target_companies even with explicit prompt instructions to fill them.
+      // sanitizeIntentCandidate normalizes all fields so loose JSON is fine here.
+      jsonMode: true,
     });
     parsed = data;
   } catch {
