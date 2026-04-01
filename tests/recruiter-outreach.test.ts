@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildDeterministicWeakEvidenceOutreachDraft,
   buildFallbackOutreachDraft,
   buildRecruiterOutreachEvidence,
   buildRecruiterOutreachPrompt,
@@ -33,12 +34,14 @@ test("buildRecruiterOutreachEvidence marks sparse linkedin evidence as weak", ()
     skills: ["Payments", "Go"],
     matchReasons: [
       "Evan Andrews still looks worth reviewing from LinkedIn as a at Stripe at Stripe, but no public GitHub evidence was verified.",
+      "Current Stripe employee, top payments domain.",
       "Profile suggests deep payments and risk expertise.",
     ],
   });
 
   assert.equal(evidence.proofConfidence, "weak");
-  assert.equal(evidence.proofToReference, "Profile suggests deep payments and risk expertise.");
+  assert.equal(evidence.proofToReference, "Profile skills include Payments and Go.");
+  assert.ok(!evidence.approvedFacts.includes("Profile suggests deep payments and risk expertise."));
   assert.ok(evidence.cautions.some((item) => item.includes("Use cautious language")));
 });
 
@@ -60,8 +63,10 @@ test("buildRecruiterOutreachPrompt includes anti-overclaim guardrails", () => {
 
   assert.match(prompt, /Mention only facts that are explicitly supported/);
   assert.match(prompt, /Never turn inferred fit, likely experience, or role requirements into confirmed candidate facts/);
+  assert.match(prompt, /Do not use company affiliation, domain association, or role title alone to claim the candidate built or led a specific system/);
   assert.match(prompt, /If evidence confidence is "weak", use cautious language/);
   assert.match(prompt, /Avoid phrases like "perfect match", "aligns perfectly", or "extensive experience"/);
+  assert.doesNotMatch(prompt, /Match reasons:/);
 });
 
 test("buildRecruiterOutreachPrompt keeps github evidence scoped to engineering credibility", () => {
@@ -109,4 +114,22 @@ test("buildFallbackOutreachDraft softens language when evidence is weak", () => 
   assert.match(draft.linkedin, /may be overlap/);
   assert.match(draft.linkedin, /^Hi Evan,/);
   assert.equal(draft.subject, "Staff Software Engineer opportunity");
+});
+
+test("buildDeterministicWeakEvidenceOutreachDraft stays grounded in safe profile facts", () => {
+  const draft = buildDeterministicWeakEvidenceOutreachDraft({
+    firstName: "Evan",
+    roleTitle: "Staff Software Engineer",
+    hasEmail: true,
+    evidence: buildRecruiterOutreachEvidence({
+      name: "Evan Andrews",
+      headline: "at Stripe",
+      skills: ["Payments", "Go"],
+      matchReasons: ["Current Stripe employee, top payments domain."],
+    }),
+  });
+
+  assert.match(draft.linkedin, /I noticed your profile mentions Payments and Go/);
+  assert.doesNotMatch(draft.linkedin, /worked on payments infrastructure/i);
+  assert.match(draft.email || "", /there may be overlap/);
 });

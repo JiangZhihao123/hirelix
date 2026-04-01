@@ -88,10 +88,23 @@ function reasonIsInferenceHeavy(reason: string) {
   ].some((phrase) => normalized.includes(phrase));
 }
 
+function reasonIsAffiliationOnly(reason: string) {
+  const normalized = normalizeText(reason).toLowerCase();
+  if (!normalized) return false;
+  return [
+    "current ",
+    "employee",
+    "payments domain",
+    "top payments domain",
+    "current title may be below",
+    "location in ",
+  ].some((phrase) => normalized.includes(phrase));
+}
+
 function buildLinkedInEvidence(params: RecruiterOutreachCandidate): RecruiterOutreachEvidence {
   const normalizedReasons = (params.matchReasons || []).map((item) => normalizeText(item)).filter(Boolean);
   const concreteReason =
-    normalizedReasons.find((reason) => !reasonIsBoilerplate(reason) && !reasonIsInferenceHeavy(reason)) || null;
+    normalizedReasons.find((reason) => !reasonIsBoilerplate(reason) && !reasonIsInferenceHeavy(reason) && !reasonIsAffiliationOnly(reason)) || null;
   const supportedReason =
     normalizedReasons.find((reason) => !reasonIsBoilerplate(reason)) || null;
   const headlineFact = headlineLooksConcrete(params.headline || "") ? normalizeText(params.headline) : null;
@@ -100,12 +113,18 @@ function buildLinkedInEvidence(params: RecruiterOutreachCandidate): RecruiterOut
       ? `Profile skills include ${params.skills.slice(0, 2).join(" and ")}.`
       : null;
   const locationFact = params.location ? `Profile location is ${params.location}.` : null;
-  const approvedFacts = joinNonEmpty([concreteReason, headlineFact, supportedReason, skillsFact, locationFact]).slice(0, 4);
+  const approvedFacts = joinNonEmpty([
+    concreteReason,
+    headlineFact,
+    concreteReason ? supportedReason : null,
+    skillsFact,
+    locationFact,
+  ]).slice(0, 4);
   const proofToReference =
     concreteReason ||
     headlineFact ||
-    supportedReason ||
     skillsFact ||
+    supportedReason ||
     "Their LinkedIn background looks relevant to the role.";
   const proofConfidence =
     concreteReason || headlineFact
@@ -130,6 +149,7 @@ function buildLinkedInEvidence(params: RecruiterOutreachCandidate): RecruiterOut
     cautions: [
       "Mention only details that are explicitly supported by the approved facts.",
       "Do not turn likely or inferred experience into confirmed facts.",
+      "Do not claim the candidate built, led, or owned specific systems unless an approved fact says so.",
       ...(proofConfidence === "weak"
         ? ["Use cautious language such as 'caught my eye', 'may be relevant', or 'seems aligned'."]
         : []),
@@ -140,6 +160,21 @@ function buildLinkedInEvidence(params: RecruiterOutreachCandidate): RecruiterOut
 function truncateForPrompt(value: string, maxChars: number) {
   if (value.length <= maxChars) return value;
   return `${value.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
+
+function humanizeProofForTemplate(proof: string) {
+  const normalized = normalizeText(proof).replace(/[.]+$/, "");
+  if (!normalized) return "your profile";
+  if (normalized.startsWith("Current ") && normalized.includes("Stripe")) {
+    return "your Stripe background caught my eye";
+  }
+  if (normalized.startsWith("Profile skills include ")) {
+    return `your profile mentions ${normalized.slice("Profile skills include ".length)}`;
+  }
+  if (normalized.startsWith("Profile location is ")) {
+    return normalized;
+  }
+  return normalized.charAt(0).toLowerCase() + normalized.slice(1);
 }
 
 export function buildRecruiterOutreachEvidence(
@@ -202,7 +237,6 @@ Name: ${params.candidate.name}
 Headline: ${params.candidate.headline || "Professional"}
 Location: ${params.candidate.location || "Unknown"}
 Skills: ${params.candidate.skills?.slice(0, 8).join(", ") || "Unknown"}
-Match reasons: ${params.candidate.matchReasons?.slice(0, 3).join("; ") || "Strong fit for the role"}
 Evidence source: ${evidence.evidenceSourceLabel}
 Evidence strength: ${evidence.evidenceStrength}
 Evidence confidence: ${evidence.proofConfidence}
@@ -231,6 +265,7 @@ Rules:
 - You must reference the proof line above. Do not ignore it.
 - Mention only facts that are explicitly supported by the proof line or approved facts.
 - Never turn inferred fit, likely experience, or role requirements into confirmed candidate facts.
+- Do not use company affiliation, domain association, or role title alone to claim the candidate built or led a specific system.
 - If evidence confidence is "weak", use cautious language such as "caught my eye", "may be relevant", or "seems aligned".
 - Avoid phrases like "perfect match", "aligns perfectly", or "extensive experience" unless the proof explicitly supports them.
 - If the evidence source is GitHub, keep the message anchored in that concrete code, project, or PR detail.
@@ -265,5 +300,28 @@ export function buildFallbackOutreachDraft(params: {
           email: `${body}\n\nBest regards`,
         }
       : {}),
+  };
+}
+
+export function buildDeterministicWeakEvidenceOutreachDraft(params: {
+  firstName: string;
+  roleTitle: string;
+  evidence: RecruiterOutreachEvidence;
+  hasEmail: boolean;
+}) {
+  const firstName = params.firstName || "there";
+  const subject = `${params.roleTitle} opportunity`;
+  const proof = humanizeProofForTemplate(params.evidence.proofToReference);
+  const linkedin =
+    `Hi ${firstName}, I noticed ${proof} and thought there may be overlap with a ${params.roleTitle} search I'm running for one of my clients. ` +
+    "Open to a quick chat?";
+  const email =
+    `Hi ${firstName}, I noticed ${proof} and thought there may be overlap with a ${params.roleTitle} search I'm running for one of my clients. ` +
+    "If you're open to a brief conversation, I'd be happy to share a bit more context.\n\nBest regards";
+
+  return {
+    subject,
+    linkedin,
+    ...(params.hasEmail ? { email } : {}),
   };
 }

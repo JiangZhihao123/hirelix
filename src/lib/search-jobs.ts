@@ -31,6 +31,7 @@ import {
   enrichGithubSignalsForCandidate,
 } from "@/lib/github-signals";
 import {
+  buildDeterministicWeakEvidenceOutreachDraft,
   buildFallbackOutreachDraft,
   buildRecruiterOutreachPrompt,
   buildRecruiterOutreachEvidence,
@@ -3196,6 +3197,33 @@ async function generateOutreachDraftsForRows(
   const draftedRows = await Promise.all(
     rows.map(async (row) => {
       if (row.outreach_draft) return row;
+      const githubSignals =
+        row.metadata.github_signals && typeof row.metadata.github_signals === "object"
+          ? row.metadata.github_signals
+          : null;
+      const evidence = buildRecruiterOutreachEvidence({
+        name: row.name,
+        headline: row.headline,
+        location: row.location,
+        skills: row.skills,
+        matchReasons: row.match_reasons,
+        githubSignals,
+      });
+      const firstName = row.name.split(/\s+/).filter(Boolean)[0] || "there";
+
+      if (evidence.evidenceSource === "linkedin" && evidence.proofConfidence === "weak") {
+        return {
+          ...row,
+          outreach_draft: JSON.stringify(
+            buildDeterministicWeakEvidenceOutreachDraft({
+              firstName,
+              roleTitle: normalizeNullableString(parsed.title) || "open role",
+              evidence,
+              hasEmail: true,
+            }),
+          ),
+        };
+      }
 
       try {
         const { data: parsedDraft } = await withTimeout(
@@ -3214,10 +3242,7 @@ async function generateOutreachDraftsForRows(
                 location: row.location,
                 skills: row.skills,
                 matchReasons: row.match_reasons,
-                githubSignals:
-                  row.metadata.github_signals && typeof row.metadata.github_signals === "object"
-                    ? row.metadata.github_signals
-                    : null,
+                githubSignals,
               },
             }),
             maxOutputTokens: runtime.outreachMaxOutputTokens,
@@ -3246,18 +3271,6 @@ async function generateOutreachDraftsForRows(
           search_id: context.searchId,
           candidate: row.name,
           error: error instanceof Error ? error.message : String(error),
-        });
-        const firstName = row.name.split(/\s+/).filter(Boolean)[0] || "there";
-        const evidence = buildRecruiterOutreachEvidence({
-          name: row.name,
-          headline: row.headline,
-          location: row.location,
-          skills: row.skills,
-          matchReasons: row.match_reasons,
-          githubSignals:
-            row.metadata?.github_signals && typeof row.metadata.github_signals === "object"
-              ? row.metadata.github_signals
-              : null,
         });
         return {
           ...row,
