@@ -461,27 +461,24 @@ export async function parseJobDescriptionToDraft(jdText: string) {
       const coreSkills = Array.isArray(rs2?.core_skill_terms) ? (rs2.core_skill_terms as string[]).slice(0, 4) : [];
       const jdSnippet = jdText.slice(0, 600);
 
-      const { data: raw } = await generateOpenRouterJson<unknown>({
+      const { data: raw } = await generateOpenRouterJson<{ companies: string[] }>({
         model: getDefaultOpenRouterModel(),
-        system: "You are an expert headhunter. Return ONLY a raw JSON array of strings — no wrapper object, no explanation, no markdown.",
+        system: "You are an expert headhunter. Return ONLY valid JSON.",
         prompt: `I'm sourcing for: ${titleStr}
 Industry/domain: ${[...domainTerms, ...coreSkills].join(", ") || "technology"}
 JD excerpt: ${jdSnippet}
 
 Name 8-12 companies where strong candidates for this role currently work today — direct competitors, same-vertical companies, or companies known for this type of talent.
-Reply with ONLY a JSON array, like: ["Gusto","Workday","ADP"]`,
+Return a JSON object with a "companies" key: {"companies": ["Company A", "Company B", ...]}`,
         maxOutputTokens: 300,
         temperature: 0,
         timeoutMs: 25000,
         jsonMode: true,
       });
 
-      // Handle both plain array and wrapped object responses from the LLM
+      // Extract companies array from the response object
       let companies: string[] = [];
-      if (Array.isArray(raw)) {
-        companies = raw.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
-      } else if (raw && typeof raw === "object") {
-        // Some models return {"companies": [...]} or {"target_companies": [...]}
+      if (raw && typeof raw === "object") {
         const obj = raw as Record<string, unknown>;
         const val = obj.companies ?? obj.target_companies ?? obj.data ?? Object.values(obj)[0];
         if (Array.isArray(val)) {
