@@ -114,6 +114,30 @@ const CONTRIBUTION_REPO_LIMIT = 8;
 const RECENT_COMMIT_SAMPLE_LIMIT = 25;
 const GITHUB_MATCH_CONFIDENCE_THRESHOLD = 0.58;
 const SERPER_API_BASE = "https://google.serper.dev";
+const GITHUB_RATE_LIMIT_FALLBACK_COOLDOWN_MS = 60_000;
+
+let githubApiCooldownUntilMs = 0;
+
+class GithubRateLimitError extends Error {
+  readonly status: number;
+  readonly resetAt: string | null;
+
+  constructor(status: number, resetAtMs: number | null) {
+    const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+    super(
+      resetAt
+        ? `GitHub API rate limit exceeded. Cooldown active until ${resetAt}.`
+        : "GitHub API rate limit exceeded. Cooldown active before retrying.",
+    );
+    this.name = "GithubRateLimitError";
+    this.status = status;
+    this.resetAt = resetAt;
+  }
+}
+
+export function resetGithubApiRateLimitStateForTests() {
+  githubApiCooldownUntilMs = 0;
+}
 
 function normalizeText(value: string | null | undefined) {
   return (value || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -232,24 +256,84 @@ function getGitHubToken() {
   return token.trim() || null;
 }
 
+function getGitHubRequestHeaders(token: string, init?: RequestInit) {
+  return {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "User-Agent": "Hirelix",
+    ...(init?.headers || {}),
+  };
+}
+
+function resolveRetryAfterMs(value: string | null) {
+  if (!value) return null;
+  const seconds = Number.parseInt(value, 10);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return seconds * 1000;
+  }
+
+  const timestamp = Date.parse(value);
+  if (Number.isFinite(timestamp) && timestamp > Date.now()) {
+    return timestamp - Date.now();
+  }
+
+  return null;
+}
+
+function resolveGithubRateLimitResetAtMs(headers: Headers) {
+  const retryAfterMs = resolveRetryAfterMs(headers.get("retry-after"));
+  if (retryAfterMs) {
+    return Date.now() + retryAfterMs;
+  }
+
+  const resetEpochSeconds = Number.parseInt(headers.get("x-ratelimit-reset") || "", 10);
+  if (Number.isFinite(resetEpochSeconds) && resetEpochSeconds > 0) {
+    return resetEpochSeconds * 1000;
+  }
+
+  return Date.now() + GITHUB_RATE_LIMIT_FALLBACK_COOLDOWN_MS;
+}
+
+function isGithubRateLimitResponse(response: Response, bodyText: string) {
+  if (response.status === 429) return true;
+  const remaining = response.headers.get("x-ratelimit-remaining");
+  if (remaining === "0") return true;
+
+  if (response.status !== 403) return false;
+  const normalizedBody = bodyText.toLowerCase();
+  return normalizedBody.includes("rate limit");
+}
+
+function buildGithubRateLimitError(status: number, headers: Headers) {
+  const resetAtMs = resolveGithubRateLimitResetAtMs(headers);
+  githubApiCooldownUntilMs = Math.max(githubApiCooldownUntilMs, resetAtMs);
+  return new GithubRateLimitError(status, resetAtMs);
+}
+
+function throwIfGithubApiCoolingDown() {
+  if (githubApiCooldownUntilMs > Date.now()) {
+    throw new GithubRateLimitError(403, githubApiCooldownUntilMs);
+  }
+}
+
 async function githubFetch(path: string, init?: RequestInit) {
   const token = getGitHubToken();
   if (!token) {
     throw new Error("GITHUB_TOKEN is missing");
   }
 
+  throwIfGithubApiCoolingDown();
+
   const response = await fetch(`${GITHUB_API_BASE}${path}`, {
     ...init,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "Hirelix",
-      ...(init?.headers || {}),
-    },
+    headers: getGitHubRequestHeaders(token, init),
   });
 
   if (!response.ok) {
     const text = await response.text();
+    if (isGithubRateLimitResponse(response, text)) {
+      throw buildGithubRateLimitError(response.status, response.headers);
+    }
     throw new Error(`GitHub REST failed (${response.status}): ${text.slice(0, 300)}`);
   }
 
@@ -262,23 +346,30 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
     throw new Error("GITHUB_TOKEN is missing");
   }
 
+  throwIfGithubApiCoolingDown();
+
   const response = await fetch(GITHUB_GRAPHQL_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "Hirelix",
+      ...getGitHubRequestHeaders(token),
     },
     body: JSON.stringify({ query, variables }),
   });
 
   if (!response.ok) {
     const text = await response.text();
+    if (isGithubRateLimitResponse(response, text)) {
+      throw buildGithubRateLimitError(response.status, response.headers);
+    }
     throw new Error(`GitHub GraphQL failed (${response.status}): ${text.slice(0, 300)}`);
   }
 
   const payload = (await response.json()) as { data?: T; errors?: Array<{ message?: string }> };
   if (payload.errors?.length) {
+    if (payload.errors.some((entry) => (entry.message || "").toLowerCase().includes("rate limit"))) {
+      throw buildGithubRateLimitError(response.status || 403, response.headers);
+    }
     throw new Error(payload.errors.map((entry) => entry.message || "Unknown GraphQL error").join("; "));
   }
 
@@ -1195,10 +1286,8 @@ export async function enrichGithubSignalsForCandidate(
     }
 
     const metadataRepoNames = repoSummariesFromMetadata(input.metadata);
-    const [{ days, repoSummaries }, mergedPrSignals] = await Promise.all([
-      fetchContributionSignals(discovery.username),
-      fetchMergedPrSignals(discovery.username),
-    ]);
+    const { days, repoSummaries } = await fetchContributionSignals(discovery.username);
+    const mergedPrSignals = await fetchMergedPrSignals(discovery.username);
 
     const commitSamples = await fetchRecentCommitSamples(
       discovery.username,
@@ -1289,6 +1378,10 @@ export async function enrichGithubSignalsForCandidate(
       githubDiscoveryConfidence: round(discovery.confidence, 3),
     };
   } catch (error) {
+    const isRateLimited = error instanceof GithubRateLimitError;
+    const rateLimitSummary = isRateLimited
+      ? error.message
+      : "GitHub enrichment hit an API error; verify manually before relying on code evidence.";
     const readout = buildRecruiterFacingGithubReadout({
       status: "api_error",
       candidateName: input.name,
@@ -1307,11 +1400,11 @@ export async function enrichGithubSignalsForCandidate(
       discoveryConfidence: 0,
     });
     return {
-      githubUrl: null,
+      githubUrl: input.githubUrl || null,
       githubSignals: {
         status: "api_error",
-        profile_login: null,
-        profile_url: null,
+        profile_login: extractUsernameFromGithubUrl(input.githubUrl),
+        profile_url: input.githubUrl || null,
         activity_trend: null,
         top_languages: [],
         merged_pr_count: null,
@@ -1323,12 +1416,12 @@ export async function enrichGithubSignalsForCandidate(
         recruiter_summary: readout.recruiterSummary,
         outreach_angle: readout.outreachAngle,
         verification_risks: compactStringArray(
-          [...readout.verificationRisks, "GitHub enrichment hit an API error; verify manually before relying on code evidence."],
+          [...readout.verificationRisks, rateLimitSummary],
           3,
         ),
-        discovery_notes: ["api_error"],
+        discovery_notes: [isRateLimited ? "api_rate_limited" : "api_error"],
         evidence_summary: compactStringArray(
-          [readout.recruiterSummary, error instanceof Error ? error.message : String(error)],
+          [readout.recruiterSummary, isRateLimited ? rateLimitSummary : (error instanceof Error ? error.message : String(error))],
           4,
         ),
         last_enriched_at: timestamp,

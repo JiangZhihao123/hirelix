@@ -4,9 +4,11 @@ import {
   buildRecruiterFacingGithubReadout,
   classifyActivityTrendFromWeeks,
   computeGithubSignalScore,
+  enrichGithubSignalsForCandidate,
   evaluateCommitMessageQuality,
   extractGithubOwnerCandidateFromUrl,
   extractGitHubUrlsFromText,
+  resetGithubApiRateLimitStateForTests,
 } from "../src/lib/github-signals.ts";
 
 test("extractGitHubUrlsFromText returns unique GitHub profile URLs", () => {
@@ -117,4 +119,59 @@ test("buildRecruiterFacingGithubReadout falls back to LinkedIn narrative when gi
   assert.equal(readout.evidenceStrength, "none");
   assert.match(readout.recruiterSummary, /LinkedIn/i);
   assert.ok(readout.verificationRisks.some((item) => /GitHub/i.test(item)));
+});
+
+test("enrichGithubSignalsForCandidate cools down after GitHub rate limiting", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  const resetAt = Math.floor((Date.now() + 120_000) / 1000);
+  let callCount = 0;
+
+  process.env.GITHUB_TOKEN = "test-token";
+  resetGithubApiRateLimitStateForTests();
+  globalThis.fetch = async () => {
+    callCount += 1;
+    return new Response(
+      JSON.stringify({ message: "API rate limit exceeded" }),
+      {
+        status: 403,
+        headers: {
+          "Content-Type": "application/json",
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(resetAt),
+        },
+      },
+    );
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    resetGithubApiRateLimitStateForTests();
+    if (originalToken == null) {
+      delete process.env.GITHUB_TOKEN;
+    } else {
+      process.env.GITHUB_TOKEN = originalToken;
+    }
+  });
+
+  const first = await enrichGithubSignalsForCandidate({
+    name: "Octo Cat",
+    githubUrl: "https://github.com/octocat",
+    requiredSkills: [],
+  });
+
+  assert.equal(callCount, 1);
+  assert.equal(first.githubSignals.status, "api_error");
+  assert.equal(first.githubUrl, "https://github.com/octocat");
+  assert.deepEqual(first.githubSignals.discovery_notes, ["api_rate_limited"]);
+  assert.match(first.githubSignals.evidence_summary[1] || "", /rate limit/i);
+
+  const second = await enrichGithubSignalsForCandidate({
+    name: "Octo Cat",
+    githubUrl: "https://github.com/octocat",
+    requiredSkills: [],
+  });
+
+  assert.equal(callCount, 1);
+  assert.deepEqual(second.githubSignals.discovery_notes, ["api_rate_limited"]);
 });

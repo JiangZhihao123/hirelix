@@ -161,6 +161,16 @@ const BRIGHTDATA_SCRAPE_INTERVAL_MS = getConfiguredPositiveInt(
   10000,
   { min: 2000, max: 60000 },
 );
+const GITHUB_ENRICH_LIMIT = getConfiguredPositiveInt(
+  "SEARCH_GITHUB_ENRICH_LIMIT",
+  20,
+  { min: 1, max: 50 },
+);
+const GITHUB_ENRICH_CONCURRENCY = getConfiguredPositiveInt(
+  "SEARCH_GITHUB_ENRICH_CONCURRENCY",
+  1,
+  { min: 1, max: 5 },
+);
 const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_BATCH_SIZE",
   1,
@@ -4377,12 +4387,12 @@ async function enrichRowsWithGithubSignals(
   const githubLimit = Math.min(
     Number(parsed.display_count) || rows.length,
     rows.length,
-    50,
+    GITHUB_ENRICH_LIMIT,
   );
   const prefix = rows.slice(0, githubLimit);
   const suffix = rows.slice(githubLimit);
 
-  const enrichedPrefix = await runWithConcurrency(prefix, 3, async (row) => {
+  const enrichedPrefix = await runWithConcurrency(prefix, GITHUB_ENRICH_CONCURRENCY, async (row) => {
     const enrichment = await enrichGithubSignalsForCandidate({
       name: row.name,
       headline: row.headline,
