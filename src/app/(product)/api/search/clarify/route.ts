@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
+  buildHeuristicJobDescriptionDraft,
   buildFallbackJobClarification,
-  parseJobDescriptionToDraft,
   summarizeParsedJob,
 } from "@/lib/jd-parse";
 import {
@@ -60,9 +60,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = await parseJobDescriptionToDraft(jd_text.trim(), {
-      populateTargetCompanies: false,
-    });
+    const parsed = {
+      ...buildHeuristicJobDescriptionDraft(jd_text.trim()),
+      parse_origin: "clarify_preview",
+    };
     const summary = summarizeParsedJob(parsed);
 
     const fallbackClarification = buildFallbackJobClarification(summary);

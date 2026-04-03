@@ -513,12 +513,22 @@ Return a JSON object with a "companies" key: {"companies": ["Company A", "Compan
   return result;
 }
 
+export function buildHeuristicJobDescriptionDraft(jdText: string) {
+  return sanitizeIntentCandidate(null, jdText);
+}
+
 export function buildParsedRequirementsForLaunch(
   draft: ParsedSearchIntent,
   jdText: string,
   options: LaunchOptions,
 ) {
   const normalized = sanitizeIntentCandidate(draft, jdText);
+  const draftRecord =
+    draft && typeof draft === "object"
+      ? (draft as Record<string, unknown>)
+      : {};
+  const parseOrigin = normalizeNullableString(draftRecord.parse_origin);
+  const userClarification = normalizeNullableString(draftRecord.user_clarification);
   const timestamp = new Date().toISOString();
   const hiringBrief =
     normalized.hiring_brief && typeof normalized.hiring_brief === "object"
@@ -531,6 +541,8 @@ export function buildParsedRequirementsForLaunch(
 
   return {
     ...normalized,
+    ...(parseOrigin ? { parse_origin: parseOrigin } : {}),
+    ...(userClarification ? { user_clarification: userClarification } : {}),
     title: normalizeNullableString(normalized.title) || inferTitle(jdText),
     required_skills: normalizeStringArray(normalized.required_skills, 12),
     nice_to_have_skills: normalizeStringArray(normalized.nice_to_have_skills, 12),

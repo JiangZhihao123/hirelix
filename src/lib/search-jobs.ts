@@ -2281,9 +2281,20 @@ function hasRecallSnapshotDrift(
 function canReuseParsedRequirements(search: SearchRow) {
   const parsed = search.parsed_requirements;
   if (!parsed || typeof parsed !== "object") return false;
+  if (normalizeNullableString(parsed.parse_origin) === "clarify_preview") {
+    return false;
+  }
   const title = normalizeNullableString(parsed.title);
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, Number(parsed.candidate_count) || 5);
   return Boolean(search.parse_completed_at && title && recallSpec.title_variants.length > 0);
+}
+
+function buildSearchIntentInput(
+  jdText: string,
+  userClarification: string | null,
+) {
+  if (!userClarification) return jdText;
+  return `${jdText.trim()}\n\nRecruiter clarification:\n${userClarification}`;
 }
 
 function withDisplayStats(
@@ -4937,6 +4948,8 @@ async function parseJobDescription(
   let parsed: Record<string, unknown> | null = null;
   let lastParseError: string | null = null;
   let estimatedParseCost = 0;
+  const userClarification = normalizeNullableString(existingParsed?.user_clarification);
+  const parseInput = buildSearchIntentInput(context.jdText, userClarification);
 
   for (let attempt = 1; attempt <= PARSE_MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -4944,7 +4957,7 @@ async function parseJobDescription(
         (signal) => generateOpenRouterJson<Record<string, unknown>>({
           model: getAIModel(),
           system: JD_SEARCH_INTENT_PROMPT,
-          prompt: context.jdText,
+          prompt: parseInput,
           maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
           abortSignal: signal,
           timeoutMs: 60000,
@@ -4954,7 +4967,7 @@ async function parseJobDescription(
         60000,
         "Search intent generation",
       );
-      estimatedParseCost += estimateSearchIntentCost(context.jdText, text);
+      estimatedParseCost += estimateSearchIntentCost(parseInput, text);
       if (isWeakParsedIntent(candidate, context.candidateCount)) {
         lastParseError = "weak_parsed_intent";
         logSearchEvent("search_parse_retry", {
@@ -4980,19 +4993,19 @@ async function parseJobDescription(
   }
 
   if (!parsed) {
-    parsed = {
-      title: "Untitled Role",
-      hiring_brief: {
+      parsed = {
+        title: "Untitled Role",
+        hiring_brief: {
         work_model: "unknown",
         location_scope: null,
         location_flexibility: "moderate",
         relocation_allowed: "unknown",
       },
       recall_spec: {
-        countries: inferCountriesFromJdText(context.jdText),
+        countries: inferCountriesFromJdText(parseInput),
         title_variants: [],
-        core_skill_terms: deriveCoreSkillsFromJdText(context.jdText, 12),
-        must_have_signals: deriveCoreSkillsFromJdText(context.jdText, 8),
+        core_skill_terms: deriveCoreSkillsFromJdText(parseInput, 12),
+        must_have_signals: deriveCoreSkillsFromJdText(parseInput, 8),
         avoid_profiles: [],
         strict_location_terms: [],
         nearby_location_terms: [],
@@ -5007,6 +5020,10 @@ async function parseJobDescription(
   parsed.title =
     normalizeNullableString(parsed.title) ||
     "Untitled Role";
+  if (userClarification) {
+    parsed.user_clarification = userClarification;
+  }
+  parsed.parse_origin = "pipeline_llm";
   parsed.hiring_brief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   parsed.candidate_count = context.candidateCount;
   parsed.display_count =
@@ -5048,7 +5065,7 @@ async function parseJobDescription(
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_spec = enrichRecallSpecFromJd(parsed, context.jdText, context.candidateCount);
   parsed.estimated_parse_llm_cost = roundCurrency(
-    estimatedParseCost || estimateSearchIntentCost(context.jdText),
+    estimatedParseCost || estimateSearchIntentCost(parseInput),
   );
   const existingRecallMetadata = normalizeRecallMetadata(existingParsed?.recall_metadata);
   if (existingRecallMetadata?.provider === "brightdata_dataset") {
@@ -7482,9 +7499,6 @@ async function runSearchPipeline(job: SearchJobRow) {
     phase1Parsed,
     initialExecutionProfile,
   );
-  if (!phase1Result?.finalRows.length) {
-    throw new Error("Bright Data recall returned no candidates.");
-  }
 
   await completeSearch(
     context,
