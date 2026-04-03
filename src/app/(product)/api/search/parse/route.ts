@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = await parseJobDescriptionToDraft(jd_text.trim());
+    const parsed = await parseJobDescriptionToDraft(jd_text.trim(), {
+      populateTargetCompanies: false,
+    });
 
     return NextResponse.json({
       parsed_requirements: parsed,

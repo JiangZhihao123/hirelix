@@ -70,6 +70,10 @@ type LaunchOptions = {
   requestedCandidateCount?: number;
 };
 
+type ParseJobDescriptionOptions = {
+  populateTargetCompanies?: boolean;
+};
+
 export type ParsedJobSummary = {
   title: string;
   requiredSkills: string[];
@@ -427,7 +431,10 @@ function sanitizeIntentCandidate(
   };
 }
 
-export async function parseJobDescriptionToDraft(jdText: string) {
+export async function parseJobDescriptionToDraft(
+  jdText: string,
+  options: ParseJobDescriptionOptions = {},
+) {
   let parsed: ParsedSearchIntent | null = null;
 
   try {
@@ -458,7 +465,10 @@ export async function parseJobDescriptionToDraft(jdText: string) {
     ? (recallSpec.target_companies as string[])
     : [];
 
-  if (existingCompanies.length === 0) {
+  const shouldPopulateTargetCompanies =
+    options.populateTargetCompanies ?? true;
+
+  if (shouldPopulateTargetCompanies && existingCompanies.length === 0) {
     try {
       const titleStr = typeof result.title === "string" ? result.title : "";
       const rs2 = result.recall_spec as Record<string, unknown> | undefined;

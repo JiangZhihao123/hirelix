@@ -100,6 +100,17 @@ export function getDefaultOpenRouterModel() {
   );
 }
 
+export function getLightweightOpenRouterModel() {
+  return (
+    process.env.SEARCH_LIGHT_MODEL ||
+    process.env.OPENROUTER_LIGHT_MODEL ||
+    process.env.DEEPSEEK_LIGHT_MODEL ||
+    process.env.AI_MODEL ||
+    process.env.SEARCH_JUDGE_MODEL ||
+    "deepseek/deepseek-chat-v3-0324"
+  );
+}
+
 export function getOpenRouterClient() {
   if (cachedClient) return cachedClient;
 

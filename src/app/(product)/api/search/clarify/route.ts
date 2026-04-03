@@ -7,7 +7,7 @@ import {
 } from "@/lib/jd-parse";
 import {
   generateOpenRouterJson,
-  getDefaultOpenRouterModel,
+  getLightweightOpenRouterModel,
 } from "@/lib/openrouter";
 
 export const maxDuration = 60;
@@ -38,7 +38,7 @@ If you do have questions, ask at most 2, in a natural conversational tone — no
 - Min experience: ${summary.experienceYearsMin != null ? `${summary.experienceYearsMin}+ years` : "not specified"}
 
 ## Original JD
-${jdText.slice(0, 2000)}${jdText.length > 2000 ? "\n[truncated]" : ""}
+${jdText.slice(0, 1200)}${jdText.length > 1200 ? "\n[truncated]" : ""}
 
 Return JSON only: { "message": "string", "ready_to_launch": boolean }
 The message is shown directly to the headhunter — keep it concise, direct, no markdown.`;
@@ -60,7 +60,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = await parseJobDescriptionToDraft(jd_text.trim());
+    const parsed = await parseJobDescriptionToDraft(jd_text.trim(), {
+      populateTargetCompanies: false,
+    });
     const summary = summarizeParsedJob(parsed);
 
     const fallbackClarification = buildFallbackJobClarification(summary);
@@ -71,10 +73,11 @@ export async function POST(req: NextRequest) {
         message: string;
         ready_to_launch: boolean;
       }>({
-        model: getDefaultOpenRouterModel(),
+        model: getLightweightOpenRouterModel(),
         prompt: buildClarifyPrompt(jd_text.trim(), summary),
-        maxOutputTokens: 300,
+        maxOutputTokens: 160,
         temperature: 0.3,
+        timeoutMs: 8_000,
       });
 
       clarification = {
