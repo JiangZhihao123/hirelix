@@ -7499,6 +7499,9 @@ async function runSearchPipeline(job: SearchJobRow) {
     phase1Parsed,
     initialExecutionProfile,
   );
+  if (!phase1Result) {
+    throw new Error("Bright Data recall did not return a pipeline result.");
+  }
 
   await completeSearch(
     context,
