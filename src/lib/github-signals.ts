@@ -1,6 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 type GithubSignalStatus =
+  | "queued"
+  | "running"
   | "verified"
   | "missing_public_data"
   | "ambiguous_match"
@@ -62,6 +64,79 @@ export type GithubSignals = {
   evidence_summary: string[];
   last_enriched_at: string;
 };
+
+export function buildPendingGithubSignals(params: {
+  status: "queued" | "running";
+  candidateName: string;
+  headline?: string | null;
+  currentCompany?: string | null;
+  requiredSkills?: string[];
+  existingGithubUrl?: string | null;
+  existingSignals?: Record<string, unknown> | null;
+  queuedAt?: string;
+}): GithubSignals {
+  const timestamp = params.queuedAt || new Date().toISOString();
+  const readout = buildRecruiterFacingGithubReadout({
+    status: params.status,
+    candidateName: params.candidateName,
+    headline: params.headline,
+    currentCompany: params.currentCompany,
+    requiredSkills: params.requiredSkills || [],
+    activityTrend: null,
+    topLanguages: [],
+    mergedPrCount: null,
+    commitMessageQuality: {
+      label: "unknown",
+      detail: "No recent public commit messages available to sample.",
+    },
+    githubSignalScore: null,
+    highlight: null,
+    discoveryConfidence: 0,
+  });
+
+  return {
+    status: params.status,
+    profile_login:
+      typeof params.existingSignals?.profile_login === "string"
+        ? (params.existingSignals.profile_login as string)
+        : extractUsernameFromGithubUrl(params.existingGithubUrl),
+    profile_url:
+      typeof params.existingSignals?.profile_url === "string"
+        ? (params.existingSignals.profile_url as string)
+        : params.existingGithubUrl || null,
+    activity_trend: null,
+    top_languages: [],
+    merged_pr_count: null,
+    commit_message_quality: null,
+    highlight: null,
+    discovery_confidence: 0,
+    github_signal_score: null,
+    evidence_strength: readout.evidenceStrength,
+    recruiter_summary:
+      params.status === "queued"
+        ? "GitHub review has been queued. Current ranking stays based on LinkedIn evidence until the background check finishes."
+        : "GitHub review is in progress. Current ranking stays based on LinkedIn evidence until the background check finishes.",
+    outreach_angle: readout.outreachAngle,
+    verification_risks: compactStringArray(
+      [
+        "GitHub evidence is still being verified in the background.",
+        ...readout.verificationRisks,
+      ],
+      3,
+    ),
+    discovery_notes: [params.status === "queued" ? "github_review_queued" : "github_review_running"],
+    evidence_summary: compactStringArray(
+      [
+        params.status === "queued"
+          ? "GitHub review queued."
+          : "GitHub review in progress.",
+        readout.recruiterSummary,
+      ],
+      4,
+    ),
+    last_enriched_at: timestamp,
+  };
+}
 
 type GithubEnrichmentResult = {
   githubUrl: string | null;

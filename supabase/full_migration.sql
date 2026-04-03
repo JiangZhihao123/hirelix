@@ -74,6 +74,23 @@ CREATE TABLE IF NOT EXISTS public.hirelix_search_notifications (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.hirelix_github_enrichment_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  candidate_id UUID NOT NULL REFERENCES public.hirelix_candidates(id) ON DELETE CASCADE,
+  search_id UUID NOT NULL REFERENCES public.hirelix_searches(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  attempt_count INT NOT NULL DEFAULT 0,
+  last_error TEXT,
+  available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  locked_at TIMESTAMPTZ,
+  started_at TIMESTAMPTZ,
+  finished_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (candidate_id)
+);
+
 CREATE TABLE IF NOT EXISTS hirelix_user_settings (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -89,6 +106,7 @@ ALTER TABLE public.hirelix_searches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hirelix_candidates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hirelix_search_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hirelix_search_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hirelix_github_enrichment_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hirelix_user_settings ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies
@@ -103,6 +121,7 @@ DROP POLICY IF EXISTS "Users can update own candidates" ON public.hirelix_candid
 DROP POLICY IF EXISTS "Service role full access candidates" ON public.hirelix_candidates;
 DROP POLICY IF EXISTS "Service role full access search jobs" ON public.hirelix_search_jobs;
 DROP POLICY IF EXISTS "Service role full access search notifications" ON public.hirelix_search_notifications;
+DROP POLICY IF EXISTS "Service role full access github enrichment jobs" ON public.hirelix_github_enrichment_jobs;
 
 DROP POLICY IF EXISTS "Users can read own settings" ON hirelix_user_settings;
 DROP POLICY IF EXISTS "Users can insert own settings" ON hirelix_user_settings;
@@ -150,6 +169,10 @@ CREATE POLICY "Service role full access search notifications"
   ON public.hirelix_search_notifications FOR ALL
   USING (auth.role() = 'service_role');
 
+CREATE POLICY "Service role full access github enrichment jobs"
+  ON public.hirelix_github_enrichment_jobs FOR ALL
+  USING (auth.role() = 'service_role');
+
 -- Create policies for user settings
 CREATE POLICY "Users can read own settings"
   ON hirelix_user_settings FOR SELECT
@@ -171,3 +194,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_hirelix_search_notifications_unique_kind_c
   ON public.hirelix_search_notifications(search_id, kind, channel);
 CREATE INDEX IF NOT EXISTS idx_hirelix_search_notifications_user_id_created_at
   ON public.hirelix_search_notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_hirelix_github_enrichment_jobs_status_available_at
+  ON public.hirelix_github_enrichment_jobs(status, available_at);
+CREATE INDEX IF NOT EXISTS idx_hirelix_github_enrichment_jobs_search_id
+  ON public.hirelix_github_enrichment_jobs(search_id);

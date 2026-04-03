@@ -279,7 +279,7 @@ type RecallMetadataView = {
 };
 
 type GithubSignals = {
-  status?: "verified" | "missing_public_data" | "ambiguous_match" | "api_error";
+  status?: "queued" | "running" | "verified" | "missing_public_data" | "ambiguous_match" | "api_error";
   profile_url?: string | null;
   profile_login?: string | null;
   activity_trend?: string | null;
@@ -631,7 +631,22 @@ function formatEvidenceStrength(value: GithubSignals["evidence_strength"]) {
 }
 
 function getEvidenceSourceLabel(signals: GithubSignals | null) {
-  return signals?.status === "verified" ? "GitHub evidence" : "LinkedIn evidence";
+  if (signals?.status === "verified") return "GitHub evidence";
+  if (signals?.status === "queued" || signals?.status === "running") return "GitHub review pending";
+  return "LinkedIn evidence";
+}
+
+function getGithubBadge(signals: GithubSignals | null) {
+  if (signals?.status === "verified") {
+    return { text: "GitHub verified", className: "bg-emerald-50 text-emerald-700" };
+  }
+  if (signals?.status === "queued") {
+    return { text: "GitHub queued", className: "bg-amber-50 text-amber-700" };
+  }
+  if (signals?.status === "running") {
+    return { text: "GitHub running", className: "bg-sky-50 text-sky-700" };
+  }
+  return { text: "LinkedIn only", className: "bg-blue-50 text-blue-700" };
 }
 
 function formatElapsedMinutes(ms: number | null) {
@@ -722,6 +737,8 @@ function getCandidateGithubSignals(candidate: CandidateRow): GithubSignals | nul
   const item = value as Record<string, unknown>;
   return {
     status:
+      item.status === "queued" ||
+      item.status === "running" ||
       item.status === "verified" ||
       item.status === "missing_public_data" ||
       item.status === "ambiguous_match" ||
@@ -842,7 +859,9 @@ function CandidateCard({
         setLocalCandidate((prev) => ({
           ...prev,
           email: data.email || prev.email,
+          github_url: data.github_url || prev.github_url,
           outreach_draft: data.outreach_draft || prev.outreach_draft,
+          metadata: data.metadata || prev.metadata,
         }));
         await refreshBilling();
       } else {
@@ -919,7 +938,7 @@ function CandidateCard({
     suitability?.shortlist_reason ??
     null;
   const githubSignals = getCandidateGithubSignals(candidate);
-  const hasVerifiedGithub = githubSignals?.status === "verified";
+  const githubBadge = getGithubBadge(githubSignals);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
 
@@ -967,13 +986,7 @@ function CandidateCard({
             )}
             <ActionabilityBadge candidate={candidate} />
             <ScoreBadge score={overallScore} />
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-              hasVerifiedGithub
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-blue-50 text-blue-700"
-            }`}>
-              {hasVerifiedGithub ? "GitHub verified" : "LinkedIn only"}
-            </span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${githubBadge.className}`}>{githubBadge.text}</span>
             {candidate.status !== "new" && (
               <span
                 className={`text-xs font-medium capitalize ${statusColors[candidate.status] || ""}`}
@@ -1632,7 +1645,7 @@ function CandidateWorkbenchListItem({
   const overallScore = getCandidateOverallScore(candidate);
   const progressWidth = Math.max(6, Math.min(100, overallScore));
   const githubSignals = getCandidateGithubSignals(candidate);
-  const hasVerifiedGithub = githubSignals?.status === "verified";
+  const githubBadge = getGithubBadge(githubSignals);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
 
@@ -1677,15 +1690,9 @@ function CandidateWorkbenchListItem({
                 {candidate.location}
               </span>
             )}
-            {hasVerifiedGithub ? (
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
-                GitHub verified
-              </span>
-            ) : (
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-                LinkedIn-only
-              </span>
-            )}
+            <span className={`rounded-full px-2.5 py-1 text-[11px] ${githubBadge.className}`}>
+              {githubBadge.text}
+            </span>
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
               {formatEvidenceStrength(githubSignals?.evidence_strength)}
             </span>
@@ -2011,7 +2018,11 @@ function CandidateWorkbenchDetail({
               </div>
               {!hasVerifiedGithub && (
                 <p className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
-                  No public GitHub data found yet. Current ranking stays based on LinkedIn evidence only.
+                  {githubSignals?.status === "queued"
+                    ? "GitHub review is queued. Current ranking stays based on LinkedIn evidence until the background check finishes."
+                    : githubSignals?.status === "running"
+                      ? "GitHub review is in progress. Current ranking stays based on LinkedIn evidence until the background check finishes."
+                      : "No public GitHub data found yet. Current ranking stays based on LinkedIn evidence only."}
                 </p>
               )}
             </div>

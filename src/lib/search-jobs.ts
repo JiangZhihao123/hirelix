@@ -27,9 +27,9 @@ import {
   type BrightDataProfile,
 } from "@/lib/brightdata";
 import {
-  applyGithubSignalsToCandidateRow,
-  enrichGithubSignalsForCandidate,
+  buildPendingGithubSignals,
 } from "@/lib/github-signals";
+import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
   buildFallbackOutreachDraft,
@@ -165,11 +165,6 @@ const GITHUB_ENRICH_LIMIT = getConfiguredPositiveInt(
   "SEARCH_GITHUB_ENRICH_LIMIT",
   20,
   { min: 1, max: 50 },
-);
-const GITHUB_ENRICH_CONCURRENCY = getConfiguredPositiveInt(
-  "SEARCH_GITHUB_ENRICH_CONCURRENCY",
-  1,
-  { min: 1, max: 5 },
 );
 const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_BATCH_SIZE",
@@ -4389,27 +4384,33 @@ async function enrichRowsWithGithubSignals(
     rows.length,
     GITHUB_ENRICH_LIMIT,
   );
-  const prefix = rows.slice(0, githubLimit);
-  const suffix = rows.slice(githubLimit);
+  return rows.map((row, index) => {
+    if (index >= githubLimit) {
+      return row;
+    }
 
-  const enrichedPrefix = await runWithConcurrency(prefix, GITHUB_ENRICH_CONCURRENCY, async (row) => {
-    const enrichment = await enrichGithubSignalsForCandidate({
-      name: row.name,
-      headline: row.headline,
-      location: row.location,
-      skills: row.skills,
-      githubUrl: row.github_url,
-      metadata: row.metadata,
-      requiredSkills,
-    });
+    const metadata = {
+      ...(row.metadata || {}),
+      github_signals: buildPendingGithubSignals({
+        status: "queued",
+        candidateName: row.name,
+        headline: row.headline,
+        requiredSkills,
+        existingGithubUrl: row.github_url,
+        existingSignals:
+          row.metadata?.github_signals && typeof row.metadata.github_signals === "object"
+            ? (row.metadata.github_signals as Record<string, unknown>)
+            : null,
+      }),
+      github_signal_score: null,
+      github_discovery_confidence: 0,
+    };
 
-    return applyGithubSignalsToCandidateRow({
-      candidate: row,
-      enrichment,
-    });
+    return {
+      ...row,
+      metadata,
+    };
   });
-
-  return [...enrichedPrefix, ...suffix].sort((left, right) => right.match_score - left.match_score);
 }
 
 function hasJudgeConflict(
@@ -7301,6 +7302,19 @@ async function completeSearch(
     await upsertCandidatesForSearch(context.searchId, draftedRows, {
       replaceMissing: true,
     });
+    try {
+      await enqueueGithubEnrichmentJobsForSearch({
+        searchId: context.searchId,
+        userId: context.userId,
+        limit: Math.min(
+          Number(parsed.display_count) || draftedRows.length,
+          draftedRows.length,
+          GITHUB_ENRICH_LIMIT,
+        ),
+      });
+    } catch (error) {
+      console.error("[github_enrichment_jobs] Failed to enqueue search candidates:", error);
+    }
   }
 
   const finalParsed = withDisplayStats(parsed, finalDisplayStats);

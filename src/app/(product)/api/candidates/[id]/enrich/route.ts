@@ -8,7 +8,7 @@ import {
   getOpenRouterApiKey,
 } from "@/lib/openrouter";
 import { buildOutreachDraftJsonSchema } from "@/lib/openrouter-schemas";
-import { enrichGithubSignalsForCandidate } from "@/lib/github-signals";
+import { enqueueGithubEnrichmentJob } from "@/lib/github-enrichment-jobs";
 import {
   buildFallbackOutreachDraft,
   buildRecruiterOutreachEvidence,
@@ -115,33 +115,26 @@ export async function POST(
       effectiveMetadata.github_signals && typeof effectiveMetadata.github_signals === "object"
         ? (effectiveMetadata.github_signals as Record<string, unknown>)
         : null;
-    let effectiveGithubUrl = typeof candidate.github_url === "string" ? candidate.github_url : null;
+    const effectiveGithubUrl = typeof candidate.github_url === "string" ? candidate.github_url : null;
 
-    if (!effectiveGithubSignals || effectiveGithubSignals.status !== "verified") {
-      const githubEnrichment = await enrichGithubSignalsForCandidate({
-        name: candidate.name,
-        headline: candidate.headline,
-        location: candidate.location,
-        skills: Array.isArray(candidate.skills) ? candidate.skills : [],
-        githubUrl: effectiveGithubUrl,
-        metadata: effectiveMetadata,
-        requiredSkills,
+    const githubStatus = typeof effectiveGithubSignals?.status === "string"
+      ? effectiveGithubSignals.status
+      : null;
+    if (!effectiveGithubSignals || githubStatus !== "verified") {
+      const queuedGithub = await enqueueGithubEnrichmentJob({
+        candidateId: candidate.id,
+        searchId: candidate.search_id,
+        userId: user.id,
       });
+      effectiveMetadata =
+        queuedGithub.metadata && typeof queuedGithub.metadata === "object"
+          ? (queuedGithub.metadata as Record<string, unknown>)
+          : effectiveMetadata;
       effectiveGithubSignals =
-        githubEnrichment.githubSignals && typeof githubEnrichment.githubSignals === "object"
-          ? (githubEnrichment.githubSignals as unknown as Record<string, unknown>)
-          : null;
-      effectiveGithubUrl = githubEnrichment.githubUrl || effectiveGithubUrl;
-      effectiveMetadata = {
-        ...effectiveMetadata,
-        github_signals: githubEnrichment.githubSignals,
-        github_signal_score: githubEnrichment.githubSignalScore,
-        github_discovery_confidence: githubEnrichment.githubDiscoveryConfidence,
-      };
+        effectiveMetadata.github_signals && typeof effectiveMetadata.github_signals === "object"
+          ? (effectiveMetadata.github_signals as Record<string, unknown>)
+          : effectiveGithubSignals;
       updates.metadata = effectiveMetadata;
-      if (effectiveGithubUrl && effectiveGithubUrl !== candidate.github_url) {
-        updates.github_url = effectiveGithubUrl;
-      }
     }
 
     // ── Step 1: Find email (if not already found) ──
