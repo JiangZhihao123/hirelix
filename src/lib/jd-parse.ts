@@ -84,6 +84,11 @@ export type ParsedJobSummary = {
   constraintReasoning: string | null;
 };
 
+export type JobClarification = {
+  message: string;
+  ready_to_launch: boolean;
+};
+
 function normalizeNullableString(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -600,5 +605,51 @@ export function summarizeParsedJob(draft: ParsedSearchIntent): ParsedJobSummary 
     mustHaveConstraints: normalizeStringArray(hiringBrief.must_have_constraints, 10),
     softConstraints: normalizeStringArray(hiringBrief.soft_constraints, 10),
     constraintReasoning: normalizeNullableString(hiringBrief.constraint_reasoning),
+  };
+}
+
+export function buildFallbackJobClarification(
+  summary: ParsedJobSummary,
+): JobClarification {
+  const questions: string[] = [];
+
+  if (summary.title === "Untitled Role") {
+    questions.push("what exact title should I anchor this search on");
+  }
+
+  if (summary.requiredSkills.length === 0) {
+    questions.push("what are the 2-4 must-have skills I should treat as non-negotiable");
+  }
+
+  const needsLocation =
+    summary.workModel === "unknown" || !summary.locationScope;
+  if (needsLocation) {
+    questions.push(
+      "should I keep this search remote, hybrid, or onsite, and is there a target geography",
+    );
+  }
+
+  if (summary.experienceYearsMin == null) {
+    questions.push(
+      "what seniority bar should I use, for example senior, staff, or a minimum years range",
+    );
+  }
+
+  if (questions.length === 0) {
+    return {
+      message: "I have enough to start the search and I am ready to launch.",
+      ready_to_launch: true,
+    };
+  }
+
+  const topQuestions = questions.slice(0, 2);
+  const prompt =
+    topQuestions.length === 1
+      ? `Before I start, ${topQuestions[0]}?`
+      : `Before I start, ${topQuestions[0]}? Also, ${topQuestions[1]}?`;
+
+  return {
+    message: prompt,
+    ready_to_launch: false,
   };
 }
