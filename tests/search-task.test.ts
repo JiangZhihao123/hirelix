@@ -12,7 +12,7 @@ test("getSearchTaskEtaCopy keeps accepted searches scoped to brief parsing", () 
 test("getSearchTaskEtaCopy sets realistic recall expectations once the brief is ready", () => {
   assert.equal(
     getSearchTaskEtaCopy("searching", "provider_recall"),
-    "Recall usually takes 2-5 minutes",
+    "Usually 3-6 minutes from submission",
   );
 });
 

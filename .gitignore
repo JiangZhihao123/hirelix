@@ -52,3 +52,9 @@ next-env.d.ts
 /supabase/.temp/
 .windsurfrules
 .env*.local
+
+# 临时调试脚本
+analyze-debug.ts
+hirelix-e2e-debug.ts
+hirelix-e2e.ts
+hirelix-monitor.ts
