@@ -216,7 +216,18 @@ export async function generateOpenRouterText(
     },
   );
 
+  // 检查 API 层错误（如 402 余额不足、401 鉴权失败等）
+  // OpenRouter 在出错时仍返回 200，但 choices 为空并附带 error 字段
+  const apiError = (response as unknown as Record<string, unknown>).error;
+  if (apiError && typeof apiError === "object") {
+    const { code, message: msg } = apiError as { code?: unknown; message?: unknown };
+    throw new Error(`OpenRouter API error ${String(code ?? "unknown")}: ${String(msg ?? "unknown error")}`);
+  }
+
   const message = response.choices[0]?.message;
+  if (!message) {
+    throw new Error("OpenRouter returned an empty response (no choices)");
+  }
   return {
     text: normalizeMessageContent(message?.content),
     usage: {
