@@ -4736,12 +4736,12 @@ function buildBrightDataRecallFilters(
   const lateralTitles = recallSpec.lateral_title_variants.filter((t) => t.length >= 3);
   const differentiatingTerms = (
     recallSpec.differentiating_skill_terms.length > 0
-      ? recallSpec.differentiating_skill_terms
-      : recallSpec.core_skill_terms.slice(0, 3)
+      ? [...recallSpec.differentiating_skill_terms, ...recallSpec.baseline_skill_terms]
+      : [...recallSpec.core_skill_terms, ...recallSpec.baseline_skill_terms]
   )
     .map((t) => normalizeText(t))
     .filter((t) => t.length >= 2)
-    .slice(0, 5);
+    .slice(0, 8);
 
   if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
     const hiddenGemFilters: BrightDataFilterRule[] = [
@@ -4751,9 +4751,9 @@ function buildBrightDataRecallFilters(
       },
     ];
     if (countryFilter) hiddenGemFilters.push(countryFilter);
-    // Only differentiating skills — not baseline. This ensures lateral-title candidates
-    // must have the unique skills that make THIS role special.
-    // Match in both "about" and "position" — candidates often describe skills in position titles too.
+    // Differentiating + baseline skill terms: lateral-title candidates are found even when they
+    // don't use niche phrasing — common profile keywords (e.g. "ATS", "LinkedIn Recruiter") also
+    // qualify. Match in both "about" and "position" for maximum recall.
     hiddenGemFilters.push({
       operator: "or",
       filters: [
@@ -6658,11 +6658,17 @@ async function judgeScoreBatch(
       throw new Error(`${judgeLabel} returned no valid scores`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const shouldRetry = attempt < maxAttempts && (
+      const isTransientError =
         message.includes("invalid JSON") ||
         message.includes("timed out") ||
-        message.includes("429")
-      );
+        message.includes("429") ||
+        message.includes("OpenRouter API error 5") ||
+        message.includes("no choices") ||
+        message.includes("empty response") ||
+        message.includes("502") ||
+        message.includes("503") ||
+        message.includes("504");
+      const shouldRetry = attempt < maxAttempts && isTransientError;
       lastError = error instanceof Error ? error : new Error(message);
 
       logSearchEvent("judge_scoring_attempt_failed", {
