@@ -6723,6 +6723,7 @@ async function judgeScoreBatch(
           timeoutMs: JUDGE_SCORING_TIMEOUT_MS,
           temperature: 0,
           jsonSchema: buildJudgeScoreJsonSchema(batchIndexes.length),
+          requireParameters: true,
         }),
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,

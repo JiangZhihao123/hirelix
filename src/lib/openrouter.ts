@@ -27,6 +27,7 @@ type OpenRouterTextOptions = {
   timeoutMs?: number;
   jsonMode?: boolean;
   jsonSchema?: OpenRouterJsonSchemaConfig;
+  requireParameters?: boolean;
 };
 
 type OpenRouterTextResult = {
@@ -208,6 +209,9 @@ export async function generateOpenRouterText(
                 } as const,
               }
             : {}),
+        ...(options.requireParameters
+          ? { provider: { requireParameters: true } }
+          : {}),
       },
     },
     {
