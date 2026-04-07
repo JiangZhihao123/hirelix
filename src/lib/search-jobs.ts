@@ -6696,6 +6696,7 @@ async function judgeScoreBatch(
   batchIndexes: number[],
   totalPoolSize: number,
   judgeLabel: "Judge A" | "Judge B",
+  context?: { searchId?: string; jobId?: string },
 ): Promise<JudgeScoreResult[]> {
   const profilesText = batchIndexes
     .map((idx) => truncateForPrompt(profileTexts[idx], 2800))
@@ -6757,6 +6758,8 @@ async function judgeScoreBatch(
         retrying: shouldRetry,
         error: message,
         ...(rawText != null && { raw_response: rawText.slice(0, 500) }),
+        ...(context?.searchId && { search_id: context.searchId }),
+        ...(context?.jobId && { job_id: context.jobId }),
       });
 
       if (!shouldRetry) break;
@@ -6846,6 +6849,8 @@ async function deepScoreSelectedProfiles(
   totalPoolSize: number,
   options?: {
     onCandidateScored?: (assessment: ScoredCandidateAssessment, completedCount: number) => void | Promise<void>;
+    searchId?: string;
+    jobId?: string;
   },
 ): Promise<ScoredCandidateAssessment[]> {
   if (!selectedIndexes.length) return [];
@@ -6858,7 +6863,7 @@ async function deepScoreSelectedProfiles(
     selectedIndexes,
     workerCount,
     async (selectedIndex) => {
-      const result = await scoreSingleCandidate(runtime, parsed, jdText, profileTexts, selectedIndex, totalPoolSize);
+      const result = await scoreSingleCandidate(runtime, parsed, jdText, profileTexts, selectedIndex, totalPoolSize, { searchId: options?.searchId, jobId: options?.jobId });
       if (result) {
         completedCount++;
         try { await options?.onCandidateScored?.(result, completedCount); } catch { /* non-blocking */ }
@@ -6879,6 +6884,7 @@ async function scoreSingleCandidate(
   profileTexts: string[],
   selectedIndex: number,
   totalPoolSize: number,
+  context?: { searchId?: string; jobId?: string },
 ): Promise<ScoredCandidateAssessment | null> {
       if (runtime.judgeMode === "single") {
         try {
@@ -6910,8 +6916,8 @@ async function scoreSingleCandidate(
 
       const judgeBatch = [selectedIndex];
       const [judgeAResults, judgeBResults] = await Promise.allSettled([
-        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge A"),
-        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge B"),
+        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge A", context),
+        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge B", context),
       ]);
 
       const judgeA = judgeAResults.status === "fulfilled" ? judgeAResults.value[0] : null;
@@ -7044,6 +7050,8 @@ async function scoreBrightDataProfiles(
           await updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
         }
       },
+      searchId: context.searchId,
+      jobId: context.jobId,
     },
   );
 
