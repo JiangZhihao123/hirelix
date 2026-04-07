@@ -2311,7 +2311,7 @@ function CandidateWorkbenchDetail({
 export default function SearchResultPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const { billing, refresh: refreshBilling } = useBilling();
   const [search, setSearch] = useState<SearchRow | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
@@ -2319,7 +2319,6 @@ export default function SearchResultPage() {
   const [loading, setLoading] = useState(true);
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [retrying, setRetrying] = useState(false);
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
   const [candidateTier, setCandidateTier] = useState<CandidateDisplayTier>("priority_outreach");
@@ -2652,50 +2651,6 @@ export default function SearchResultPage() {
     });
   }, [analyticsContext, billing?.plan.code, candidates, search]);
 
-  async function handleRetry() {
-    if (!session?.access_token || !id) return;
-    setRetrying(true);
-    trackEvent(ANALYTICS_EVENTS.retrySearchClick, {
-      ...analyticsContext,
-      search_id: id,
-      search_status: search?.status ?? "unknown",
-      candidate_count: candidates.length,
-      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
-    });
-    try {
-      const res = await fetch(`/api/search/${id}/retry`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        // Reset local state to show processing
-        hasTrackedTaskViewRef.current = false;
-        hasTrackedBriefReadyViewRef.current = false;
-        hasTrackedProcessingViewRef.current = false;
-        hasTrackedResultsViewRef.current = false;
-        hasTrackedDoneRef.current = false;
-        hasTrackedDegradedRef.current = false;
-        hasTrackedProcessingReassuranceRef.current = false;
-        hasTrackedUpgradeValueExposedRef.current = false;
-        setSearch((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: "queued",
-                pipeline_step: "queued",
-                error_message: null,
-                warning_message: null,
-              }
-            : prev,
-        );
-        setCandidates([]);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setRetrying(false);
-    }
-  }
 
   async function handleStatusChange(candidateId: string, newStatus: string) {
     setCandidates((prev) =>
@@ -3357,9 +3312,6 @@ export default function SearchResultPage() {
               <p className="mt-2 text-xs text-red-600/90">
                 {errorPresentation.hint}
               </p>
-              <p className="mt-2 text-xs text-red-500/70">
-                Retrying won&apos;t use your monthly search quota.
-              </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {search.error_message?.includes("Settings") && (
@@ -3370,19 +3322,11 @@ export default function SearchResultPage() {
                   Go to Settings
                 </Link>
               )}
-              <button
-                onClick={handleRetry}
-                disabled={retrying}
-                className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
-              >
-                {retrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
-                Retry shortlist run
-              </button>
               <Link
                 href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
               >
-                Refine JD and retry
+                Refine JD and search again
               </Link>
             </div>
           </div>

@@ -323,7 +323,7 @@ export default function DashboardPage() {
       return `Reviewable with a warning · updated ${formatRelativeTime(updatedAt)}`;
     }
     if (status === "done") return `Ready to review · created ${formatRelativeTime(createdAt)}`;
-    if (status === "error") return `Needs retry · updated ${formatRelativeTime(updatedAt)}`;
+    if (status === "error") return `Failed · updated ${formatRelativeTime(updatedAt)}`;
     return `Started ${formatRelativeTime(createdAt)}`;
   };
 
@@ -441,7 +441,7 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-slate-950">Your sourcing tasks</h2>
               <p className="mt-1 text-sm text-muted">
-                Review what is ready now, retry what stalled, or launch another sourcing task when you are ready.
+                Review what is ready, or launch another sourcing task when you are ready.
               </p>
             </div>
             <button
@@ -571,7 +571,7 @@ export default function DashboardPage() {
                   )}
                   {s.status === "error" && (
                     <span className="hidden rounded-full bg-red-50 px-2 py-1 text-[10px] font-medium text-red-700 sm:block">
-                      Needs retry
+                      Failed
                     </span>
                   )}
                   <button
