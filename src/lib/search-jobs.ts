@@ -3417,7 +3417,7 @@ async function reclaimStuckStartingJobs() {
   return reclaimedCount;
 }
 
-async function reclaimStaleRunningJobs() {
+export async function reclaimStaleRunningJobs() {
   await reclaimStuckStartingJobs();
 
   const cutoff = minutesAgoIso(SEARCH_JOB_STALE_MINUTES);

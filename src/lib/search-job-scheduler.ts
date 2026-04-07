@@ -1,4 +1,4 @@
-import { processNextSearchJob } from "@/lib/search-jobs";
+import { processNextSearchJob, reclaimStaleRunningJobs } from "@/lib/search-jobs";
 
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
@@ -83,6 +83,20 @@ async function runSchedulerLoop(workerIndex: number) {
   }
 }
 
+// 独立回收定时器：每 60s 主动回收卡死的 running jobs，
+// 不依赖 worker 存活——即使所有 worker 全部卡死也能自愈。
+const RECLAIM_INTERVAL_MS = 60_000;
+
+function startReclaimTimer() {
+  setInterval(async () => {
+    try {
+      await reclaimStaleRunningJobs();
+    } catch (error) {
+      console.error("[search_jobs] Reclaim timer failed:", error);
+    }
+  }, RECLAIM_INTERVAL_MS);
+}
+
 export function startSearchJobScheduler() {
   if (!getSchedulerEnabled()) {
     console.warn(
@@ -97,6 +111,7 @@ export function startSearchJobScheduler() {
   }
 
   state.started = true;
+  startReclaimTimer();
   const concurrency = getConfiguredConcurrency();
   console.log(
     `[search_jobs] In-process scheduler started with concurrency=${concurrency}`,
