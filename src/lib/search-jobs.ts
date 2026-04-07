@@ -318,7 +318,7 @@ const LIGHT_PRESCREEN_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
 );
 const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_JUDGE_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 420 : 700,
+  SEARCH_LOW_COST_MODE ? 420 : 1200,
   { min: 120, max: 2000 },
 );
 const ARBITER_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
