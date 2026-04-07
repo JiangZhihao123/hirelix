@@ -6737,6 +6737,7 @@ async function judgeScoreBatch(
       throw new Error(`${judgeLabel} returned no valid scores`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const rawText = (error as Error & { rawText?: string }).rawText;
       const isTransientError =
         message.includes("invalid JSON") ||
         message.includes("timed out") ||
@@ -6755,6 +6756,7 @@ async function judgeScoreBatch(
         attempt,
         retrying: shouldRetry,
         error: message,
+        ...(rawText != null && { raw_response: rawText.slice(0, 500) }),
       });
 
       if (!shouldRetry) break;
