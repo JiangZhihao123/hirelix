@@ -4022,6 +4022,59 @@ async function cacheSnapshotEntry(params: {
   }
 }
 
+/**
+ * 将 Bright Data 下载的原始 profile records 落库到 hirelix_snapshot_profiles。
+ * Fire-and-forget 安全：任何写入错误不会阻塞主流程。
+ */
+async function persistSnapshotProfiles(
+  records: Record<string, unknown>[],
+  params: {
+    snapshotId: string;
+    searchId: string;
+    jobId: string;
+    sourceRound: string;
+  },
+): Promise<void> {
+  if (records.length === 0) return;
+  const rows = records.map((record) => {
+    const linkedinId =
+      typeof record.linkedin_id === "string" && record.linkedin_id
+        ? record.linkedin_id
+        : typeof record.id === "string" && record.id
+          ? record.id
+          : null;
+    const profileUrl =
+      typeof record.url === "string" && record.url
+        ? record.url
+        : typeof record.input_url === "string" && record.input_url
+          ? record.input_url
+          : record.input && typeof (record.input as Record<string, unknown>).url === "string"
+            ? (record.input as Record<string, unknown>).url as string
+            : null;
+    return {
+      snapshot_id: params.snapshotId,
+      search_id: params.searchId,
+      job_id: params.jobId,
+      source_round: params.sourceRound,
+      linkedin_id: linkedinId,
+      profile_url: profileUrl,
+      raw_data: record,
+    };
+  });
+  try {
+    // 分批写入（每批 50 条），避免单次请求过大
+    const BATCH = 50;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      await supabaseAdmin
+        .from("hirelix_snapshot_profiles")
+        .upsert(rows.slice(i, i + BATCH), { onConflict: "snapshot_id,linkedin_id", ignoreDuplicates: true });
+    }
+  } catch (err) {
+    // Non-critical — 落库失败不影响搜索结果
+    console.error("[snapshot_profiles] persist failed", params.snapshotId, err);
+  }
+}
+
 /** Update dataset_size and cost once a snapshot finishes downloading. */
 async function updateCachedSnapshotMetadata(
   snapshotId: string,
@@ -5900,6 +5953,12 @@ async function buildBrightDataDatasetCandidates(
     try {
       const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
       profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
+      void persistSnapshotProfiles(rows, {
+        snapshotId: activeSnapshotId,
+        searchId: context.searchId,
+        jobId: context.jobId,
+        sourceRound: "standard",
+      });
       parsed.recall_metadata = {
         ...(normalizeRecallMetadata(parsed.recall_metadata) ?? {
           provider: "brightdata_dataset" as const,
@@ -6070,8 +6129,14 @@ async function buildBrightDataDatasetCandidates(
       let roundProfiles: BrightDataProfile[];
       const roundDownloadStartedAt = nowIso();
       try {
-        roundProfiles = (await downloadDatasetSnapshot(brightDataToken, roundSnapId))
-          .map(adaptDatasetRecordToBrightDataProfile);
+        const roundRows = await downloadDatasetSnapshot(brightDataToken, roundSnapId);
+        roundProfiles = roundRows.map(adaptDatasetRecordToBrightDataProfile);
+        void persistSnapshotProfiles(roundRows, {
+          snapshotId: roundSnapId,
+          searchId: context.searchId,
+          jobId: context.jobId,
+          sourceRound: round,
+        });
       } catch (error) {
         if (!isTransientSnapshotDownloadError(error)) {
           throw error;
