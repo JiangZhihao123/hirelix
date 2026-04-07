@@ -227,6 +227,27 @@ const GITHUB_MATCH_CONFIDENCE_THRESHOLD = 0.58;
 const SERPER_API_BASE = "https://google.serper.dev";
 const GITHUB_RATE_LIMIT_FALLBACK_COOLDOWN_MS = 60_000;
 
+// Proactive rate limiter: spaces out requests so we never exceed GitHub API limits.
+// All workers in the same process share the same limiter instances.
+class GithubApiRateLimiter {
+  private nextAllowedMs = 0;
+  constructor(private readonly minIntervalMs: number) {}
+  async acquire(): Promise<void> {
+    const now = Date.now();
+    if (now >= this.nextAllowedMs) {
+      this.nextAllowedMs = now + this.minIntervalMs;
+      return;
+    }
+    const waitMs = this.nextAllowedMs - now;
+    this.nextAllowedMs += this.minIntervalMs;
+    await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+  }
+}
+// Search API: 30 req/min limit → enforce 28/min (one per ~2143ms)
+const githubSearchLimiter = new GithubApiRateLimiter(Math.ceil(60_000 / 28));
+// Core API: 5000 req/hour = ~83/min limit → enforce 70/min (one per ~857ms)
+const githubCoreLimiter = new GithubApiRateLimiter(Math.ceil(60_000 / 70));
+
 let githubApiCooldownUntilMs = 0;
 const githubRequestTraceStorage = new AsyncLocalStorage<GithubRequestTrace>();
 
@@ -538,8 +559,13 @@ async function githubFetch(path: string, init?: RequestInit) {
   }
 
   throwIfGithubApiCoolingDown();
-  const startedAt = Date.now();
   const category = classifyGithubRestPath(path);
+  if (category === "search_users" || category === "search_issues") {
+    await githubSearchLimiter.acquire();
+  } else {
+    await githubCoreLimiter.acquire();
+  }
+  const startedAt = Date.now();
 
   const response = await fetch(`${GITHUB_API_BASE}${path}`, {
     ...init,
@@ -593,6 +619,7 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
   }
 
   throwIfGithubApiCoolingDown();
+  await githubCoreLimiter.acquire();
   const startedAt = Date.now();
   const category = classifyGithubGraphqlQuery(query);
 
