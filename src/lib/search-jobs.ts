@@ -368,7 +368,7 @@ function getExecutionRuntime(
 
   return {
     lightPrescreenMaxOutputTokens: 200,
-    judgeMaxOutputTokens: 700,
+    judgeMaxOutputTokens: JUDGE_MAX_OUTPUT_TOKENS,
     arbiterMaxOutputTokens: ARBITER_MAX_OUTPUT_TOKENS,
     outreachMaxOutputTokens: 700,
     judgeMaxAttempts: 2,
