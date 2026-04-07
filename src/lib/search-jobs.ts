@@ -4035,6 +4035,7 @@ async function persistSnapshotProfiles(
     sourceRound: string;
   },
 ): Promise<void> {
+  console.log(`[snapshot_profiles] persist called: snapshot=${params.snapshotId} round=${params.sourceRound} records=${records.length}`);
   if (records.length === 0) return;
   const rows = records.map((record) => {
     const linkedinId =
@@ -4062,13 +4063,26 @@ async function persistSnapshotProfiles(
     };
   });
   try {
+    // 先删除该 snapshot+round 的旧数据，再整批写入，保证幂等
+    const { error: deleteError } = await supabaseAdmin
+      .from("hirelix_snapshot_profiles")
+      .delete()
+      .eq("snapshot_id", params.snapshotId)
+      .eq("source_round", params.sourceRound);
+    if (deleteError) console.error("[snapshot_profiles] delete error", deleteError);
+
     // 分批写入（每批 50 条），避免单次请求过大
     const BATCH = 50;
     for (let i = 0; i < rows.length; i += BATCH) {
-      await supabaseAdmin
+      const { error: insertError } = await supabaseAdmin
         .from("hirelix_snapshot_profiles")
-        .upsert(rows.slice(i, i + BATCH), { onConflict: "snapshot_id,linkedin_id", ignoreDuplicates: true });
+        .insert(rows.slice(i, i + BATCH));
+      if (insertError) {
+        console.error(`[snapshot_profiles] insert error batch i=${i}`, insertError);
+        throw insertError;
+      }
     }
+    console.log(`[snapshot_profiles] persisted ${rows.length} rows for snapshot=${params.snapshotId} round=${params.sourceRound}`);
   } catch (err) {
     // Non-critical — 落库失败不影响搜索结果
     console.error("[snapshot_profiles] persist failed", params.snapshotId, err);
