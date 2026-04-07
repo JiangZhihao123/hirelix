@@ -923,11 +923,15 @@ async function discoverGithubIdentity(input: GithubCandidateInput): Promise<Gith
     notes: string[];
   }> = [];
 
+  const seenLogins = new Set<string>();
+
   for (const query of queries) {
     const search = await githubFetch(`/search/users?q=${encodeURIComponent(query)}&per_page=5`) as {
       items?: Array<{ login: string }>;
     };
     for (const item of search.items || []) {
+      if (seenLogins.has(item.login)) continue;
+      seenLogins.add(item.login);
       try {
         const profile = await githubFetch(`/users/${encodeURIComponent(item.login)}`) as {
           login?: string;
@@ -961,6 +965,14 @@ async function discoverGithubIdentity(input: GithubCandidateInput): Promise<Gith
       } catch {
         // Ignore per-user lookup failures and continue.
       }
+    }
+
+    // Early exit: if we already have a clear high-confidence winner, skip remaining queries.
+    const sorted = [...candidates].sort((a, b) => b.score - a.score);
+    const top = sorted[0];
+    const second = sorted[1];
+    if (top && top.score >= 0.80 && (!second || top.score - second.score >= 0.20)) {
+      break;
     }
   }
 

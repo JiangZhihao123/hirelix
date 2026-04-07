@@ -3,7 +3,7 @@ import { processNextGithubEnrichmentJob } from "@/lib/github-enrichment-jobs";
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
 const DEFAULT_MAX_IDLE_POLL_MS = 30000;
-const DEFAULT_CONCURRENCY = 1;
+const DEFAULT_CONCURRENCY = 3;
 
 type SchedulerState = {
   started: boolean;
