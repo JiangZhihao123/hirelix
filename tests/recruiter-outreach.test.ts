@@ -5,7 +5,7 @@ import {
   buildFallbackOutreachDraft,
   buildRecruiterOutreachEvidence,
   buildRecruiterOutreachPrompt,
-} from "../src/lib/recruiter-outreach.ts";
+} from "../src/lib/recruiter-outreach";
 
 test("buildRecruiterOutreachEvidence prefers concrete linkedin facts over boilerplate reasons", () => {
   const evidence = buildRecruiterOutreachEvidence({

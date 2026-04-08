@@ -9,7 +9,7 @@ import {
   extractGithubOwnerCandidateFromUrl,
   extractGitHubUrlsFromText,
   resetGithubApiRateLimitStateForTests,
-} from "../src/lib/github-signals.ts";
+} from "../src/lib/github-signals";
 
 test("extractGitHubUrlsFromText returns unique GitHub profile URLs", () => {
   const urls = extractGitHubUrlsFromText(

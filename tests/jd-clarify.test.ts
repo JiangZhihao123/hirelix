@@ -4,7 +4,7 @@ import {
   buildFallbackJobClarification,
   buildHeuristicJobDescriptionDraft,
   buildParsedRequirementsForLaunch,
-} from "../src/lib/jd-parse.ts";
+} from "../src/lib/jd-parse";
 
 test("buildFallbackJobClarification is ready when summary is complete", () => {
   const clarification = buildFallbackJobClarification({

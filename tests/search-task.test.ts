@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getSearchTaskEtaCopy } from "../src/lib/search-task.ts";
+import { getSearchTaskEtaCopy } from "../src/lib/search-task";
 
 test("getSearchTaskEtaCopy keeps accepted searches scoped to brief parsing", () => {
   assert.equal(
@@ -11,7 +11,7 @@ test("getSearchTaskEtaCopy keeps accepted searches scoped to brief parsing", () 
 
 test("getSearchTaskEtaCopy sets realistic recall expectations once the brief is ready", () => {
   assert.equal(
-    getSearchTaskEtaCopy("searching", "provider_recall"),
+    getSearchTaskEtaCopy("searching", "linkedin_scan"),
     "Usually 3-6 minutes from submission",
   );
 });

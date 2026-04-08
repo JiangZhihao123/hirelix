@@ -58,6 +58,8 @@ type ParsedSearchIntent = {
   nice_to_have_skills?: unknown;
   location?: unknown;
   experience_years_min?: unknown;
+  parse_origin?: unknown;
+  user_clarification?: unknown;
 };
 
 type LaunchOptions = {
