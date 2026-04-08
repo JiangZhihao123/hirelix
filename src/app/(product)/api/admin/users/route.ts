@@ -42,7 +42,6 @@ export async function GET(req: NextRequest) {
 
   // Supabase admin API 批量获取用户（每次最多50个）
   for (let i = 0; i < userIds.length; i += 50) {
-    const chunk = userIds.slice(i, i + 50);
     const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers({
       perPage: 50,
       page: Math.floor(i / 50) + 1,

@@ -13,7 +13,6 @@ import {
   ChevronUp,
   AlertCircle,
   CheckCircle2,
-  Clock,
   Loader2,
 } from "lucide-react";
 
@@ -58,8 +57,6 @@ type UserRow = {
 };
 
 // ─── 辅助函数 ────────────────────────────────────────────────────────────────
-
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
 function planBadge(plan: string, status: string) {
   const isPro =

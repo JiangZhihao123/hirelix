@@ -3,7 +3,6 @@ import {
   JD_SEARCH_INTENT_PROMPT,
 } from "@/lib/prompts";
 import {
-  scrapeLinkedInProfiles,
   brightDataProfileToRichText,
   adaptDatasetRecordToBrightDataProfile,
   BrightDataRequestTimeoutError,
@@ -105,26 +104,6 @@ function resolveStageConcurrency(configuredLimit: number, itemCount: number) {
   return Math.min(configuredLimit, itemCount);
 }
 
-const BRIGHTDATA_BATCH_SIZE = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_BATCH_SIZE",
-  30,
-  { max: 100 },
-);
-const BRIGHTDATA_BATCH_CONCURRENCY = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_BATCH_CONCURRENCY",
-  20,
-  { max: 50 },
-);
-const BRIGHTDATA_SCRAPE_MAX_ATTEMPTS = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_SCRAPE_MAX_ATTEMPTS",
-  90,
-  { min: 6, max: 120 },
-);
-const BRIGHTDATA_SCRAPE_INTERVAL_MS = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_SCRAPE_INTERVAL_MS",
-  10000,
-  { min: 2000, max: 60000 },
-);
 const GITHUB_ENRICH_LIMIT = getConfiguredPositiveInt(
   "SEARCH_GITHUB_ENRICH_LIMIT",
   20,
@@ -232,10 +211,6 @@ const SEARCH_LOW_COST_MODE = getConfiguredBoolean(
   "SEARCH_LOW_COST_MODE",
   false,
 );
-const SEARCH_SINGLE_JUDGE_MODE = getConfiguredBoolean(
-  "SEARCH_SINGLE_JUDGE_MODE",
-  SEARCH_LOW_COST_MODE,
-);
 const PARSE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_PARSE_MAX_OUTPUT_TOKENS",
   SEARCH_LOW_COST_MODE ? 900 : 1800,
@@ -249,11 +224,6 @@ const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
 const ARBITER_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_ARBITER_MAX_OUTPUT_TOKENS",
   SEARCH_LOW_COST_MODE ? 400 : 800,
-  { min: 120, max: 2000 },
-);
-const OUTREACH_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
-  "SEARCH_OUTREACH_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 450 : 700,
   { min: 120, max: 2000 },
 );
 const ESTIMATED_TOKENS_PER_CHAR = getConfiguredNumber(
