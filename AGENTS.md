@@ -111,23 +111,62 @@ ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -o BatchMode=yes -o ConnectTime
 
 生产域名：`hirelix.online`（DNS A 记录指向 Vercel）
 
-### 调度器部署
+### 调度器部署（CI/CD 自动部署）
 
 调度器代码位于 `scheduler/` 目录。
 
-#### 部署步骤
+#### 部署流程
+
+采用 **GitHub Actions** 自动部署：
+
+```
+Push 到 main 分支
+    ↓
+GitHub Actions 触发
+    ↓
+编译 + TypeScript 检查
+    ↓
+单元测试
+    ↓
+自动部署到 VPS（git pull + npm install + 重启服务）
+```
+
+#### 配置步骤（一次性）
+
+**1. 配置 VPS SSH 密钥**
+
+在本地生成专门用于 GitHub Actions 的密钥对（不要复用个人密钥）：
 
 ```bash
-# 1. 同步 scheduler/ 目录（及其他改动的源码）
-rsync -az \
-  -e 'ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222' \
-  /Users/noah/projects/hirelix/scheduler/ root@66.42.53.127:/opt/hirelix/scheduler/
+# 生成新密钥（无密码）
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/hirelix_deploy
 
-# 2. 如有新 npm 依赖，在 VPS 上安装
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'cd /opt/hirelix && npm install'
+# 复制公钥到 VPS
+cat ~/.ssh/hirelix_deploy.pub | ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
+```
 
-# 3. 重启调度器
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'systemctl restart hirelix-scheduler'
+**2. 添加 GitHub Secrets**
+
+在 GitHub 仓库 Settings → Secrets → Actions 中添加：
+
+| Secret Name | Value |
+|-------------|-------|
+| `VPS_HOST` | `66.42.53.127` |
+| `VPS_USER` | `root` |
+| `VPS_PORT` | `2222` |
+| `VPS_SSH_KEY` | `~/.ssh/hirelix_deploy` 私钥内容 |
+
+**3. 验证部署**
+
+Push 任意代码到 main 分支，在 GitHub Actions 页面查看部署状态。
+
+#### 手动回滚（紧急）
+
+如需立即回滚，SSH 到 VPS 执行：
+
+```bash
+# 回滚到指定版本
+ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'cd /opt/hirelix && git reset --hard <commit-hash> && systemctl restart hirelix-scheduler'
 ```
 
 **环境变量**：`/etc/hirelix.env`（systemd EnvironmentFile，包含所有生产环境变量）
