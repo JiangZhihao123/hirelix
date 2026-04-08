@@ -1,12 +1,7 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getCheckoutConfig } from "@/lib/billing";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
   console.log(`[billing:${eventName}] ${JSON.stringify(payload)}`);
