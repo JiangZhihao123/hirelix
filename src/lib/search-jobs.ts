@@ -3,15 +3,6 @@ import {
   JD_SEARCH_INTENT_PROMPT,
 } from "@/lib/prompts";
 import {
-  serperSearch,
-  buildLinkedInSearchPlan,
-  parseSearchResults,
-  serperCandidateToRichProfile,
-  serperCandidateToDbCandidate,
-  type LinkedInQueryTier,
-  type SerperCandidate,
-} from "@/lib/serper";
-import {
   scrapeLinkedInProfiles,
   brightDataProfileToRichText,
   adaptDatasetRecordToBrightDataProfile,
@@ -29,7 +20,6 @@ import {
 import {
   buildPendingGithubSignals,
 } from "@/lib/github-signals";
-import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
   buildFallbackOutreachDraft,
@@ -45,7 +35,6 @@ import {
   buildJudgeScoreJsonSchema,
   buildOutreachDraftJsonSchema,
   JD_SEARCH_INTENT_JSON_SCHEMA,
-  SERPER_PRESCREEN_JSON_SCHEMA,
 } from "@/lib/openrouter-schemas";
 import {
   getInitialSearchExecutionProfile,
@@ -116,26 +105,6 @@ function resolveStageConcurrency(configuredLimit: number, itemCount: number) {
   return Math.min(configuredLimit, itemCount);
 }
 
-const SERPER_QUERY_CONCURRENCY = getConfiguredPositiveInt(
-  "SEARCH_SERPER_QUERY_CONCURRENCY",
-  24,
-  { max: 100 },
-);
-const SERPER_RESULTS_PER_PAGE = getConfiguredPositiveInt(
-  "SEARCH_SERPER_RESULTS_PER_PAGE",
-  100,
-  { max: 100 },
-);
-const SERPER_PAGES_PER_QUERY = getConfiguredPositiveInt(
-  "SEARCH_SERPER_PAGES_PER_QUERY",
-  4,
-  { max: 10 },
-);
-const SERPER_PAGES_PER_QUERY_EXPANDED = getConfiguredPositiveInt(
-  "SEARCH_SERPER_PAGES_PER_QUERY_EXPANDED",
-  8,
-  { max: 20 },
-);
 const PRE_SCREEN_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_PRE_SCREEN_CONCURRENCY",
   20,
@@ -481,7 +450,7 @@ type RecallSpec = {
   record_limit: number;
 };
 
-type RecallProvider = "brightdata_dataset" | "serper";
+type RecallProvider = "brightdata_dataset";
 
 type HiringBriefRoleCore = {
   title: string | null;
@@ -558,60 +527,6 @@ type CandidateSuitability = {
   evidence_quality: "high" | "medium" | "low";
 };
 
-type SerperPreScreenDecision = {
-  keep: boolean;
-  match_score: number;
-  reason: string;
-  dimension_scores: {
-    role_relevance: number;
-    stack_match: number;
-    execution_signal: number;
-  };
-};
-
-type SerperPreScreenSample = {
-  decision: SerperPreScreenDecision;
-};
-
-type SerperPreScreenedCandidate = {
-  serperCandidate: SerperCandidate;
-  preScreen: SerperPreScreenDecision;
-};
-
-type SerperSourceRuleDecision = {
-  score: number;
-  hard_reject: boolean;
-  reasons: string[];
-  title_hit: boolean;
-  must_have_hits: number;
-  must_have_total: number;
-  location_hit: boolean | null;
-  noise_penalty: number;
-};
-
-type SerperTierStats = {
-  tier: LinkedInQueryTier;
-  query_count: number;
-  request_count: number;
-  raw_result_count: number;
-  unique_count: number;
-  new_unique_count: number;
-  duplicate_ratio: number;
-  source_rule_pass_count: number;
-  source_rule_pass_rate: number;
-  llm_prescreen_pass_count: number;
-  llm_prescreen_pass_rate: number;
-  stop_reason: string | null;
-};
-
-type SerperSourceRuleContext = {
-  titleTerms: string[];
-  mustHaveTerms: string[];
-  strictLocation: boolean;
-  strictLocationRequireHit: boolean;
-  locationPreference: "strict" | "preferred" | "none";
-  locationTerms: string[];
-};
 
 type ScoredCandidateAssessment = {
   index: number;
@@ -7415,19 +7330,8 @@ async function completeSearch(
     await upsertCandidatesForSearch(context.searchId, draftedRows, {
       replaceMissing: true,
     });
-    try {
-      await enqueueGithubEnrichmentJobsForSearch({
-        searchId: context.searchId,
-        userId: context.userId,
-        limit: Math.min(
-          Number(parsed.display_count) || draftedRows.length,
-          draftedRows.length,
-          GITHUB_ENRICH_LIMIT,
-        ),
-      });
-    } catch (error) {
-      console.error("[github_enrichment_jobs] Failed to enqueue search candidates:", error);
-    }
+    // TODO: GitHub 富化改为搜索任务阶段内处理，使用令牌桶限速
+    // 暂时移除独立调度器依赖
   }
 
   const finalParsed = withDisplayStats(parsed, finalDisplayStats);

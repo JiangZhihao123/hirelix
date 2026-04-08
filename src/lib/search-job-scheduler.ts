@@ -2,7 +2,6 @@ import { processNextSearchJob, reclaimStaleRunningJobs } from "@/lib/search-jobs
 
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
-const DEFAULT_MAX_IDLE_POLL_MS = 30000;
 const DEFAULT_CONCURRENCY = 5;
 
 type SchedulerState = {
@@ -58,27 +57,16 @@ async function runSchedulerLoop(workerIndex: number) {
     "SEARCH_JOB_SCHEDULER_ERROR_BACKOFF_MS",
     DEFAULT_ERROR_BACKOFF_MS,
   );
-  const maxIdlePollMs = getConfiguredPollMs(
-    "SEARCH_JOB_SCHEDULER_MAX_IDLE_POLL_MS",
-    DEFAULT_MAX_IDLE_POLL_MS,
-  );
-
-  let currentIdleDelay = idlePollMs;
 
   for (;;) {
     try {
       const result = await processNextSearchJob();
-      if (result.processed || result.hasMore) {
-        currentIdleDelay = idlePollMs;
-        continue;
+      if (!result.processed && !result.hasMore) {
+        await sleep(idlePollMs);
       }
-
-      await sleep(currentIdleDelay);
-      currentIdleDelay = Math.min(currentIdleDelay * 2, maxIdlePollMs);
     } catch (error) {
       console.error(`[search_jobs] Scheduler worker ${workerIndex} failed:`, error);
       await sleep(errorBackoffMs);
-      currentIdleDelay = idlePollMs;
     }
   }
 }
