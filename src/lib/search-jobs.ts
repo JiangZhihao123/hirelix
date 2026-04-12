@@ -19,6 +19,7 @@ import {
 import {
   buildPendingGithubSignals,
 } from "@/lib/github-signals";
+import { sanitizeDisplayName } from "@/lib/display-name";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
   buildFallbackOutreachDraft,
@@ -354,6 +355,13 @@ type CandidateRowInput = {
   outreach_draft: string | null;
   metadata: Record<string, unknown>;
 };
+
+function normalizeCandidateRowInput(row: CandidateRowInput): CandidateRowInput {
+  return {
+    ...row,
+    name: sanitizeDisplayName(row.name),
+  };
+}
 
 type RecallSpec = {
   countries: string[];
@@ -2707,24 +2715,25 @@ async function generateOutreachDraftsForRows(
 
   const draftedRows = await Promise.all(
     rows.map(async (row) => {
-      if (row.outreach_draft) return row;
+      const normalizedRow = normalizeCandidateRowInput(row);
+      if (normalizedRow.outreach_draft) return normalizedRow;
       const githubSignals =
-        row.metadata.github_signals && typeof row.metadata.github_signals === "object"
-          ? row.metadata.github_signals
+        normalizedRow.metadata.github_signals && typeof normalizedRow.metadata.github_signals === "object"
+          ? normalizedRow.metadata.github_signals
           : null;
       const evidence = buildRecruiterOutreachEvidence({
-        name: row.name,
-        headline: row.headline,
-        location: row.location,
-        skills: row.skills,
-        matchReasons: row.match_reasons,
+        name: normalizedRow.name,
+        headline: normalizedRow.headline,
+        location: normalizedRow.location,
+        skills: normalizedRow.skills,
+        matchReasons: normalizedRow.match_reasons,
         githubSignals,
       });
-      const firstName = row.name.split(/\s+/).filter(Boolean)[0] || "there";
+      const firstName = normalizedRow.name.split(/\s+/).filter(Boolean)[0] || "there";
 
       if (evidence.evidenceSource === "linkedin" && evidence.proofConfidence === "weak") {
         return {
-          ...row,
+          ...normalizedRow,
           outreach_draft: JSON.stringify(
             buildDeterministicWeakEvidenceOutreachDraft({
               firstName,
@@ -2748,11 +2757,11 @@ async function generateOutreachDraftsForRows(
               roleTitle: normalizeNullableString(parsed.title) || "this role",
               jdText: context.jdText,
               candidate: {
-                name: row.name,
-                headline: row.headline,
-                location: row.location,
-                skills: row.skills,
-                matchReasons: row.match_reasons,
+                name: normalizedRow.name,
+                headline: normalizedRow.headline,
+                location: normalizedRow.location,
+                skills: normalizedRow.skills,
+                matchReasons: normalizedRow.match_reasons,
                 githubSignals,
               },
             }),
@@ -2763,28 +2772,28 @@ async function generateOutreachDraftsForRows(
             jsonSchema: buildOutreachDraftJsonSchema(),
           }),
           60000,
-          `Outreach draft for ${row.name}`,
+          `Outreach draft for ${normalizedRow.name}`,
         );
         return {
-          ...row,
+          ...normalizedRow,
           outreach_draft: JSON.stringify({
             subject: normalizeNullableString(parsedDraft.subject) || `${normalizeNullableString(parsed.title) || "Opportunity"} opportunity`,
             linkedin:
               normalizeNullableString(parsedDraft.linkedin) ||
-              `Hi ${row.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?`,
+              `Hi ${normalizedRow.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?`,
             email:
               normalizeNullableString(parsedDraft.email) ||
-              `Hi ${row.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?\n\nBest regards`,
+              `Hi ${normalizedRow.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?\n\nBest regards`,
           }),
         };
       } catch (error) {
         logSearchEvent("search_outreach_draft_fallback", {
           search_id: context.searchId,
-          candidate: row.name,
+          candidate: normalizedRow.name,
           error: error instanceof Error ? error.message : String(error),
         });
         return {
-          ...row,
+          ...normalizedRow,
           outreach_draft: JSON.stringify(
             buildFallbackOutreachDraft({
               firstName,
@@ -2828,6 +2837,19 @@ export function kickSearchJobRunner(
   }).catch((error) => {
     console.error("[search_jobs] Failed to kick runner:", error);
   });
+}
+
+export function resolveSearchJobRunnerBaseUrl(requestOrigin: string) {
+  const explicitBaseUrl = process.env.SEARCH_JOB_RUNNER_BASE_URL?.trim();
+  if (explicitBaseUrl) {
+    return explicitBaseUrl;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return requestOrigin;
+  }
+
+  return process.env.APP_BASE_URL || requestOrigin;
 }
 
 function minutesAgoIso(minutes: number) {
@@ -3751,7 +3773,7 @@ function buildBrightDataCandidateRows(
     const derivedCompanyHeadline = profile.current_company
       ? `${profile.current_company.title || ""} at ${profile.current_company.name || ""}`.trim() || null
       : null;
-    rows.push({
+    rows.push(normalizeCandidateRowInput({
       name: profile.name || "Unknown",
       headline: profile.headline || derivedCompanyHeadline,
       location: item.location || [profile.city, profile.country_code].filter(Boolean).join(", ") || null,
@@ -3828,7 +3850,7 @@ function buildBrightDataCandidateRows(
         about: profile.about ? profile.about.substring(0, 500) : null,
         raw_profile: trimBrightDataProfileForMetadata(profile),
       },
-    });
+    }));
   }
 
   return rows;
@@ -4298,27 +4320,28 @@ async function upsertCandidatesForSearch(
   const inserts: Record<string, unknown>[] = [];
 
   for (const row of rows) {
+    const normalizedRow = normalizeCandidateRowInput(row);
     const existingMatch = existing.find((candidate) => {
-      if (row.profile_url && candidate.profile_url) {
-        return candidate.profile_url === row.profile_url;
+      if (normalizedRow.profile_url && candidate.profile_url) {
+        return candidate.profile_url === normalizedRow.profile_url;
       }
-      return candidate.name.toLowerCase() === row.name.toLowerCase();
+      return candidate.name.toLowerCase() === normalizedRow.name.toLowerCase();
     });
 
     const payload = {
       search_id: searchId,
-      name: row.name,
-      headline: row.headline,
-      location: row.location,
-      skills: row.skills,
-      experience_years: row.experience_years,
-      match_score: row.match_score,
-      match_reasons: row.match_reasons,
-      profile_url: row.profile_url,
-      github_url: row.github_url,
-      email: row.email,
-      outreach_draft: row.outreach_draft,
-      metadata: row.metadata,
+      name: normalizedRow.name,
+      headline: normalizedRow.headline,
+      location: normalizedRow.location,
+      skills: normalizedRow.skills,
+      experience_years: normalizedRow.experience_years,
+      match_score: normalizedRow.match_score,
+      match_reasons: normalizedRow.match_reasons,
+      profile_url: normalizedRow.profile_url,
+      github_url: normalizedRow.github_url,
+      email: normalizedRow.email,
+      outreach_draft: normalizedRow.outreach_draft,
+      metadata: normalizedRow.metadata,
     };
 
     if (existingMatch) {
@@ -4348,28 +4371,29 @@ async function upsertCandidatesForSearch(
 }
 
 async function upsertSingleCandidate(searchId: string, row: CandidateRowInput) {
+  const normalizedRow = normalizeCandidateRowInput(row);
   const payload = {
     search_id: searchId,
-    name: row.name,
-    headline: row.headline,
-    location: row.location,
-    skills: row.skills,
-    experience_years: row.experience_years,
-    match_score: row.match_score,
-    match_reasons: row.match_reasons,
-    profile_url: row.profile_url,
-    github_url: row.github_url,
-    email: row.email,
-    outreach_draft: row.outreach_draft,
-    metadata: row.metadata,
+    name: normalizedRow.name,
+    headline: normalizedRow.headline,
+    location: normalizedRow.location,
+    skills: normalizedRow.skills,
+    experience_years: normalizedRow.experience_years,
+    match_score: normalizedRow.match_score,
+    match_reasons: normalizedRow.match_reasons,
+    profile_url: normalizedRow.profile_url,
+    github_url: normalizedRow.github_url,
+    email: normalizedRow.email,
+    outreach_draft: normalizedRow.outreach_draft,
+    metadata: normalizedRow.metadata,
   };
   // Try update by profile_url first, then insert
-  if (row.profile_url) {
+  if (normalizedRow.profile_url) {
     const { data: existing } = await supabaseAdmin
       .from("hirelix_candidates")
       .select("id")
       .eq("search_id", searchId)
-      .eq("profile_url", row.profile_url)
+      .eq("profile_url", normalizedRow.profile_url)
       .limit(1)
       .maybeSingle();
     if (existing) {

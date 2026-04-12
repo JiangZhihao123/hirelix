@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isStaleProcessingSearch } from "@/lib/search-state";
-import { enqueueSearchJob, kickSearchJobRunner } from "@/lib/search-jobs";
+import {
+  enqueueSearchJob,
+  kickSearchJobRunner,
+  resolveSearchJobRunnerBaseUrl,
+} from "@/lib/search-jobs";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
@@ -67,7 +71,7 @@ export async function POST(
     })
     .eq("id", id);
 
-  kickSearchJobRunner(process.env.APP_BASE_URL || req.nextUrl.origin, {
+  kickSearchJobRunner(resolveSearchJobRunnerBaseUrl(req.nextUrl.origin), {
     searchId: id,
   });
 

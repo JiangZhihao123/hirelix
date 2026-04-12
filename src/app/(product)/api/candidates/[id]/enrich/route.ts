@@ -13,6 +13,7 @@ import {
   buildFallbackOutreachDraft,
   buildRecruiterOutreachEvidence,
 } from "@/lib/recruiter-outreach";
+import { sanitizeDisplayName } from "@/lib/display-name";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 /**
@@ -53,6 +54,11 @@ export async function POST(
 
     const needsContactLookup = !candidate.email;
     const needsDraftBackfill = !candidate.outreach_draft;
+    const sanitizedCandidateName = sanitizeDisplayName(candidate.name);
+    if (sanitizedCandidateName !== candidate.name) {
+      updates.name = sanitizedCandidateName;
+      candidate.name = sanitizedCandidateName;
+    }
     if (needsContactLookup && billing.usage.enrichesRemaining <= 0) {
       return NextResponse.json(
         {
@@ -139,7 +145,7 @@ export async function POST(
 
     // ── Step 1: Find email (if not already found) ──
     if (needsContactLookup && (apolloApiKey || hunterApiKey)) {
-      const nameParts = (candidate.name || "").split(" ");
+      const nameParts = sanitizedCandidateName.split(" ");
       const firstName = nameParts[0] || "";
       const lastName = nameParts.slice(1).join(" ") || "";
 
@@ -156,10 +162,10 @@ export async function POST(
           });
           if (emailResult.email) {
             updates.email = emailResult.email;
-            console.log(`[enrich] Email found for ${candidate.name}: ${emailResult.email} (via ${emailResult.source})`);
+            console.log(`[enrich] Email found for ${sanitizedCandidateName}: ${emailResult.email} (via ${emailResult.source})`);
           }
         } catch (err) {
-          console.log(`[enrich] Email lookup failed for ${candidate.name}: ${err instanceof Error ? err.message : String(err)}`);
+          console.log(`[enrich] Email lookup failed for ${sanitizedCandidateName}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     }
@@ -174,9 +180,9 @@ export async function POST(
         : requiredSkills;
       const email = updates.email || candidate.email;
       const hasEmail = !!email;
-      const firstName = (candidate.name || "").split(" ")[0];
+      const firstName = sanitizedCandidateName.split(" ")[0];
       const evidence = buildRecruiterOutreachEvidence({
-        name: candidate.name,
+        name: sanitizedCandidateName,
         headline: candidate.headline,
         location: candidate.location,
         skills: Array.isArray(candidate.skills) ? candidate.skills : [],
@@ -206,7 +212,7 @@ Role: ${roleTitle}${parsed.company ? ` at ${parsed.company}` : ""}
 ${parsedRequiredSkills.length > 0 ? `Key skills: ${parsedRequiredSkills.join(", ")}` : ""}
 ${companySection}
 ## Candidate
-Name: ${candidate.name}
+Name: ${sanitizedCandidateName}
 Headline: ${candidate.headline || "Professional"}
 Skills: ${(Array.isArray(candidate.skills) ? candidate.skills : []).slice(0, 6).join(", ")}
 Experience: ${candidate.experience_years || "?"} years
@@ -250,7 +256,7 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
           }),
         });
         updates.outreach_draft = JSON.stringify(draft);
-        console.log(`[enrich] Outreach generated for ${candidate.name}`);
+        console.log(`[enrich] Outreach generated for ${sanitizedCandidateName}`);
       } catch (err) {
         console.log(`[enrich] Outreach generation failed: ${err instanceof Error ? err.message : String(err)}`);
         // Fallback

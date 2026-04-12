@@ -32,6 +32,11 @@ import {
   trackEvent,
 } from "@/lib/analytics";
 import {
+  getDisplayNameColorSeed,
+  getDisplayNameInitials,
+  sanitizeDisplayName,
+} from "@/lib/display-name";
+import {
   ArrowLeft,
   Loader2,
   CheckCircle2,
@@ -304,13 +309,9 @@ const avatarColors = [
 ];
 
 function InitialsAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-  const colorIdx = name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % avatarColors.length;
+  const displayName = sanitizeDisplayName(name);
+  const initials = getDisplayNameInitials(displayName);
+  const colorIdx = getDisplayNameColorSeed(displayName) % avatarColors.length;
   return (
     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${avatarColors[colorIdx]} text-white text-sm font-bold`}>
       {initials}
@@ -817,6 +818,7 @@ function CandidateCard({
   onUpgradeClick: (surface: string) => void;
   isNew?: boolean;
 }) {
+  const displayName = sanitizeDisplayName(candidate.name);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
   const [enriching, setEnriching] = useState(false);
@@ -878,6 +880,7 @@ function CandidateCard({
 
   const activeBody = outreachTab === "linkedin" ? editedLinkedin : editedEmail;
   const setActiveBody = outreachTab === "linkedin" ? setEditedLinkedin : setEditedEmail;
+  const localDisplayName = sanitizeDisplayName(localCandidate.name);
 
   function copyText(text: string, label: string) {
     navigator.clipboard.writeText(text);
@@ -975,10 +978,10 @@ function CandidateCard({
           onClick={toggleExpanded}
           className="flex flex-1 cursor-pointer items-center gap-4 min-w-0"
         >
-        <InitialsAvatar name={candidate.name} />
+        <InitialsAvatar name={displayName} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <p className="truncate text-sm font-semibold">{candidate.name.replace(/[.,;]+$/, "").trim()}</p>
+            <p className="truncate text-sm font-semibold">{displayName}</p>
             {isNew && (
               <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
                 New
@@ -1648,6 +1651,7 @@ function CandidateWorkbenchListItem({
   const githubBadge = getGithubBadge(githubSignals);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
+  const displayName = sanitizeDisplayName(candidate.name);
 
   return (
     <button
@@ -1659,10 +1663,10 @@ function CandidateWorkbenchListItem({
       }`}
     >
       <div className="flex items-start gap-3">
-        <InitialsAvatar name={candidate.name} />
+        <InitialsAvatar name={displayName} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-semibold text-slate-950">{candidate.name.replace(/[.,;]+$/, "").trim()}</p>
+            <p className="truncate text-sm font-semibold text-slate-950">{displayName}</p>
             <ScoreBadge score={overallScore} />
             {isNew && (
               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
@@ -1808,7 +1812,7 @@ function CandidateWorkbenchDetail({
     githubSignals?.recruiter_summary ||
     shortlistReason ||
     localCandidate.match_reasons[0] ||
-    `${localCandidate.name} looks relevant based on current LinkedIn evidence.`;
+    `${localDisplayName} looks relevant based on current LinkedIn evidence.`;
   const proofToReference =
     githubSignals?.highlight ||
     githubSignals?.evidence_summary?.[0] ||
@@ -1866,11 +1870,11 @@ function CandidateWorkbenchDetail({
       <div className="relative rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <InitialsAvatar name={localCandidate.name} />
+            <InitialsAvatar name={localDisplayName} />
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                  {localCandidate.name.replace(/[.,;]+$/, "").trim()}
+                  {localDisplayName}
                 </h2>
                 <ActionabilityBadge candidate={localCandidate} />
                 <ScoreBadge score={overallScore} />
@@ -2177,7 +2181,7 @@ function CandidateWorkbenchDetail({
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Personalized outreach
                 </p>
-                <h3 className="mt-2 text-xl font-semibold text-slate-950">{localCandidate.name.replace(/[.,;]+$/, "").trim()}</h3>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">{localDisplayName}</h3>
                 <p className="mt-1 text-sm text-slate-600">
                   Leads with the candidate&apos;s specific code contributions; falls back to LinkedIn highlights when no public GitHub evidence is available.
                 </p>

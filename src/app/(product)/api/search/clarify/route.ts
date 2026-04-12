@@ -11,6 +11,18 @@ import {
 } from "@/lib/openrouter";
 
 export const maxDuration = 60;
+const DEFAULT_CLARIFY_TIMEOUT_MS = 12_000;
+
+function getClarifyTimeoutMs() {
+  const raw = process.env.SEARCH_CLARIFY_TIMEOUT_MS;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_CLARIFY_TIMEOUT_MS;
+  }
+
+  return Math.min(Math.max(parsed, 3_000), 30_000);
+}
 
 function buildClarifyPrompt(
   jdText: string,
@@ -78,7 +90,7 @@ export async function POST(req: NextRequest) {
         prompt: buildClarifyPrompt(jd_text.trim(), summary),
         maxOutputTokens: 160,
         temperature: 0.3,
-        timeoutMs: 8_000,
+        timeoutMs: getClarifyTimeoutMs(),
       });
 
       clarification = {
