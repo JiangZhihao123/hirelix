@@ -1,6 +1,7 @@
-import { ProxyAgent, setGlobalDispatcher } from "undici";
+import { Agent, ProxyAgent, setGlobalDispatcher, type Dispatcher } from "undici";
 
 let initialized = false;
+const directLoopbackDispatcher = new Agent();
 
 function getConfiguredBoolean(envName: string) {
   const raw = process.env[envName];
@@ -55,4 +56,25 @@ export function initializeGlobalOutboundProxy() {
 
   setGlobalDispatcher(new ProxyAgent(proxyUrl));
   console.log(`[network] Global outbound proxy enabled: ${proxyUrl}`);
+}
+
+export function shouldBypassOutboundProxyForUrl(target: string | URL) {
+  let url: URL;
+
+  try {
+    url = typeof target === "string" ? new URL(target) : target;
+  } catch {
+    return false;
+  }
+
+  const normalizedHostname = url.hostname.replace(/^\[(.*)\]$/, "$1");
+  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(normalizedHostname);
+}
+
+export function getFetchDispatcherForUrl(target: string | URL): Dispatcher | undefined {
+  if (!shouldBypassOutboundProxyForUrl(target)) {
+    return undefined;
+  }
+
+  return directLoopbackDispatcher;
 }

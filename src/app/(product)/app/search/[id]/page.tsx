@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
@@ -905,7 +905,6 @@ function CandidateCard({
 
   const activeBody = outreachTab === "linkedin" ? editedLinkedin : editedEmail;
   const setActiveBody = outreachTab === "linkedin" ? setEditedLinkedin : setEditedEmail;
-  const localDisplayName = sanitizeDisplayName(localCandidate.name);
 
   function copyText(text: string, label: string) {
     navigator.clipboard.writeText(text);
@@ -2343,10 +2342,11 @@ export default function SearchResultPage() {
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { billing, refresh: refreshBilling } = useBilling();
-  const [search, setSearch] = useState<SearchRow | null>(null);
-  const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const cachedSnapshot = useMemo(() => readSearchPageCache(id), [id]);
+  const [search, setSearch] = useState<SearchRow | null>(() => cachedSnapshot?.search ?? null);
+  const [candidates, setCandidates] = useState<CandidateRow[]>(() => cachedSnapshot?.candidates ?? []);
   const [newCandidateIds, setNewCandidateIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedSnapshot);
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
@@ -2362,7 +2362,9 @@ export default function SearchResultPage() {
   const hasTrackedDegradedRef = useRef(false);
   const hasTrackedProcessingReassuranceRef = useRef(false);
   const hasTrackedUpgradeValueExposedRef = useRef(false);
-  const seenCandidateIdsRef = useRef<Set<string>>(new Set());
+  const seenCandidateIdsRef = useRef<Set<string>>(
+    new Set(cachedSnapshot?.candidates.map((candidate) => candidate.id) ?? []),
+  );
   const analyticsContext = getAnalyticsContextFromBrowser({
     entry_mode: searchParams.get("entry") === "landing"
       ? "landing"
@@ -2371,31 +2373,18 @@ export default function SearchResultPage() {
         : "workspace",
   });
 
-  useEffect(() => {
-    if (!id) return;
-
-    const cached = readSearchPageCache(id);
-    if (!cached) return;
-
-    setSearch(cached.search);
-    setCandidates(cached.candidates);
-    setLoading(false);
-  }, [id]);
-
-  useEffect(() => {
-    const hasPriority = candidates.some(
-      (candidate) => getCandidateDisplayTier(candidate) === "priority_outreach",
-    );
-    const hasWorthReviewing = candidates.some(
-      (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
-    );
-
-    if (candidateTier === "priority_outreach" && !hasPriority && hasWorthReviewing) {
-      setCandidateTier("worth_reviewing");
-    } else if (candidateTier === "worth_reviewing" && !hasWorthReviewing && hasPriority) {
-      setCandidateTier("priority_outreach");
-    }
-  }, [candidateTier, candidates]);
+  const hasPriorityCandidates = candidates.some(
+    (candidate) => getCandidateDisplayTier(candidate) === "priority_outreach",
+  );
+  const hasWorthReviewingCandidates = candidates.some(
+    (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
+  );
+  const activeCandidateTier =
+    candidateTier === "priority_outreach" && !hasPriorityCandidates && hasWorthReviewingCandidates
+      ? "worth_reviewing"
+      : candidateTier === "worth_reviewing" && !hasWorthReviewingCandidates && hasPriorityCandidates
+        ? "priority_outreach"
+        : candidateTier;
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -2545,7 +2534,12 @@ export default function SearchResultPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    void fetchData();
+
+    const timeoutId = window.setTimeout(() => {
+      void fetchData();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [authLoading, fetchData]);
 
   useEffect(() => {
@@ -2838,7 +2832,7 @@ export default function SearchResultPage() {
   const actualWorthReviewingCount = worthReviewingCandidates.length;
   const hasTieredPool = priorityCandidates.length > 0 || worthReviewingCandidates.length > 0;
   const tierBaseCandidates = hasTieredPool
-    ? candidateTier === "worth_reviewing"
+    ? activeCandidateTier === "worth_reviewing"
       ? worthReviewingCandidates
       : priorityCandidates
     : allCandidates;
@@ -2950,7 +2944,7 @@ export default function SearchResultPage() {
   const githubBackedCandidateCount = allCandidates.filter(hasPublicGithubEvidence).length;
   const githubBackedPriorityCount = priorityCandidates.filter(hasPublicGithubEvidence).length;
   const githubBackedVisibleCount = visibleCandidates.filter(hasPublicGithubEvidence).length;
-  const selectedTierLabel = hasTieredPool ? formatTierLabel(candidateTier) : "Candidate pool";
+  const selectedTierLabel = hasTieredPool ? formatTierLabel(activeCandidateTier) : "Candidate pool";
   const priorityTierLabel = formatTierLabel("priority_outreach");
   const worthReviewingTierLabel = formatTierLabel("worth_reviewing");
   const taskStage = getSearchTaskStage({
@@ -3506,7 +3500,7 @@ export default function SearchResultPage() {
                     <button
                       onClick={() => setCandidateTier("priority_outreach")}
                       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        candidateTier === "priority_outreach"
+                        activeCandidateTier === "priority_outreach"
                           ? "bg-slate-950 text-white"
                           : "text-muted hover:text-foreground"
                       }`}
@@ -3516,7 +3510,7 @@ export default function SearchResultPage() {
                     <button
                       onClick={() => setCandidateTier("worth_reviewing")}
                       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        candidateTier === "worth_reviewing"
+                        activeCandidateTier === "worth_reviewing"
                           ? "bg-slate-950 text-white"
                           : "text-muted hover:text-foreground"
                       }`}

@@ -12,6 +12,15 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Test artifacts and local browser automation output should not block app lint.
+    "coverage/**",
+    "test-results/**",
+    "playwright-report/**",
+    "blob-report/**",
+    "playwright/.cache/**",
+    ".playwright-cli/**",
+    ".playwright-mcp/**",
+    "output/**",
     // Local utility scripts are not part of the web app lint gate.
     "scripts/**",
   ]),

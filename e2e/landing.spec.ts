@@ -14,7 +14,11 @@ test.describe("Landing Page", () => {
 
   test("should display hero section with a single desktop primary CTA", async ({ page }) => {
     await expect(page.getByRole("heading", { name: /Paste a JD\./i })).toBeVisible();
-    await expect(page.getByText(/Review real LinkedIn candidates, see why they fit, and leave with ready-to-send outreach/i)).toBeVisible();
+    await expect(
+      page.getByText(
+        /Real LinkedIn profiles, cross-referenced with GitHub signals when public evidence exists\./i,
+      ),
+    ).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Get Shortlist \+ Outreach/i);
     await expect(page.getByText("Shortlist + outreach").first()).toBeVisible();
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();

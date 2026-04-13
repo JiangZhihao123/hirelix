@@ -30,6 +30,7 @@ import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
   generateOpenRouterJson,
 } from "@/lib/openrouter";
+import { getFetchDispatcherForUrl } from "@/lib/server-outbound-proxy";
 import {
   ARBITER_SCORE_JSON_SCHEMA,
   buildJudgeScoreJsonSchema,
@@ -2825,7 +2826,10 @@ export function kickSearchJobRunner(
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) return;
 
-  void fetch(new URL("/api/internal/search-jobs/run", baseUrl), {
+  const runnerUrl = new URL("/api/internal/search-jobs/run", baseUrl);
+  const dispatcher = getFetchDispatcherForUrl(runnerUrl);
+
+  void fetch(runnerUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${serviceRoleKey}`,
@@ -2834,6 +2838,7 @@ export function kickSearchJobRunner(
     body: JSON.stringify({
       searchId: options?.searchId ?? null,
     }),
+    ...(dispatcher ? { dispatcher } : {}),
   }).catch((error) => {
     console.error("[search_jobs] Failed to kick runner:", error);
   });
