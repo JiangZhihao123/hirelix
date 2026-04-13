@@ -2834,8 +2834,8 @@ export default function SearchResultPage() {
       ? Math.max(0, Date.parse(standardRecallCompletedAt) - Date.parse(searchStartedAt))
       : null);
   const providerDelayMs =
-    !standardRecallCompletedAt && searchStartedAt
-      ? Math.max(0, Date.now() - Date.parse(searchStartedAt))
+    !standardRecallCompletedAt && searchStartedAt && search.updated_at
+      ? Math.max(0, Date.parse(search.updated_at) - Date.parse(searchStartedAt))
       : null;
   const standardRecallReady = Boolean(standardRecallCompletedAt);
   const brightProfilesReturned =
@@ -3100,6 +3100,13 @@ export default function SearchResultPage() {
             <LinkedInScanAnimation
               stage={taskStage}
               roleTitle={typeof roleCore?.title === "string" && roleCore.title ? roleCore.title : displayTitle}
+              startedAt={searchStartedAt}
+              briefReadyAt={briefReadyAt}
+              recallCompletedAt={standardRecallCompletedAt}
+              recallProfileCount={recallProfileCount}
+              candidateCount={visibleCandidateCount}
+              elapsedLabel={searchStartedAt ? formatStartedAgo(searchStartedAt) : null}
+              canLeavePage
             />
           )}
           <div className="mb-6 grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
