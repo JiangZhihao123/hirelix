@@ -1748,6 +1748,7 @@ function CandidateWorkbenchDetail({
   );
   const currentCompany = deriveCurrentCompany(localCandidate);
   const currentRole = deriveCurrentRole(localCandidate);
+  const localDisplayName = sanitizeDisplayName(localCandidate.name);
   const suitability = localCandidate.metadata?.suitability;
   const githubSignals = getCandidateGithubSignals(localCandidate);
   const outreach = parseOutreach(localCandidate.outreach_draft);

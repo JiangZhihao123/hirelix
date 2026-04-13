@@ -52,6 +52,7 @@ export async function POST(
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
     }
 
+    const updates: Record<string, unknown> = {};
     const needsContactLookup = !candidate.email;
     const needsDraftBackfill = !candidate.outreach_draft;
     const sanitizedCandidateName = sanitizeDisplayName(candidate.name);
@@ -93,7 +94,6 @@ export async function POST(
       openRouterConfigured = false;
     }
 
-    const updates: Record<string, unknown> = {};
     const parsedRequirements =
       candidate.search?.parsed_requirements && typeof candidate.search.parsed_requirements === "object"
         ? (candidate.search.parsed_requirements as Record<string, unknown>)
