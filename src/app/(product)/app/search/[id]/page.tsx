@@ -303,6 +303,31 @@ type GithubSignals = {
   last_enriched_at?: string | null;
 };
 
+type SearchPageCacheSnapshot = {
+  search: SearchRow;
+  candidates: CandidateRow[];
+};
+
+function getSearchPageCacheKey(id: string) {
+  return `hirelix:search-page:${id}`;
+}
+
+function readSearchPageCache(id: string | null | undefined): SearchPageCacheSnapshot | null {
+  if (!id || typeof window === "undefined") return null;
+
+  const raw = window.sessionStorage.getItem(getSearchPageCacheKey(id));
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as SearchPageCacheSnapshot;
+    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed.search || !Array.isArray(parsed.candidates)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 const avatarColors = [
   "bg-blue-500", "bg-green-500", "bg-purple-500", "bg-amber-500",
   "bg-pink-500", "bg-teal-500", "bg-indigo-500", "bg-rose-500",
@@ -2316,7 +2341,7 @@ function CandidateWorkbenchDetail({
 export default function SearchResultPage() {
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { billing, refresh: refreshBilling } = useBilling();
   const [search, setSearch] = useState<SearchRow | null>(null);
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
@@ -2345,6 +2370,17 @@ export default function SearchResultPage() {
         ? "signin"
         : "workspace",
   });
+
+  useEffect(() => {
+    if (!id) return;
+
+    const cached = readSearchPageCache(id);
+    if (!cached) return;
+
+    setSearch(cached.search);
+    setCandidates(cached.candidates);
+    setLoading(false);
+  }, [id]);
 
   useEffect(() => {
     const hasPriority = candidates.some(
@@ -2418,7 +2454,7 @@ export default function SearchResultPage() {
   }
 
   const fetchData = useCallback(async () => {
-    if (!user || !id) return;
+    if (authLoading || !user || !id) return;
 
     const searchRequest = supabase.from("hirelix_searches").select("*").eq("id", id).single();
     const candidatesRequest = supabase
@@ -2505,11 +2541,24 @@ export default function SearchResultPage() {
       });
       setCandidates(sorted);
     }
-  }, [user, id]);
+  }, [authLoading, user, id]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (authLoading) return;
+    void fetchData();
+  }, [authLoading, fetchData]);
+
+  useEffect(() => {
+    if (!id || !search) return;
+
+    window.sessionStorage.setItem(
+      getSearchPageCacheKey(id),
+      JSON.stringify({
+        search,
+        candidates,
+      } satisfies SearchPageCacheSnapshot),
+    );
+  }, [candidates, id, search]);
 
   useEffect(() => {
     const onVisible = () => {

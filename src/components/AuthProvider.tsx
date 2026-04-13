@@ -46,6 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    if (typeof window !== "undefined") {
+      for (const key of Object.keys(window.sessionStorage)) {
+        if (key.startsWith("hirelix:search-page:")) {
+          window.sessionStorage.removeItem(key);
+        }
+      }
+    }
     setSession(null);
   };
 

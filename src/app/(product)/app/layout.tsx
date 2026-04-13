@@ -68,6 +68,7 @@ function ProductLayoutShell({
     pathname === "/app/search/new" && entryMode === "landing" && Boolean(pendingJd);
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
   const isNewSearchRoute = pathname === "/app/search/new";
+  const isSearchDetailRoute = pathname.startsWith("/app/search/") && !isNewSearchRoute;
   const isDashboardRoute =
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
@@ -118,6 +119,10 @@ function ProductLayoutShell({
       document.body.style.overflow = previousOverflow;
     };
   }, [sidebarOpen]);
+
+  if (loading && isSearchDetailRoute) {
+    return <div className="min-h-screen bg-background">{children}</div>;
+  }
 
   if (loading) {
     return <ProductShellSkeleton />;
