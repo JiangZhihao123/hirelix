@@ -1,6 +1,6 @@
 # Paid Beta Readiness
 
-This checklist is for the Hirelix US-only paid beta launch.
+This checklist is for the Hirelix paid launch.
 
 ## Product promise
 
@@ -30,9 +30,9 @@ This checklist is for the Hirelix US-only paid beta launch.
 
 ### UX and messaging
 
-- Landing page shows `Paid beta` and `US-only at launch`.
+- Landing page matches the current public positioning and pricing copy.
 - Settings page shows support guidance and billing escalation path.
-- Search creation and results pages state that launch is a US-only paid beta.
+- Search creation and results pages match the current public positioning.
 - Refund, privacy, terms, and contact pages are linked and reachable.
 
 ## Observability checks

@@ -954,7 +954,7 @@ export default function Home() {
           <div className="text-center">
             <div className="mb-4 flex justify-center gap-2 text-xs">
               <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-medium text-sky-800">
-                Built for US technical recruiters
+                Built for technical recruiters
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium text-slate-700">
                 Self-serve signup and billing
@@ -964,7 +964,7 @@ export default function Home() {
               Pricing that protects speed, not complexity
             </h2>
             <p className="mt-3 text-base text-slate-600">
-              Start free with one high-conviction shortlist per month, sourced from a Bright LinkedIn search and ranked into roughly 25 candidates. Upgrade when you need more weekly throughput, exports, and the fuller outreach workflow. Hirelix is built for US technical recruiters and headhunters who need a faster path from JD to credible outreach.
+              Start free with one high-conviction shortlist per month, sourced from a Bright LinkedIn search and ranked into roughly 25 candidates. Upgrade when you need more weekly throughput, exports, and the fuller outreach workflow. Hirelix is built for technical recruiters and headhunters who need a faster path from JD to credible outreach.
             </p>
           </div>
 
@@ -1049,7 +1049,7 @@ export default function Home() {
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
               <div className="space-y-2 leading-7">
-                <p>Hirelix is available today for US technical recruiters and headhunters.</p>
+                <p>Hirelix is available today for technical recruiters and headhunters.</p>
                 <p>Subscriptions renew automatically until canceled.</p>
                 <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
                 <p>Purchases made through Paddle are refundable within 14 days of the transaction date.</p>
@@ -1173,7 +1173,7 @@ export default function Home() {
             </div>
             <p>AI-powered candidate sourcing from real LinkedIn profiles.</p>
             <p>Hirelix is operated by YieldMirror.</p>
-            <p>Built for US technical recruiters and headhunters.</p>
+            <p>Built for technical recruiters and headhunters.</p>
             <p>Support: <a className="text-sky-700 hover:text-sky-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>
             <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>

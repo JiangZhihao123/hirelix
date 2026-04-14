@@ -3724,7 +3724,7 @@ export default function SearchResultPage() {
 
       {isReviewable && (
         <p className="mt-8 text-center text-xs text-slate-500">
-          Built for US technical recruiters and headhunters. If your shortlist misses the mark or your billing looks wrong, email{" "}
+          Built for technical recruiters and headhunters. If your shortlist misses the mark or your billing looks wrong, email{" "}
           <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
             support@hirelix.online
           </a>
