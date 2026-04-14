@@ -94,7 +94,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   pro_annual: {
     code: "pro_annual",
     name: "Pro Annual",
-    description: "Same paid-beta limits, better payback and lower monthly equivalent.",
+    description: "Same sourcing limits, better payback and lower monthly equivalent.",
     priceLabel: "$79",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",

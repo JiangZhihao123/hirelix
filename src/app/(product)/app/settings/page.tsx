@@ -543,10 +543,10 @@ export default function SettingsPage() {
 
                 <SettingsFieldGroup
                   title="Plans and add-ons"
-                  description="Paid beta is live. Upgrade the base plan or add one-off credits when you need extra capacity."
+                  description="Upgrade the base plan or add one-off credits when you need extra capacity."
                 >
                   <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    Hirelix is currently a US-only paid beta for recruiters, founders, and hiring teams. For billing issues, missing credits, or shortlist problems, email{" "}
+                    Hirelix is built for US technical recruiters and headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
                     <a className="font-medium underline decoration-amber-400 underline-offset-2" href="mailto:support@hirelix.online">
                       support@hirelix.online
                     </a>
