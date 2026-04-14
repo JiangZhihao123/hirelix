@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
+import { areSearchNotificationsEnabledOnServer } from "@/lib/search-notification-config";
 import { getSearchDisplayTitle } from "@/lib/search-title";
 
 type SearchNotificationKind = "first_shortlist_ready" | "search_failed";
@@ -30,12 +31,6 @@ function nowIso() {
 
 function logSearchNotification(eventName: string, payload: Record<string, unknown>) {
   console.log(`[search:${eventName}] ${JSON.stringify(payload)}`);
-}
-
-function notificationsEnabled() {
-  return ["1", "true", "yes", "on"].includes(
-    (process.env.SEARCH_NOTIFICATIONS_ENABLED || "").trim().toLowerCase(),
-  );
 }
 
 function buildSearchUrl(searchId: string) {
@@ -141,7 +136,7 @@ export async function sendSearchNotification(notificationId: string) {
   const row = notification as SearchNotificationRow | null;
   if (!row || row.status !== "queued") return;
 
-  if (!notificationsEnabled()) {
+  if (!areSearchNotificationsEnabledOnServer()) {
     await supabaseAdmin
       .from("hirelix_search_notifications")
       .update({

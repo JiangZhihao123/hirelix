@@ -20,6 +20,10 @@ import {
 } from "@/lib/search-task";
 import { getSearchDisplayTitle } from "@/lib/search-title";
 import {
+  areSearchNotificationsPromisedInClient,
+  getSearchCompletionFollowUpCopy,
+} from "@/lib/search-notification-config";
+import {
   isReviewableSearchStatus,
   isRunningSearchStatus,
   getStalledSearchMessage,
@@ -689,14 +693,14 @@ function formatStartedAgo(value: string) {
   return formatElapsedMinutes(elapsedMs);
 }
 
-function getProviderDelayCopy(elapsedMs: number | null) {
+function getProviderDelayCopy(elapsedMs: number | null, emailEnabled: boolean) {
   if (!elapsedMs || elapsedMs < 180_000) {
     return "Scanning LinkedIn profiles now. Broader searches cover a larger pool and may take a few minutes.";
   }
   if (elapsedMs < 360_000) {
     return "This search is covering a wider pool than usual. Results will be more comprehensive.";
   }
-  return "This is taking a bit longer than usual. You can leave — we'll email you when the shortlist is ready.";
+  return `This is taking a bit longer than usual. ${getSearchCompletionFollowUpCopy(emailEnabled)}.`;
 }
 
 function getSearchErrorPresentation(errorMessage: string | null | undefined) {
@@ -2365,6 +2369,7 @@ export default function SearchResultPage() {
   const seenCandidateIdsRef = useRef<Set<string>>(
     new Set(cachedSnapshot?.candidates.map((candidate) => candidate.id) ?? []),
   );
+  const searchEmailNotificationsEnabled = areSearchNotificationsPromisedInClient();
   const analyticsContext = getAnalyticsContextFromBrowser({
     entry_mode: searchParams.get("entry") === "landing"
       ? "landing"
@@ -3107,13 +3112,13 @@ export default function SearchResultPage() {
                   {getSearchTaskEtaCopy(search.status, taskStage)}
                 </span>
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-                  We&apos;ll email you when the shortlist is ready
+                  {getSearchCompletionFollowUpCopy(searchEmailNotificationsEnabled)}
                 </span>
               </div>
               <p className="mt-4 max-w-2xl text-xs text-slate-500">
                 {standardRecallReady
                   ? `LinkedIn scan finished in ${standardRecallReadyLabel}. Now reviewing the strongest matches.`
-                  : getProviderDelayCopy(providerDelayMs)}
+                  : getProviderDelayCopy(providerDelayMs, searchEmailNotificationsEnabled)}
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
