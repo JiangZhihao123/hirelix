@@ -104,6 +104,19 @@ import {
   nowIso,
   truncateForPrompt,
 } from "@/lib/search/normalize";
+import {
+  cacheSnapshotEntry,
+  countCandidatesForSearch,
+  lookupCachedSnapshot,
+  persistSnapshotProfiles,
+  retagSearchCandidatePoolTypes,
+  setSearchStatus,
+  updateCachedSnapshotMetadata,
+  updateSearchParsedRequirements,
+  updateSearchUsageEventMetadata,
+  upsertCandidatesForSearch,
+  upsertSingleCandidate,
+} from "@/lib/search/persistence";
 import type {
   AdvanceRecommendation,
   BlockingSeverity,
@@ -2517,188 +2530,6 @@ function parseJudgeScoreResults(
     .filter((entry): entry is JudgeScoreResult => Boolean(entry));
 }
 
-async function setSearchStatus(
-  searchId: string,
-  status: string,
-  extra: Record<string, unknown> = {},
-) {
-  const payload = {
-    status,
-    pipeline_step: status === "degraded" ? "done" : status,
-    updated_at: nowIso(),
-    ...extra,
-  };
-
-  await supabaseAdmin.from("hirelix_searches").update(payload).eq("id", searchId);
-
-  if (status === "error" || status === "degraded" || status === "done") {
-    const terminalJobPayload: Record<string, unknown> = {
-      status: status === "error" ? "fatal_error" : "done",
-      updated_at: nowIso(),
-      locked_at: null,
-      finished_at: nowIso(),
-      last_error: status === "error"
-        ? (typeof extra.error_message === "string" && extra.error_message.length > 0
-          ? extra.error_message
-          : "Search entered an error state")
-        : null,
-    };
-
-    if (status === "error") {
-      terminalJobPayload.available_at = null;
-    }
-
-    await supabaseAdmin
-      .from("hirelix_search_jobs")
-      .update(terminalJobPayload)
-      .eq("search_id", searchId)
-      .eq("status", "running");
-  }
-}
-
-// ──────────────────── Snapshot cache helpers ────────────────────
-
-/** Look up a non-expired cached snapshot for the given filter hash. */
-async function lookupCachedSnapshot(filterHash: string): Promise<string | null> {
-  try {
-    const { data } = await supabaseAdmin
-      .from("hirelix_dataset_snapshots")
-      .select("snapshot_id")
-      .eq("filter_hash", filterHash)
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return data?.snapshot_id ?? null;
-  } catch {
-    return null; // cache miss on any error — never block the main flow
-  }
-}
-
-/** Write a newly-triggered snapshot into the cache. Fire-and-forget safe. */
-async function cacheSnapshotEntry(params: {
-  snapshotId: string;
-  round: string;
-  filterHash: string;
-  filterSummary: unknown;
-  recordsLimit: number;
-}): Promise<void> {
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-  try {
-    await supabaseAdmin.from("hirelix_dataset_snapshots").upsert(
-      {
-        snapshot_id: params.snapshotId,
-        round: params.round,
-        filter_hash: params.filterHash,
-        filter_summary: params.filterSummary ?? null,
-        records_limit: params.recordsLimit,
-        expires_at: expiresAt,
-      },
-      { onConflict: "snapshot_id" },
-    );
-  } catch {
-    // Non-critical — log silently and continue
-  }
-}
-
-/**
- * 将 Bright Data 下载的原始 profile records 落库到 hirelix_snapshot_profiles。
- * Fire-and-forget 安全：任何写入错误不会阻塞主流程。
- */
-async function persistSnapshotProfiles(
-  records: Record<string, unknown>[],
-  params: {
-    snapshotId: string;
-    searchId: string;
-    jobId: string;
-    sourceRound: string;
-  },
-): Promise<void> {
-  console.log(`[snapshot_profiles] persist called: snapshot=${params.snapshotId} round=${params.sourceRound} records=${records.length}`);
-  if (records.length === 0) return;
-  const rows = records.map((record) => {
-    const linkedinId =
-      typeof record.linkedin_id === "string" && record.linkedin_id
-        ? record.linkedin_id
-        : typeof record.id === "string" && record.id
-          ? record.id
-          : null;
-    const profileUrl =
-      typeof record.url === "string" && record.url
-        ? record.url
-        : typeof record.input_url === "string" && record.input_url
-          ? record.input_url
-          : record.input && typeof (record.input as Record<string, unknown>).url === "string"
-            ? (record.input as Record<string, unknown>).url as string
-            : null;
-    return {
-      snapshot_id: params.snapshotId,
-      search_id: params.searchId,
-      job_id: params.jobId,
-      source_round: params.sourceRound,
-      linkedin_id: linkedinId,
-      profile_url: profileUrl,
-      raw_data: record,
-    };
-  });
-  try {
-    // 先删除该 snapshot+round 的旧数据，再整批写入，保证幂等
-    const { error: deleteError } = await supabaseAdmin
-      .from("hirelix_snapshot_profiles")
-      .delete()
-      .eq("snapshot_id", params.snapshotId)
-      .eq("source_round", params.sourceRound);
-    if (deleteError) console.error("[snapshot_profiles] delete error", deleteError);
-
-    // 分批写入（每批 50 条），避免单次请求过大
-    const BATCH = 50;
-    for (let i = 0; i < rows.length; i += BATCH) {
-      const { error: insertError } = await supabaseAdmin
-        .from("hirelix_snapshot_profiles")
-        .insert(rows.slice(i, i + BATCH));
-      if (insertError) {
-        console.error(`[snapshot_profiles] insert error batch i=${i}`, insertError);
-        throw insertError;
-      }
-    }
-    console.log(`[snapshot_profiles] persisted ${rows.length} rows for snapshot=${params.snapshotId} round=${params.sourceRound}`);
-  } catch (err) {
-    // Non-critical — 落库失败不影响搜索结果
-    console.error("[snapshot_profiles] persist failed", params.snapshotId, err);
-  }
-}
-
-/** Update dataset_size and cost once a snapshot finishes downloading. */
-async function updateCachedSnapshotMetadata(
-  snapshotId: string,
-  update: { datasetSize?: number | null; cost?: number | null },
-): Promise<void> {
-  try {
-    await supabaseAdmin
-      .from("hirelix_dataset_snapshots")
-      .update({
-        ...(update.datasetSize != null && { dataset_size: update.datasetSize }),
-        ...(update.cost != null && { cost: update.cost }),
-      })
-      .eq("snapshot_id", snapshotId);
-  } catch {
-    // Non-critical
-  }
-}
-
-async function updateSearchParsedRequirements(
-  searchId: string,
-  parsed: Record<string, unknown>,
-) {
-  await supabaseAdmin
-    .from("hirelix_searches")
-    .update({
-      parsed_requirements: parsed,
-      updated_at: nowIso(),
-    })
-    .eq("id", searchId);
-}
-
 async function updateSearchDisplayStat(
   searchId: string,
   parsed: Record<string, unknown>,
@@ -2772,37 +2603,6 @@ async function markSearchReviewable(
   void queueOrSendSearchNotification(context.searchId, "first_shortlist_ready").catch((error) => {
     console.error("[search_notifications] Failed to queue first shortlist notification:", error);
   });
-}
-
-async function updateSearchUsageEventMetadata(
-  searchId: string,
-  metadataPatch: Record<string, unknown>,
-) {
-  const { data: event } = await supabaseAdmin
-    .from("hirelix_usage_events")
-    .select("id, metadata")
-    .eq("related_id", searchId)
-    .eq("event_type", "search_created")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!event?.id) return;
-
-  const currentMetadata =
-    event.metadata && typeof event.metadata === "object"
-      ? (event.metadata as Record<string, unknown>)
-      : {};
-
-  await supabaseAdmin
-    .from("hirelix_usage_events")
-    .update({
-      metadata: {
-        ...currentMetadata,
-        ...metadataPatch,
-      },
-    })
-    .eq("id", event.id);
 }
 
 function buildBrightDataCandidateRows(
@@ -3352,129 +3152,6 @@ function buildBrightDataRecallFilters(
   }
 
   return rounds;
-}
-
-async function upsertCandidatesForSearch(
-  searchId: string,
-  rows: CandidateRowInput[],
-  options?: { replaceMissing?: boolean },
-) {
-  const { data: existingRows } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id, name, profile_url")
-    .eq("search_id", searchId);
-
-  const existing = existingRows || [];
-  const matchedIds = new Set<string>();
-  const inserts: Record<string, unknown>[] = [];
-
-  for (const row of rows) {
-    const normalizedRow = normalizeCandidateRowInput(row);
-    const existingMatch = existing.find((candidate) => {
-      if (normalizedRow.profile_url && candidate.profile_url) {
-        return candidate.profile_url === normalizedRow.profile_url;
-      }
-      return candidate.name.toLowerCase() === normalizedRow.name.toLowerCase();
-    });
-
-    const payload = {
-      search_id: searchId,
-      name: normalizedRow.name,
-      headline: normalizedRow.headline,
-      location: normalizedRow.location,
-      skills: normalizedRow.skills,
-      experience_years: normalizedRow.experience_years,
-      match_score: normalizedRow.match_score,
-      match_reasons: normalizedRow.match_reasons,
-      profile_url: normalizedRow.profile_url,
-      github_url: normalizedRow.github_url,
-      email: normalizedRow.email,
-      outreach_draft: normalizedRow.outreach_draft,
-      metadata: normalizedRow.metadata,
-    };
-
-    if (existingMatch) {
-      matchedIds.add(existingMatch.id);
-      await supabaseAdmin
-        .from("hirelix_candidates")
-        .update(payload)
-        .eq("id", existingMatch.id);
-    } else {
-      inserts.push(payload);
-    }
-  }
-
-  if (inserts.length > 0) {
-    await supabaseAdmin.from("hirelix_candidates").insert(inserts);
-  }
-
-  if (options?.replaceMissing) {
-    const idsToDelete = existing
-      .filter((candidate) => !matchedIds.has(candidate.id))
-      .map((candidate) => candidate.id);
-
-    if (idsToDelete.length > 0) {
-      await supabaseAdmin.from("hirelix_candidates").delete().in("id", idsToDelete);
-    }
-  }
-}
-
-async function upsertSingleCandidate(searchId: string, row: CandidateRowInput) {
-  const normalizedRow = normalizeCandidateRowInput(row);
-  const payload = {
-    search_id: searchId,
-    name: normalizedRow.name,
-    headline: normalizedRow.headline,
-    location: normalizedRow.location,
-    skills: normalizedRow.skills,
-    experience_years: normalizedRow.experience_years,
-    match_score: normalizedRow.match_score,
-    match_reasons: normalizedRow.match_reasons,
-    profile_url: normalizedRow.profile_url,
-    github_url: normalizedRow.github_url,
-    email: normalizedRow.email,
-    outreach_draft: normalizedRow.outreach_draft,
-    metadata: normalizedRow.metadata,
-  };
-  // Try update by profile_url first, then insert
-  if (normalizedRow.profile_url) {
-    const { data: existing } = await supabaseAdmin
-      .from("hirelix_candidates")
-      .select("id")
-      .eq("search_id", searchId)
-      .eq("profile_url", normalizedRow.profile_url)
-      .limit(1)
-      .maybeSingle();
-    if (existing) {
-      await supabaseAdmin.from("hirelix_candidates").update(payload).eq("id", existing.id);
-      return;
-    }
-  }
-  await supabaseAdmin.from("hirelix_candidates").insert(payload);
-}
-
-async function retagSearchCandidatePoolTypes(searchId: string) {
-  const { data: candidates } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id, match_score, metadata")
-    .eq("search_id", searchId)
-    .order("match_score", { ascending: false });
-
-  if (!candidates?.length) return;
-
-  for (const candidate of candidates) {
-    const metadata =
-      candidate.metadata && typeof candidate.metadata === "object"
-        ? { ...(candidate.metadata as Record<string, unknown>) }
-        : {};
-    const nextPoolType = "main";
-    if (metadata.pool_type === nextPoolType) continue;
-    metadata.pool_type = nextPoolType;
-    await supabaseAdmin
-      .from("hirelix_candidates")
-      .update({ metadata })
-      .eq("id", candidate.id);
-  }
 }
 
 async function parseJobDescription(
@@ -5151,12 +4828,9 @@ async function failSearch(searchId: string, message: string) {
     error_message: message,
     warning_message: null,
   });
-  const { count } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id", { count: "exact", head: true })
-    .eq("search_id", searchId);
+  const count = await countCandidatesForSearch(searchId);
 
-  if ((count || 0) === 0) {
+  if (count === 0) {
     void queueOrSendSearchNotification(searchId, "search_failed").catch((error) => {
       console.error("[search_notifications] Failed to queue failure notification:", error);
     });
