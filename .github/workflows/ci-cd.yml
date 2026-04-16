@@ -27,13 +27,13 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Lint
-        run: npm run lint || true
+        run: npm run lint
 
       - name: Build
         run: npm run build
 
       - name: Run unit tests
-        run: npm run test:unit || true
+        run: npm run test:unit
 
   # ============ CD: 部署到 VPS ============
   deploy-scheduler:

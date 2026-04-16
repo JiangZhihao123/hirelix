@@ -33,7 +33,11 @@ This directory is the home for project documentation.
 
 - [`marketing/reddit-post.md`](./marketing/reddit-post.md): Reddit launch copy
 
-## Conventions
+### Conventions
+
+- [`conventions.md`](./conventions.md): 编码规范（文件大小、命名、组件组织、测试、Git 等）
+
+## Meta
 
 - Keep product, engineering, strategy, and marketing docs in `docs/`
 - Prefer grouped subdirectories over adding new Markdown files at the repository root
