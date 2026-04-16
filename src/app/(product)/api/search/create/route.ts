@@ -4,7 +4,7 @@ import {
   enqueueSearchJob,
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
-} from "@/lib/search-jobs";
+} from "@/lib/search";
 import {
   getInitialSearchTargets,
   normalizeSearchPlanCode,

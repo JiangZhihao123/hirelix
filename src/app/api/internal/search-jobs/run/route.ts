@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processNextSearchJob } from "@/lib/search-jobs";
+import { processNextSearchJob } from "@/lib/search";
 
 export const maxDuration = 300;
 

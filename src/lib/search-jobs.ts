@@ -19,7 +19,6 @@ import {
 import {
   buildPendingGithubSignals,
 } from "@/lib/github-signals";
-import { sanitizeDisplayName } from "@/lib/display-name";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
   buildFallbackOutreachDraft,
@@ -46,605 +45,86 @@ import {
   type SearchPlanCode,
 } from "@/lib/search-execution";
 import { queueOrSendSearchNotification } from "@/lib/search-notifications";
-
-export const SEARCH_JOB_MAX_ATTEMPTS = 3;
-const SEARCH_JOB_STALE_MINUTES = getConfiguredPositiveInt(
-  "SEARCH_JOB_STALE_MINUTES",
-  20,
-  { min: 1, max: 1440 },
-);
-const SEARCH_JOB_STARTUP_STALL_SECONDS = getConfiguredPositiveInt(
-  "SEARCH_JOB_STARTUP_STALL_SECONDS",
-  60,
-  { min: 15, max: 900 },
-);
-
-export const REVIEWABLE_SEARCH_STATUSES = [
-  "deep_scoring",
-  "done",
-  "degraded",
-];
-
-function getConfiguredPositiveInt(
-  envName: string,
-  fallback: number,
-  options: { min?: number; max?: number } = {},
-) {
-  const raw = process.env[envName];
-  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-  const safeValue = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  const min = options.min ?? 1;
-  const max = options.max ?? Number.MAX_SAFE_INTEGER;
-  return Math.min(Math.max(safeValue, min), max);
-}
-
-function getConfiguredNumber(
-  envName: string,
-  fallback: number,
-  options: { min?: number; max?: number } = {},
-) {
-  const raw = process.env[envName];
-  const parsed = raw ? Number.parseFloat(raw) : Number.NaN;
-  const safeValue = Number.isFinite(parsed) ? parsed : fallback;
-  const min = options.min ?? Number.NEGATIVE_INFINITY;
-  const max = options.max ?? Number.POSITIVE_INFINITY;
-  return Math.min(Math.max(safeValue, min), max);
-}
-
-function getConfiguredBoolean(envName: string, fallback: boolean) {
-  const raw = process.env[envName];
-  if (raw == null) return fallback;
-  const normalized = raw.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(normalized)) return true;
-  if (["0", "false", "no", "off"].includes(normalized)) return false;
-  return fallback;
-}
-
-function resolveStageConcurrency(configuredLimit: number, itemCount: number) {
-  if (itemCount <= 0) return 0;
-  if (FULL_STAGE_PARALLELISM) return itemCount;
-  return Math.min(configuredLimit, itemCount);
-}
-
-const GITHUB_ENRICH_LIMIT = getConfiguredPositiveInt(
-  "SEARCH_GITHUB_ENRICH_LIMIT",
-  20,
-  { min: 1, max: 50 },
-);
-const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
-  "SEARCH_DEEP_SCORING_BATCH_SIZE",
-  1,
-  { max: 10 },
-);
-const DEEP_SCORING_CONCURRENCY = getConfiguredPositiveInt(
-  "SEARCH_DEEP_SCORING_CONCURRENCY",
-  25,
-  { max: 200 },
-);
-const DEEP_REVIEW_CONCURRENCY = getConfiguredPositiveInt(
-  "SEARCH_DEEP_REVIEW_CONCURRENCY",
-  24,
-  { max: 100 },
-);
-const JUDGE_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(
-  "SEARCH_JUDGE_SCORING_TIMEOUT_MS",
-  120000,
-  { min: 30000, max: 300000 },
-);
-const ARBITER_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(
-  "SEARCH_ARBITER_SCORING_TIMEOUT_MS",
-  120000,
-  { min: 30000, max: 300000 },
-);
-const OUTREACH_POOL_TARGET = getConfiguredPositiveInt(
-  "SEARCH_OUTREACH_POOL_TARGET",
-  25,
-  { max: 100 },
-);
-const HIGHLIGHT_CANDIDATE_COUNT = getConfiguredPositiveInt(
-  "SEARCH_HIGHLIGHT_COUNT",
-  5,
-  { max: 25 },
-);
-const DEEP_REVIEW_DEBUG_LOGS = getConfiguredBoolean(
-  "SEARCH_DEBUG_DEEP_REVIEW_LOGS",
-  false,
-);
-const LEGACY_BRIGHTDATA_FILTER_LIMIT = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_FILTER_LIMIT",
-  50,
-  { min: 1, max: 5000 },
-);
-const BRIGHTDATA_STANDARD_LIMIT = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_STANDARD_LIMIT",
-  LEGACY_BRIGHTDATA_FILTER_LIMIT,
-  { min: 1, max: 5000 },
-);
-const BRIGHTDATA_HIDDEN_GEM_LIMIT = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_HIDDEN_GEM_LIMIT",
-  25,
-  { min: 1, max: 5000 },
-);
-const BRIGHTDATA_COMPANY_TARGET_LIMIT = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_COMPANY_TARGET_LIMIT",
-  25,
-  { min: 1, max: 5000 },
-);
-const SHORTLIST_MATCH_SCORE_MIN = getConfiguredPositiveInt(
-  "SEARCH_SHORTLIST_MATCH_SCORE_MIN",
-  60,
-  { min: 1, max: 100 },
-);
-const SHORTLIST_RELEVANCE_MIN = getConfiguredPositiveInt(
-  "SEARCH_SHORTLIST_RELEVANCE_MIN",
-  75,
-  { min: 1, max: 100 },
-);
-const SHORTLIST_CAPABILITY_MIN = getConfiguredPositiveInt(
-  "SEARCH_SHORTLIST_CAPABILITY_MIN",
-  70,
-  { min: 1, max: 100 },
-);
-const SHORTLIST_JOIN_LIKELIHOOD_MIN = getConfiguredPositiveInt(
-  "SEARCH_SHORTLIST_JOIN_LIKELIHOOD_MIN",
-  55,
-  { min: 1, max: 100 },
-);
-const PARSE_MAX_ATTEMPTS = getConfiguredPositiveInt(
-  "SEARCH_PARSE_MAX_ATTEMPTS",
-  2,
-  { min: 1, max: 4 },
-);
-const BRIGHTDATA_FILTER_TIMEOUT_MS = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_FILTER_TIMEOUT_MS",
-  900000,
-  { min: 10000, max: 900000 },
-);
-const BRIGHTDATA_FILTER_POLL_INTERVAL_MS = getConfiguredPositiveInt(
-  "SEARCH_BRIGHTDATA_FILTER_POLL_INTERVAL_MS",
-  5000,
-  { min: 1000, max: 60000 },
-);
-const FULL_STAGE_PARALLELISM = getConfiguredBoolean(
-  "SEARCH_FULL_STAGE_PARALLELISM",
-  false,
-);
-const SEARCH_LOW_COST_MODE = getConfiguredBoolean(
-  "SEARCH_LOW_COST_MODE",
-  false,
-);
-const PARSE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
-  "SEARCH_PARSE_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 900 : 1800,
-  { min: 200, max: 4000 },
-);
-const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
-  "SEARCH_JUDGE_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 420 : 1200,
-  { min: 120, max: 2000 },
-);
-const ARBITER_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
-  "SEARCH_ARBITER_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 400 : 800,
-  { min: 120, max: 2000 },
-);
-const ESTIMATED_TOKENS_PER_CHAR = getConfiguredNumber(
-  "SEARCH_ESTIMATED_TOKENS_PER_CHAR",
-  0.25,
-  { min: 0.05, max: 1 },
-);
-const ESTIMATED_DEEP_REVIEW_CONFLICT_RATE = getConfiguredNumber(
-  "SEARCH_ESTIMATED_DEEP_REVIEW_CONFLICT_RATE",
-  0.15,
-  { min: 0, max: 1 },
-);
-const ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M = getConfiguredNumber(
-  "SEARCH_ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M",
-  0.28,
-  { min: 0, max: 50 },
-);
-const ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M = getConfiguredNumber(
-  "SEARCH_ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M",
-  0.42,
-  { min: 0, max: 50 },
-);
-function getExecutionRuntime(
-  executionProfile: SearchExecutionProfile,
-): SearchExecutionRuntime {
-  if (executionProfile.lowCostMode) {
-    return {
-      lightPrescreenMaxOutputTokens: 120,
-      judgeMaxOutputTokens: 420,
-      arbiterMaxOutputTokens: 320,
-      outreachMaxOutputTokens: 450,
-      judgeMaxAttempts: 1,
-      arbiterMaxAttempts: 1,
-      judgeMode: executionProfile.singleJudgeMode ? "single" : "dual",
-    };
-  }
-
-  return {
-    lightPrescreenMaxOutputTokens: 200,
-    judgeMaxOutputTokens: JUDGE_MAX_OUTPUT_TOKENS,
-    arbiterMaxOutputTokens: ARBITER_MAX_OUTPUT_TOKENS,
-    outreachMaxOutputTokens: 700,
-    judgeMaxAttempts: 2,
-    arbiterMaxAttempts: 2,
-    judgeMode: executionProfile.singleJudgeMode ? "single" : "dual",
-  };
-}
-
-function roundCurrency(value: number) {
-  return Math.round(value * 10000) / 10000;
-}
-
-function estimateTokensFromText(text: string | null | undefined, minimum = 0) {
-  const normalized = typeof text === "string" ? text : "";
-  return Math.max(minimum, Math.ceil(normalized.length * ESTIMATED_TOKENS_PER_CHAR));
-}
-
-function getEstimatedModelPricing() {
-  const provider = (process.env.AI_PROVIDER || "openrouter").trim().toLowerCase();
-  if (provider === "deepseek") {
-    return {
-      provider: "deepseek",
-      inputCostPerToken: ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M / 1_000_000,
-      outputCostPerToken: ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M / 1_000_000,
-    };
-  }
-
-  return {
-    provider,
-    inputCostPerToken: ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M / 1_000_000,
-    outputCostPerToken: ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M / 1_000_000,
-  };
-}
-
-function estimateLlmCallCost(inputTokens: number, outputTokens: number) {
-  const pricing = getEstimatedModelPricing();
-  return roundCurrency(
-    Math.max(0, inputTokens) * pricing.inputCostPerToken +
-      Math.max(0, outputTokens) * pricing.outputCostPerToken,
-  );
-}
-
-function estimateSearchIntentCost(jdText: string, outputText?: string | null) {
-  const inputTokens =
-    estimateTokensFromText(JD_SEARCH_INTENT_PROMPT, 400) +
-    estimateTokensFromText(jdText, 250);
-  const outputTokens = outputText
-    ? estimateTokensFromText(outputText, 120)
-    : Math.min(PARSE_MAX_OUTPUT_TOKENS, 600);
-  return estimateLlmCallCost(inputTokens, outputTokens);
-}
-
-type SearchJobRow = {
-  id: string;
-  search_id: string;
-  user_id: string;
-  jd_text: string;
-  candidate_count: number;
-  status: string;
-  attempt_count: number;
-  last_error: string | null;
-  available_at: string;
-  started_at: string | null;
-  locked_at: string | null;
-  updated_at?: string | null;
-};
-
-type SearchRow = {
-  id: string;
-  user_id: string;
-  jd_text: string;
-  parsed_requirements: Record<string, unknown> | null;
-  status: string;
-  parse_completed_at?: string | null;
-};
-
-type CandidateRowInput = {
-  name: string;
-  headline: string | null;
-  location: string | null;
-  skills: string[];
-  experience_years: number | null;
-  match_score: number;
-  match_reasons: string[];
-  profile_url: string | null;
-  github_url: string | null;
-  email: string | null;
-  outreach_draft: string | null;
-  metadata: Record<string, unknown>;
-};
-
-function normalizeCandidateRowInput(row: CandidateRowInput): CandidateRowInput {
-  return {
-    ...row,
-    name: sanitizeDisplayName(row.name),
-  };
-}
-
-type RecallSpec = {
-  countries: string[];
-  title_variants: string[];
-  core_skill_terms: string[];
-  differentiating_skill_terms: string[];
-  baseline_skill_terms: string[];
-  domain_terms: string[];
-  location_terms: string[];
-  strict_location_terms: string[];
-  nearby_location_terms: string[];
-  must_have_signals: string[];
-  avoid_profiles: string[];
-  geo_strategy: string | null;
-  recall_confidence: "high" | "medium" | "low";
-  role_breadth: "narrow" | "balanced" | "broad";
-  lateral_title_variants: string[];
-  target_companies: string[];
-  recall_strategy: "standard" | "multi_round";
-  record_limit: number;
-};
-
-type RecallProvider = "brightdata_dataset";
-
-type HiringBriefRoleCore = {
-  title: string | null;
-  seniority: string | null;
-  function_focus: string | null;
-  required_skills: string[];
-  nice_to_have_skills: string[];
-};
-
-type HiringBrief = {
-  role_core: HiringBriefRoleCore;
-  work_model: "onsite" | "hybrid" | "remote" | "unknown";
-  location_scope: string | null;
-  location_flexibility: "strict" | "moderate" | "flexible";
-  relocation_allowed: "yes" | "no" | "unknown";
-  must_have_constraints: string[];
-  soft_constraints: string[];
-  company_stage_expectation: "startup" | "growth" | "enterprise" | "unknown";
-  screening_intent: string | null;
-  candidate_count_strategy: "focused_shortlist" | "broader_shortlist";
-  constraint_reasoning: string | null;
-};
-
-type ConstraintVerdict = {
-  location_fit: "local" | "nearby" | "non_local" | "unknown";
-  work_model_fit: "yes" | "no" | "unclear";
-  must_have_coverage: "strong" | "partial" | "weak" | "unknown";
-};
-
-type CompanyProfile = {
-  size: string | null;
-  mission: string | null;
-  benefits: string | null;
-  tech_stack: string | null;
-  selling_points: string | null;
-};
-
-type ScoringBreakdown = {
-  capability_score: number;
-  relevance_score: number;
-  join_likelihood_score: number;
-  join_likelihood_reasons: string[];
-  quality_score: number;
-  overall_score: number;
-  advance_score: number;
-};
-
-type AdvanceRecommendation = "advance" | "hold" | "reject";
-type BlockingSeverity = "hard" | "soft" | "none";
-type ShortlistDecision = "yes" | "no";
-
-type CandidateSuitability = {
-  fit_decision: "strong_fit" | "viable_fit" | "risky_fit" | "reject";
-  actionability: "ready_to_act" | "needs_review" | "not_actionable";
-  bucket: "strong_now" | "consider_next" | "do_not_show";
-  match_score: number;
-  quality_score: number;
-  overall_score: number;
-  advance_score: number;
-  advance_recommendation: AdvanceRecommendation;
-  primary_risk: string | null;
-  first_contact_confidence: "high" | "medium" | "low";
-  subscription_trigger_score: number;
-  shortlist_decision: ShortlistDecision;
-  shortlist_reason: string | null;
-  blocking_constraints: string[];
-  blocking_severity: BlockingSeverity;
-  scoring_breakdown: ScoringBreakdown;
-  constraint_verdicts: ConstraintVerdict;
-  constraint_risks: string[];
-  risk_flags: string[];
-  why_this_candidate: string[];
-  why_not_higher: string[];
-  evidence_quality: "high" | "medium" | "low";
-};
-
-
-type ScoredCandidateAssessment = {
-  index: number;
-  suitability: CandidateSuitability;
-  skills: string[];
-  experience_years: number | null;
-  location: string | null;
-  why_reachable_now?: string | null;
-  scoring_method?: "dual_review_auto" | "dual_review_arbitrated" | "single_judge_debug";
-  judge_delta?: number;
-  judge_conflict?: boolean;
-};
-
-type JudgeScoreResult = {
-  index: number;
-  capability_score: number;
-  relevance_score: number;
-  join_likelihood_score: number;
-  join_likelihood_reasons: string[];
-  short_reasons: string[];
-  risk_flags: string[];
-  blocking_constraints: string[];
-  blocking_severity: BlockingSeverity;
-  advance_recommendation: AdvanceRecommendation;
-  shortlist_decision: ShortlistDecision;
-  shortlist_reason: string | null;
-  constraint_verdicts: ConstraintVerdict;
-  evidence_quality: "high" | "medium" | "low";
-  skills: string[];
-  experience_years: number | null;
-  location: string | null;
-  why_reachable_now: string | null;
-};
-
-type PipelineContext = {
-  searchId: string;
-  jobId: string;
-  userId: string;
-  jdText: string;
-  createdAt: string | null;
-  planCode: SearchPlanCode;
-  candidateCount: number;
-  highlightCount: number;
-  outreachPoolTarget: number;
-};
-
-type SearchDisplayStats = {
-  retrieval_count: number;
-  deep_review_count: number;
-  deep_review_requested_count: number;
-  deep_review_completed_count: number;
-  qualified_count: number;
-  outreach_pool_count: number;
-  shortlist_count: number;
-  brightdata_scrape_count?: number;
-  deep_qualified_rate?: number;
-  hard_blocked_count?: number;
-  soft_blocked_count?: number;
-  advanceable_count?: number;
-  top_quality_score?: number;
-  top50_quality_cutoff?: number;
-  bright_profile_budget?: number;
-  bright_profiles_requested?: number;
-  bright_profiles_returned?: number;
-  bright_snapshot_cost?: number;
-  estimated_llm_cost?: number;
-  estimated_search_total_cost?: number;
-  judge_mode?: "single" | "dual";
-  activation_run?: boolean;
-  quality_floor_applied?: boolean;
-  visible_candidate_count?: number;
-  pre_gate_blocked_count?: number;
-  prescreen_blocked_count?: number;
-  contact_unlock_candidates?: number;
-  recall_profile_count?: number;
-  priority_outreach_count?: number;
-  worth_reviewing_count?: number;
-  ruled_out_count?: number;
-  strong_now_count?: number;
-  consider_next_count?: number;
-  do_not_show_count?: number;
-  shortlist_yes_count?: number;
-  shortlist_no_count?: number;
-  clear_location_fit_count?: number;
-  must_have_strong_count?: number;
-  first_contact_confidence_count?: number;
-  brief_ready_at?: string;
-  first_shortlist_candidate_at?: string;
-  reviewable_at?: string;
-  time_to_ack_ms?: number;
-  time_to_brief_ready_ms?: number;
-  time_to_standard_recall_ready_ms?: number;
-  time_to_first_shortlist_candidate_ms?: number;
-  time_to_reviewable_ms?: number;
-  time_to_done_ms?: number;
-  excluded_reason_counts?: ExcludedReasonCount[];
-};
-
-type SearchPipelineResult = {
-  finalRows: CandidateRowInput[];
-  displayStats: SearchDisplayStats;
-  warningMessage?: string | null;
-  assessments?: ScoredCandidateAssessment[];
-};
-
-type CandidateDisplayTier = "priority_outreach" | "worth_reviewing";
-
-type ExcludedReason =
-  | "stack_gap"
-  | "title_or_seniority_mismatch"
-  | "location_or_work_model"
-  | "evidence_too_weak"
-  | "response_risk"
-  | "multiple_risks";
-
-type ExcludedReasonCount = {
-  reason: ExcludedReason;
-  count: number;
-};
-
-type AdditionalRecallSnapshot = {
-  round: string;
-  snapshot_id: string;
-  records_limit?: number | null;
-  status?: "submitted" | "polling" | "ready" | "failed";
-  submitted_at?: string | null;
-  ready_at?: string | null;
-  failed_at?: string | null;
-  failure_code?: string | null;
-  last_polled_at?: string | null;
-  download_started_at?: string | null;
-  download_completed_at?: string | null;
-  completed_at?: string | null;
-  profiles_returned?: number | null;
-  poll_attempt_count?: number | null;
-  download_attempt_count?: number | null;
-};
-
-type RecallMetadata = {
-  provider: RecallProvider;
-  snapshot_id: string;
-  additional_snapshots?: AdditionalRecallSnapshot[];
-  dataset_size?: number | null;
-  recall_latency_ms?: number | null;
-  cost?: number | null;
-  bright_profile_budget?: number | null;
-  bright_profiles_requested?: number | null;
-  bright_profiles_returned?: number | null;
-  judge_mode?: "single" | "dual" | null;
-  requested_at?: string | null;
-  completed_at?: string | null;
-  standard_recall_requested_at?: string | null;
-  standard_recall_ready_at?: string | null;
-  standard_recall_completed_at?: string | null;
-  standard_download_started_at?: string | null;
-  standard_download_completed_at?: string | null;
-  all_recall_completed_at?: string | null;
-  status?: "submitted" | "polling" | "ready";
-  filter_summary?: {
-    title_terms: string[];
-    country_codes: string[];
-    location_terms?: string[];
-    strict_location_terms?: string[];
-    nearby_location_terms?: string[];
-    must_have_signals?: string[];
-    avoid_profiles?: string[];
-  } | null;
-};
-
-type SearchExecutionRuntime = {
-  lightPrescreenMaxOutputTokens: number;
-  judgeMaxOutputTokens: number;
-  arbiterMaxOutputTokens: number;
-  outreachMaxOutputTokens: number;
-  judgeMaxAttempts: number;
-  arbiterMaxAttempts: number;
-  judgeMode: "single" | "dual";
-};
-
-type SearchCostEstimate = {
-  estimatedLlmCost: number;
-  estimatedSearchTotalCost: number;
-};
+import {
+  ARBITER_SCORING_TIMEOUT_MS,
+  BRIGHTDATA_COMPANY_TARGET_LIMIT,
+  BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
+  BRIGHTDATA_FILTER_TIMEOUT_MS,
+  BRIGHTDATA_HIDDEN_GEM_LIMIT,
+  BRIGHTDATA_STANDARD_LIMIT,
+  DEEP_REVIEW_CONCURRENCY,
+  DEEP_REVIEW_DEBUG_LOGS,
+  DEEP_SCORING_BATCH_SIZE,
+  DEEP_SCORING_CONCURRENCY,
+  ESTIMATED_DEEP_REVIEW_CONFLICT_RATE,
+  GITHUB_ENRICH_LIMIT,
+  getExecutionRuntime,
+  HIGHLIGHT_CANDIDATE_COUNT,
+  JUDGE_SCORING_TIMEOUT_MS,
+  OUTREACH_POOL_TARGET,
+  PARSE_MAX_OUTPUT_TOKENS,
+  PARSE_MAX_ATTEMPTS,
+  roundCurrency,
+  resolveStageConcurrency,
+  REVIEWABLE_SEARCH_STATUSES,
+  SEARCH_JOB_MAX_ATTEMPTS,
+  SEARCH_JOB_STARTUP_STALL_SECONDS,
+  SEARCH_JOB_STALE_MINUTES,
+  SHORTLIST_CAPABILITY_MIN,
+  SHORTLIST_JOIN_LIKELIHOOD_MIN,
+  SHORTLIST_MATCH_SCORE_MIN,
+  SHORTLIST_RELEVANCE_MIN,
+  estimateLlmCallCost,
+  estimateSearchIntentCost,
+  estimateTokensFromText,
+} from "@/lib/search/config";
+import {
+  runWithConcurrency,
+  sleep,
+  withTimeout,
+} from "@/lib/search/concurrency";
+import {
+  logSearchEvent,
+  normalizeCandidateRowInput,
+  normalizeCountryCode,
+  normalizeEnumValue,
+  normalizeExperienceYears,
+  normalizeNullableString,
+  normalizeScore,
+  normalizeScrapedDescription,
+  normalizeStringArray,
+  normalizeSummaryTerms,
+  normalizeText,
+  nowIso,
+  truncateForPrompt,
+} from "@/lib/search/normalize";
+import type {
+  AdvanceRecommendation,
+  BlockingSeverity,
+  CandidateDisplayTier,
+  CandidateRowInput,
+  CandidateSuitability,
+  CompanyProfile,
+  ConstraintVerdict,
+  ExcludedReason,
+  ExcludedReasonCount,
+  HiringBrief,
+  JudgeScoreResult,
+  PipelineContext,
+  RecallMetadata,
+  RecallProvider,
+  RecallSpec,
+  ScoredCandidateAssessment,
+  SearchCostEstimate,
+  SearchDisplayStats,
+  SearchExecutionRuntime,
+  SearchJobRow,
+  SearchPipelineResult,
+  SearchRow,
+  ShortlistDecision,
+  AdditionalRecallSnapshot,
+  ScoringBreakdown,
+} from "@/lib/search/types";
 
 class DatasetRecallPendingError extends Error {
   retryImmediately: boolean;
@@ -659,53 +139,6 @@ class DatasetRecallPendingError extends Error {
 }
 
 import { supabaseAdmin } from "@/lib/supabase-server";
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function logSearchEvent(eventName: string, payload: Record<string, unknown>) {
-  console.log(`[search:${eventName}] ${JSON.stringify(payload)}`);
-}
-
-function normalizeNullableString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-// LinkedIn scraper strips newlines without spaces, leaving "sentence.NextSentence".
-// Fix: add a space after sentence-ending punctuation followed by a capital letter.
-function normalizeScrapedDescription(value: unknown): string | null {
-  const raw = normalizeNullableString(value);
-  if (!raw) return null;
-  return raw.replace(/([.!?])([A-Z])/g, "$1 $2");
-}
-
-function normalizeStringArray(value: unknown, maxItems: number) {
-  if (!Array.isArray(value)) return [];
-  const deduped = new Set<string>();
-  for (const item of value) {
-    const normalized = normalizeNullableString(item);
-    if (normalized) deduped.add(normalized);
-    if (deduped.size >= maxItems) break;
-  }
-  return Array.from(deduped);
-}
-
-function normalizeCountryCode(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim().toUpperCase();
-  return /^[A-Z]{2}$/.test(trimmed) ? trimmed : null;
-}
-
-function normalizeText(value: string | null | undefined) {
-  return (value || "")
-    .toLowerCase()
-    .replace(/[^\w\s./-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 const GEO_ALLOWLISTS = [
   {
@@ -892,17 +325,6 @@ function normalizeRecallSpec(
           BRIGHTDATA_STANDARD_LIMIT,
         ),
   };
-}
-
-function normalizeExperienceYears(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-    return Math.round(value);
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed >= 0) return Math.round(parsed);
-  }
-  return null;
 }
 
 function isPlaceholderTitle(title: string | null | undefined) {
@@ -1779,13 +1201,6 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
   };
 }
 
-function normalizeSummaryTerms(values: string[] | undefined) {
-  return [...(values || [])]
-    .map((value) => normalizeText(value))
-    .filter(Boolean)
-    .sort();
-}
-
 function buildAdditionalSnapshotMetadata(params: {
   round: string;
   snapshotId: string;
@@ -1923,21 +1338,6 @@ function withDisplayStats(
     ...parsed,
     display_stats: stats,
   };
-}
-
-function truncateForPrompt(text: string, maxChars: number) {
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, maxChars)}\n\n[Job description truncated for prompt length]`;
-}
-
-
-function normalizeEnumValue<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  fallback: T,
-): T {
-  if (typeof value !== "string") return fallback;
-  return allowed.includes(value as T) ? (value as T) : fallback;
 }
 
 function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unknown>): HiringBrief {
@@ -2139,12 +1539,6 @@ function stripSpeculativeRelocation(texts: string[]) {
       normalized.includes("willingness to move")
     );
   });
-}
-
-function normalizeScore(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.max(0, Math.min(100, Math.round(value)))
-    : 0;
 }
 
 function normalizeBlockingSeverity(value: unknown): BlockingSeverity {
@@ -3313,79 +2707,6 @@ function parseJudgeScoreResults(
       };
     })
     .filter((entry): entry is JudgeScoreResult => Boolean(entry));
-}
-
-function createTimeoutSignal(timeoutMs: number, label: string): {
-  signal: AbortSignal;
-  clear: () => void;
-} {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    controller.abort(new Error(`${label} timed out after ${timeoutMs}ms`));
-  }, timeoutMs);
-  return {
-    signal: controller.signal,
-    clear: () => clearTimeout(timeoutId),
-  };
-}
-
-async function withTimeout<T>(
-  fn: (signal: AbortSignal) => Promise<T>,
-  timeoutMs: number,
-  label: string,
-): Promise<T> {
-  const { signal, clear } = createTimeoutSignal(timeoutMs, label);
-  let didTimeout = false;
-  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      didTimeout = true;
-      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-  });
-
-  try {
-    const result = await Promise.race([
-      fn(signal),
-      timeoutPromise,
-    ]);
-    return result;
-  } catch (error) {
-    if (didTimeout || signal.aborted) {
-      throw signal.reason instanceof Error
-        ? signal.reason
-        : new Error(`${label} timed out after ${timeoutMs}ms`);
-    }
-    throw error;
-  } finally {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
-    clear();
-  }
-}
-
-async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function runWithConcurrency<TInput, TOutput>(
-  items: TInput[],
-  limit: number,
-  fn: (item: TInput) => Promise<TOutput>,
-) {
-  const results: TOutput[] = [];
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const current = nextIndex;
-      nextIndex += 1;
-      results[current] = await fn(items[current]);
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-  await Promise.all(workers);
-  return results;
 }
 
 async function setSearchStatus(
