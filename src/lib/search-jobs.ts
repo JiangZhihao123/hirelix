@@ -132,6 +132,13 @@ import {
   selectShortlistedAssessments,
   tagPoolRows,
 } from "@/lib/search/scoring";
+import {
+  arbitrateCandidateScore,
+  deepScoreSelectedProfiles,
+  judgeScoreBatch,
+  scoreSingleCandidate,
+} from "@/lib/search/scoring-runtime";
+import { completeSearch } from "@/lib/search/finalize";
 import type {
   AdvanceRecommendation,
   BlockingSeverity,
@@ -3332,373 +3339,6 @@ async function buildBrightDataDatasetCandidates(
   };
 }
 
-async function judgeScoreBatch(
-  runtime: SearchExecutionRuntime,
-  parsed: Record<string, unknown>,
-  jdText: string,
-  profileTexts: string[],
-  batchIndexes: number[],
-  totalPoolSize: number,
-  judgeLabel: "Judge A" | "Judge B",
-  context?: { searchId?: string; jobId?: string },
-): Promise<JudgeScoreResult[]> {
-  const profilesText = batchIndexes
-    .map((idx) => truncateForPrompt(profileTexts[idx], 2800))
-    .join("\n\n");
-  const prompt = buildJudgeScorePrompt(
-    parsed,
-    jdText,
-    profilesText,
-    batchIndexes.length,
-    judgeLabel,
-    {
-      truncateForPrompt,
-      buildPromptSearchContext,
-    },
-  );
-  const judgeModel = getJudgeModel();
-  const maxAttempts = runtime.judgeMaxAttempts;
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      const { data: judgeResult } = await withTimeout(
-        (signal) => generateOpenRouterJson<unknown>({
-          model: judgeModel,
-          prompt,
-          maxOutputTokens: runtime.judgeMaxOutputTokens,
-          abortSignal: signal,
-          timeoutMs: JUDGE_SCORING_TIMEOUT_MS,
-          temperature: 0,
-          jsonSchema: buildJudgeScoreJsonSchema(batchIndexes.length),
-          requireParameters: true,
-        }),
-        JUDGE_SCORING_TIMEOUT_MS,
-        `${judgeLabel} scoring (attempt ${attempt})`,
-      );
-
-      const parsed = parseJudgeScoreResults(
-        judgeResult,
-        totalPoolSize,
-        batchIndexes,
-        {
-          sanitizeCandidateSuitability,
-          normalizeScore,
-          stripSpeculativeRelocation,
-          normalizeStringArray,
-          normalizeBlockingConstraints,
-          normalizeBlockingSeverity,
-          normalizeAdvanceRecommendation,
-          normalizeEnumValue,
-          deriveShortlistDecision,
-          normalizeNullableString,
-          sanitizeConstraintVerdicts,
-          normalizeExperienceYears,
-        },
-      ).filter((assessment) => batchIndexes.includes(assessment.index));
-
-      if (parsed.length > 0) return parsed;
-      throw new Error(`${judgeLabel} returned no valid scores`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const rawText = (error as Error & { rawText?: string }).rawText;
-      const isTransientError =
-        message.includes("invalid JSON") ||
-        message.includes("timed out") ||
-        message.includes("429") ||
-        message.includes("OpenRouter API error 5") ||
-        message.includes("no choices") ||
-        message.includes("empty response") ||
-        message.includes("502") ||
-        message.includes("503") ||
-        message.includes("504");
-      const shouldRetry = attempt < maxAttempts && isTransientError;
-      lastError = error instanceof Error ? error : new Error(message);
-
-      logSearchEvent("judge_scoring_attempt_failed", {
-        judge: judgeLabel,
-        attempt,
-        retrying: shouldRetry,
-        error: message,
-        ...(rawText != null && { raw_response: rawText.slice(0, 500) }),
-        ...(context?.searchId && { search_id: context.searchId }),
-        ...(context?.jobId && { job_id: context.jobId }),
-      });
-
-      if (!shouldRetry) break;
-      await sleep(300 * attempt);
-    }
-  }
-
-  throw lastError || new Error(`${judgeLabel} scoring failed`);
-}
-
-async function arbitrateCandidateScore(
-  runtime: SearchExecutionRuntime,
-  parsed: Record<string, unknown>,
-  jdText: string,
-  profileText: string,
-  judgeA: JudgeScoreResult,
-  judgeB: JudgeScoreResult,
-  totalPoolSize: number,
-): Promise<ScoredCandidateAssessment | null> {
-  const prompt = buildArbiterPrompt(
-    parsed,
-    jdText,
-    truncateForPrompt(profileText, 3000),
-    judgeA,
-    judgeB,
-    {
-      truncateForPrompt,
-      buildPromptSearchContext,
-      buildCompanyProfileContext,
-    },
-  );
-  const maxAttempts = runtime.arbiterMaxAttempts;
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      const { data } = await withTimeout(
-        (signal) => generateOpenRouterJson<unknown>({
-          model: getArbiterModel(),
-          prompt,
-          maxOutputTokens: runtime.arbiterMaxOutputTokens,
-          abortSignal: signal,
-          timeoutMs: ARBITER_SCORING_TIMEOUT_MS,
-          temperature: 0,
-          jsonSchema: ARBITER_SCORE_JSON_SCHEMA,
-        }),
-        ARBITER_SCORING_TIMEOUT_MS,
-        `Arbiter scoring (attempt ${attempt})`,
-      );
-
-      const assessment = parseScoredAssessments(data, totalPoolSize, {
-        sanitizeCandidateSuitability,
-        normalizeStringArray,
-        normalizeExperienceYears,
-        normalizeNullableString,
-        sortCandidateAssessments,
-      })[0];
-      if (!assessment) {
-        throw new Error("Arbiter returned no valid assessment");
-      }
-      return {
-        ...assessment,
-        scoring_method: "dual_review_arbitrated",
-        judge_delta: Math.max(
-          Math.abs(judgeA.capability_score - judgeB.capability_score),
-          Math.abs(judgeA.relevance_score - judgeB.relevance_score),
-          Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
-        ),
-        judge_conflict: true,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const shouldRetry = attempt < maxAttempts && (
-        message.includes("timed out") ||
-        message.includes("invalid JSON") ||
-        message.includes("Expected")
-      );
-      lastError = error instanceof Error ? error : new Error(message);
-      logSearchEvent("arbiter_attempt_failed", {
-        attempt,
-        retrying: shouldRetry,
-        error: message,
-      });
-      if (!shouldRetry) break;
-      await sleep(400 * attempt);
-    }
-  }
-
-  throw lastError || new Error("Arbiter scoring failed");
-}
-
-async function deepScoreSelectedProfiles(
-  runtime: SearchExecutionRuntime,
-  parsed: Record<string, unknown>,
-  jdText: string,
-  profileTexts: string[],
-  selectedIndexes: number[],
-  totalPoolSize: number,
-  options?: {
-    onCandidateScored?: (assessment: ScoredCandidateAssessment, completedCount: number) => void | Promise<void>;
-    searchId?: string;
-    jobId?: string;
-  },
-): Promise<ScoredCandidateAssessment[]> {
-  if (!selectedIndexes.length) return [];
-
-  let completedCount = 0;
-  // Each candidate spawns two judge calls and occasionally an arbiter call.
-  // Hard cap concurrency to avoid judge/arbiter API saturation.
-  const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, selectedIndexes.length);
-  const assessments = await runWithConcurrency(
-    selectedIndexes,
-    workerCount,
-    async (selectedIndex) => {
-      const result = await scoreSingleCandidate(runtime, parsed, jdText, profileTexts, selectedIndex, totalPoolSize, { searchId: options?.searchId, jobId: options?.jobId });
-      if (result) {
-        completedCount++;
-        try { await options?.onCandidateScored?.(result, completedCount); } catch { /* non-blocking */ }
-      }
-      return result;
-    },
-  );
-
-  return assessments
-    .filter((assessment): assessment is ScoredCandidateAssessment => Boolean(assessment))
-    .sort(sortCandidateAssessments);
-}
-
-async function scoreSingleCandidate(
-  runtime: SearchExecutionRuntime,
-  parsed: Record<string, unknown>,
-  jdText: string,
-  profileTexts: string[],
-  selectedIndex: number,
-  totalPoolSize: number,
-  context?: { searchId?: string; jobId?: string },
-): Promise<ScoredCandidateAssessment | null> {
-      if (runtime.judgeMode === "single") {
-        try {
-          const judgeResults = await judgeScoreBatch(
-            runtime,
-            parsed,
-            jdText,
-            profileTexts,
-            [selectedIndex],
-            totalPoolSize,
-            "Judge A",
-          );
-          const judge = judgeResults[0];
-          if (!judge) return null;
-          return {
-            ...mergeJudgeResults(judge, judge, {
-              computeQualityScore,
-              computeAdvanceScore,
-              deriveAdvanceRecommendation,
-              sanitizeCandidateSuitability,
-              normalizeNullableString,
-            }),
-            scoring_method: "single_judge_debug",
-            judge_delta: 0,
-            judge_conflict: false,
-          };
-        } catch (error) {
-          logSearchEvent("single_judge_scoring_failed", {
-            index: selectedIndex,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return null;
-        }
-      }
-
-      const judgeBatch = [selectedIndex];
-      const [judgeAResults, judgeBResults] = await Promise.allSettled([
-        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge A", context),
-        judgeScoreBatch(runtime, parsed, jdText, profileTexts, judgeBatch, totalPoolSize, "Judge B", context),
-      ]);
-
-      const judgeA = judgeAResults.status === "fulfilled" ? judgeAResults.value[0] : null;
-      const judgeB = judgeBResults.status === "fulfilled" ? judgeBResults.value[0] : null;
-
-      if (judgeAResults.status === "rejected" || judgeBResults.status === "rejected") {
-        logSearchEvent("dual_review_judge_failure", {
-          index: selectedIndex,
-          judge_a_error:
-            judgeAResults.status === "rejected"
-              ? judgeAResults.reason instanceof Error
-                ? judgeAResults.reason.message
-                : String(judgeAResults.reason)
-              : null,
-          judge_b_error:
-            judgeBResults.status === "rejected"
-              ? judgeBResults.reason instanceof Error
-                ? judgeBResults.reason.message
-                : String(judgeBResults.reason)
-              : null,
-        });
-      }
-
-      if (!judgeA && !judgeB) return null;
-      if (judgeA && !judgeB) {
-        return {
-          ...mergeJudgeResults(judgeA, judgeA, {
-            computeQualityScore,
-            computeAdvanceScore,
-            deriveAdvanceRecommendation,
-            sanitizeCandidateSuitability,
-            normalizeNullableString,
-          }),
-          judge_delta: 0,
-        };
-      }
-      if (judgeB && !judgeA) {
-        return {
-          ...mergeJudgeResults(judgeB, judgeB, {
-            computeQualityScore,
-            computeAdvanceScore,
-            deriveAdvanceRecommendation,
-            sanitizeCandidateSuitability,
-            normalizeNullableString,
-          }),
-          judge_delta: 0,
-        };
-      }
-
-      if (!judgeA || !judgeB) return null;
-      if (!hasJudgeConflict(judgeA, judgeB, {
-        computeQualityScore,
-        deriveFitDecisionFromScore,
-      })) {
-        return {
-          ...mergeJudgeResults(judgeA, judgeB, {
-            computeQualityScore,
-            computeAdvanceScore,
-            deriveAdvanceRecommendation,
-            sanitizeCandidateSuitability,
-            normalizeNullableString,
-          }),
-          judge_conflict: false,
-        };
-      }
-
-      try {
-        const arbitrated = await arbitrateCandidateScore(
-          runtime,
-          parsed,
-          jdText,
-          profileTexts[selectedIndex],
-          judgeA,
-          judgeB,
-          totalPoolSize,
-        );
-        return arbitrated;
-      } catch (error) {
-        logSearchEvent("dual_review_arbiter_failure", {
-          index: selectedIndex,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return {
-          ...mergeJudgeResults(judgeA, judgeB, {
-            computeQualityScore,
-            computeAdvanceScore,
-            deriveAdvanceRecommendation,
-            sanitizeCandidateSuitability,
-            normalizeNullableString,
-          }),
-          scoring_method: "dual_review_auto",
-          judge_delta: Math.max(
-            Math.abs(judgeA.capability_score - judgeB.capability_score),
-            Math.abs(judgeA.relevance_score - judgeB.relevance_score),
-            Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
-          ),
-          judge_conflict: true,
-        };
-      }
-}
-
 async function scoreBrightDataProfiles(
   context: PipelineContext,
   parsed: Record<string, unknown>,
@@ -3726,6 +3366,51 @@ async function scoreBrightDataProfiles(
     renderProfileEntries,
     selectedIndexes,
     brightProfiles.length,
+    {
+      scoreSingleCandidate,
+      sortCandidateAssessments,
+      scoringHelpers: {
+        judgeScoreBatch,
+        arbitrateCandidateScore,
+        logSearchEvent,
+        computeQualityScore,
+        computeAdvanceScore,
+        deriveAdvanceRecommendation,
+        sanitizeCandidateSuitability,
+        normalizeNullableString,
+        deriveFitDecisionFromScore,
+        judgeHelpers: {
+          truncateForPrompt,
+          buildPromptSearchContext,
+          getJudgeModel,
+          logSearchEvent,
+          sanitizeCandidateSuitability,
+          normalizeScore,
+          stripSpeculativeRelocation,
+          normalizeStringArray,
+          normalizeBlockingConstraints,
+          normalizeBlockingSeverity,
+          normalizeAdvanceRecommendation,
+          normalizeEnumValue,
+          deriveShortlistDecision,
+          normalizeNullableString,
+          sanitizeConstraintVerdicts,
+          normalizeExperienceYears,
+        },
+        arbiterHelpers: {
+          truncateForPrompt,
+          buildPromptSearchContext,
+          buildCompanyProfileContext,
+          getArbiterModel,
+          logSearchEvent,
+          sanitizeCandidateSuitability,
+          normalizeStringArray,
+          normalizeExperienceYears,
+          normalizeNullableString,
+          sortCandidateAssessments,
+        },
+      },
+    },
     {
       onCandidateScored: async (assessment, completedCount) => {
         const completedTotal = progressOffset + completedCount;
@@ -3967,95 +3652,6 @@ async function scoreBrightDataProfiles(
   };
 }
 
-async function completeSearch(
-  context: PipelineContext,
-  parsed: Record<string, unknown>,
-  finalRows: CandidateRowInput[],
-  displayStats: SearchDisplayStats,
-  warningMessage?: string | null,
-  options?: { generateOutreachDrafts?: boolean; runtime?: SearchExecutionRuntime },
-) {
-  const doneAt = nowIso();
-  const startedAt = getSearchStartedAt(parsed, context);
-  const finalDisplayStats = buildSearchDisplayStats({
-    ...displayStats,
-    time_to_done_ms:
-      displayStats.time_to_done_ms ?? elapsedSince(startedAt, doneAt),
-  });
-  const draftedRows =
-    finalRows.length > 0 && options?.generateOutreachDrafts !== false
-      ? await generateOutreachDraftsForRows(
-        context,
-        options?.runtime ?? getExecutionRuntime(getSearchExecutionProfile("bright_full_pro")),
-        parsed,
-        finalRows,
-      )
-      : finalRows;
-
-  if (draftedRows.length > 0) {
-    await upsertCandidatesForSearch(context.searchId, draftedRows, {
-      replaceMissing: true,
-    });
-    // TODO: GitHub 富化改为搜索任务阶段内处理，使用令牌桶限速
-    // 暂时移除独立调度器依赖
-  }
-
-  const finalParsed = withDisplayStats(parsed, finalDisplayStats);
-  const createdAtMs = context.createdAt ? Date.parse(context.createdAt) : Number.NaN;
-  const finalReadyLatencyMs = Number.isFinite(createdAtMs)
-    ? Math.max(0, Date.now() - createdAtMs)
-    : null;
-  await setSearchStatus(context.searchId, warningMessage ? "degraded" : "done", {
-    done_at: doneAt,
-    error_message: null,
-    warning_message: warningMessage ?? null,
-    parsed_requirements: finalParsed,
-  });
-
-  await updateSearchUsageEventMetadata(context.searchId, {
-    execution_profile: finalParsed.execution_profile ?? null,
-    search_phase: finalParsed.search_phase ?? null,
-    result_stage: finalParsed.result_stage ?? null,
-    activation_run: finalDisplayStats.activation_run ?? finalParsed.activation_run ?? null,
-    quality_floor_applied: finalDisplayStats.quality_floor_applied ?? null,
-    visible_candidate_count: finalDisplayStats.visible_candidate_count ?? draftedRows.length,
-    pre_gate_blocked_count: finalDisplayStats.pre_gate_blocked_count ?? null,
-    prescreen_blocked_count: finalDisplayStats.prescreen_blocked_count ?? null,
-    contact_unlock_candidates: finalDisplayStats.contact_unlock_candidates ?? draftedRows.length,
-    recall_profile_count: finalDisplayStats.recall_profile_count ?? null,
-    priority_outreach_count: finalDisplayStats.priority_outreach_count ?? null,
-    worth_reviewing_count: finalDisplayStats.worth_reviewing_count ?? null,
-    ruled_out_count: finalDisplayStats.ruled_out_count ?? null,
-    strong_now_count: finalDisplayStats.strong_now_count ?? null,
-    consider_next_count: finalDisplayStats.consider_next_count ?? null,
-    do_not_show_count: finalDisplayStats.do_not_show_count ?? null,
-    shortlist_yes_count: finalDisplayStats.shortlist_yes_count ?? null,
-    shortlist_no_count: finalDisplayStats.shortlist_no_count ?? null,
-    clear_location_fit_count: finalDisplayStats.clear_location_fit_count ?? null,
-    must_have_strong_count: finalDisplayStats.must_have_strong_count ?? null,
-    first_contact_confidence_count: finalDisplayStats.first_contact_confidence_count ?? null,
-    bright_profile_budget: finalDisplayStats.bright_profile_budget ?? null,
-    bright_profiles_requested: finalDisplayStats.bright_profiles_requested ?? null,
-    bright_profiles_returned: finalDisplayStats.bright_profiles_returned ?? null,
-    bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
-    estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,
-    estimated_search_total_cost: finalDisplayStats.estimated_search_total_cost ?? null,
-    final_ready_latency_ms: finalReadyLatencyMs,
-    judge_mode: finalDisplayStats.judge_mode ?? finalParsed.judge_mode ?? null,
-  });
-
-  logSearchEvent(warningMessage ? "search_degraded" : "search_done", {
-    search_id: context.searchId,
-    candidate_count: draftedRows.length,
-    warning_message: warningMessage ?? null,
-    final_ready_latency_ms: finalReadyLatencyMs,
-    bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
-    estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,
-    estimated_search_total_cost: finalDisplayStats.estimated_search_total_cost ?? null,
-    job_id: context.jobId,
-  });
-}
-
 async function markSearchDegraded(searchId: string, warningMessage: string) {
   await setSearchStatus(searchId, "degraded", {
     done_at: nowIso(),
@@ -4171,6 +3767,22 @@ async function runSearchPipeline(job: SearchJobRow) {
     phase1Parsed,
     phase1Result.finalRows,
     buildSearchDisplayStats(phase1Result.displayStats),
+    {
+      nowIso,
+      getSearchStartedAt,
+      elapsedSince,
+      buildSearchDisplayStats,
+      generateOutreachDraftsForRows,
+      getExecutionRuntime: (executionProfile) =>
+        getExecutionRuntime(executionProfile as SearchExecutionProfile),
+      getSearchExecutionProfile: (name) =>
+        getSearchExecutionProfile(name as Parameters<typeof getSearchExecutionProfile>[0]),
+      upsertCandidatesForSearch,
+      withDisplayStats,
+      setSearchStatus,
+      updateSearchUsageEventMetadata,
+      logSearchEvent,
+    },
     phase1Result.warningMessage,
     { runtime: getExecutionRuntime(initialExecutionProfile) },
   );
