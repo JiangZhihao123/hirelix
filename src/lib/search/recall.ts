@@ -1,15 +1,31 @@
 import type { BrightDataProfile } from "@/lib/brightdata";
+import type {
+  BrightDataDatasetFilterRequest,
+  BrightDataFilterRule,
+} from "@/lib/brightdata";
 import { buildPendingGithubSignals } from "@/lib/github-signals";
 import {
   normalizeCandidateRowInput,
+  normalizeCountryCode,
   normalizeNullableString,
   normalizeScrapedDescription,
+  normalizeText,
 } from "@/lib/search/normalize";
+import type { SearchExecutionProfile } from "@/lib/search-execution";
 import type {
   CandidateDisplayTier,
   CandidateRowInput,
+  HiringBrief,
+  RecallSpec,
   ScoredCandidateAssessment,
 } from "@/lib/search/types";
+
+export type RecallFilterMode = "primary" | "relaxed";
+
+export type RecallRound = {
+  round: "standard" | "hidden_gem" | "company_target";
+  request: BrightDataDatasetFilterRequest;
+};
 
 export function trimBrightDataProfileForMetadata(profile: BrightDataProfile) {
   return {
@@ -194,4 +210,288 @@ export function enrichRowsWithGithubSignals(
       metadata,
     };
   });
+}
+
+export function buildBrightDataRecallFilter(
+  parsed: Record<string, unknown>,
+  candidateCount: number,
+  executionProfile: SearchExecutionProfile,
+  options: {
+    normalizeRecallSpec: (
+      value: unknown,
+      requestedLimit: number,
+      options?: { recordLimitOverride?: number },
+    ) => RecallSpec;
+    sanitizeHiringBrief: (
+      value: unknown,
+      fallbackParsed: Record<string, unknown>,
+    ) => HiringBrief;
+    buildStandardSkillFilter: (
+      recallSpec: RecallSpec,
+      mode: RecallFilterMode,
+    ) => BrightDataFilterRule | null;
+    buildRecallLocationFilter: (
+      hiringBrief: HiringBrief,
+      recallSpec: RecallSpec,
+      countryCodes: string[],
+      mode: RecallFilterMode,
+    ) => BrightDataFilterRule | null;
+    isPlaceholderTitle: (title: string | null | undefined) => boolean;
+    mode?: RecallFilterMode;
+  },
+): BrightDataDatasetFilterRequest | null {
+  const datasetId =
+    process.env.BRIGHTDATA_RECALL_DATASET_ID ||
+    process.env.BRIGHTDATA_DATASET_ID;
+  if (!datasetId) return null;
+
+  const recallSpec = options.normalizeRecallSpec(parsed.recall_spec, candidateCount, {
+    recordLimitOverride: executionProfile.filterLimit,
+  });
+  const mode = options.mode ?? "primary";
+  const titleTerms = (recallSpec.title_variants.length > 0
+    ? recallSpec.title_variants
+    : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value)))
+    .filter((term) => !options.isPlaceholderTitle(term));
+
+  if (titleTerms.length === 0) return null;
+
+  const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const countryCodes = recallSpec.countries
+    .map((country) => normalizeCountryCode(country))
+    .filter((country): country is string => Boolean(country))
+    .slice(0, 4);
+
+  const rootFilters: BrightDataFilterRule[] = [
+    {
+      operator: "or",
+      filters: titleTerms.map((term) => ({
+        name: "position",
+        operator: "includes",
+        value: term,
+      })),
+    },
+  ];
+
+  if (countryCodes.length > 0) {
+    rootFilters.push(
+      countryCodes.length === 1
+        ? {
+          name: "country_code",
+          operator: "=",
+          value: countryCodes[0],
+        }
+        : {
+          operator: "or",
+          filters: countryCodes.map((country) => ({
+            name: "country_code",
+            operator: "=",
+            value: country,
+          })),
+        },
+    );
+  }
+
+  const standardSkillFilter = options.buildStandardSkillFilter(recallSpec, mode);
+  if (standardSkillFilter) {
+    rootFilters.push(standardSkillFilter);
+  }
+
+  const locationFilter = options.buildRecallLocationFilter(
+    hiringBrief,
+    recallSpec,
+    countryCodes,
+    mode,
+  );
+  if (locationFilter) {
+    rootFilters.push(locationFilter);
+  }
+
+  rootFilters.push({ name: "default_avatar", operator: "=", value: false });
+  rootFilters.push({ name: "connections", operator: ">=", value: 50 });
+
+  return {
+    datasetId,
+    recordsLimit: executionProfile.filterLimit,
+    filter:
+      rootFilters.length === 1
+        ? rootFilters[0]
+        : {
+          operator: "and",
+          filters: rootFilters,
+        },
+  };
+}
+
+export function buildBrightDataRecallFilters(
+  parsed: Record<string, unknown>,
+  candidateCount: number,
+  executionProfile: SearchExecutionProfile,
+  options: {
+    normalizeRecallSpec: (
+      value: unknown,
+      requestedLimit: number,
+      options?: { recordLimitOverride?: number },
+    ) => RecallSpec;
+    sanitizeHiringBrief: (
+      value: unknown,
+      fallbackParsed: Record<string, unknown>,
+    ) => HiringBrief;
+    buildStandardSkillFilter: (
+      recallSpec: RecallSpec,
+      mode: RecallFilterMode,
+    ) => BrightDataFilterRule | null;
+    buildRecallLocationFilter: (
+      hiringBrief: HiringBrief,
+      recallSpec: RecallSpec,
+      countryCodes: string[],
+      mode: RecallFilterMode,
+    ) => BrightDataFilterRule | null;
+    isPlaceholderTitle: (title: string | null | undefined) => boolean;
+    hiddenGemLimit: number;
+    companyTargetLimit: number;
+  },
+): RecallRound[] {
+  const standardRequest = buildBrightDataRecallFilter(parsed, candidateCount, executionProfile, {
+    normalizeRecallSpec: options.normalizeRecallSpec,
+    sanitizeHiringBrief: options.sanitizeHiringBrief,
+    buildStandardSkillFilter: options.buildStandardSkillFilter,
+    buildRecallLocationFilter: options.buildRecallLocationFilter,
+    isPlaceholderTitle: options.isPlaceholderTitle,
+  });
+  if (!standardRequest) return [];
+
+  const rounds: RecallRound[] = [{ round: "standard", request: standardRequest }];
+
+  const recallSpec = options.normalizeRecallSpec(parsed.recall_spec, candidateCount, {
+    recordLimitOverride: executionProfile.filterLimit,
+  });
+  if (recallSpec.recall_strategy !== "multi_round") return rounds;
+
+  const datasetId = standardRequest.datasetId;
+  const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const countryCodes = recallSpec.countries
+    .map((country) => normalizeCountryCode(country))
+    .filter((country): country is string => Boolean(country))
+    .slice(0, 4);
+
+  const qualityFilters: BrightDataFilterRule[] = [
+    { name: "default_avatar", operator: "=", value: false },
+    { name: "connections", operator: ">=", value: 50 },
+  ];
+
+  const countryFilter: BrightDataFilterRule | null =
+    countryCodes.length === 1
+      ? { name: "country_code", operator: "=", value: countryCodes[0] }
+      : countryCodes.length > 1
+        ? {
+          operator: "or",
+          filters: countryCodes.map((country) => ({
+            name: "country_code",
+            operator: "=",
+            value: country,
+          })),
+        }
+        : null;
+  const locationFilter = options.buildRecallLocationFilter(
+    hiringBrief,
+    recallSpec,
+    countryCodes,
+    "primary",
+  );
+
+  const lateralTitles = recallSpec.lateral_title_variants.filter((term) => term.length >= 3);
+  const differentiatingTerms = (
+    recallSpec.differentiating_skill_terms.length > 0
+      ? [...recallSpec.differentiating_skill_terms, ...recallSpec.baseline_skill_terms]
+      : [...recallSpec.core_skill_terms, ...recallSpec.baseline_skill_terms]
+  )
+    .map((term) => normalizeText(term))
+    .filter((term) => term.length >= 2)
+    .slice(0, 8);
+
+  if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
+    const hiddenGemFilters: BrightDataFilterRule[] = [
+      {
+        operator: "or",
+        filters: lateralTitles.map((term) => ({
+          name: "position",
+          operator: "includes",
+          value: term,
+        })),
+      },
+    ];
+    if (countryFilter) hiddenGemFilters.push(countryFilter);
+    hiddenGemFilters.push({
+      operator: "or",
+      filters: [
+        ...differentiatingTerms.map((term) => ({
+          name: "about",
+          operator: "includes" as const,
+          value: term,
+        })),
+        ...differentiatingTerms.map((term) => ({
+          name: "position",
+          operator: "includes" as const,
+          value: term,
+        })),
+      ].slice(0, 20),
+    });
+    if (locationFilter) hiddenGemFilters.push(locationFilter);
+    hiddenGemFilters.push(...qualityFilters);
+
+    rounds.push({
+      round: "hidden_gem",
+      request: {
+        datasetId,
+        recordsLimit: options.hiddenGemLimit,
+        filter: { operator: "and", filters: hiddenGemFilters },
+      },
+    });
+  }
+
+  const targetCompanies = recallSpec.target_companies.filter((company) => company.length >= 2);
+  if (targetCompanies.length > 0) {
+    const companyFilters: BrightDataFilterRule[] = [
+      {
+        operator: "or",
+        filters: targetCompanies.slice(0, 15).map((company) => ({
+          name: "current_company_name",
+          operator: "includes",
+          value: company,
+        })),
+      },
+    ];
+    if (countryFilter) companyFilters.push(countryFilter);
+
+    const companyTitleTerms = recallSpec.title_variants.slice(0, 6);
+    const companySkillTerms = [...differentiatingTerms, ...recallSpec.core_skill_terms.slice(0, 6)];
+    const companyRelevanceFilters: BrightDataFilterRule[] = [
+      ...companyTitleTerms.map((term) => ({
+        name: "position",
+        operator: "includes" as const,
+        value: term,
+      })),
+      ...companySkillTerms.map((term) => ({
+        name: "about",
+        operator: "includes" as const,
+        value: term,
+      })),
+    ].slice(0, 20);
+    if (companyRelevanceFilters.length > 0) {
+      companyFilters.push({ operator: "or", filters: companyRelevanceFilters });
+    }
+    companyFilters.push(...qualityFilters);
+
+    rounds.push({
+      round: "company_target",
+      request: {
+        datasetId,
+        recordsLimit: options.companyTargetLimit,
+        filter: { operator: "and", filters: companyFilters },
+      },
+    });
+  }
+
+  return rounds;
 }

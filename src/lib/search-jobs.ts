@@ -116,8 +116,11 @@ import {
 } from "@/lib/search/persistence";
 import {
   buildBrightDataCandidateRows,
+  buildBrightDataRecallFilter,
+  buildBrightDataRecallFilters,
   enrichRowsWithGithubSignals,
   mergeCandidateRows,
+  type RecallFilterMode,
   trimBrightDataProfileForMetadata,
 } from "@/lib/search/recall";
 import type {
@@ -391,8 +394,6 @@ const FALLBACK_SAAS_BACKEND_TARGET_COMPANIES = [
   "Notion",
   "Airtable",
 ];
-
-type RecallFilterMode = "primary" | "relaxed";
 
 function deriveCoreSkillsFromJdText(jdText: string, maxItems = 12) {
   const lower = jdText.toLowerCase();
@@ -2763,224 +2764,6 @@ function tagPoolRows(
   }));
 }
 
-function buildBrightDataRecallFilter(
-  parsed: Record<string, unknown>,
-  candidateCount: number,
-  executionProfile: SearchExecutionProfile,
-  options?: { mode?: RecallFilterMode },
-): BrightDataDatasetFilterRequest | null {
-  const datasetId =
-    process.env.BRIGHTDATA_RECALL_DATASET_ID ||
-    process.env.BRIGHTDATA_DATASET_ID;
-  if (!datasetId) return null;
-
-  const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount, {
-    recordLimitOverride: executionProfile.filterLimit,
-  });
-  const mode = options?.mode ?? "primary";
-  const titleTerms = (recallSpec.title_variants.length > 0
-    ? recallSpec.title_variants
-    : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value)))
-    .filter((term) => !isPlaceholderTitle(term));
-
-  if (titleTerms.length === 0) return null;
-
-  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const countryCodes = recallSpec.countries
-    .map((country) => normalizeCountryCode(country))
-    .filter((country): country is string => Boolean(country))
-    .slice(0, 4);
-
-  const rootFilters: BrightDataFilterRule[] = [
-    {
-      operator: "or",
-      filters: titleTerms.map((term) => ({
-        name: "position",
-        operator: "includes",
-        value: term,
-      })),
-    },
-  ];
-
-  if (countryCodes.length > 0) {
-    rootFilters.push(
-      countryCodes.length === 1
-        ? {
-          name: "country_code",
-          operator: "=",
-          value: countryCodes[0],
-        }
-        : {
-          operator: "or",
-          filters: countryCodes.map((country) => ({
-            name: "country_code",
-            operator: "=",
-            value: country,
-          })),
-        },
-    );
-  }
-
-  const standardSkillFilter = buildStandardSkillFilter(recallSpec, mode);
-  if (standardSkillFilter) {
-    rootFilters.push(standardSkillFilter);
-  }
-
-  const locationFilter = buildRecallLocationFilter(hiringBrief, recallSpec, countryCodes, mode);
-  if (locationFilter) {
-    rootFilters.push(locationFilter);
-  }
-
-  // Exclude profiles with default avatars (inactive / low-quality accounts)
-  rootFilters.push({
-    name: "default_avatar",
-    operator: "=",
-    value: false,
-  });
-
-  // Require minimum connections to filter out inactive / zombie accounts
-  rootFilters.push({
-    name: "connections",
-    operator: ">=",
-    value: 50,
-  });
-
-  return {
-    datasetId,
-    recordsLimit: executionProfile.filterLimit,
-    filter:
-      rootFilters.length === 1
-        ? rootFilters[0]
-        : {
-          operator: "and",
-          filters: rootFilters,
-        },
-  };
-}
-
-type RecallRound = {
-  round: "standard" | "hidden_gem" | "company_target";
-  request: BrightDataDatasetFilterRequest;
-};
-
-function buildBrightDataRecallFilters(
-  parsed: Record<string, unknown>,
-  candidateCount: number,
-  executionProfile: SearchExecutionProfile,
-): RecallRound[] {
-  const standardRequest = buildBrightDataRecallFilter(parsed, candidateCount, executionProfile);
-  if (!standardRequest) return [];
-
-  const rounds: RecallRound[] = [{ round: "standard", request: standardRequest }];
-
-  const recallSpec = normalizeRecallSpec(parsed.recall_spec, candidateCount, {
-    recordLimitOverride: executionProfile.filterLimit,
-  });
-  if (recallSpec.recall_strategy !== "multi_round") return rounds;
-
-  const datasetId = standardRequest.datasetId;
-  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const countryCodes = recallSpec.countries
-    .map((country) => normalizeCountryCode(country))
-    .filter((country): country is string => Boolean(country))
-    .slice(0, 4);
-
-  // Shared quality gates for all rounds
-  const qualityFilters: BrightDataFilterRule[] = [
-    { name: "default_avatar", operator: "=", value: false },
-    { name: "connections", operator: ">=", value: 50 },
-  ];
-
-  // Shared country filter
-  const countryFilter: BrightDataFilterRule | null =
-    countryCodes.length === 1
-      ? { name: "country_code", operator: "=", value: countryCodes[0] }
-      : countryCodes.length > 1
-        ? { operator: "or", filters: countryCodes.map((c) => ({ name: "country_code", operator: "=", value: c })) }
-        : null;
-  const locationFilter = buildRecallLocationFilter(hiringBrief, recallSpec, countryCodes, "primary");
-
-  // --- Round 2: Hidden Gem (lateral titles + differentiating skills) ---
-  const lateralTitles = recallSpec.lateral_title_variants.filter((t) => t.length >= 3);
-  const differentiatingTerms = (
-    recallSpec.differentiating_skill_terms.length > 0
-      ? [...recallSpec.differentiating_skill_terms, ...recallSpec.baseline_skill_terms]
-      : [...recallSpec.core_skill_terms, ...recallSpec.baseline_skill_terms]
-  )
-    .map((t) => normalizeText(t))
-    .filter((t) => t.length >= 2)
-    .slice(0, 8);
-
-  if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
-    const hiddenGemFilters: BrightDataFilterRule[] = [
-      {
-        operator: "or",
-        filters: lateralTitles.map((term) => ({ name: "position", operator: "includes", value: term })),
-      },
-    ];
-    if (countryFilter) hiddenGemFilters.push(countryFilter);
-    // Differentiating + baseline skill terms: lateral-title candidates are found even when they
-    // don't use niche phrasing — common profile keywords (e.g. "ATS", "LinkedIn Recruiter") also
-    // qualify. Match in both "about" and "position" for maximum recall.
-    hiddenGemFilters.push({
-      operator: "or",
-      filters: [
-        ...differentiatingTerms.map((term) => ({ name: "about", operator: "includes" as const, value: term })),
-        ...differentiatingTerms.map((term) => ({ name: "position", operator: "includes" as const, value: term })),
-      ].slice(0, 20),
-    });
-    if (locationFilter) hiddenGemFilters.push(locationFilter);
-    hiddenGemFilters.push(...qualityFilters);
-
-    rounds.push({
-      round: "hidden_gem",
-      request: {
-        datasetId,
-        recordsLimit: BRIGHTDATA_HIDDEN_GEM_LIMIT,
-        filter: { operator: "and", filters: hiddenGemFilters },
-      },
-    });
-  }
-
-  // --- Round 3: Company Target (target companies + title OR skill filter) ---
-  const targetCompanies = recallSpec.target_companies.filter((c) => c.length >= 2);
-  if (targetCompanies.length > 0) {
-    const companyFilters: BrightDataFilterRule[] = [
-      {
-        operator: "or",
-        filters: targetCompanies.slice(0, 15).map((company) => ({
-          name: "current_company_name",
-          operator: "includes",
-          value: company,
-        })),
-      },
-    ];
-    if (countryFilter) companyFilters.push(countryFilter);
-    // Require title OR core skill match — prevents pulling unrelated roles from target companies.
-    const companyTitleTerms = recallSpec.title_variants.slice(0, 6);
-    const companySkillTerms = [...differentiatingTerms, ...recallSpec.core_skill_terms.slice(0, 6)];
-    const companyRelevanceFilters: BrightDataFilterRule[] = [
-      ...companyTitleTerms.map((term) => ({ name: "position", operator: "includes" as const, value: term })),
-      ...companySkillTerms.map((term) => ({ name: "about", operator: "includes" as const, value: term })),
-    ].slice(0, 20);
-    if (companyRelevanceFilters.length > 0) {
-      companyFilters.push({ operator: "or", filters: companyRelevanceFilters });
-    }
-    companyFilters.push(...qualityFilters);
-
-    rounds.push({
-      round: "company_target",
-      request: {
-        datasetId,
-        recordsLimit: BRIGHTDATA_COMPANY_TARGET_LIMIT,
-        filter: { operator: "and", filters: companyFilters },
-      },
-    });
-  }
-
-  return rounds;
-}
-
 async function parseJobDescription(
   context: PipelineContext,
   existingParsed?: Record<string, unknown> | null,
@@ -3184,6 +2967,13 @@ async function buildBrightDataDatasetCandidates(
     parsed,
     context.candidateCount,
     executionProfile,
+    {
+      normalizeRecallSpec,
+      sanitizeHiringBrief,
+      buildStandardSkillFilter,
+      buildRecallLocationFilter,
+      isPlaceholderTitle,
+    },
   );
   if (!brightDataToken || !primaryRecallRequest) {
     return null;
@@ -3192,7 +2982,14 @@ async function buildBrightDataDatasetCandidates(
     parsed,
     context.candidateCount,
     executionProfile,
-    { mode: "relaxed" },
+    {
+      normalizeRecallSpec,
+      sanitizeHiringBrief,
+      buildStandardSkillFilter,
+      buildRecallLocationFilter,
+      isPlaceholderTitle,
+      mode: "relaxed",
+    },
   );
   let recallRequest = primaryRecallRequest;
   const pipelineStartMs = Date.now();
@@ -3206,7 +3003,20 @@ async function buildBrightDataDatasetCandidates(
   let requestedAt = existingRecallMetadata?.requested_at
     ? Date.parse(existingRecallMetadata.requested_at)
     : Number.NaN;
-  const recallRounds = buildBrightDataRecallFilters(parsed, context.candidateCount, executionProfile);
+  const recallRounds = buildBrightDataRecallFilters(
+    parsed,
+    context.candidateCount,
+    executionProfile,
+    {
+      normalizeRecallSpec,
+      sanitizeHiringBrief,
+      buildStandardSkillFilter,
+      buildRecallLocationFilter,
+      isPlaceholderTitle,
+      hiddenGemLimit: BRIGHTDATA_HIDDEN_GEM_LIMIT,
+      companyTargetLimit: BRIGHTDATA_COMPANY_TARGET_LIMIT,
+    },
+  );
   const additionalRounds = recallRounds.filter((round) => round.round !== "standard");
   const persistedAdditionalSnapshots = new Map(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
