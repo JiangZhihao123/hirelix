@@ -1,105 +1,225 @@
-# Agents Reference
+# Hirelix Agents Guide
 
-本文档包含 Hirelix 项目的开发规范和运维指南。
+本文件是仓库内 AI 代理协作的单一信息源。
 
----
+适用对象：
+- Codex
+- Claude Code
+- 其他会读取仓库提示词文件的 AI 编程代理
+
+维护原则：
+- 新规则优先补充到对应章节，不要把零散说明堆在文件末尾
+- 能放表格就放表格，能放清单就放清单，避免长段落
+- 与开发规范相关的细则优先收敛到 `docs/conventions.md`，本文件保留“代理执行时必须知道”的高价值信息
 
 ## 目录
 
-- [开发规范](#开发规范)
-  - [协作规则](#协作规则)
-  - [技术原则](#技术原则)
-    - [页面渐进式测试优先使用 Playwright MCP](#页面渐进式测试优先使用-playwright-mcp)
-- [本地开发](#本地开发)
-  - [测试账号](#测试账号)
-  - [启动开发服务器](#启动开发服务器)
-  - [网络代理](#网络代理)
-- [生产环境](#生产环境)
-  - [VPS 信息](#vps-信息)
-  - [部署架构](#部署架构)
-  - [调度器部署](#调度器部署)
-  - [服务管理](#服务管理)
+- [1. 快速入口](#1-快速入口)
+- [2. 协作规则](#2-协作规则)
+- [3. 技术原则](#3-技术原则)
+- [4. 项目概览](#4-项目概览)
+- [5. 常用命令](#5-常用命令)
+- [6. 本地开发](#6-本地开发)
+- [7. 测试与调试](#7-测试与调试)
+- [8. 生产环境](#8-生产环境)
+- [9. 扩展参考](#9-扩展参考)
 
----
+## 1. 快速入口
 
-## 开发规范
+### 1.1 修改代码前先知道
 
-### 协作规则
+| 主题 | 规则 |
+|------|------|
+| 提交 | 完成一个主要任务后立即提交一次，不要混入无关改动 |
+| Commit Message | 使用中文，清楚说明解决了什么问题或完成了什么改动 |
+| 文本处理 | 核心文本理解、清洗、修复、分类、提取，优先用 LLM，不要用正则硬写 |
+| 页面渐进式测试 | 优先使用 Playwright MCP，边观察边决策 |
+| 本地代理 | 中国大陆本地开发通常需要 `http://127.0.0.1:7890` 访问 Supabase 和外部服务 |
+| 登录方式 | 测试账号使用邮箱 + 密码，不使用 Google OAuth |
 
-- **提交频率**：完成一个主要任务后应立即提交一次，避免把多个不相关改动混在同一个 commit 里
-- **Commit Message**：使用中文，清楚说明这次提交解决了什么问题或完成了什么改动
+### 1.2 项目一句话说明
 
-### 技术原则
+Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述后，系统自动搜索候选人、评分，并生成外联内容。
 
-#### 用 LLM 而非正则处理文本问题
+## 2. 协作规则
 
-**禁止**用正则表达式解决任何核心文本理解、清洗或修复问题。正则只适合处理格式严格的字符串（如日期格式、URL 提取、邮箱校验）。
+### 2.1 提交规则
 
-以下场景**必须**调用 LLM：
-- 自然语言文本的清洗与修复（如抓取数据的乱码、粘连单词、格式噪声）
+- 完成一个主要任务后应立即提交一次
+- 避免把多个不相关改动混在同一个 commit 中
+- Commit Message 使用中文
+
+### 2.2 文档维护规则
+
+- `AGENTS.md` 是提示词主入口
+- `CLAUDE.md` 只做引用，不重复维护内容
+- 规则类内容优先按主题归档到已有章节
+- 如果新增内容不属于任何章节，先补目录再补正文
+
+## 3. 技术原则
+
+### 3.1 用 LLM 而非正则处理文本问题
+
+禁止用正则表达式解决任何核心文本理解、清洗或修复问题。
+
+正则只适合：
+- 日期格式
+- URL 提取
+- 邮箱校验
+- 其他边界明确、格式严格的字符串处理
+
+以下场景必须调用 LLM：
+- 自然语言文本的清洗与修复
 - 文本内容的判断、分类、提取
-- 任何"看起来像正则能搞定但边界情况很多"的文本处理任务
+- 看起来像正则能处理，但边界情况很多的文本问题
 
-**原因**：正则在语言边界模糊时副作用不可控，而 LLM 能理解语义上下文，处理结果更准确、更健壮。
+原因：
+- 正则在语言边界模糊时副作用不可控
+- LLM 能利用语义上下文，结果通常更稳健
 
-#### 页面渐进式测试优先使用 Playwright MCP
+### 3.2 页面渐进式测试优先使用 Playwright MCP
 
-当任务目标是对页面进行**渐进式测试**时，优先使用 **Playwright MCP**，而不是把 `playwright skill` 当作执行主体。
+当任务目标是对页面进行渐进式测试时，优先使用 Playwright MCP，而不是把 `playwright skill` 当作执行主体。
 
 这里的“渐进式测试”指：
 - 先观察当前页面状态，再决定下一步操作
-- 在测试过程中根据真实 DOM、交互结果、报错信息动态调整路径
-- 随时查看 console、network、snapshot、screenshot 来辅助判断问题
+- 根据真实 DOM、交互结果、报错信息动态调整路径
+- 随时查看 console、network、snapshot、screenshot 辅助判断
 
 执行原则：
-- **首选 Playwright MCP**：用于真实打开页面、点击、输入、等待、抓取快照、截图、查看 console/network
-- **`playwright skill` 仅作为流程指导**：它用于帮助组织测试步骤和排查顺序，不负责实际浏览器操作
-- **固定回归脚本另说**：如果目标是把稳定流程沉淀为可重复执行的自动化测试，再考虑使用 Playwright CLI / `@playwright/test`
+- 首选 Playwright MCP：负责真实打开页面、点击、输入、等待、抓取快照、截图、查看 console 和 network
+- `playwright skill` 仅作为流程指导：帮助组织排查步骤，不负责实际浏览器操作
+- 固定回归流程另说：稳定流程沉淀为自动化测试时，再考虑 Playwright CLI 或 `@playwright/test`
 
-一句话原则：**页面的渐进式、边观察边决策的测试，一律优先用 Playwright MCP。**
+一句话原则：
+页面的渐进式、边观察边决策的测试，一律优先用 Playwright MCP。
 
----
+## 4. 项目概览
 
-## 本地开发
+### 4.1 部署分层
 
-### 测试账号
+| 组件 | 部署位置 | 说明 |
+|------|----------|------|
+| Next.js 前端 + API | Vercel | 无状态，承载页面与 API |
+| 搜索任务调度器 | VPS | 独立进程，负责长耗时任务 |
+| 数据库 / Auth | Supabase | PostgreSQL + Auth + 队列表 |
+
+### 4.2 搜索流水线
+
+1. JD 解析：`src/lib/jd-parse.ts`
+2. Serper 搜索：`src/lib/serper.ts`
+3. Bright Data 抓取：`src/lib/brightdata.ts`
+4. AI 深度评分：`src/lib/search-jobs.ts`
+5. GitHub 富化：`src/lib/github-signals.ts`
+
+### 4.3 核心文件
+
+| 文件 | 作用 |
+|------|------|
+| `src/lib/search-jobs.ts` | 搜索引擎主流程，最核心文件 |
+| `src/lib/prompts.ts` | AI Prompt 模板 |
+| `src/lib/openrouter-schemas.ts` | AI 响应的 Zod Schema |
+| `src/lib/search-execution.ts` | 搜索执行档位配置 |
+| `scheduler/index.ts` | VPS 调度器入口 |
+
+### 4.4 关键数据表
+
+| 表名 | 作用 |
+|------|------|
+| `hirelix_searches` | 搜索任务主表，包含状态机 |
+| `hirelix_candidates` | 候选人结果表 |
+| `hirelix_search_jobs` | 搜索任务队列表 |
+| `hirelix_github_enrichment_jobs` | GitHub 富化任务队列表 |
+
+### 4.5 页面路由分组
+
+| 路由组 | 说明 |
+|--------|------|
+| `(landing)` | 营销落地页 |
+| `(marketing)` | 隐私政策、条款等 |
+| `(product)/app` | 产品页面，需认证 |
+
+### 4.6 AI 模型策略
+
+- 默认使用 DeepSeek 处理大多数低成本场景
+- 复杂仲裁使用 Claude Sonnet
+- 统一通过 OpenRouter 路由
+- 配置文件：`src/lib/openrouter.ts`
+
+## 5. 常用命令
+
+```bash
+npm run dev              # 启动 Next.js（默认 http://localhost:3000）
+npm run scheduler:dev    # 启动本地调度器（另起终端）
+npm run build            # 生产构建
+npm run lint             # ESLint 检查
+npm run test:unit        # 单元测试（Node.js native test runner）
+npm run test:e2e         # Playwright E2E 测试（headless）
+npm run test:e2e:ui      # Playwright UI 模式
+```
+
+单独运行一个测试文件：
+
+```bash
+npx tsx --test tests/github-signals.test.ts
+```
+
+## 6. 本地开发
+
+### 6.1 测试账号
 
 | 环境 | 邮箱 | 密码 |
 |------|------|------|
 | 本地 dev / Supabase | `jzh_spring@163.com` | `88888888` |
 
-> **注意**：登录方式使用邮箱 + 密码，不是 Google OAuth。
+注意：
+- 登录方式使用邮箱 + 密码
+- 不要改用 Google OAuth
 
-### 启动开发服务器
+### 6.2 启动开发服务器
 
 ```bash
-# 启动 Next.js 应用（默认 http://localhost:3000）
 npm run dev
 ```
 
-调度器已从 Next.js 进程中拆离，如需同时运行调度器：
+如需同时运行调度器：
 
 ```bash
-# 另起一个终端
 npm run scheduler:dev
 ```
 
-### 网络代理
+### 6.3 网络代理
 
 | 场景 | 代理设置 |
 |------|----------|
-| 中国大陆本地开发 | 需通过本地代理 `http://127.0.0.1:7890` 访问 Supabase 和外部服务 |
+| 中国大陆本地开发 | 通过本地代理 `http://127.0.0.1:7890` 访问 Supabase 和外部服务 |
 | 生产环境 | 不需要代理 |
 
-> **注意**：不要把"本地需要代理"的假设带到生产配置里。
+注意：
+- 不要把“本地需要代理”的假设带到生产配置中
 
----
+## 7. 测试与调试
 
-## 生产环境
+### 7.1 页面问题排查顺序
 
-### VPS 信息
+1. 先打开页面观察真实状态
+2. 再查看 console / network
+3. 根据 DOM 和报错决定下一步点击、输入、等待或截图
+4. 稳定后再决定是否补自动化测试
 
-与 sibling 项目 `neliva` 共用同一台 Vultr VPS：
+### 7.2 调度器相关定位
+
+优先检查：
+- `scheduler/index.ts`
+- 搜索队列表 `hirelix_search_jobs`
+- GitHub 富化队列表 `hirelix_github_enrichment_jobs`
+- VPS 上的 `hirelix-scheduler` systemd 服务状态与日志
+
+## 8. 生产环境
+
+### 8.1 VPS 信息
+
+与 sibling 项目 `neliva` 共用同一台 Vultr VPS。
 
 | 配置项 | 值 |
 |--------|-----|
@@ -109,7 +229,7 @@ npm run scheduler:dev
 | Hostname | `vultr` |
 | 部署目录 | `/opt/hirelix` |
 
-#### SSH 连接命令
+### 8.2 SSH 连接命令
 
 ```bash
 # 直连（需本地代理）
@@ -119,24 +239,23 @@ ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127
 ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -o BatchMode=yes -o ConnectTimeout=10 -p 2222 root@66.42.53.127 'echo VPS_OK && hostname'
 ```
 
-### 部署架构
+### 8.3 部署架构
 
 | 组件 | 部署位置 | 说明 |
 |------|----------|------|
 | Next.js 前端 + API | Vercel | 不含调度器 |
-| 搜索任务调度器 | VPS | 独立进程，systemd 服务 `hirelix-scheduler` |
+| 搜索任务调度器 | VPS | 独立进程，systemd 服务名为 `hirelix-scheduler` |
 
-生产域名：`hirelix.online`（DNS A 记录指向 Vercel）
+生产域名：
+- `hirelix.online`
 
-### 调度器部署（CI/CD 自动部署）
+### 8.4 调度器部署
 
-调度器代码位于 `scheduler/` 目录。
+调度器代码位于 `scheduler/` 目录，采用 GitHub Actions 自动部署。
 
-#### 部署流程
+部署流程：
 
-采用 **GitHub Actions** 自动部署：
-
-```
+```text
 Push 到 main 分支
     ↓
 GitHub Actions 触发
@@ -148,23 +267,16 @@ GitHub Actions 触发
 自动部署到 VPS（git pull + npm install + 重启服务）
 ```
 
-#### 配置步骤（一次性）
+### 8.5 调度器部署初始化
 
-**1. 配置 VPS SSH 密钥**
-
-在本地生成专门用于 GitHub Actions 的密钥对（不要复用个人密钥）：
+1. 配置 VPS SSH 密钥
 
 ```bash
-# 生成新密钥（无密码）
 ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/hirelix_deploy
-
-# 复制公钥到 VPS
 cat ~/.ssh/hirelix_deploy.pub | ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
 ```
 
-**2. 添加 GitHub Secrets**
-
-在 GitHub 仓库 Settings → Secrets → Actions 中添加：
+2. 添加 GitHub Secrets
 
 | Secret Name | Value |
 |-------------|-------|
@@ -173,22 +285,25 @@ cat ~/.ssh/hirelix_deploy.pub | ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p"
 | `VPS_PORT` | `2222` |
 | `VPS_SSH_KEY` | `~/.ssh/hirelix_deploy` 私钥内容 |
 
-**3. 验证部署**
+3. 验证部署
 
-Push 任意代码到 main 分支，在 GitHub Actions 页面查看部署状态。
+- Push 任意代码到 `main`
+- 在 GitHub Actions 页面查看部署状态
 
-#### 手动回滚（紧急）
-
-如需立即回滚，SSH 到 VPS 执行：
+### 8.6 手动回滚
 
 ```bash
-# 回滚到指定版本
 ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'cd /opt/hirelix && git reset --hard <commit-hash> && systemctl restart hirelix-scheduler'
 ```
 
-**环境变量**：`/etc/hirelix.env`（systemd EnvironmentFile，包含所有生产环境变量）
+生产环境变量位置：
+- `/etc/hirelix.env`
 
-### 服务管理
+说明：
+- 该文件由 systemd `EnvironmentFile` 加载
+- 包含生产环境变量
+
+### 8.7 服务管理
 
 ```bash
 # 查看状态
@@ -199,3 +314,16 @@ ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'syst
 
 # 查看日志
 ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'journalctl -u hirelix-scheduler -f'
+```
+
+## 9. 扩展参考
+
+补充规范见：
+- `docs/conventions.md`
+
+建议放入 `docs/conventions.md` 的内容：
+- 编码风格
+- 文件大小限制
+- 组件组织规范
+- 测试文件命名规范
+- 脚本目录约定
