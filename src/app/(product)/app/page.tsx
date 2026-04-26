@@ -304,7 +304,11 @@ export default function DashboardPage() {
   };
 
   const buildSearchPreview = (title: string, jdText: string) => {
-    const normalizedJd = jdText.replace(/\s+/g, " ").trim();
+    // First, replace any literal escape sequences (\n, \r, \t) that may have
+    // leaked into the stored JD text — these render as visible characters and
+    // produce ugly previews like "\\n\\nWe are hiring...".
+    const withoutEscapeLiterals = jdText.replace(/\\[nrt]/g, " ");
+    const normalizedJd = withoutEscapeLiterals.replace(/\s+/g, " ").trim();
     if (!normalizedJd) return "No job description preview available.";
 
     const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
