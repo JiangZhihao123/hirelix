@@ -25,6 +25,11 @@ This directory is the home for project documentation.
 - [`growth/conversion-funnel-v1.md`](./growth/conversion-funnel-v1.md): conversion event taxonomy and landing-page experiment definitions
 - [`growth/ads-funnel-roi-model.md`](./growth/ads-funnel-roi-model.md): paid-acquisition funnel psychology, conversion assumptions, and first-month ROI model
 
+### Competitive Analysis
+
+- [`competitive-analysis/competitive-analysis-2026.md`](./competitive-analysis/competitive-analysis-2026.md): 2026 独立深度竞品分析（JTBD 切赛道、SWOT 与攻防剧本、单位经济学、ICE 行动清单）
+- [`competitive-analysis/competitive-landscape.md`](./competitive-analysis/competitive-landscape.md): v1.0 广覆盖市场扫描
+
 ### Launch
 
 - [`launch/paid-beta-readiness.md`](./launch/paid-beta-readiness.md): paid beta launch checklist, rollout order, and production verification notes

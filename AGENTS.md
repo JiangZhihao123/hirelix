@@ -18,8 +18,15 @@
 - [2. 协作规则](#2-协作规则)
 - [3. 技术原则](#3-技术原则)
 - [4. 项目概览](#4-项目概览)
+  - [4.5 页面路由分组](#45-页面路由分组)
+  - [4.6 产品 API 路由 (需认证)](#46-产品-api-路由-需认证)
+  - [4.7 内部 API 路由 (调度器触发)](#47-内部-api-路由-调度器触发)
+  - [4.8 搜索状态机](#48-搜索状态机)
+  - [4.9 AI 模型策略](#49-ai-模型策略)
 - [5. 常用命令](#5-常用命令)
 - [6. 本地开发](#6-本地开发)
+  - [6.4 环境变量分组](#64-环境变量分组)
+  - [6.5 数据库迁移](#65-数据库迁移)
 - [7. 测试与调试](#7-测试与调试)
 - [8. 生产环境](#8-生产环境)
 - [9. 扩展参考](#9-扩展参考)
@@ -118,8 +125,28 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 |------|------|
 | `src/lib/search-jobs.ts` | 搜索引擎主流程，最核心文件 |
 | `src/lib/prompts.ts` | AI Prompt 模板 |
+| `src/lib/openrouter.ts` | OpenRouter / DeepSeek 模型路由配置 |
 | `src/lib/openrouter-schemas.ts` | AI 响应的 Zod Schema |
 | `src/lib/search-execution.ts` | 搜索执行档位配置 |
+| `src/lib/search-task.ts` | 搜索状态机状态定义与任务副本 |
+| `src/lib/search-state.ts` | 搜索状态工具函数(过期/状态分类) |
+| `src/lib/search-job-scheduler.ts` | 调度器核心循环(轮询/分发/心跳) |
+| `src/lib/search-notifications.ts` | 搜索完成通知(Resend 邮件) |
+| `src/lib/recruiter-outreach.ts` | 外联文案生成 |
+| `src/lib/brightdata.ts` | Bright Data 数据集/抓取接口 |
+| `src/lib/serper.ts` | Serper 搜索引擎接口 |
+| `src/lib/github-signals.ts` | GitHub 档案富化 |
+| `src/lib/github-enrichment-jobs.ts` | GitHub 富化任务队列管理 |
+| `src/lib/jd-parse.ts` | JD 文本解析(提取技能/职位/公司) |
+| `src/lib/company-research.ts` | 目标公司研究 |
+| `src/lib/display-name.ts` | 候选人显示名清理 |
+| `src/lib/server-outbound-proxy.ts` | 全局代理初始化 |
+| `src/lib/supabase.ts` / `supabase-server.ts` | Supabase 客户端(浏览器/服务端) |
+| `src/lib/api-auth.ts` / `client-auth.ts` | API 与客户端认证 |
+| `src/lib/billing.ts` / `billing-server.ts` | 计费逻辑 |
+| `src/lib/paddle.ts` | Paddle 支付集成 |
+| `src/lib/hunter.ts` | Hunter 邮箱查找集成 |
+| `src/lib/analytics.ts` | 产品分析埋点 |
 | `scheduler/index.ts` | VPS 调度器入口 |
 
 ### 4.4 关键数据表
@@ -133,17 +160,65 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 
 ### 4.5 页面路由分组
 
-| 路由组 | 说明 |
-|--------|------|
+| 路由 | 说明 |
+|------|------|
 | `(landing)` | 营销落地页 |
 | `(marketing)` | 隐私政策、条款等 |
 | `(product)/app` | 产品页面，需认证 |
 
-### 4.6 AI 模型策略
+### 4.6 产品 API 路由 (需认证)
+
+位于 `src/app/(product)/api/`：
+
+| 路由 | 说明 |
+|------|------|
+| `search/create` | 创建搜索 |
+| `search/parse` | JD 文本解析 |
+| `search/clarify` | JD 补全/澄清 |
+| `search/[id]/retry` | 重试搜索 |
+| `candidates/[id]` | 候选人详情 |
+| `candidates/[id]/enrich` | 手动 GitHub 富化 |
+| `settings/ai-company` | AI 公司描述 |
+| `billing/*` | 计费相关 |
+| `admin/users` | 用户管理 |
+| `admin/route` | 管理面板数据 |
+
+### 4.7 内部 API 路由 (调度器触发)
+
+位于 `src/app/api/`：
+
+| 路由 | 说明 |
+|------|------|
+| `internal/search-jobs/run` | 调度器触发搜索执行 |
+| `paddle/webhook` | Paddle 支付 webhook |
+
+### 4.8 搜索状态机
+
+```
+queued → parsing → searching → screening → deep_scoring → done
+                                                         → degraded (部分成功)
+                                                         → error
+```
+
+| 状态 | 说明 |
+|------|------|
+| `queued` | 等待调度器分配 |
+| `parsing` | AI 解析 JD 文本，提取技能/职位/公司 |
+| `searching` | Bright Data 召回 + Serper 搜索 |
+| `screening` | AI 预筛（地域 hard gate + 基础匹配） |
+| `deep_scoring` | AI 深度评分（匹配/能力/加入意愿） |
+| `done` | 全部完成 |
+| `degraded` | 部分完成（如 Bright Data 召回失败但 Serper 有结果） |
+| `error` | 搜索失败 |
+
+调度器通过 `pipeline_step` 追踪当前阶段（`accepted` → `brief_ready` → `linkedin_scan` → `reviewing_profiles` → `shortlist_ready`）。
+
+### 4.9 AI 模型策略
 
 - 默认使用 DeepSeek 处理大多数低成本场景
 - 复杂仲裁使用 Claude Sonnet
 - 统一通过 OpenRouter 路由
+- 三阶段模型可独立配置：`SEARCH_LIGHT_MODEL`（预筛）、`SEARCH_JUDGE_MODEL`（深度评分）、`SEARCH_ARBITER_MODEL`（仲裁/争议裁决）
 - 配置文件：`src/lib/openrouter.ts`
 
 ## 5. 常用命令
@@ -152,6 +227,7 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 npm run dev              # 启动 Next.js（默认 http://localhost:3000）
 npm run scheduler:dev    # 启动本地调度器（另起终端）
 npm run build            # 生产构建
+npx tsc --noEmit         # TypeScript 类型检查（CI 执行此步骤）
 npm run lint             # ESLint 检查
 npm run test:unit        # 单元测试（Node.js native test runner）
 npm run test:e2e         # Playwright E2E 测试（headless）
@@ -162,6 +238,21 @@ npm run test:e2e:ui      # Playwright UI 模式
 
 ```bash
 npx tsx --test tests/github-signals.test.ts
+npx tsx --test tests/search-task.test.ts
+```
+
+单独运行一个集成脚本：
+
+```bash
+npx tsx scripts/integration/test-bright-10.ts
+npx tsx scripts/integration/test-bright-recall.ts
+```
+
+调试脚本和数据检查：
+
+```bash
+npx tsx scripts/debug/check-failed-search.ts
+npx tsx scripts/debug/check-snapshot.ts
 ```
 
 ## 6. 本地开发
@@ -196,7 +287,31 @@ npm run scheduler:dev
 | 生产环境 | 不需要代理 |
 
 注意：
-- 不要把“本地需要代理”的假设带到生产配置中
+- 不要把”本地需要代理”的假设带到生产配置中
+
+### 6.4 环境变量分组
+
+核心变量见 `.env.example`，主要分组：
+
+| 分组 | 关键变量 |
+|------|----------|
+| 数据库 | `DATABASE_URL` |
+| Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| AI 模型 | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY` |
+| 搜索模型档位 | `SEARCH_LIGHT_MODEL`, `SEARCH_JUDGE_MODEL`, `SEARCH_ARBITER_MODEL` |
+| 数据源 | `BRIGHTDATA_API_TOKEN`, `SERPER_API_KEY`, `GITHUB_TOKEN`, `HUNTER_API_KEY` |
+| 搜索调优 | `SEARCH_BRIGHTDATA_STANDARD_LIMIT`, `SEARCH_DEEP_SCORING_CONCURRENCY`, `SEARCH_JUDGE_SCORING_TIMEOUT_MS` |
+| Paddle 计费 | `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET` |
+| 通知 | `RESEND_API_KEY`, `SEARCH_NOTIFICATIONS_ENABLED` |
+| 代理（仅本地） | `PROXY_ENABLED`, `PROXY_URL` |
+
+### 6.5 数据库迁移
+
+SQL 迁移文件位于 `supabase/migrations/`，命名格式为 `YYYYMMDD_description.sql`。
+
+- `supabase/full_migration.sql` / `supabase/schema.sql`：基础 schema
+- `supabase/migrations/`：增量迁移，按日期前缀命名
+- 迁移通过 Supabase SQL Editor 手动执行，无自动迁移工具
 
 ## 7. 测试与调试
 
