@@ -5,7 +5,7 @@ import type {
   GithubEvidenceReadout,
   ContributionDay,
 } from "./types";
-import { normalizeText, compactStringArray, clamp, round, extractCurrentCompanyFromHeadline, extractPrimaryRoleFromHeadline } from "./discovery";
+import { normalizeText, compactStringArray, clamp, extractCurrentCompanyFromHeadline, extractPrimaryRoleFromHeadline } from "./discovery";
 
 export function classifyActivityTrendFromWeeks(days: ContributionDay[]) {
   if (days.length === 0) return "No recent public contributions found.";

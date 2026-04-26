@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Lock, Loader2 } from "lucide-react";
+import { Lock, Loader2 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { MessageBanner, MessageState, SettingsFieldGroup, SettingsSection } from "./shared";
