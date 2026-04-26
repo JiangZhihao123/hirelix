@@ -140,7 +140,7 @@ export function RecruiterProfileSection({
             type="button"
             onClick={handleSaveProfile}
             disabled={savingProfile}
-            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+            className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
             {savingProfile ? (
               <Loader2 className="h-4 w-4 animate-spin" />
