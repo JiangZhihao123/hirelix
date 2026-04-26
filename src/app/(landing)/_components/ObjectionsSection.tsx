@@ -29,7 +29,7 @@ export function ObjectionsSection() {
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-            FAQ
+            Quick answers
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
             Objections answered up front
