@@ -210,7 +210,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07101d] text-slate-950">
+    <div className="min-h-screen bg-white text-slate-900">
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-white/[0.08] bg-[#07101d]/78 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
