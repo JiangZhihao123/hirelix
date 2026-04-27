@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
 import {
   BriefcaseBusiness,
   CheckCircle2,
@@ -10,9 +14,38 @@ import {
 import { candidateRows } from "./data";
 
 const processSteps = ["JD parsed", "Search", "Rank", "Outreach"];
+const candidateAvatars = [
+  "/landing/avatar-james.png",
+  "/landing/avatar-anika.png",
+  "/landing/avatar-marco.png",
+];
+
+const outreachDrafts = {
+  inmail: {
+    cta: "Start from InMail draft",
+    body: [
+      "Hi James,",
+      "Your platform work at Shopify looks close to this Senior Backend Engineer role, especially the API and distributed systems experience.",
+      "Open to a quick chat? Happy to send more context.",
+      "Best,",
+    ],
+  },
+  email: {
+    cta: "Start from email draft",
+    body: [
+      "Subject: Your Shopify platform work",
+      "Hi James,",
+      "I came across your background building platform systems at Shopify and thought the overlap with this role looked strong.",
+      "Would you be open to a short intro? I can send the role context and you can decide if it is worth exploring.",
+      "Best,",
+    ],
+  },
+} as const;
 
 export function HeroPreview() {
   const displayedCandidates = candidateRows.slice(0, 3);
+  const [outreachChannel, setOutreachChannel] = useState<keyof typeof outreachDrafts>("inmail");
+  const activeDraft = outreachDrafts[outreachChannel];
 
   return (
     <div className="w-full">
@@ -106,9 +139,13 @@ export function HeroPreview() {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-600 text-xs font-bold text-white">
                         {index + 1}
                       </span>
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-950 text-sm font-bold text-white">
-                        {candidate.initials}
-                      </div>
+                      <Image
+                        src={candidateAvatars[index] ?? candidateAvatars[0]}
+                        alt=""
+                        width={44}
+                        height={44}
+                        className="h-11 w-11 shrink-0 rounded-full border border-slate-200 bg-slate-100 object-cover shadow-sm"
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="truncate text-sm font-semibold text-slate-950">{candidate.name}</p>
@@ -172,33 +209,43 @@ export function HeroPreview() {
             </div>
 
             <div className="mt-3 grid grid-cols-2 rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold text-slate-600">
-              <button type="button" className="rounded-md bg-blue-50 px-2 py-1.5 text-blue-700">
+              <button
+                type="button"
+                aria-pressed={outreachChannel === "inmail"}
+                onClick={() => setOutreachChannel("inmail")}
+                className={`rounded-md px-2 py-1.5 transition-colors ${
+                  outreachChannel === "inmail" ? "bg-blue-50 text-blue-700" : "hover:bg-slate-50"
+                }`}
+              >
                 LinkedIn InMail
               </button>
-              <button type="button" className="rounded-md px-2 py-1.5">
+              <button
+                type="button"
+                aria-pressed={outreachChannel === "email"}
+                onClick={() => setOutreachChannel("email")}
+                className={`rounded-md px-2 py-1.5 transition-colors ${
+                  outreachChannel === "email" ? "bg-blue-50 text-blue-700" : "hover:bg-slate-50"
+                }`}
+              >
                 Email
               </button>
             </div>
 
             <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-700">
-              <p>Hi James,</p>
-              <p className="mt-3">
-                Your platform work at Shopify looks close to this Senior Backend Engineer role,
-                especially the API and distributed systems experience.
-              </p>
-              <p className="mt-3">
-                Open to a quick chat? Happy to send more context.
-              </p>
-              <p className="mt-3">Best,</p>
+              {activeDraft.body.map((paragraph, index) => (
+                <p key={paragraph} className={index === 0 ? undefined : "mt-3"}>
+                  {paragraph}
+                </p>
+              ))}
             </div>
 
-            <button
-              type="button"
+            <a
+              href="#hero-form"
               className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2.5 text-sm font-semibold text-emerald-700"
             >
               <Send className="h-4 w-4" />
-              Send InMail
-            </button>
+              {activeDraft.cta}
+            </a>
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
               <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />
               Drafts can be edited before anything is sent.
