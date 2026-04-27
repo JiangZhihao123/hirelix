@@ -258,17 +258,17 @@ export default function Home() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
               <Sparkles className="h-3.5 w-3.5" />
-              AI recruiting for technical teams
+              AI recruiting for hiring teams
             </div>
 
             <h1 className="mt-5 max-w-[13.5ch] text-5xl font-extrabold leading-[0.96] tracking-tight text-slate-950 sm:text-[3.75rem] lg:text-[4.05rem]">
-              Turn any JD into a ranked{" "}
-              <span className="text-blue-600">technical shortlist.</span>
+              Paste a JD. Get a ranked{" "}
+              <span className="text-blue-600">candidate shortlist.</span>
             </h1>
 
             <p className="mt-5 max-w-[34rem] text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
-              Find real LinkedIn profiles, see why each candidate fits, and prepare outreach
-              drafts in minutes. Public GitHub signals are added when they help verify technical depth.
+              Hirelix finds relevant profiles, explains why each candidate fits, surfaces public
+              evidence when available, and prepares outreach drafts you can edit.
             </p>
 
             <form id="hero-form" onSubmit={handleSubmit} className="mt-6 max-w-[35rem]">
@@ -295,19 +295,14 @@ export default function Home() {
                       ? `${wordCount} words ready to analyze`
                       : "No JD handy? Try a sample:"}
                   </span>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    {["Senior Software Engineer", "Data Engineer", "ML Engineer"].map((label) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={handleTrySample}
-                        data-testid={`hero-sample-${label.toLowerCase().replaceAll(" ", "-")}`}
-                        className="font-semibold text-blue-700 underline-offset-4 transition-colors hover:text-blue-900 hover:underline"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleTrySample}
+                    data-testid="hero-sample-link"
+                    className="self-start font-semibold text-blue-700 underline-offset-4 transition-colors hover:text-blue-900 hover:underline sm:self-auto"
+                  >
+                    Use sample JD
+                  </button>
                 </div>
                 <button
                   type="submit"
@@ -343,11 +338,11 @@ export default function Home() {
           <div className="border-y border-slate-200 py-5">
             <div className="grid gap-3 text-sm text-slate-500 sm:grid-cols-[1.05fr_1fr_1fr_1fr] sm:items-center">
               <p className="font-semibold uppercase tracking-[0.16em] text-slate-400">
-                Built for technical recruiters, search firms, and founder-led hiring teams
+                Built for recruiters, search firms, and founder-led hiring teams
               </p>
               {[
-                "LinkedIn-first sourcing",
-                "Public engineering signals",
+                "Profile-first sourcing",
+                "Public evidence when available",
                 "Ready-to-edit outreach",
               ].map((item) => (
                 <div key={item} className="flex items-center gap-2 sm:justify-end">
@@ -371,8 +366,8 @@ export default function Home() {
                 desc: "Clear evidence for every rank.",
               },
               {
-                title: "GitHub signals when public",
-                desc: "Open-source and engineering depth surfaced carefully.",
+                title: "Public evidence when available",
+                desc: "LinkedIn, portfolio, GitHub, and other public signals surfaced carefully.",
               },
               {
                 title: "Outreach drafts included",

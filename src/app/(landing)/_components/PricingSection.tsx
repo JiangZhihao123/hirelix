@@ -29,7 +29,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs">
             <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-medium text-sky-800">
-              Built for technical recruiters
+              Built for recruiters and search firms
             </span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium text-slate-700">
               Self-serve signup and billing
@@ -169,7 +169,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
             <span className="ml-auto text-xs text-slate-500">Click to expand</span>
           </summary>
           <div className="mt-4 space-y-2 pl-8 leading-7">
-            <p>Hirelix is available today for technical recruiters and headhunters.</p>
+            <p>Hirelix is available today for recruiters, search firms, and hiring teams.</p>
             <p>Subscriptions renew automatically until canceled.</p>
             <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
             <p>Purchases made through Paddle are refundable within 14 days of the transaction date.</p>

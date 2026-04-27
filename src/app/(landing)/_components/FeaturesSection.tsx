@@ -31,8 +31,8 @@ export function FeaturesSection() {
             },
             {
               icon: Github,
-              title: "Public engineering signals",
-              desc: "When GitHub evidence is available, Hirelix surfaces it without pretending it is universal.",
+              title: "Public evidence",
+              desc: "Hirelix surfaces useful public signals when they exist, without pretending every role has the same evidence.",
             },
             {
               icon: Mail,

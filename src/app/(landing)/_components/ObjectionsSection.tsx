@@ -15,7 +15,7 @@ export function ObjectionsSection() {
     {
       icon: Search,
       title: "Who is this built for first?",
-      desc: "Technical recruiters and headhunters working software roles where resume review alone is not enough.",
+      desc: "Recruiters, headhunters, and hiring teams who want a ranked shortlist with evidence instead of another pile of profiles.",
     },
     {
       icon: Mail,

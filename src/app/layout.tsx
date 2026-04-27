@@ -14,9 +14,9 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Hirelix — Ranked Technical Shortlists from Any JD",
+  title: "Hirelix — Ranked Candidate Shortlists from a JD",
   description:
-    "Paste a job description and get a ranked technical shortlist from real LinkedIn profiles, evidence-based fit reasons, public GitHub signals when available, and editable outreach drafts.",
+    "Paste a job description and get a ranked candidate shortlist from relevant profiles, evidence-based fit reasons, public signals when available, and editable outreach drafts.",
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
@@ -25,9 +25,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Hirelix — Ranked Technical Shortlists from Any JD",
+    title: "Hirelix — Ranked Candidate Shortlists from a JD",
     description:
-      "Paste a JD and get a ranked technical shortlist with fit reasons, public GitHub signals when available, and editable outreach drafts.",
+      "Paste a JD and get a ranked candidate shortlist with fit reasons, public evidence when available, and editable outreach drafts.",
     type: "website",
     url: "https://hirelix.online",
     siteName: "Hirelix",
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Hirelix — Ranked Technical Shortlists from Any JD",
+    title: "Hirelix — Ranked Candidate Shortlists from a JD",
     description:
-      "Paste a JD and get a ranked technical shortlist with fit reasons, public GitHub signals when available, and editable outreach drafts.",
+      "Paste a JD and get a ranked candidate shortlist with fit reasons, public evidence when available, and editable outreach drafts.",
     images: ["https://hirelix.online/og-image.png"],
   },
 };

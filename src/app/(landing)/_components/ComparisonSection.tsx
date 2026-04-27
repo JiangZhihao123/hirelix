@@ -91,7 +91,7 @@ export function ComparisonSection() {
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-sky-600 shadow-sm">
                   <CheckCircle2 className="h-4 w-4" />
                 </span>
-                <span>GitHub signals attached when public evidence exists</span>
+                <span>Public evidence attached when it helps explain fit</span>
               </li>
             </ul>
             <div className="mt-7 flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-[0_8px_20px_rgba(14,165,233,0.1)]">
