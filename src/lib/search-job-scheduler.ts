@@ -2,7 +2,7 @@ import { processNextSearchJob, reclaimStaleRunningJobs } from "@/lib/search";
 
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
-const DEFAULT_CONCURRENCY = 5;
+const DEFAULT_CONCURRENCY = 1;
 
 type SchedulerState = {
   started: boolean;

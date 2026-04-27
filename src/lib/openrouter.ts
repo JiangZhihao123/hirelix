@@ -46,6 +46,195 @@ let cachedClient: OpenRouter | null = null;
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_LLM_GLOBAL_CONCURRENCY = 12;
+const DEFAULT_LLM_MAX_ATTEMPTS = 4;
+const DEFAULT_LLM_RETRY_BASE_MS = 2000;
+const DEFAULT_LLM_RETRY_MAX_MS = 30000;
+
+type LlmLimiterState = {
+  active: number;
+  queue: Array<() => void>;
+};
+
+declare global {
+  var __hirelixLlmLimiterState__: LlmLimiterState | undefined;
+}
+
+class DeepSeekApiError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = "DeepSeekApiError";
+  }
+}
+
+function getConfiguredPositiveInt(
+  envName: string,
+  fallback: number,
+  options: { min?: number; max?: number } = {},
+) {
+  const raw = process.env[envName];
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  const safeValue = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  const min = options.min ?? 1;
+  const max = options.max ?? Number.MAX_SAFE_INTEGER;
+  return Math.min(Math.max(safeValue, min), max);
+}
+
+function getLlmLimiterState(): LlmLimiterState {
+  if (!globalThis.__hirelixLlmLimiterState__) {
+    globalThis.__hirelixLlmLimiterState__ = {
+      active: 0,
+      queue: [],
+    };
+  }
+  return globalThis.__hirelixLlmLimiterState__;
+}
+
+function acquireLlmSlot(signal?: AbortSignal): Promise<() => void> {
+  if (signal?.aborted) {
+    return Promise.reject(
+      signal.reason instanceof Error ? signal.reason : new Error("LLM request aborted"),
+    );
+  }
+
+  const limit = getConfiguredPositiveInt(
+    "SEARCH_LLM_GLOBAL_CONCURRENCY",
+    DEFAULT_LLM_GLOBAL_CONCURRENCY,
+    { max: 500 },
+  );
+  const state = getLlmLimiterState();
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let start: (() => void) | null = null;
+
+    const release = () => {
+      state.active = Math.max(0, state.active - 1);
+      state.queue.shift()?.();
+    };
+
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      if (start) {
+        state.queue = state.queue.filter((queued) => queued !== start);
+      }
+      reject(signal?.reason instanceof Error ? signal.reason : new Error("LLM request aborted"));
+    };
+
+    start = () => {
+      if (settled) return;
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      settled = true;
+      signal?.removeEventListener("abort", onAbort);
+      state.active += 1;
+      resolve(release);
+    };
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    if (state.active < limit) {
+      start();
+    } else {
+      state.queue.push(start);
+    }
+  });
+}
+
+function sleep(ms: number, signal?: AbortSignal) {
+  if (signal?.aborted) {
+    return Promise.reject(
+      signal.reason instanceof Error ? signal.reason : new Error("LLM request aborted"),
+    );
+  }
+  return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(signal?.reason instanceof Error ? signal.reason : new Error("LLM request aborted"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function createRequestSignal(options: OpenRouterTextOptions): {
+  signal?: AbortSignal;
+  cleanup: () => void;
+} {
+  if (!options.timeoutMs) {
+    return {
+      signal: options.abortSignal,
+      cleanup: () => {},
+    };
+  }
+
+  const controller = new AbortController();
+  const onAbort = () => {
+    controller.abort(
+      options.abortSignal?.reason instanceof Error
+        ? options.abortSignal.reason
+        : new Error("LLM request aborted"),
+    );
+  };
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`LLM request timed out after ${options.timeoutMs}ms`));
+  }, options.timeoutMs);
+
+  options.abortSignal?.addEventListener("abort", onAbort, { once: true });
+  if (options.abortSignal?.aborted) {
+    onAbort();
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeout);
+      options.abortSignal?.removeEventListener("abort", onAbort);
+    },
+  };
+}
+
+function isRetriableLlmError(error: unknown) {
+  if (error instanceof DeepSeekApiError) {
+    return [408, 429, 500, 502, 503, 504, 524, 529].includes(error.status ?? 0);
+  }
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes("fetch failed") ||
+      message.includes("network") ||
+      message.includes("timeout") ||
+      message.includes("timed out") ||
+      message.includes("econnreset")
+    );
+  }
+  return false;
+}
+
+function getRetryDelayMs(attempt: number) {
+  const baseMs = getConfiguredPositiveInt(
+    "SEARCH_LLM_RETRY_BASE_MS",
+    DEFAULT_LLM_RETRY_BASE_MS,
+    { max: 60000 },
+  );
+  const maxMs = getConfiguredPositiveInt(
+    "SEARCH_LLM_RETRY_MAX_MS",
+    DEFAULT_LLM_RETRY_MAX_MS,
+    { max: 120000 },
+  );
+  const exponentialMs = Math.min(maxMs, baseMs * 2 ** Math.max(0, attempt - 1));
+  const jitterMs = Math.floor(Math.random() * Math.min(1000, Math.max(100, baseMs)));
+  return Math.min(maxMs, exponentialMs + jitterMs);
+}
 
 function buildSdkCompatibleFetcher() {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -269,6 +458,32 @@ function buildUsage(usage: unknown) {
 async function generateOfficialDeepSeekText(
   options: OpenRouterTextOptions,
 ): Promise<OpenRouterTextResult> {
+  const maxAttempts = getConfiguredPositiveInt(
+    "SEARCH_LLM_MAX_ATTEMPTS",
+    DEFAULT_LLM_MAX_ATTEMPTS,
+    { max: 8 },
+  );
+
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await sendOfficialDeepSeekRequest(options);
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      lastError = normalizedError;
+      if (options.abortSignal?.aborted || attempt >= maxAttempts || !isRetriableLlmError(error)) {
+        throw normalizedError;
+      }
+      await sleep(getRetryDelayMs(attempt), options.abortSignal);
+    }
+  }
+
+  throw lastError || new Error("DeepSeek request failed");
+}
+
+async function sendOfficialDeepSeekRequest(
+  options: OpenRouterTextOptions,
+): Promise<OpenRouterTextResult> {
   const baseUrl = getOpenRouterBaseUrl().replace(/\/$/, "");
   const thinkingType = getDeepSeekThinkingType();
   const body: Record<string, unknown> = {
@@ -289,15 +504,24 @@ async function generateOfficialDeepSeekText(
         : {}),
   };
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getOpenRouterApiKey()}`,
-    },
-    body: JSON.stringify(body),
-    signal: options.abortSignal,
-  });
+  const { signal, cleanup } = createRequestSignal(options);
+  let release: (() => void) | null = null;
+  let response: Response;
+  try {
+    release = await acquireLlmSlot(signal);
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getOpenRouterApiKey()}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } finally {
+    release?.();
+    cleanup();
+  }
 
   const raw = await response.json().catch(() => null);
   if (!response.ok) {
@@ -309,7 +533,7 @@ async function generateOfficialDeepSeekText(
       error && typeof error === "object" && "message" in error
         ? String((error as { message?: unknown }).message)
         : response.statusText;
-    throw new Error(`DeepSeek API error ${response.status}: ${message}`);
+    throw new DeepSeekApiError(`DeepSeek API error ${response.status}: ${message}`, response.status);
   }
 
   const apiError = raw && typeof raw === "object"
@@ -317,7 +541,10 @@ async function generateOfficialDeepSeekText(
     : null;
   if (apiError && typeof apiError === "object") {
     const { code, message: msg } = apiError as { code?: unknown; message?: unknown };
-    throw new Error(`DeepSeek API error ${String(code ?? "unknown")}: ${String(msg ?? "unknown error")}`);
+    throw new DeepSeekApiError(
+      `DeepSeek API error ${String(code ?? "unknown")}: ${String(msg ?? "unknown error")}`,
+      typeof code === "number" ? code : undefined,
+    );
   }
 
   const choices =

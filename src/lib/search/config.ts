@@ -71,13 +71,13 @@ export const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
 
 export const DEEP_SCORING_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_CONCURRENCY",
-  25,
+  6,
   { max: 200 },
 );
 
 export const DEEP_REVIEW_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_REVIEW_CONCURRENCY",
-  24,
+  6,
   { max: 100 },
 );
 
@@ -89,13 +89,13 @@ export const DEEP_CACHE_PRIMER_COUNT = getConfiguredPositiveInt(
 
 export const JUDGE_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(
   "SEARCH_JUDGE_SCORING_TIMEOUT_MS",
-  120000,
+  300000,
   { min: 30000, max: 300000 },
 );
 
 export const ARBITER_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(
   "SEARCH_ARBITER_SCORING_TIMEOUT_MS",
-  120000,
+  300000,
   { min: 30000, max: 300000 },
 );
 
