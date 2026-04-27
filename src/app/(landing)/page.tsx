@@ -363,8 +363,8 @@ export default function Home() {
           <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.07)] sm:grid-cols-4">
             {[
               {
-                title: "25 candidates/search",
-                desc: "Relevant profiles delivered in minutes.",
+                title: "Top matches first",
+                desc: "Start with the people most worth reviewing.",
               },
               {
                 title: "Explainable fit reasons",
