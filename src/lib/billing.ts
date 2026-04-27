@@ -65,7 +65,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "One high-conviction shortlist per month with up to 25 ranked candidates, then unlock contact and outreach execution on Pro.",
+    description: "Validate one role with a ranked shortlist before you pay.",
     priceLabel: "$0",
     cadenceLabel: "free forever",
     billingCycle: null,
@@ -79,7 +79,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   pro_monthly: {
     code: "pro_monthly",
     name: "Pro Monthly",
-    description: "For recruiters, founders, and hiring teams who need reliable weekly throughput.",
+    description: "Flexible month-to-month access for active searches and experiments.",
     priceLabel: "$99",
     cadenceLabel: "per seat / month",
     billingCycle: "month",
@@ -89,12 +89,11 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     exportEnabled: true,
     priceCents: 9900,
     ctaLabel: "Upgrade monthly",
-    featured: true,
   },
   pro_annual: {
     code: "pro_annual",
     name: "Pro Annual",
-    description: "Same sourcing limits, better payback and lower monthly equivalent.",
+    description: "Best value for ongoing sourcing with the same monthly capacity.",
     priceLabel: "$79",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",
@@ -104,6 +103,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     exportEnabled: true,
     priceCents: 94800,
     ctaLabel: "Upgrade annually",
+    featured: true,
   },
 };
 

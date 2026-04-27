@@ -1,7 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
 import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK } from "@/lib/billing";
 import type { User } from "@supabase/supabase-js";
+
+const planCtaLabels = {
+  free: "Start free",
+  pro_monthly: "Start monthly",
+  pro_annual: "Start annual",
+} as const;
 
 export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn: () => void }) {
   // Compute monthly-equivalent savings between Pro Monthly and Pro Annual.
@@ -15,95 +21,132 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
       : 0;
 
   return (
-    <section id="pricing" className="border-t border-slate-200 py-20 sm:py-28">
+    <section id="pricing" className="scroll-mt-24 border-t border-slate-200 bg-white py-20 sm:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
             Pricing
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Start free. Upgrade when sourcing volume justifies it.
+            Simple pricing for ranked sourcing runs.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            One high-conviction shortlist per month on Free. Upgrade for weekly throughput, CSV exports, and outreach drafts.
+            Run your first shortlist free. Upgrade when you need more searches, contact enrichment,
+            exports, and outreach drafts.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs">
-            <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-medium text-sky-800">
-              Built for recruiters and search firms
+            <span className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-1 font-semibold text-blue-700">
+              Annual saves {annualSavingsPercent}%
             </span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium text-slate-700">
-              Self-serve signup and billing
+            <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">
+              No credit card to start
             </span>
-            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-800">
-              No credit card required
+            <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
+              Cancel anytime
             </span>
           </div>
         </div>
 
-        <div className="mt-14 grid gap-5 lg:grid-cols-3">
+        <div className="mt-14 grid gap-5 lg:grid-cols-3 lg:items-stretch">
           {Object.values(BILLING_PLANS).map((plan) => {
             const isAnnual = plan.code === "pro_annual";
+            const isMonthly = plan.code === "pro_monthly";
+            const isFree = plan.code === "free";
+            const isRecommended = isAnnual;
             return (
               <div
                 key={plan.code}
-                className={`relative flex flex-col rounded-3xl border p-7 transition-all ${
-                  plan.featured
-                    ? "border-amber-300 bg-[linear-gradient(180deg,#fff7df_0%,#fff2c7_100%)] shadow-[0_24px_80px_rgba(251,191,36,0.18)] lg:scale-[1.02]"
-                    : "border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_18px_45px_rgba(14,165,233,0.12)]"
+                className={`relative flex flex-col rounded-lg border p-6 shadow-[0_14px_40px_rgba(15,23,42,0.07)] transition-all ${
+                  isRecommended
+                    ? "border-blue-300 bg-[linear-gradient(180deg,#eff6ff_0%,#ffffff_42%)] ring-1 ring-blue-100 lg:-mt-3 lg:mb-3"
+                    : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_50px_rgba(37,99,235,0.11)]"
                 }`}
               >
-                {plan.featured && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-amber-400 px-4 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-950 shadow-[0_8px_20px_rgba(251,191,36,0.36)]">
-                    Most popular
+                {isRecommended && (
+                  <span className="absolute -top-3 left-5 rounded-lg bg-blue-600 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_10px_24px_rgba(37,99,235,0.24)]">
+                    Best value
                   </span>
                 )}
-                {isAnnual && annualSavingsPercent > 0 && (
-                  <span className="absolute -top-3 right-5 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white shadow-[0_8px_20px_rgba(16,185,129,0.32)]">
+                {isAnnual && annualSavingsPercent > 0 ? (
+                  <span className="absolute -top-3 right-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
                     Save {annualSavingsPercent}%
                   </span>
-                )}
+                ) : null}
 
-                <div>
-                  <p className="text-lg font-semibold text-slate-950">{plan.name}</p>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{plan.description}</p>
+                {isMonthly ? (
+                  <span className="absolute -top-3 right-5 rounded-lg border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
+                    Flexible
+                  </span>
+                ) : null}
+
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-lg font-semibold text-slate-950">{plan.name}</p>
+                    <p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">
+                      {plan.description}
+                    </p>
+                  </div>
+                  {isFree ? (
+                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                      Free
+                    </span>
+                  ) : null}
                 </div>
 
-                <div className="mt-6 flex items-baseline gap-1.5">
-                  <span className="text-5xl font-bold tracking-tight text-slate-950">{plan.priceLabel}</span>
-                  {plan.priceCents > 0 && (
-                    <span className="text-sm font-medium text-slate-500">/mo</span>
-                  )}
+                <div className="mt-6 flex items-end gap-1.5">
+                  <span className="text-5xl font-bold tracking-tight text-slate-950">
+                    {plan.priceLabel}
+                  </span>
+                  {plan.priceCents > 0 ? (
+                    <span className="pb-1.5 text-sm font-semibold text-slate-500">/mo</span>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-xs text-slate-500">{plan.cadenceLabel}</p>
 
-                <ul className="mt-7 space-y-2.5 text-sm text-slate-700">
+                {isAnnual ? (
+                  <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                    Billed ${Math.round(plan.priceCents / 100).toLocaleString()} annually.
+                  </p>
+                ) : null}
+
+                <ul className="mt-7 space-y-3 text-sm text-slate-700">
                   <li className="flex items-start gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>
                       <strong className="text-slate-950">{plan.searchesPerMonth}</strong>{" "}
-                      {plan.searchesPerMonth === 1 ? "search" : "searches"} each month
+                      {plan.searchesPerMonth === 1 ? "ranked search" : "ranked searches"} / month
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>
                       <strong className="text-slate-950">{plan.candidateLimitPerSearch}</strong>{" "}
-                      candidates per search
+                      candidates per shortlist
                     </span>
                   </li>
-                  {plan.enrichesPerMonth > 0 && (
+                  {plan.enrichesPerMonth > 0 ? (
                     <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                       <span>
-                        <strong className="text-slate-950">{plan.enrichesPerMonth}</strong> email +
-                        draft {plan.enrichesPerMonth === 1 ? "enrich" : "enriches"}
+                        <strong className="text-slate-950">{plan.enrichesPerMonth}</strong>{" "}
+                        email + outreach draft enriches / month
                       </span>
                     </li>
+                  ) : (
+                    <li className="flex items-start gap-2 text-slate-500">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
+                      <span>Upgrade for contact enrichment and outreach drafts</span>
+                    </li>
                   )}
-                  {plan.exportEnabled && (
+                  {plan.exportEnabled ? (
                     <li className="flex items-start gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                       <span>CSV export included</span>
+                    </li>
+                  ) : (
+                    <li className="flex items-start gap-2 text-slate-500">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
+                      <span>Upgrade for CSV export</span>
                     </li>
                   )}
                 </ul>
@@ -112,10 +155,10 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                   {user ? (
                     <Link
                       href="/app/settings#billing"
-                      className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all ${
-                        plan.featured
-                          ? "bg-amber-400 text-slate-950 shadow-[0_8px_24px_rgba(251,191,36,0.32)] hover:bg-amber-300"
-                          : "border border-slate-200 bg-slate-50 text-slate-950 hover:border-sky-300 hover:bg-white"
+                      className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-all ${
+                        isRecommended
+                          ? "bg-blue-600 text-white shadow-[0_14px_32px_rgba(37,99,235,0.24)] hover:bg-blue-700"
+                          : "border border-slate-200 bg-slate-50 text-slate-950 hover:border-blue-300 hover:bg-white"
                       }`}
                     >
                       Open billing
@@ -125,13 +168,13 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                     <button
                       type="button"
                       onClick={onSignIn}
-                      className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all ${
-                        plan.featured
-                          ? "bg-amber-400 text-slate-950 shadow-[0_8px_24px_rgba(251,191,36,0.32)] hover:bg-amber-300"
-                          : "border border-slate-200 bg-slate-50 text-slate-950 hover:border-sky-300 hover:bg-white"
+                      className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-all ${
+                        isRecommended
+                          ? "bg-blue-600 text-white shadow-[0_14px_32px_rgba(37,99,235,0.24)] hover:bg-blue-700"
+                          : "border border-slate-200 bg-slate-50 text-slate-950 hover:border-blue-300 hover:bg-white"
                       }`}
                     >
-                      Sign in to choose plan
+                      {planCtaLabels[plan.code]}
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   )}
@@ -141,30 +184,40 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
           })}
         </div>
 
-        <div className="mt-10 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="text-sm font-semibold text-slate-950">{SEARCH_PACK.name}</p>
-              <span className="text-base font-bold text-slate-950">{SEARCH_PACK.priceLabel}</span>
+        <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-5">
+          <div className="grid gap-4 lg:grid-cols-[0.9fr_1fr_1fr] lg:items-center">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">Need more in a heavy month?</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Add one-time credits without changing your subscription.
+              </p>
             </div>
-            <p className="mt-2 text-sm text-slate-600">
-              {SEARCH_PACK.credits} extra searches for heavy months. One-time pack.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="text-sm font-semibold text-slate-950">{CONTACT_PACK.name}</p>
-              <span className="text-base font-bold text-slate-950">{CONTACT_PACK.priceLabel}</span>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-950">{SEARCH_PACK.name}</p>
+                <span className="text-base font-bold text-slate-950">{SEARCH_PACK.priceLabel}</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                {SEARCH_PACK.credits} extra searches for heavier sourcing weeks.
+              </p>
             </div>
-            <p className="mt-2 text-sm text-slate-600">
-              {CONTACT_PACK.credits} extra email + draft enriches. One-time pack.
-            </p>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-950">{CONTACT_PACK.name}</p>
+                <span className="text-base font-bold text-slate-950">
+                  {CONTACT_PACK.priceLabel}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                {CONTACT_PACK.credits} extra email + outreach draft enriches.
+              </p>
+            </div>
           </div>
         </div>
 
-        <details className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.06)] open:bg-slate-50">
+        <details className="mt-6 rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.06)] open:bg-slate-50">
           <summary className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-950">
-            <ShieldCheck className="h-5 w-5 shrink-0 text-sky-600" />
+            <ShieldCheck className="h-5 w-5 shrink-0 text-blue-600" />
             <span>Billing terms, refunds, and cancellation</span>
             <span className="ml-auto text-xs text-slate-500">Click to expand</span>
           </summary>
