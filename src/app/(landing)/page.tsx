@@ -10,7 +10,14 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowRight, FileText, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  LockKeyhole,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import {
   ANALYTICS_EVENTS,
@@ -210,159 +217,174 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-[#fbfaf7] text-slate-950">
       {/* Nav */}
-      <nav className="fixed top-0 z-50 w-full border-b border-white/[0.08] bg-[#07101d]/78 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+      <nav className="fixed top-0 z-50 w-full border-b border-slate-200/80 bg-[#fbfaf7]/92 backdrop-blur-xl">
+        <div className="mx-auto flex h-[4.5rem] max-w-[96rem] items-center justify-between px-5 sm:px-6">
           <div className="flex items-center gap-2.5">
             <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
-            <span className="text-xl font-bold tracking-tight text-white">Hirelix</span>
+            <span className="text-xl font-bold tracking-tight text-slate-950">Hirelix</span>
           </div>
-          <button
-            type="button"
-            onClick={handleGenericSignIn}
-            className="rounded-lg border border-white/[0.16] bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:border-white/[0.28] hover:bg-white/[0.1]"
-          >
-            Sign In
-          </button>
+          <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
+            <a href="#product" className="transition-colors hover:text-slate-950">Product</a>
+            <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
+            <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>
+            <a href="#faq" className="transition-colors hover:text-slate-950">FAQ</a>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleGenericSignIn}
+              className="hidden rounded-lg px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:text-slate-950 sm:inline-flex"
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={handleTrySample}
+              data-testid="nav-primary-cta"
+              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(37,99,235,0.22)] transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+            >
+              Get started free
+            </button>
+          </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="landing-dark relative overflow-hidden pt-20 pb-8 sm:pt-24 sm:pb-12 lg:min-h-[calc(100vh-4rem)] lg:pt-14 lg:pb-6">
-        <div className="hero-grid pointer-events-none absolute inset-0" />
-        <div className="pointer-events-none absolute top-16 left-1/2 h-[660px] w-[660px] -translate-x-1/2 rounded-full bg-sky-400/[0.1] blur-[132px]" />
-        <div className="pointer-events-none absolute top-44 left-1/4 h-[280px] w-[280px] rounded-full bg-cyan-300/[0.07] blur-[100px] animate-glow" />
-        <div className="pointer-events-none absolute top-32 right-[14%] h-[360px] w-[360px] rounded-full bg-amber-300/[0.08] blur-[140px]" />
-
-        <div className="relative mx-auto grid max-w-[92rem] gap-6 px-6 lg:min-h-[calc(100vh-8rem)] lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
-          <div className="lg:flex lg:min-h-full lg:flex-col lg:justify-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/[0.1] px-3 py-1 text-xs font-medium text-sky-100">
+      <section id="product" className="relative overflow-hidden border-b border-slate-200/80 pt-24 pb-10 sm:pt-28 sm:pb-12">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.035)_1px,transparent_1px)] bg-[size:64px_64px]" />
+        <div className="relative mx-auto grid max-w-[96rem] gap-8 px-5 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
               <Sparkles className="h-3.5 w-3.5" />
-              For technical recruiters and headhunters
+              AI recruiting for technical teams
             </div>
 
-            <h1 className="mt-3 max-w-[12.5ch] text-4xl font-extrabold leading-[0.93] tracking-tight text-white sm:text-[2.8rem] lg:text-[3.15rem]">
-              Paste a JD.
-              <br />
-              <span className="text-gradient">Get GitHub-vetted shortlist and outreach in minutes.</span>
+            <h1 className="mt-5 max-w-[13.5ch] text-5xl font-extrabold leading-[0.96] tracking-tight text-slate-950 sm:text-[3.75rem] lg:text-[4.05rem]">
+              Turn any JD into a ranked{" "}
+              <span className="text-blue-600">technical shortlist.</span>
             </h1>
 
-            <p className="mt-2.5 max-w-[33rem] text-[15px] leading-relaxed text-slate-300 sm:text-[0.96rem]">
-              Real LinkedIn profiles, cross-referenced with GitHub signals when public evidence exists.
-              One pasted JD gets you a ranked shortlist and personalized outreach drafts.
+            <p className="mt-5 max-w-[34rem] text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+              Find real LinkedIn profiles, see why each candidate fits, and prepare outreach
+              drafts in minutes. Public GitHub signals are added when they help verify technical depth.
             </p>
 
-            <div className="mt-2.5 hidden flex-wrap items-center gap-1.5 text-[11px] text-slate-100 sm:flex">
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 font-medium text-emerald-200">
-                Technical recruiter workflow
-              </span>
-              <span className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-1 font-medium text-sky-100">
-                Large-scale LinkedIn search
-              </span>
-              <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
-                Ranked fit reasons
-              </span>
-              <span className="rounded-full border border-white/[0.12] bg-white/[0.06] px-3 py-1 font-medium text-slate-100">
-                Personalized outreach drafts
-              </span>
-            </div>
-
-            {/* Mobile CTA */}
-            <div className="mt-5 rounded-2xl border border-white/[0.2] bg-[linear-gradient(180deg,rgba(248,250,252,0.97)_0%,rgba(232,240,250,0.94)_100%)] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)] sm:hidden">
-              <p className="text-sm font-semibold text-slate-950">
-                Best experienced on desktop
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                Reviewing candidates, match reasons, and outreach drafts is much easier on a larger screen.
-              </p>
-              <div className="mt-4 grid gap-2">
-                <button
-                  type="button"
-                  onClick={handleTrySample}
-                  data-testid="mobile-sample-cta"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 transition-all hover:bg-amber-300"
-                >
-                  Try a Sample Search <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-              <p className="mt-3 text-center text-xs text-slate-600">
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={handleGenericSignIn}
-                  className="font-medium text-sky-700 hover:underline"
-                >
-                  Sign in on this device
-                </button>
-              </p>
-              <div className="mt-4 grid gap-2 text-xs text-slate-600">
-                <p>From JD to shortlist and personalized drafts</p>
-                <p>Real LinkedIn profiles with ranked fit reasons</p>
-                <p>GitHub-backed signals when public evidence exists</p>
-                <p>Sign in only when you&apos;re ready to run the search</p>
-              </div>
-            </div>
-
-            {/* Desktop JD form */}
-            <form id="hero-form" onSubmit={handleSubmit} className="mt-2 hidden sm:block">
-              <div className="rounded-[26px] border border-white/[0.24] bg-gradient-to-br from-slate-100/90 via-white/85 to-sky-100/75 p-[1px] shadow-[0_30px_90px_rgba(8,25,51,0.32)]">
-                <div className="rounded-[25px] bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.34),_transparent_36%),linear-gradient(180deg,_rgba(248,250,252,0.98)_0%,_rgba(236,244,252,0.96)_100%)] p-3.5 sm:p-4">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-950">
-                    <FileText className="h-4 w-4 text-sky-700" />
+            <form id="hero-form" onSubmit={handleSubmit} className="mt-6 max-w-[35rem]">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.11)]">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                    <FileText className="h-4 w-4 text-blue-600" />
                     Paste a job description
                   </div>
-                  <div className="rounded-[20px] border border-slate-200 bg-white/90 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                    <textarea
-                      value={jdText}
-                      onChange={(e) => handleJdInput(e.target.value)}
-                      placeholder="Paste the full JD here. We will keep it ready for you on the next step."
-                      rows={3}
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-950 placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
-                    />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-600">
-                    <span>
-                      {wordCount > 0
-                        ? `${wordCount} words ready to analyze`
-                        : "Works best with a full JD, not just a role title."}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleTrySample}
-                      data-testid="hero-sample-link"
-                      className="font-medium text-sky-700 underline-offset-4 transition-colors hover:text-sky-900 hover:underline"
-                    >
-                      No JD handy? Use a sample role.
-                    </button>
-                  </div>
-                  <div className="mt-3">
-                    <button
-                      type="submit"
-                      disabled={!canSubmit || isSubmitting}
-                      data-testid="hero-primary-cta"
-                      aria-busy={isSubmitting}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-[18px] bg-amber-400 px-6 py-3 text-base font-semibold text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-[0_24px_60px_rgba(251,191,36,0.42)] disabled:cursor-wait disabled:opacity-70"
-                    >
-                      {isSubmitting ? "Opening your shortlist..." : "Get Shortlist + Outreach"}{" "}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                    <p className="mt-2.5 text-center text-xs leading-relaxed text-slate-600">
-                      {isSubmitting
-                        ? "Taking you to the sign-in step with your JD ready."
-                        : "No credit card for the Free plan. Sign in when you are ready to run the search."}
-                    </p>
+                  <span className="hidden text-xs font-medium text-emerald-700 sm:inline">
+                    {wordCount > 0 ? `${wordCount} words ready` : "No setup required"}
+                  </span>
+                </div>
+                <textarea
+                  value={jdText}
+                  onChange={(e) => handleJdInput(e.target.value)}
+                  placeholder="Paste the full job description here..."
+                  rows={3}
+                  className="min-h-28 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-sm leading-6 text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100"
+                />
+                <div className="mt-3 flex flex-col gap-3 text-xs text-slate-600 sm:flex-row sm:items-start sm:justify-between">
+                  <span>
+                    {wordCount > 0
+                      ? `${wordCount} words ready to analyze`
+                      : "No JD handy? Try a sample:"}
+                  </span>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    {["Senior Software Engineer", "Data Engineer", "ML Engineer"].map((label) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={handleTrySample}
+                        data-testid={`hero-sample-${label.toLowerCase().replaceAll(" ", "-")}`}
+                        className="font-semibold text-blue-700 underline-offset-4 transition-colors hover:text-blue-900 hover:underline"
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
+                <button
+                  type="submit"
+                  disabled={!canSubmit || isSubmitting}
+                  data-testid="hero-primary-cta"
+                  aria-busy={isSubmitting}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3.5 text-base font-semibold text-white shadow-[0_18px_42px_rgba(37,99,235,0.26)] transition-all hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-wait disabled:opacity-70"
+                >
+                  {isSubmitting ? "Opening your shortlist..." : "Get ranked shortlist"}{" "}
+                  <ArrowRight className="h-4 w-4" />
+                </button>
               </div>
             </form>
 
-            <p className="mt-3 hidden text-xs text-slate-300/70 sm:block">
-              Trusted by technical recruiters running high-volume engineering searches.
-            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600">
+              {[
+                { icon: CheckCircle2, label: "No credit card" },
+                { icon: LockKeyhole, label: "Private JD handoff" },
+                { icon: ShieldCheck, label: "Evidence-based ranking" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <item.icon className="h-4 w-4 text-emerald-600" />
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           <HeroPreview />
+        </div>
+
+        <div className="relative mx-auto mt-8 max-w-[96rem] px-5 sm:px-6">
+          <div className="border-y border-slate-200 py-5">
+            <div className="grid gap-3 text-sm text-slate-500 sm:grid-cols-[1.05fr_1fr_1fr_1fr] sm:items-center">
+              <p className="font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Built for technical recruiters, search firms, and founder-led hiring teams
+              </p>
+              {[
+                "LinkedIn-first sourcing",
+                "Public engineering signals",
+                "Ready-to-edit outreach",
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-2 sm:justify-end">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="font-medium text-slate-700">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="relative mx-auto mt-7 max-w-[96rem] px-5 sm:px-6">
+          <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.07)] sm:grid-cols-4">
+            {[
+              {
+                title: "25 candidates/search",
+                desc: "Relevant profiles delivered in minutes.",
+              },
+              {
+                title: "Explainable fit reasons",
+                desc: "Clear evidence for every rank.",
+              },
+              {
+                title: "GitHub signals when public",
+                desc: "Open-source and engineering depth surfaced carefully.",
+              },
+              {
+                title: "Outreach drafts included",
+                desc: "Personalized copy for LinkedIn and email.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="border-slate-200 py-2 sm:border-l sm:first:border-l-0 sm:px-5">
+                <p className="text-sm font-semibold text-slate-950">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{item.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -375,7 +397,7 @@ export default function Home() {
       <CtaSection
         onTrySample={handleTrySample}
         onSignIn={handleGenericSignIn}
-        desktopFooterCtaLabel="Get Shortlist + Outreach"
+        desktopFooterCtaLabel="Get ranked shortlist"
       />
 
       <AuthModal

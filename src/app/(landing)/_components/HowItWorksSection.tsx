@@ -2,33 +2,33 @@ export function HowItWorksSection() {
   const steps = [
     {
       step: "1",
-      title: "Bring the real job description",
-      desc: "Paste the actual role so the system can interpret skills, level, and role shape correctly — no Boolean translation required.",
+      title: "Paste the real job description",
+      desc: "Hirelix turns the JD into a search brief with role level, must-have skills, target signals, and constraints.",
     },
     {
       step: "2",
-      title: "Sign in and run the search",
-      desc: "Your pasted JD stays with you, so authentication does not reset the workflow.",
+      title: "Search and rank technical profiles",
+      desc: "The system finds LinkedIn profiles, scores fit, and adds public engineering evidence when it is available.",
     },
     {
       step: "3",
-      title: "Review candidates and outreach",
-      desc: "Open the shortlist, inspect fit reasons and evidence, then move straight into personalized drafts.",
+      title: "Review evidence and edit outreach",
+      desc: "Recruiters get a ranked shortlist, concise fit reasons, and drafts they can personalize before sending.",
     },
   ];
 
   return (
-    <section className="border-t border-slate-200 py-20 sm:py-28">
+    <section id="how-it-works" className="border-t border-slate-200 bg-[#fbfaf7] py-20 sm:py-28">
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
             How it works
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            What happens after the click
+            From JD to outreach in one flow
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Three steps from a JD on your clipboard to outreach ready to send.
+            The product should feel obvious before someone signs in: paste, rank, review, reach out.
           </p>
         </div>
 
@@ -43,9 +43,9 @@ export function HowItWorksSection() {
             {steps.map((item) => (
               <div
                 key={item.step}
-                className="group relative rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-[0_18px_45px_rgba(14,165,233,0.14)]"
+                className="group relative rounded-lg border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_45px_rgba(37,99,235,0.12)]"
               >
-                <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-xl font-bold text-white shadow-[0_10px_30px_rgba(14,165,233,0.32)]">
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-lg font-bold text-white shadow-[0_10px_30px_rgba(37,99,235,0.26)]">
                   {item.step}
                 </div>
                 <h3 className="text-lg font-semibold text-slate-950">{item.title}</h3>

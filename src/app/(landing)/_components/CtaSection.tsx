@@ -14,33 +14,32 @@ export function CtaSection({
 }) {
   return (
     <>
-      <section className="relative overflow-hidden border-t border-slate-200 py-24 sm:py-32">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-sky-100 via-white to-[#f8fbff]" />
-        <div className="pointer-events-none absolute bottom-0 left-1/2 h-[360px] w-[560px] -translate-x-1/2 rounded-full bg-sky-200/60 blur-[120px]" />
+      <section className="relative overflow-hidden border-t border-slate-200 bg-[#fbfaf7] py-24 sm:py-32">
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
             Ready when you are
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-            Bring your next open role.
+            Start with the role already on your desk.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            See the workflow first. Run the real search once you&apos;re ready to sign in — no credit card required.
+            Paste a JD, review the shortlist, and edit the outreach before anything gets sent.
+            No credit card required to start.
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-4">
             <a
               href="#hero-form"
-              className="hidden items-center gap-2 rounded-xl bg-amber-400 px-8 py-4 text-base font-semibold text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-[0_18px_50px_rgba(251,191,36,0.42)] sm:inline-flex"
+              className="hidden items-center gap-2 rounded-lg bg-blue-600 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(37,99,235,0.24)] transition-all hover:-translate-y-0.5 hover:bg-blue-700 sm:inline-flex"
             >
               {desktopFooterCtaLabel} <ArrowRight className="h-4 w-4" />
             </a>
             <button
               type="button"
               onClick={onTrySample}
-              className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-8 py-4 text-base font-semibold text-slate-950 transition-all hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-[0_18px_50px_rgba(251,191,36,0.42)] sm:hidden"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(37,99,235,0.24)] transition-all hover:-translate-y-0.5 hover:bg-blue-700 sm:hidden"
             >
-              Try a Sample Search <ArrowRight className="h-4 w-4" />
+              Try a sample search <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-sm text-slate-600">
               Already have an account?{" "}
@@ -65,7 +64,7 @@ export function CtaSection({
               Real LinkedIn profiles
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
               Drafts ready in minutes
             </span>
           </div>

@@ -3,7 +3,7 @@ import { billingFaqs } from "./data";
 
 export function BillingFaqSection() {
   return (
-    <section className="border-t border-slate-200 py-20 sm:py-28">
+    <section id="faq" className="border-t border-slate-200 py-20 sm:py-28">
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
