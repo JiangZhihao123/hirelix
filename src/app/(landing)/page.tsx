@@ -331,7 +331,7 @@ export default function Home() {
             </div>
           </div>
 
-          <HeroPreview />
+          <HeroPreview onSignInClick={handleGenericSignIn} />
         </div>
 
         <div className="relative mx-auto mt-8 max-w-[96rem] px-5 sm:px-6">

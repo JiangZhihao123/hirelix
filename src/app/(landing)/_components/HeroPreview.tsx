@@ -42,7 +42,7 @@ const outreachDrafts = {
   },
 } as const;
 
-export function HeroPreview() {
+export function HeroPreview({ onSignInClick }: { onSignInClick: () => void }) {
   const displayedCandidates = candidateRows.slice(0, 3);
   const [outreachChannel, setOutreachChannel] = useState<keyof typeof outreachDrafts>("inmail");
   const activeDraft = outreachDrafts[outreachChannel];
@@ -241,7 +241,8 @@ export function HeroPreview() {
 
             <button
               type="button"
-              className="mt-3 inline-flex w-full cursor-default items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2.5 text-sm font-semibold text-emerald-700"
+              onClick={onSignInClick}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2.5 text-sm font-semibold text-emerald-700 transition-colors hover:border-emerald-400 hover:bg-emerald-50"
             >
               <Send className="h-4 w-4" />
               {activeDraft.cta}
