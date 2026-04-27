@@ -293,7 +293,7 @@ export function LoginForm({
           <h3
             className={
               variant === "modal"
-                ? "text-xl font-semibold text-white"
+                ? "text-2xl font-bold tracking-tight text-slate-950"
                 : "text-lg font-semibold text-foreground"
             }
           >
@@ -302,7 +302,7 @@ export function LoginForm({
           {contextBody && (
             <p
               className={
-                variant === "modal" ? "mt-2 text-sm text-slate-300" : "mt-2 text-sm text-muted"
+                variant === "modal" ? "mt-2 text-sm leading-6 text-slate-600" : "mt-2 text-sm text-muted"
               }
             >
               {contextBody}
