@@ -14,8 +14,6 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-process.env.SEARCH_RECALL_PROVIDER = 'serper';
-process.env.SEARCH_RECALL_FALLBACK_PROVIDER = 'serper';
 process.env.SEARCH_BRIGHTDATA_FILTER_LIMIT = '100';
 process.env.SEARCH_TARGET_SCRAPE_COUNT = '10';
 process.env.AI_PROVIDER = 'deepseek';

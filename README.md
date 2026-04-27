@@ -122,8 +122,8 @@ npx tsx --test tests/github-signals.test.ts
 | 数据库 | `DATABASE_URL` | PostgreSQL 连接字符串 |
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase 认证与数据库 |
 | AI | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY` | AI 模型配置（默认 DeepSeek） |
-| 数据源 | `BRIGHTDATA_API_TOKEN`, `SERPER_API_KEY` | LinkedIn 数据召回 |
-| GitHub | `GITHUB_TOKEN` | GitHub 富化 |
+| 数据源 | `BRIGHTDATA_API_TOKEN` | LinkedIn 数据召回 |
+| GitHub | `GITHUB_TOKEN`, `SERPER_API_KEY`（可选） | GitHub 富化（Serper 仅用于身份发现兜底） |
 | 计费 | `NEXT_PUBLIC_PADDLE_*` | Paddle 支付集成 |
 | 通知 | `RESEND_API_KEY`, `SEARCH_NOTIFICATIONS_ENABLED` | 搜索完成邮件通知 |
 

@@ -114,10 +114,9 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 ### 4.2 搜索流水线
 
 1. JD 解析：`src/lib/jd-parse.ts`
-2. Serper 搜索：`src/lib/serper.ts`
-3. Bright Data 抓取：`src/lib/brightdata.ts`
-4. AI 深度评分：`src/lib/search-jobs.ts`
-5. GitHub 富化：`src/lib/github-signals.ts`
+2. Bright Data 召回：`src/lib/brightdata.ts`（LinkedIn 数据集筛选 + 抓取）
+3. AI 预筛 + 深度评分：`src/lib/search-jobs.ts`
+4. GitHub 富化：`src/lib/github-signals.ts`（身份发现兜底使用 Serper，见 `src/lib/github/discovery.ts`）
 
 ### 4.3 核心文件
 
@@ -134,8 +133,8 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | `src/lib/search-notifications.ts` | 搜索完成通知(Resend 邮件) |
 | `src/lib/recruiter-outreach.ts` | 外联文案生成 |
 | `src/lib/brightdata.ts` | Bright Data 数据集/抓取接口 |
-| `src/lib/serper.ts` | Serper 搜索引擎接口 |
 | `src/lib/github-signals.ts` | GitHub 档案富化 |
+| `src/lib/github/discovery.ts` | GitHub 身份发现（含 Serper 兜底） |
 | `src/lib/github-enrichment-jobs.ts` | GitHub 富化任务队列管理 |
 | `src/lib/jd-parse.ts` | JD 文本解析(提取技能/职位/公司) |
 | `src/lib/company-research.ts` | 目标公司研究 |
@@ -204,11 +203,11 @@ queued → parsing → searching → screening → deep_scoring → done
 |------|------|
 | `queued` | 等待调度器分配 |
 | `parsing` | AI 解析 JD 文本，提取技能/职位/公司 |
-| `searching` | Bright Data 召回 + Serper 搜索 |
+| `searching` | Bright Data 召回（LinkedIn 数据集筛选 + 抓取） |
 | `screening` | AI 预筛（地域 hard gate + 基础匹配） |
 | `deep_scoring` | AI 深度评分（匹配/能力/加入意愿） |
 | `done` | 全部完成 |
-| `degraded` | 部分完成（如 Bright Data 召回失败但 Serper 有结果） |
+| `degraded` | 部分完成（如部分候选人深度评分失败但仍有可用结果） |
 | `error` | 搜索失败 |
 
 调度器通过 `pipeline_step` 追踪当前阶段（`accepted` → `brief_ready` → `linkedin_scan` → `reviewing_profiles` → `shortlist_ready`）。
@@ -299,7 +298,7 @@ npm run scheduler:dev
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
 | AI 模型 | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY` |
 | 搜索模型档位 | `SEARCH_LIGHT_MODEL`, `SEARCH_JUDGE_MODEL`, `SEARCH_ARBITER_MODEL` |
-| 数据源 | `BRIGHTDATA_API_TOKEN`, `SERPER_API_KEY`, `GITHUB_TOKEN`, `HUNTER_API_KEY` |
+| 数据源 | `BRIGHTDATA_API_TOKEN`, `GITHUB_TOKEN`, `HUNTER_API_KEY`, `SERPER_API_KEY`（仅用于 GitHub 身份发现兜底，可选） |
 | 搜索调优 | `SEARCH_BRIGHTDATA_STANDARD_LIMIT`, `SEARCH_DEEP_SCORING_CONCURRENCY`, `SEARCH_JUDGE_SCORING_TIMEOUT_MS` |
 | Paddle 计费 | `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET` |
 | 通知 | `RESEND_API_KEY`, `SEARCH_NOTIFICATIONS_ENABLED` |

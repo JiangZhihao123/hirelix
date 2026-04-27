@@ -46,7 +46,7 @@
 | 输入 | 用户粘贴 JD 全文 | ✅ |
 | JD 解析（猎头视角） | `@/Users/noah/projects/hirelix/src/lib/prompts.ts:1-80` 的 `JD_SEARCH_INTENT_PROMPT` 显式扮演"15 年经验猎头"，反推 title 变体、横向人才池、目标公司清单、召回策略 | ✅ |
 | LinkedIn 召回 | Bright Data Dataset Filter API（`src/lib/brightdata.ts`） | ✅ |
-| 网络备份 | Serper（`src/lib/serper.ts`） | ✅ |
+| GitHub 身份发现兜底 | Serper Google 搜索（`src/lib/github/discovery.ts`） | ✅ 仅用于 GitHub 富化 |
 | 三阶段 AI 评分 | `@/Users/noah/projects/hirelix/src/lib/openrouter.ts:96-113` 显式分 LIGHT / JUDGE / ARBITER 模型档位 | ✅ |
 | 评分维度 | match / capability / **join_likelihood**（加入意愿） | ✅ |
 | 地域 hard gate | 预筛 + 深评双层（`src/lib/search-jobs.ts`） | ✅ |
@@ -677,7 +677,7 @@ ROI 计算器（Fetcher 自己的页面）：3 个 recruiter，每年 25 个新�
 | hireEZ | boolean + AI 过滤 | ⭐⭐ | ⭐⭐ | ⭐⭐ 半自动 | 缓存 | 多源 |
 | Fetcher | JD + 人审 | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ | 缓存 + 人工补充 | 多源 |
 | SeekOut | JD + 复杂筛选器 | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | 缓存 | LinkedIn + GitHub + 论文 + 专利 |
-| **Hirelix** | **JD 全文** | **⭐⭐⭐⭐⭐**（猎头视角 prompt） | **⭐⭐⭐⭐⭐**（自动） | **⭐⭐⭐⭐⭐**（自动） | 接近实时（Bright Data） | LinkedIn + GitHub + Serper |
+| **Hirelix** | **JD 全文** | **⭐⭐⭐⭐⭐**（猎头视角 prompt） | **⭐⭐⭐⭐⭐**（自动） | **⭐⭐⭐⭐⭐**（自动） | 接近实时（Bright Data） | LinkedIn + GitHub |
 
 **Hirelix 真实强项**：JD 解析深度 + 横向人才池 + 目标公司清单**自动反推**。其他工具需要用户手填或半自动。这是**Hirelix 唯一在产品层面可守的护城河**（基于代码，不是营销）。
 

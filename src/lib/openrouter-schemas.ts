@@ -214,31 +214,6 @@ export const AI_COMPANY_RESPONSE_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
   },
 };
 
-export const SERPER_PRESCREEN_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
-  name: "serper_prescreen",
-  strict: true,
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    required: ["keep", "match_score", "reason", "dimension_scores"],
-    properties: {
-      keep: { type: "boolean" },
-      match_score: { type: "number" },
-      reason: { type: "string" },
-      dimension_scores: {
-        type: "object",
-        additionalProperties: false,
-        required: ["role_relevance", "stack_match", "execution_signal"],
-        properties: {
-          role_relevance: { type: "number" },
-          stack_match: { type: "number" },
-          execution_signal: { type: "number" },
-        },
-      },
-    },
-  },
-};
-
 export const JD_SEARCH_INTENT_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
   name: "jd_search_intent",
   strict: true,

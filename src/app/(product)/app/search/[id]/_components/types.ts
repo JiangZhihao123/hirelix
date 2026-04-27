@@ -187,20 +187,6 @@ export type SearchDisplayStats = {
   time_to_first_shortlist_candidate_ms?: number;
   time_to_reviewable_ms?: number;
   time_to_done_ms?: number;
-  serper_query_tier_stats?: Array<{
-    tier: "P0" | "P1" | "P2";
-    query_count: number;
-    request_count: number;
-    raw_result_count: number;
-    unique_count: number;
-    new_unique_count: number;
-    duplicate_ratio: number;
-    source_rule_pass_count: number;
-    source_rule_pass_rate: number;
-    llm_prescreen_pass_count: number;
-    llm_prescreen_pass_rate: number;
-    stop_reason: string | null;
-  }>;
   excluded_reason_counts?: Array<{
     reason: ExcludedReason;
     count: number;
