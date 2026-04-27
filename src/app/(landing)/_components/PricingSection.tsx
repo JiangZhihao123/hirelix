@@ -9,6 +9,12 @@ const planCtaLabels = {
   pro_annual: "Start annual",
 } as const;
 
+const shortlistCopy = {
+  free: "Ranked shortlist for one role",
+  pro_monthly: "Ranked shortlist output for every search",
+  pro_annual: "Ranked shortlist output for every search",
+} as const;
+
 export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn: () => void }) {
   // Compute monthly-equivalent savings between Pro Monthly and Pro Annual.
   // pro_monthly.priceCents is per month; pro_annual.priceCents is per year.
@@ -119,10 +125,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                    <span>
-                      <strong className="text-slate-950">{plan.candidateLimitPerSearch}</strong>{" "}
-                      candidates per shortlist
-                    </span>
+                    <span>{shortlistCopy[plan.code]}</span>
                   </li>
                   {plan.enrichesPerMonth > 0 ? (
                     <li className="flex items-start gap-2">
