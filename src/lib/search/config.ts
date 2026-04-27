@@ -276,7 +276,7 @@ export function estimateTokensFromText(text: string | null | undefined, minimum 
 }
 
 function getEstimatedModelPricing() {
-  const provider = (process.env.AI_PROVIDER || "openrouter").trim().toLowerCase();
+  const provider = (process.env.AI_PROVIDER || "deepseek").trim().toLowerCase();
   if (provider === "deepseek") {
     return {
       provider: "deepseek",

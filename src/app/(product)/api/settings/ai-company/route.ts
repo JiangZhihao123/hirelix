@@ -11,11 +11,11 @@ import {
 } from "@/lib/prompts";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
-  generateOpenRouterJson,
-  getDefaultOpenRouterModel,
-  getOpenRouterApiKey,
-} from "@/lib/openrouter";
-import { AI_COMPANY_RESPONSE_JSON_SCHEMA } from "@/lib/openrouter-schemas";
+  generateLlmJson,
+  getDefaultLlmModel,
+  getLlmApiKey,
+} from "@/lib/llm-client";
+import { AI_COMPANY_RESPONSE_JSON_SCHEMA } from "@/lib/llm-schemas";
 
 type CompanyProfile = {
   name: string;
@@ -103,7 +103,7 @@ async function generateCompanyProfileFromPrompt(
   prompt: string,
   website: string,
 ) {
-  const { data } = await generateOpenRouterJson<AiCompanyResponse>({
+  const { data } = await generateLlmJson<AiCompanyResponse>({
     model,
     prompt,
     maxOutputTokens: 1800,
@@ -120,7 +120,7 @@ function logCompanyResearch(eventName: string, payload: Record<string, unknown>)
 /**
  * POST /api/settings/ai-company
  *
- * Uses OpenRouter to research a company based on its website and return a structured profile.
+ * Uses the configured LLM provider to research a company and return a structured profile.
  */
 export async function POST(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    getOpenRouterApiKey();
+    getLlmApiKey();
   } catch {
     return NextResponse.json({ error: "AI not configured" }, { status: 500 });
   }
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
   try {
     const normalizedUrl = normalizeCompanyUrl(website);
     const normalizedWebsite = normalizedUrl.toString();
-    const model = process.env.AI_MODEL || getDefaultOpenRouterModel();
+    const model = process.env.AI_MODEL || getDefaultLlmModel();
     logCompanyResearch("fetch_started", {
       user_id: user.id,
       website: normalizedWebsite,

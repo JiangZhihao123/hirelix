@@ -13,11 +13,12 @@
  */
 
 import {
-  generateOpenRouterJson,
-  getDefaultOpenRouterModel,
-  getOpenRouterApiKey,
-} from "@/lib/openrouter";
-import { COMPANY_INFO_EXTRACTION_JSON_SCHEMA } from "@/lib/openrouter-schemas";
+  generateLlmJson,
+  getDefaultLlmModel,
+  getLlmApiKey,
+  resolveDeepSeekThinkingMode,
+} from "@/lib/llm-client";
+import { COMPANY_INFO_EXTRACTION_JSON_SCHEMA } from "@/lib/llm-schemas";
 
 const HUNTER_BASE = "https://api.hunter.io/v2";
 
@@ -75,7 +76,7 @@ async function extractCompanyInfo(
   headline: string | null,
 ): Promise<{ companyName: string | null; domain: string | null }> {
   try {
-    getOpenRouterApiKey();
+    getLlmApiKey();
   } catch {
     return { companyName: null, domain: null };
   }
@@ -96,15 +97,16 @@ About: ${about?.substring(0, 300) || "N/A"}
 If uncertain, return null for that field. Return ONLY valid JSON, no markdown.`;
 
   try {
-    const { data } = await generateOpenRouterJson<{
+    const { data } = await generateLlmJson<{
       company_name?: string | null;
       domain?: string | null;
     }>({
-      model: getDefaultOpenRouterModel(),
+      model: getDefaultLlmModel(),
       prompt,
       maxOutputTokens: 300,
       temperature: 0,
       jsonSchema: COMPANY_INFO_EXTRACTION_JSON_SCHEMA,
+      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
     });
     return {
       companyName: data.company_name || null,

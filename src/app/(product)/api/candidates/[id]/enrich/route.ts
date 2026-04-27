@@ -3,11 +3,12 @@ import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { findEmail } from "@/lib/hunter";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
-  generateOpenRouterJson,
-  getDefaultOpenRouterModel,
-  getOpenRouterApiKey,
-} from "@/lib/openrouter";
-import { buildOutreachDraftJsonSchema } from "@/lib/openrouter-schemas";
+  generateLlmJson,
+  getDefaultLlmModel,
+  getLlmApiKey,
+  resolveDeepSeekThinkingMode,
+} from "@/lib/llm-client";
+import { buildOutreachDraftJsonSchema } from "@/lib/llm-schemas";
 import { enqueueGithubEnrichmentJob } from "@/lib/github-enrichment-jobs";
 import {
   buildFallbackOutreachDraft,
@@ -89,7 +90,7 @@ export async function POST(
     const hunterApiKey = process.env.HUNTER_API_KEY || null;
     let openRouterConfigured = true;
     try {
-      getOpenRouterApiKey();
+      getLlmApiKey();
     } catch {
       openRouterConfigured = false;
     }
@@ -172,7 +173,7 @@ export async function POST(
 
     // ── Step 2: Generate outreach draft (if not already generated) ──
     if (needsDraftBackfill && openRouterConfigured) {
-      const model = getDefaultOpenRouterModel();
+      const model = getDefaultLlmModel();
       const parsed = parsedRequirements;
       const roleTitle = parsed.title || "this role";
       const parsedRequiredSkills = Array.isArray(parsed.required_skills)
@@ -242,7 +243,7 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
       Return ONLY valid JSON, no markdown.`;
 
       try {
-        const { data: draft } = await generateOpenRouterJson<{
+        const { data: draft } = await generateLlmJson<{
           subject?: string;
           linkedin?: string;
           email?: string;
@@ -254,6 +255,7 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
           jsonSchema: buildOutreachDraftJsonSchema({
             includeEmail: hasEmail,
           }),
+          deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
         });
         updates.outreach_draft = JSON.stringify(draft);
         console.log(`[enrich] Outreach generated for ${sanitizedCandidateName}`);

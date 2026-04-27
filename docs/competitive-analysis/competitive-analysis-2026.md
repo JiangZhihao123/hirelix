@@ -47,7 +47,7 @@
 | JD 解析（猎头视角） | `@/Users/noah/projects/hirelix/src/lib/prompts.ts:1-80` 的 `JD_SEARCH_INTENT_PROMPT` 显式扮演"15 年经验猎头"，反推 title 变体、横向人才池、目标公司清单、召回策略 | ✅ |
 | LinkedIn 召回 | Bright Data Dataset Filter API（`src/lib/brightdata.ts`） | ✅ |
 | GitHub 身份发现兜底 | Serper Google 搜索（`src/lib/github/discovery.ts`） | ✅ 仅用于 GitHub 富化 |
-| 三阶段 AI 评分 | `@/Users/noah/projects/hirelix/src/lib/openrouter.ts:96-113` 显式分 LIGHT / JUDGE / ARBITER 模型档位 | ✅ |
+| 三阶段 AI 评分 | `@/Users/noah/projects/hirelix/src/lib/llm-client.ts:96-113` 显式分 LIGHT / JUDGE / ARBITER 模型档位 | ✅ |
 | 评分维度 | match / capability / **join_likelihood**（加入意愿） | ✅ |
 | 地域 hard gate | 预筛 + 深评双层（`src/lib/search-jobs.ts`） | ✅ |
 | GitHub 富化 | 异步 worker（`src/lib/github-enrichment-jobs.ts`） | ✅ |
@@ -318,7 +318,7 @@ hireEZ 已撤掉公开定价（pricing 页 redirect 到 contact sales），这�
 | 维度 | Pin | Hirelix |
 |------|-----|---------|
 | JD 解析深度 | "interprets JDs with recruiter-level context"（营销话术） | **`@/Users/noah/projects/hirelix/src/lib/prompts.ts:1-80` 显式编码"15 年经验猎头"角色，反推 title 变体 + 横向人才池 + 目标公司清单 + 召回策略** |
-| 评分模型 | 单层语义匹配 + AI 评分 | **三阶段（`@/Users/noah/projects/hirelix/src/lib/openrouter.ts:96-113` LIGHT/JUDGE/ARBITER）** |
+| 评分模型 | 单层语义匹配 + AI 评分 | **三阶段（`@/Users/noah/projects/hirelix/src/lib/llm-client.ts:96-113` LIGHT/JUDGE/ARBITER）** |
 | 评分维度 | 通用多维 | match / capability / **join_likelihood**（其他无） |
 | GitHub 富化 | 不强调 | ✅ `src/lib/github-enrichment-jobs.ts` 异步 worker |
 | 工程岗位深度 | 通用平台 | 专攻（GitHub + 横向工程岗位池） |
@@ -817,7 +817,7 @@ ROI 计算器（Fetcher 自己的页面）：3 个 recruiter，每年 25 个新�
 | 优势 | 文件锚定 | 证据强度 |
 |------|----------|----------|
 | **JD → 猎头 brief 自动反推** | `@/Users/noah/projects/hirelix/src/lib/prompts.ts:1-80` `JD_SEARCH_INTENT_PROMPT` 显式 15 年猎头角色 | ⭐⭐⭐⭐⭐ 公开市场无对手有同等显式编码 |
-| **三阶段 AI 评分仲裁** | `@/Users/noah/projects/hirelix/src/lib/openrouter.ts:96-113` Light/Judge/Arbiter 三档 | ⭐⭐⭐⭐⭐ 公开 8 家 landing 全无类似分层 |
+| **三阶段 AI 评分仲裁** | `@/Users/noah/projects/hirelix/src/lib/llm-client.ts:96-113` Light/Judge/Arbiter 三档 | ⭐⭐⭐⭐⭐ 公开 8 家 landing 全无类似分层 |
 | **join_likelihood 评分维度** | `src/lib/search-jobs.ts` 深评维度 | ⭐⭐⭐⭐ 公开市场无对手提及"加入意愿"独立维度 |
 | **服务端调用，零 LinkedIn 封号风险** | 全部 `src/lib/brightdata.ts` 服务端 | ⭐⭐⭐⭐ Juicebox / Pin / hireEZ 都用 Chrome 插件 |
 | **GitHub 富化（工程岗）** | `src/lib/github-enrichment-jobs.ts` 异步队列 | ⭐⭐⭐ SeekOut 也有但价格段 2x+ |
@@ -840,7 +840,7 @@ ROI 计算器（Fetcher 自己的页面）：3 个 recruiter，每年 25 个新�
 将 7.1 与 7.2 交叉看，**Hirelix 在公开市场可守的差异化只有 2 条**：
 
 1. **"Paste a JD, get a headhunter brief" 叙事**——基于 `prompts.ts` 的 JD_SEARCH_INTENT_PROMPT 真实存在
-2. **"Three-stage AI scoring with arbitration" 叙事**——基于 `openrouter.ts` 的真实分层
+2. **"Three-stage AI scoring with arbitration" 叙事**——基于 `llm-client.ts` 的真实分层
 
 **所有其他差异化都在 12 个月内会被复刻**——Juicebox $80M Series B 的钱足够做出 5 个 Hirelix。
 
@@ -985,7 +985,7 @@ ROI 计算器（Fetcher 自己的页面）：3 个 recruiter，每年 25 个新�
 1. **Juicebox 不是对手——是赛道定义者**。$80M Series B / $850M 估值意味着 Hirelix 不能在通用 AI sourcing 叙事上正面竞争。
 2. **Pin 是同价位最危险的对手**（不是最强 brand，但是最完整闭环）。$99 Solo + 真正可用 Free tier + 多渠道 + SOC 2 是 Hirelix 短期不可能追上的。
 3. **hireEZ 流出用户是 Hirelix 第一波最划算的获客来源**。Reddit 实证显示 4 年时间跨度的续约涨价愤怒。SEO + Reddit engagement + 诚实定价承诺三管齐下。
-4. **Hirelix 真实优势是窄而非宽**：JD 自动反推（基于 `prompts.ts`）+ 三阶段评分（基于 `openrouter.ts`）+ join_likelihood 维度——三者共同构成"猎头大脑 vs sourcer 工具"的差异化叙事。
+4. **Hirelix 真实优势是窄而非宽**：JD 自动反推（基于 `prompts.ts`）+ 三阶段评分（基于 `llm-client.ts`）+ join_likelihood 维度——三者共同构成"猎头大脑 vs sourcer 工具"的差异化叙事。
 5. **执行闭环是当前最大产品负债**。9 个执行能力中 Hirelix 满足 1.5 个；不补完，"AI 评分透明度"也无法变现。Q3 优先级。
 
 ### 90 天里要做的 5 件最重要的事
@@ -1027,7 +1027,7 @@ ROI 计算器（Fetcher 自己的页面）：3 个 recruiter，每年 25 个新�
 | search_web | "SeekOut review reddit complaints" | 邮箱/电话不准 |
 | 仓库代码 | `src/lib/billing.ts:64-122` | Hirelix 真实定价 |
 | 仓库代码 | `src/lib/prompts.ts:1-80` | JD_SEARCH_INTENT_PROMPT 猎头视角 |
-| 仓库代码 | `src/lib/openrouter.ts:96-113` | 三阶段模型路由 |
+| 仓库代码 | `src/lib/llm-client.ts:96-113` | 三阶段模型路由 |
 | 仓库代码 | `src/lib/recruiter-outreach.ts:1-80` | 外联草稿 evidence-strength 分级 |
 
 ## 附录 B · 抓取归档目录

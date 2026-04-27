@@ -24,16 +24,17 @@ import {
 } from "@/lib/recruiter-outreach";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
-  generateOpenRouterJson,
-  getDefaultOpenRouterModel,
-  getLightweightOpenRouterModel,
-} from "@/lib/openrouter";
+  generateLlmJson,
+  getDefaultLlmModel,
+  getLightweightLlmModel,
+  resolveDeepSeekThinkingMode,
+} from "@/lib/llm-client";
 import {
   ARBITER_SCORE_JSON_SCHEMA,
   buildJudgeScoreJsonSchema,
   buildOutreachDraftJsonSchema,
   JD_SEARCH_INTENT_JSON_SCHEMA,
-} from "@/lib/openrouter-schemas";
+} from "@/lib/llm-schemas";
 import {
   getInitialSearchExecutionProfile,
   getSearchExecutionProfile,
@@ -2086,7 +2087,7 @@ function getAIModel() {
     process.env.AI_MODEL ||
     process.env.SEARCH_JUDGE_MODEL ||
     process.env.DEEPSEEK_MODEL ||
-    getDefaultOpenRouterModel()
+    getDefaultLlmModel()
   );
 }
 
@@ -2097,7 +2098,7 @@ function getJudgeModel() {
     process.env.AI_MODEL ||
     process.env.DEEPSEEK_JUDGE_MODEL ||
     process.env.DEEPSEEK_MODEL ||
-    getDefaultOpenRouterModel()
+    getDefaultLlmModel()
   );
 }
 
@@ -2117,7 +2118,7 @@ function getLightModel() {
     process.env.DEEPSEEK_LIGHT_MODEL ||
     process.env.AI_MODEL ||
     process.env.DEEPSEEK_MODEL ||
-    getLightweightOpenRouterModel()
+    getLightweightLlmModel()
   );
 }
 
@@ -2164,7 +2165,7 @@ async function generateOutreachDraftsForRows(
 
       try {
         const { data: parsedDraft } = await withTimeout(
-          (signal) => generateOpenRouterJson<{
+          (signal) => generateLlmJson<{
             subject?: string;
             linkedin?: string;
             email?: string;
@@ -2187,6 +2188,7 @@ async function generateOutreachDraftsForRows(
             timeoutMs: 60000,
             temperature: 0,
             jsonSchema: buildOutreachDraftJsonSchema(),
+            deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
           }),
           60000,
           `Outreach draft for ${normalizedRow.name}`,

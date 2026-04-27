@@ -224,15 +224,19 @@ async function parseJobDescription(
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      const { generateOpenRouterJson, getLightweightOpenRouterModel } = await import("@/lib/openrouter");
-      const { JD_SEARCH_INTENT_JSON_SCHEMA } = await import("@/lib/openrouter-schemas");
+      const {
+        generateLlmJson,
+        getLightweightLlmModel,
+        resolveDeepSeekThinkingMode,
+      } = await import("@/lib/llm-client");
+      const { JD_SEARCH_INTENT_JSON_SCHEMA } = await import("@/lib/llm-schemas");
       const { JD_SEARCH_INTENT_PROMPT } = await import("@/lib/prompts");
       const { estimateSearchIntentCost, PARSE_MAX_OUTPUT_TOKENS, PARSE_MAX_ATTEMPTS } = await import("@/lib/search/config");
       const { withTimeout } = await import("@/lib/search/concurrency");
 
       const { text, data: candidate } = await withTimeout(
-        (signal) => generateOpenRouterJson<Record<string, unknown>>({
-          model: getLightweightOpenRouterModel(),
+        (signal) => generateLlmJson<Record<string, unknown>>({
+          model: getLightweightLlmModel(),
           system: JD_SEARCH_INTENT_PROMPT,
           prompt: parseInput,
           maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
@@ -240,6 +244,7 @@ async function parseJobDescription(
           timeoutMs: 60000,
           temperature: 0,
           jsonSchema: JD_SEARCH_INTENT_JSON_SCHEMA,
+          deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
         }),
         60000,
         "Search intent generation",

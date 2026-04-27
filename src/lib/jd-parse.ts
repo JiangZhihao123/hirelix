@@ -1,8 +1,9 @@
 import {
-  generateOpenRouterJson,
-  getDefaultOpenRouterModel,
-  getOpenRouterApiKey,
-} from "@/lib/openrouter";
+  generateLlmJson,
+  getDefaultLlmModel,
+  getLlmApiKey,
+  resolveDeepSeekThinkingMode,
+} from "@/lib/llm-client";
 import { JD_SEARCH_INTENT_PROMPT } from "@/lib/prompts";
 
 const COMMON_SKILLS = [
@@ -440,14 +441,15 @@ export async function parseJobDescriptionToDraft(
   let parsed: ParsedSearchIntent | null = null;
 
   try {
-    getOpenRouterApiKey();
-    const { data } = await generateOpenRouterJson<ParsedSearchIntent>({
-      model: getDefaultOpenRouterModel(),
+    getLlmApiKey();
+    const { data } = await generateLlmJson<ParsedSearchIntent>({
+      model: getDefaultLlmModel(),
       system: JD_SEARCH_INTENT_PROMPT,
       prompt: jdText,
       maxOutputTokens: 3200,
       temperature: 0,
       timeoutMs: 50000,
+      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
       // Use json_mode instead of strict JSON schema — the schema constrained the model
       // too much and caused it to return empty arrays for lateral_title_variants and
       // target_companies even with explicit prompt instructions to fill them.
@@ -478,8 +480,8 @@ export async function parseJobDescriptionToDraft(
       const coreSkills = Array.isArray(rs2?.core_skill_terms) ? (rs2.core_skill_terms as string[]).slice(0, 4) : [];
       const jdSnippet = jdText.slice(0, 600);
 
-      const { data: raw } = await generateOpenRouterJson<{ companies: string[] }>({
-        model: getDefaultOpenRouterModel(),
+      const { data: raw } = await generateLlmJson<{ companies: string[] }>({
+        model: getDefaultLlmModel(),
         system: "You are an expert headhunter. Return ONLY valid JSON.",
         prompt: `I'm sourcing for: ${titleStr}
 Industry/domain: ${[...domainTerms, ...coreSkills].join(", ") || "technology"}
@@ -491,6 +493,7 @@ Return a JSON object with a "companies" key: {"companies": ["Company A", "Compan
         temperature: 0,
         timeoutMs: 12000,
         jsonMode: true,
+        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
       });
 
       // Extract companies array from the response object

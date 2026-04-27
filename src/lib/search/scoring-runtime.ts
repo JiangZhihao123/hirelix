@@ -1,8 +1,11 @@
-import { generateOpenRouterJson } from "@/lib/openrouter";
+import {
+  generateLlmJson,
+  resolveDeepSeekReasoningEffort,
+} from "@/lib/llm-client";
 import {
   ARBITER_SCORE_JSON_SCHEMA,
   buildJudgeScoreJsonSchema,
-} from "@/lib/openrouter-schemas";
+} from "@/lib/llm-schemas";
 import {
   DEEP_CACHE_PRIMER_COUNT,
   ARBITER_SCORING_TIMEOUT_MS,
@@ -81,7 +84,7 @@ export async function judgeScoreBatch(
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const { data: judgeResult, usage } = await withTimeout(
-        (signal) => generateOpenRouterJson<unknown>({
+        (signal) => generateLlmJson<unknown>({
           model: judgeModel,
           prompt,
           maxOutputTokens: runtime.judgeMaxOutputTokens,
@@ -90,6 +93,11 @@ export async function judgeScoreBatch(
           temperature: 0,
           jsonSchema: buildJudgeScoreJsonSchema(batchIndexes.length),
           requireParameters: true,
+          deepSeekThinking: "enabled",
+          deepSeekReasoningEffort: resolveDeepSeekReasoningEffort(
+            "SEARCH_JUDGE_REASONING_EFFORT",
+            "high",
+          ),
         }),
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,
@@ -213,7 +221,7 @@ export async function arbitrateCandidateScore(
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const { data } = await withTimeout(
-        (signal) => generateOpenRouterJson<unknown>({
+        (signal) => generateLlmJson<unknown>({
           model: helpers.getArbiterModel(),
           prompt,
           maxOutputTokens: runtime.arbiterMaxOutputTokens,
@@ -221,6 +229,11 @@ export async function arbitrateCandidateScore(
           timeoutMs: ARBITER_SCORING_TIMEOUT_MS,
           temperature: 0,
           jsonSchema: ARBITER_SCORE_JSON_SCHEMA,
+          deepSeekThinking: "enabled",
+          deepSeekReasoningEffort: resolveDeepSeekReasoningEffort(
+            "SEARCH_ARBITER_REASONING_EFFORT",
+            "max",
+          ),
         }),
         ARBITER_SCORING_TIMEOUT_MS,
         `Arbiter scoring (attempt ${attempt})`,

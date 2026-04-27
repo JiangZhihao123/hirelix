@@ -1,4 +1,4 @@
-import type { OpenRouterJsonSchemaConfig } from "@/lib/openrouter";
+import type { LlmJsonSchemaConfig } from "@/lib/llm-client";
 
 function enumSchema(values: string[]) {
   return {
@@ -140,7 +140,7 @@ const arbiterAssessmentItemSchema = {
   },
 } as const;
 
-export const COMPANY_INFO_EXTRACTION_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
+export const COMPANY_INFO_EXTRACTION_JSON_SCHEMA: LlmJsonSchemaConfig = {
   name: "company_info_extraction",
   strict: true,
   schema: {
@@ -156,7 +156,7 @@ export const COMPANY_INFO_EXTRACTION_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
 
 export function buildOutreachDraftJsonSchema(options?: {
   includeEmail?: boolean;
-}): OpenRouterJsonSchemaConfig {
+}): LlmJsonSchemaConfig {
   const includeEmail = options?.includeEmail !== false;
   return {
     name: includeEmail ? "outreach_draft_full" : "outreach_draft_linkedin_only",
@@ -174,7 +174,7 @@ export function buildOutreachDraftJsonSchema(options?: {
   };
 }
 
-export const AI_COMPANY_RESPONSE_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
+export const AI_COMPANY_RESPONSE_JSON_SCHEMA: LlmJsonSchemaConfig = {
   name: "ai_company_profile",
   strict: true,
   schema: {
@@ -214,7 +214,7 @@ export const AI_COMPANY_RESPONSE_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
   },
 };
 
-export const JD_SEARCH_INTENT_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
+export const JD_SEARCH_INTENT_JSON_SCHEMA: LlmJsonSchemaConfig = {
   name: "jd_search_intent",
   strict: true,
   schema: {
@@ -310,7 +310,7 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
   },
 };
 
-export function buildJudgeScoreJsonSchema(poolSize: number): OpenRouterJsonSchemaConfig {
+export function buildJudgeScoreJsonSchema(poolSize: number): LlmJsonSchemaConfig {
   return {
     name: poolSize === 1 ? "judge_score_single" : "judge_score_batch",
     strict: true,
@@ -323,7 +323,7 @@ export function buildJudgeScoreJsonSchema(poolSize: number): OpenRouterJsonSchem
   };
 }
 
-export const ARBITER_SCORE_JSON_SCHEMA: OpenRouterJsonSchemaConfig = {
+export const ARBITER_SCORE_JSON_SCHEMA: LlmJsonSchemaConfig = {
   name: "arbiter_score_batch",
   strict: true,
   schema: {

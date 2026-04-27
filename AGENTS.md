@@ -124,8 +124,8 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 |------|------|
 | `src/lib/search-jobs.ts` | 搜索引擎主流程，最核心文件 |
 | `src/lib/prompts.ts` | AI Prompt 模板 |
-| `src/lib/openrouter.ts` | OpenRouter / DeepSeek 模型路由配置 |
-| `src/lib/openrouter-schemas.ts` | AI 响应的 Zod Schema |
+| `src/lib/llm-client.ts` | DeepSeek 官方 API 客户端与模型路由配置（OpenRouter 仅作 fallback） |
+| `src/lib/llm-schemas.ts` | AI 响应的 JSON Schema |
 | `src/lib/search-execution.ts` | 搜索执行档位配置 |
 | `src/lib/search-task.ts` | 搜索状态机状态定义与任务副本 |
 | `src/lib/search-state.ts` | 搜索状态工具函数(过期/状态分类) |
@@ -214,11 +214,11 @@ queued → parsing → searching → screening → deep_scoring → done
 
 ### 4.9 AI 模型策略
 
-- 默认使用 DeepSeek 处理大多数低成本场景
-- 复杂仲裁使用 Claude Sonnet
-- 统一通过 OpenRouter 路由
+- 默认使用 DeepSeek V4 Flash 处理搜索与评分
+- 思考模式按阶段配置：解析/外联默认关闭，深评默认 `high`，仲裁默认 `max`
+- 默认通过 DeepSeek 官方 API，OpenRouter 仅作为可选 fallback
 - 三阶段模型可独立配置：`SEARCH_LIGHT_MODEL`（预筛）、`SEARCH_JUDGE_MODEL`（深度评分）、`SEARCH_ARBITER_MODEL`（仲裁/争议裁决）
-- 配置文件：`src/lib/openrouter.ts`
+- 配置文件：`src/lib/llm-client.ts`
 
 ## 5. 常用命令
 
@@ -296,7 +296,7 @@ npm run scheduler:dev
 |------|----------|
 | 数据库 | `DATABASE_URL` |
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
-| AI 模型 | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_THINKING`, `DEEPSEEK_REASONING_EFFORT`, `ANTHROPIC_API_KEY` |
+| AI 模型 | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_THINKING`, `DEEPSEEK_REASONING_EFFORT`, `SEARCH_PARSE_THINKING`, `SEARCH_OUTREACH_THINKING`, `SEARCH_JUDGE_REASONING_EFFORT`, `SEARCH_ARBITER_REASONING_EFFORT`, `ANTHROPIC_API_KEY` |
 | 搜索模型档位 | `SEARCH_LIGHT_MODEL`, `SEARCH_JUDGE_MODEL`, `SEARCH_ARBITER_MODEL` |
 | 数据源 | `BRIGHTDATA_API_TOKEN`, `GITHUB_TOKEN`, `HUNTER_API_KEY`, `SERPER_API_KEY`（仅用于 GitHub 身份发现兜底，可选） |
 | 搜索调优 | `SEARCH_EXECUTION_MODE`, `SEARCH_TEST_BRIGHTDATA_STANDARD_LIMIT`, `SEARCH_PRODUCTION_BRIGHTDATA_STANDARD_LIMIT`, `SEARCH_JOB_SCHEDULER_CONCURRENCY`, `SEARCH_DEEP_REVIEW_CONCURRENCY`, `SEARCH_LLM_GLOBAL_CONCURRENCY`, `SEARCH_DEEP_CACHE_PRIMER_COUNT`, `SEARCH_JUDGE_SCORING_TIMEOUT_MS` |

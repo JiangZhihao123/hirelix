@@ -6,9 +6,10 @@ import {
   summarizeParsedJob,
 } from "@/lib/jd-parse";
 import {
-  generateOpenRouterJson,
-  getLightweightOpenRouterModel,
-} from "@/lib/openrouter";
+  generateLlmJson,
+  getLightweightLlmModel,
+  resolveDeepSeekThinkingMode,
+} from "@/lib/llm-client";
 
 export const maxDuration = 60;
 const DEFAULT_CLARIFY_TIMEOUT_MS = 12_000;
@@ -82,15 +83,16 @@ export async function POST(req: NextRequest) {
     let clarification = fallbackClarification;
 
     try {
-      const { data } = await generateOpenRouterJson<{
+      const { data } = await generateLlmJson<{
         message: string;
         ready_to_launch: boolean;
       }>({
-        model: getLightweightOpenRouterModel(),
+        model: getLightweightLlmModel(),
         prompt: buildClarifyPrompt(jd_text.trim(), summary),
         maxOutputTokens: 160,
         temperature: 0.3,
         timeoutMs: getClarifyTimeoutMs(),
+        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
       });
 
       clarification = {

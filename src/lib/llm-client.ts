@@ -3,34 +3,39 @@ import {
   OpenRouter,
 } from "@openrouter/sdk";
 
-export type OpenRouterJsonSchemaConfig = {
+export type LlmJsonSchemaConfig = {
   name: string;
   description?: string;
   schema?: Record<string, unknown>;
   strict?: boolean | null;
 };
 
-type OpenRouterMessage = {
+type LlmMessage = {
   role: "system" | "user" | "assistant";
   content: string;
   name?: string;
 };
 
-type OpenRouterTextOptions = {
+export type DeepSeekThinkingMode = "enabled" | "disabled";
+export type DeepSeekReasoningEffort = "high" | "max";
+
+type LlmTextOptions = {
   model: string;
   system?: string;
   prompt?: string;
-  messages?: OpenRouterMessage[];
+  messages?: LlmMessage[];
   maxOutputTokens?: number;
   temperature?: number;
   abortSignal?: AbortSignal;
   timeoutMs?: number;
   jsonMode?: boolean;
-  jsonSchema?: OpenRouterJsonSchemaConfig;
+  jsonSchema?: LlmJsonSchemaConfig;
   requireParameters?: boolean;
+  deepSeekThinking?: DeepSeekThinkingMode;
+  deepSeekReasoningEffort?: DeepSeekReasoningEffort;
 };
 
-type OpenRouterTextResult = {
+type LlmTextResult = {
   text: string;
   usage: {
     inputTokens: number;
@@ -166,7 +171,7 @@ function sleep(ms: number, signal?: AbortSignal) {
   });
 }
 
-function createRequestSignal(options: OpenRouterTextOptions): {
+function createRequestSignal(options: LlmTextOptions): {
   signal?: AbortSignal;
   cleanup: () => void;
 } {
@@ -270,8 +275,8 @@ function getAppTitle() {
   return process.env.OPENROUTER_X_TITLE || "Hirelix";
 }
 
-export function getOpenRouterApiKey() {
-  const baseUrl = getOpenRouterBaseUrl();
+export function getLlmApiKey() {
+  const baseUrl = getLlmBaseUrl();
   const apiKey = isOfficialDeepSeekBaseUrl(baseUrl)
     ? process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY
     : process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY;
@@ -285,7 +290,7 @@ export function getOpenRouterApiKey() {
   return apiKey;
 }
 
-export function getOpenRouterBaseUrl() {
+export function getLlmBaseUrl() {
   if (process.env.OPENROUTER_BASE_URL) return process.env.OPENROUTER_BASE_URL;
   if (process.env.DEEPSEEK_BASE_URL) return process.env.DEEPSEEK_BASE_URL;
   if (
@@ -297,7 +302,7 @@ export function getOpenRouterBaseUrl() {
   return OPENROUTER_BASE_URL;
 }
 
-export function getDefaultOpenRouterModel() {
+export function getDefaultLlmModel() {
   if (isUsingOfficialDeepSeek()) {
     return (
       process.env.AI_MODEL ||
@@ -314,7 +319,7 @@ export function getDefaultOpenRouterModel() {
   );
 }
 
-export function getLightweightOpenRouterModel() {
+export function getLightweightLlmModel() {
   if (isUsingOfficialDeepSeek()) {
     return (
       process.env.SEARCH_LIGHT_MODEL ||
@@ -336,12 +341,12 @@ export function getLightweightOpenRouterModel() {
   );
 }
 
-export function getOpenRouterClient() {
+function getOpenRouterFallbackClient() {
   if (cachedClient) return cachedClient;
 
   cachedClient = new OpenRouter({
-    apiKey: getOpenRouterApiKey(),
-    serverURL: getOpenRouterBaseUrl(),
+    apiKey: getLlmApiKey(),
+    serverURL: getLlmBaseUrl(),
     httpReferer: getAppReferer(),
     xTitle: getAppTitle(),
     httpClient: new HTTPClient({
@@ -361,30 +366,41 @@ function isOfficialDeepSeekBaseUrl(baseUrl: string) {
 }
 
 function isUsingOfficialDeepSeek() {
-  return isOfficialDeepSeekBaseUrl(getOpenRouterBaseUrl());
+  return isOfficialDeepSeekBaseUrl(getLlmBaseUrl());
 }
 
-function getDeepSeekThinkingType(): "enabled" | "disabled" {
-  const raw = process.env.DEEPSEEK_THINKING?.trim().toLowerCase();
+export function resolveDeepSeekThinkingMode(
+  envName: string,
+  fallback: DeepSeekThinkingMode,
+): DeepSeekThinkingMode {
+  const raw = (
+    process.env[envName] ??
+    process.env.DEEPSEEK_THINKING ??
+    fallback
+  ).trim().toLowerCase();
   if (["0", "false", "off", "no", "disabled"].includes(raw ?? "")) {
     return "disabled";
   }
   return "enabled";
 }
 
-function getDeepSeekReasoningEffort(): "high" | "max" {
+export function resolveDeepSeekReasoningEffort(
+  envName: string,
+  fallback: DeepSeekReasoningEffort,
+): DeepSeekReasoningEffort {
   const raw = (
+    process.env[envName] ||
     process.env.DEEPSEEK_REASONING_EFFORT ||
     process.env.REASONING_EFFORT ||
-    "max"
+    fallback
   ).trim().toLowerCase();
   return raw === "max" || raw === "xhigh" ? "max" : "high";
 }
 
-function buildMessages(options: OpenRouterTextOptions): OpenRouterMessage[] {
+function buildMessages(options: LlmTextOptions): LlmMessage[] {
   if (options.messages && options.messages.length > 0) return options.messages;
 
-  const messages: OpenRouterMessage[] = [];
+  const messages: LlmMessage[] = [];
   if (options.system?.trim()) {
     messages.push({
       role: "system",
@@ -456,8 +472,8 @@ function buildUsage(usage: unknown) {
 }
 
 async function generateOfficialDeepSeekText(
-  options: OpenRouterTextOptions,
-): Promise<OpenRouterTextResult> {
+  options: LlmTextOptions,
+): Promise<LlmTextResult> {
   const maxAttempts = getConfiguredPositiveInt(
     "SEARCH_LLM_MAX_ATTEMPTS",
     DEFAULT_LLM_MAX_ATTEMPTS,
@@ -482,10 +498,12 @@ async function generateOfficialDeepSeekText(
 }
 
 async function sendOfficialDeepSeekRequest(
-  options: OpenRouterTextOptions,
-): Promise<OpenRouterTextResult> {
-  const baseUrl = getOpenRouterBaseUrl().replace(/\/$/, "");
-  const thinkingType = getDeepSeekThinkingType();
+  options: LlmTextOptions,
+): Promise<LlmTextResult> {
+  const baseUrl = getLlmBaseUrl().replace(/\/$/, "");
+  const thinkingType =
+    options.deepSeekThinking ??
+    resolveDeepSeekThinkingMode("DEEPSEEK_THINKING", "enabled");
   const body: Record<string, unknown> = {
     model: options.model,
     messages: buildMessages(options),
@@ -498,7 +516,11 @@ async function sendOfficialDeepSeekRequest(
       : {}),
     thinking: { type: thinkingType },
     ...(thinkingType === "enabled"
-      ? { reasoning_effort: getDeepSeekReasoningEffort() }
+      ? {
+          reasoning_effort:
+            options.deepSeekReasoningEffort ??
+            resolveDeepSeekReasoningEffort("DEEPSEEK_REASONING_EFFORT", "high"),
+        }
       : typeof options.temperature === "number"
         ? { temperature: options.temperature }
         : {}),
@@ -513,7 +535,7 @@ async function sendOfficialDeepSeekRequest(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${getOpenRouterApiKey()}`,
+        Authorization: `Bearer ${getLlmApiKey()}`,
       },
       body: JSON.stringify(body),
       signal,
@@ -586,14 +608,14 @@ export function extractJsonText(text: string): string {
   return text.trim();
 }
 
-export async function generateOpenRouterText(
-  options: OpenRouterTextOptions,
-): Promise<OpenRouterTextResult> {
+export async function generateLlmText(
+  options: LlmTextOptions,
+): Promise<LlmTextResult> {
   if (isUsingOfficialDeepSeek()) {
     return generateOfficialDeepSeekText(options);
   }
 
-  const client = getOpenRouterClient();
+  const client = getOpenRouterFallbackClient();
   const response = await client.chat.send(
     {
       chatGenerationParams: {
@@ -629,8 +651,7 @@ export async function generateOpenRouterText(
     },
   );
 
-  // 检查 API 层错误（如 402 余额不足、401 鉴权失败等）
-  // OpenRouter 在出错时仍返回 200，但 choices 为空并附带 error 字段
+  // OpenRouter fallback may return 200 with empty choices and an error payload.
   const apiError = (response as unknown as Record<string, unknown>).error;
   if (apiError && typeof apiError === "object") {
     const { code, message: msg } = apiError as { code?: unknown; message?: unknown };
@@ -639,7 +660,7 @@ export async function generateOpenRouterText(
 
   const message = response.choices[0]?.message;
   if (!message) {
-    throw new Error("OpenRouter returned an empty response (no choices)");
+    throw new Error("LLM provider returned an empty response (no choices)");
   }
   return {
     text: normalizeMessageContent(message?.content),
@@ -648,10 +669,10 @@ export async function generateOpenRouterText(
   };
 }
 
-export async function generateOpenRouterJson<T>(
-  options: OpenRouterTextOptions,
-): Promise<OpenRouterTextResult & { data: T }> {
-  const result = await generateOpenRouterText({
+export async function generateLlmJson<T>(
+  options: LlmTextOptions,
+): Promise<LlmTextResult & { data: T }> {
+  const result = await generateLlmText({
     ...options,
     jsonMode: !options.jsonSchema,
   });
@@ -664,7 +685,7 @@ export async function generateOpenRouterJson<T>(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const parseError = new Error(
-      `OpenRouter returned invalid JSON: ${message}`,
+      `LLM provider returned invalid JSON: ${message}`,
     );
     (parseError as Error & { rawText?: string }).rawText = result.text;
     throw parseError;
