@@ -58,7 +58,7 @@ export async function completeSearch(
       ? await helpers.generateOutreachDraftsForRows(
         context,
         options?.runtime ?? helpers.getExecutionRuntime(
-          helpers.getSearchExecutionProfile("bright_full_pro"),
+          helpers.getSearchExecutionProfile("bright_production_full"),
         ),
         parsed,
         finalRows,

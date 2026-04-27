@@ -25,6 +25,8 @@ import {
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
   generateOpenRouterJson,
+  getDefaultOpenRouterModel,
+  getLightweightOpenRouterModel,
 } from "@/lib/openrouter";
 import {
   ARBITER_SCORE_JSON_SCHEMA,
@@ -2084,7 +2086,7 @@ function getAIModel() {
     process.env.AI_MODEL ||
     process.env.SEARCH_JUDGE_MODEL ||
     process.env.DEEPSEEK_MODEL ||
-    "deepseek/deepseek-chat-v3.1"
+    getDefaultOpenRouterModel()
   );
 }
 
@@ -2095,7 +2097,7 @@ function getJudgeModel() {
     process.env.AI_MODEL ||
     process.env.DEEPSEEK_JUDGE_MODEL ||
     process.env.DEEPSEEK_MODEL ||
-    "deepseek/deepseek-chat-v3.1"
+    getDefaultOpenRouterModel()
   );
 }
 
@@ -2115,7 +2117,7 @@ function getLightModel() {
     process.env.DEEPSEEK_LIGHT_MODEL ||
     process.env.AI_MODEL ||
     process.env.DEEPSEEK_MODEL ||
-    "deepseek/deepseek-chat-v3-0324"
+    getLightweightOpenRouterModel()
   );
 }
 

@@ -61,4 +61,4 @@ This checklist is for the Hirelix paid launch.
 - Any paid-user billing issue is a `P0`.
 - Search creation failures or widespread stuck jobs are a `P0`.
 - `degraded` searches are acceptable only when the shortlist remains reviewable and the retry path works.
-- If shortlist quality on strict-location roles regresses after raising `bright_full_pro` recall to `200`, revert before widening traffic.
+- If shortlist quality on strict-location roles regresses after raising `bright_production_full` recall to `200+100+100`, revert before widening traffic.

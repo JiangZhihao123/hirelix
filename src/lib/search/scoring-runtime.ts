@@ -4,6 +4,7 @@ import {
   buildJudgeScoreJsonSchema,
 } from "@/lib/openrouter-schemas";
 import {
+  DEEP_CACHE_PRIMER_COUNT,
   ARBITER_SCORING_TIMEOUT_MS,
   DEEP_REVIEW_CONCURRENCY,
   JUDGE_SCORING_TIMEOUT_MS,
@@ -79,7 +80,7 @@ export async function judgeScoreBatch(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const { data: judgeResult } = await withTimeout(
+      const { data: judgeResult, usage } = await withTimeout(
         (signal) => generateOpenRouterJson<unknown>({
           model: judgeModel,
           prompt,
@@ -93,6 +94,26 @@ export async function judgeScoreBatch(
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,
       );
+
+      if (usage.cachedInputTokens > 0 || usage.cacheMissInputTokens > 0) {
+        const measuredInputTokens =
+          usage.cachedInputTokens + usage.cacheMissInputTokens;
+        helpers.logSearchEvent("judge_scoring_cache_usage", {
+          judge: judgeLabel,
+          model: judgeModel,
+          batch_size: batchIndexes.length,
+          input_tokens: usage.inputTokens,
+          output_tokens: usage.outputTokens,
+          cached_input_tokens: usage.cachedInputTokens,
+          cache_miss_input_tokens: usage.cacheMissInputTokens,
+          cache_hit_ratio:
+            measuredInputTokens > 0
+              ? usage.cachedInputTokens / measuredInputTokens
+              : null,
+          ...(context?.searchId && { search_id: context.searchId }),
+          ...(context?.jobId && { job_id: context.jobId }),
+        });
+      }
 
       const parsedResults = parseJudgeScoreResults(
         judgeResult,
@@ -287,6 +308,7 @@ export async function scoreSingleCandidate(
         totalPoolSize,
         "Judge A",
         helpers.judgeHelpers,
+        context,
       );
       const judge = judgeResults[0];
       if (!judge) return null;
@@ -460,34 +482,45 @@ export async function deepScoreSelectedProfiles(
   if (!selectedIndexes.length) return [];
 
   let completedCount = 0;
-  const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, selectedIndexes.length);
-  const assessments = await runWithConcurrency(
-    selectedIndexes,
-    workerCount,
-    async (selectedIndex) => {
-      const result = await helpers.scoreSingleCandidate(
-        runtime,
-        parsed,
-        jdText,
-        profileTexts,
-        selectedIndex,
-        totalPoolSize,
-        helpers.scoringHelpers,
-        { searchId: options?.searchId, jobId: options?.jobId },
-      );
-      if (result) {
-        completedCount += 1;
-        try {
-          await options?.onCandidateScored?.(result, completedCount);
-        } catch {
-          // non-blocking
-        }
+  const scoreIndex = async (selectedIndex: number) => {
+    const result = await helpers.scoreSingleCandidate(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      selectedIndex,
+      totalPoolSize,
+      helpers.scoringHelpers,
+      { searchId: options?.searchId, jobId: options?.jobId },
+    );
+    if (result) {
+      completedCount += 1;
+      try {
+        await options?.onCandidateScored?.(result, completedCount);
+      } catch {
+        // non-blocking
       }
-      return result;
-    },
+    }
+    return result;
+  };
+
+  const primerCount = Math.min(DEEP_CACHE_PRIMER_COUNT, selectedIndexes.length);
+  const primerIndexes = selectedIndexes.slice(0, primerCount);
+  const remainingIndexes = selectedIndexes.slice(primerCount);
+  const primerAssessments: Array<ScoredCandidateAssessment | null> = [];
+
+  for (const selectedIndex of primerIndexes) {
+    primerAssessments.push(await scoreIndex(selectedIndex));
+  }
+
+  const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, remainingIndexes.length);
+  const remainingAssessments = await runWithConcurrency(
+    remainingIndexes,
+    workerCount,
+    scoreIndex,
   );
 
-  return assessments
+  return [...primerAssessments, ...remainingAssessments]
     .filter((assessment): assessment is ScoredCandidateAssessment => Boolean(assessment))
     .sort(helpers.sortCandidateAssessments);
 }

@@ -444,7 +444,7 @@ export function buildBrightDataRecallFilters(
       round: "hidden_gem",
       request: {
         datasetId,
-        recordsLimit: options.hiddenGemLimit,
+        recordsLimit: executionProfile.hiddenGemLimit || options.hiddenGemLimit,
         filter: { operator: "and", filters: hiddenGemFilters },
       },
     });
@@ -487,7 +487,7 @@ export function buildBrightDataRecallFilters(
       round: "company_target",
       request: {
         datasetId,
-        recordsLimit: options.companyTargetLimit,
+        recordsLimit: executionProfile.companyTargetLimit || options.companyTargetLimit,
         filter: { operator: "and", filters: companyFilters },
       },
     });

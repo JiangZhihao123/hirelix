@@ -85,7 +85,7 @@ Node.js, TypeScript, PostgreSQL, AWS.
       highlightCount: 20,
       outreachPoolTarget: 20,
       planCode: "pro",
-      executionProfile: "bright_full_pro",
+      executionProfile: "bright_production_full",
     },
   ) as Record<string, unknown>;
 

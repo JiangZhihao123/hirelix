@@ -81,6 +81,12 @@ export const DEEP_REVIEW_CONCURRENCY = getConfiguredPositiveInt(
   { max: 100 },
 );
 
+export const DEEP_CACHE_PRIMER_COUNT = getConfiguredPositiveInt(
+  "SEARCH_DEEP_CACHE_PRIMER_COUNT",
+  2,
+  { max: 10 },
+);
+
 export const JUDGE_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(
   "SEARCH_JUDGE_SCORING_TIMEOUT_MS",
   120000,
@@ -218,13 +224,13 @@ export const ESTIMATED_DEEP_REVIEW_CONFLICT_RATE = getConfiguredNumber(
 
 export const ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M = getConfiguredNumber(
   "SEARCH_ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M",
-  0.28,
+  0.14,
   { min: 0, max: 50 },
 );
 
 export const ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M = getConfiguredNumber(
   "SEARCH_ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M",
-  0.42,
+  0.28,
   { min: 0, max: 50 },
 );
 

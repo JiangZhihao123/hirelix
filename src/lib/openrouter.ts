@@ -37,11 +37,15 @@ type OpenRouterTextResult = {
     outputTokens: number;
     totalTokens: number;
     cachedInputTokens: number;
+    cacheMissInputTokens: number;
   };
-  rawResponse: Awaited<ReturnType<OpenRouter["chat"]["send"]>>;
+  rawResponse: unknown;
 };
 
 let cachedClient: OpenRouter | null = null;
+
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
 function buildSdkCompatibleFetcher() {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -78,37 +82,68 @@ function getAppTitle() {
 }
 
 export function getOpenRouterApiKey() {
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY;
+  const baseUrl = getOpenRouterBaseUrl();
+  const apiKey = isOfficialDeepSeekBaseUrl(baseUrl)
+    ? process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY
+    : process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is missing");
+    throw new Error(
+      isOfficialDeepSeekBaseUrl(baseUrl)
+        ? "DEEPSEEK_API_KEY is missing"
+        : "OPENROUTER_API_KEY is missing",
+    );
   }
   return apiKey;
 }
 
 export function getOpenRouterBaseUrl() {
-  return (
-    process.env.OPENROUTER_BASE_URL ||
-    process.env.DEEPSEEK_BASE_URL ||
-    "https://openrouter.ai/api/v1"
-  );
+  if (process.env.OPENROUTER_BASE_URL) return process.env.OPENROUTER_BASE_URL;
+  if (process.env.DEEPSEEK_BASE_URL) return process.env.DEEPSEEK_BASE_URL;
+  if (
+    process.env.AI_PROVIDER?.trim().toLowerCase() === "deepseek" ||
+    (process.env.DEEPSEEK_API_KEY && !process.env.OPENROUTER_API_KEY)
+  ) {
+    return DEEPSEEK_BASE_URL;
+  }
+  return OPENROUTER_BASE_URL;
 }
 
 export function getDefaultOpenRouterModel() {
+  if (isUsingOfficialDeepSeek()) {
+    return (
+      process.env.AI_MODEL ||
+      process.env.SEARCH_JUDGE_MODEL ||
+      process.env.DEEPSEEK_MODEL ||
+      "deepseek-v4-flash"
+    );
+  }
+
   return (
     process.env.AI_MODEL ||
     process.env.SEARCH_JUDGE_MODEL ||
-    "deepseek/deepseek-chat-v3.1"
+    "deepseek/deepseek-v4-flash"
   );
 }
 
 export function getLightweightOpenRouterModel() {
+  if (isUsingOfficialDeepSeek()) {
+    return (
+      process.env.SEARCH_LIGHT_MODEL ||
+      process.env.DEEPSEEK_LIGHT_MODEL ||
+      process.env.AI_MODEL ||
+      process.env.SEARCH_JUDGE_MODEL ||
+      process.env.DEEPSEEK_MODEL ||
+      "deepseek-v4-flash"
+    );
+  }
+
   return (
     process.env.SEARCH_LIGHT_MODEL ||
     process.env.OPENROUTER_LIGHT_MODEL ||
     process.env.DEEPSEEK_LIGHT_MODEL ||
     process.env.AI_MODEL ||
     process.env.SEARCH_JUDGE_MODEL ||
-    "deepseek/deepseek-chat-v3-0324"
+    "deepseek/deepseek-v4-flash"
   );
 }
 
@@ -126,6 +161,35 @@ export function getOpenRouterClient() {
   });
 
   return cachedClient;
+}
+
+function isOfficialDeepSeekBaseUrl(baseUrl: string) {
+  try {
+    return new URL(baseUrl).hostname === "api.deepseek.com";
+  } catch {
+    return baseUrl.includes("api.deepseek.com");
+  }
+}
+
+function isUsingOfficialDeepSeek() {
+  return isOfficialDeepSeekBaseUrl(getOpenRouterBaseUrl());
+}
+
+function getDeepSeekThinkingType(): "enabled" | "disabled" {
+  const raw = process.env.DEEPSEEK_THINKING?.trim().toLowerCase();
+  if (["0", "false", "off", "no", "disabled"].includes(raw ?? "")) {
+    return "disabled";
+  }
+  return "enabled";
+}
+
+function getDeepSeekReasoningEffort(): "high" | "max" {
+  const raw = (
+    process.env.DEEPSEEK_REASONING_EFFORT ||
+    process.env.REASONING_EFFORT ||
+    "max"
+  ).trim().toLowerCase();
+  return raw === "max" || raw === "xhigh" ? "max" : "high";
 }
 
 function buildMessages(options: OpenRouterTextOptions): OpenRouterMessage[] {
@@ -162,6 +226,120 @@ function normalizeMessageContent(content: unknown): string {
     .join("");
 }
 
+function readNumericField(
+  value: unknown,
+  keys: string[],
+): number | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const field = record[key];
+    if (typeof field === "number" && Number.isFinite(field)) return field;
+  }
+  return null;
+}
+
+function buildUsage(usage: unknown) {
+  const promptDetails =
+    usage && typeof usage === "object"
+      ? (usage as Record<string, unknown>).promptTokensDetails ??
+        (usage as Record<string, unknown>).prompt_tokens_details
+      : null;
+  const inputTokens = readNumericField(usage, ["promptTokens", "prompt_tokens"]) ?? 0;
+  const outputTokens =
+    readNumericField(usage, ["completionTokens", "completion_tokens"]) ?? 0;
+  const totalTokens = readNumericField(usage, ["totalTokens", "total_tokens"]) ?? 0;
+  const cachedInputTokens =
+    readNumericField(usage, ["prompt_cache_hit_tokens"]) ??
+    readNumericField(promptDetails, ["cachedTokens", "cached_tokens"]) ??
+    0;
+  const cacheMissInputTokens =
+    readNumericField(usage, ["prompt_cache_miss_tokens"]) ??
+    Math.max(0, inputTokens - cachedInputTokens);
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    cachedInputTokens,
+    cacheMissInputTokens,
+  };
+}
+
+async function generateOfficialDeepSeekText(
+  options: OpenRouterTextOptions,
+): Promise<OpenRouterTextResult> {
+  const baseUrl = getOpenRouterBaseUrl().replace(/\/$/, "");
+  const thinkingType = getDeepSeekThinkingType();
+  const body: Record<string, unknown> = {
+    model: options.model,
+    messages: buildMessages(options),
+    stream: false,
+    ...(typeof options.maxOutputTokens === "number"
+      ? { max_tokens: options.maxOutputTokens }
+      : {}),
+    ...(options.jsonSchema || options.jsonMode
+      ? { response_format: { type: "json_object" } }
+      : {}),
+    thinking: { type: thinkingType },
+    ...(thinkingType === "enabled"
+      ? { reasoning_effort: getDeepSeekReasoningEffort() }
+      : typeof options.temperature === "number"
+        ? { temperature: options.temperature }
+        : {}),
+  };
+
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getOpenRouterApiKey()}`,
+    },
+    body: JSON.stringify(body),
+    signal: options.abortSignal,
+  });
+
+  const raw = await response.json().catch(() => null);
+  if (!response.ok) {
+    const error =
+      raw && typeof raw === "object"
+        ? (raw as Record<string, unknown>).error
+        : null;
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message?: unknown }).message)
+        : response.statusText;
+    throw new Error(`DeepSeek API error ${response.status}: ${message}`);
+  }
+
+  const apiError = raw && typeof raw === "object"
+    ? (raw as Record<string, unknown>).error
+    : null;
+  if (apiError && typeof apiError === "object") {
+    const { code, message: msg } = apiError as { code?: unknown; message?: unknown };
+    throw new Error(`DeepSeek API error ${String(code ?? "unknown")}: ${String(msg ?? "unknown error")}`);
+  }
+
+  const choices =
+    raw && typeof raw === "object"
+      ? (raw as { choices?: Array<{ message?: { content?: unknown } }> }).choices
+      : null;
+  const message = choices?.[0]?.message;
+  if (!message) {
+    throw new Error("DeepSeek returned an empty response (no choices)");
+  }
+
+  return {
+    text: normalizeMessageContent(message.content),
+    usage: buildUsage(
+      raw && typeof raw === "object"
+        ? (raw as Record<string, unknown>).usage
+        : null,
+    ),
+    rawResponse: raw,
+  };
+}
+
 export function extractJsonText(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fenced && fenced[1]?.trim()) {
@@ -184,6 +362,10 @@ export function extractJsonText(text: string): string {
 export async function generateOpenRouterText(
   options: OpenRouterTextOptions,
 ): Promise<OpenRouterTextResult> {
+  if (isUsingOfficialDeepSeek()) {
+    return generateOfficialDeepSeekText(options);
+  }
+
   const client = getOpenRouterClient();
   const response = await client.chat.send(
     {
@@ -234,13 +416,7 @@ export async function generateOpenRouterText(
   }
   return {
     text: normalizeMessageContent(message?.content),
-    usage: {
-      inputTokens: response.usage?.promptTokens ?? 0,
-      outputTokens: response.usage?.completionTokens ?? 0,
-      totalTokens: response.usage?.totalTokens ?? 0,
-      cachedInputTokens:
-        response.usage?.promptTokensDetails?.cachedTokens ?? 0,
-    },
+    usage: buildUsage(response.usage as unknown),
     rawResponse: response,
   };
 }
