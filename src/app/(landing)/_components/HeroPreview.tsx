@@ -22,7 +22,7 @@ const candidateAvatars = [
 
 const outreachDrafts = {
   inmail: {
-    cta: "Start from InMail draft",
+    cta: "Send InMail",
     body: [
       "Hi James,",
       "Your platform work at Shopify looks close to this Senior Backend Engineer role, especially the API and distributed systems experience.",
@@ -31,7 +31,7 @@ const outreachDrafts = {
     ],
   },
   email: {
-    cta: "Start from email draft",
+    cta: "Send email",
     body: [
       "Subject: Your Shopify platform work",
       "Hi James,",
@@ -239,13 +239,13 @@ export function HeroPreview() {
               ))}
             </div>
 
-            <a
-              href="#hero-form"
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2.5 text-sm font-semibold text-emerald-700"
+            <button
+              type="button"
+              className="mt-3 inline-flex w-full cursor-default items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-2.5 text-sm font-semibold text-emerald-700"
             >
               <Send className="h-4 w-4" />
               {activeDraft.cta}
-            </a>
+            </button>
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
               <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />
               Drafts can be edited before anything is sent.
