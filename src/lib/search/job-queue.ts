@@ -224,7 +224,7 @@ export async function updateRunningJobStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ) {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("hirelix_search_jobs")
     .update({
       status,
@@ -234,7 +234,16 @@ export async function updateRunningJobStatus(
     .eq("id", jobId)
     .eq("status", "running")
     .select("id")
-    .single();
+    .maybeSingle();
+
+  if (error) {
+    logSearchEvent("search_job_status_update_failed", {
+      job_id: jobId,
+      target_status: status,
+      error: error.message,
+      code: error.code,
+    });
+  }
 
   return Boolean(data?.id);
 }
@@ -257,6 +266,13 @@ export async function claimSearchJob(options: {
       .lte("available_at", now)
       .limit(1);
     if (data) candidateRows.push(...data);
+
+    // A targeted runner invocation must only process the requested search.
+    // Falling back to the global queue can make local/in-app retries advance
+    // unrelated jobs while the requested job is still locked or waiting.
+    if (candidateRows.length === 0) {
+      return null;
+    }
   }
 
   if (candidateRows.length === 0) {

@@ -1076,10 +1076,6 @@ async function buildBrightDataDatasetCandidates(
   const activeSnapshotId = snapshotId;
 
   const totalElapsedMs = Math.max(0, Date.now() - requestedAt);
-  const remainingTimeoutMs = Math.max(0, BRIGHTDATA_FILTER_TIMEOUT_MS - totalElapsedMs);
-  if (remainingTimeoutMs <= 0) {
-    throw new Error(`Bright Data dataset recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms`);
-  }
 
   let metadata: BrightDataSnapshotMetadata | null = null;
   let profiles: BrightDataProfile[] = [];
@@ -1260,8 +1256,32 @@ async function buildBrightDataDatasetCandidates(
   const waitingOnAdditional = additionalSnapshotStates.some(
     (round) => round.metadata.status === "scheduled" || round.metadata.status === "building",
   );
+  const shouldWaitForAdditional = waitingOnAdditional && standardRoundFailedEmpty;
 
-  if (waitingOnStandard || waitingOnAdditional) {
+  if (waitingOnStandard || shouldWaitForAdditional) {
+    helpers.logSearchEvent("search_snapshot_poll_status", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      elapsed_ms: totalElapsedMs,
+      timeout_ms: BRIGHTDATA_FILTER_TIMEOUT_MS,
+      standard: {
+        snapshot_id: activeSnapshotId,
+        status: metadata?.status ?? null,
+        dataset_size: metadata?.dataset_size ?? null,
+        cost: metadata?.cost ?? null,
+        warning_code: metadata?.warning_code ?? null,
+        error_code: metadata?.error_code ?? null,
+      },
+      additional: additionalSnapshotStates.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        status: round.metadata.status,
+        dataset_size: round.metadata.dataset_size ?? null,
+        cost: round.metadata.cost ?? null,
+        warning_code: round.metadata.warning_code ?? null,
+        error_code: round.metadata.error_code ?? null,
+      })),
+    });
     parsed.recall_provider = "brightdata_dataset";
     parsed.recall_metadata = {
       provider: "brightdata_dataset",
@@ -1298,10 +1318,31 @@ async function buildBrightDataDatasetCandidates(
       })),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
+    if (totalElapsedMs >= BRIGHTDATA_FILTER_TIMEOUT_MS) {
+      throw new Error(
+        `Bright Data dataset recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms (standard=${metadata?.status ?? "unknown"})`,
+      );
+    }
     throw new DatasetRecallPendingError(
       `Bright Data dataset recall still processing for snapshot ${activeSnapshotId}`,
       { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
     );
+  }
+
+  if (waitingOnAdditional) {
+    helpers.logSearchEvent("search_additional_rounds_deferred", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      standard_snapshot_id: activeSnapshotId,
+      additional: additionalSnapshotStates
+        .filter((round) => round.metadata.status === "scheduled" || round.metadata.status === "building")
+        .map((round) => ({
+          round: round.round,
+          snapshot_id: round.snapshotId,
+          status: round.metadata.status,
+          elapsed_ms: totalElapsedMs,
+        })),
+    });
   }
 
   if (metadata?.status === "ready" && !standardLoadedFromProfileCache) {

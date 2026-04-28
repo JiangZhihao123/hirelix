@@ -200,14 +200,14 @@ export const PARSE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
 
 export const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_JUDGE_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 420 : 1200,
-  { min: 120, max: 2000 },
+  SEARCH_LOW_COST_MODE ? 900 : 2400,
+  { min: 120, max: 6000 },
 );
 
 export const ARBITER_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_ARBITER_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 400 : 800,
-  { min: 120, max: 2000 },
+  SEARCH_LOW_COST_MODE ? 1200 : 4000,
+  { min: 120, max: 6000 },
 );
 
 export const ESTIMATED_TOKENS_PER_CHAR = getConfiguredNumber(

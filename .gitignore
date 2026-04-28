@@ -19,6 +19,7 @@
 /.playwright-cli/
 /.playwright-mcp/
 /output/
+/logs/
 
 # next.js
 /.next/
