@@ -294,7 +294,11 @@ export function buildBrightDataRecallFilter(
 
   const standardSkillFilter = options.buildStandardSkillFilter(recallSpec, mode);
   if (standardSkillFilter) {
-    rootFilters.push(standardSkillFilter);
+    if ("filters" in standardSkillFilter && standardSkillFilter.operator === "and") {
+      rootFilters.push(...standardSkillFilter.filters);
+    } else {
+      rootFilters.push(standardSkillFilter);
+    }
   }
 
   const locationFilter = options.buildRecallLocationFilter(

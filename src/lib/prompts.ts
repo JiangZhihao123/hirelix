@@ -74,9 +74,9 @@ Return ONLY valid JSON with this structure:
   },
   "recall_spec": {
     "countries": ["ISO country codes where recall should reasonably focus"],
-    "title_variants": ["3-8 clean standalone LinkedIn titles — no comma or dash suffixes, seniority variants included, never fewer than 3"],
+    "title_variants": ["3-8 clean standalone LinkedIn titles — no comma or dash suffixes, seniority variants included, never fewer than 3; for specialized engineering roles, prefer domain-specific titles before generic Software Engineer titles"],
     "core_skill_terms": ["5-12 concrete searchable technical keywords that would appear in a real LinkedIn profile — specific tools, frameworks, languages; no soft skills or vague terms"],
-    "differentiating_skill_terms": ["2-5 keywords that make this role unique vs. others with the same title — terms a headhunter checks first; must literally appear on LinkedIn profiles; no abstract phrases"],
+    "differentiating_skill_terms": ["2-5 keywords that make this role unique vs. others with the same title — terms a headhunter checks first; must literally appear on LinkedIn profiles; no abstract phrases; these should be narrow enough to exclude generic same-title profiles"],
     "baseline_skill_terms": ["3-6 standard stack requirements that confirm basic technical fit"],
     "domain_terms": ["0-3 industry/domain keywords from the company's business context; empty array if no clear domain"],
     "must_have_signals": ["concrete signals that strongly indicate fit for this specific role"],

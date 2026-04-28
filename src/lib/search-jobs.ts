@@ -533,31 +533,56 @@ function buildStandardSkillTerms(recallSpec: RecallSpec, mode: RecallFilterMode)
   );
 }
 
-function buildStandardSkillFilter(recallSpec: RecallSpec, mode: RecallFilterMode): BrightDataFilterRule | null {
-  const standardSkillTerms = buildStandardSkillTerms(recallSpec, mode);
-  if (standardSkillTerms.length === 0) {
-    return null;
-  }
-
-  const filters: BrightDataFilterRule[] = [];
-  for (const term of standardSkillTerms) {
-    filters.push({
-      name: "about",
-      operator: "includes",
-      value: term,
-    });
-  }
-  for (const term of standardSkillTerms) {
-    filters.push({
-      name: "position",
-      operator: "includes",
-      value: term,
-    });
-  }
+function buildProfileSignalFilter(terms: string[]): BrightDataFilterRule | null {
+  const normalizedTerms = compactNormalizedTerms(
+    terms
+      .map((term) => normalizeText(term))
+      .filter((term) => term.length >= 2),
+    8,
+  );
+  if (normalizedTerms.length === 0) return null;
 
   return {
     operator: "or",
-    filters: filters.slice(0, 12),
+    filters: [
+      ...normalizedTerms.map((term) => ({
+        name: "about",
+        operator: "includes" as const,
+        value: term,
+      })),
+      ...normalizedTerms.map((term) => ({
+        name: "position",
+        operator: "includes" as const,
+        value: term,
+      })),
+    ].slice(0, 16),
+  };
+}
+
+function buildStandardSkillFilter(recallSpec: RecallSpec, mode: RecallFilterMode): BrightDataFilterRule | null {
+  const standardSkillFilter = buildProfileSignalFilter(buildStandardSkillTerms(recallSpec, mode));
+  if (!standardSkillFilter) return null;
+
+  if (mode === "relaxed") {
+    return standardSkillFilter;
+  }
+
+  const roleSpecificFilter = buildProfileSignalFilter([
+    ...recallSpec.differentiating_skill_terms,
+    ...recallSpec.domain_terms,
+    ...recallSpec.must_have_signals,
+  ]);
+
+  if (!roleSpecificFilter) {
+    return standardSkillFilter;
+  }
+
+  return {
+    operator: "and",
+    filters: [
+      roleSpecificFilter,
+      standardSkillFilter,
+    ],
   };
 }
 
