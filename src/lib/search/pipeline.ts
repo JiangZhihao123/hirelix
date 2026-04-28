@@ -1253,9 +1253,10 @@ async function buildBrightDataDatasetCandidates(
   }
 
   const waitingOnStandard = metadata?.status !== "ready" && !standardRoundFailedEmpty;
-  const waitingOnAdditional = additionalSnapshotStates.some(
+  const deferredAdditionalRounds = additionalSnapshotStates.filter(
     (round) => round.metadata.status === "scheduled" || round.metadata.status === "building",
   );
+  const waitingOnAdditional = deferredAdditionalRounds.length > 0;
   const shouldWaitForAdditional = waitingOnAdditional && standardRoundFailedEmpty;
 
   if (waitingOnStandard || shouldWaitForAdditional) {
@@ -1334,8 +1335,7 @@ async function buildBrightDataDatasetCandidates(
       search_id: context.searchId,
       job_id: context.jobId,
       standard_snapshot_id: activeSnapshotId,
-      additional: additionalSnapshotStates
-        .filter((round) => round.metadata.status === "scheduled" || round.metadata.status === "building")
+      additional: deferredAdditionalRounds
         .map((round) => ({
           round: round.round,
           snapshot_id: round.snapshotId,
@@ -1537,10 +1537,11 @@ async function buildBrightDataDatasetCandidates(
     for (const roundRef of additionalSnapshotStates) {
       const { round, snapshotId: roundSnapId, metadata: roundMeta } = roundRef;
       if (roundMeta.status !== "ready") {
-        helpers.logSearchEvent("search_multi_round_empty", {
+        helpers.logSearchEvent("search_multi_round_deferred", {
           search_id: context.searchId,
           round,
           snapshot_id: roundSnapId,
+          status: roundMeta.status,
           job_id: context.jobId,
         });
         continue;
@@ -1723,7 +1724,7 @@ async function buildBrightDataDatasetCandidates(
     result_count: allProfiles.length,
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
-    additional_rounds_in_progress: 0,
+    additional_rounds_in_progress: deferredAdditionalRounds.length,
     job_id: context.jobId,
   });
   helpers.logSearchEvent("search_step_started", {
@@ -1801,6 +1802,36 @@ async function buildBrightDataDatasetCandidates(
     shortlist_count: combinedResult.displayStats.shortlist_count,
     job_id: context.jobId,
   });
+
+  if (deferredAdditionalRounds.length > 0) {
+    await updateSearchParsedRequirements(
+      context.searchId,
+      helpers.withDisplayStats(parsed, helpers.buildSearchDisplayStats({
+        ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
+        ...combinedResult.displayStats,
+        bright_snapshot_cost: totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? undefined),
+        bright_profile_budget: executionProfile.filterLimit,
+        bright_profiles_requested: recallRequest.recordsLimit,
+        bright_profiles_returned: allProfiles.length,
+        judge_mode: runtime.judgeMode,
+      })),
+    );
+    helpers.logSearchEvent("search_additional_rounds_waiting_after_partial_score", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      deferred_rounds: deferredAdditionalRounds.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        status: round.metadata.status,
+      })),
+      scored_profiles: allProfiles.length,
+    });
+    throw new DatasetRecallPendingError(
+      `Bright Data additional rounds still processing after partial scoring for snapshot ${activeSnapshotId}`,
+      { retryDelayMs: Math.max(BRIGHTDATA_FILTER_POLL_INTERVAL_MS, 5 * 60 * 1000) },
+    );
+  }
+
   helpers.logSearchEvent("search_timing", {
     search_id: context.searchId,
     phase: "pipeline_complete",
