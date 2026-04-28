@@ -12,7 +12,7 @@ test("getSearchTaskEtaCopy keeps accepted searches scoped to brief parsing", () 
 test("getSearchTaskEtaCopy sets realistic recall expectations once the brief is ready", () => {
   assert.equal(
     getSearchTaskEtaCopy("searching", "linkedin_scan"),
-    "LinkedIn search usually takes 2–5 minutes",
+    "LinkedIn search usually takes 5-10 minutes",
   );
 });
 
