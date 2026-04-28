@@ -2,6 +2,28 @@ import { supabaseAdmin } from "@/lib/supabase-server";
 import { nowIso } from "@/lib/search/normalize";
 import type { CandidateRowInput } from "@/lib/search/types";
 
+export type SnapshotCacheEntry = {
+  snapshotId: string;
+  datasetSize: number | null;
+  cost: number | null;
+  expiresAt: string;
+};
+
+export type SnapshotProfilePersistResult = {
+  ok: boolean;
+  rowCount: number;
+  error?: unknown;
+};
+
+const DEFAULT_SNAPSHOT_CACHE_TTL_DAYS = 14;
+
+export function getSnapshotCacheTtlDays() {
+  const raw = process.env.BRIGHTDATA_SNAPSHOT_CACHE_TTL_DAYS;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_SNAPSHOT_CACHE_TTL_DAYS;
+  return Math.min(parsed, 30);
+}
+
 function buildCandidatePayload(searchId: string, row: CandidateRowInput) {
   return {
     search_id: searchId,
@@ -59,17 +81,23 @@ export async function setSearchStatus(
   }
 }
 
-export async function lookupCachedSnapshot(filterHash: string): Promise<string | null> {
+export async function lookupCachedSnapshot(filterHash: string): Promise<SnapshotCacheEntry | null> {
   try {
     const { data } = await supabaseAdmin
       .from("hirelix_dataset_snapshots")
-      .select("snapshot_id")
+      .select("snapshot_id, dataset_size, cost, expires_at")
       .eq("filter_hash", filterHash)
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    return data?.snapshot_id ?? null;
+    if (!data?.snapshot_id || !data.expires_at) return null;
+    return {
+      snapshotId: data.snapshot_id as string,
+      datasetSize: typeof data.dataset_size === "number" ? data.dataset_size : null,
+      cost: typeof data.cost === "number" ? data.cost : null,
+      expiresAt: data.expires_at as string,
+    };
   } catch {
     return null;
   }
@@ -82,7 +110,7 @@ export async function cacheSnapshotEntry(params: {
   filterSummary: unknown;
   recordsLimit: number;
 }): Promise<void> {
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + getSnapshotCacheTtlDays() * 24 * 60 * 60 * 1000).toISOString();
   try {
     await supabaseAdmin.from("hirelix_dataset_snapshots").upsert(
       {
@@ -100,6 +128,45 @@ export async function cacheSnapshotEntry(params: {
   }
 }
 
+export async function expireCachedSnapshot(snapshotId: string): Promise<void> {
+  try {
+    await supabaseAdmin
+      .from("hirelix_dataset_snapshots")
+      .update({ expires_at: new Date(0).toISOString() })
+      .eq("snapshot_id", snapshotId);
+  } catch {
+    // Non-critical
+  }
+}
+
+export async function loadCachedSnapshotProfiles(
+  snapshotId: string,
+  sourceRound: string,
+): Promise<Record<string, unknown>[] | null> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("hirelix_snapshot_profiles")
+      .select("raw_data")
+      .eq("snapshot_id", snapshotId)
+      .eq("source_round", sourceRound)
+      .order("record_index", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("[snapshot_profiles] load error", { snapshotId, sourceRound, error });
+      return null;
+    }
+    if (!data || data.length === 0) return null;
+
+    return data
+      .map((row) => row.raw_data)
+      .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object");
+  } catch (error) {
+    console.error("[snapshot_profiles] load failed", { snapshotId, sourceRound, error });
+    return null;
+  }
+}
+
 export async function persistSnapshotProfiles(
   records: Record<string, unknown>[],
   params: {
@@ -108,13 +175,13 @@ export async function persistSnapshotProfiles(
     jobId: string;
     sourceRound: string;
   },
-): Promise<void> {
+): Promise<SnapshotProfilePersistResult> {
   console.log(
     `[snapshot_profiles] persist called: snapshot=${params.snapshotId} round=${params.sourceRound} records=${records.length}`,
   );
-  if (records.length === 0) return;
+  if (records.length === 0) return { ok: true, rowCount: 0 };
 
-  const rows = records.map((record) => {
+  const rows = records.map((record, index) => {
     const linkedinId =
       typeof record.linkedin_id === "string" && record.linkedin_id
         ? record.linkedin_id
@@ -134,6 +201,7 @@ export async function persistSnapshotProfiles(
       search_id: params.searchId,
       job_id: params.jobId,
       source_round: params.sourceRound,
+      record_index: index,
       linkedin_id: linkedinId,
       profile_url: profileUrl,
       raw_data: record,
@@ -162,8 +230,10 @@ export async function persistSnapshotProfiles(
     console.log(
       `[snapshot_profiles] persisted ${rows.length} rows for snapshot=${params.snapshotId} round=${params.sourceRound}`,
     );
+    return { ok: true, rowCount: rows.length };
   } catch (error) {
     console.error("[snapshot_profiles] persist failed", params.snapshotId, error);
+    return { ok: false, rowCount: 0, error };
   }
 }
 

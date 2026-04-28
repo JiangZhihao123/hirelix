@@ -12,6 +12,7 @@ CREATE TABLE public.hirelix_snapshot_profiles (
   job_id       UUID        NOT NULL               -- 关联的 hirelix_search_jobs.id
                            REFERENCES public.hirelix_search_jobs(id) ON DELETE CASCADE,
   source_round TEXT        NOT NULL DEFAULT 'standard', -- standard | hidden_gem | company_target
+  record_index INTEGER,                           -- Bright Data 下载结果中的原始顺序
   linkedin_id  TEXT,                              -- Bright Data 的 linkedin_id / record.id
   profile_url  TEXT,                              -- LinkedIn 档案 URL
   raw_data     JSONB       NOT NULL,              -- 完整原始 record（下载后、adapt 前）
@@ -25,6 +26,9 @@ CREATE INDEX hirelix_snapshot_profiles_by_snapshot
 -- 按 search_id 查某次搜索的全量召回
 CREATE INDEX hirelix_snapshot_profiles_by_search
   ON public.hirelix_snapshot_profiles (search_id);
+
+CREATE INDEX hirelix_snapshot_profiles_by_round_order
+  ON public.hirelix_snapshot_profiles (snapshot_id, source_round, record_index);
 
 -- 幂等保证：同一 snapshot 内 linkedin_id 唯一
 CREATE UNIQUE INDEX hirelix_snapshot_profiles_unique_lid

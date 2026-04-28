@@ -292,6 +292,7 @@ export type RecallMetadata = {
   standard_recall_completed_at?: string | null;
   standard_download_started_at?: string | null;
   standard_download_completed_at?: string | null;
+  snapshot_profile_persist_warning?: string | null;
   all_recall_completed_at?: string | null;
   status?: "submitted" | "polling" | "ready";
   filter_summary?: {

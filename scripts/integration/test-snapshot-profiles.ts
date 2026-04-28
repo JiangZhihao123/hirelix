@@ -147,49 +147,45 @@ async function main() {
   // ── 场景 1：首次搜索 ─────────────────────────────────────────────────────
   const run1 = await createAndRunSearch("RUN-1");
 
-  // 等待 fire-and-forget 写完（网络写入可能需要几秒）
-  console.log(`\n[RUN-1] 等待 fire-and-forget 写入完成（10s）...`);
-  await new Promise((r) => setTimeout(r, 10000));
-
   console.log(`[RUN-1] 验证 hirelix_snapshot_profiles 落库...`);
   console.log(`  recall_metadata.snapshot_id (参考): ${run1.snapshotId}`);
 
   // 直接从 DB 读该 search_id 下的所有落库记录
   const { data: run1Profiles } = await supabase
     .from("hirelix_snapshot_profiles")
-    .select("id,snapshot_id,source_round,linkedin_id,profile_url", { count: "exact" })
+    .select("id,snapshot_id,source_round,record_index,linkedin_id,profile_url", { count: "exact" })
     .eq("search_id", run1.searchId);
 
   const run1Rows = run1Profiles ?? [];
   if (run1Rows.length === 0) {
     console.error("  ❌ FAIL: hirelix_snapshot_profiles 中没有任何落库数据");
   } else {
-    const bySnap = new Map<string, { round: string; count: number; liIds: number; urls: number }>();
+    const bySnap = new Map<string, { round: string; count: number; liIds: number; urls: number; indexes: number[] }>();
     for (const row of run1Rows) {
       const key = `${row.snapshot_id}|${row.source_round}`;
       const existing = bySnap.get(key);
+      const recordIndex = typeof row.record_index === "number" ? row.record_index : -1;
       if (existing) {
         existing.count++;
+        existing.indexes.push(recordIndex);
         if (row.linkedin_id) existing.liIds++;
         if (row.profile_url) existing.urls++;
       } else {
-        bySnap.set(key, { round: row.source_round, count: 1, liIds: row.linkedin_id ? 1 : 0, urls: row.profile_url ? 1 : 0 });
+        bySnap.set(key, { round: row.source_round, count: 1, liIds: row.linkedin_id ? 1 : 0, urls: row.profile_url ? 1 : 0, indexes: [recordIndex] });
       }
     }
-    for (const [key, { round, count, liIds, urls }] of bySnap) {
+    for (const [key, { round, count, liIds, urls, indexes }] of bySnap) {
       const snapId = key.split("|")[0];
-      console.log(`  ✅ [${round}] snapshot=${snapId} → 落库=${count} 条 | linkedin_id有值=${liIds} | profile_url有值=${urls}`);
+      const ordered = indexes.every((value, index) => value === index);
+      console.log(`  ✅ [${round}] snapshot=${snapId} → 落库=${count} 条 | linkedin_id有值=${liIds} | profile_url有值=${urls} | record_index=${ordered ? "连续" : "异常"}`);
     }
   }
 
   // ── 场景 2：相同 JD 重跑，期望 snapshot cache 命中 ───────────────────────
   console.log(`\n${"─".repeat(60)}`);
-  console.log("[RUN-2] 用相同 JD 重跑，验证 snapshot cache 命中 + 幂等写入...");
+  console.log("[RUN-2] 用相同 JD 重跑，验证 snapshot cache 命中 + DB-first 复用...");
 
   const run2 = await createAndRunSearch("RUN-2");
-
-  console.log(`\n[RUN-2] 等待 fire-and-forget 写入完成（10s）...`);
-  await new Promise((r) => setTimeout(r, 10000));
 
   // 检查 standard snapshot_id 是否一致（cache 命中）
   const cacheHit = run1.snapshotId && run2.snapshotId && run1.snapshotId === run2.snapshotId;
@@ -200,16 +196,16 @@ async function main() {
     console.log("  可能是 budget 不同或 filter hash 有差异，属预期行为");
   }
 
-  // 从 DB 读 RUN-2 的落库记录
+  // cache hit 时 DB-first 会复用既有 snapshot rows，不再为 RUN-2 重复写一份 raw_data
   const { data: run2Profiles } = await supabase
     .from("hirelix_snapshot_profiles")
-    .select("id,snapshot_id,source_round,linkedin_id,profile_url")
-    .eq("search_id", run2.searchId);
+    .select("id,snapshot_id,source_round,record_index,linkedin_id,profile_url")
+    .eq(cacheHit ? "snapshot_id" : "search_id", cacheHit ? run2.snapshotId : run2.searchId);
   const run2Rows = run2Profiles ?? [];
 
   console.log(`\n[RUN-2] 落库验证：`);
   if (run2Rows.length === 0) {
-    console.error("  ❌ FAIL: RUN-2 没有任何落库数据");
+    console.error("  ❌ FAIL: 没有找到可复用的 snapshot profile 数据");
   } else {
     const bySnap2 = new Map<string, { round: string; count: number }>();
     for (const row of run2Rows) {
@@ -224,11 +220,11 @@ async function main() {
     }
   }
 
-  // 幂等性检查：若 snapshot 被复用，行数应该和 RUN-1 一样（delete+insert 保证不翻倍）
+  // 幂等性检查：若 snapshot 被复用，读取到的复用行数应该和 RUN-1 一样
   if (cacheHit && run1.snapshotId) {
-    console.log(`\n[幂等] RUN-1 落库总行数=${run1Rows.length} | RUN-2 落库总行数=${run2Rows.length}`);
+    console.log(`\n[DB-first] RUN-1 落库总行数=${run1Rows.length} | RUN-2 可复用行数=${run2Rows.length}`);
     if (run1Rows.length === run2Rows.length) {
-      console.log("  ✅ PASS: 幂等 — 行数相同，delete+insert 正常");
+      console.log("  ✅ PASS: DB-first 复用 — 行数相同，没有重复下载");
     } else {
       console.warn(`  ⚠ 行数不同，可能存在重复写入风险`);
     }

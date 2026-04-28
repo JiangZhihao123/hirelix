@@ -28,6 +28,8 @@ import {
 import { completeSearch } from "@/lib/search/finalize";
 import {
   cacheSnapshotEntry,
+  expireCachedSnapshot,
+  loadCachedSnapshotProfiles,
   lookupCachedSnapshot,
   persistSnapshotProfiles,
   retagSearchCandidatePoolTypes,
@@ -37,6 +39,7 @@ import {
   updateSearchUsageEventMetadata,
   upsertCandidatesForSearch,
   upsertSingleCandidate,
+  type SnapshotCacheEntry,
 } from "@/lib/search/persistence";
 import {
   buildBrightDataCandidateRows,
@@ -53,6 +56,7 @@ import {
 import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring";
 import type {
   CandidateRowInput,
+  AdditionalRecallSnapshot,
   ConstraintVerdict,
   ExcludedReasonCount,
   HiringBrief,
@@ -136,11 +140,41 @@ type SearchPipelineHelpers = {
     stats: SearchDisplayStats,
   ) => Record<string, unknown>;
   canReuseParsedRequirements: (search: SearchRow) => boolean;
-  buildStandardSkillFilter: any;
-  buildRecallLocationFilter: any;
-  buildAdditionalSnapshotMetadata: any;
-  hasRecallSnapshotDrift: any;
-  mapSnapshotStatus: (metadata: BrightDataSnapshotMetadata | null | undefined) => string | undefined;
+  buildStandardSkillFilter: (
+    recallSpec: RecallSpec,
+    mode: "primary" | "relaxed",
+  ) => BrightDataDatasetFilterRequest["filter"] | null;
+  buildRecallLocationFilter: (
+    hiringBrief: HiringBrief,
+    recallSpec: RecallSpec,
+    countryCodes: string[],
+    mode: "primary" | "relaxed",
+  ) => BrightDataDatasetFilterRequest["filter"] | null;
+  buildAdditionalSnapshotMetadata: (params: {
+    round: string;
+    snapshotId: string;
+    recordsLimit?: number | null;
+    existing?: AdditionalRecallSnapshot | null;
+    status?: AdditionalRecallSnapshot["status"];
+    submittedAt?: string | null;
+    readyAt?: string | null;
+    failedAt?: string | null;
+    failureCode?: string | null;
+    lastPolledAt?: string | null;
+    downloadStartedAt?: string | null;
+    downloadCompletedAt?: string | null;
+    profilesReturned?: number | null;
+    incrementPollAttempt?: boolean;
+    incrementDownloadAttempt?: boolean;
+  }) => AdditionalRecallSnapshot;
+  hasRecallSnapshotDrift: (
+    metadata: RecallMetadata | null,
+    filterSummary: RecallFilterSummary,
+    executionProfile: SearchExecutionProfile,
+    runtime: ReturnType<typeof getExecutionRuntime>,
+    requestedLimit: number,
+  ) => boolean;
+  mapSnapshotStatus: (metadata: BrightDataSnapshotMetadata | null | undefined) => AdditionalRecallSnapshot["status"];
   isTransientSnapshotDownloadError: (error: unknown) => boolean;
   updateSearchDisplayStat: (
     searchId: string,
@@ -203,6 +237,68 @@ type SearchPipelineHelpers = {
     rows: CandidateRowInput[],
   ) => Promise<CandidateRowInput[]>;
 };
+
+type RecallSnapshotRef = {
+  round: string;
+  snapshotId: string;
+  request: BrightDataDatasetFilterRequest;
+  recordsLimit: number;
+  submittedAt?: string;
+  cacheEntry?: SnapshotCacheEntry | null;
+};
+
+type RecallFilterSummary = {
+  title_terms: string[];
+  country_codes: string[];
+  location_terms: string[];
+  strict_location_terms?: string[];
+  nearby_location_terms?: string[];
+  must_have_signals?: string[];
+  avoid_profiles?: string[];
+};
+
+function buildCachedSnapshotMetadata(
+  snapshotId: string,
+  rows: Record<string, unknown>[],
+  cacheEntry?: SnapshotCacheEntry | null,
+): BrightDataSnapshotMetadata {
+  return {
+    id: snapshotId,
+    status: "ready",
+    dataset_id: "cached",
+    dataset_size: cacheEntry?.datasetSize ?? rows.length,
+    cost: cacheEntry?.cost ?? undefined,
+  };
+}
+
+async function persistDownloadedSnapshotProfiles(
+  params: {
+    rows: Record<string, unknown>[];
+    snapshotId: string;
+    searchId: string;
+    jobId: string;
+    sourceRound: string;
+    logSearchEvent: SearchPipelineHelpers["logSearchEvent"];
+  },
+) {
+  const result = await persistSnapshotProfiles(params.rows, {
+    snapshotId: params.snapshotId,
+    searchId: params.searchId,
+    jobId: params.jobId,
+    sourceRound: params.sourceRound,
+  });
+  if (!result.ok) {
+    params.logSearchEvent("search_snapshot_profile_persist_failed", {
+      search_id: params.searchId,
+      snapshot_id: params.snapshotId,
+      source_round: params.sourceRound,
+      row_count: params.rows.length,
+      job_id: params.jobId,
+      error: result.error instanceof Error ? result.error.message : String(result.error),
+    });
+  }
+  return result;
+}
 
 async function parseJobDescription(
   context: PipelineContext,
@@ -742,13 +838,7 @@ async function buildBrightDataDatasetCandidates(
   const persistedAdditionalSnapshots = new Map(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
-  let additionalSnapshotRefs: Array<{
-    round: string;
-    snapshotId: string;
-    request: BrightDataDatasetFilterRequest;
-    recordsLimit: number;
-    submittedAt?: string;
-  }> = [];
+  let additionalSnapshotRefs: RecallSnapshotRef[] = [];
 
   const filterSummary = {
     title_terms: recallSpec.title_variants.length > 0
@@ -779,6 +869,7 @@ async function buildBrightDataDatasetCandidates(
       .filter((term) => term.length >= 3)
       .slice(0, 10),
   };
+  let standardCacheEntry: SnapshotCacheEntry | null = null;
 
   const submitStandardSnapshot = async (
     request: BrightDataDatasetFilterRequest,
@@ -786,17 +877,20 @@ async function buildBrightDataDatasetCandidates(
   ) => {
     const submittedAt = helpers.nowIso();
     const standardHash = computeFilterHash(request);
-    const cachedStandardId = await lookupCachedSnapshot(standardHash);
-    if (cachedStandardId) {
-      snapshotId = cachedStandardId;
+    const cachedStandardEntry = await lookupCachedSnapshot(standardHash);
+    if (cachedStandardEntry) {
+      snapshotId = cachedStandardEntry.snapshotId;
+      standardCacheEntry = cachedStandardEntry;
       helpers.logSearchEvent("search_snapshot_cache_hit", {
         search_id: context.searchId,
         round: options?.relaxed ? "standard_relaxed" : "standard",
         snapshot_id: snapshotId,
+        expires_at: cachedStandardEntry.expiresAt,
         job_id: context.jobId,
       });
     } else {
       snapshotId = await triggerDatasetFilter(brightDataToken, request);
+      standardCacheEntry = null;
       void cacheSnapshotEntry({
         snapshotId,
         round: options?.relaxed ? "standard_relaxed" : "standard",
@@ -872,14 +966,17 @@ async function buildBrightDataDatasetCandidates(
     additionalSnapshotRefs = await Promise.all(additionalRounds.map(async (round) => {
       const submittedAt = helpers.nowIso();
       const roundHash = computeFilterHash(round.request);
-      const cachedRoundId = await lookupCachedSnapshot(roundHash);
+      const cachedRoundEntry = await lookupCachedSnapshot(roundHash);
       let roundSnapshotId: string;
-      if (cachedRoundId) {
-        roundSnapshotId = cachedRoundId;
+      let roundCacheEntry: SnapshotCacheEntry | null = null;
+      if (cachedRoundEntry) {
+        roundSnapshotId = cachedRoundEntry.snapshotId;
+        roundCacheEntry = cachedRoundEntry;
         helpers.logSearchEvent("search_snapshot_cache_hit", {
           search_id: context.searchId,
           round: round.round,
           snapshot_id: roundSnapshotId,
+          expires_at: cachedRoundEntry.expiresAt,
           job_id: context.jobId,
         });
       } else {
@@ -905,6 +1002,7 @@ async function buildBrightDataDatasetCandidates(
         request: round.request,
         recordsLimit: round.request.recordsLimit,
         submittedAt,
+        cacheEntry: roundCacheEntry,
       };
     }));
 
@@ -986,15 +1084,124 @@ async function buildBrightDataDatasetCandidates(
   let metadata: BrightDataSnapshotMetadata | null = null;
   let profiles: BrightDataProfile[] = [];
   let standardRoundFailedEmpty = false;
+  let standardLoadedFromProfileCache = false;
+  const existingPersistWarning = helpers.normalizeRecallMetadata(
+    parsed.recall_metadata,
+  )?.snapshot_profile_persist_warning;
+  const snapshotProfilePersistWarnings = new Set(
+    existingPersistWarning
+      ? existingPersistWarning.split(",").map((value) => value.trim()).filter(Boolean)
+      : [],
+  );
+  const snapshotProfilePersistWarningMetadata = () => (
+    snapshotProfilePersistWarnings.size > 0
+      ? { snapshot_profile_persist_warning: Array.from(snapshotProfilePersistWarnings).join(",") }
+      : {}
+  );
 
-  metadata = await getDatasetSnapshotMetadata(brightDataToken, activeSnapshotId);
+  const cachedStandardRows = await loadCachedSnapshotProfiles(activeSnapshotId, "standard");
+  if (cachedStandardRows?.length) {
+    standardLoadedFromProfileCache = true;
+    profiles = cachedStandardRows.map(adaptDatasetRecordToBrightDataProfile);
+    metadata = buildCachedSnapshotMetadata(activeSnapshotId, cachedStandardRows, standardCacheEntry);
+    helpers.logSearchEvent("search_snapshot_profile_cache_hit", {
+      search_id: context.searchId,
+      round: "standard",
+      snapshot_id: activeSnapshotId,
+      profiles_returned: profiles.length,
+      job_id: context.jobId,
+    });
+  } else {
+    try {
+      metadata = await getDatasetSnapshotMetadata(brightDataToken, activeSnapshotId);
+    } catch (error) {
+      if (!standardCacheEntry) {
+        throw error;
+      }
+      await expireCachedSnapshot(activeSnapshotId);
+      helpers.logSearchEvent("search_snapshot_cache_expired", {
+        search_id: context.searchId,
+        round: "standard",
+        snapshot_id: activeSnapshotId,
+        reason: "metadata_unavailable_after_db_miss",
+        job_id: context.jobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      snapshotId = null;
+      await submitStandardSnapshot(recallRequest);
+      throw new DatasetRecallPendingError(
+        `Bright Data cached snapshot ${activeSnapshotId} was unavailable; submitted replacement snapshot ${snapshotId}`,
+        { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+      );
+    }
+  }
 
   const additionalSnapshotStates = await Promise.all(
     additionalSnapshotRefs.map(async (round) => {
-      const roundMetadata = await getDatasetSnapshotMetadata(brightDataToken, round.snapshotId);
-      return { ...round, metadata: roundMetadata };
+      const cachedRoundRows = await loadCachedSnapshotProfiles(round.snapshotId, round.round);
+      if (cachedRoundRows?.length) {
+        helpers.logSearchEvent("search_snapshot_profile_cache_hit", {
+          search_id: context.searchId,
+          round: round.round,
+          snapshot_id: round.snapshotId,
+          profiles_returned: cachedRoundRows.length,
+          job_id: context.jobId,
+        });
+        return {
+          ...round,
+          metadata: buildCachedSnapshotMetadata(round.snapshotId, cachedRoundRows, round.cacheEntry),
+          cachedRows: cachedRoundRows,
+        };
+      }
+      try {
+        const roundMetadata = await getDatasetSnapshotMetadata(brightDataToken, round.snapshotId);
+        return { ...round, metadata: roundMetadata, cachedRows: null };
+      } catch (error) {
+        if (!round.cacheEntry) {
+          throw error;
+        }
+        await expireCachedSnapshot(round.snapshotId);
+        const replacementSubmittedAt = helpers.nowIso();
+        const replacementSnapshotId = await triggerDatasetFilter(brightDataToken, round.request);
+        void cacheSnapshotEntry({
+          snapshotId: replacementSnapshotId,
+          round: round.round,
+          filterHash: computeFilterHash(round.request),
+          filterSummary: null,
+          recordsLimit: round.recordsLimit,
+        });
+        helpers.logSearchEvent("search_snapshot_cache_expired", {
+          search_id: context.searchId,
+          round: round.round,
+          snapshot_id: round.snapshotId,
+          replacement_snapshot_id: replacementSnapshotId,
+          reason: "metadata_unavailable_after_db_miss",
+          job_id: context.jobId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return {
+          ...round,
+          snapshotId: replacementSnapshotId,
+          submittedAt: replacementSubmittedAt,
+          cacheEntry: null,
+          metadata: {
+            id: replacementSnapshotId,
+            status: "scheduled" as const,
+            dataset_id: "cached",
+          },
+          cachedRows: null,
+        };
+      }
     }),
   );
+  additionalSnapshotRefs = additionalSnapshotStates.map((round) => ({
+    round: round.round,
+    snapshotId: round.snapshotId,
+    request: round.request,
+    recordsLimit: round.recordsLimit,
+    submittedAt: round.submittedAt,
+    cacheEntry: round.cacheEntry,
+  }));
   const pollRecordedAt = helpers.nowIso();
   for (const round of additionalSnapshotStates) {
     persistedAdditionalSnapshots.set(
@@ -1097,17 +1304,22 @@ async function buildBrightDataDatasetCandidates(
     );
   }
 
-  if (metadata?.status === "ready") {
+  if (metadata?.status === "ready" && !standardLoadedFromProfileCache) {
     const standardDownloadStartedAt = helpers.nowIso();
     try {
       const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
       profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
-      void persistSnapshotProfiles(rows, {
+      const persistResult = await persistDownloadedSnapshotProfiles({
+        rows,
         snapshotId: activeSnapshotId,
         searchId: context.searchId,
         jobId: context.jobId,
         sourceRound: "standard",
+        logSearchEvent: helpers.logSearchEvent,
       });
+      if (!persistResult.ok) {
+        snapshotProfilePersistWarnings.add("standard");
+      }
       parsed.recall_metadata = {
         ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
           provider: "brightdata_dataset" as const,
@@ -1123,8 +1335,26 @@ async function buildBrightDataDatasetCandidates(
           helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt,
         standard_download_started_at: standardDownloadStartedAt,
         standard_download_completed_at: helpers.nowIso(),
+        ...snapshotProfilePersistWarningMetadata(),
       } satisfies RecallMetadata;
     } catch (error) {
+      if (!helpers.isTransientSnapshotDownloadError(error) && standardCacheEntry) {
+        await expireCachedSnapshot(activeSnapshotId);
+        helpers.logSearchEvent("search_snapshot_cache_expired", {
+          search_id: context.searchId,
+          round: "standard",
+          snapshot_id: activeSnapshotId,
+          reason: "download_unavailable_after_db_miss",
+          job_id: context.jobId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        snapshotId = null;
+        await submitStandardSnapshot(recallRequest);
+        throw new DatasetRecallPendingError(
+          `Bright Data cached snapshot ${activeSnapshotId} could not be downloaded; submitted replacement snapshot ${snapshotId}`,
+          { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+        );
+      }
       if (!helpers.isTransientSnapshotDownloadError(error)) {
         throw error;
       }
@@ -1276,23 +1506,56 @@ async function buildBrightDataDatasetCandidates(
       }
       let roundProfiles: BrightDataProfile[];
       const roundDownloadStartedAt = helpers.nowIso();
-      try {
-        const roundRows = await downloadDatasetSnapshot(brightDataToken, roundSnapId);
-        roundProfiles = roundRows.map(adaptDatasetRecordToBrightDataProfile);
-        void persistSnapshotProfiles(roundRows, {
-          snapshotId: roundSnapId,
-          searchId: context.searchId,
-          jobId: context.jobId,
-          sourceRound: round,
-        });
-      } catch (error) {
-        if (!helpers.isTransientSnapshotDownloadError(error)) {
-          throw error;
+      if (roundRef.cachedRows?.length) {
+        roundProfiles = roundRef.cachedRows.map(adaptDatasetRecordToBrightDataProfile);
+      } else {
+        try {
+          const roundRows = await downloadDatasetSnapshot(brightDataToken, roundSnapId);
+          roundProfiles = roundRows.map(adaptDatasetRecordToBrightDataProfile);
+          const persistResult = await persistDownloadedSnapshotProfiles({
+            rows: roundRows,
+            snapshotId: roundSnapId,
+            searchId: context.searchId,
+            jobId: context.jobId,
+            sourceRound: round,
+            logSearchEvent: helpers.logSearchEvent,
+          });
+          if (!persistResult.ok) {
+            snapshotProfilePersistWarnings.add(round);
+          }
+        } catch (error) {
+          if (!helpers.isTransientSnapshotDownloadError(error) && roundRef.cacheEntry) {
+            await expireCachedSnapshot(roundSnapId);
+            const replacementSnapshotId = await triggerDatasetFilter(brightDataToken, roundRef.request);
+            void cacheSnapshotEntry({
+              snapshotId: replacementSnapshotId,
+              round,
+              filterHash: computeFilterHash(roundRef.request),
+              filterSummary: null,
+              recordsLimit: roundRef.recordsLimit,
+            });
+            helpers.logSearchEvent("search_snapshot_cache_expired", {
+              search_id: context.searchId,
+              round,
+              snapshot_id: roundSnapId,
+              replacement_snapshot_id: replacementSnapshotId,
+              reason: "download_unavailable_after_db_miss",
+              job_id: context.jobId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            throw new DatasetRecallPendingError(
+              `Bright Data cached additional snapshot ${roundSnapId} could not be downloaded; submitted replacement snapshot ${replacementSnapshotId}`,
+              { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+            );
+          }
+          if (!helpers.isTransientSnapshotDownloadError(error)) {
+            throw error;
+          }
+          throw new DatasetRecallPendingError(
+            `Bright Data additional snapshot ${roundSnapId} is ready but the download is still finalizing`,
+            { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+          );
         }
-        throw new DatasetRecallPendingError(
-          `Bright Data additional snapshot ${roundSnapId} is ready but the download is still finalizing`,
-          { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
-        );
       }
       persistedAdditionalSnapshots.set(
         round,
@@ -1390,6 +1653,7 @@ async function buildBrightDataDatasetCandidates(
         profilesReturned: persistedAdditionalSnapshots.get(round.round)?.profiles_returned ?? null,
       }),
     })),
+    ...snapshotProfilePersistWarningMetadata(),
     status: "ready",
     filter_summary: filterSummary,
   };
