@@ -65,11 +65,9 @@ export async function completeSearch(
       )
       : finalRows;
 
-  if (draftedRows.length > 0) {
-    await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
-      replaceMissing: true,
-    });
-  }
+  await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
+    replaceMissing: true,
+  });
 
   const finalParsed = helpers.withDisplayStats(parsed, finalDisplayStats);
   const createdAtMs = context.createdAt ? Date.parse(context.createdAt) : Number.NaN;

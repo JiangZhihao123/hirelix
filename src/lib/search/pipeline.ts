@@ -559,7 +559,7 @@ async function scoreBrightDataProfiles(
       onCandidateScored: async (assessment, completedCount) => {
         const completedTotal = progressOffset + completedCount;
         const displayTier = helpers.getDisplayTierForAssessment(assessment);
-        if (!displayTier) {
+        if (!displayTier || !helpers.shouldDisplayCandidate(assessment)) {
           if (completedTotal % 5 === 0) {
             await helpers.updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
           }
@@ -851,15 +851,15 @@ async function buildBrightDataDatasetCandidates(
     location_terms: recallSpec.location_terms
       .map((term) => helpers.normalizeText(term))
       .filter((term) => term.length >= 3)
-      .slice(0, 16),
+      .slice(0, 24),
     strict_location_terms: recallSpec.strict_location_terms
       .map((term) => helpers.normalizeText(term))
       .filter((term) => term.length >= 3)
-      .slice(0, 16),
+      .slice(0, 24),
     nearby_location_terms: recallSpec.nearby_location_terms
       .map((term) => helpers.normalizeText(term))
       .filter((term) => term.length >= 3)
-      .slice(0, 10),
+      .slice(0, 16),
     must_have_signals: recallSpec.must_have_signals
       .map((term) => helpers.normalizeText(term))
       .filter((term) => term.length >= 3)
@@ -1111,6 +1111,19 @@ async function buildBrightDataDatasetCandidates(
     try {
       metadata = await getDatasetSnapshotMetadata(brightDataToken, activeSnapshotId);
     } catch (error) {
+      if (helpers.isTransientSnapshotDownloadError(error)) {
+        helpers.logSearchEvent("search_snapshot_metadata_retrying", {
+          search_id: context.searchId,
+          round: "standard",
+          snapshot_id: activeSnapshotId,
+          job_id: context.jobId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw new DatasetRecallPendingError(
+          `Bright Data metadata temporarily unavailable for snapshot ${activeSnapshotId}`,
+          { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+        );
+      }
       if (!standardCacheEntry) {
         throw error;
       }
@@ -1153,6 +1166,24 @@ async function buildBrightDataDatasetCandidates(
         const roundMetadata = await getDatasetSnapshotMetadata(brightDataToken, round.snapshotId);
         return { ...round, metadata: roundMetadata, cachedRows: null };
       } catch (error) {
+        if (helpers.isTransientSnapshotDownloadError(error)) {
+          helpers.logSearchEvent("search_snapshot_metadata_retrying", {
+            search_id: context.searchId,
+            round: round.round,
+            snapshot_id: round.snapshotId,
+            job_id: context.jobId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return {
+            ...round,
+            metadata: {
+              id: round.snapshotId,
+              status: "scheduled" as const,
+              dataset_id: round.request.datasetId,
+            },
+            cachedRows: null,
+          };
+        }
         if (!round.cacheEntry) {
           throw error;
         }
@@ -1914,6 +1945,10 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
       plan_code: planCode,
       activation_run: false,
       recall_provider: "brightdata_dataset",
+      hiring_brief: helpers.sanitizeHiringBrief(
+        (search as SearchRow).parsed_requirements?.hiring_brief,
+        (search as SearchRow).parsed_requirements || {},
+      ),
       recall_spec: helpers.normalizeRecallSpec(
         (search as SearchRow).parsed_requirements?.recall_spec,
         context.candidateCount,

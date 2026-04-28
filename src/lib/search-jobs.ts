@@ -216,6 +216,19 @@ const GEO_ALLOWLISTS = [
       "Treat the Bay Area as one hiring market and rank Peninsula / East Bay candidates as nearby when needed.",
   },
   {
+    matchers: [/seattle|bellevue|redmond|kirkland/i],
+    strict: [
+      "seattle",
+      "seattle metropolitan area",
+      "bellevue",
+      "redmond",
+      "kirkland",
+    ],
+    nearby: ["tacoma", "everett"],
+    geoStrategy:
+      "Treat Seattle, Bellevue, Redmond, and Kirkland as one Puget Sound hiring market.",
+  },
+  {
     matchers: [/los angeles|la metro|santa monica|pasadena|culver city|burbank|glendale/i],
     strict: [
       "los angeles",
@@ -253,16 +266,19 @@ function deriveGeoStrategy(locationScope: string | null) {
     };
   }
 
-  const commaParts = normalized.split(",").map((part) => part.trim()).filter(Boolean);
+  const locationParts = normalized
+    .split(/\s*(?:,|;|\/|\bor\b|\band\b)\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
   const baseTerms = compactNormalizedTerms(
-    [normalized, commaParts[0], commaParts.slice(-1)[0]],
+    locationParts.length > 1 ? locationParts : [normalized],
     12,
   );
-  const allowlist = GEO_ALLOWLISTS.find((entry) =>
+  const allowlists = GEO_ALLOWLISTS.filter((entry) =>
     entry.matchers.some((matcher) => matcher.test(normalized)),
   );
 
-  if (!allowlist) {
+  if (allowlists.length === 0) {
     return {
       strictTerms: baseTerms,
       nearbyTerms: [],
@@ -273,10 +289,22 @@ function deriveGeoStrategy(locationScope: string | null) {
     };
   }
 
+  const strictTerms = compactNormalizedTerms(
+    [
+      ...baseTerms,
+      ...allowlists.flatMap((entry) => entry.strict),
+    ],
+    24,
+  );
+  const nearbyTerms = compactNormalizedTerms(
+    allowlists.flatMap((entry) => entry.nearby),
+    16,
+  );
+
   return {
-    strictTerms: compactNormalizedTerms([...allowlist.strict, ...baseTerms], 16),
-    nearbyTerms: compactNormalizedTerms(allowlist.nearby, 8),
-    geoStrategy: allowlist.geoStrategy,
+    strictTerms,
+    nearbyTerms,
+    geoStrategy: allowlists.map((entry) => entry.geoStrategy).join(" "),
   };
 }
 
@@ -297,12 +325,12 @@ function normalizeRecallSpec(
   const differentiating_skill_terms = normalizeStringArray(item.differentiating_skill_terms, 5);
   const baseline_skill_terms = normalizeStringArray(item.baseline_skill_terms, 6);
   const domain_terms = normalizeStringArray(item.domain_terms, 3);
-  const location_terms = normalizeStringArray(item.location_terms, 10);
+  const location_terms = normalizeStringArray(item.location_terms, 24);
   const strict_location_terms = normalizeStringArray(
     item.strict_location_terms ?? item.location_terms,
-    16,
+    24,
   );
-  const nearby_location_terms = normalizeStringArray(item.nearby_location_terms, 10);
+  const nearby_location_terms = normalizeStringArray(item.nearby_location_terms, 16);
   const must_have_signals = normalizeStringArray(item.must_have_signals, 12);
   const avoid_profiles = normalizeStringArray(item.avoid_profiles, 10);
   const geo_strategy = normalizeNullableString(item.geo_strategy);
@@ -475,7 +503,7 @@ function buildRecallLocationFilter(
 
   const nonCountryLocationTerms = compactNormalizedTerms(
     [...strictLocationTerms, ...nearbyLocationTerms, ...locationTerms],
-    16,
+    20,
   ).filter((term) => !countryAliases.has(term));
 
   if (nonCountryLocationTerms.length === 0) {
@@ -484,7 +512,7 @@ function buildRecallLocationFilter(
 
   const strictModeTerms = compactNormalizedTerms(
     [...strictLocationTerms, ...nearbyLocationTerms],
-    12,
+    20,
   ).filter((term) => !countryAliases.has(term));
 
   const effectiveTerms =
@@ -664,9 +692,16 @@ function mapSnapshotStatus(
 }
 
 function isTransientSnapshotDownloadError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     error instanceof BrightDataSnapshotNotReadyError ||
-    error instanceof BrightDataRequestTimeoutError
+    error instanceof BrightDataRequestTimeoutError ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("econnreset") ||
+    message.includes("socket")
   );
 }
 
@@ -754,14 +789,22 @@ function enrichRecallSpecFromJd(
   const geo = deriveGeoStrategy(hiringBrief.location_scope);
   const derivedLocationTerms = compactNormalizedTerms(
     [...geo.strictTerms, ...geo.nearbyTerms],
-    16,
+    24,
   );
-  const locationTerms = recallSpec.location_terms.length > 0
-    ? recallSpec.location_terms
-    : derivedLocationTerms;
-  const mustHaveSignals = recallSpec.must_have_signals.length > 0
-    ? recallSpec.must_have_signals
-    : deriveMustHaveSignalsFromParsed(parsed, jdText);
+  const locationTerms = compactNormalizedTerms(
+    [
+      ...recallSpec.location_terms,
+      ...derivedLocationTerms,
+    ],
+    24,
+  );
+  const mustHaveSignals = compactNormalizedTerms(
+    [
+      ...recallSpec.must_have_signals,
+      ...deriveMustHaveSignalsFromParsed(parsed, jdText),
+    ],
+    12,
+  );
   const avoidProfiles = recallSpec.avoid_profiles.length > 0
     ? recallSpec.avoid_profiles
     : deriveAvoidProfilesFromParsed(parsed, jdText);
@@ -785,15 +828,21 @@ function enrichRecallSpecFromJd(
     baseline_skill_terms: baselineSkillTerms.slice(0, 6),
     domain_terms: domainTerms.slice(0, 3),
     countries: countries.slice(0, 5),
-    location_terms: locationTerms.slice(0, 16),
-    strict_location_terms:
-      (recallSpec.strict_location_terms.length > 0
-        ? recallSpec.strict_location_terms
-        : geo.strictTerms).slice(0, 16),
-    nearby_location_terms:
-      (recallSpec.nearby_location_terms.length > 0
-        ? recallSpec.nearby_location_terms
-        : geo.nearbyTerms).slice(0, 10),
+    location_terms: locationTerms.slice(0, 24),
+    strict_location_terms: compactNormalizedTerms(
+      [
+        ...recallSpec.strict_location_terms,
+        ...geo.strictTerms,
+      ],
+      24,
+    ),
+    nearby_location_terms: compactNormalizedTerms(
+      [
+        ...recallSpec.nearby_location_terms,
+        ...geo.nearbyTerms,
+      ],
+      16,
+    ),
     must_have_signals: mustHaveSignals.slice(0, 12),
     avoid_profiles: avoidProfiles.slice(0, 8),
     geo_strategy: recallSpec.geo_strategy || geo.geoStrategy,
@@ -1226,9 +1275,9 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     ? {
       title_terms: normalizeStringArray(rawFilterSummary.title_terms, 12),
       country_codes: normalizeStringArray(rawFilterSummary.country_codes, 6),
-      location_terms: normalizeStringArray(rawFilterSummary.location_terms, 16),
-      strict_location_terms: normalizeStringArray(rawFilterSummary.strict_location_terms, 16),
-      nearby_location_terms: normalizeStringArray(rawFilterSummary.nearby_location_terms, 10),
+      location_terms: normalizeStringArray(rawFilterSummary.location_terms, 24),
+      strict_location_terms: normalizeStringArray(rawFilterSummary.strict_location_terms, 24),
+      nearby_location_terms: normalizeStringArray(rawFilterSummary.nearby_location_terms, 16),
       must_have_signals: normalizeStringArray(rawFilterSummary.must_have_signals, 12),
       avoid_profiles: normalizeStringArray(rawFilterSummary.avoid_profiles, 10),
     }
@@ -1404,6 +1453,45 @@ function withDisplayStats(
   };
 }
 
+const BACKEND_LANGUAGE_SKILLS = new Map([
+  ["python", "Python"],
+  ["typescript", "TypeScript"],
+  ["javascript", "JavaScript"],
+  ["go", "Go"],
+  ["golang", "Go"],
+  ["java", "Java"],
+  ["rust", "Rust"],
+  ["scala", "Scala"],
+  ["kotlin", "Kotlin"],
+  ["c++", "C++"],
+]);
+
+function normalizeRequiredSkillAlternatives(skills: string[]) {
+  const languageLabels: string[] = [];
+  const otherSkills: string[] = [];
+
+  for (const skill of skills) {
+    const normalized = normalizeText(skill);
+    const languageLabel = BACKEND_LANGUAGE_SKILLS.get(normalized);
+    if (languageLabel) {
+      if (!languageLabels.includes(languageLabel)) {
+        languageLabels.push(languageLabel);
+      }
+      continue;
+    }
+    otherSkills.push(skill);
+  }
+
+  if (languageLabels.length < 3) {
+    return skills;
+  }
+
+  return [
+    `one production backend language (${languageLabels.join(", ")})`,
+    ...otherSkills,
+  ].slice(0, 12);
+}
+
 function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unknown>): HiringBrief {
   const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const roleCore =
@@ -1413,6 +1501,10 @@ function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unkn
 
   const fallbackRequired = normalizeStringArray(fallbackParsed.required_skills, 12);
   const fallbackNiceToHave = normalizeStringArray(fallbackParsed.nice_to_have_skills, 12);
+  const rawRequiredSkills =
+    normalizeStringArray(roleCore.required_skills, 12).length > 0
+      ? normalizeStringArray(roleCore.required_skills, 12)
+      : fallbackRequired;
 
   return {
     role_core: {
@@ -1421,10 +1513,7 @@ function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unkn
         normalizeNullableString(roleCore.seniority) ||
         normalizeNullableString(fallbackParsed.seniority),
       function_focus: normalizeNullableString(roleCore.function_focus),
-      required_skills:
-        normalizeStringArray(roleCore.required_skills, 12).length > 0
-          ? normalizeStringArray(roleCore.required_skills, 12)
-          : fallbackRequired,
+      required_skills: normalizeRequiredSkillAlternatives(rawRequiredSkills),
       nice_to_have_skills:
         normalizeStringArray(roleCore.nice_to_have_skills, 12).length > 0
           ? normalizeStringArray(roleCore.nice_to_have_skills, 12)
@@ -1903,19 +1992,15 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
           evidenceQuality,
           constraintVerdicts,
         );
-  const bucket = normalizeEnumValue(
-    item.bucket,
-    ["strong_now", "consider_next", "do_not_show"] as const,
-    deriveSuitabilityBucket({
-      qualityScore,
-      overallScore: advanceScore,
-      advanceRecommendation,
-      blockingSeverity,
-      constraintVerdicts,
-      strictLocalRole: false,
-      minVisibleQualityScore: 60,
-    }),
-  );
+  const bucket = deriveSuitabilityBucket({
+    qualityScore,
+    overallScore: advanceScore,
+    advanceRecommendation,
+    blockingSeverity,
+    constraintVerdicts,
+    strictLocalRole: false,
+    minVisibleQualityScore: 60,
+  });
   const shortlistDecision = normalizeEnumValue(
     item.shortlist_decision,
     ["yes", "no"] as const,
@@ -1992,14 +2077,36 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   const suitability = assessment.suitability;
   const breakdown = suitability.scoring_breakdown;
 
-  return (
+  if (
+    suitability.blocking_severity === "hard" ||
+    suitability.constraint_verdicts.location_fit === "non_local" ||
+    suitability.bucket === "do_not_show" ||
+    suitability.match_score < SHORTLIST_MATCH_SCORE_MIN ||
+    breakdown.capability_score < SHORTLIST_CAPABILITY_MIN
+  ) {
+    return false;
+  }
+
+  const recruiterApproved =
     suitability.shortlist_decision === "yes" &&
-    suitability.blocking_severity !== "hard" &&
-    suitability.constraint_verdicts.location_fit !== "non_local" &&
-    suitability.match_score >= SHORTLIST_MATCH_SCORE_MIN &&
+    breakdown.relevance_score >= Math.min(SHORTLIST_RELEVANCE_MIN, 60) &&
+    breakdown.join_likelihood_score >= Math.min(SHORTLIST_JOIN_LIKELIHOOD_MIN, 45);
+
+  const strongTechnicalFit =
     breakdown.relevance_score >= SHORTLIST_RELEVANCE_MIN &&
     breakdown.capability_score >= SHORTLIST_CAPABILITY_MIN &&
-    breakdown.join_likelihood_score >= SHORTLIST_JOIN_LIKELIHOOD_MIN
+    suitability.quality_score >= 70 &&
+    breakdown.join_likelihood_score >= 30;
+
+  const reviewableTechnicalFit =
+    suitability.quality_score >= 75 &&
+    breakdown.relevance_score >= 65 &&
+    breakdown.join_likelihood_score >= 40;
+
+  return (
+    recruiterApproved ||
+    strongTechnicalFit ||
+    reviewableTechnicalFit
   );
 }
 
@@ -2412,7 +2519,7 @@ async function scoreBrightDataProfiles(
       onCandidateScored: async (assessment, completedCount) => {
         const completedTotal = progressOffset + completedCount;
         const displayTier = getDisplayTierForAssessment(assessment);
-        if (!displayTier) {
+        if (!displayTier || !shouldDisplayCandidate(assessment)) {
           if (completedTotal % 5 === 0) {
             await updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
           }
@@ -2773,7 +2880,7 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       job.id,
       "fatal_error",
       {
-        available_at: null,
+        available_at: nowIso(),
         last_error: message,
         locked_at: null,
         finished_at: nowIso(),

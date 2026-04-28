@@ -151,7 +151,7 @@ export async function reclaimStaleRunningJobs(options: {
         status: "fatal_error",
         locked_at: null,
         last_error: staleMessage,
-        available_at: null,
+        available_at: nowIso(),
         finished_at: nowIso(),
         updated_at: nowIso(),
       })
@@ -224,28 +224,49 @@ export async function updateRunningJobStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ) {
-  const { data, error } = await supabaseAdmin
-    .from("hirelix_search_jobs")
-    .update({
-      status,
-      updated_at: nowIso(),
-      ...extra,
-    })
-    .eq("id", jobId)
-    .eq("status", "running")
-    .select("id")
-    .maybeSingle();
+  const maxAttempts = 3;
+  let lastError: { message: string; code?: string } | null = null;
 
-  if (error) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("hirelix_search_jobs")
+        .update({
+          status,
+          updated_at: nowIso(),
+          ...extra,
+        })
+        .eq("id", jobId)
+        .eq("status", "running")
+        .select("id")
+        .maybeSingle();
+
+      if (!error) {
+        return Boolean(data?.id);
+      }
+
+      lastError = { message: error.message, code: error.code };
+    } catch (error) {
+      lastError = {
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+
     logSearchEvent("search_job_status_update_failed", {
       job_id: jobId,
       target_status: status,
-      error: error.message,
-      code: error.code,
+      attempt,
+      retrying: attempt < maxAttempts,
+      error: lastError.message,
+      code: lastError.code,
     });
+
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+    }
   }
 
-  return Boolean(data?.id);
+  return false;
 }
 
 export async function claimSearchJob(options: {

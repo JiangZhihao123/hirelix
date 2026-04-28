@@ -42,6 +42,19 @@ function buildCandidatePayload(searchId: string, row: CandidateRowInput) {
   };
 }
 
+function formatDbError(error: unknown) {
+  if (!error || typeof error !== "object") return String(error);
+  const record = error as Record<string, unknown>;
+  const message = typeof record.message === "string" ? record.message : "Unknown database error";
+  const code = typeof record.code === "string" ? ` code=${record.code}` : "";
+  const details = typeof record.details === "string" ? ` details=${record.details}` : "";
+  return `${message}${code}${details}`;
+}
+
+async function waitBeforeRetry(attempt: number) {
+  await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+}
+
 export async function setSearchStatus(
   searchId: string,
   status: string,
@@ -54,7 +67,45 @@ export async function setSearchStatus(
     ...extra,
   };
 
-  await supabaseAdmin.from("hirelix_searches").update(payload).eq("id", searchId);
+  const maxAttempts = 3;
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("hirelix_searches")
+        .update(payload)
+        .eq("id", searchId)
+        .select("id")
+        .maybeSingle();
+
+      if (!error && data?.id) {
+        lastError = null;
+        break;
+      }
+
+      lastError = error ?? new Error("Search status update matched no rows");
+    } catch (error) {
+      lastError = error;
+    }
+
+    console.error("[search_persistence] setSearchStatus failed", {
+      search_id: searchId,
+      status,
+      attempt,
+      retrying: attempt < maxAttempts,
+      error: formatDbError(lastError),
+    });
+
+    if (attempt < maxAttempts) {
+      await waitBeforeRetry(attempt);
+    }
+  }
+
+  if (lastError) {
+    throw new Error(
+      `Failed to update search ${searchId} to ${status}: ${formatDbError(lastError)}`,
+    );
+  }
 
   if (status === "error" || status === "degraded" || status === "done") {
     const terminalJobPayload: Record<string, unknown> = {
@@ -70,14 +121,21 @@ export async function setSearchStatus(
     };
 
     if (status === "error") {
-      terminalJobPayload.available_at = null;
+      terminalJobPayload.available_at = nowIso();
     }
 
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from("hirelix_search_jobs")
       .update(terminalJobPayload)
       .eq("search_id", searchId)
       .eq("status", "running");
+    if (error) {
+      console.error("[search_persistence] terminal job update failed", {
+        search_id: searchId,
+        status,
+        error: formatDbError(error),
+      });
+    }
   }
 }
 
@@ -258,13 +316,44 @@ export async function updateSearchParsedRequirements(
   searchId: string,
   parsed: Record<string, unknown>,
 ) {
-  await supabaseAdmin
-    .from("hirelix_searches")
-    .update({
-      parsed_requirements: parsed,
-      updated_at: nowIso(),
-    })
-    .eq("id", searchId);
+  const maxAttempts = 3;
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("hirelix_searches")
+        .update({
+          parsed_requirements: parsed,
+          updated_at: nowIso(),
+        })
+        .eq("id", searchId)
+        .select("id")
+        .maybeSingle();
+
+      if (!error && data?.id) {
+        return;
+      }
+
+      lastError = error ?? new Error("Parsed requirements update matched no rows");
+    } catch (error) {
+      lastError = error;
+    }
+
+    console.error("[search_persistence] updateSearchParsedRequirements failed", {
+      search_id: searchId,
+      attempt,
+      retrying: attempt < maxAttempts,
+      error: formatDbError(lastError),
+    });
+
+    if (attempt < maxAttempts) {
+      await waitBeforeRetry(attempt);
+    }
+  }
+
+  throw new Error(
+    `Failed to update parsed requirements for search ${searchId}: ${formatDbError(lastError)}`,
+  );
 }
 
 export async function updateSearchUsageEventMetadata(
