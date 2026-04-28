@@ -79,7 +79,6 @@ export function CtaSection({
               <span className="font-semibold text-slate-950">Hirelix</span>
             </div>
             <p>AI-powered candidate sourcing from real LinkedIn profiles.</p>
-            <p>Hirelix is operated by YieldMirror.</p>
             <p>Built for recruiters, search firms, and hiring teams.</p>
             <p>Support: <a className="text-sky-700 hover:text-sky-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>

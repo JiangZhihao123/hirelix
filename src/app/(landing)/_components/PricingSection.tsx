@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK } from "@/lib/billing";
 import type { User } from "@supabase/supabase-js";
 
@@ -34,11 +34,11 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
             Pricing
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Simple pricing for ranked sourcing runs.
+            Start free. Upgrade when sourcing gets busy.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Run your first sourcing search free. Upgrade when you need more searches, contact unlocks,
-            exports, and outreach drafts.
+            Run your first candidate search without a credit card. Paid plans add more searches,
+            contact unlocks, exports, and outreach drafts.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs">
             <span className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-1 font-semibold text-blue-700">
@@ -217,22 +217,6 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
             </div>
           </div>
         </div>
-
-        <details className="mt-6 rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.06)] open:bg-slate-50">
-          <summary className="flex cursor-pointer items-center gap-3 text-sm font-medium text-slate-950">
-            <ShieldCheck className="h-5 w-5 shrink-0 text-blue-600" />
-            <span>Billing terms, refunds, and cancellation</span>
-            <span className="ml-auto text-xs text-slate-500">Click to expand</span>
-          </summary>
-          <div className="mt-4 space-y-2 pl-8 leading-7">
-            <p>Hirelix is available today for recruiters, search firms, and hiring teams.</p>
-            <p>Subscriptions renew automatically until canceled.</p>
-            <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
-            <p>Purchases made through Paddle are refundable within 14 days of the transaction date.</p>
-            <p>For subscriptions, refunds are available within 14 days of the initial purchase or the most recent renewal.</p>
-            <p>Taxes may apply depending on the customer location.</p>
-          </div>
-        </details>
       </div>
     </section>
   );

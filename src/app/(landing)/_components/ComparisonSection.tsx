@@ -98,7 +98,7 @@ export function ComparisonSection() {
               <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-sky-700">
                 <Zap className="h-3.5 w-3.5" /> Time per role
               </span>
-              <span className="text-2xl font-bold text-slate-950">~ 5 minutes</span>
+              <span className="text-2xl font-bold text-slate-950">~ 10 minutes</span>
             </div>
           </div>
         </div>

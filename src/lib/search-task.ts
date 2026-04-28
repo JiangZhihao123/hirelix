@@ -86,7 +86,7 @@ export function getSearchTaskEtaCopy(
   }
 
   if (stage === "brief_ready" || stage === "linkedin_scan") {
-    return "LinkedIn search usually takes 2–5 minutes";
+    return "LinkedIn search usually takes 5-10 minutes";
   }
 
   if (stage === "reviewing_profiles") {
@@ -98,7 +98,7 @@ export function getSearchTaskEtaCopy(
   }
 
   if (status === "searching" || status === "screening") {
-    return "Usually 3-6 minutes from submission";
+    return "Usually around 10 minutes from submission";
   }
 
   return "Brief parsing usually finishes in under 1 minute";

@@ -85,7 +85,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     billingCycle: "month",
     searchesPerMonth: 30,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 100,
+    enrichesPerMonth: 300,
     exportEnabled: true,
     priceCents: 9900,
     ctaLabel: "Upgrade monthly",
@@ -93,13 +93,13 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   pro_annual: {
     code: "pro_annual",
     name: "Pro Annual",
-    description: "Best value for ongoing sourcing with extra contact capacity.",
+    description: "Best value for ongoing sourcing with higher contact capacity.",
     priceLabel: "$79",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",
     searchesPerMonth: 30,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 150,
+    enrichesPerMonth: 500,
     exportEnabled: true,
     priceCents: 94800,
     ctaLabel: "Upgrade annually",
@@ -116,9 +116,9 @@ export const SEARCH_PACK = {
 
 export const CONTACT_PACK = {
   name: "Contact Pack",
-  description: "50 extra email + draft contact unlocks.",
+  description: "100 extra email + draft contact unlocks.",
   priceLabel: "$29",
-  credits: 50,
+  credits: 100,
 };
 
 const ACTIVE_BILLING_STATUSES = new Set<BillingStatus>(["active", "trialing"]);
