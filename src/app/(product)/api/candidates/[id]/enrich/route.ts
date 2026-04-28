@@ -66,8 +66,8 @@ export async function POST(
         {
           error:
             billing.plan.code === "free"
-              ? "Free accounts do not include email enrichment. Upgrade to Pro to unlock 25 contact enriches each month."
-              : "You have reached this month's contact enrich limit. Add a Contact Pack or wait for your next billing cycle.",
+              ? "You have used this month's free contact unlocks. Upgrade to Pro for more contact unlocks and outreach drafts."
+              : "You have reached this month's contact unlock limit. Add a Contact Pack or wait for your next billing cycle.",
         },
         { status: 403 },
       );

@@ -10,9 +10,9 @@ const planCtaLabels = {
 } as const;
 
 const shortlistCopy = {
-  free: "Ranked shortlist for one role",
-  pro_monthly: "Ranked shortlist output for every search",
-  pro_annual: "Ranked shortlist output for every search",
+  free: "Qualified candidates ranked by fit",
+  pro_monthly: "Qualified candidates ranked by fit and outreach priority",
+  pro_annual: "Qualified candidates ranked by fit and outreach priority",
 } as const;
 
 export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn: () => void }) {
@@ -37,7 +37,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
             Simple pricing for ranked sourcing runs.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Run your first shortlist free. Upgrade when you need more searches, contact enrichment,
+            Run your first sourcing search free. Upgrade when you need more searches, contact unlocks,
             exports, and outreach drafts.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs">
@@ -120,7 +120,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>
                       <strong className="text-slate-950">{plan.searchesPerMonth}</strong>{" "}
-                      {plan.searchesPerMonth === 1 ? "ranked search" : "ranked searches"} / month
+                      {plan.searchesPerMonth === 1 ? "sourcing run" : "sourcing runs"} / month
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
@@ -132,13 +132,13 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                       <span>
                         <strong className="text-slate-950">{plan.enrichesPerMonth}</strong>{" "}
-                        email + outreach draft enriches / month
+                        contact unlocks with outreach drafts / month
                       </span>
                     </li>
                   ) : (
                     <li className="flex items-start gap-2 text-slate-500">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
-                      <span>Upgrade for contact enrichment and outreach drafts</span>
+                      <span>Upgrade for more contact unlocks and outreach drafts</span>
                     </li>
                   )}
                   {plan.exportEnabled ? (
@@ -201,7 +201,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                 <span className="text-base font-bold text-slate-950">{SEARCH_PACK.priceLabel}</span>
               </div>
               <p className="mt-2 text-sm text-slate-600">
-                {SEARCH_PACK.credits} extra searches for heavier sourcing weeks.
+                {SEARCH_PACK.credits} extra sourcing runs for heavier sourcing weeks.
               </p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -212,7 +212,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                 </span>
               </div>
               <p className="mt-2 text-sm text-slate-600">
-                {CONTACT_PACK.credits} extra email + outreach draft enriches.
+                {CONTACT_PACK.credits} extra contact unlocks with outreach drafts.
               </p>
             </div>
           </div>

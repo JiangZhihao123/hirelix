@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getCheckoutConfig } from "@/lib/billing";
+import { CONTACT_PACK, SEARCH_PACK, getCheckoutConfig } from "@/lib/billing";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
@@ -212,10 +212,10 @@ async function applyAddOns(data: Record<string, unknown>, userId: string) {
   const config = getCheckoutConfig();
   const priceIds = getPriceIds(data);
   const addSearchCredits = priceIds.includes(config.searchPackPriceId)
-    ? 10
+    ? SEARCH_PACK.credits
     : 0;
   const addEnrichCredits = priceIds.includes(config.contactPackPriceId)
-    ? 25
+    ? CONTACT_PACK.credits
     : 0;
 
   if (!addSearchCredits && !addEnrichCredits) return;

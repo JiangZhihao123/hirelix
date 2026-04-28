@@ -1158,7 +1158,7 @@ export default function SearchResultPage() {
               </>
             )}
           </div>
-          {billing?.plan.code === "free" && allCandidates.length > 0 && (
+          {billing?.plan.code === "free" && (billing?.usage.enrichesRemaining ?? 0) <= 0 && allCandidates.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
                 Action unlock
@@ -1167,7 +1167,7 @@ export default function SearchResultPage() {
                 Unlock outreach for the strongest matches.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Upgrade to unlock contact details, CSV export, and outreach when you&apos;re ready to work this candidate pool.
+                Upgrade for more contact unlocks, CSV export, and outreach when you&apos;re ready to work this candidate pool.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} {priorityTierLabel.toLowerCase()}</span>

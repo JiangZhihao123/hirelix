@@ -65,13 +65,13 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Validate one role with a ranked shortlist before you pay.",
+    description: "Validate one role with a ranked shortlist and a few contact unlocks.",
     priceLabel: "$0",
     cadenceLabel: "free forever",
     billingCycle: null,
     searchesPerMonth: 1,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 0,
+    enrichesPerMonth: 3,
     exportEnabled: false,
     priceCents: 0,
     ctaLabel: "Current plan",
@@ -79,13 +79,13 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   pro_monthly: {
     code: "pro_monthly",
     name: "Pro Monthly",
-    description: "Flexible month-to-month access for active searches and experiments.",
+    description: "Flexible month-to-month sourcing for active roles and experiments.",
     priceLabel: "$99",
     cadenceLabel: "per seat / month",
     billingCycle: "month",
     searchesPerMonth: 30,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 25,
+    enrichesPerMonth: 100,
     exportEnabled: true,
     priceCents: 9900,
     ctaLabel: "Upgrade monthly",
@@ -93,13 +93,13 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   pro_annual: {
     code: "pro_annual",
     name: "Pro Annual",
-    description: "Best value for ongoing sourcing with the same monthly capacity.",
+    description: "Best value for ongoing sourcing with extra contact capacity.",
     priceLabel: "$79",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",
     searchesPerMonth: 30,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 25,
+    enrichesPerMonth: 150,
     exportEnabled: true,
     priceCents: 94800,
     ctaLabel: "Upgrade annually",
@@ -110,15 +110,15 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
 export const SEARCH_PACK = {
   name: "Search Pack",
   description: "10 extra searches for heavy months.",
-  priceLabel: "$19",
+  priceLabel: "$29",
   credits: 10,
 };
 
 export const CONTACT_PACK = {
   name: "Contact Pack",
-  description: "25 extra email + draft enriches.",
+  description: "50 extra email + draft contact unlocks.",
   priceLabel: "$29",
-  credits: 25,
+  credits: 50,
 };
 
 const ACTIVE_BILLING_STATUSES = new Set<BillingStatus>(["active", "trialing"]);
@@ -199,8 +199,8 @@ export function getPlanStatusCopy(
       ? "No searches left this cycle"
       : `${searchesRemaining} / ${searchesLimit} searches left this cycle`,
     capabilityLabel: isFreePlan
-      ? "Contact details, export, and outreach are on Pro"
-      : "Includes contact details, export, and outreach",
+      ? "Includes limited contact unlocks; export is on Pro"
+      : "Includes contact unlocks, export, and outreach",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",
     state: isExhausted ? "warning" : "default",

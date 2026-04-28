@@ -103,7 +103,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <Mail className="h-4 w-4 text-slate-400" />
-                  Contact enriches
+                  Contact unlocks
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.enrichesUsed}/{billing.usage.enrichesLimit}
@@ -118,16 +118,14 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.enrichesRemaining} enriches left this cycle
+                {billing.usage.enrichesRemaining} contact unlocks left this cycle
               </p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-              <p className="text-sm font-medium text-slate-800">Candidate depth</p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">
-                {billing.usage.candidateLimitPerSearch}
-              </p>
-              <p className="mt-2 text-sm text-slate-600">Candidates per search</p>
+              <p className="text-sm font-medium text-slate-800">Qualified results</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">Dynamic</p>
+              <p className="mt-2 text-sm text-slate-600">Result count varies by role quality bar</p>
             </div>
           </div>
         </SettingsFieldGroup>
@@ -185,12 +183,12 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="mt-5 space-y-2 text-sm text-slate-600">
                     <p>
                       {plan.searchesPerMonth}{" "}
-                      {plan.searchesPerMonth === 1 ? "search" : "searches"} / month
+                      {plan.searchesPerMonth === 1 ? "sourcing run" : "sourcing runs"} / month
                     </p>
-                    <p>{plan.candidateLimitPerSearch} candidates / search</p>
+                    <p>Ranked qualified candidates by role fit</p>
                     <p>
                       {plan.enrichesPerMonth}{" "}
-                      {plan.enrichesPerMonth === 1 ? "contact enrich" : "contact enriches"} / month
+                      {plan.enrichesPerMonth === 1 ? "contact unlock" : "contact unlocks"} / month
                     </p>
                     <p className="inline-flex items-center gap-1.5">
                       <Download className="h-3.5 w-3.5" />
@@ -247,7 +245,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 {SEARCH_PACK.priceLabel}
               </p>
               <p className="mt-1 text-sm text-slate-500">
-                Adds {SEARCH_PACK.credits} searches to this billing period.
+                Adds {SEARCH_PACK.credits} sourcing runs to this billing period.
               </p>
               <div className="mt-5">
                 <PaddleCheckoutButton
@@ -271,7 +269,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 {CONTACT_PACK.priceLabel}
               </p>
               <p className="mt-1 text-sm text-slate-500">
-                Adds {CONTACT_PACK.credits} enriches to this billing period.
+                Adds {CONTACT_PACK.credits} contact unlocks to this billing period.
               </p>
               <div className="mt-5">
                 <PaddleCheckoutButton

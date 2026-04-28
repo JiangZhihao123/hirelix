@@ -525,10 +525,12 @@ export function CandidateWorkbenchDetail({
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {billingPlanCode === "free"
-                    ? "Upgrade when you want to unlock contact details and personalized outreach."
+                    ? enrichesRemaining > 0
+                      ? "Use a contact unlock when you want contact details and personalized outreach."
+                      : "Upgrade when you need more contact unlocks and personalized outreach."
                     : "Generate the email and contact details when you're ready to act on this candidate."}
                 </p>
-                {billingPlanCode === "free" ? (
+                {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                   <PaddleCheckoutButton
                     checkout={{ type: "plan", planCode: "pro_monthly" }}
                     label="Unlock outreach"

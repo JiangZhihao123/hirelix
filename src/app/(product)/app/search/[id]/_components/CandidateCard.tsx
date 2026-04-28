@@ -651,10 +651,12 @@ export function CandidateCard({
                   <p className="mb-1 text-sm font-medium text-foreground">Ready to unlock contact details for this candidate?</p>
                   <p className="mb-4 text-xs text-muted">
                     {billingPlanCode === "free"
-                      ? "You already have the ranked candidate list and draft copy. Upgrade only when you want contact lookup for the people you decide to reach out to."
+                      ? enrichesRemaining > 0
+                        ? "Use one of your free contact unlocks when you decide this candidate is worth reaching out to."
+                        : "You already have the ranked candidate list and draft copy. Upgrade when you need more contact unlocks."
                       : "The outreach copy is ready. Find contact details when you are ready to act on this candidate."}
                   </p>
-                  {billingPlanCode === "free" ? (
+                  {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                     <PaddleCheckoutButton
                       checkout={{ type: "plan", planCode: "pro_monthly" }}
                       label="Unlock contact details and outreach"

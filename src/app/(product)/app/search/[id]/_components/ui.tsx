@@ -128,15 +128,15 @@ export function ContactActionStrip({
             </p>
           </div>
           <p className={`${hintClass} text-amber-700`}>
-            {billingPlanCode === "free"
-              ? "Upgrade to unlock contact details for this candidate."
-              : enrichesRemaining <= 0
-                ? "Buy a contact pack to continue email lookups."
-                : "Find contact details when you're ready to reach out."}
+            {enrichesRemaining > 0
+              ? "Find contact details when you're ready to reach out."
+              : billingPlanCode === "free"
+                ? "Upgrade for more contact unlocks and outreach drafts."
+                : "Buy a contact pack to continue email lookups."}
           </p>
         </div>
 
-        {billingPlanCode === "free" ? (
+        {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
           <PaddleCheckoutButton
             checkout={{ type: "plan", planCode: "pro_monthly" }}
             label="Get email"
