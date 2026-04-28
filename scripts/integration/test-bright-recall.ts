@@ -18,11 +18,11 @@ process.env.SEARCH_BRIGHTDATA_FILTER_LIMIT = '100';
 process.env.SEARCH_TARGET_SCRAPE_COUNT = '10';
 process.env.AI_PROVIDER = 'deepseek';
 process.env.DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
-process.env.DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
-process.env.AI_MODEL = 'deepseek-chat';
-process.env.SEARCH_LIGHT_MODEL = 'deepseek-chat';
-process.env.SEARCH_JUDGE_MODEL = 'deepseek-chat';
-process.env.SEARCH_ARBITER_MODEL = 'deepseek-chat';
+process.env.DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
+process.env.AI_MODEL = 'deepseek-v4-flash';
+process.env.SEARCH_LIGHT_MODEL = 'deepseek-v4-flash';
+process.env.SEARCH_JUDGE_MODEL = 'deepseek-v4-flash';
+process.env.SEARCH_ARBITER_MODEL = 'deepseek-v4-flash';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

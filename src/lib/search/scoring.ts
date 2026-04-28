@@ -110,9 +110,10 @@ Rules:
 - If evidence is missing, unclear, or unverifiable, use soft (not hard).
 - Use hard only for clear seniority mismatch, wrong function (e.g. frontend for a backend role), or explicit work-authorization conflict.
 - For explicit out-of-region hard blockers confirmed by location evidence, reflect in blocking_constraints but still use soft — let the location module own the hard gate.
+- When Search Intent says relocation is allowed and location flexibility is not strict, do not reject a strong US candidate solely because their current city is outside the target metros. Keep that as a join-likelihood risk, not a capability or shortlist blocker.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
 - shortlist_decision should answer the recruiter question directly: does this person deserve to appear in the shortlist shown to the hiring manager?
-- Use shortlist_decision=yes for candidates you would genuinely include in a recruiter-curated shortlist today, even if they are not perfect.
+- Use shortlist_decision=yes for candidates you would genuinely include in a recruiter-curated shortlist today, even if they are not perfect. Strong technical/domain evidence can justify shortlist_decision=yes even when join_likelihood_score is only moderate; call out reachability as a risk instead of hiding the candidate.
 - Use shortlist_decision=no for candidates you would keep out of the shortlist because the fit is too weak, too risky, or too speculative.
 - shortlist_reason should be one short recruiter-style explanation for the yes/no decision.
 - Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.

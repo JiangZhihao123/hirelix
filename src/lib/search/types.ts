@@ -260,6 +260,8 @@ export type AdditionalRecallSnapshot = {
   round: string;
   snapshot_id: string;
   records_limit?: number | null;
+  filter_hash?: string | null;
+  requested_count?: number | null;
   status?: "submitted" | "polling" | "ready" | "failed";
   submitted_at?: string | null;
   ready_at?: string | null;
@@ -272,6 +274,28 @@ export type AdditionalRecallSnapshot = {
   profiles_returned?: number | null;
   poll_attempt_count?: number | null;
   download_attempt_count?: number | null;
+  quality_distribution?: RecallRoundQualityDistribution | null;
+};
+
+export type RecallRoundQualityDistribution = {
+  strong_now: number;
+  consider_next: number;
+  do_not_show: number;
+  total_scored: number;
+};
+
+export type RecallRoundDiagnostics = {
+  round: string;
+  requested_count: number;
+  returned_count?: number | null;
+  filter_hash?: string | null;
+  title_terms: string[];
+  skill_signal_groups: {
+    search_domain: string[];
+    platform_engineering: string[];
+  };
+  location_mode: "country_only" | "location_filter";
+  quality_distribution?: RecallRoundQualityDistribution | null;
 };
 
 export type RecallMetadata = {
@@ -294,6 +318,7 @@ export type RecallMetadata = {
   standard_download_completed_at?: string | null;
   snapshot_profile_persist_warning?: string | null;
   all_recall_completed_at?: string | null;
+  round_diagnostics?: RecallRoundDiagnostics[];
   status?: "submitted" | "polling" | "ready";
   filter_summary?: {
     title_terms: string[];

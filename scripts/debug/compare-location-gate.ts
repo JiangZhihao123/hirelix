@@ -202,7 +202,7 @@ async function main() {
 
   // LLM 筛选（批量，15 个一批）
   const BATCH_SIZE = 15;
-  const MODEL = process.env.DEEPSEEK_MODEL || "deepseek/deepseek-chat";
+  const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
   const aiClient = createAI();
   const llmResults: LocationGateResult[] = [];
 

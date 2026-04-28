@@ -83,11 +83,11 @@ process.env.SEARCH_DEBUG_DEEP_REVIEW_LOGS = process.env.SEARCH_DEBUG_DEEP_REVIEW
 process.env.AI_PROVIDER = "deepseek";
 process.env.OPENROUTER_BASE_URL = "";
 process.env.DEEPSEEK_BASE_URL = "https://api.deepseek.com";
-process.env.DEEPSEEK_MODEL = "deepseek-chat";
-process.env.AI_MODEL = "deepseek-chat";
-process.env.SEARCH_LIGHT_MODEL = "deepseek-chat";
-process.env.SEARCH_JUDGE_MODEL = "deepseek-chat";
-process.env.SEARCH_ARBITER_MODEL = "deepseek-chat";
+process.env.DEEPSEEK_MODEL = "deepseek-v4-flash";
+process.env.AI_MODEL = "deepseek-v4-flash";
+process.env.SEARCH_LIGHT_MODEL = "deepseek-v4-flash";
+process.env.SEARCH_JUDGE_MODEL = "deepseek-v4-flash";
+process.env.SEARCH_ARBITER_MODEL = "deepseek-v4-flash";
 
 if ((process.env.HTTP_PROXY || process.env.PROXY_URL) && !process.env.PROXY_ENABLED) {
   process.env.PROXY_ENABLED = "true";
@@ -110,6 +110,10 @@ const supabase = createClient(
 );
 
 const USER_ID = "b602172d-f7d4-4f01-b835-3feff9eae346";
+const RUN_COUNT = Math.max(
+  1,
+  Math.min(2, Number(process.env.SNAPSHOT_PROFILE_E2E_RUNS ?? "2") || 2),
+);
 
 const JD_TEXT = `
 Senior Software Engineer, Search Platform
@@ -456,6 +460,10 @@ async function main() {
     hidden_gem_limit: process.env.SEARCH_TEST_BRIGHTDATA_HIDDEN_GEM_LIMIT,
     company_target_limit: process.env.SEARCH_TEST_BRIGHTDATA_COMPANY_TARGET_LIMIT,
     llm_provider: process.env.AI_PROVIDER,
+    ai_model: process.env.AI_MODEL,
+    judge_model: process.env.SEARCH_JUDGE_MODEL,
+    arbiter_model: process.env.SEARCH_ARBITER_MODEL,
+    run_count: RUN_COUNT,
     notifications_enabled: process.env.SEARCH_NOTIFICATIONS_ENABLED,
     proxy_enabled: process.env.PROXY_ENABLED ?? null,
     jd_source: "https://boards.greenhouse.io/embed/job_app?token=4738780008",
@@ -464,6 +472,20 @@ async function main() {
   const run1 = await createAndRunSearch("RUN-1");
   const run1ReusableRows = await readSnapshotProfilesBySnapshots(run1.snapshotIds);
   await printRunArtifacts(run1, run1ReusableRows);
+
+  if (RUN_COUNT === 1) {
+    console.log("[FINAL_JSON]" + JSON.stringify({
+      run1: {
+        search_id: run1.searchId,
+        status: run1.status,
+        elapsed_ms: run1.elapsedMs,
+        snapshot_ids: run1.snapshotIds,
+        reported_bright_cost: run1.recallCost,
+        candidate_count: run1.candidates.length,
+      },
+    }));
+    return;
+  }
 
   const run2 = await createAndRunSearch("RUN-2");
   const run2ReusableRows = await readSnapshotProfilesBySnapshots(run2.snapshotIds);

@@ -62,6 +62,8 @@ import type {
   HiringBrief,
   PipelineContext,
   RecallMetadata,
+  RecallRoundDiagnostics,
+  RecallRoundQualityDistribution,
   RecallSpec,
   ScoredCandidateAssessment,
   SearchDisplayStats,
@@ -243,6 +245,8 @@ type RecallSnapshotRef = {
   snapshotId: string;
   request: BrightDataDatasetFilterRequest;
   recordsLimit: number;
+  filterHash: string;
+  diagnostics: Omit<RecallRoundDiagnostics, "filter_hash" | "returned_count" | "quality_distribution">;
   submittedAt?: string;
   cacheEntry?: SnapshotCacheEntry | null;
 };
@@ -256,6 +260,36 @@ type RecallFilterSummary = {
   must_have_signals?: string[];
   avoid_profiles?: string[];
 };
+
+function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
+  return {
+    strong_now: 0,
+    consider_next: 0,
+    do_not_show: 0,
+    total_scored: 0,
+  };
+}
+
+function buildRoundQualityDistribution(
+  assessments: ScoredCandidateAssessment[] | undefined,
+  profiles: BrightDataProfile[],
+) {
+  const byRound = new Map<string, RecallRoundQualityDistribution>();
+  for (const assessment of assessments ?? []) {
+    const profile = profiles[assessment.index] as (BrightDataProfile & { __recall_source?: unknown }) | undefined;
+    const round =
+      typeof profile?.__recall_source === "string" && profile.__recall_source.length > 0
+        ? profile.__recall_source
+        : "standard";
+    const current = byRound.get(round) ?? emptyRecallRoundQualityDistribution();
+    current.total_scored += 1;
+    if (assessment.suitability.bucket === "strong_now") current.strong_now += 1;
+    else if (assessment.suitability.bucket === "consider_next") current.consider_next += 1;
+    else current.do_not_show += 1;
+    byRound.set(round, current);
+  }
+  return byRound;
+}
 
 function buildCachedSnapshotMetadata(
   snapshotId: string,
@@ -834,6 +868,7 @@ async function buildBrightDataDatasetCandidates(
       companyTargetLimit: BRIGHTDATA_COMPANY_TARGET_LIMIT,
     },
   );
+  const standardRound = recallRounds.find((round) => round.round === "standard");
   const additionalRounds = recallRounds.filter((round) => round.round !== "standard");
   const persistedAdditionalSnapshots = new Map(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
@@ -870,6 +905,32 @@ async function buildBrightDataDatasetCandidates(
       .slice(0, 10),
   };
   let standardCacheEntry: SnapshotCacheEntry | null = null;
+
+  const buildRoundDiagnostics = (params: {
+    standardReturned?: number | null;
+    additionalReturned?: Map<string, number>;
+    qualityDistribution?: Map<string, RecallRoundQualityDistribution>;
+  } = {}): RecallRoundDiagnostics[] => {
+    const roundsForDiagnostics = [
+      ...(standardRound ? [standardRound] : []),
+      ...additionalRounds,
+    ];
+    return roundsForDiagnostics.map((round) => {
+      const ref = round.round === "standard"
+        ? null
+        : additionalSnapshotRefs.find((candidate) => candidate.round === round.round);
+      const filterHash = ref?.filterHash ?? computeFilterHash(round.request);
+      const returnedCount = round.round === "standard"
+        ? params.standardReturned
+        : params.additionalReturned?.get(round.round);
+      return {
+        ...round.diagnostics,
+        filter_hash: filterHash,
+        returned_count: returnedCount ?? null,
+        quality_distribution: params.qualityDistribution?.get(round.round) ?? null,
+      };
+    });
+  };
 
   const submitStandardSnapshot = async (
     request: BrightDataDatasetFilterRequest,
@@ -919,6 +980,7 @@ async function buildBrightDataDatasetCandidates(
       bright_profiles_requested: request.recordsLimit,
       judge_mode: runtime.judgeMode,
       standard_recall_requested_at: submittedAt,
+      round_diagnostics: buildRoundDiagnostics(),
       additional_snapshots: additionalSnapshotRefs.map((round) => ({
         ...helpers.buildAdditionalSnapshotMetadata({
           round: round.round,
@@ -1001,6 +1063,8 @@ async function buildBrightDataDatasetCandidates(
         snapshotId: roundSnapshotId,
         request: round.request,
         recordsLimit: round.request.recordsLimit,
+        filterHash: roundHash,
+        diagnostics: round.diagnostics,
         submittedAt,
         cacheEntry: roundCacheEntry,
       };
@@ -1020,6 +1084,7 @@ async function buildBrightDataDatasetCandidates(
       bright_profile_budget: executionProfile.filterLimit,
       bright_profiles_requested: recallRequest.recordsLimit,
       judge_mode: runtime.judgeMode,
+      round_diagnostics: buildRoundDiagnostics(),
       additional_snapshots: additionalSnapshotRefs.map((round) => ({
         ...helpers.buildAdditionalSnapshotMetadata({
           round: round.round,
@@ -1051,6 +1116,8 @@ async function buildBrightDataDatasetCandidates(
         snapshotId: persisted.snapshot_id,
         request: round.request,
         recordsLimit: round.request.recordsLimit,
+        filterHash: computeFilterHash(round.request),
+        diagnostics: round.diagnostics,
         submittedAt: persisted.submitted_at ?? undefined,
       }];
     });
@@ -1099,6 +1166,9 @@ async function buildBrightDataDatasetCandidates(
   if (cachedStandardRows?.length) {
     standardLoadedFromProfileCache = true;
     profiles = cachedStandardRows.map(adaptDatasetRecordToBrightDataProfile);
+    for (const profile of profiles) {
+      (profile as BrightDataProfile & { __recall_source?: string }).__recall_source = "standard";
+    }
     metadata = buildCachedSnapshotMetadata(activeSnapshotId, cachedStandardRows, standardCacheEntry);
     helpers.logSearchEvent("search_snapshot_profile_cache_hit", {
       search_id: context.searchId,
@@ -1226,6 +1296,8 @@ async function buildBrightDataDatasetCandidates(
     snapshotId: round.snapshotId,
     request: round.request,
     recordsLimit: round.recordsLimit,
+    filterHash: round.filterHash,
+    diagnostics: round.diagnostics,
     submittedAt: round.submittedAt,
     cacheEntry: round.cacheEntry,
   }));
@@ -1381,6 +1453,9 @@ async function buildBrightDataDatasetCandidates(
     try {
       const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
       profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
+      for (const profile of profiles) {
+        (profile as BrightDataProfile & { __recall_source?: string }).__recall_source = "standard";
+      }
       const persistResult = await persistDownloadedSnapshotProfiles({
         rows,
         snapshotId: activeSnapshotId,
@@ -1407,6 +1482,7 @@ async function buildBrightDataDatasetCandidates(
           helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt,
         standard_download_started_at: standardDownloadStartedAt,
         standard_download_completed_at: helpers.nowIso(),
+        round_diagnostics: buildRoundDiagnostics({ standardReturned: profiles.length }),
         ...snapshotProfilePersistWarningMetadata(),
       } satisfies RecallMetadata;
     } catch (error) {
@@ -1446,6 +1522,7 @@ async function buildBrightDataDatasetCandidates(
         standard_recall_ready_at:
           helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt,
         standard_download_started_at: standardDownloadStartedAt,
+        round_diagnostics: buildRoundDiagnostics({ standardReturned: profiles.length }),
         additional_snapshots: additionalSnapshotStates.map((round) => ({
           ...helpers.buildAdditionalSnapshotMetadata({
             round: round.round,
@@ -1532,6 +1609,7 @@ async function buildBrightDataDatasetCandidates(
         profilesReturned: round.metadata.dataset_size ?? null,
       }),
     })),
+    round_diagnostics: buildRoundDiagnostics({ standardReturned: profiles.length }),
     status: "ready",
     filter_summary: filterSummary,
   };
@@ -1557,6 +1635,7 @@ async function buildBrightDataDatasetCandidates(
   const standardProfileCount = profiles.length;
   const allProfiles = [...profiles];
   let totalRecallCost = metadata.cost ?? 0;
+  const additionalReturnedCounts = new Map<string, number>();
 
   if (additionalSnapshotRefs.length > 0) {
     const seenIds = new Set<string>();
@@ -1647,6 +1726,7 @@ async function buildBrightDataDatasetCandidates(
           incrementDownloadAttempt: true,
         }),
       );
+      additionalReturnedCounts.set(round, roundProfiles.length);
       if (roundProfiles.length === 0) {
         helpers.logSearchEvent("search_multi_round_empty", {
           search_id: context.searchId,
@@ -1681,6 +1761,100 @@ async function buildBrightDataDatasetCandidates(
     }
   }
 
+  if (deferredAdditionalRounds.length > 0) {
+    const waitingRecordedAt = helpers.nowIso();
+    parsed.recall_provider = "brightdata_dataset";
+    parsed.recall_metadata = {
+      ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
+        provider: "brightdata_dataset" as const,
+        snapshot_id: snapshotId,
+      }),
+      provider: "brightdata_dataset",
+      snapshot_id: snapshotId,
+      dataset_size: metadata.dataset_size ?? profiles.length,
+      recall_latency_ms: Date.now() - requestedAt,
+      cost: totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? null),
+      bright_profile_budget: executionProfile.filterLimit,
+      bright_profiles_requested: recallRequest.recordsLimit,
+      bright_profiles_returned: allProfiles.length,
+      judge_mode: runtime.judgeMode,
+      requested_at: new Date(requestedAt).toISOString(),
+      completed_at: standardRecallCompletedAt,
+      standard_recall_requested_at: new Date(requestedAt).toISOString(),
+      standard_recall_ready_at:
+        helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ??
+        standardRecallCompletedAt,
+      standard_recall_completed_at: standardRecallCompletedAt,
+      standard_download_started_at:
+        helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_started_at ??
+        standardRecallCompletedAt,
+      standard_download_completed_at:
+        helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
+        standardRecallCompletedAt,
+      additional_snapshots: additionalSnapshotStates.map((round) => {
+        const existing = persistedAdditionalSnapshots.get(round.round) ?? null;
+        const mappedStatus = existing?.status ?? helpers.mapSnapshotStatus(round.metadata);
+        return {
+          ...helpers.buildAdditionalSnapshotMetadata({
+            round: round.round,
+            snapshotId: round.snapshotId,
+            recordsLimit: round.recordsLimit,
+            existing,
+            status: mappedStatus,
+            submittedAt: round.submittedAt ?? existing?.submitted_at ?? null,
+            readyAt: existing?.ready_at ?? (round.metadata.status === "ready" ? waitingRecordedAt : null),
+            failedAt: existing?.failed_at ?? (round.metadata.status === "failed" ? waitingRecordedAt : null),
+            failureCode: existing?.failure_code ??
+              (round.metadata.status === "failed"
+                ? String(round.metadata.warning_code ?? round.metadata.error_code ?? "unknown")
+                : null),
+            lastPolledAt: waitingRecordedAt,
+            downloadStartedAt: existing?.download_started_at ?? null,
+            downloadCompletedAt: existing?.download_completed_at ?? null,
+            profilesReturned: existing?.profiles_returned ?? round.metadata.dataset_size ?? null,
+          }),
+        };
+      }),
+      round_diagnostics: buildRoundDiagnostics({
+        standardReturned: standardProfileCount,
+        additionalReturned: additionalReturnedCounts,
+      }),
+      ...snapshotProfilePersistWarningMetadata(),
+      status: "polling",
+      filter_summary: filterSummary,
+    };
+    parsed.display_stats = helpers.buildSearchDisplayStats({
+      ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
+      bright_profile_budget: executionProfile.filterLimit,
+      bright_profiles_requested: recallRequest.recordsLimit,
+      bright_profiles_returned: allProfiles.length,
+      recall_profile_count: allProfiles.length,
+      retrieval_count: allProfiles.length,
+      deep_review_requested_count: 0,
+      deep_review_completed_count: 0,
+      bright_snapshot_cost: totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? undefined),
+      judge_mode: runtime.judgeMode,
+      time_to_ack_ms: 0,
+      time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
+    });
+    await updateSearchParsedRequirements(context.searchId, parsed);
+    helpers.logSearchEvent("search_additional_rounds_waiting_before_score", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      standard_profiles: standardProfileCount,
+      currently_available_profiles: allProfiles.length,
+      deferred_rounds: deferredAdditionalRounds.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        status: round.metadata.status,
+      })),
+    });
+    throw new DatasetRecallPendingError(
+      `Bright Data additional rounds still processing before scoring for snapshot ${activeSnapshotId}`,
+      { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+    );
+  }
+
   const allRecallCompletedAt = helpers.nowIso();
   parsed.recall_metadata = {
     ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
@@ -1710,6 +1884,10 @@ async function buildBrightDataDatasetCandidates(
       helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
       standardRecallCompletedAt,
     all_recall_completed_at: allRecallCompletedAt,
+    round_diagnostics: buildRoundDiagnostics({
+      standardReturned: standardProfileCount,
+      additionalReturned: additionalReturnedCounts,
+    }),
     additional_snapshots: additionalSnapshotRefs.map((round) => ({
       ...helpers.buildAdditionalSnapshotMetadata({
         round: round.round,
@@ -1823,6 +2001,24 @@ async function buildBrightDataDatasetCandidates(
       }),
     };
 
+  const qualityDistributionByRound = buildRoundQualityDistribution(
+    combinedResult.assessments,
+    allProfiles,
+  );
+  parsed.recall_metadata = {
+    ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
+      provider: "brightdata_dataset" as const,
+      snapshot_id: activeSnapshotId,
+    }),
+    provider: "brightdata_dataset",
+    snapshot_id: activeSnapshotId,
+    round_diagnostics: buildRoundDiagnostics({
+      standardReturned: standardProfileCount,
+      additionalReturned: additionalReturnedCounts,
+      qualityDistribution: qualityDistributionByRound,
+    }),
+  };
+
   helpers.logSearchEvent("search_step_completed", {
     search_id: context.searchId,
     step: "deep_scoring",
@@ -1833,35 +2029,6 @@ async function buildBrightDataDatasetCandidates(
     shortlist_count: combinedResult.displayStats.shortlist_count,
     job_id: context.jobId,
   });
-
-  if (deferredAdditionalRounds.length > 0) {
-    await updateSearchParsedRequirements(
-      context.searchId,
-      helpers.withDisplayStats(parsed, helpers.buildSearchDisplayStats({
-        ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
-        ...combinedResult.displayStats,
-        bright_snapshot_cost: totalRecallCost > 0 ? totalRecallCost : (metadata.cost ?? undefined),
-        bright_profile_budget: executionProfile.filterLimit,
-        bright_profiles_requested: recallRequest.recordsLimit,
-        bright_profiles_returned: allProfiles.length,
-        judge_mode: runtime.judgeMode,
-      })),
-    );
-    helpers.logSearchEvent("search_additional_rounds_waiting_after_partial_score", {
-      search_id: context.searchId,
-      job_id: context.jobId,
-      deferred_rounds: deferredAdditionalRounds.map((round) => ({
-        round: round.round,
-        snapshot_id: round.snapshotId,
-        status: round.metadata.status,
-      })),
-      scored_profiles: allProfiles.length,
-    });
-    throw new DatasetRecallPendingError(
-      `Bright Data additional rounds still processing after partial scoring for snapshot ${activeSnapshotId}`,
-      { retryDelayMs: Math.max(BRIGHTDATA_FILTER_POLL_INTERVAL_MS, 5 * 60 * 1000) },
-    );
-  }
 
   helpers.logSearchEvent("search_timing", {
     search_id: context.searchId,

@@ -122,6 +122,7 @@ import {
   buildBrightDataRecallFilter,
   buildBrightDataRecallFilters,
   enrichRowsWithGithubSignals,
+  sanitizeRecallSignalTerms,
   type RecallFilterMode,
   trimBrightDataProfileForMetadata,
 } from "@/lib/search/recall";
@@ -256,7 +257,49 @@ function compactNormalizedTerms(values: Array<string | null | undefined>, maxIte
   return Array.from(deduped);
 }
 
-function deriveGeoStrategy(locationScope: string | null) {
+const KNOWN_CITY_LOCATION_TERMS = [
+  "san francisco",
+  "new york city",
+  "new york",
+  "nyc",
+  "seattle",
+  "bay area",
+  "bellevue",
+  "redmond",
+  "kirkland",
+  "oakland",
+  "san jose",
+  "palo alto",
+  "mountain view",
+  "brooklyn",
+  "manhattan",
+  "queens",
+  "bronx",
+];
+
+function expandCompositeLocationTerms(values: string[], maxItems: number) {
+  const expanded: string[] = [];
+  for (const value of values) {
+    const normalized = normalizeText(value);
+    const explicitParts = normalized
+      .split(/\s*(?:,|;|\/|\bor\b|\band\b)\s*/i)
+      .map((part) => part.trim())
+      .filter((part) => part.length >= 3);
+    const parts = explicitParts.length > 1 ? explicitParts : [normalized];
+
+    for (const part of parts) {
+      const matchedKnownTerms = KNOWN_CITY_LOCATION_TERMS.filter((term) => part.includes(term));
+      if (matchedKnownTerms.length >= 2) {
+        expanded.push(...matchedKnownTerms);
+      } else {
+        expanded.push(part);
+      }
+    }
+  }
+  return compactNormalizedTerms(expanded, maxItems);
+}
+
+export function deriveGeoStrategy(locationScope: string | null) {
   const normalized = normalizeText(locationScope).replace(/\b(remote|hybrid|onsite|on site)\b/g, " ").trim();
   if (!normalized) {
     return {
@@ -308,7 +351,7 @@ function deriveGeoStrategy(locationScope: string | null) {
   };
 }
 
-function normalizeRecallSpec(
+export function normalizeRecallSpec(
   value: unknown,
   candidateCount: number,
   options?: { recordLimitOverride?: number | null },
@@ -325,13 +368,19 @@ function normalizeRecallSpec(
   const differentiating_skill_terms = normalizeStringArray(item.differentiating_skill_terms, 5);
   const baseline_skill_terms = normalizeStringArray(item.baseline_skill_terms, 6);
   const domain_terms = normalizeStringArray(item.domain_terms, 3);
-  const location_terms = normalizeStringArray(item.location_terms, 24);
-  const strict_location_terms = normalizeStringArray(
-    item.strict_location_terms ?? item.location_terms,
+  const location_terms = expandCompositeLocationTerms(
+    normalizeStringArray(item.location_terms, 24),
     24,
   );
-  const nearby_location_terms = normalizeStringArray(item.nearby_location_terms, 16);
-  const must_have_signals = normalizeStringArray(item.must_have_signals, 12);
+  const strict_location_terms = expandCompositeLocationTerms(
+    normalizeStringArray(item.strict_location_terms ?? item.location_terms, 24),
+    24,
+  );
+  const nearby_location_terms = expandCompositeLocationTerms(
+    normalizeStringArray(item.nearby_location_terms, 16),
+    16,
+  );
+  const must_have_signals = sanitizeRecallSignalTerms(normalizeStringArray(item.must_have_signals, 12), 12);
   const avoid_profiles = normalizeStringArray(item.avoid_profiles, 10);
   const geo_strategy = normalizeNullableString(item.geo_strategy);
   const recall_confidence = normalizeEnumValue(
@@ -798,13 +847,10 @@ function enrichRecallSpecFromJd(
     ],
     24,
   );
-  const mustHaveSignals = compactNormalizedTerms(
-    [
-      ...recallSpec.must_have_signals,
-      ...deriveMustHaveSignalsFromParsed(parsed, jdText),
-    ],
-    12,
-  );
+  const mustHaveSignals = sanitizeRecallSignalTerms([
+    ...recallSpec.must_have_signals,
+    ...deriveMustHaveSignalsFromParsed(parsed, jdText),
+  ], 12);
   const avoidProfiles = recallSpec.avoid_profiles.length > 0
     ? recallSpec.avoid_profiles
     : deriveAvoidProfilesFromParsed(parsed, jdText);
@@ -828,15 +874,15 @@ function enrichRecallSpecFromJd(
     baseline_skill_terms: baselineSkillTerms.slice(0, 6),
     domain_terms: domainTerms.slice(0, 3),
     countries: countries.slice(0, 5),
-    location_terms: locationTerms.slice(0, 24),
-    strict_location_terms: compactNormalizedTerms(
+    location_terms: expandCompositeLocationTerms(locationTerms, 24),
+    strict_location_terms: expandCompositeLocationTerms(
       [
         ...recallSpec.strict_location_terms,
         ...geo.strictTerms,
       ],
       24,
     ),
-    nearby_location_terms: compactNormalizedTerms(
+    nearby_location_terms: expandCompositeLocationTerms(
       [
         ...recallSpec.nearby_location_terms,
         ...geo.nearbyTerms,
@@ -1220,6 +1266,11 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           typeof snapshot.records_limit === "number" && Number.isFinite(snapshot.records_limit)
             ? Math.max(0, Math.round(snapshot.records_limit))
             : null;
+        const requested_count =
+          typeof snapshot.requested_count === "number" && Number.isFinite(snapshot.requested_count)
+            ? Math.max(0, Math.round(snapshot.requested_count))
+            : null;
+        const filter_hash = normalizeNullableString(snapshot.filter_hash);
         const submitted_at = normalizeNullableString(snapshot.submitted_at);
         const ready_at = normalizeNullableString(snapshot.ready_at);
         const failed_at = normalizeNullableString(snapshot.failed_at);
@@ -1252,6 +1303,8 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           round,
           snapshot_id: snapshotId,
           records_limit,
+          requested_count,
+          filter_hash,
           submitted_at,
           ready_at,
           failed_at,
@@ -1263,6 +1316,52 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           poll_attempt_count,
           download_attempt_count,
           status: normalizedStatus,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    : [];
+  const round_diagnostics = Array.isArray(item.round_diagnostics)
+    ? item.round_diagnostics
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const diagnostic = entry as Record<string, unknown>;
+        const round = normalizeNullableString(diagnostic.round);
+        if (!round) return null;
+        const skillGroups =
+          diagnostic.skill_signal_groups && typeof diagnostic.skill_signal_groups === "object"
+            ? diagnostic.skill_signal_groups as Record<string, unknown>
+            : {};
+        const qualityDistribution =
+          diagnostic.quality_distribution && typeof diagnostic.quality_distribution === "object"
+            ? diagnostic.quality_distribution as Record<string, unknown>
+            : null;
+        const normalizeCount = (value: unknown) =>
+          typeof value === "number" && Number.isFinite(value)
+            ? Math.max(0, Math.round(value))
+            : 0;
+        return {
+          round,
+          requested_count: normalizeCount(diagnostic.requested_count),
+          returned_count:
+            typeof diagnostic.returned_count === "number" && Number.isFinite(diagnostic.returned_count)
+              ? Math.max(0, Math.round(diagnostic.returned_count))
+              : null,
+          filter_hash: normalizeNullableString(diagnostic.filter_hash),
+          title_terms: normalizeStringArray(diagnostic.title_terms, 12),
+          skill_signal_groups: {
+            search_domain: normalizeStringArray(skillGroups.search_domain, 12),
+            platform_engineering: normalizeStringArray(skillGroups.platform_engineering, 12),
+          },
+          location_mode:
+            diagnostic.location_mode === "country_only" ? "country_only" as const : "location_filter" as const,
+          quality_distribution: qualityDistribution
+            ? {
+              strong_now: normalizeCount(qualityDistribution.strong_now),
+              consider_next: normalizeCount(qualityDistribution.consider_next),
+              do_not_show: normalizeCount(qualityDistribution.do_not_show),
+              total_scored: normalizeCount(qualityDistribution.total_scored),
+            }
+            : null,
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
@@ -1306,6 +1405,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     standard_download_completed_at,
     all_recall_completed_at,
     additional_snapshots,
+    round_diagnostics,
     status:
       status === "submitted" || status === "polling" || status === "ready"
         ? status
@@ -1581,6 +1681,21 @@ function buildPromptSearchContext(parsed: Record<string, unknown>) {
   if (hiringBrief.must_have_constraints.length > 0) {
     lines.push(`Must-Have Constraints: ${hiringBrief.must_have_constraints.slice(0, 6).join(" | ")}`);
   }
+  if (
+    hiringBrief.relocation_allowed === "yes" &&
+    hiringBrief.location_flexibility !== "strict"
+  ) {
+    lines.push(
+      "Location Policy: US candidates outside target metros are eligible when the technical fit is strong; treat current non-local location as a preference/risk signal, not a hard blocker, unless the profile explicitly cannot work hybrid or relocate.",
+    );
+  } else if (
+    hiringBrief.location_flexibility === "strict" &&
+    hiringBrief.relocation_allowed === "no"
+  ) {
+    lines.push(
+      "Location Policy: this is a strict local role; only local/nearby candidates or candidates with explicit target-location evidence should be shortlisted.",
+    );
+  }
 
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, Number(parsed.candidate_count) || 5);
   if (recallSpec.title_variants.length > 0) {
@@ -1739,11 +1854,10 @@ function calibrateBlockingSeverity(
 ) {
   if (blockingSeverity !== "hard") return blockingSeverity;
 
-  // Keep hard only when there is explicit incompatibility.
-  const explicitHardConflict =
-    constraintVerdicts.location_fit === "non_local" ||
-    constraintVerdicts.work_model_fit === "no";
-  if (explicitHardConflict) return "hard";
+  // Current location alone is not an explicit incompatibility. Keep hard only
+  // when work-model evidence says the candidate cannot satisfy the role.
+  if (constraintVerdicts.work_model_fit === "no") return "hard";
+  if (constraintVerdicts.location_fit === "non_local") return "soft";
 
   const allConstraintsUncertain =
     blockingConstraints.length === 0 ||
@@ -1885,7 +1999,6 @@ function deriveSuitabilityBucket(
 ): CandidateSuitability["bucket"] {
   if (params.blockingSeverity === "hard") return "do_not_show";
   if (params.advanceRecommendation === "reject") return "do_not_show";
-  if (params.overallScore < params.minVisibleQualityScore) return "do_not_show";
   if (params.constraintVerdicts.must_have_coverage === "weak") return "do_not_show";
   if (
     params.strictLocalRole &&
@@ -1902,7 +2015,31 @@ function deriveSuitabilityBucket(
   ) {
     return "strong_now";
   }
+  if (
+    params.qualityScore >= 75 &&
+    params.overallScore >= 40 &&
+    ["strong", "partial"].includes(params.constraintVerdicts.must_have_coverage)
+  ) {
+    return "consider_next";
+  }
+  if (params.overallScore < params.minVisibleQualityScore) return "do_not_show";
   return "consider_next";
+}
+
+function calibrateConstraintVerdictsForScores(
+  verdicts: ConstraintVerdict,
+  capabilityScore: number,
+  relevanceScore: number,
+): ConstraintVerdict {
+  if (verdicts.must_have_coverage !== "weak") return verdicts;
+  if (capabilityScore < SHORTLIST_CAPABILITY_MIN || relevanceScore < SHORTLIST_RELEVANCE_MIN) {
+    return verdicts;
+  }
+
+  return {
+    ...verdicts,
+    must_have_coverage: relevanceScore >= 85 ? "strong" : "partial",
+  };
 }
 
 function deriveShortlistDecision(
@@ -1932,7 +2069,11 @@ function sanitizeCandidateSuitability(value: unknown): CandidateSuitability | nu
     )
     : normalizeScore(item.match_score);
   const rawBlockingSeverity = normalizeBlockingSeverity(item.blocking_severity);
-  const constraintVerdicts = sanitizeConstraintVerdicts(item.constraint_verdicts);
+  const constraintVerdicts = calibrateConstraintVerdictsForScores(
+    sanitizeConstraintVerdicts(item.constraint_verdicts),
+    capabilityScore,
+    relevanceScore,
+  );
   const blockingConstraints = normalizeBlockingConstraints(
     item.blocking_constraints ?? item.constraint_risks ?? item.risk_flags,
   );
@@ -2079,9 +2220,8 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
 
   if (
     suitability.blocking_severity === "hard" ||
-    suitability.constraint_verdicts.location_fit === "non_local" ||
     suitability.bucket === "do_not_show" ||
-    suitability.match_score < SHORTLIST_MATCH_SCORE_MIN ||
+    (suitability.match_score < SHORTLIST_MATCH_SCORE_MIN && suitability.quality_score < 75) ||
     breakdown.capability_score < SHORTLIST_CAPABILITY_MIN
   ) {
     return false;
@@ -2103,10 +2243,17 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
     breakdown.relevance_score >= 65 &&
     breakdown.join_likelihood_score >= 40;
 
+  const technicalWatchlistFit =
+    suitability.quality_score >= 82 &&
+    breakdown.relevance_score >= 80 &&
+    breakdown.capability_score >= SHORTLIST_CAPABILITY_MIN &&
+    ["strong", "partial"].includes(suitability.constraint_verdicts.must_have_coverage);
+
   return (
     recruiterApproved ||
     strongTechnicalFit ||
-    reviewableTechnicalFit
+    reviewableTechnicalFit ||
+    technicalWatchlistFit
   );
 }
 

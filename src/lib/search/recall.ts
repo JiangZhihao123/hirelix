@@ -16,6 +16,7 @@ import type {
   CandidateDisplayTier,
   CandidateRowInput,
   HiringBrief,
+  RecallRoundDiagnostics,
   RecallSpec,
   ScoredCandidateAssessment,
 } from "@/lib/search/types";
@@ -25,7 +26,234 @@ export type RecallFilterMode = "primary" | "relaxed";
 export type RecallRound = {
   round: "standard" | "hidden_gem" | "company_target";
   request: BrightDataDatasetFilterRequest;
+  diagnostics: Omit<RecallRoundDiagnostics, "filter_hash" | "returned_count" | "quality_distribution">;
 };
+
+const MAX_BRIGHT_OR_FILTERS = 20;
+
+const NON_SEARCHABLE_RECALL_SIGNAL_PATTERNS = [
+  /\bus[-\s]?based\b/i,
+  /\bin\s+sf\s+nyc\s+or\s+seattle\b/i,
+  /\bin\s+sf\b/i,
+  /\bnyc\s+or\s+seattle\b/i,
+  /\bhybrid\b/i,
+  /\brelocat/i,
+  /\bopen to/i,
+];
+
+const SEARCH_DOMAIN_KEYWORDS = [
+  "search",
+  "index",
+  "indexing",
+  "retrieval",
+  "ranking",
+  "rank",
+  "vector",
+  "embedding",
+  "embeddings",
+  "semantic",
+  "relevance",
+  "elastic",
+  "elasticsearch",
+  "lucene",
+  "solr",
+  "algolia",
+  "pinecone",
+  "weaviate",
+];
+
+const PLATFORM_ENGINEERING_KEYWORDS = [
+  "distributed",
+  "systems",
+  "kubernetes",
+  "backend",
+  "back end",
+  "infrastructure",
+  "platform",
+  "data pipeline",
+  "data pipelines",
+  "pipeline",
+];
+
+const ENGINEERING_TITLE_KEYWORDS = [
+  "software",
+  "backend",
+  "back end",
+  "platform",
+  "infrastructure",
+  "search",
+  "data",
+  "machine learning",
+  "ml",
+  "site reliability",
+  "sre",
+  "staff",
+  "senior",
+  "principal",
+  "engineer",
+];
+
+const DEFAULT_HIDDEN_GEM_TITLES = [
+  "Platform Engineer",
+  "Infrastructure Engineer",
+  "ML Infrastructure Engineer",
+  "Backend Engineer",
+  "Site Reliability Engineer",
+  "Production Engineer",
+];
+
+function includesAnyKeyword(term: string, keywords: string[]) {
+  const normalized = normalizeText(term);
+  return keywords.some((keyword) => normalized.includes(keyword));
+}
+
+function compactTerms(terms: string[], limit: number) {
+  const seen = new Set<string>();
+  const values: string[] = [];
+  for (const term of terms) {
+    const normalized = normalizeText(term);
+    if (normalized.length < 2 || seen.has(normalized)) continue;
+    seen.add(normalized);
+    values.push(normalized);
+    if (values.length >= limit) break;
+  }
+  return values;
+}
+
+export function sanitizeRecallSignalTerms(terms: string[], limit = 12) {
+  return compactTerms(
+    terms.filter((term) => !NON_SEARCHABLE_RECALL_SIGNAL_PATTERNS.some((pattern) => pattern.test(term))),
+    limit,
+  );
+}
+
+function buildEngineeringTitleTerms(titleTerms: string[], fallbackTitle: string | null) {
+  const candidates = compactTerms(
+    [
+      ...titleTerms,
+      fallbackTitle ?? "",
+      "Senior Backend Engineer",
+      "Staff Backend Engineer",
+      "Senior Platform Engineer",
+      "Staff Platform Engineer",
+      "Senior Search Engineer",
+      "Staff Search Engineer",
+    ],
+    12,
+  );
+  return candidates
+    .filter((term) => includesAnyKeyword(term, ENGINEERING_TITLE_KEYWORDS))
+    .slice(0, 8);
+}
+
+export function buildRecallSkillSignalGroups(recallSpec: RecallSpec) {
+  const searchableSignals = sanitizeRecallSignalTerms([
+    ...recallSpec.differentiating_skill_terms,
+    ...recallSpec.domain_terms,
+    ...recallSpec.must_have_signals,
+    ...recallSpec.core_skill_terms,
+  ], 24);
+  const baselineSignals = sanitizeRecallSignalTerms([
+    ...recallSpec.baseline_skill_terms,
+    ...recallSpec.core_skill_terms,
+  ], 18);
+
+  const searchDomain = compactTerms(
+    searchableSignals.filter((term) => includesAnyKeyword(term, SEARCH_DOMAIN_KEYWORDS)),
+    8,
+  );
+  const platformEngineering = compactTerms(
+    baselineSignals.filter((term) => includesAnyKeyword(term, PLATFORM_ENGINEERING_KEYWORDS)),
+    8,
+  );
+
+  return {
+    search_domain: searchDomain.length > 0
+      ? searchDomain
+      : compactTerms(recallSpec.differentiating_skill_terms, 5),
+    platform_engineering: platformEngineering.length > 0
+      ? platformEngineering
+      : compactTerms(recallSpec.baseline_skill_terms.length > 0
+        ? recallSpec.baseline_skill_terms
+        : recallSpec.core_skill_terms, 6),
+  };
+}
+
+function buildProfileSignalFilter(terms: string[], maxTerms = 8): BrightDataFilterRule | null {
+  const normalizedTerms = compactTerms(terms, maxTerms);
+  if (normalizedTerms.length === 0) return null;
+
+  return {
+    operator: "or",
+    filters: [
+      ...normalizedTerms.map((term) => ({
+        name: "about",
+        operator: "includes" as const,
+        value: term,
+      })),
+      ...normalizedTerms.map((term) => ({
+        name: "position",
+        operator: "includes" as const,
+        value: term,
+      })),
+    ].slice(0, MAX_BRIGHT_OR_FILTERS),
+  };
+}
+
+function buildBalancedSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {
+  const groups = buildRecallSkillSignalGroups(recallSpec);
+  const searchFilter = buildProfileSignalFilter(groups.search_domain);
+  const platformFilter = buildProfileSignalFilter(groups.platform_engineering);
+  const filters = [searchFilter, platformFilter].filter(
+    (filter): filter is BrightDataFilterRule => Boolean(filter),
+  );
+  if (filters.length === 0) return null;
+  return filters.length === 1 ? filters[0] : { operator: "or", filters };
+}
+
+function buildTitleFilter(titleTerms: string[]): BrightDataFilterRule | null {
+  const terms = compactTerms(titleTerms, 12);
+  if (terms.length === 0) return null;
+  return {
+    operator: "or",
+    filters: terms.map((term) => ({
+      name: "position",
+      operator: "includes",
+      value: term,
+    })),
+  };
+}
+
+function buildCountryFilter(countryCodes: string[]): BrightDataFilterRule | null {
+  if (countryCodes.length === 0) return null;
+  return countryCodes.length === 1
+    ? {
+      name: "country_code",
+      operator: "=",
+      value: countryCodes[0],
+    }
+    : {
+      operator: "or",
+      filters: countryCodes.map((country) => ({
+        name: "country_code",
+        operator: "=",
+        value: country,
+      })),
+    };
+}
+
+function getRecallLocationMode(hiringBrief: HiringBrief) {
+  return hiringBrief.relocation_allowed === "yes" && hiringBrief.location_flexibility !== "strict"
+    ? "country_only" as const
+    : "location_filter" as const;
+}
+
+function buildQualityFilters(): BrightDataFilterRule[] {
+  return [
+    { name: "default_avatar", operator: "=", value: false },
+    { name: "connections", operator: ">=", value: 50 },
+  ];
+}
 
 export function trimBrightDataProfileForMetadata(profile: BrightDataProfile) {
   return {
@@ -249,70 +477,50 @@ export function buildBrightDataRecallFilter(
     recordLimitOverride: executionProfile.filterLimit,
   });
   const mode = options.mode ?? "primary";
-  const titleTerms = (recallSpec.title_variants.length > 0
+  const rawTitleTerms = (recallSpec.title_variants.length > 0
     ? recallSpec.title_variants
     : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value)))
     .filter((term) => !options.isPlaceholderTitle(term));
+  const titleTerms = buildEngineeringTitleTerms(rawTitleTerms, normalizeNullableString(parsed.title));
 
   if (titleTerms.length === 0) return null;
 
   const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const locationMode = getRecallLocationMode(hiringBrief);
   const countryCodes = recallSpec.countries
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4);
 
-  const rootFilters: BrightDataFilterRule[] = [
-    {
-      operator: "or",
-      filters: titleTerms.map((term) => ({
-        name: "position",
-        operator: "includes",
-        value: term,
-      })),
-    },
-  ];
+  const titleFilter = buildTitleFilter(titleTerms);
+  if (!titleFilter) return null;
 
-  if (countryCodes.length > 0) {
-    rootFilters.push(
-      countryCodes.length === 1
-        ? {
-          name: "country_code",
-          operator: "=",
-          value: countryCodes[0],
-        }
-        : {
-          operator: "or",
-          filters: countryCodes.map((country) => ({
-            name: "country_code",
-            operator: "=",
-            value: country,
-          })),
-        },
-    );
-  }
+  const rootFilters: BrightDataFilterRule[] = [titleFilter];
 
-  const standardSkillFilter = options.buildStandardSkillFilter(recallSpec, mode);
+  const countryFilter = buildCountryFilter(countryCodes);
+  if (countryFilter) rootFilters.push(countryFilter);
+
+  const standardSkillFilter =
+    mode === "relaxed"
+      ? options.buildStandardSkillFilter(recallSpec, mode)
+      : buildBalancedSkillFilter(recallSpec);
   if (standardSkillFilter) {
-    if ("filters" in standardSkillFilter && standardSkillFilter.operator === "and") {
-      rootFilters.push(...standardSkillFilter.filters);
-    } else {
-      rootFilters.push(standardSkillFilter);
-    }
+    rootFilters.push(standardSkillFilter);
   }
 
-  const locationFilter = options.buildRecallLocationFilter(
-    hiringBrief,
-    recallSpec,
-    countryCodes,
-    mode,
-  );
+  const locationFilter = locationMode === "location_filter"
+    ? options.buildRecallLocationFilter(
+      hiringBrief,
+      recallSpec,
+      countryCodes,
+      mode,
+    )
+    : null;
   if (locationFilter) {
     rootFilters.push(locationFilter);
   }
 
-  rootFilters.push({ name: "default_avatar", operator: "=", value: false });
-  rootFilters.push({ name: "connections", operator: ">=", value: 50 });
+  rootFilters.push(...buildQualityFilters());
 
   return {
     datasetId,
@@ -365,56 +573,66 @@ export function buildBrightDataRecallFilters(
   });
   if (!standardRequest) return [];
 
-  const rounds: RecallRound[] = [{ round: "standard", request: standardRequest }];
-
   const recallSpec = options.normalizeRecallSpec(parsed.recall_spec, candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
+  const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const locationMode = getRecallLocationMode(hiringBrief);
+  const rawTitleTerms = recallSpec.title_variants.length > 0
+    ? recallSpec.title_variants
+    : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value));
+  const standardTitleTerms = buildEngineeringTitleTerms(rawTitleTerms, normalizeNullableString(parsed.title));
+  const signalGroups = buildRecallSkillSignalGroups(recallSpec);
+  const rounds: RecallRound[] = [{
+    round: "standard",
+    request: standardRequest,
+    diagnostics: {
+      round: "standard",
+      requested_count: standardRequest.recordsLimit,
+      title_terms: standardTitleTerms,
+      skill_signal_groups: signalGroups,
+      location_mode: locationMode,
+    },
+  }];
+
   if (recallSpec.recall_strategy !== "multi_round") return rounds;
 
   const datasetId = standardRequest.datasetId;
-  const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const countryCodes = recallSpec.countries
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4);
 
-  const qualityFilters: BrightDataFilterRule[] = [
-    { name: "default_avatar", operator: "=", value: false },
-    { name: "connections", operator: ">=", value: 50 },
-  ];
+  const qualityFilters = buildQualityFilters();
+  const countryFilter = buildCountryFilter(countryCodes);
+  const locationFilter = locationMode === "location_filter"
+    ? options.buildRecallLocationFilter(
+      hiringBrief,
+      recallSpec,
+      countryCodes,
+      "primary",
+    )
+    : null;
 
-  const countryFilter: BrightDataFilterRule | null =
-    countryCodes.length === 1
-      ? { name: "country_code", operator: "=", value: countryCodes[0] }
-      : countryCodes.length > 1
-        ? {
-          operator: "or",
-          filters: countryCodes.map((country) => ({
-            name: "country_code",
-            operator: "=",
-            value: country,
-          })),
-        }
-        : null;
-  const locationFilter = options.buildRecallLocationFilter(
-    hiringBrief,
-    recallSpec,
-    countryCodes,
-    "primary",
-  );
-
-  const lateralTitles = recallSpec.lateral_title_variants.filter((term) => term.length >= 3);
-  const differentiatingTerms = (
-    recallSpec.differentiating_skill_terms.length > 0
-      ? [...recallSpec.differentiating_skill_terms, ...recallSpec.baseline_skill_terms]
-      : [...recallSpec.core_skill_terms, ...recallSpec.baseline_skill_terms]
-  )
-    .map((term) => normalizeText(term))
-    .filter((term) => term.length >= 2)
-    .slice(0, 8);
+  const lateralTitles = compactTerms([
+    ...recallSpec.lateral_title_variants,
+    ...DEFAULT_HIDDEN_GEM_TITLES,
+  ], 10).filter((term) => term !== "data engineer");
+  const differentiatingTerms = compactTerms([
+    ...signalGroups.search_domain,
+    ...signalGroups.platform_engineering,
+  ], 10);
 
   if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
+    const hiddenSignalFilter = buildBalancedSkillFilter({
+      ...recallSpec,
+      core_skill_terms: signalGroups.platform_engineering,
+      baseline_skill_terms: signalGroups.platform_engineering,
+      differentiating_skill_terms: signalGroups.search_domain,
+      domain_terms: signalGroups.search_domain,
+      must_have_signals: signalGroups.search_domain,
+    });
+    if (!hiddenSignalFilter) return rounds;
     const hiddenGemFilters: BrightDataFilterRule[] = [
       {
         operator: "or",
@@ -426,30 +644,24 @@ export function buildBrightDataRecallFilters(
       },
     ];
     if (countryFilter) hiddenGemFilters.push(countryFilter);
-    hiddenGemFilters.push({
-      operator: "or",
-      filters: [
-        ...differentiatingTerms.map((term) => ({
-          name: "about",
-          operator: "includes" as const,
-          value: term,
-        })),
-        ...differentiatingTerms.map((term) => ({
-          name: "position",
-          operator: "includes" as const,
-          value: term,
-        })),
-      ].slice(0, 20),
-    });
+    hiddenGemFilters.push(hiddenSignalFilter);
     if (locationFilter) hiddenGemFilters.push(locationFilter);
     hiddenGemFilters.push(...qualityFilters);
+    const recordsLimit = executionProfile.hiddenGemLimit || options.hiddenGemLimit;
 
     rounds.push({
       round: "hidden_gem",
       request: {
         datasetId,
-        recordsLimit: executionProfile.hiddenGemLimit || options.hiddenGemLimit,
+        recordsLimit,
         filter: { operator: "and", filters: hiddenGemFilters },
+      },
+      diagnostics: {
+        round: "hidden_gem",
+        requested_count: recordsLimit,
+        title_terms: lateralTitles,
+        skill_signal_groups: signalGroups,
+        location_mode: locationMode,
       },
     });
   }
@@ -468,31 +680,37 @@ export function buildBrightDataRecallFilters(
     ];
     if (countryFilter) companyFilters.push(countryFilter);
 
-    const companyTitleTerms = recallSpec.title_variants.slice(0, 6);
-    const companySkillTerms = [...differentiatingTerms, ...recallSpec.core_skill_terms.slice(0, 6)];
-    const companyRelevanceFilters: BrightDataFilterRule[] = [
-      ...companyTitleTerms.map((term) => ({
-        name: "position",
-        operator: "includes" as const,
-        value: term,
-      })),
-      ...companySkillTerms.map((term) => ({
-        name: "about",
-        operator: "includes" as const,
-        value: term,
-      })),
-    ].slice(0, 20);
-    if (companyRelevanceFilters.length > 0) {
-      companyFilters.push({ operator: "or", filters: companyRelevanceFilters });
-    }
+    const companyTitleTerms = compactTerms([
+      ...standardTitleTerms,
+      ...DEFAULT_HIDDEN_GEM_TITLES,
+    ], 10);
+    const companyTitleFilter = buildTitleFilter(companyTitleTerms);
+    if (companyTitleFilter) companyFilters.push(companyTitleFilter);
+    const companySignalFilter = buildBalancedSkillFilter({
+      ...recallSpec,
+      core_skill_terms: signalGroups.platform_engineering,
+      baseline_skill_terms: signalGroups.platform_engineering,
+      differentiating_skill_terms: signalGroups.search_domain,
+      domain_terms: signalGroups.search_domain,
+      must_have_signals: signalGroups.search_domain,
+    });
+    if (companySignalFilter) companyFilters.push(companySignalFilter);
     companyFilters.push(...qualityFilters);
+    const recordsLimit = executionProfile.companyTargetLimit || options.companyTargetLimit;
 
     rounds.push({
       round: "company_target",
       request: {
         datasetId,
-        recordsLimit: executionProfile.companyTargetLimit || options.companyTargetLimit,
+        recordsLimit,
         filter: { operator: "and", filters: companyFilters },
+      },
+      diagnostics: {
+        round: "company_target",
+        requested_count: recordsLimit,
+        title_terms: companyTitleTerms,
+        skill_signal_groups: signalGroups,
+        location_mode: "country_only",
       },
     });
   }

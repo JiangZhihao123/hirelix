@@ -1,0 +1,189 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import type { BrightDataFilterRule } from "@/lib/brightdata";
+import {
+  buildBrightDataRecallFilters,
+  sanitizeRecallSignalTerms,
+} from "@/lib/search/recall";
+import type { HiringBrief, RecallSpec } from "@/lib/search/types";
+import { normalizeRecallSpec } from "@/lib/search-jobs";
+import type { SearchExecutionProfile } from "@/lib/search-execution";
+
+process.env.BRIGHTDATA_DATASET_ID = process.env.BRIGHTDATA_DATASET_ID || "test_dataset";
+
+const executionProfile: SearchExecutionProfile = {
+  name: "bright_test_full",
+  mode: "test",
+  filterLimit: 50,
+  hiddenGemLimit: 25,
+  companyTargetLimit: 25,
+  finalResultCap: 20,
+  highlightCount: 5,
+  minVisibleQualityScore: 0,
+  strongNowQualityScore: 72,
+  lowCostMode: false,
+  singleJudgeMode: false,
+};
+
+const recallSpec: RecallSpec = {
+  countries: ["US"],
+  title_variants: [
+    "Senior Software Engineer",
+    "Staff Search Engineer",
+    "Staff Backend Engineer",
+  ],
+  core_skill_terms: [
+    "Python",
+    "Go",
+    "Java",
+    "Rust",
+    "Kubernetes",
+    "distributed systems",
+    "search",
+    "indexing",
+    "data pipelines",
+  ],
+  differentiating_skill_terms: [
+    "search infrastructure",
+    "information retrieval",
+    "ranking",
+    "vector search",
+  ],
+  baseline_skill_terms: ["Python", "Kubernetes", "distributed systems"],
+  domain_terms: ["AI", "search"],
+  location_terms: ["san francisco", "new york city", "seattle"],
+  strict_location_terms: ["san francisco", "new york city", "seattle"],
+  nearby_location_terms: ["oakland", "bellevue", "brooklyn"],
+  must_have_signals: ["search", "indexing", "us-based", "in sf nyc or seattle"],
+  avoid_profiles: ["frontend", "mobile"],
+  geo_strategy: "US search platform engineering hubs",
+  recall_confidence: "high",
+  role_breadth: "balanced",
+  lateral_title_variants: [
+    "Platform Engineer",
+    "Infrastructure Engineer",
+    "Data Engineer",
+  ],
+  target_companies: [
+    "Google",
+    "Meta",
+    "Amazon",
+    "Microsoft",
+    "Elastic",
+    "Algolia",
+    "Databricks",
+    "Snowflake",
+  ],
+  recall_strategy: "multi_round",
+  record_limit: 50,
+};
+
+const hiringBrief: HiringBrief = {
+  role_core: {
+    title: "Senior Software Engineer",
+    seniority: "Senior",
+    function_focus: "Search platform engineering",
+    required_skills: ["Kubernetes", "distributed systems", "search"],
+    nice_to_have_skills: ["ranking", "vector search"],
+  },
+  work_model: "hybrid",
+  location_scope: "San Francisco, New York City, or Seattle",
+  location_flexibility: "moderate",
+  relocation_allowed: "yes",
+  must_have_constraints: ["US-based"],
+  soft_constraints: ["SF, NYC, or Seattle preferred"],
+  company_stage_expectation: "growth",
+  screening_intent: null,
+  candidate_count_strategy: "focused_shortlist",
+  constraint_reasoning: null,
+};
+
+function flattenRules(rule: BrightDataFilterRule): BrightDataFilterRule[] {
+  if ("filters" in rule) {
+    return [rule, ...rule.filters.flatMap(flattenRules)];
+  }
+  return [rule];
+}
+
+function leafValues(rule: BrightDataFilterRule) {
+  return flattenRules(rule)
+    .filter((item): item is Extract<BrightDataFilterRule, { name: string }> => "name" in item)
+    .map((item) => String(item.value).toLowerCase());
+}
+
+test("sanitizeRecallSignalTerms removes non-searchable location and eligibility phrases", () => {
+  assert.deepEqual(
+    sanitizeRecallSignalTerms(["search", "us-based", "in sf nyc or seattle", "Kubernetes"]),
+    ["search", "kubernetes"],
+  );
+});
+
+test("normalizeRecallSpec splits composite city terms instead of preserving city mashups", () => {
+  const normalized = normalizeRecallSpec({
+    ...recallSpec,
+    location_terms: ["san francisco new york city", "seattle"],
+    strict_location_terms: ["san francisco new york city"],
+  }, 20, { recordLimitOverride: 50 });
+
+  assert.ok(normalized.location_terms.includes("san francisco"));
+  assert.ok(normalized.location_terms.includes("new york city"));
+  assert.ok(!normalized.location_terms.includes("san francisco new york city"));
+  assert.ok(!normalized.strict_location_terms.includes("san francisco new york city"));
+});
+
+test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds", () => {
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Senior Software Engineer",
+      recall_spec: recallSpec,
+      hiring_brief: hiringBrief,
+    },
+    20,
+    executionProfile,
+    {
+      normalizeRecallSpec: (value) => value as RecallSpec,
+      sanitizeHiringBrief: () => hiringBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => ({
+        operator: "or",
+        filters: [
+          { name: "location", operator: "includes", value: "san francisco" },
+        ],
+      }),
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 25,
+      companyTargetLimit: 25,
+    },
+  );
+
+  assert.deepEqual(rounds.map((round) => round.round), [
+    "standard",
+    "hidden_gem",
+    "company_target",
+  ]);
+  assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50, 25, 25]);
+
+  const standardValues = leafValues(rounds[0].request.filter);
+  assert.ok(standardValues.includes("staff search engineer"));
+  assert.ok(standardValues.includes("search infrastructure"));
+  assert.ok(standardValues.includes("kubernetes"));
+  assert.ok(!standardValues.includes("python"));
+  assert.ok(!standardValues.includes("us-based"));
+  assert.ok(!standardValues.includes("in sf nyc or seattle"));
+  assert.ok(!flattenRules(rounds[0].request.filter).some((rule) => "name" in rule && rule.name === "location"));
+  assert.equal(rounds[0].diagnostics.location_mode, "country_only");
+
+  const hiddenValues = leafValues(rounds[1].request.filter);
+  assert.ok(hiddenValues.includes("platform engineer"));
+  assert.ok(hiddenValues.includes("ml infrastructure engineer"));
+  assert.ok(hiddenValues.includes("production engineer"));
+  assert.ok(!hiddenValues.includes("data engineer"));
+  assert.ok(hiddenValues.includes("ranking"));
+
+  const companyRules = flattenRules(rounds[2].request.filter);
+  assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "current_company_name"));
+  assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "position"));
+  assert.ok(leafValues(rounds[2].request.filter).includes("elastic"));
+  assert.ok(leafValues(rounds[2].request.filter).includes("search infrastructure"));
+});

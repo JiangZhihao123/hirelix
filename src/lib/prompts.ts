@@ -145,7 +145,8 @@ Rules:
   7. blocking_severity: hard | soft | none
   8. advance_recommendation: advance | hold | reject
 - Do NOT reward prestige alone. A clearly overqualified or unrealistic candidate should be penalized in join_likelihood_score.
-- For hybrid / onsite roles, do not treat non-local candidates as strong fits unless the provided profile contains explicit evidence that they can work in the target location.
+- For strict hybrid / onsite roles, do not treat non-local candidates as strong fits unless the provided profile contains explicit evidence that they can work in the target location.
+- For roles where relocation is allowed and location flexibility is not strict, current non-local location is a preference/risk signal, not a hard blocker by itself.
 - If the JD has explicit city/country hard constraints, treat explicit out-of-region evidence as a hard blocker and make it explicit in blocking_constraints.
 - Do NOT assume relocation willingness.
 - Do NOT use speculative language like "may relocate", "might move", or "likely willing to relocate".
