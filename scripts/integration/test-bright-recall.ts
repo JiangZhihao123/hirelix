@@ -22,7 +22,7 @@ process.env.DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 process.env.AI_MODEL = 'deepseek-v4-flash';
 process.env.SEARCH_LIGHT_MODEL = 'deepseek-v4-flash';
 process.env.SEARCH_JUDGE_MODEL = 'deepseek-v4-flash';
-process.env.SEARCH_ARBITER_MODEL = 'deepseek-v4-flash';
+process.env.SEARCH_ARBITER_MODEL = 'deepseek-v4-pro';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -240,6 +240,18 @@ export const ESTIMATED_DEEPSEEK_OUTPUT_COST_PER_1M = getConfiguredNumber(
   { min: 0, max: 50 },
 );
 
+export const ESTIMATED_DEEPSEEK_PRO_INPUT_COST_PER_1M = getConfiguredNumber(
+  "SEARCH_ESTIMATED_DEEPSEEK_PRO_INPUT_COST_PER_1M",
+  1.74,
+  { min: 0, max: 50 },
+);
+
+export const ESTIMATED_DEEPSEEK_PRO_OUTPUT_COST_PER_1M = getConfiguredNumber(
+  "SEARCH_ESTIMATED_DEEPSEEK_PRO_OUTPUT_COST_PER_1M",
+  3.48,
+  { min: 0, max: 50 },
+);
+
 export function resolveStageConcurrency(configuredLimit: number, itemCount: number) {
   if (itemCount <= 0) return 0;
   if (FULL_STAGE_PARALLELISM) return itemCount;
@@ -303,6 +315,13 @@ export function estimateLlmCallCost(inputTokens: number, outputTokens: number) {
   return roundCurrency(
     Math.max(0, inputTokens) * pricing.inputCostPerToken +
       Math.max(0, outputTokens) * pricing.outputCostPerToken,
+  );
+}
+
+export function estimateDeepSeekProLlmCallCost(inputTokens: number, outputTokens: number) {
+  return roundCurrency(
+    Math.max(0, inputTokens) * (ESTIMATED_DEEPSEEK_PRO_INPUT_COST_PER_1M / 1_000_000) +
+      Math.max(0, outputTokens) * (ESTIMATED_DEEPSEEK_PRO_OUTPUT_COST_PER_1M / 1_000_000),
   );
 }
 

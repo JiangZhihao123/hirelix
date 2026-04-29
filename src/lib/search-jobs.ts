@@ -72,6 +72,7 @@ import {
   SHORTLIST_JOIN_LIKELIHOOD_MIN,
   SHORTLIST_MATCH_SCORE_MIN,
   SHORTLIST_RELEVANCE_MIN,
+  estimateDeepSeekProLlmCallCost,
   estimateLlmCallCost,
   estimateSearchIntentCost,
   estimateTokensFromText,
@@ -1164,7 +1165,7 @@ function estimateBrightPipelineLlmCost(params: {
   const arbiterInputTokens = searchContextTokens + truncatedJdTokens + avgProfileTokens + 320;
   const arbiterOutputTokens = Math.min(params.runtime.arbiterMaxOutputTokens, 220);
   const arbiterCost =
-    arbiterCallCount * estimateLlmCallCost(arbiterInputTokens, arbiterOutputTokens);
+    arbiterCallCount * estimateDeepSeekProLlmCallCost(arbiterInputTokens, arbiterOutputTokens);
 
   const outreachPromptSample =
     params.finalRows.length > 0
@@ -2403,7 +2404,7 @@ function getArbiterModel() {
     process.env.SEARCH_ARBITER_MODEL ||
     process.env.OPENROUTER_ARBITER_MODEL ||
     process.env.DEEPSEEK_ARBITER_MODEL ||
-    getJudgeModel()
+    "deepseek-v4-pro"
   );
 }
 

@@ -87,7 +87,7 @@ process.env.DEEPSEEK_MODEL = "deepseek-v4-flash";
 process.env.AI_MODEL = "deepseek-v4-flash";
 process.env.SEARCH_LIGHT_MODEL = "deepseek-v4-flash";
 process.env.SEARCH_JUDGE_MODEL = "deepseek-v4-flash";
-process.env.SEARCH_ARBITER_MODEL = "deepseek-v4-flash";
+process.env.SEARCH_ARBITER_MODEL = "deepseek-v4-pro";
 
 if ((process.env.HTTP_PROXY || process.env.PROXY_URL) && !process.env.PROXY_ENABLED) {
   process.env.PROXY_ENABLED = "true";
