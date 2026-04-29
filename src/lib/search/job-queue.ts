@@ -18,6 +18,45 @@ function secondsAgoIso(seconds: number) {
   return new Date(Date.now() - seconds * 1000).toISOString();
 }
 
+const SNAPSHOT_PROFILE_CACHE_RERUN_MODE = "snapshot_profile_cache";
+
+type SearchStartupState = {
+  status: string | null;
+  pipeline_step: string | null;
+  parse_completed_at?: string | null;
+  partial_ready_at?: string | null;
+  search_completed_at?: string | null;
+  parsed_requirements?: unknown;
+};
+
+function isSnapshotProfileCacheRerun(parsedRequirements: unknown) {
+  return Boolean(
+    parsedRequirements &&
+      typeof parsedRequirements === "object" &&
+      (parsedRequirements as Record<string, unknown>).rerun_mode === SNAPSHOT_PROFILE_CACHE_RERUN_MODE,
+  );
+}
+
+export function hasSearchJobStartedPipeline(search: SearchStartupState) {
+  const isCacheOnlyRerun = isSnapshotProfileCacheRerun(search.parsed_requirements);
+  if (isCacheOnlyRerun) {
+    return (
+      search.status !== "queued" ||
+      search.pipeline_step !== "queued" ||
+      Boolean(search.partial_ready_at) ||
+      Boolean(search.search_completed_at)
+    );
+  }
+
+  return (
+    search.status !== "queued" ||
+    search.pipeline_step !== "queued" ||
+    Boolean(search.parse_completed_at) ||
+    Boolean(search.partial_ready_at) ||
+    Boolean(search.search_completed_at)
+  );
+}
+
 export function kickSearchJobRunner(
   baseUrl: string,
   options?: { searchId?: string | null },
@@ -81,20 +120,13 @@ async function reclaimStuckStartingJobs() {
   for (const stuckJob of stuckJobs) {
     const { data: search } = await supabaseAdmin
       .from("hirelix_searches")
-      .select("status, pipeline_step, parse_completed_at, partial_ready_at, search_completed_at")
+      .select("status, pipeline_step, parse_completed_at, partial_ready_at, search_completed_at, parsed_requirements")
       .eq("id", stuckJob.search_id)
       .maybeSingle();
 
     if (!search) continue;
 
-    const hasStartedPipeline =
-      search.status !== "queued" ||
-      search.pipeline_step !== "queued" ||
-      Boolean(search.parse_completed_at) ||
-      Boolean(search.partial_ready_at) ||
-      Boolean(search.search_completed_at);
-
-    if (hasStartedPipeline) continue;
+    if (hasSearchJobStartedPipeline(search)) continue;
 
     const { data: reclaimed } = await supabaseAdmin
       .from("hirelix_search_jobs")

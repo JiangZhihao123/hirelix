@@ -9,6 +9,7 @@ import { LinkedInScanAnimation } from "@/components/LinkedInScanAnimation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useBilling } from "@/lib/use-billing";
+import { fetchWithUserSession } from "@/lib/client-auth";
 import {
   getSearchTaskEtaCopy,
   getSearchTaskStage,
@@ -98,6 +99,8 @@ export default function SearchResultPage() {
   const [candidateTier, setCandidateTier] = useState<CandidateDisplayTier>("priority_outreach");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
   const [, setUpgradeError] = useState<string | null>(null);
+  const [rescoreError, setRescoreError] = useState<string | null>(null);
+  const [rescoreSubmitting, setRescoreSubmitting] = useState(false);
   const hasTrackedTaskViewRef = useRef(false);
   const hasTrackedBriefReadyViewRef = useRef(false);
   const hasTrackedProcessingViewRef = useRef(false);
@@ -185,6 +188,27 @@ export default function SearchResultPage() {
     })}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function rerunScoringFromCache() {
+    if (!id || rescoreSubmitting) return;
+    setRescoreError(null);
+    setRescoreSubmitting(true);
+    try {
+      const response = await fetchWithUserSession(`/api/search/${id}/rescore`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not rerun scoring from the cached profiles.");
+      }
+      window.sessionStorage.removeItem(getSearchPageCacheKey(id));
+      await fetchData();
+    } catch (error) {
+      setRescoreError(error instanceof Error ? error.message : "Could not rerun scoring from the cached profiles.");
+    } finally {
+      setRescoreSubmitting(false);
+    }
   }
 
   const fetchData = useCallback(async () => {
@@ -599,6 +623,7 @@ export default function SearchResultPage() {
     reqs && typeof reqs.recall_metadata === "object" && reqs.recall_metadata
       ? (reqs.recall_metadata as RecallMetadataView)
       : null;
+  const canRerunScoringFromCache = isReviewable && Boolean(recallMetadata?.snapshot_id);
   const searchStartedAt =
     reqs && typeof reqs.search_started_at === "string"
       ? reqs.search_started_at
@@ -743,6 +768,19 @@ export default function SearchResultPage() {
                 <span className="hidden sm:inline">{showJd ? "Hide JD" : "View JD"}</span>
                 <span className="sm:hidden">{showJd ? "Hide" : "JD"}</span>
               </button>
+              {canRerunScoringFromCache && (
+                <button
+                  onClick={rerunScoringFromCache}
+                  disabled={rescoreSubmitting}
+                  className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-muted-light hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RotateCcw className={`h-3 w-3 ${rescoreSubmitting ? "animate-spin" : ""}`} />
+                  <span className="hidden sm:inline">
+                    {rescoreSubmitting ? "Rerunning scores" : "Rerun scoring"}
+                  </span>
+                  <span className="sm:hidden">Rescore</span>
+                </button>
+              )}
               {allCandidates.length > 0 &&
                 (billing?.usage.exportEnabled ? (
                   <button
@@ -1094,6 +1132,12 @@ export default function SearchResultPage() {
         <div className="mb-6 rounded-xl border border-border bg-surface p-5">
           <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">Original Job Description</p>
           <pre className="whitespace-pre-wrap text-sm text-muted leading-relaxed">{search.jd_text}</pre>
+        </div>
+      )}
+
+      {rescoreError && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {rescoreError}
         </div>
       )}
 

@@ -261,6 +261,12 @@ type RecallFilterSummary = {
   avoid_profiles?: string[];
 };
 
+const SNAPSHOT_PROFILE_CACHE_RERUN_MODE = "snapshot_profile_cache";
+
+function isSnapshotProfileCacheRerun(parsed: Record<string, unknown>) {
+  return parsed.rerun_mode === SNAPSHOT_PROFILE_CACHE_RERUN_MODE;
+}
+
 export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
   hasSnapshotDrift: boolean;
   existingSnapshotId?: string | null;
@@ -835,6 +841,7 @@ async function buildBrightDataDatasetCandidates(
 ): Promise<SearchPipelineResult | null> {
   const brightDataToken = process.env.BRIGHTDATA_API_TOKEN;
   const runtime = getExecutionRuntime(executionProfile);
+  const forceSnapshotProfileCache = isSnapshotProfileCacheRerun(parsed);
   const recallSpec = helpers.normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
@@ -850,9 +857,13 @@ async function buildBrightDataDatasetCandidates(
       isPlaceholderTitle: helpers.isPlaceholderTitle,
     },
   );
-  if (!brightDataToken || !primaryRecallRequest) {
+  if (!primaryRecallRequest) {
     return null;
   }
+  if (!brightDataToken && !forceSnapshotProfileCache) {
+    return null;
+  }
+  const brightDataAuthToken = brightDataToken ?? "";
   const relaxedRecallRequest = buildBrightDataRecallFilter(
     parsed,
     context.candidateCount,
@@ -871,6 +882,9 @@ async function buildBrightDataDatasetCandidates(
 
   await setSearchStatus(context.searchId, "searching");
   const existingRecallMetadata = helpers.normalizeRecallMetadata(parsed.recall_metadata);
+  if (forceSnapshotProfileCache && !existingRecallMetadata?.snapshot_id) {
+    throw new Error("Snapshot-profile rerun requires an existing Bright Data snapshot id.");
+  }
   let snapshotId = existingRecallMetadata?.snapshot_id ?? null;
   let requestedAt = existingRecallMetadata?.requested_at ? Date.parse(existingRecallMetadata.requested_at) : Number.NaN;
   const recallRounds = buildBrightDataRecallFilters(
@@ -980,7 +994,10 @@ async function buildBrightDataDatasetCandidates(
         job_id: context.jobId,
       });
     } else {
-      snapshotId = await triggerDatasetFilter(brightDataToken, request);
+      if (forceSnapshotProfileCache) {
+        throw new Error("Snapshot-profile rerun cannot submit a new Bright Data snapshot.");
+      }
+      snapshotId = await triggerDatasetFilter(brightDataAuthToken, request);
       standardCacheEntry = null;
       void cacheSnapshotEntry({
         snapshotId,
@@ -1035,7 +1052,7 @@ async function buildBrightDataDatasetCandidates(
     runtime,
     recallRequest.recordsLimit,
   );
-  const shouldKeepSnapshotProfileCache = shouldReuseProfileCacheDespiteSnapshotDrift({
+  const shouldKeepSnapshotProfileCache = forceSnapshotProfileCache || shouldReuseProfileCacheDespiteSnapshotDrift({
     hasSnapshotDrift,
     existingSnapshotId: existingRecallMetadata?.snapshot_id,
     standardProfileRowCount: existingStandardSnapshotRows?.length,
@@ -1050,6 +1067,7 @@ async function buildBrightDataDatasetCandidates(
       next_budget: executionProfile.filterLimit,
       previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
       next_judge_mode: runtime.judgeMode,
+      rerun_mode: forceSnapshotProfileCache ? SNAPSHOT_PROFILE_CACHE_RERUN_MODE : null,
       job_id: context.jobId,
     });
   } else if (hasSnapshotDrift) {
@@ -1091,7 +1109,10 @@ async function buildBrightDataDatasetCandidates(
           job_id: context.jobId,
         });
       } else {
-        roundSnapshotId = await triggerDatasetFilter(brightDataToken, round.request);
+        if (forceSnapshotProfileCache) {
+          throw new Error("Snapshot-profile rerun cannot submit additional Bright Data snapshots.");
+        }
+        roundSnapshotId = await triggerDatasetFilter(brightDataAuthToken, round.request);
         void cacheSnapshotEntry({
           snapshotId: roundSnapshotId,
           round: round.round,
@@ -1157,7 +1178,27 @@ async function buildBrightDataDatasetCandidates(
       job_id: context.jobId,
     });
   } else {
-    additionalSnapshotRefs = additionalRounds.flatMap((round) => {
+    additionalSnapshotRefs = forceSnapshotProfileCache
+      ? (existingRecallMetadata?.additional_snapshots ?? []).flatMap((snapshot) => {
+        if (!snapshot.snapshot_id) return [];
+        return [{
+          round: snapshot.round,
+          snapshotId: snapshot.snapshot_id,
+          request: recallRequest,
+          recordsLimit: snapshot.records_limit ?? recallRequest.recordsLimit,
+          filterHash: snapshot.filter_hash ?? "",
+          diagnostics: {
+            round: snapshot.round,
+            requested_count: snapshot.requested_count ?? snapshot.records_limit ?? 0,
+            title_terms: [],
+            skill_signal_groups: { search_domain: [], platform_engineering: [] },
+            location_mode: "country_only" as const,
+          },
+          submittedAt: snapshot.submitted_at ?? undefined,
+          cacheEntry: null,
+        }];
+      })
+      : additionalRounds.flatMap((round) => {
       const persisted = persistedAdditionalSnapshots.get(round.round);
       if (!persisted?.snapshot_id) return [];
       return [{
@@ -1227,8 +1268,11 @@ async function buildBrightDataDatasetCandidates(
       job_id: context.jobId,
     });
   } else {
+    if (forceSnapshotProfileCache) {
+      throw new Error(`Snapshot-profile rerun could not find DB rows for standard snapshot ${activeSnapshotId}.`);
+    }
     try {
-      metadata = await getDatasetSnapshotMetadata(brightDataToken, activeSnapshotId);
+      metadata = await getDatasetSnapshotMetadata(brightDataAuthToken, activeSnapshotId);
     } catch (error) {
       if (helpers.isTransientSnapshotDownloadError(error)) {
         helpers.logSearchEvent("search_snapshot_metadata_retrying", {
@@ -1281,8 +1325,13 @@ async function buildBrightDataDatasetCandidates(
           cachedRows: cachedRoundRows,
         };
       }
+      if (forceSnapshotProfileCache) {
+        throw new Error(
+          `Snapshot-profile rerun could not find DB rows for ${round.round} snapshot ${round.snapshotId}.`,
+        );
+      }
       try {
-        const roundMetadata = await getDatasetSnapshotMetadata(brightDataToken, round.snapshotId);
+        const roundMetadata = await getDatasetSnapshotMetadata(brightDataAuthToken, round.snapshotId);
         return { ...round, metadata: roundMetadata, cachedRows: null };
       } catch (error) {
         if (helpers.isTransientSnapshotDownloadError(error)) {
@@ -1308,7 +1357,7 @@ async function buildBrightDataDatasetCandidates(
         }
         await expireCachedSnapshot(round.snapshotId);
         const replacementSubmittedAt = helpers.nowIso();
-        const replacementSnapshotId = await triggerDatasetFilter(brightDataToken, round.request);
+        const replacementSnapshotId = await triggerDatasetFilter(brightDataAuthToken, round.request);
         void cacheSnapshotEntry({
           snapshotId: replacementSnapshotId,
           round: round.round,
@@ -1500,7 +1549,7 @@ async function buildBrightDataDatasetCandidates(
   if (metadata?.status === "ready" && !standardLoadedFromProfileCache) {
     const standardDownloadStartedAt = helpers.nowIso();
     try {
-      const rows = await downloadDatasetSnapshot(brightDataToken, activeSnapshotId);
+      const rows = await downloadDatasetSnapshot(brightDataAuthToken, activeSnapshotId);
       profiles = rows.map(adaptDatasetRecordToBrightDataProfile);
       for (const profile of profiles) {
         (profile as BrightDataProfile & { __recall_source?: string }).__recall_source = "standard";
@@ -1711,7 +1760,7 @@ async function buildBrightDataDatasetCandidates(
         roundProfiles = roundRef.cachedRows.map(adaptDatasetRecordToBrightDataProfile);
       } else {
         try {
-          const roundRows = await downloadDatasetSnapshot(brightDataToken, roundSnapId);
+          const roundRows = await downloadDatasetSnapshot(brightDataAuthToken, roundSnapId);
           roundProfiles = roundRows.map(adaptDatasetRecordToBrightDataProfile);
           const persistResult = await persistDownloadedSnapshotProfiles({
             rows: roundRows,
@@ -1727,7 +1776,7 @@ async function buildBrightDataDatasetCandidates(
         } catch (error) {
           if (!helpers.isTransientSnapshotDownloadError(error) && roundRef.cacheEntry) {
             await expireCachedSnapshot(roundSnapId);
-            const replacementSnapshotId = await triggerDatasetFilter(brightDataToken, roundRef.request);
+            const replacementSnapshotId = await triggerDatasetFilter(brightDataAuthToken, roundRef.request);
             void cacheSnapshotEntry({
               snapshotId: replacementSnapshotId,
               round,
@@ -2189,6 +2238,11 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
   );
   if (!phase1Result) {
     throw new Error("Bright Data recall did not return a pipeline result.");
+  }
+  if (isSnapshotProfileCacheRerun(phase1Parsed)) {
+    phase1Parsed.last_rerun_mode = SNAPSHOT_PROFILE_CACHE_RERUN_MODE;
+    phase1Parsed.last_rerun_completed_at = helpers.nowIso();
+    delete phase1Parsed.rerun_mode;
   }
 
   await completeSearch(

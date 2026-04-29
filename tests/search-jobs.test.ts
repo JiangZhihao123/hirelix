@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveSearchJobRunnerBaseUrl } from "../src/lib/search-jobs";
+import {
+  hasSearchJobStartedPipeline,
+  resolveSearchJobRunnerBaseUrl,
+} from "../src/lib/search-jobs";
 
 const mutableEnv = process.env as Record<string, string | undefined>;
 
@@ -83,4 +86,34 @@ test("resolveSearchJobRunnerBaseUrl honors explicit override", () => {
   } else {
     mutableEnv.SEARCH_JOB_RUNNER_BASE_URL = originalRunnerBaseUrl;
   }
+});
+
+test("hasSearchJobStartedPipeline treats previous parse completion as started for normal searches", () => {
+  assert.equal(
+    hasSearchJobStartedPipeline({
+      status: "queued",
+      pipeline_step: "queued",
+      parse_completed_at: "2026-04-29T00:00:00.000Z",
+      partial_ready_at: null,
+      search_completed_at: null,
+      parsed_requirements: {},
+    }),
+    true,
+  );
+});
+
+test("hasSearchJobStartedPipeline can reclaim cache-only rescore jobs before restart", () => {
+  assert.equal(
+    hasSearchJobStartedPipeline({
+      status: "queued",
+      pipeline_step: "queued",
+      parse_completed_at: "2026-04-29T00:00:00.000Z",
+      partial_ready_at: null,
+      search_completed_at: null,
+      parsed_requirements: {
+        rerun_mode: "snapshot_profile_cache",
+      },
+    }),
+    false,
+  );
 });

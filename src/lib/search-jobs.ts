@@ -87,6 +87,7 @@ import {
   enqueueSearchJob,
   hasRunnableSearchJobs,
   kickSearchJobRunner,
+  hasSearchJobStartedPipeline,
   reclaimStaleRunningJobs as reclaimStaleRunningJobsInternal,
   resolveSearchJobRunnerBaseUrl,
   updateRunningJobStatus,
@@ -178,6 +179,7 @@ import type {
 } from "@/lib/search/types";
 export {
   enqueueSearchJob,
+  hasSearchJobStartedPipeline,
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
 };

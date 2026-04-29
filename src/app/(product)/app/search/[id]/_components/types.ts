@@ -194,6 +194,7 @@ export type SearchDisplayStats = {
 };
 
 export type RecallMetadataView = {
+  snapshot_id?: string | null;
   requested_at?: string | null;
   completed_at?: string | null;
   standard_recall_requested_at?: string | null;
