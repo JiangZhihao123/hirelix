@@ -297,7 +297,7 @@ function buildScoringHelpers(params: {
   };
 }
 
-test("scoreCandidateBatch uses selective second review and arbitrates only action conflicts", async () => {
+test("scoreCandidateBatch uses selective second review and merges non-hard conflicts without synchronous arbiter", async () => {
   const calls: Array<{ judge: string; indexes: number[] }> = [];
   const arbiters: number[] = [];
   const events: string[] = [];
@@ -324,10 +324,10 @@ test("scoreCandidateBatch uses selective second review and arbitrates only actio
     { judge: "Judge A", indexes: [0, 1, 2] },
     { judge: "Judge B", indexes: [1, 2] },
   ]);
-  assert.deepEqual(arbiters, [2]);
+  assert.deepEqual(arbiters, []);
   assert.equal(results.find((result) => result.index === 0)?.scoring_method, "single_judge_triage");
   assert.equal(results.find((result) => result.index === 1)?.scoring_method, "selective_dual_review");
-  assert.equal(results.find((result) => result.index === 2)?.scoring_method, "dual_review_arbitrated");
+  assert.equal(results.find((result) => result.index === 2)?.scoring_method, "selective_dual_review");
   assert.ok(events.includes("selective_review_triage"));
   assert.ok(events.includes("selective_review_resolution"));
 });

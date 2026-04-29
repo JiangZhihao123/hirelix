@@ -17,6 +17,7 @@ export function buildJudgeScorePrompt(
   options: {
     truncateForPrompt: (text: string, maxChars: number) => string;
     buildPromptSearchContext: (parsed: Record<string, unknown>) => string;
+    expectedIndexes?: number[];
   },
 ) {
   const styleHint =
@@ -78,9 +79,13 @@ export function buildJudgeScorePrompt(
     "why_reachable_now": "string | null"
   }
 ]`;
+  const expectedIndexes = options.expectedIndexes ?? [];
+  const allowedIndexText = expectedIndexes.length
+    ? `Allowed index values for this batch: ${expectedIndexes.join(", ")}.`
+    : "";
   const indexRule = poolSize === 1
-    ? 'Return exactly one JSON object. Use the candidate index shown in the profile header (for example "[57] Name" means index 57).'
-    : "Return one object per profile.";
+    ? `Return exactly one JSON object. Use the exact candidate index shown in the profile header (for example "[57] Name" means "index": 57). ${allowedIndexText}`.trim()
+    : `Return one object per profile. Use the exact candidate index shown in each profile header, not the row position inside this batch. For example, if the header is "[57] Jane", return "index": 57, never "index": 0. ${allowedIndexText}`.trim();
 
   return `You are ${judgeLabel}, one of two independent hiring reviewers.
 
@@ -144,6 +149,7 @@ export function buildArbiterPrompt(
     buildCompanyProfileContext: (parsed: Record<string, unknown>) => string;
   },
 ) {
+  const candidateIndex = judgeA.index;
   return `${CANDIDATE_SUITABILITY_PROMPT}
 
 You are the scoring arbiter. Two independent reviewers disagreed on this candidate. Your job is to resolve the conflict and return a single final decision.
@@ -170,6 +176,7 @@ ${JSON.stringify(judgeB, null, 2)}
 Return exactly one final assessment object for this candidate. Resolve the disagreement rather than averaging blindly.
 
 Rules:
+- The assessment "index" must be ${candidateIndex}. This is the exact candidate index from the profile header and reviewer outputs.
 - Return tri-scores plus explicit quality/advance outputs.
 - quality_score should reflect only candidate quality for this JD: capability + relevance.
 - advance_score should reflect real-world advanceability: quality + join likelihood - blocker severity.
@@ -183,7 +190,7 @@ Rules:
 - Return ONLY valid JSON array with one object using this exact shape:
 [
   {
-    "index": 0,
+    "index": ${candidateIndex},
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
@@ -285,6 +292,8 @@ export function parseJudgeScoreResults(
       : []);
   if (entries.length === 0) return [];
   const fallbackIndex = expectedIndexes.length === 1 ? expectedIndexes[0] : null;
+  const expectedIndexSet = new Set(expectedIndexes);
+  const canMapBatchRelativeIndex = expectedIndexes.length > 1;
 
   return entries
     .map((entry): JudgeScoreResult | null => {
@@ -298,10 +307,23 @@ export function parseJudgeScoreResults(
             : fallbackIndex;
       if (!Number.isFinite(rawIndexValue) || rawIndexValue == null) return null;
       const rawIndex = rawIndexValue;
-      if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= poolSize) return null;
+      if (!Number.isFinite(rawIndex) || rawIndex < 0) return null;
+      const normalizedIndex =
+        expectedIndexSet.has(rawIndex)
+          ? rawIndex
+          : canMapBatchRelativeIndex && rawIndex < expectedIndexes.length
+            ? expectedIndexes[rawIndex]
+            : rawIndex;
+      if (
+        !Number.isFinite(normalizedIndex) ||
+        normalizedIndex < 0 ||
+        normalizedIndex >= poolSize
+      ) {
+        return null;
+      }
       const suitability = options.sanitizeCandidateSuitability(item);
       return {
-        index: rawIndex,
+        index: normalizedIndex,
         capability_score: options.normalizeScore(item.capability_score),
         relevance_score:
           item.relevance_score != null
@@ -350,19 +372,17 @@ export function hasJudgeConflict(
     deriveFitDecisionFromScore: (score: number) => ScoredCandidateAssessment["suitability"]["fit_decision"];
   },
 ) {
+  const syncArbiterEnabled = ["1", "true", "yes", "on"].includes(
+    (process.env.SEARCH_SYNC_ARBITER_ENABLED || "").trim().toLowerCase(),
+  );
+  if (!syncArbiterEnabled) return false;
+
   const judgeAQuality = options.computeQualityScore(judgeA.capability_score, judgeA.relevance_score);
   const judgeBQuality = options.computeQualityScore(judgeB.capability_score, judgeB.relevance_score);
-  return (
-    Math.abs(judgeA.capability_score - judgeB.capability_score) > 8 ||
-    Math.abs(judgeA.relevance_score - judgeB.relevance_score) > 8 ||
-    Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score) > 8 ||
-    judgeA.blocking_severity !== judgeB.blocking_severity ||
-    judgeA.shortlist_decision !== judgeB.shortlist_decision ||
-    judgeA.advance_recommendation !== judgeB.advance_recommendation ||
-    options.deriveFitDecisionFromScore(judgeAQuality) !== options.deriveFitDecisionFromScore(judgeBQuality) ||
-    (judgeA.relevance_score >= 75 && judgeB.join_likelihood_score <= 35) ||
-    (judgeB.relevance_score >= 75 && judgeA.join_likelihood_score <= 35)
-  );
+  const maxQuality = Math.max(judgeAQuality, judgeBQuality);
+  const hasHardBlockerConflict =
+    (judgeA.blocking_severity === "hard") !== (judgeB.blocking_severity === "hard");
+  return maxQuality >= 85 && hasHardBlockerConflict;
 }
 
 export function mergeJudgeResults(

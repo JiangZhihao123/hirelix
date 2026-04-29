@@ -76,6 +76,7 @@ export async function judgeScoreBatch(
     {
       truncateForPrompt: helpers.truncateForPrompt,
       buildPromptSearchContext: helpers.buildPromptSearchContext,
+      expectedIndexes: batchIndexes,
     },
   );
   const judgeModel = helpers.getJudgeModel();
@@ -284,6 +285,7 @@ export async function arbitrateCandidateScore(
       }
       return {
         ...assessment,
+        index: judgeA.index,
         scoring_method: "dual_review_arbitrated",
         judge_delta: Math.max(
           Math.abs(judgeA.capability_score - judgeB.capability_score),
@@ -571,50 +573,15 @@ function shouldRequestSecondReview(assessment: ScoredCandidateAssessment) {
   return highPotentialTechnicalFit || borderlineFit;
 }
 
-function isActionableAssessment(assessment: ScoredCandidateAssessment) {
-  return (
-    assessment.suitability.bucket !== "do_not_show" ||
-    assessment.suitability.shortlist_decision === "yes" ||
-    assessment.suitability.advance_recommendation !== "reject"
-  );
-}
-
 function shouldArbitrateActionConflict(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
   helpers: Parameters<typeof scoreSingleCandidate>[6],
 ) {
-  const assessmentA = mergeSingleJudgeResult(judgeA, helpers);
-  const assessmentB = mergeSingleJudgeResult(judgeB, helpers);
-  const verdictA = assessmentA.suitability.constraint_verdicts;
-  const verdictB = assessmentB.suitability.constraint_verdicts;
-
-  if (assessmentA.suitability.shortlist_decision !== assessmentB.suitability.shortlist_decision) {
-    return true;
-  }
-  if (isActionableAssessment(assessmentA) !== isActionableAssessment(assessmentB)) {
-    return true;
-  }
-  if (
-    assessmentA.suitability.advance_recommendation === "reject" !==
-    (assessmentB.suitability.advance_recommendation === "reject")
-  ) {
-    return true;
-  }
-  if (
-    assessmentA.suitability.blocking_severity === "hard" !==
-    (assessmentB.suitability.blocking_severity === "hard")
-  ) {
-    return true;
-  }
-
-  const mustHaveA = verdictA.must_have_coverage;
-  const mustHaveB = verdictB.must_have_coverage;
-  if ((mustHaveA === "weak") !== (mustHaveB === "weak")) {
-    return true;
-  }
-
-  return false;
+  return hasJudgeConflict(judgeA, judgeB, {
+    computeQualityScore: helpers.computeQualityScore,
+    deriveFitDecisionFromScore: helpers.deriveFitDecisionFromScore,
+  });
 }
 
 export async function scoreCandidateBatch(
