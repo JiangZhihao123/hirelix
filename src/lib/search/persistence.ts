@@ -64,8 +64,65 @@ function safeInt(value: unknown, fallback = 0) {
     : fallback;
 }
 
-export async function recordLlmUsageEvent(payload: LlmUsageEventPayload) {
-  const row = {
+type LlmUsageEventRow = {
+  search_id: string | null;
+  job_id: string | null;
+  user_id: string | null;
+  stage: string;
+  status: string;
+  model: string;
+  provider: string;
+  attempt: number;
+  batch_size: number | null;
+  candidate_indexes: number[] | null;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cached_input_tokens: number;
+  cache_miss_input_tokens: number;
+  max_output_tokens: number | null;
+  thinking: string | null;
+  reasoning_effort: string | null;
+  latency_ms: number | null;
+  error_message: string | null;
+  request_hash: string | null;
+  response_hash: string | null;
+  request_payload: unknown;
+  response_payload: unknown;
+  metadata: Record<string, unknown>;
+};
+
+type LlmUsageWriterState = {
+  queue: LlmUsageEventRow[];
+  flushPromise: Promise<void> | null;
+  flushTimer: ReturnType<typeof setTimeout> | null;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __hirelixLlmUsageWriterState__: LlmUsageWriterState | undefined;
+}
+
+function getLlmUsageWriterState() {
+  if (!globalThis.__hirelixLlmUsageWriterState__) {
+    globalThis.__hirelixLlmUsageWriterState__ = {
+      queue: [],
+      flushPromise: null,
+      flushTimer: null,
+    };
+  }
+  return globalThis.__hirelixLlmUsageWriterState__;
+}
+
+function getLlmUsageWriteBatchSize() {
+  const raw = process.env.SEARCH_LLM_USAGE_WRITE_BATCH_SIZE;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 25;
+  return Math.min(Math.max(parsed, 1), 100);
+}
+
+function buildLlmUsageEventRow(payload: LlmUsageEventPayload): LlmUsageEventRow {
+  return {
     search_id: payload.searchId || null,
     job_id: payload.jobId || null,
     user_id: payload.userId || null,
@@ -105,17 +162,94 @@ export async function recordLlmUsageEvent(payload: LlmUsageEventPayload) {
     response_payload: payload.responsePayload ?? null,
     metadata: payload.metadata || {},
   };
+}
 
-  const { error } = await supabaseAdmin
-    .from("hirelix_llm_usage_events")
-    .insert(row);
+async function insertLlmUsageEventRows(rows: LlmUsageEventRow[]) {
+  if (!rows.length) return;
 
-  if (error) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const { error } = await supabaseAdmin
+      .from("hirelix_llm_usage_events")
+      .insert(rows);
+
+    if (!error) return;
+
+    const retrying = attempt < 3;
     console.error("[search_persistence] recordLlmUsageEvent failed", {
-      stage: payload.stage,
-      search_id: payload.searchId,
+      batch_size: rows.length,
+      stages: [...new Set(rows.map((row) => row.stage))],
+      search_id: rows[0]?.search_id,
+      attempt,
+      retrying,
       error: formatDbError(error),
     });
+
+    if (retrying) {
+      await waitBeforeRetry(attempt);
+    }
+  }
+}
+
+async function drainLlmUsageQueue() {
+  const state = getLlmUsageWriterState();
+  const batchSize = getLlmUsageWriteBatchSize();
+
+  while (state.queue.length > 0) {
+    const rows = state.queue.splice(0, batchSize);
+    await insertLlmUsageEventRows(rows);
+  }
+}
+
+function scheduleLlmUsageFlush() {
+  const state = getLlmUsageWriterState();
+  if (state.flushPromise || state.flushTimer) return;
+
+  state.flushTimer = setTimeout(() => {
+    state.flushTimer = null;
+    state.flushPromise = drainLlmUsageQueue()
+      .catch((error) => {
+        console.error("[search_persistence] llm usage flush failed", {
+          error: formatDbError(error),
+        });
+      })
+      .finally(() => {
+        state.flushPromise = null;
+        if (state.queue.length > 0) {
+          scheduleLlmUsageFlush();
+        }
+      });
+  }, 250);
+}
+
+export async function recordLlmUsageEvent(payload: LlmUsageEventPayload) {
+  const state = getLlmUsageWriterState();
+  state.queue.push(buildLlmUsageEventRow(payload));
+  scheduleLlmUsageFlush();
+}
+
+export async function flushPendingLlmUsageEvents() {
+  const state = getLlmUsageWriterState();
+  if (state.flushTimer) {
+    clearTimeout(state.flushTimer);
+    state.flushTimer = null;
+  }
+  if (!state.flushPromise) {
+    state.flushPromise = drainLlmUsageQueue()
+      .catch((error) => {
+        console.error("[search_persistence] llm usage flush failed", {
+          error: formatDbError(error),
+        });
+      })
+      .finally(() => {
+        state.flushPromise = null;
+      });
+  }
+
+  while (state.flushPromise) {
+    const current: Promise<void> = state.flushPromise;
+    await current;
+    if (state.flushPromise === current && state.queue.length === 0) return;
+    if (state.queue.length > 0) scheduleLlmUsageFlush();
   }
 }
 

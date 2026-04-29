@@ -31,6 +31,7 @@ import { completeSearch } from "@/lib/search/finalize";
 import {
   cacheSnapshotEntry,
   expireCachedSnapshot,
+  flushPendingLlmUsageEvents,
   loadCachedSnapshotProfiles,
   lookupCachedSnapshot,
   persistSnapshotProfiles,
@@ -726,6 +727,7 @@ async function scoreBrightDataProfiles(
     job_id: context.jobId,
   });
 
+  await flushPendingLlmUsageEvents();
   const llmUsageStats = await loadSearchLlmUsageStats(
     context.searchId,
     context.jobId,
