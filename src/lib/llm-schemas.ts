@@ -83,6 +83,37 @@ const judgeAssessmentItemSchema = {
   },
 } as const;
 
+const fastJudgeAssessmentItemSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "index",
+    "capability_score",
+    "relevance_score",
+    "join_likelihood_score",
+    "advance_recommendation",
+    "shortlist_decision",
+    "primary_risk",
+    "first_contact_confidence",
+    "blocking_severity",
+    "short_reasons",
+    "evidence_quality",
+  ],
+  properties: {
+    index: { type: "integer" },
+    capability_score: { type: "number" },
+    relevance_score: { type: "number" },
+    join_likelihood_score: { type: "number" },
+    advance_recommendation: enumSchema(["advance", "hold", "reject"]),
+    shortlist_decision: enumSchema(["yes", "no"]),
+    primary_risk: nullableStringSchema(),
+    first_contact_confidence: enumSchema(["high", "medium", "low"]),
+    blocking_severity: enumSchema(["hard", "soft", "none"]),
+    short_reasons: stringArraySchema(),
+    evidence_quality: enumSchema(["high", "medium", "low"]),
+  },
+} as const;
+
 const arbiterAssessmentItemSchema = {
   type: "object",
   additionalProperties: false,
@@ -319,6 +350,19 @@ export function buildJudgeScoreJsonSchema(poolSize: number): LlmJsonSchemaConfig
       : {
           type: "array",
           items: judgeAssessmentItemSchema,
+        },
+  };
+}
+
+export function buildFastJudgeScoreJsonSchema(poolSize: number): LlmJsonSchemaConfig {
+  return {
+    name: poolSize === 1 ? "fast_judge_score_single" : "fast_judge_score_batch",
+    strict: true,
+    schema: poolSize === 1
+      ? fastJudgeAssessmentItemSchema
+      : {
+          type: "array",
+          items: fastJudgeAssessmentItemSchema,
         },
   };
 }

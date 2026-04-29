@@ -145,6 +145,7 @@ export type ScoredCandidateAssessment = {
   location: string | null;
   why_reachable_now?: string | null;
   scoring_method?:
+    | "fast_judge_triage"
     | "single_judge_debug"
     | "single_judge_triage"
     | "selective_dual_review"
@@ -237,6 +238,17 @@ export type SearchDisplayStats = {
   estimated_llm_cost?: number;
   estimated_search_total_cost?: number;
   judge_mode?: "single" | "dual";
+  fast_judge_count?: number;
+  deep_judge_count?: number;
+  arbiter_count?: number;
+  fast_judge_wall_time_ms?: number;
+  deep_judge_wall_time_ms?: number;
+  llm_wall_time_ms?: number;
+  llm_input_tokens?: number;
+  llm_output_tokens?: number;
+  llm_cached_input_tokens?: number;
+  llm_cache_miss_input_tokens?: number;
+  llm_actual_estimated_cost?: number;
   activation_run?: boolean;
   quality_floor_applied?: boolean;
   visible_candidate_count?: number;

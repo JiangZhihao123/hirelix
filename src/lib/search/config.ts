@@ -23,6 +23,18 @@ function getConfiguredPositiveInt(
   return Math.min(Math.max(safeValue, min), max);
 }
 
+function getConfiguredNonNegativeInt(
+  envName: string,
+  fallback: number,
+  options: { max?: number } = {},
+) {
+  const raw = process.env[envName];
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  const safeValue = Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  const max = options.max ?? Number.MAX_SAFE_INTEGER;
+  return Math.min(Math.max(safeValue, 0), max);
+}
+
 function getConfiguredNumber(
   envName: string,
   fallback: number,
@@ -75,16 +87,40 @@ export const DEEP_SCORING_CONCURRENCY = getConfiguredPositiveInt(
   { max: 200 },
 );
 
+export const FAST_JUDGE_BATCH_SIZE = getConfiguredPositiveInt(
+  "SEARCH_FAST_JUDGE_BATCH_SIZE",
+  20,
+  { max: 40 },
+);
+
+export const FAST_JUDGE_CONCURRENCY = getConfiguredPositiveInt(
+  "SEARCH_FAST_JUDGE_CONCURRENCY",
+  8,
+  { max: 200 },
+);
+
 export const DEEP_REVIEW_CONCURRENCY = getConfiguredPositiveInt(
   "SEARCH_DEEP_REVIEW_CONCURRENCY",
   6,
   { max: 100 },
 );
 
-export const DEEP_CACHE_PRIMER_COUNT = getConfiguredPositiveInt(
+export const DEEP_CACHE_PRIMER_COUNT = getConfiguredNonNegativeInt(
   "SEARCH_DEEP_CACHE_PRIMER_COUNT",
-  2,
+  0,
   { max: 10 },
+);
+
+export const SECOND_REVIEW_MIN_COUNT = getConfiguredNonNegativeInt(
+  "SEARCH_SECOND_REVIEW_MIN",
+  20,
+  { max: 200 },
+);
+
+export const SECOND_REVIEW_MAX_COUNT = getConfiguredPositiveInt(
+  "SEARCH_SECOND_REVIEW_MAX",
+  40,
+  { max: 200 },
 );
 
 export const JUDGE_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(

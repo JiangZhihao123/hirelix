@@ -19,6 +19,8 @@ import {
   DEEP_REVIEW_DEBUG_LOGS,
   DEEP_SCORING_BATCH_SIZE,
   DEEP_SCORING_CONCURRENCY,
+  FAST_JUDGE_BATCH_SIZE,
+  FAST_JUDGE_CONCURRENCY,
   GITHUB_ENRICH_LIMIT,
   HIGHLIGHT_CANDIDATE_COUNT,
   OUTREACH_POOL_TARGET,
@@ -265,6 +267,53 @@ const SNAPSHOT_PROFILE_CACHE_RERUN_MODE = "snapshot_profile_cache";
 
 function isSnapshotProfileCacheRerun(parsed: Record<string, unknown>) {
   return parsed.rerun_mode === SNAPSHOT_PROFILE_CACHE_RERUN_MODE;
+}
+
+async function loadSearchLlmUsageStats(
+  searchId: string,
+  jobId: string,
+  startedAtIso: string,
+): Promise<Partial<SearchDisplayStats>> {
+  const { data, error } = await supabaseAdmin
+    .from("hirelix_llm_usage_events")
+    .select("model,input_tokens,output_tokens,cached_input_tokens,cache_miss_input_tokens")
+    .eq("search_id", searchId)
+    .eq("job_id", jobId)
+    .gte("created_at", startedAtIso);
+
+  if (error || !data?.length) return {};
+
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cachedInputTokens = 0;
+  let cacheMissInputTokens = 0;
+  let cost = 0;
+
+  for (const row of data) {
+    const model = typeof row.model === "string" ? row.model : "";
+    const cached = typeof row.cached_input_tokens === "number" ? row.cached_input_tokens : 0;
+    const miss = typeof row.cache_miss_input_tokens === "number" ? row.cache_miss_input_tokens : 0;
+    const input = typeof row.input_tokens === "number" ? row.input_tokens : cached + miss;
+    const output = typeof row.output_tokens === "number" ? row.output_tokens : 0;
+    const isPro = model.includes("pro");
+    const hitRate = isPro ? 0.003625 : 0.0028;
+    const missRate = isPro ? 0.435 : 0.14;
+    const outputRate = isPro ? 0.87 : 0.28;
+
+    inputTokens += input;
+    outputTokens += output;
+    cachedInputTokens += cached;
+    cacheMissInputTokens += miss;
+    cost += (cached * hitRate + miss * missRate + output * outputRate) / 1_000_000;
+  }
+
+  return {
+    llm_input_tokens: inputTokens,
+    llm_output_tokens: outputTokens,
+    llm_cached_input_tokens: cachedInputTokens,
+    llm_cache_miss_input_tokens: cacheMissInputTokens,
+    llm_actual_estimated_cost: Math.round(cost * 10000) / 10000,
+  };
 }
 
 export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
@@ -553,6 +602,7 @@ async function scoreBrightDataProfiles(
   },
 ): Promise<SearchPipelineResult> {
   const scoringStartMs = Date.now();
+  const scoringStartedAtIso = helpers.nowIso();
   const runtime = getExecutionRuntime(executionProfile);
   const renderProfileEntries = brightProfiles.map((profile, index) =>
     brightDataProfileToRichText(profile, index),
@@ -560,6 +610,7 @@ async function scoreBrightDataProfiles(
   const selectedIndexes = brightProfiles.map((_, index) => index);
   const progressOffset = Math.max(0, options?.progressOffset ?? 0);
   let firstVisibleSignalled = false;
+  let scoringStats: Partial<SearchDisplayStats> = {};
 
   const deepAssessments = await deepScoreSelectedProfiles(
     runtime,
@@ -649,6 +700,16 @@ async function scoreBrightDataProfiles(
           await helpers.updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
         }
       },
+      onScoringStats: async (stats) => {
+        scoringStats = {
+          fast_judge_count: stats.fastJudgeCount,
+          deep_judge_count: stats.deepJudgeCount,
+          arbiter_count: stats.arbiterCount,
+          fast_judge_wall_time_ms: stats.fastJudgeWallTimeMs,
+          deep_judge_wall_time_ms: stats.deepJudgeWallTimeMs,
+          llm_wall_time_ms: stats.llmWallTimeMs,
+        };
+      },
       searchId: context.searchId,
       jobId: context.jobId,
       userId: context.userId,
@@ -664,6 +725,16 @@ async function scoreBrightDataProfiles(
     deep_review_output: deepAssessments.length,
     job_id: context.jobId,
   });
+
+  const llmUsageStats = await loadSearchLlmUsageStats(
+    context.searchId,
+    context.jobId,
+    scoringStartedAtIso,
+  );
+  scoringStats = {
+    ...scoringStats,
+    ...llmUsageStats,
+  };
 
   if (DEEP_REVIEW_DEBUG_LOGS) {
     helpers.logSearchEvent("deep_review_distribution", {
@@ -804,6 +875,7 @@ async function scoreBrightDataProfiles(
       bright_profiles_returned: brightProfiles.length,
       estimated_llm_cost: estimatedCosts.estimatedLlmCost,
       estimated_search_total_cost: estimatedCosts.estimatedSearchTotalCost,
+      ...scoringStats,
       judge_mode: runtime.judgeMode,
       activation_run: helpers.isActivationRun(parsed),
       quality_floor_applied: false,
@@ -2044,6 +2116,11 @@ async function buildBrightDataDatasetCandidates(
     deep_scoring_concurrency: resolveStageConcurrency(
       DEEP_SCORING_CONCURRENCY,
       Math.ceil(allProfiles.length / DEEP_SCORING_BATCH_SIZE),
+    ),
+    fast_judge_batch_size: FAST_JUDGE_BATCH_SIZE,
+    fast_judge_concurrency: resolveStageConcurrency(
+      FAST_JUDGE_CONCURRENCY,
+      Math.ceil(allProfiles.length / FAST_JUDGE_BATCH_SIZE),
     ),
     low_cost_mode: executionProfile.lowCostMode,
     single_judge_mode: executionProfile.singleJudgeMode,

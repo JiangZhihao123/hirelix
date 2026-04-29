@@ -58,8 +58,19 @@ function assessmentForIndex(index: number): ScoredCandidateAssessment {
 
 test("deepScoreSelectedProfiles batches judge scoring instead of scoring one candidate per call", async () => {
   const batches: number[][] = [];
+  const fastBatches: number[][] = [];
   const completed: number[] = [];
   const selectedIndexes = Array.from({ length: 25 }, (_, index) => index);
+  const mockFastCandidateBatch = async (
+    _runtime: Parameters<typeof deepScoreSelectedProfiles>[0],
+    _parsed: Record<string, unknown>,
+    _jdText: string,
+    _profiles: string[],
+    batchIndexes: number[],
+  ) => {
+    fastBatches.push([...batchIndexes]);
+    return batchIndexes.map(assessmentForIndex);
+  };
   const mockScoreCandidateBatch: typeof scoreCandidateBatch = async (
     _runtime,
     _parsed,
@@ -87,6 +98,7 @@ test("deepScoreSelectedProfiles batches judge scoring instead of scoring one can
     selectedIndexes,
     selectedIndexes.length,
     {
+      scoreFastCandidateBatch: mockFastCandidateBatch as never,
       scoreCandidateBatch: mockScoreCandidateBatch,
       sortCandidateAssessments: (left, right) => left.index - right.index,
       scoringHelpers: {} as never,
@@ -98,6 +110,10 @@ test("deepScoreSelectedProfiles batches judge scoring instead of scoring one can
     },
   );
 
+  assert.deepEqual(fastBatches, [
+    Array.from({ length: 20 }, (_, index) => index),
+    [20, 21, 22, 23, 24],
+  ]);
   assert.deepEqual(batches, [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     [10, 11, 12, 13, 14, 15, 16, 17, 18, 19],

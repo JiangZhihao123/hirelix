@@ -1014,6 +1014,39 @@ function buildSearchDisplayStats(
     ...(overrides.judge_mode === "single" || overrides.judge_mode === "dual"
       ? { judge_mode: overrides.judge_mode }
       : {}),
+    ...(typeof overrides.fast_judge_count === "number"
+      ? { fast_judge_count: Math.max(0, Math.round(overrides.fast_judge_count)) }
+      : {}),
+    ...(typeof overrides.deep_judge_count === "number"
+      ? { deep_judge_count: Math.max(0, Math.round(overrides.deep_judge_count)) }
+      : {}),
+    ...(typeof overrides.arbiter_count === "number"
+      ? { arbiter_count: Math.max(0, Math.round(overrides.arbiter_count)) }
+      : {}),
+    ...(typeof overrides.fast_judge_wall_time_ms === "number" && Number.isFinite(overrides.fast_judge_wall_time_ms)
+      ? { fast_judge_wall_time_ms: Math.max(0, Math.round(overrides.fast_judge_wall_time_ms)) }
+      : {}),
+    ...(typeof overrides.deep_judge_wall_time_ms === "number" && Number.isFinite(overrides.deep_judge_wall_time_ms)
+      ? { deep_judge_wall_time_ms: Math.max(0, Math.round(overrides.deep_judge_wall_time_ms)) }
+      : {}),
+    ...(typeof overrides.llm_wall_time_ms === "number" && Number.isFinite(overrides.llm_wall_time_ms)
+      ? { llm_wall_time_ms: Math.max(0, Math.round(overrides.llm_wall_time_ms)) }
+      : {}),
+    ...(typeof overrides.llm_input_tokens === "number"
+      ? { llm_input_tokens: Math.max(0, Math.round(overrides.llm_input_tokens)) }
+      : {}),
+    ...(typeof overrides.llm_output_tokens === "number"
+      ? { llm_output_tokens: Math.max(0, Math.round(overrides.llm_output_tokens)) }
+      : {}),
+    ...(typeof overrides.llm_cached_input_tokens === "number"
+      ? { llm_cached_input_tokens: Math.max(0, Math.round(overrides.llm_cached_input_tokens)) }
+      : {}),
+    ...(typeof overrides.llm_cache_miss_input_tokens === "number"
+      ? { llm_cache_miss_input_tokens: Math.max(0, Math.round(overrides.llm_cache_miss_input_tokens)) }
+      : {}),
+    ...(typeof overrides.llm_actual_estimated_cost === "number"
+      ? { llm_actual_estimated_cost: Math.max(0, overrides.llm_actual_estimated_cost) }
+      : {}),
     ...(typeof overrides.activation_run === "boolean"
       ? { activation_run: overrides.activation_run }
       : {}),

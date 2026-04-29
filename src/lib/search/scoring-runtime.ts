@@ -4,14 +4,20 @@ import {
 } from "@/lib/llm-client";
 import {
   ARBITER_SCORE_JSON_SCHEMA,
+  buildFastJudgeScoreJsonSchema,
   buildJudgeScoreJsonSchema,
 } from "@/lib/llm-schemas";
 import {
   DEEP_SCORING_BATCH_SIZE,
   DEEP_CACHE_PRIMER_COUNT,
+  FAST_JUDGE_BATCH_SIZE,
+  FAST_JUDGE_CONCURRENCY,
   ARBITER_SCORING_TIMEOUT_MS,
   DEEP_REVIEW_CONCURRENCY,
   JUDGE_SCORING_TIMEOUT_MS,
+  SECOND_REVIEW_MAX_COUNT,
+  SECOND_REVIEW_MIN_COUNT,
+  resolveStageConcurrency,
 } from "@/lib/search/config";
 import {
   runWithConcurrency,
@@ -64,6 +70,32 @@ export async function judgeScoreBatch(
   },
   context?: { searchId?: string; jobId?: string; userId?: string },
 ): Promise<JudgeScoreResult[]> {
+  return judgeScoreBatchWithMode(
+    runtime,
+    parsed,
+    jdText,
+    profileTexts,
+    batchIndexes,
+    totalPoolSize,
+    judgeLabel,
+    "deep",
+    helpers,
+    context,
+  );
+}
+
+async function judgeScoreBatchWithMode(
+  runtime: SearchExecutionRuntime,
+  parsed: Record<string, unknown>,
+  jdText: string,
+  profileTexts: string[],
+  batchIndexes: number[],
+  totalPoolSize: number,
+  judgeLabel: "Judge A" | "Judge B",
+  mode: "fast" | "deep",
+  helpers: Parameters<typeof judgeScoreBatch>[7],
+  context?: { searchId?: string; jobId?: string; userId?: string },
+): Promise<JudgeScoreResult[]> {
   const profilesText = batchIndexes
     .map((idx) => helpers.truncateForPrompt(profileTexts[idx], 2800))
     .join("\n\n");
@@ -77,12 +109,16 @@ export async function judgeScoreBatch(
       truncateForPrompt: helpers.truncateForPrompt,
       buildPromptSearchContext: helpers.buildPromptSearchContext,
       expectedIndexes: batchIndexes,
+      mode,
     },
   );
   const judgeModel = helpers.getJudgeModel();
   const maxAttempts = runtime.judgeMaxAttempts;
   const maxOutputTokens = Math.min(
-    Math.max(runtime.judgeMaxOutputTokens, runtime.judgeMaxOutputTokens * batchIndexes.length),
+    Math.max(
+      mode === "fast" ? 600 : runtime.judgeMaxOutputTokens,
+      (mode === "fast" ? 240 : runtime.judgeMaxOutputTokens) * batchIndexes.length,
+    ),
     20000,
   );
   let lastError: Error | null = null;
@@ -97,21 +133,27 @@ export async function judgeScoreBatch(
           abortSignal: signal,
           timeoutMs: JUDGE_SCORING_TIMEOUT_MS,
           temperature: 0,
-          jsonSchema: buildJudgeScoreJsonSchema(batchIndexes.length),
+          jsonSchema: mode === "fast"
+            ? buildFastJudgeScoreJsonSchema(batchIndexes.length)
+            : buildJudgeScoreJsonSchema(batchIndexes.length),
           requireParameters: true,
-          deepSeekThinking: "enabled",
-          deepSeekReasoningEffort: resolveDeepSeekReasoningEffort(
-            "SEARCH_JUDGE_REASONING_EFFORT",
-            "high",
-          ),
+          deepSeekThinking: mode === "fast" ? "disabled" : "enabled",
+          deepSeekReasoningEffort: mode === "fast"
+            ? undefined
+            : resolveDeepSeekReasoningEffort(
+                "SEARCH_JUDGE_REASONING_EFFORT",
+                "high",
+              ),
           usageEvent: {
             searchId: context?.searchId,
             jobId: context?.jobId,
             userId: context?.userId,
-            stage: judgeLabel === "Judge A" ? "judge_a" : "judge_b",
+            stage: mode === "fast"
+              ? "fast_judge"
+              : judgeLabel === "Judge A" ? "deep_judge_a" : "deep_judge_b",
             batchSize: batchIndexes.length,
             candidateIndexes: batchIndexes,
-            metadata: { judge: judgeLabel },
+            metadata: { judge: judgeLabel, mode },
           },
         }),
         JUDGE_SCORING_TIMEOUT_MS,
@@ -136,6 +178,7 @@ export async function judgeScoreBatch(
               : null,
           ...(context?.searchId && { search_id: context.searchId }),
           ...(context?.jobId && { job_id: context.jobId }),
+          mode,
         });
       }
 
@@ -179,6 +222,7 @@ export async function judgeScoreBatch(
 
       helpers.logSearchEvent("judge_scoring_attempt_failed", {
         judge: judgeLabel,
+        mode,
         attempt,
         retrying: shouldRetry,
         error: message,
@@ -573,6 +617,59 @@ function shouldRequestSecondReview(assessment: ScoredCandidateAssessment) {
   return highPotentialTechnicalFit || borderlineFit;
 }
 
+function selectDeepReviewIndexes(
+  assessments: ScoredCandidateAssessment[],
+  selectedIndexes: number[],
+) {
+  const maxCount = Math.min(
+    Math.max(1, SECOND_REVIEW_MAX_COUNT),
+    selectedIndexes.length,
+  );
+  const minCount = Math.min(
+    Math.max(0, SECOND_REVIEW_MIN_COUNT),
+    maxCount,
+    selectedIndexes.length,
+  );
+  const byIndex = new Map(assessments.map((assessment) => [assessment.index, assessment]));
+  const sorted = selectedIndexes
+    .map((index) => byIndex.get(index))
+    .filter((assessment): assessment is ScoredCandidateAssessment => Boolean(assessment))
+    .sort((left, right) =>
+      right.suitability.advance_score - left.suitability.advance_score ||
+      right.suitability.quality_score - left.suitability.quality_score ||
+      right.suitability.scoring_breakdown.relevance_score -
+        left.suitability.scoring_breakdown.relevance_score,
+    );
+  const selected = new Set<number>();
+
+  for (const assessment of sorted) {
+    const suitability = assessment.suitability;
+    const breakdown = suitability.scoring_breakdown;
+    const shouldDeepReview =
+      suitability.shortlist_decision === "yes" ||
+      suitability.advance_recommendation === "advance" ||
+      (suitability.quality_score >= 75 && breakdown.relevance_score >= 70);
+    if (shouldDeepReview) selected.add(assessment.index);
+    if (selected.size >= maxCount) break;
+  }
+
+  for (const assessment of sorted) {
+    if (selected.size >= minCount) break;
+    selected.add(assessment.index);
+  }
+
+  if (selected.size > maxCount) {
+    return sorted
+      .filter((assessment) => selected.has(assessment.index))
+      .slice(0, maxCount)
+      .map((assessment) => assessment.index);
+  }
+
+  return sorted
+    .filter((assessment) => selected.has(assessment.index))
+    .map((assessment) => assessment.index);
+}
+
 function shouldArbitrateActionConflict(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
@@ -805,6 +902,45 @@ export async function scoreCandidateBatch(
     .sort((left, right) => left.index - right.index);
 }
 
+async function scoreFastJudgeBatch(
+  runtime: SearchExecutionRuntime,
+  parsed: Record<string, unknown>,
+  jdText: string,
+  profileTexts: string[],
+  selectedIndexes: number[],
+  totalPoolSize: number,
+  helpers: Parameters<typeof scoreSingleCandidate>[6],
+  context?: { searchId?: string; jobId?: string; userId?: string },
+): Promise<ScoredCandidateAssessment[]> {
+  try {
+    const judgeResults = await judgeScoreBatchWithMode(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      selectedIndexes,
+      totalPoolSize,
+      "Judge A",
+      "fast",
+      helpers.judgeHelpers,
+      context,
+    );
+    return judgeResults.map((judge) => ({
+      ...mergeSingleJudgeResult(judge, helpers),
+      scoring_method: "fast_judge_triage" as const,
+    }));
+  } catch (error) {
+    helpers.logSearchEvent("fast_judge_batch_scoring_failed", {
+      indexes: selectedIndexes,
+      batch_size: selectedIndexes.length,
+      error: error instanceof Error ? error.message : String(error),
+      ...(context?.searchId && { search_id: context.searchId }),
+      ...(context?.jobId && { job_id: context.jobId }),
+    });
+    return [];
+  }
+}
+
 function chunkIndexes(indexes: number[], batchSize: number) {
   const chunks: number[][] = [];
   for (let index = 0; index < indexes.length; index += batchSize) {
@@ -821,6 +957,7 @@ export async function deepScoreSelectedProfiles(
   selectedIndexes: number[],
   totalPoolSize: number,
   helpers: {
+    scoreFastCandidateBatch?: typeof scoreFastJudgeBatch;
     scoreCandidateBatch: typeof scoreCandidateBatch;
     sortCandidateAssessments: (
       left: ScoredCandidateAssessment,
@@ -830,6 +967,14 @@ export async function deepScoreSelectedProfiles(
   },
   options?: {
     onCandidateScored?: (assessment: ScoredCandidateAssessment, completedCount: number) => void | Promise<void>;
+    onScoringStats?: (stats: {
+      fastJudgeCount: number;
+      deepJudgeCount: number;
+      arbiterCount: number;
+      fastJudgeWallTimeMs: number;
+      deepJudgeWallTimeMs: number;
+      llmWallTimeMs: number;
+    }) => void | Promise<void>;
     searchId?: string;
     jobId?: string;
     userId?: string;
@@ -837,9 +982,8 @@ export async function deepScoreSelectedProfiles(
 ): Promise<ScoredCandidateAssessment[]> {
   if (!selectedIndexes.length) return [];
 
-  let completedCount = 0;
   const scoreBatch = async (batchIndexes: number[]) => {
-    const results = await helpers.scoreCandidateBatch(
+    return helpers.scoreCandidateBatch(
       runtime,
       parsed,
       jdText,
@@ -849,32 +993,70 @@ export async function deepScoreSelectedProfiles(
       helpers.scoringHelpers,
       { searchId: options?.searchId, jobId: options?.jobId, userId: options?.userId },
     );
-    for (const result of results) {
-      completedCount += 1;
-      try {
-        await options?.onCandidateScored?.(result, completedCount);
-      } catch {
-        // non-blocking
-      }
-    }
-    return results;
   };
+
+  const llmStartMs = Date.now();
+  const fastJudgeStartMs = Date.now();
+  const fastBatchSize = Math.min(
+    Math.max(1, FAST_JUDGE_BATCH_SIZE),
+    selectedIndexes.length,
+  );
+  const fastBatches = chunkIndexes(selectedIndexes, fastBatchSize);
+  const fastWorkerCount = resolveStageConcurrency(
+    FAST_JUDGE_CONCURRENCY,
+    fastBatches.length,
+  );
+  const fastAssessmentBatches = await runWithConcurrency(
+    fastBatches,
+    fastWorkerCount,
+    (batchIndexes) => (helpers.scoreFastCandidateBatch ?? scoreFastJudgeBatch)(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      batchIndexes,
+      totalPoolSize,
+      helpers.scoringHelpers,
+      { searchId: options?.searchId, jobId: options?.jobId, userId: options?.userId },
+    ),
+  );
+  const fastAssessments = fastAssessmentBatches
+    .flat()
+    .sort(helpers.sortCandidateAssessments);
+  const fastJudgeWallTimeMs = Date.now() - fastJudgeStartMs;
+  const deepReviewIndexes = selectDeepReviewIndexes(fastAssessments, selectedIndexes);
+  const fastAssessmentByIndex = new Map(
+    fastAssessments.map((assessment) => [assessment.index, assessment]),
+  );
+  let deepJudgeWallTimeMs = 0;
+  let deepAssessments: ScoredCandidateAssessment[] = [];
+
+  helpers.scoringHelpers.logSearchEvent?.("fast_judge_triage_completed", {
+    selected_count: selectedIndexes.length,
+    fast_completed_count: fastAssessments.length,
+    deep_review_count: deepReviewIndexes.length,
+    fast_batch_size: fastBatchSize,
+    fast_concurrency: fastWorkerCount,
+    fast_judge_wall_time_ms: fastJudgeWallTimeMs,
+    ...(options?.searchId && { search_id: options.searchId }),
+    ...(options?.jobId && { job_id: options.jobId }),
+  });
 
   const batchSize = Math.min(
     Math.max(1, DEEP_SCORING_BATCH_SIZE),
-    selectedIndexes.length,
+    Math.max(1, deepReviewIndexes.length),
   );
-  const batches = chunkIndexes(selectedIndexes, batchSize);
+  const batches = chunkIndexes(deepReviewIndexes, batchSize);
   const primerBatchCount = Math.min(
-    Math.max(1, DEEP_CACHE_PRIMER_COUNT),
+    Math.max(0, DEEP_CACHE_PRIMER_COUNT),
     batches.length,
   );
   const primerBatches = batches.slice(0, primerBatchCount);
   const remainingBatches = batches.slice(primerBatchCount);
-  const primerAssessments: ScoredCandidateAssessment[] = [];
+  const deepJudgeStartMs = Date.now();
 
   for (const batch of primerBatches) {
-    primerAssessments.push(...await scoreBatch(batch));
+    deepAssessments.push(...await scoreBatch(batch));
   }
 
   const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, remainingBatches.length);
@@ -883,7 +1065,38 @@ export async function deepScoreSelectedProfiles(
     workerCount,
     scoreBatch,
   );
+  deepAssessments = [...deepAssessments, ...remainingAssessmentBatches.flat()];
+  deepJudgeWallTimeMs = Date.now() - deepJudgeStartMs;
 
-  return [...primerAssessments, ...remainingAssessmentBatches.flat()]
+  const finalByIndex = new Map(fastAssessmentByIndex);
+  for (const assessment of deepAssessments) {
+    finalByIndex.set(assessment.index, assessment);
+  }
+  const finalAssessments = selectedIndexes
+    .map((index) => finalByIndex.get(index))
+    .filter((assessment): assessment is ScoredCandidateAssessment => Boolean(assessment))
     .sort(helpers.sortCandidateAssessments);
+
+  let completedCount = 0;
+  for (const assessment of finalAssessments) {
+    completedCount += 1;
+    try {
+      await options?.onCandidateScored?.(assessment, completedCount);
+    } catch {
+      // non-blocking
+    }
+  }
+
+  await options?.onScoringStats?.({
+    fastJudgeCount: fastAssessments.length,
+    deepJudgeCount: deepReviewIndexes.length,
+    arbiterCount: deepAssessments.filter(
+      (assessment) => assessment.scoring_method === "dual_review_arbitrated",
+    ).length,
+    fastJudgeWallTimeMs,
+    deepJudgeWallTimeMs,
+    llmWallTimeMs: Date.now() - llmStartMs,
+  });
+
+  return finalAssessments;
 }

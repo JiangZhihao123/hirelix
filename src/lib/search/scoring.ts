@@ -18,13 +18,44 @@ export function buildJudgeScorePrompt(
     truncateForPrompt: (text: string, maxChars: number) => string;
     buildPromptSearchContext: (parsed: Record<string, unknown>) => string;
     expectedIndexes?: number[];
+    mode?: "fast" | "deep";
   },
 ) {
+  const mode = options.mode ?? "deep";
   const styleHint =
     judgeLabel === "Judge A"
       ? "Lean slightly toward recruiter optimism, but do not violate hard constraints."
       : "Lean slightly toward recruiter skepticism, but do not over-penalize strong evidence.";
-  const jsonShape = poolSize === 1
+  const fastJsonShape = poolSize === 1
+    ? `{
+  "index": 0,
+  "capability_score": 0,
+  "relevance_score": 0,
+  "join_likelihood_score": 0,
+  "advance_recommendation": "advance | hold | reject",
+  "shortlist_decision": "yes | no",
+  "primary_risk": "string | null",
+  "first_contact_confidence": "high | medium | low",
+  "blocking_severity": "hard | soft | none",
+  "short_reasons": ["string"],
+  "evidence_quality": "high | medium | low"
+}`
+    : `[
+  {
+    "index": 0,
+    "capability_score": 0,
+    "relevance_score": 0,
+    "join_likelihood_score": 0,
+    "advance_recommendation": "advance | hold | reject",
+    "shortlist_decision": "yes | no",
+    "primary_risk": "string | null",
+    "first_contact_confidence": "high | medium | low",
+    "blocking_severity": "hard | soft | none",
+    "short_reasons": ["string"],
+    "evidence_quality": "high | medium | low"
+  }
+]`;
+  const deepJsonShape = poolSize === 1
     ? `{
   "index": 0,
   "capability_score": 0,
@@ -79,6 +110,7 @@ export function buildJudgeScorePrompt(
     "why_reachable_now": "string | null"
   }
 ]`;
+  const jsonShape = mode === "fast" ? fastJsonShape : deepJsonShape;
   const expectedIndexes = options.expectedIndexes ?? [];
   const allowedIndexText = expectedIndexes.length
     ? `Allowed index values for this batch: ${expectedIndexes.join(", ")}.`
@@ -87,7 +119,38 @@ export function buildJudgeScorePrompt(
     ? `Return exactly one JSON object. Use the exact candidate index shown in the profile header (for example "[57] Name" means "index": 57). ${allowedIndexText}`.trim()
     : `Return one object per profile. Use the exact candidate index shown in each profile header, not the row position inside this batch. For example, if the header is "[57] Jane", return "index": 57, never "index": 0. ${allowedIndexText}`.trim();
 
+  const sharedRules = `Rules:
+- ${styleHint}
+- ${indexRule}
+- capability_score measures how strong the person is overall in seniority, depth, and execution track record. Profiles with only bootcamp credentials and no professional engineering tenure beyond internships should receive capability_score <= 40.
+- relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain. Domain experience in the hiring company's industry (stated in hiring_brief) should boost relevance_score.
+- join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity. Boost for job-seeking, recent end-date, employment gap, open-to-work, startup affinity, or natural domain alignment.
+- blocking_severity should be hard only for explicit incompatibilities unrelated to location. Location is pre-assessed separately; do not hard-block on current city alone.
+- advance_recommendation should reflect whether this candidate is worth moving forward in the real world.
+- shortlist_decision should answer whether this person deserves to appear in a recruiter-curated shortlist.
+- Do not collapse quality because of sparse evidence alone. Use evidence_quality and risk fields to express uncertainty.
+- Reserve very low capability/relevance for explicit mismatch, not just missing fields.
+- Do not reward prestige alone.
+- Keep short_reasons concrete and short. Max 2 items, each under 14 words.
+- first_contact_confidence should reflect whether a recruiter would feel good reaching out immediately.
+- Do not speculate about relocation or work authorization.
+- Return ONLY valid JSON. Do NOT wrap the JSON in markdown code blocks.`;
+  const deepOnlyRules = `Deep review additions:
+- Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
+- If evidence is missing, unclear, or unverifiable, use soft, not hard.
+- Use shortlist_decision=yes for candidates you would genuinely include today; use no for weak, risky, or speculative fits.
+- Keep join_likelihood_reasons concrete and evidence-based. Max 3 items, each under 16 words.
+- Keep risk_flags concrete and short. Max 3 items, each under 10 words.
+- why_reachable_now should explain why this specific person might be open right now. Return null only if there are zero timing signals.`;
+
   return `You are ${judgeLabel}, one of two independent hiring reviewers.
+
+## Task
+Review each candidate independently using this exact JSON shape:
+${jsonShape}
+
+${sharedRules}
+${mode === "deep" ? `\n${deepOnlyRules}` : ""}
 
 ## Original Job Description
 ${options.truncateForPrompt(jdText.trim(), 5000)}
@@ -98,43 +161,7 @@ ${options.buildPromptSearchContext(parsed)}
 ## Candidate Profiles (${poolSize} candidates)
 The profiles below are raw candidate profiles derived from LinkedIn data.
 
-${richProfiles}
-
-## Task
-Review each candidate independently using this exact JSON shape:
-${jsonShape}
-
-Rules:
-- ${styleHint}
-- ${indexRule}
-- capability_score measures how strong the person is overall in seniority, depth, and execution track record. Profiles with only bootcamp credentials and no professional engineering tenure beyond internships should receive capability_score <= 40.
-- relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain. Domain experience in the hiring company's industry (stated in hiring_brief) should boost relevance_score — a candidate who has worked in the same industry as the hiring company is significantly more relevant than one who hasn't, especially for startup roles where ramp-up time matters.
-- join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity. Actively look for job-seeking signals and boost join_likelihood_score when present: (1) "Current: not currently employed" — candidate is between jobs, significantly more likely to respond; (2) most recent experience ended recently (within ~12 months) with no current role — likely just left and open to opportunities; (3) visible employment gap in experience timeline — may be actively looking; (4) explicit language in about/headline such as "open to opportunities", "seeking", "available", "#opentowork" or similar. Any of these signals warrants a meaningful boost (+10 to +20 points) to join_likelihood_score.
-- Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
-- blocking_severity should be hard only for explicit incompatibilities unrelated to location (location is pre-assessed by a dedicated module — do not hard-block based on location alone).
-- If evidence is missing, unclear, or unverifiable, use soft (not hard).
-- Use hard only for clear seniority mismatch, wrong function (e.g. frontend for a backend role), or explicit work-authorization conflict.
-- For explicit out-of-region hard blockers confirmed by location evidence, reflect in blocking_constraints but still use soft — let the location module own the hard gate.
-- When Search Intent says relocation is allowed and location flexibility is not strict, do not reject a strong US candidate solely because their current city is outside the target metros. Keep that as a join-likelihood risk, not a capability or shortlist blocker.
-- advance_recommendation should reflect whether this candidate is worth moving forward in the real world, independent of raw quality.
-- shortlist_decision should answer the recruiter question directly: does this person deserve to appear in the shortlist shown to the hiring manager?
-- Use shortlist_decision=yes for candidates you would genuinely include in a recruiter-curated shortlist today, even if they are not perfect. Strong technical/domain evidence can justify shortlist_decision=yes even when join_likelihood_score is only moderate; call out reachability as a risk instead of hiding the candidate.
-- Use shortlist_decision=no for candidates you would keep out of the shortlist because the fit is too weak, too risky, or too speculative.
-- shortlist_reason should be one short recruiter-style explanation for the yes/no decision.
-- Penalize overqualification, role-level mismatch, prestige mismatch, unrealistic company-stage mismatch, and hard location/work-model mismatch in join_likelihood_score.
-- For startup/growth-stage roles: evaluate startup affinity holistically based on career trajectory. Penalize candidates with 7+ years at a single large company AND zero startup/small-company experience AND no entrepreneurial signals — they are unlikely to make the leap. But a big-company engineer with prior startup stints, side projects, open-source, or "0 to 1" language is a strong prospect — large-company rigor combined with startup adaptability is valuable. Boost join_likelihood when career trajectory shows startup affinity (multiple startup stints, founding experience, decreasing company size over career, or entrepreneurial language in about/experience).
-- A realistic candidate who would actually respond to cold outreach is more valuable than a dream candidate who never will. Factor reachability into advance_recommendation.
-- Do not collapse quality because of sparse evidence alone. Use evidence_quality + risk fields to express uncertainty.
-- When title/about/current role strongly align but details are sparse, capability/relevance can still be moderate.
-- Reserve very low capability/relevance for explicit mismatch, not just missing fields.
-- Do not reward prestige alone.
-- Keep short_reasons concrete and short. Max 3 items, each under 14 words.
-- Keep join_likelihood_reasons concrete and evidence-based. Max 3 items, each under 16 words.
-- Keep risk_flags concrete and short. Max 3 items, each under 10 words.
-- first_contact_confidence should reflect whether a recruiter would feel good reaching out immediately.
-- why_reachable_now: one sentence explaining why this specific person might be open to this opportunity RIGHT NOW. Look for timing signals: recent job change (< 6 months at current role), career trajectory shift (big company → startup pattern), active LinkedIn profile (high connections/followers), explicit "open to opportunities" language, short tenure at current company, or industry/domain alignment that makes this role a natural next step. Return null only if there are zero timing signals. This field is shown directly to the hiring manager — make it specific and actionable, not generic.
-- Do not speculate about relocation or work authorization.
-- Return ONLY valid JSON. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json or \`\`\`). Return raw JSON directly.`;
+${richProfiles}`;
 }
 
 export function buildArbiterPrompt(

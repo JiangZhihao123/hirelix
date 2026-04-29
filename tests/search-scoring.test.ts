@@ -110,6 +110,10 @@ test("judge prompt tells batch scoring to use global profile header indexes", ()
   assert.match(prompt, /Use the exact candidate index shown in each profile header/);
   assert.match(prompt, /never "index": 0/);
   assert.match(prompt, /Allowed index values for this batch: 70, 71/);
+  assert.ok(
+    prompt.indexOf("## Task") < prompt.indexOf("## Candidate Profiles"),
+    "stable scoring instructions should precede dynamic candidate profiles for cache reuse",
+  );
 });
 
 test("parseJudgeScoreResults maps batch-relative indexes to expected global indexes", () => {
