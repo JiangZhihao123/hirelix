@@ -25,6 +25,9 @@ export type GithubCandidateInput = {
   githubUrl?: string | null;
   metadata?: Record<string, unknown> | null;
   requiredSkills?: string[];
+  searchId?: string | null;
+  jobId?: string | null;
+  userId?: string | null;
 };
 
 export type GithubIdentityEvidence = {
@@ -35,6 +38,8 @@ export type GithubIdentityEvidence = {
   linkedin_or_profile_crosslink?: boolean;
   skill_overlap?: string[];
   source_urls?: string[];
+  llm_identity_judged?: boolean;
+  identity_resolution_version?: number;
 };
 
 export type GithubDiscoveryResult = {

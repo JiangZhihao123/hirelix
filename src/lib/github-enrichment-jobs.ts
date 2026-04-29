@@ -374,6 +374,9 @@ export async function processNextGithubEnrichmentJob(
       githubUrl: candidate.github_url,
       metadata: asRecord(candidate.metadata),
       requiredSkills,
+      searchId: job.search_id,
+      jobId: job.id,
+      userId: job.user_id,
     });
     const enriched = applyGithubSignalsToCandidateRow({
       candidate: {

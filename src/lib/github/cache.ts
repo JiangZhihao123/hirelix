@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { GithubDiscoveryResult } from "./types";
 import { extractCurrentCompanyFromHeadline, extractCurrentCompanyFromMetadata, normalizeText } from "./discovery";
+import { GITHUB_IDENTITY_JUDGE_VERSION } from "./identity-judge";
 import { supabaseAdmin } from "@/lib/supabase-server";
 
 function addDays(days: number) {
@@ -35,6 +36,17 @@ export async function lookupGithubIdentityCache(fingerprint: string): Promise<Gi
       .maybeSingle();
 
     if (!data) return null;
+    const evidence =
+      data.evidence && typeof data.evidence === "object"
+        ? (data.evidence as GithubDiscoveryResult["evidence"])
+        : undefined;
+    const hasCurrentResolutionEvidence =
+      evidence?.identity_resolution_version === GITHUB_IDENTITY_JUDGE_VERSION ||
+      data.discovery_source === "explicit_url" ||
+      data.discovery_source === "owned_website" ||
+      (typeof data.confidence === "number" && data.confidence >= 0.78);
+    if (!hasCurrentResolutionEvidence) return null;
+
     return {
       username: typeof data.github_login === "string" ? data.github_login : null,
       url: typeof data.github_url === "string" ? data.github_url : null,
@@ -48,10 +60,7 @@ export async function lookupGithubIdentityCache(fingerprint: string): Promise<Gi
           ? data.discovery_source
           : "none",
       notes: [`identity_cache:${data.status}`],
-      evidence:
-        data.evidence && typeof data.evidence === "object"
-          ? (data.evidence as GithubDiscoveryResult["evidence"])
-          : undefined,
+      evidence,
     };
   } catch {
     return null;
@@ -83,7 +92,10 @@ export async function persistGithubIdentityCache(input: {
           status: input.discovery.username && input.discovery.url ? "matched" : "missing",
           discovery_source: input.discovery.source,
           confidence: input.discovery.confidence,
-          evidence: input.discovery.evidence || {},
+          evidence: {
+            ...(input.discovery.evidence || {}),
+            identity_resolution_version: GITHUB_IDENTITY_JUDGE_VERSION,
+          },
           expires_at: addDays(90),
           updated_at: new Date().toISOString(),
         },

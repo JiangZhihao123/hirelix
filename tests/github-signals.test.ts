@@ -11,6 +11,11 @@ import {
   resetGithubApiRateLimitStateForTests,
 } from "../src/lib/github-signals";
 import { discoverGithubIdentity } from "../src/lib/github/discovery";
+import {
+  buildGithubIdentityJudgeMessages,
+  GITHUB_IDENTITY_JUDGE_SYSTEM_PROMPT,
+  shouldUseLlmIdentityJudge,
+} from "../src/lib/github/identity-judge";
 import { extractPublicProfileLinks } from "../src/lib/github/public-links";
 
 test("extractGitHubUrlsFromText returns unique GitHub profile URLs", () => {
@@ -60,6 +65,92 @@ test("discoverGithubIdentity trusts explicit public link metadata before search"
   assert.equal(discovery.username, "octocat");
   assert.equal(discovery.source, "explicit_url");
   assert.equal(discovery.confidence, 0.98);
+});
+
+test("GitHub identity judge keeps a stable cache-friendly prompt prefix", () => {
+  const first = buildGithubIdentityJudgeMessages({
+    candidate: {
+      name: "Venky Manicks",
+      headline: "Engineering Manager at Google",
+      requiredSkills: ["Search", "Distributed Systems"],
+    },
+    discovery: {
+      username: "venkyman",
+      url: "https://github.com/venkyman",
+      confidence: 0.62,
+      source: "external_search",
+      notes: ["external_title_name_match"],
+    },
+    githubProfile: {
+      login: "venkyman",
+      url: "https://github.com/venkyman",
+      name: "Venky Manicks",
+      company: "Google",
+      bio: "Search infrastructure",
+      location: "California",
+      blog: null,
+    },
+  });
+  const second = buildGithubIdentityJudgeMessages({
+    candidate: {
+      name: "Simon Radford",
+      headline: "Senior Software Engineer",
+      requiredSkills: ["Kubernetes"],
+    },
+    discovery: {
+      username: "simonrad",
+      url: "https://github.com/simonrad",
+      confidence: 0.59,
+      source: "external_search",
+      notes: ["external_title_name_match"],
+    },
+    githubProfile: {
+      login: "simonrad",
+      url: "https://github.com/simonrad",
+      name: "Simon Radford",
+      company: null,
+      bio: null,
+      location: null,
+      blog: null,
+    },
+  });
+
+  assert.equal(first[0]?.content, GITHUB_IDENTITY_JUDGE_SYSTEM_PROMPT);
+  assert.equal(second[0]?.content, GITHUB_IDENTITY_JUDGE_SYSTEM_PROMPT);
+  assert.match(first[1]?.content || "", /^CANDIDATE_AND_GITHUB_CONTEXT_JSON\n/);
+});
+
+test("shouldUseLlmIdentityJudge targets ambiguous discovered GitHub identities", () => {
+  assert.equal(
+    shouldUseLlmIdentityJudge({
+      username: "maybe",
+      url: "https://github.com/maybe",
+      confidence: 0.62,
+      source: "external_search",
+      notes: [],
+    }),
+    true,
+  );
+  assert.equal(
+    shouldUseLlmIdentityJudge({
+      username: "octocat",
+      url: "https://github.com/octocat",
+      confidence: 0.98,
+      source: "explicit_url",
+      notes: [],
+    }),
+    false,
+  );
+  assert.equal(
+    shouldUseLlmIdentityJudge({
+      username: null,
+      url: null,
+      confidence: 0,
+      source: "none",
+      notes: [],
+    }),
+    false,
+  );
 });
 
 test("classifyActivityTrendFromWeeks detects stable contribution patterns", () => {

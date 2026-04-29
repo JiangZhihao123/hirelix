@@ -54,6 +54,10 @@ import {
   lookupGithubIdentityCache,
   persistGithubIdentityCache,
 } from "./cache";
+import {
+  GITHUB_IDENTITY_JUDGE_VERSION,
+  judgeGithubIdentityWithLlm,
+} from "./identity-judge";
 
 export function buildPendingGithubSignals(params: {
   status: "queued" | "running";
@@ -205,8 +209,49 @@ export async function enrichGithubSignalsForCandidate(
         metadata: input.metadata,
       });
       const cachedDiscovery = await lookupGithubIdentityCache(identityFingerprint);
-      const discovery = cachedDiscovery || await discoverGithubIdentity(input);
+      let discovery = cachedDiscovery || await discoverGithubIdentity(input);
       if (!cachedDiscovery) {
+        const llmVerdict = await judgeGithubIdentityWithLlm({
+          candidate: input,
+          discovery,
+          searchId: input.searchId,
+          jobId: input.jobId,
+          userId: input.userId,
+        });
+        if (llmVerdict) {
+          const llmNotes = llmVerdict.samePerson
+            ? [
+                "llm_identity_verified",
+                `llm_identity_confidence:${llmVerdict.confidence}`,
+                `llm_identity_risk:${llmVerdict.riskLevel}`,
+                ...llmVerdict.matchedEvidence,
+              ]
+            : [
+                "llm_identity_rejected",
+                `llm_identity_confidence:${llmVerdict.confidence}`,
+                `llm_identity_risk:${llmVerdict.riskLevel}`,
+                ...llmVerdict.rejectionReasons,
+              ];
+          discovery = {
+            ...discovery,
+            confidence: llmVerdict.samePerson
+              ? Math.max(discovery.confidence, llmVerdict.confidence, 0.82)
+              : Math.min(discovery.confidence, llmVerdict.confidence),
+            notes: compactStringArray(
+              [
+                ...discovery.notes,
+                ...llmNotes,
+                llmVerdict.summary,
+              ],
+              10,
+            ),
+            evidence: {
+              ...(discovery.evidence || {}),
+              llm_identity_judged: true,
+              identity_resolution_version: GITHUB_IDENTITY_JUDGE_VERSION,
+            },
+          };
+        }
         void persistGithubIdentityCache({
           fingerprint: identityFingerprint,
           name: input.name,
