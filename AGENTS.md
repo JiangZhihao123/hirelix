@@ -419,9 +419,17 @@ ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'cd /
 
 ### 8.7 服务管理
 
+当前阶段说明：
+- 产品尚未正式上线时，VPS `hirelix-scheduler` 默认保持停用，避免抢占本地测试队列
+- 本地验证搜索任务时，使用 localhost API runner 或 `npm run scheduler:dev`
+- 只有明确准备恢复线上调度时，才重新 `enable --now hirelix-scheduler`
+
 ```bash
 # 查看状态
 ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'systemctl status hirelix-scheduler --no-pager'
+
+# 停用并禁止开机自启
+ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'systemctl disable --now hirelix-scheduler'
 
 # 重启服务
 ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'systemctl restart hirelix-scheduler'
