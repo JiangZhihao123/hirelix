@@ -29,8 +29,10 @@ import {
   fixSentenceSpacing,
   formatConstraintValue,
   formatDimensionLabel,
+  formatEvidenceStrength,
   getCandidateGithubSignals,
   getCandidateOverallScore,
+  getCandidateScoreMetrics,
   getCandidateScoringBreakdown,
   getGithubBadge,
   parseOutreach,
@@ -150,13 +152,9 @@ export function CandidateCard({
     (edu) => edu.school || edu.degree || edu.major,
   );
   const scoringBreakdown = getCandidateScoringBreakdown(candidate);
+  const scoreMetrics = getCandidateScoreMetrics(candidate);
   const suitability = candidate.metadata?.suitability;
   const overallScore = getCandidateOverallScore(candidate);
-  const qualityScore =
-    candidate.metadata?.quality_score ??
-    suitability?.quality_score ??
-    scoringBreakdown?.quality_score ??
-    overallScore;
   const advanceRecommendation =
     candidate.metadata?.advance_recommendation ??
     suitability?.advance_recommendation;
@@ -249,18 +247,19 @@ export function CandidateCard({
           )}
           {scoringBreakdown && (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                Cap {scoringBreakdown.capability_score ?? "?"}
-              </span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                Fit {scoringBreakdown.relevance_score ?? "?"}
-              </span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                Join {scoringBreakdown.join_likelihood_score ?? "?"}
-              </span>
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                Overall {overallScore}
-              </span>
+              {scoreMetrics.map((metric) => (
+                <span
+                  key={metric.key}
+                  title={metric.description}
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    metric.key === "overall"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {metric.shortLabel} {typeof metric.score === "number" ? metric.score : "—"}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -383,52 +382,22 @@ export function CandidateCard({
               {scoringBreakdown && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    AI scorecard
+                    Scorecard
                   </p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Overall score</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {overallScore ?? "?"} · {formatDimensionLabel(overallScore)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Capability score</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {scoringBreakdown?.capability_score ?? "?"} · {formatDimensionLabel(scoringBreakdown?.capability_score)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Fit score</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {scoringBreakdown?.relevance_score ?? "?"} · {formatDimensionLabel(scoringBreakdown?.relevance_score)}
-                      </p>
-                    </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {scoreMetrics.map((metric) => (
+                      <div key={metric.key} className="rounded-lg border border-border bg-surface px-3 py-2">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">{metric.label}</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">
+                          {typeof metric.score === "number" ? metric.score : "—"} · {formatDimensionLabel(metric.score)}
+                        </p>
+                        <p className="mt-1 text-[11px] leading-4 text-muted">{metric.description}</p>
+                      </div>
+                    ))}
                   </div>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Join likelihood</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {scoringBreakdown?.join_likelihood_score ?? "?"} · {formatDimensionLabel(scoringBreakdown?.join_likelihood_score)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Quality score</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                      {qualityScore ?? "?"} · {formatDimensionLabel(qualityScore)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Shortlist verdict</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {candidate.metadata?.shortlist_decision === "yes" ||
-                        suitability?.shortlist_decision === "yes"
-                          ? "Shortlisted"
-                          : advanceRecommendation
-                            ? advanceRecommendation.charAt(0).toUpperCase() + advanceRecommendation.slice(1)
-                            : "Unknown"}
-                      </p>
-                    </div>
+                  <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
+                    <span className="font-semibold">{githubBadge.text}</span>
+                    <span> · {formatEvidenceStrength(githubSignals?.evidence_strength)}. GitHub is treated as supporting evidence, not a separate score.</span>
                   </div>
                 </div>
               )}

@@ -26,6 +26,7 @@ import {
   formatEvidenceStrength,
   getCandidateGithubSignals,
   getCandidateOverallScore,
+  getCandidateScoreMetrics,
   getEvidenceSourceLabel,
   parseOutreach,
 } from "./utils";
@@ -86,6 +87,7 @@ export function CandidateWorkbenchDetail({
   }, [localCandidate.email, localCandidate.outreach_draft]);
 
   const overallScore = getCandidateOverallScore(localCandidate);
+  const scoreMetrics = getCandidateScoreMetrics(localCandidate);
   const activeBody = outreachTab === "linkedin" ? editedLinkedin : editedEmail;
   const setActiveBody = outreachTab === "linkedin" ? setEditedLinkedin : setEditedEmail;
   const shortlistReason =
@@ -277,6 +279,38 @@ export function CandidateWorkbenchDetail({
 
         <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Scorecard
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Overall ranks the shortlist; the three dimensions explain why.
+                  </p>
+                </div>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
+                  {evidenceSourceLabel}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {scoreMetrics.map((metric) => (
+                  <div key={metric.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      {metric.label}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">
+                      {typeof metric.score === "number" ? metric.score : "—"} · {formatDimensionLabel(metric.score)}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">{metric.description}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
+                GitHub is used as public proof for engineering evidence. Missing GitHub does not lower the score; verified evidence can strengthen Capability or Role Fit.
+              </p>
+            </div>
+
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Why contact this person
@@ -343,9 +377,9 @@ export function CandidateWorkbenchDetail({
               {!hasVerifiedGithub && (
                 <p className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
                   {githubSignals?.status === "queued"
-                    ? "GitHub review is queued. Current ranking stays based on LinkedIn evidence until the background check finishes."
+                    ? "GitHub review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
                     : githubSignals?.status === "running"
-                      ? "GitHub review is in progress. Current ranking stays based on LinkedIn evidence until the background check finishes."
+                      ? "GitHub review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
                       : "No public GitHub data found yet. Current ranking stays based on LinkedIn evidence only."}
                 </p>
               )}

@@ -8,6 +8,7 @@ import {
   formatEvidenceStrength,
   getCandidateGithubSignals,
   getCandidateOverallScore,
+  getCandidateScoreMetrics,
   getGithubBadge,
 } from "./utils";
 import { InitialsAvatar, ScoreBadge } from "./ui";
@@ -27,6 +28,7 @@ export function CandidateWorkbenchListItem({
   const progressWidth = Math.max(6, Math.min(100, overallScore));
   const githubSignals = getCandidateGithubSignals(candidate);
   const githubBadge = getGithubBadge(githubSignals);
+  const scoreMetrics = getCandidateScoreMetrics(candidate).filter((metric) => metric.key !== "overall");
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
   const displayName = sanitizeDisplayName(candidate.name);
@@ -65,6 +67,17 @@ export function CandidateWorkbenchListItem({
               className="h-full rounded-full bg-[linear-gradient(90deg,#0f172a_0%,#38bdf8_100%)]"
               style={{ width: `${progressWidth}%` }}
             />
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {scoreMetrics.map((metric) => (
+              <span
+                key={metric.key}
+                title={metric.description}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600"
+              >
+                {metric.shortLabel} {typeof metric.score === "number" ? metric.score : "—"}
+              </span>
+            ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {candidate.location && (

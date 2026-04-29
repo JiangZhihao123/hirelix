@@ -95,7 +95,7 @@ export function getCandidateDisplayTier(candidate: CandidateRow): CandidateDispl
 }
 
 export function formatTierLabel(value: CandidateDisplayTier) {
-  return value === "priority_outreach" ? "Reach Out First" : "Keep Reviewing";
+  return value === "priority_outreach" ? "Reach Out First" : "Worth Reviewing";
 }
 
 export function formatExcludedReasonLabel(reason: ExcludedReason) {
@@ -204,7 +204,7 @@ export function formatEvidenceStrength(value: GithubSignals["evidence_strength"]
 export function getEvidenceSourceLabel(signals: GithubSignals | null) {
   if (signals?.status === "verified") return "GitHub evidence";
   if (signals?.status === "queued" || signals?.status === "running") return "GitHub review pending";
-  return "LinkedIn evidence";
+  return "LinkedIn-only evidence";
 }
 
 export function getGithubBadge(signals: GithubSignals | null) {
@@ -212,10 +212,10 @@ export function getGithubBadge(signals: GithubSignals | null) {
     return { text: "GitHub verified", className: "bg-emerald-50 text-emerald-700" };
   }
   if (signals?.status === "queued") {
-    return { text: "GitHub queued", className: "bg-amber-50 text-amber-700" };
+    return { text: "GitHub pending", className: "bg-amber-50 text-amber-700" };
   }
   if (signals?.status === "running") {
-    return { text: "GitHub running", className: "bg-sky-50 text-sky-700" };
+    return { text: "GitHub pending", className: "bg-sky-50 text-sky-700" };
   }
   return { text: "LinkedIn only", className: "bg-blue-50 text-blue-700" };
 }
@@ -300,6 +300,40 @@ export function getCandidateRelevanceScore(candidate: CandidateRow) {
 
 export function getCandidateJoinLikelihoodScore(candidate: CandidateRow) {
   return getCandidateScoringBreakdown(candidate)?.join_likelihood_score ?? 0;
+}
+
+export function getCandidateScoreMetrics(candidate: CandidateRow) {
+  const breakdown = getCandidateScoringBreakdown(candidate);
+  return [
+    {
+      key: "overall",
+      label: "Overall",
+      shortLabel: "Overall",
+      score: getCandidateOverallScore(candidate),
+      description: "Best single ranking signal for who to review first.",
+    },
+    {
+      key: "capability",
+      label: "Capability",
+      shortLabel: "Capability",
+      score: breakdown?.capability_score,
+      description: "Engineering depth, seniority, and ability to handle the role complexity.",
+    },
+    {
+      key: "role_fit",
+      label: "Role Fit",
+      shortLabel: "Role Fit",
+      score: breakdown?.relevance_score,
+      description: "Direct match to the JD, domain, title family, and required stack.",
+    },
+    {
+      key: "reachability",
+      label: "Reachability",
+      shortLabel: "Reachability",
+      score: breakdown?.join_likelihood_score,
+      description: "How realistic this person is to contact now, given mobility and logistics signals.",
+    },
+  ];
 }
 
 export function getCandidateGithubSignals(candidate: CandidateRow): GithubSignals | null {

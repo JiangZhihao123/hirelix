@@ -1273,8 +1273,8 @@ export default function SearchResultPage() {
                   >
                     <option value="overall">Overall score</option>
                     <option value="capability">Capability</option>
-                    <option value="relevance">Fit</option>
-                    <option value="join_likelihood">Join likelihood</option>
+                    <option value="relevance">Role Fit</option>
+                    <option value="join_likelihood">Reachability</option>
                   </select>
                 </label>
                 {billing?.usage.exportEnabled && allCandidates.some((candidate) => candidate.email) && (
