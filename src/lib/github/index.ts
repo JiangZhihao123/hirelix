@@ -49,6 +49,11 @@ import {
   computeGithubSignalScore,
   buildRecruiterFacingGithubReadout,
 } from "./scoring";
+import {
+  buildGithubIdentityFingerprint,
+  lookupGithubIdentityCache,
+  persistGithubIdentityCache,
+} from "./cache";
 
 export function buildPendingGithubSignals(params: {
   status: "queued" | "running";
@@ -174,6 +179,7 @@ export async function enrichGithubSignalsForCandidate(
           commit_message_quality: null,
           highlight: null,
           discovery_confidence: 0,
+          identity_evidence: undefined,
           github_signal_score: null,
           evidence_strength: readout.evidenceStrength,
           recruiter_summary: readout.recruiterSummary,
@@ -192,7 +198,29 @@ export async function enrichGithubSignalsForCandidate(
     }
 
     try {
-      const discovery = await discoverGithubIdentity(input);
+      const identityFingerprint = buildGithubIdentityFingerprint({
+        name: input.name,
+        profileUrl: input.profileUrl,
+        headline: input.headline,
+        metadata: input.metadata,
+      });
+      const cachedDiscovery = await lookupGithubIdentityCache(identityFingerprint);
+      const discovery = cachedDiscovery || await discoverGithubIdentity(input);
+      if (!cachedDiscovery) {
+        void persistGithubIdentityCache({
+          fingerprint: identityFingerprint,
+          name: input.name,
+          profileUrl: input.profileUrl,
+          headline: input.headline,
+          metadata: input.metadata,
+          discovery,
+        });
+      }
+      const identityVerified =
+        Boolean(discovery.username && discovery.url) &&
+        (discovery.source === "explicit_url" ||
+          discovery.source === "owned_website" ||
+          discovery.confidence >= 0.78);
       if (!discovery.username || !discovery.url) {
         const missingStatus = discovery.confidence > 0 ? "ambiguous_match" : "missing_public_data";
         const readout = buildRecruiterFacingGithubReadout({
@@ -229,7 +257,65 @@ export async function enrichGithubSignalsForCandidate(
             merged_pr_count: null,
             commit_message_quality: null,
             highlight: null,
+          discovery_confidence: round(discovery.confidence, 3),
+          identity_evidence: discovery.evidence,
+          github_signal_score: null,
+            evidence_strength: readout.evidenceStrength,
+            recruiter_summary: readout.recruiterSummary,
+            outreach_angle: readout.outreachAngle,
+            verification_risks: readout.verificationRisks,
+            discovery_notes: discovery.notes,
+            evidence_summary: compactStringArray(
+              [
+                readout.recruiterSummary,
+                ...discovery.notes,
+              ],
+              6,
+            ),
+            last_enriched_at: timestamp,
+          },
+          githubSignalScore: null,
+          githubDiscoveryConfidence: round(discovery.confidence, 3),
+        };
+      }
+      if (!identityVerified) {
+        const readout = buildRecruiterFacingGithubReadout({
+          status: "ambiguous_match",
+          candidateName: input.name,
+          headline: input.headline,
+          currentCompany,
+          requiredSkills: input.requiredSkills || [],
+          activityTrend: null,
+          topLanguages: [],
+          mergedPrCount: null,
+          commitMessageQuality: {
+            label: "unknown",
+            detail: "No recent public commit messages available to sample.",
+          },
+          githubSignalScore: null,
+          highlight: null,
+          discoveryConfidence: round(discovery.confidence, 3),
+          discoveryNotes: discovery.notes,
+        });
+        logGithubTraceSummary({
+          outcome: "ambiguous_match",
+          discoverySource: discovery.source,
+          githubLogin: discovery.username,
+          error: discovery.notes.join("; "),
+        });
+        return {
+          githubUrl: null,
+          githubSignals: {
+            status: "ambiguous_match",
+            profile_login: discovery.username,
+            profile_url: discovery.url,
+            activity_trend: null,
+            top_languages: [],
+            merged_pr_count: null,
+            commit_message_quality: null,
+            highlight: null,
             discovery_confidence: round(discovery.confidence, 3),
+            identity_evidence: discovery.evidence,
             github_signal_score: null,
             evidence_strength: readout.evidenceStrength,
             recruiter_summary: readout.recruiterSummary,
@@ -239,6 +325,7 @@ export async function enrichGithubSignalsForCandidate(
             evidence_summary: compactStringArray(
               [
                 readout.recruiterSummary,
+                "Possible GitHub match was found but identity confidence stayed below the verified threshold.",
                 ...discovery.notes,
               ],
               6,
@@ -321,7 +408,8 @@ export async function enrichGithubSignalsForCandidate(
           merged_pr_count: mergedPrSignals.count,
           commit_message_quality: `${commitMessageQuality.label}: ${commitMessageQuality.detail}`,
           highlight,
-          discovery_confidence: round(discovery.confidence, 3),
+         discovery_confidence: round(discovery.confidence, 3),
+          identity_evidence: discovery.evidence,
           github_signal_score: githubSignalScore,
           evidence_strength: readout.evidenceStrength,
           recruiter_summary: readout.recruiterSummary,
@@ -386,6 +474,7 @@ export async function enrichGithubSignalsForCandidate(
           commit_message_quality: null,
           highlight: null,
           discovery_confidence: 0,
+          identity_evidence: undefined,
           github_signal_score: null,
           evidence_strength: readout.evidenceStrength,
           recruiter_summary: readout.recruiterSummary,
@@ -423,6 +512,23 @@ export function applyGithubSignalsToCandidateRow<TCandidate extends {
       ? metadata.overall_score
       : params.candidate.match_score;
   const githubSignalScore = params.enrichment.githubSignalScore;
+  const existingBreakdown =
+    metadata.scoring_breakdown && typeof metadata.scoring_breakdown === "object"
+      ? (metadata.scoring_breakdown as Record<string, unknown>)
+      : metadata.suitability &&
+          typeof metadata.suitability === "object" &&
+          (metadata.suitability as Record<string, unknown>).scoring_breakdown &&
+          typeof (metadata.suitability as Record<string, unknown>).scoring_breakdown === "object"
+        ? ((metadata.suitability as Record<string, unknown>).scoring_breakdown as Record<string, unknown>)
+        : {};
+  const baseCapabilityScore =
+    typeof existingBreakdown.capability_score === "number"
+      ? existingBreakdown.capability_score
+      : baseOverallScore;
+  const technicalEvidenceScore =
+    typeof githubSignalScore === "number"
+      ? Math.round(baseCapabilityScore * 0.65 + githubSignalScore * 0.35)
+      : baseCapabilityScore;
   const nextOverallScore =
     typeof githubSignalScore === "number"
       ? Math.round(baseOverallScore * 0.7 + githubSignalScore * 0.3)
@@ -431,15 +537,24 @@ export function applyGithubSignalsToCandidateRow<TCandidate extends {
   metadata.github_signals = params.enrichment.githubSignals;
   metadata.github_signal_score = githubSignalScore;
   metadata.github_discovery_confidence = params.enrichment.githubDiscoveryConfidence;
+  metadata.technical_evidence_score = technicalEvidenceScore;
   metadata.base_overall_score = baseOverallScore;
   metadata.overall_score = nextOverallScore;
   if (metadata.suitability && typeof metadata.suitability === "object") {
     const suitability = { ...(metadata.suitability as Record<string, unknown>) };
     suitability.overall_score = nextOverallScore;
+    if (suitability.scoring_breakdown && typeof suitability.scoring_breakdown === "object") {
+      suitability.scoring_breakdown = {
+        ...(suitability.scoring_breakdown as Record<string, unknown>),
+        capability_score: technicalEvidenceScore,
+        overall_score: nextOverallScore,
+      };
+    }
     metadata.suitability = suitability;
   }
   if (metadata.scoring_breakdown && typeof metadata.scoring_breakdown === "object") {
     const scoringBreakdown = { ...(metadata.scoring_breakdown as Record<string, unknown>) };
+    scoringBreakdown.capability_score = technicalEvidenceScore;
     scoringBreakdown.overall_score = nextOverallScore;
     metadata.scoring_breakdown = scoringBreakdown;
   }

@@ -40,6 +40,7 @@ export type ConstraintVerdict = {
 
 export type ScoringBreakdown = {
   capability_score?: number;
+  technical_evidence_score?: number;
   relevance_score?: number;
   join_likelihood_score?: number;
   join_likelihood_reasons?: string[];
@@ -121,6 +122,13 @@ export type CandidateRow = {
     raw_profile?: Record<string, unknown>;
     about?: string | null;
     github_signals?: GithubSignals;
+    public_links?: {
+      github_urls?: string[];
+      personal_sites?: string[];
+      developer_profiles?: string[];
+      source_fields?: string[];
+    };
+    technical_evidence_score?: number;
   } | null;
 };
 
@@ -212,6 +220,15 @@ export type GithubSignals = {
   commit_message_quality?: string | null;
   highlight?: string | null;
   discovery_confidence?: number;
+  identity_evidence?: {
+    name_match?: "exact" | "partial" | "none";
+    company_match?: boolean;
+    location_match?: boolean;
+    website_backlink?: boolean;
+    linkedin_or_profile_crosslink?: boolean;
+    skill_overlap?: string[];
+    source_urls?: string[];
+  };
   github_signal_score?: number | null;
   evidence_strength?: "strong" | "medium" | "weak" | "none";
   recruiter_summary?: string | null;

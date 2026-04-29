@@ -10,6 +10,8 @@ import {
   extractGitHubUrlsFromText,
   resetGithubApiRateLimitStateForTests,
 } from "../src/lib/github-signals";
+import { discoverGithubIdentity } from "../src/lib/github/discovery";
+import { extractPublicProfileLinks } from "../src/lib/github/public-links";
 
 test("extractGitHubUrlsFromText returns unique GitHub profile URLs", () => {
   const urls = extractGitHubUrlsFromText(
@@ -17,6 +19,47 @@ test("extractGitHubUrlsFromText returns unique GitHub profile URLs", () => {
   );
 
   assert.deepEqual(urls, ["https://github.com/noah"]);
+});
+
+test("extractPublicProfileLinks finds GitHub and portfolio links in nested profile data", () => {
+  const links = extractPublicProfileLinks({
+    about: "I write at https://example.dev and contribute at https://github.com/octocat.",
+    experience: [
+      {
+        description: "Portfolio: www.alice.dev. StackOverflow: https://stackoverflow.com/users/123/alice",
+      },
+    ],
+  });
+
+  assert.deepEqual(links.github_urls, ["https://github.com/octocat"]);
+  assert.ok(links.personal_sites.includes("https://example.dev"));
+  assert.ok(links.personal_sites.includes("https://www.alice.dev"));
+  assert.ok(links.developer_profiles[0]?.includes("stackoverflow.com"));
+});
+
+test("extractPublicProfileLinks ignores prose that only looks like dotted words", () => {
+  const links = extractPublicProfileLinks({
+    about: "Improved rate.additional latency and performance.languages in backend services.",
+  });
+
+  assert.deepEqual(links.github_urls, []);
+  assert.deepEqual(links.personal_sites, []);
+  assert.deepEqual(links.developer_profiles, []);
+});
+
+test("discoverGithubIdentity trusts explicit public link metadata before search", async () => {
+  const discovery = await discoverGithubIdentity({
+    name: "Octo Cat",
+    metadata: {
+      public_links: {
+        github_urls: ["https://github.com/octocat"],
+      },
+    },
+  });
+
+  assert.equal(discovery.username, "octocat");
+  assert.equal(discovery.source, "explicit_url");
+  assert.equal(discovery.confidence, 0.98);
 });
 
 test("classifyActivityTrendFromWeeks detects stable contribution patterns", () => {

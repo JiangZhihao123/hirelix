@@ -1,5 +1,6 @@
-import type { GithubCandidateInput, GithubDiscoveryResult } from "./types";
+import type { GithubCandidateInput, GithubDiscoveryResult, GithubIdentityEvidence } from "./types";
 import { githubFetch, serperGithubSearch, getSerperApiKey } from "./api";
+import { extractPublicProfileLinks, type PublicProfileLinks } from "./public-links";
 
 export function normalizeText(value: string | null | undefined) {
   return (value || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -36,8 +37,17 @@ export function extractGitHubUrlsFromText(text: string) {
 
 export function extractUsernameFromGithubUrl(url: string | null | undefined) {
   if (!url) return null;
-  const match = url.match(/github\.com\/([A-Za-z0-9-]+)(?:\/)?$/i);
-  return match?.[1] || null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase() !== "github.com" && parsed.hostname.toLowerCase() !== "www.github.com") {
+      return null;
+    }
+    const owner = parsed.pathname.split("/").filter(Boolean)[0];
+    if (!owner || RESERVED_GITHUB_PATHS.has(owner.toLowerCase())) return null;
+    return /^[A-Za-z0-9-]+$/.test(owner) ? owner : null;
+  } catch {
+    return null;
+  }
 }
 
 const RESERVED_GITHUB_PATHS = new Set([
@@ -126,6 +136,9 @@ export function extractDiscoveryTexts(input: GithubCandidateInput) {
   return compactStringArray(
     [
       input.githubUrl || null,
+      ...extractPublicLinksFromMetadata(input.metadata).github_urls,
+      ...extractPublicLinksFromMetadata(input.metadata).personal_sites,
+      ...extractPublicLinksFromMetadata(input.metadata).developer_profiles,
       input.headline || null,
       about,
       rawProfile,
@@ -133,6 +146,28 @@ export function extractDiscoveryTexts(input: GithubCandidateInput) {
     ],
     20,
   );
+}
+
+function extractPublicLinksFromMetadata(metadata: Record<string, unknown> | null | undefined): PublicProfileLinks {
+  const existing = metadata?.public_links;
+  const fromMetadata = existing && typeof existing === "object"
+    ? {
+      github_urls: Array.isArray((existing as Record<string, unknown>).github_urls)
+        ? ((existing as Record<string, unknown>).github_urls as unknown[]).filter((entry): entry is string => typeof entry === "string")
+        : [],
+      personal_sites: Array.isArray((existing as Record<string, unknown>).personal_sites)
+        ? ((existing as Record<string, unknown>).personal_sites as unknown[]).filter((entry): entry is string => typeof entry === "string")
+        : [],
+      developer_profiles: Array.isArray((existing as Record<string, unknown>).developer_profiles)
+        ? ((existing as Record<string, unknown>).developer_profiles as unknown[]).filter((entry): entry is string => typeof entry === "string")
+        : [],
+      source_fields: Array.isArray((existing as Record<string, unknown>).source_fields)
+        ? ((existing as Record<string, unknown>).source_fields as unknown[]).filter((entry): entry is string => typeof entry === "string")
+        : [],
+    }
+    : null;
+
+  return fromMetadata || extractPublicProfileLinks(metadata || {});
 }
 
 export function extractCurrentCompanyFromMetadata(metadata: Record<string, unknown> | null | undefined) {
@@ -283,7 +318,81 @@ export function computeUserMatchScore(params: {
 
 const GITHUB_MATCH_CONFIDENCE_THRESHOLD = 0.58;
 
+function buildEvidence(params: Partial<GithubIdentityEvidence>): GithubIdentityEvidence {
+  return {
+    name_match: params.name_match || "none",
+    company_match: Boolean(params.company_match),
+    location_match: Boolean(params.location_match),
+    website_backlink: Boolean(params.website_backlink),
+    linkedin_or_profile_crosslink: Boolean(params.linkedin_or_profile_crosslink),
+    skill_overlap: params.skill_overlap || [],
+    source_urls: params.source_urls || [],
+  };
+}
+
+async function fetchWebsiteText(url: string) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "HirelixBot/1.0 (+https://hirelix.online)",
+        Accept: "text/html,text/plain;q=0.9,*/*;q=0.5",
+      },
+    });
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("text/html") && !contentType.includes("text/plain")) return null;
+    return (await response.text()).slice(0, 200_000);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function discoverGithubIdentityViaOwnedWebsite(input: GithubCandidateInput): Promise<GithubDiscoveryResult | null> {
+  const publicLinks = extractPublicLinksFromMetadata(input.metadata);
+  for (const site of publicLinks.personal_sites.slice(0, 2)) {
+    const body = await fetchWebsiteText(site);
+    if (!body) continue;
+    const githubUrl = extractGitHubUrlsFromText(body)[0];
+    const username = extractUsernameFromGithubUrl(githubUrl);
+    if (!githubUrl || !username) continue;
+    return {
+      username,
+      url: githubUrl,
+      confidence: 0.88,
+      source: "owned_website",
+      notes: ["owned_website_github_link"],
+      evidence: buildEvidence({
+        website_backlink: true,
+        source_urls: [site, githubUrl],
+      }),
+    };
+  }
+  return null;
+}
+
 export async function discoverGithubIdentity(input: GithubCandidateInput): Promise<GithubDiscoveryResult> {
+  const publicLinks = extractPublicLinksFromMetadata(input.metadata);
+  const explicitGithubUrl = input.githubUrl || publicLinks.github_urls[0] || null;
+  const explicitUsername = extractUsernameFromGithubUrl(explicitGithubUrl);
+  if (explicitGithubUrl && explicitUsername) {
+    return {
+      username: explicitUsername,
+      url: explicitGithubUrl,
+      confidence: 0.98,
+      source: "explicit_url",
+      notes: ["explicit_url"],
+      evidence: buildEvidence({
+        linkedin_or_profile_crosslink: Boolean(publicLinks.github_urls.includes(explicitGithubUrl)),
+        source_urls: [explicitGithubUrl],
+      }),
+    };
+  }
+
   const texts = extractDiscoveryTexts(input);
   for (const text of texts) {
     const explicit = extractGitHubUrlsFromText(text)[0];
@@ -295,6 +404,7 @@ export async function discoverGithubIdentity(input: GithubCandidateInput): Promi
         confidence: 0.98,
         source: "explicit_url",
         notes: ["explicit_url"],
+        evidence: buildEvidence({ source_urls: [explicit] }),
       };
     }
 
@@ -306,8 +416,17 @@ export async function discoverGithubIdentity(input: GithubCandidateInput): Promi
         confidence: 0.9,
         source: "explicit_url",
         notes: ["explicit_owner_url"],
+        evidence: buildEvidence({ source_urls: [`https://github.com/${ownerFromNestedUrl}`] }),
       };
     }
+  }
+
+  const ownedWebsiteResult = await discoverGithubIdentityViaOwnedWebsite(input);
+  if (ownedWebsiteResult) return ownedWebsiteResult;
+
+  const serperFallback = await discoverGithubIdentityViaSerper(input).catch(() => null);
+  if (serperFallback?.username && serperFallback.url && serperFallback.confidence >= 0.78) {
+    return serperFallback;
   }
 
   const nameParts = compactStringArray(input.name.split(/\s+/), 3);
@@ -325,10 +444,8 @@ export async function discoverGithubIdentity(input: GithubCandidateInput): Promi
     [
       `${nameParts.join(" ")} in:fullname type:user`,
       `"${input.name}" type:user`,
-      `"${input.name}" in:bio type:user`,
-      `${nameParts.join(" ")} ${compactStringArray(input.skills || [], 2).join(" ")} type:user`.trim(),
     ],
-    4,
+    2,
   );
 
   const candidates: Array<{
@@ -345,7 +462,7 @@ export async function discoverGithubIdentity(input: GithubCandidateInput): Promi
   const seenLogins = new Set<string>();
 
   for (const query of queries) {
-    const search = await githubFetch(`/search/users?q=${encodeURIComponent(query)}&per_page=5`) as {
+    const search = await githubFetch(`/search/users?q=${encodeURIComponent(query)}&per_page=3`) as {
       items?: Array<{ login: string }>;
     };
     for (const item of search.items || []) {
@@ -402,7 +519,6 @@ export async function discoverGithubIdentity(input: GithubCandidateInput): Promi
   const best = ranked[0];
   const second = ranked[1];
   if (!best || best.score < GITHUB_MATCH_CONFIDENCE_THRESHOLD || (second && best.score - second.score < 0.12)) {
-    const serperFallback = await discoverGithubIdentityViaSerper(input).catch(() => null);
     if (serperFallback?.username && serperFallback.url) {
       return serperFallback;
     }
@@ -418,6 +534,13 @@ export async function discoverGithubIdentity(input: GithubCandidateInput): Promi
         ],
         6,
       ),
+      evidence: best
+        ? buildEvidence({
+          name_match: best.notes.includes("exact_name_match") ? "exact" : best.notes.includes("partial_name_match") ? "partial" : "none",
+          company_match: best.notes.includes("company_match"),
+          location_match: best.notes.includes("location_match"),
+        })
+        : undefined,
     };
   }
 
@@ -427,6 +550,13 @@ export async function discoverGithubIdentity(input: GithubCandidateInput): Promi
     confidence: best.score,
     source: "github_search",
     notes: best.notes,
+    evidence: buildEvidence({
+      name_match: best.notes.includes("exact_name_match") ? "exact" : best.notes.includes("partial_name_match") ? "partial" : "none",
+      company_match: best.notes.includes("company_match"),
+      location_match: best.notes.includes("location_match"),
+      skill_overlap: best.notes.filter((note) => note.startsWith("skill_overlap")),
+      source_urls: [best.url],
+    }),
   };
 }
 
@@ -522,7 +652,17 @@ export async function discoverGithubIdentityViaSerper(input: GithubCandidateInpu
     username: best.login,
     url: best.url,
     confidence: clamp(round(best.score, 3), 0, 1),
-    source: "serper_search",
+    source: "external_search",
     notes: best.notes,
+    evidence: buildEvidence({
+      name_match: best.notes.includes("exact_name_match") || best.notes.includes("external_title_name_match")
+        ? "exact"
+        : best.notes.includes("partial_name_match") || best.notes.includes("external_snippet_name_match")
+          ? "partial"
+          : "none",
+      company_match: best.notes.includes("company_match") || best.notes.includes("external_company_match"),
+      skill_overlap: best.notes.filter((note) => note.includes("skill_overlap")),
+      source_urls: [best.url],
+    }),
   };
 }

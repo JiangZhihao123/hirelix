@@ -203,6 +203,7 @@ export function formatEvidenceStrength(value: GithubSignals["evidence_strength"]
 
 export function getEvidenceSourceLabel(signals: GithubSignals | null) {
   if (signals?.status === "verified") return "GitHub evidence";
+  if (signals?.status === "ambiguous_match") return "Possible GitHub match";
   if (signals?.status === "queued" || signals?.status === "running") return "GitHub review pending";
   return "LinkedIn-only evidence";
 }
@@ -216,6 +217,15 @@ export function getGithubBadge(signals: GithubSignals | null) {
   }
   if (signals?.status === "running") {
     return { text: "GitHub pending", className: "bg-sky-50 text-sky-700" };
+  }
+  if (signals?.status === "ambiguous_match") {
+    return { text: "Possible GitHub", className: "bg-violet-50 text-violet-700" };
+  }
+  if (signals?.status === "missing_public_data") {
+    return { text: "No GitHub found", className: "bg-slate-100 text-slate-600" };
+  }
+  if (signals?.status === "api_error") {
+    return { text: "GitHub check failed", className: "bg-rose-50 text-rose-700" };
   }
   return { text: "LinkedIn only", className: "bg-blue-50 text-blue-700" };
 }
@@ -291,7 +301,12 @@ export function getCandidateOverallScore(candidate: CandidateRow) {
 }
 
 export function getCandidateCapabilityScore(candidate: CandidateRow) {
-  return getCandidateScoringBreakdown(candidate)?.capability_score ?? 0;
+  return (
+    candidate.metadata?.technical_evidence_score ??
+    getCandidateScoringBreakdown(candidate)?.technical_evidence_score ??
+    getCandidateScoringBreakdown(candidate)?.capability_score ??
+    0
+  );
 }
 
 export function getCandidateRelevanceScore(candidate: CandidateRow) {
@@ -314,10 +329,10 @@ export function getCandidateScoreMetrics(candidate: CandidateRow) {
     },
     {
       key: "capability",
-      label: "Capability",
-      shortLabel: "Capability",
-      score: breakdown?.capability_score,
-      description: "Engineering depth, seniority, and ability to handle the role complexity.",
+      label: "Technical Evidence",
+      shortLabel: "Tech",
+      score: getCandidateCapabilityScore(candidate),
+      description: "Engineering depth from LinkedIn plus verified public GitHub evidence when available.",
     },
     {
       key: "role_fit",
@@ -366,6 +381,10 @@ export function getCandidateGithubSignals(candidate: CandidateRow): GithubSignal
     highlight: typeof item.highlight === "string" ? item.highlight : null,
     discovery_confidence:
       typeof item.discovery_confidence === "number" ? item.discovery_confidence : undefined,
+    identity_evidence:
+      item.identity_evidence && typeof item.identity_evidence === "object"
+        ? (item.identity_evidence as GithubSignals["identity_evidence"])
+        : undefined,
     github_signal_score:
       typeof item.github_signal_score === "number" ? item.github_signal_score : null,
     evidence_strength:

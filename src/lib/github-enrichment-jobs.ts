@@ -364,6 +364,7 @@ export async function processNextGithubEnrichmentJob(
       headline: candidate.headline,
       location: candidate.location,
       skills: asStringArray(candidate.skills),
+      profileUrl: candidate.profile_url,
       githubUrl: candidate.github_url,
       metadata: asRecord(candidate.metadata),
       requiredSkills,

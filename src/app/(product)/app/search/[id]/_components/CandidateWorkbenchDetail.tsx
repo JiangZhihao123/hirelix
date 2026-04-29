@@ -307,7 +307,7 @@ export function CandidateWorkbenchDetail({
                 ))}
               </div>
               <p className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-                GitHub is used as public proof for engineering evidence. Missing GitHub does not lower the score; verified evidence can strengthen Capability or Role Fit.
+                GitHub is used as public proof for engineering evidence. Missing GitHub does not lower the score; verified evidence can strengthen Technical Evidence and outreach confidence.
               </p>
             </div>
 

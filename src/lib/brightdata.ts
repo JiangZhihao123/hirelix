@@ -8,6 +8,7 @@
  * Flow: trigger → snapshot_id → poll until ready → get JSON results
  */
 import { createHash } from "node:crypto";
+import { extractPublicProfileLinks, type PublicProfileLinks } from "@/lib/github/public-links";
 
 const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
 const BRIGHTDATA_FILTER_API_BASE = "https://api.brightdata.com/datasets";
@@ -122,6 +123,7 @@ export type BrightDataProfile = {
   languages: string[];
   certifications: { name: string; authority: string | null }[];
   recommendations_count: number | null;
+  public_links?: PublicProfileLinks;
   input: { url: string };
 };
 
@@ -1099,6 +1101,7 @@ export function adaptDatasetRecordToBrightDataProfile(
       typeof record.recommendations_count === "number" && Number.isFinite(record.recommendations_count)
         ? record.recommendations_count
         : null,
+    public_links: extractPublicProfileLinks(record),
     input: {
       url: getInputUrl(record) || "",
     },

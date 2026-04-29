@@ -4,6 +4,7 @@ import type {
   BrightDataFilterRule,
 } from "@/lib/brightdata";
 import { buildPendingGithubSignals } from "@/lib/github-signals";
+import { extractPublicProfileLinks, mergePublicProfileLinks } from "@/lib/github/public-links";
 import {
   normalizeCandidateRowInput,
   normalizeCountryCode,
@@ -289,6 +290,11 @@ export function buildBrightDataCandidateRows(
     if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= profiles.length) continue;
 
     const profile = profiles[rawIndex];
+    const publicLinks = mergePublicProfileLinks(
+      profile.public_links,
+      extractPublicProfileLinks(profile),
+    );
+    const primaryGithubUrl = publicLinks.github_urls[0] || null;
     const displayTier = options.getDisplayTierForAssessment(item);
     const derivedCompanyHeadline = profile.current_company
       ? `${profile.current_company.title || ""} at ${profile.current_company.name || ""}`.trim() || null
@@ -311,7 +317,7 @@ export function buildBrightDataCandidateRows(
           ? item.suitability.why_this_candidate
           : ["Profile matches search criteria"],
       profile_url: profile.url || profile.input?.url || null,
-      github_url: null,
+      github_url: primaryGithubUrl,
       email: null,
       outreach_draft: null,
       metadata: {
@@ -369,6 +375,7 @@ export function buildBrightDataCandidateRows(
           }))
           .filter((entry) => entry.school || entry.degree || entry.major),
         about: profile.about ? profile.about.substring(0, 500) : null,
+        public_links: publicLinks,
         raw_profile: trimBrightDataProfileForMetadata(profile),
       },
     }));

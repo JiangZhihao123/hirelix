@@ -397,7 +397,7 @@ export function CandidateCard({
                   </div>
                   <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
                     <span className="font-semibold">{githubBadge.text}</span>
-                    <span> · {formatEvidenceStrength(githubSignals?.evidence_strength)}. GitHub is treated as supporting evidence, not a separate score.</span>
+                    <span> · {formatEvidenceStrength(githubSignals?.evidence_strength)}. Verified GitHub can strengthen Technical Evidence; possible matches are not used in scoring.</span>
                   </div>
                 </div>
               )}

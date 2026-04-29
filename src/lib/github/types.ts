@@ -8,6 +8,8 @@ export type GithubSignalStatus =
 
 export type GithubDiscoverySource =
   | "explicit_url"
+  | "owned_website"
+  | "external_search"
   | "github_search"
   | "serper_search"
   | "none";
@@ -19,9 +21,20 @@ export type GithubCandidateInput = {
   headline?: string | null;
   location?: string | null;
   skills?: string[];
+  profileUrl?: string | null;
   githubUrl?: string | null;
   metadata?: Record<string, unknown> | null;
   requiredSkills?: string[];
+};
+
+export type GithubIdentityEvidence = {
+  name_match?: "exact" | "partial" | "none";
+  company_match?: boolean;
+  location_match?: boolean;
+  website_backlink?: boolean;
+  linkedin_or_profile_crosslink?: boolean;
+  skill_overlap?: string[];
+  source_urls?: string[];
 };
 
 export type GithubDiscoveryResult = {
@@ -30,6 +43,7 @@ export type GithubDiscoveryResult = {
   confidence: number;
   source: GithubDiscoverySource;
   notes: string[];
+  evidence?: GithubIdentityEvidence;
 };
 
 export type GithubLanguageSignal = {
@@ -53,6 +67,7 @@ export type GithubSignals = {
   commit_message_quality: string | null;
   highlight: string | null;
   discovery_confidence: number;
+  identity_evidence?: GithubIdentityEvidence;
   github_signal_score: number | null;
   evidence_strength: GithubEvidenceStrength;
   recruiter_summary: string | null;
