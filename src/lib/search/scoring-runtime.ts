@@ -600,21 +600,38 @@ function shouldRequestSecondReview(assessment: ScoredCandidateAssessment) {
   const breakdown = suitability.scoring_breakdown;
 
   if (suitability.blocking_severity === "hard") return false;
-  if (suitability.shortlist_decision === "yes") return true;
-  if (suitability.bucket !== "do_not_show") return true;
-  if (suitability.advance_recommendation !== "reject") return true;
 
-  const highPotentialTechnicalFit =
-    suitability.quality_score >= 72 ||
-    (breakdown.capability_score >= 75 && breakdown.relevance_score >= 55) ||
-    (breakdown.relevance_score >= 70 && breakdown.capability_score >= 65);
+  const nearVisibleThreshold =
+    suitability.quality_score >= 68 &&
+    breakdown.relevance_score >= 60 &&
+    suitability.advance_recommendation !== "reject";
+  const strongButRisky =
+    suitability.quality_score >= 82 &&
+    (
+      suitability.blocking_severity === "soft" ||
+      suitability.evidence_quality !== "high" ||
+      breakdown.join_likelihood_score < 45
+    );
+  const scoreContradiction =
+    (
+      breakdown.capability_score >= 85 &&
+      breakdown.relevance_score < 65
+    ) ||
+    (
+      breakdown.relevance_score >= 85 &&
+      breakdown.capability_score < 70
+    );
+  const actionContradiction =
+    (
+      suitability.shortlist_decision === "yes" &&
+      suitability.advance_recommendation === "reject"
+    ) ||
+    (
+      suitability.bucket === "strong_now" &&
+      suitability.first_contact_confidence !== "high"
+    );
 
-  const borderlineFit =
-    suitability.quality_score >= 62 &&
-    breakdown.relevance_score >= 55 &&
-    suitability.constraint_verdicts.must_have_coverage !== "weak";
-
-  return highPotentialTechnicalFit || borderlineFit;
+  return nearVisibleThreshold || strongButRisky || scoreContradiction || actionContradiction;
 }
 
 function selectDeepReviewIndexes(

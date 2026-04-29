@@ -61,7 +61,6 @@ export function buildJudgeScorePrompt(
   "capability_score": 0,
   "relevance_score": 0,
   "join_likelihood_score": 0,
-  "join_likelihood_reasons": ["string"],
   "constraint_verdicts": {
     "location_fit": "local | nearby | non_local | unknown",
     "work_model_fit": "yes | no | unclear",
@@ -73,14 +72,9 @@ export function buildJudgeScorePrompt(
   "blocking_severity": "hard | soft | none",
   "advance_recommendation": "advance | hold | reject",
   "shortlist_decision": "yes | no",
-  "shortlist_reason": "string | null",
   "short_reasons": ["string"],
   "risk_flags": ["string"],
-  "evidence_quality": "high | medium | low",
-  "skills": ["string"],
-  "experience_years": 0,
-  "location": "string | null",
-  "why_reachable_now": "string | null"
+  "evidence_quality": "high | medium | low"
 }`
     : `[
   {
@@ -88,7 +82,6 @@ export function buildJudgeScorePrompt(
     "capability_score": 0,
     "relevance_score": 0,
     "join_likelihood_score": 0,
-    "join_likelihood_reasons": ["string"],
     "constraint_verdicts": {
       "location_fit": "local | nearby | non_local | unknown",
       "work_model_fit": "yes | no | unclear",
@@ -100,14 +93,9 @@ export function buildJudgeScorePrompt(
     "blocking_severity": "hard | soft | none",
     "advance_recommendation": "advance | hold | reject",
     "shortlist_decision": "yes | no",
-    "shortlist_reason": "string | null",
     "short_reasons": ["string"],
     "risk_flags": ["string"],
-    "evidence_quality": "high | medium | low",
-    "skills": ["string"],
-    "experience_years": 0,
-    "location": "string | null",
-    "why_reachable_now": "string | null"
+    "evidence_quality": "high | medium | low"
   }
 ]`;
   const jsonShape = mode === "fast" ? fastJsonShape : deepJsonShape;
@@ -136,12 +124,12 @@ export function buildJudgeScorePrompt(
 - Do not speculate about relocation or work authorization.
 - Return ONLY valid JSON. Do NOT wrap the JSON in markdown code blocks.`;
   const deepOnlyRules = `Deep review additions:
-- Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch.
+- Keep the response compact. Do not include skills, location, experience_years, or long narrative fields.
+- Use blocking_constraints to explicitly call out real blockers such as location, work model, seniority, authorization, or company-stage mismatch. Max 2 items, each under 8 words.
 - If evidence is missing, unclear, or unverifiable, use soft, not hard.
 - Use shortlist_decision=yes for candidates you would genuinely include today; use no for weak, risky, or speculative fits.
-- Keep join_likelihood_reasons concrete and evidence-based. Max 3 items, each under 16 words.
-- Keep risk_flags concrete and short. Max 3 items, each under 10 words.
-- why_reachable_now should explain why this specific person might be open right now. Return null only if there are zero timing signals.`;
+- Keep short_reasons concrete and evidence-based. Max 2 items, each under 10 words.
+- Keep risk_flags concrete and short. Max 2 items, each under 8 words.`;
 
   return `You are ${judgeLabel}, one of two independent hiring reviewers.
 

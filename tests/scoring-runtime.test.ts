@@ -168,7 +168,7 @@ function buildScoringHelpers(params: {
             return judgeResult(index, {
               capability_score: 86,
               relevance_score: 82,
-              join_likelihood_score: 55,
+              join_likelihood_score: 38,
               advance_recommendation: "advance",
               shortlist_decision: "yes",
               constraint_verdicts: {
@@ -180,8 +180,8 @@ function buildScoringHelpers(params: {
           }
           if (index === 2) {
             return judgeResult(index, {
-              capability_score: 74,
-              relevance_score: 66,
+              capability_score: 72,
+              relevance_score: 64,
               join_likelihood_score: 45,
               advance_recommendation: "hold",
               shortlist_decision: "yes",
@@ -346,4 +346,55 @@ test("scoreCandidateBatch uses selective second review and merges non-hard confl
   assert.equal(results.find((result) => result.index === 2)?.scoring_method, "selective_dual_review");
   assert.ok(events.includes("selective_review_triage"));
   assert.ok(events.includes("selective_review_resolution"));
+});
+
+test("scoreCandidateBatch skips second review for clear non-borderline holds", async () => {
+  const calls: Array<{ judge: string; indexes: number[] }> = [];
+  const arbiters: number[] = [];
+  const events: string[] = [];
+  const helpers = buildScoringHelpers({ calls, arbiters, events });
+
+  helpers.judgeScoreBatch = async (_runtime, _parsed, _jdText, _profileTexts, indexes, _totalPoolSize, judgeLabel) => {
+    calls.push({ judge: judgeLabel, indexes: [...indexes] });
+    return indexes.map((index) => {
+      if (index === 1) {
+        return judgeResult(index, {
+          capability_score: 66,
+          relevance_score: 58,
+          join_likelihood_score: 46,
+          advance_recommendation: "hold",
+          shortlist_decision: "yes",
+          constraint_verdicts: {
+            location_fit: "unknown",
+            work_model_fit: "unclear",
+            must_have_coverage: "partial",
+          },
+        });
+      }
+      return judgeResult(index);
+    });
+  };
+
+  const results = await scoreCandidateBatch(
+    {
+      lightPrescreenMaxOutputTokens: 200,
+      judgeMaxOutputTokens: 2400,
+      arbiterMaxOutputTokens: 4000,
+      outreachMaxOutputTokens: 700,
+      judgeMaxAttempts: 1,
+      arbiterMaxAttempts: 1,
+      judgeMode: "dual",
+    },
+    {},
+    "JD",
+    ["[0] Weak", "[1] Hold"],
+    [0, 1],
+    2,
+    helpers,
+  );
+
+  assert.deepEqual(calls, [
+    { judge: "Judge A", indexes: [0, 1] },
+  ]);
+  assert.equal(results.find((result) => result.index === 1)?.scoring_method, "single_judge_triage");
 });
