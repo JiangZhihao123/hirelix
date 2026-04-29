@@ -56,6 +56,7 @@ import {
   DEEP_SCORING_BATCH_SIZE,
   DEEP_SCORING_CONCURRENCY,
   ESTIMATED_DEEP_REVIEW_CONFLICT_RATE,
+  ESTIMATED_SECOND_REVIEW_RATE,
   GITHUB_ENRICH_LIMIT,
   getExecutionRuntime,
   HIGHLIGHT_CANDIDATE_COUNT,
@@ -1132,21 +1133,33 @@ function estimateBrightPipelineLlmCost(params: {
     estimateLlmCallCost(preScreenInputTokens, preScreenOutputTokens);
 
   const judgeBatchSize = Math.max(1, Math.min(DEEP_SCORING_BATCH_SIZE, params.selectedCount || 1));
-  const judgeBatchCount = Math.ceil(params.selectedCount / judgeBatchSize);
-  const avgJudgeBatchSize = judgeBatchCount > 0 ? params.selectedCount / judgeBatchCount : 1;
-  const judgeInputTokens =
-    searchContextTokens + truncatedJdTokens + Math.ceil(avgProfileTokens * avgJudgeBatchSize) + 260;
-  const judgeOutputTokens = Math.min(Math.ceil(260 * avgJudgeBatchSize), 20000);
-  const judgeCallCount =
-    params.runtime.judgeMode === "single"
-      ? judgeBatchCount
-      : judgeBatchCount * 2;
-  const judgeCost =
-    judgeCallCount * estimateLlmCallCost(judgeInputTokens, judgeOutputTokens);
+  const primaryJudgeBatchCount = Math.ceil(params.selectedCount / judgeBatchSize);
+  const avgPrimaryJudgeBatchSize =
+    primaryJudgeBatchCount > 0 ? params.selectedCount / primaryJudgeBatchCount : 1;
+  const primaryJudgeInputTokens =
+    searchContextTokens + truncatedJdTokens + Math.ceil(avgProfileTokens * avgPrimaryJudgeBatchSize) + 260;
+  const primaryJudgeOutputTokens = Math.min(Math.ceil(260 * avgPrimaryJudgeBatchSize), 20000);
+  const primaryJudgeCost =
+    primaryJudgeBatchCount * estimateLlmCallCost(primaryJudgeInputTokens, primaryJudgeOutputTokens);
+  const secondReviewCount =
+    params.runtime.judgeMode === "dual"
+      ? Math.round(params.selectedCount * ESTIMATED_SECOND_REVIEW_RATE)
+      : 0;
+  const secondReviewBatchCount = Math.ceil(secondReviewCount / judgeBatchSize);
+  const avgSecondReviewBatchSize =
+    secondReviewBatchCount > 0 ? secondReviewCount / secondReviewBatchCount : 0;
+  const secondReviewJudgeCost =
+    secondReviewBatchCount > 0
+      ? secondReviewBatchCount * estimateLlmCallCost(
+          searchContextTokens + truncatedJdTokens + Math.ceil(avgProfileTokens * avgSecondReviewBatchSize) + 260,
+          Math.min(Math.ceil(260 * avgSecondReviewBatchSize), 20000),
+        )
+      : 0;
+  const judgeCost = primaryJudgeCost + secondReviewJudgeCost;
 
   const arbiterCallCount =
     params.runtime.judgeMode === "dual"
-      ? Math.round(params.selectedCount * ESTIMATED_DEEP_REVIEW_CONFLICT_RATE)
+      ? Math.round(secondReviewCount * ESTIMATED_DEEP_REVIEW_CONFLICT_RATE)
       : 0;
   const arbiterInputTokens = searchContextTokens + truncatedJdTokens + avgProfileTokens + 320;
   const arbiterOutputTokens = Math.min(params.runtime.arbiterMaxOutputTokens, 220);

@@ -222,6 +222,12 @@ export const ESTIMATED_DEEP_REVIEW_CONFLICT_RATE = getConfiguredNumber(
   { min: 0, max: 1 },
 );
 
+export const ESTIMATED_SECOND_REVIEW_RATE = getConfiguredNumber(
+  "SEARCH_ESTIMATED_SECOND_REVIEW_RATE",
+  0.3,
+  { min: 0, max: 1 },
+);
+
 export const ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M = getConfiguredNumber(
   "SEARCH_ESTIMATED_DEEPSEEK_INPUT_COST_PER_1M",
   0.14,

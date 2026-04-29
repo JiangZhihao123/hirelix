@@ -485,6 +485,110 @@ function mapJudgeResultsByIndex(results: JudgeScoreResult[]) {
   return byIndex;
 }
 
+function mergeSingleJudgeResult(
+  judge: JudgeScoreResult,
+  helpers: Parameters<typeof scoreSingleCandidate>[6],
+): ScoredCandidateAssessment {
+  return {
+    ...mergeJudgeResults(judge, judge, {
+      computeQualityScore: helpers.computeQualityScore,
+      computeAdvanceScore: helpers.computeAdvanceScore,
+      deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
+      sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
+      normalizeNullableString: helpers.normalizeNullableString,
+    }),
+    scoring_method: "single_judge_triage",
+    judge_delta: 0,
+    judge_conflict: false,
+  };
+}
+
+function mergeDualJudgeResult(
+  judgeA: JudgeScoreResult,
+  judgeB: JudgeScoreResult,
+  helpers: Parameters<typeof scoreSingleCandidate>[6],
+): ScoredCandidateAssessment {
+  return {
+    ...mergeJudgeResults(judgeA, judgeB, {
+      computeQualityScore: helpers.computeQualityScore,
+      computeAdvanceScore: helpers.computeAdvanceScore,
+      deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
+      sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
+      normalizeNullableString: helpers.normalizeNullableString,
+    }),
+    scoring_method: "selective_dual_review",
+    judge_conflict: false,
+  };
+}
+
+function shouldRequestSecondReview(assessment: ScoredCandidateAssessment) {
+  const suitability = assessment.suitability;
+  const breakdown = suitability.scoring_breakdown;
+
+  if (suitability.blocking_severity === "hard") return false;
+  if (suitability.shortlist_decision === "yes") return true;
+  if (suitability.bucket !== "do_not_show") return true;
+  if (suitability.advance_recommendation !== "reject") return true;
+
+  const highPotentialTechnicalFit =
+    suitability.quality_score >= 72 ||
+    (breakdown.capability_score >= 75 && breakdown.relevance_score >= 55) ||
+    (breakdown.relevance_score >= 70 && breakdown.capability_score >= 65);
+
+  const borderlineFit =
+    suitability.quality_score >= 62 &&
+    breakdown.relevance_score >= 55 &&
+    suitability.constraint_verdicts.must_have_coverage !== "weak";
+
+  return highPotentialTechnicalFit || borderlineFit;
+}
+
+function isActionableAssessment(assessment: ScoredCandidateAssessment) {
+  return (
+    assessment.suitability.bucket !== "do_not_show" ||
+    assessment.suitability.shortlist_decision === "yes" ||
+    assessment.suitability.advance_recommendation !== "reject"
+  );
+}
+
+function shouldArbitrateActionConflict(
+  judgeA: JudgeScoreResult,
+  judgeB: JudgeScoreResult,
+  helpers: Parameters<typeof scoreSingleCandidate>[6],
+) {
+  const assessmentA = mergeSingleJudgeResult(judgeA, helpers);
+  const assessmentB = mergeSingleJudgeResult(judgeB, helpers);
+  const verdictA = assessmentA.suitability.constraint_verdicts;
+  const verdictB = assessmentB.suitability.constraint_verdicts;
+
+  if (assessmentA.suitability.shortlist_decision !== assessmentB.suitability.shortlist_decision) {
+    return true;
+  }
+  if (isActionableAssessment(assessmentA) !== isActionableAssessment(assessmentB)) {
+    return true;
+  }
+  if (
+    assessmentA.suitability.advance_recommendation === "reject" !==
+    (assessmentB.suitability.advance_recommendation === "reject")
+  ) {
+    return true;
+  }
+  if (
+    assessmentA.suitability.blocking_severity === "hard" !==
+    (assessmentB.suitability.blocking_severity === "hard")
+  ) {
+    return true;
+  }
+
+  const mustHaveA = verdictA.must_have_coverage;
+  const mustHaveB = verdictB.must_have_coverage;
+  if ((mustHaveA === "weak") !== (mustHaveB === "weak")) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function scoreCandidateBatch(
   runtime: SearchExecutionRuntime,
   parsed: Record<string, unknown>,
@@ -497,7 +601,7 @@ export async function scoreCandidateBatch(
 ): Promise<ScoredCandidateAssessment[]> {
   if (selectedIndexes.length === 0) return [];
 
-  if (selectedIndexes.length === 1) {
+  if (runtime.judgeMode === "single" && selectedIndexes.length === 1) {
     const single = await scoreSingleCandidate(
       runtime,
       parsed,
@@ -550,117 +654,113 @@ export async function scoreCandidateBatch(
     }
   }
 
-  const [judgeAResults, judgeBResults] = await Promise.allSettled([
-    helpers.judgeScoreBatch(
-      runtime,
-      parsed,
-      jdText,
-      profileTexts,
-      selectedIndexes,
-      totalPoolSize,
-      "Judge A",
-      helpers.judgeHelpers,
-      context,
-    ),
-    helpers.judgeScoreBatch(
-      runtime,
-      parsed,
-      jdText,
-      profileTexts,
-      selectedIndexes,
-      totalPoolSize,
-      "Judge B",
-      helpers.judgeHelpers,
-      context,
-    ),
-  ]);
-
-  if (judgeAResults.status === "rejected" || judgeBResults.status === "rejected") {
-    helpers.logSearchEvent("dual_review_batch_judge_failure", {
+  const judgeAResults = await helpers.judgeScoreBatch(
+    runtime,
+    parsed,
+    jdText,
+    profileTexts,
+    selectedIndexes,
+    totalPoolSize,
+    "Judge A",
+    helpers.judgeHelpers,
+    context,
+  ).catch((error) => {
+    helpers.logSearchEvent("selective_review_primary_judge_failed", {
       indexes: selectedIndexes,
       batch_size: selectedIndexes.length,
-      judge_a_error:
-        judgeAResults.status === "rejected"
-          ? judgeAResults.reason instanceof Error
-            ? judgeAResults.reason.message
-            : String(judgeAResults.reason)
-          : null,
-      judge_b_error:
-        judgeBResults.status === "rejected"
-          ? judgeBResults.reason instanceof Error
-            ? judgeBResults.reason.message
-            : String(judgeBResults.reason)
-          : null,
+      error: error instanceof Error ? error.message : String(error),
       ...(context?.searchId && { search_id: context.searchId }),
       ...(context?.jobId && { job_id: context.jobId }),
     });
+    return [] as JudgeScoreResult[];
+  });
+
+  const judgeAByIndex = mapJudgeResultsByIndex(judgeAResults);
+  const provisionalAssessments = Array.from(judgeAByIndex.values()).map((judge) =>
+    mergeSingleJudgeResult(judge, helpers),
+  );
+  const secondReviewIndexes = provisionalAssessments
+    .filter(shouldRequestSecondReview)
+    .map((assessment) => assessment.index);
+
+  helpers.logSearchEvent("selective_review_triage", {
+    indexes: selectedIndexes,
+    batch_size: selectedIndexes.length,
+    primary_completed_count: provisionalAssessments.length,
+    second_review_count: secondReviewIndexes.length,
+    skipped_second_review_count: Math.max(provisionalAssessments.length - secondReviewIndexes.length, 0),
+    ...(context?.searchId && { search_id: context.searchId }),
+    ...(context?.jobId && { job_id: context.jobId }),
+  });
+
+  if (secondReviewIndexes.length === 0) {
+    return provisionalAssessments.sort((left, right) => left.index - right.index);
   }
 
-  const judgeAByIndex = mapJudgeResultsByIndex(
-    judgeAResults.status === "fulfilled" ? judgeAResults.value : [],
+  const judgeBResults = await helpers.judgeScoreBatch(
+    runtime,
+    parsed,
+    jdText,
+    profileTexts,
+    secondReviewIndexes,
+    totalPoolSize,
+    "Judge B",
+    helpers.judgeHelpers,
+    context,
+  ).catch((error) => {
+    helpers.logSearchEvent("selective_review_secondary_judge_failed", {
+      indexes: secondReviewIndexes,
+      batch_size: secondReviewIndexes.length,
+      error: error instanceof Error ? error.message : String(error),
+      ...(context?.searchId && { search_id: context.searchId }),
+      ...(context?.jobId && { job_id: context.jobId }),
+    });
+    return [] as JudgeScoreResult[];
+  });
+  const judgeBByIndex = mapJudgeResultsByIndex(judgeBResults);
+  const assessments = provisionalAssessments.filter(
+    (assessment) => !secondReviewIndexes.includes(assessment.index),
   );
-  const judgeBByIndex = mapJudgeResultsByIndex(
-    judgeBResults.status === "fulfilled" ? judgeBResults.value : [],
-  );
-  const assessments: ScoredCandidateAssessment[] = [];
   const conflicts: Array<{
     index: number;
     judgeA: JudgeScoreResult;
     judgeB: JudgeScoreResult;
   }> = [];
 
-  for (const selectedIndex of selectedIndexes) {
-    const judgeA = judgeAByIndex.get(selectedIndex) ?? null;
+  for (const selectedIndex of secondReviewIndexes) {
+    const judgeA = judgeAByIndex.get(selectedIndex);
     const judgeB = judgeBByIndex.get(selectedIndex) ?? null;
 
-    if (!judgeA && !judgeB) continue;
-    if (judgeA && !judgeB) {
-      assessments.push({
-        ...mergeJudgeResults(judgeA, judgeA, {
-          computeQualityScore: helpers.computeQualityScore,
-          computeAdvanceScore: helpers.computeAdvanceScore,
-          deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-          sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-          normalizeNullableString: helpers.normalizeNullableString,
-        }),
-        judge_delta: 0,
-      });
-      continue;
-    }
-    if (judgeB && !judgeA) {
-      assessments.push({
-        ...mergeJudgeResults(judgeB, judgeB, {
-          computeQualityScore: helpers.computeQualityScore,
-          computeAdvanceScore: helpers.computeAdvanceScore,
-          deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-          sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-          normalizeNullableString: helpers.normalizeNullableString,
-        }),
-        judge_delta: 0,
-      });
+    if (!judgeA) continue;
+    if (!judgeB) {
+      assessments.push(mergeSingleJudgeResult(judgeA, helpers));
       continue;
     }
 
-    if (!judgeA || !judgeB) continue;
-    if (hasJudgeConflict(judgeA, judgeB, {
-      computeQualityScore: helpers.computeQualityScore,
-      deriveFitDecisionFromScore: helpers.deriveFitDecisionFromScore,
-    })) {
+    if (shouldArbitrateActionConflict(judgeA, judgeB, helpers)) {
       conflicts.push({ index: selectedIndex, judgeA, judgeB });
       continue;
     }
 
-    assessments.push({
-      ...mergeJudgeResults(judgeA, judgeB, {
-        computeQualityScore: helpers.computeQualityScore,
-        computeAdvanceScore: helpers.computeAdvanceScore,
-        deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-        sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-        normalizeNullableString: helpers.normalizeNullableString,
-      }),
-      judge_conflict: false,
-    });
+    assessments.push(mergeDualJudgeResult(judgeA, judgeB, helpers));
   }
+
+  helpers.logSearchEvent("selective_review_resolution", {
+    indexes: selectedIndexes,
+    batch_size: selectedIndexes.length,
+    primary_completed_count: provisionalAssessments.length,
+    second_review_count: secondReviewIndexes.length,
+    second_review_completed_count: judgeBResults.length,
+    arbiter_count: conflicts.length,
+    single_judge_final_count: assessments.filter(
+      (assessment) => assessment.scoring_method === "single_judge_triage",
+    ).length,
+    dual_review_final_count: assessments.filter(
+      (assessment) => assessment.scoring_method === "selective_dual_review",
+    ).length,
+    ...(context?.searchId && { search_id: context.searchId }),
+    ...(context?.jobId && { job_id: context.jobId }),
+  });
 
   const arbiterConcurrency = Math.min(2, conflicts.length);
   const arbitrated = await runWithConcurrency(

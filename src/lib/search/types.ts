@@ -144,7 +144,12 @@ export type ScoredCandidateAssessment = {
   experience_years: number | null;
   location: string | null;
   why_reachable_now?: string | null;
-  scoring_method?: "dual_review_auto" | "dual_review_arbitrated" | "single_judge_debug";
+  scoring_method?:
+    | "single_judge_debug"
+    | "single_judge_triage"
+    | "selective_dual_review"
+    | "dual_review_auto"
+    | "dual_review_arbitrated";
   judge_delta?: number;
   judge_conflict?: boolean;
 };
