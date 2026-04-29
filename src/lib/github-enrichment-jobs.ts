@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase-server";
 const GITHUB_ENRICHMENT_MAX_ATTEMPTS = 3;
 const GITHUB_ENRICHMENT_RETRY_DELAY_MS = 5 * 60 * 1000;
 const GITHUB_ENRICHMENT_STALE_MINUTES = 20;
-export const GITHUB_ENRICHMENT_VERSION = 2;
+export const GITHUB_ENRICHMENT_VERSION = 3;
 
 type EnqueueGithubEnrichmentJobInput = {
   candidateId: string;
