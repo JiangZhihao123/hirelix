@@ -122,6 +122,7 @@ export type CandidateRow = {
     raw_profile?: Record<string, unknown>;
     about?: string | null;
     github_signals?: GithubSignals;
+    public_evidence?: PublicEvidence;
     public_links?: {
       github_urls?: string[];
       personal_sites?: string[];
@@ -130,6 +131,26 @@ export type CandidateRow = {
     };
     technical_evidence_score?: number;
   } | null;
+};
+
+export type PublicEvidenceItem = {
+  source_type?: string | null;
+  source_url?: string | null;
+  title?: string | null;
+  identity_confidence?: number | null;
+  relevance_score?: number | null;
+  evidence_strength?: "strong" | "medium" | "weak";
+  evidence_summary?: string | null;
+  outreach_angle?: string | null;
+};
+
+export type PublicEvidence = {
+  status?: "queued" | "running" | "verified" | "partial" | "missing" | "error";
+  score?: number | null;
+  items?: PublicEvidenceItem[];
+  source_counts?: Record<string, number>;
+  summary?: string | null;
+  last_enriched_at?: string | null;
 };
 
 export type CandidateSortMode = "overall" | "capability" | "relevance" | "join_likelihood";

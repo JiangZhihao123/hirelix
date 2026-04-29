@@ -26,6 +26,7 @@ import {
   formatEvidenceStrength,
   getCandidateGithubSignals,
   getCandidateOverallScore,
+  getCandidatePublicEvidence,
   getCandidateScoreMetrics,
   getEvidenceSourceLabel,
   parseOutreach,
@@ -71,6 +72,7 @@ export function CandidateWorkbenchDetail({
   const localDisplayName = sanitizeDisplayName(localCandidate.name);
   const suitability = localCandidate.metadata?.suitability;
   const githubSignals = getCandidateGithubSignals(localCandidate);
+  const publicEvidence = getCandidatePublicEvidence(localCandidate);
   const outreach = parseOutreach(localCandidate.outreach_draft);
   const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
   const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
@@ -102,6 +104,28 @@ export function CandidateWorkbenchDetail({
     : [];
   const hasVerifiedGithub = githubSignals?.status === "verified";
   const evidenceSourceLabel = getEvidenceSourceLabel(githubSignals);
+  const publicEvidenceItems =
+    publicEvidence?.items && publicEvidence.items.length > 0
+      ? publicEvidence.items
+      : hasVerifiedGithub && (githubSignals?.highlight || githubSignals?.recruiter_summary)
+        ? [
+            {
+              source_type: "github",
+              source_url: githubSignals.profile_url || localCandidate.github_url || null,
+              title: githubSignals.profile_login || "GitHub",
+              identity_confidence: githubSignals.discovery_confidence ?? null,
+              relevance_score: githubSignals.github_signal_score ?? null,
+              evidence_strength:
+                githubSignals.evidence_strength === "strong" ||
+                githubSignals.evidence_strength === "medium" ||
+                githubSignals.evidence_strength === "weak"
+                  ? githubSignals.evidence_strength
+                  : "weak",
+              evidence_summary: githubSignals.highlight || githubSignals.recruiter_summary,
+              outreach_angle: githubSignals.outreach_angle,
+            },
+          ]
+        : [];
   const githubSignalCards = [
     {
       label: "Activity trend",
@@ -130,12 +154,45 @@ export function CandidateWorkbenchDetail({
         : "Not evaluated yet",
     },
   ];
+  const publicEvidenceCards =
+    publicEvidenceItems.length > 0
+      ? [
+          {
+            label: "Evidence score",
+            value: typeof publicEvidence?.score === "number" ? `${publicEvidence.score}` : "Not scored",
+          },
+          {
+            label: "Sources",
+            value: Object.entries(publicEvidence?.source_counts || {})
+              .filter(([, count]) => count > 0)
+              .map(([source, count]) => `${source.replace(/_/g, " ")} ${count}`)
+              .slice(0, 3)
+              .join(", ") || (publicEvidenceItems[0]?.source_type?.replace(/_/g, " ") ?? "Public source"),
+          },
+          {
+            label: "Top relevance",
+            value:
+              typeof publicEvidenceItems[0]?.relevance_score === "number"
+                ? `${publicEvidenceItems[0]?.relevance_score}`
+                : "Not scored",
+          },
+          {
+            label: "Identity confidence",
+            value:
+              typeof publicEvidenceItems[0]?.identity_confidence === "number"
+                ? `${Math.round((publicEvidenceItems[0]?.identity_confidence || 0) * 100)}%`
+                : "Verified source",
+          },
+        ]
+      : githubSignalCards;
   const whyContactSummary =
+    publicEvidence?.summary ||
     githubSignals?.recruiter_summary ||
     shortlistReason ||
     localCandidate.match_reasons[0] ||
     `${localDisplayName} looks relevant based on current LinkedIn evidence.`;
   const proofToReference =
+    publicEvidenceItems[0]?.evidence_summary ||
     githubSignals?.highlight ||
     githubSignals?.evidence_summary?.[0] ||
     localCandidate.match_reasons[0] ||
@@ -144,6 +201,15 @@ export function CandidateWorkbenchDetail({
     ...(githubSignals?.verification_risks || []),
     ...riskFlags,
   ].slice(0, 5);
+  const publicEvidenceSourceLabel = publicEvidenceItems[0]?.source_type
+    ? `Public ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
+    : evidenceSourceLabel;
+  const bestOpeningAngle =
+    publicEvidenceItems[0]?.outreach_angle ||
+    githubSignals?.outreach_angle ||
+    (publicEvidenceItems.length > 0
+      ? "Lead with the strongest verified public engineering evidence."
+      : "No verified public engineering evidence found yet — reference their most relevant LinkedIn experience directly in the opening line.");
 
   async function handleEnrich() {
     if (enriching || !session?.access_token) return;
@@ -307,7 +373,7 @@ export function CandidateWorkbenchDetail({
                 ))}
               </div>
               <p className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-                GitHub is used as public proof for engineering evidence. Missing GitHub does not lower the score; verified evidence can strengthen Technical Evidence and outreach confidence.
+                Verified public evidence can strengthen Technical Evidence and outreach confidence. Missing public evidence does not lower the score.
               </p>
             </div>
 
@@ -332,29 +398,48 @@ export function CandidateWorkbenchDetail({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Proof you can reference
+                    Public Evidence
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Specific work you can reference in outreach, with raw GitHub metrics as supporting context.
+                    Verified public engineering proof from GitHub, writing, packages, papers, talks, or personal sites.
                   </p>
                 </div>
                 <Github className="h-5 w-5 text-slate-400" />
               </div>
               <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
-                  {evidenceSourceLabel}
+                  {publicEvidenceItems[0]?.source_type
+                    ? `PUBLIC ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
+                    : evidenceSourceLabel}
                 </p>
                 <p className="mt-2">{proofToReference}</p>
               </div>
-              {githubSignals?.outreach_angle && (
+              {publicEvidenceItems.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {publicEvidenceItems.slice(0, 3).map((item) => (
+                    <li key={`${item.source_url}-${item.evidence_summary}`} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+                      <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>
+                        {item.evidence_summary}
+                        {item.source_url && (
+                          <a href={item.source_url} target="_blank" rel="noreferrer" className="ml-2 font-medium text-sky-700 hover:text-sky-900">
+                            Source
+                          </a>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {publicEvidenceItems[0]?.outreach_angle && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Outreach angle
                   </p>
-                  <p className="mt-2">{githubSignals.outreach_angle}</p>
+                  <p className="mt-2">{publicEvidenceItems[0].outreach_angle}</p>
                 </div>
               )}
-              {githubSignals?.evidence_summary && githubSignals.evidence_summary.length > 0 && (
+              {publicEvidenceItems.length === 0 && githubSignals?.evidence_summary && githubSignals.evidence_summary.length > 0 && (
                 <ul className="mt-3 space-y-2">
                   {githubSignals.evidence_summary.slice(0, 3).map((item) => (
                     <li key={item} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
@@ -365,7 +450,7 @@ export function CandidateWorkbenchDetail({
                 </ul>
               )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {githubSignalCards.map((item) => (
+                {publicEvidenceCards.map((item) => (
                   <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       {item.label}
@@ -374,13 +459,11 @@ export function CandidateWorkbenchDetail({
                   </div>
                 ))}
               </div>
-              {!hasVerifiedGithub && (
+              {publicEvidenceItems.length === 0 && (
                 <p className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
-                  {githubSignals?.status === "queued"
-                    ? "GitHub review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
-                    : githubSignals?.status === "running"
-                      ? "GitHub review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
-                      : "No public GitHub data found yet. Current ranking stays based on LinkedIn evidence only."}
+                  {publicEvidence?.status === "queued" || publicEvidence?.status === "running"
+                    ? "Public evidence review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
+                    : "No verified public engineering evidence found yet. Current ranking stays based on LinkedIn evidence only."}
                 </p>
               )}
             </div>
@@ -467,14 +550,14 @@ export function CandidateWorkbenchDetail({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Evidence source
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{evidenceSourceLabel}</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{publicEvidenceSourceLabel}</p>
                 </div>
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Best opening angle
                   </p>
                   <p className="mt-2 text-sm text-slate-700">
-                    {githubSignals?.outreach_angle || (hasVerifiedGithub ? "Lead with the strongest visible GitHub contribution." : "No public GitHub found — reference their most relevant LinkedIn experience directly in the opening line.")}
+                    {bestOpeningAngle}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
@@ -537,10 +620,10 @@ export function CandidateWorkbenchDetail({
                 </p>
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">{localDisplayName}</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Leads with the candidate&apos;s specific code contributions; falls back to LinkedIn highlights when no public GitHub evidence is available.
+                  Leads with verified public engineering evidence when available; falls back to LinkedIn highlights when public evidence is missing.
                 </p>
                 <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
-                  Current source: {evidenceSourceLabel}
+                  Current source: {publicEvidenceSourceLabel}
                 </p>
               </div>
               <button

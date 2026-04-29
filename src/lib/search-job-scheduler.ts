@@ -3,6 +3,10 @@ import {
   processNextGithubEnrichmentJob,
   reclaimStaleGithubEnrichmentJobs,
 } from "@/lib/github-enrichment-jobs";
+import {
+  processNextPublicEvidenceJob,
+  reclaimStalePublicEvidenceJobs,
+} from "@/lib/public-evidence-jobs";
 
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
@@ -70,7 +74,12 @@ async function runSchedulerLoop(workerIndex: number) {
       }
 
       const githubResult = await processNextGithubEnrichmentJob();
-      if (!githubResult.processed && !githubResult.hasMore) {
+      if (githubResult.processed || githubResult.hasMore) {
+        continue;
+      }
+
+      const publicEvidenceResult = await processNextPublicEvidenceJob();
+      if (!publicEvidenceResult.processed && !publicEvidenceResult.hasMore) {
         await sleep(idlePollMs);
       }
     } catch (error) {
@@ -89,6 +98,7 @@ function startReclaimTimer() {
     try {
       await reclaimStaleRunningJobs();
       await reclaimStaleGithubEnrichmentJobs();
+      await reclaimStalePublicEvidenceJobs();
     } catch (error) {
       console.error("[search_jobs] Reclaim timer failed:", error);
     }

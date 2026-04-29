@@ -5,6 +5,7 @@ import type {
   SearchExecutionRuntime,
 } from "@/lib/search/types";
 import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
+import { enqueuePublicEvidenceJobsForSearch } from "@/lib/public-evidence-jobs";
 
 export async function completeSearch(
   context: PipelineContext,
@@ -69,6 +70,23 @@ export async function completeSearch(
   await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
     replaceMissing: true,
   });
+  try {
+    const publicEvidenceQueueResult = await enqueuePublicEvidenceJobsForSearch({
+      searchId: context.searchId,
+      userId: context.userId,
+      limit: draftedRows.length,
+    });
+    helpers.logSearchEvent("public_evidence_jobs_enqueued", {
+      search_id: context.searchId,
+      ...publicEvidenceQueueResult,
+    });
+  } catch (error) {
+    helpers.logSearchEvent("public_evidence_jobs_enqueue_failed", {
+      search_id: context.searchId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   try {
     const githubQueueResult = await enqueueGithubEnrichmentJobsForSearch({
       searchId: context.searchId,

@@ -411,6 +411,53 @@ export function getCandidateGithubSignals(candidate: CandidateRow): GithubSignal
   };
 }
 
+export function getCandidatePublicEvidence(candidate: CandidateRow) {
+  const value = candidate.metadata?.public_evidence;
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  return {
+    status:
+      item.status === "queued" ||
+      item.status === "running" ||
+      item.status === "verified" ||
+      item.status === "partial" ||
+      item.status === "missing" ||
+      item.status === "error"
+        ? item.status
+        : undefined,
+    score: typeof item.score === "number" ? item.score : null,
+    summary: typeof item.summary === "string" ? item.summary : null,
+    source_counts:
+      item.source_counts && typeof item.source_counts === "object"
+        ? (item.source_counts as Record<string, number>)
+        : {},
+    items: Array.isArray(item.items)
+      ? item.items
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+          .map((entry) => ({
+            source_type: typeof entry.source_type === "string" ? entry.source_type : null,
+            source_url: typeof entry.source_url === "string" ? entry.source_url : null,
+            title: typeof entry.title === "string" ? entry.title : null,
+            identity_confidence:
+              typeof entry.identity_confidence === "number" ? entry.identity_confidence : null,
+            relevance_score:
+              typeof entry.relevance_score === "number" ? entry.relevance_score : null,
+            evidence_strength:
+              entry.evidence_strength === "strong" ||
+              entry.evidence_strength === "medium" ||
+              entry.evidence_strength === "weak"
+                ? entry.evidence_strength
+                : undefined,
+            evidence_summary:
+              typeof entry.evidence_summary === "string" ? entry.evidence_summary : null,
+            outreach_angle:
+              typeof entry.outreach_angle === "string" ? entry.outreach_angle : null,
+          }))
+      : [],
+    last_enriched_at: typeof item.last_enriched_at === "string" ? item.last_enriched_at : null,
+  };
+}
+
 export function hasPublicGithubEvidence(candidate: CandidateRow) {
   const signals = getCandidateGithubSignals(candidate);
   return signals?.status === "verified" || Boolean(candidate.github_url);
