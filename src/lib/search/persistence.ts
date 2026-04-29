@@ -1,6 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { nowIso } from "@/lib/search/normalize";
-import type { CandidateRowInput } from "@/lib/search/types";
+import type {
+  CandidateRowInput,
+  LlmUsageEventPayload,
+} from "@/lib/search/types";
 
 export type SnapshotCacheEntry = {
   snapshotId: string;
@@ -53,6 +56,67 @@ function formatDbError(error: unknown) {
 
 async function waitBeforeRetry(attempt: number) {
   await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+}
+
+function safeInt(value: unknown, fallback = 0) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.round(value))
+    : fallback;
+}
+
+export async function recordLlmUsageEvent(payload: LlmUsageEventPayload) {
+  const row = {
+    search_id: payload.searchId || null,
+    job_id: payload.jobId || null,
+    user_id: payload.userId || null,
+    stage: payload.stage,
+    status: payload.status || "success",
+    model: payload.model,
+    provider: payload.provider || "deepseek",
+    attempt: safeInt(payload.attempt, 1) || 1,
+    batch_size:
+      typeof payload.batchSize === "number" && Number.isFinite(payload.batchSize)
+        ? Math.max(0, Math.round(payload.batchSize))
+        : null,
+    candidate_indexes: Array.isArray(payload.candidateIndexes)
+      ? payload.candidateIndexes
+          .filter((value) => Number.isInteger(value))
+          .map((value) => Math.max(0, Math.round(value)))
+      : null,
+    input_tokens: safeInt(payload.inputTokens),
+    output_tokens: safeInt(payload.outputTokens),
+    total_tokens: safeInt(payload.totalTokens),
+    cached_input_tokens: safeInt(payload.cachedInputTokens),
+    cache_miss_input_tokens: safeInt(payload.cacheMissInputTokens),
+    max_output_tokens:
+      typeof payload.maxOutputTokens === "number" && Number.isFinite(payload.maxOutputTokens)
+        ? Math.max(0, Math.round(payload.maxOutputTokens))
+        : null,
+    thinking: payload.thinking || null,
+    reasoning_effort: payload.reasoningEffort || null,
+    latency_ms:
+      typeof payload.latencyMs === "number" && Number.isFinite(payload.latencyMs)
+        ? Math.max(0, Math.round(payload.latencyMs))
+        : null,
+    error_message: payload.errorMessage || null,
+    request_hash: payload.requestHash || null,
+    response_hash: payload.responseHash || null,
+    request_payload: payload.requestPayload ?? null,
+    response_payload: payload.responsePayload ?? null,
+    metadata: payload.metadata || {},
+  };
+
+  const { error } = await supabaseAdmin
+    .from("hirelix_llm_usage_events")
+    .insert(row);
+
+  if (error) {
+    console.error("[search_persistence] recordLlmUsageEvent failed", {
+      stage: payload.stage,
+      search_id: payload.searchId,
+      error: formatDbError(error),
+    });
+  }
 }
 
 export async function setSearchStatus(

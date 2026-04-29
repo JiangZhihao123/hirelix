@@ -62,7 +62,7 @@ export async function judgeScoreBatch(
     sanitizeConstraintVerdicts: (value: unknown) => JudgeScoreResult["constraint_verdicts"];
     normalizeExperienceYears: (value: unknown) => number | null;
   },
-  context?: { searchId?: string; jobId?: string },
+  context?: { searchId?: string; jobId?: string; userId?: string },
 ): Promise<JudgeScoreResult[]> {
   const profilesText = batchIndexes
     .map((idx) => helpers.truncateForPrompt(profileTexts[idx], 2800))
@@ -103,6 +103,15 @@ export async function judgeScoreBatch(
             "SEARCH_JUDGE_REASONING_EFFORT",
             "high",
           ),
+          usageEvent: {
+            searchId: context?.searchId,
+            jobId: context?.jobId,
+            userId: context?.userId,
+            stage: judgeLabel === "Judge A" ? "judge_a" : "judge_b",
+            batchSize: batchIndexes.length,
+            candidateIndexes: batchIndexes,
+            metadata: { judge: judgeLabel },
+          },
         }),
         JUDGE_SCORING_TIMEOUT_MS,
         `${judgeLabel} scoring (attempt ${attempt})`,
@@ -208,6 +217,7 @@ export async function arbitrateCandidateScore(
       right: ScoredCandidateAssessment,
     ) => number;
   },
+  context?: { searchId?: string; jobId?: string; userId?: string },
 ): Promise<ScoredCandidateAssessment | null> {
   const prompt = buildArbiterPrompt(
     parsed,
@@ -240,6 +250,23 @@ export async function arbitrateCandidateScore(
             "SEARCH_ARBITER_REASONING_EFFORT",
             "max",
           ),
+          usageEvent: {
+            searchId: context?.searchId,
+            jobId: context?.jobId,
+            userId: context?.userId,
+            stage: "arbiter",
+            batchSize: 1,
+            candidateIndexes: [judgeA.index],
+            metadata: {
+              judge_a: judgeA,
+              judge_b: judgeB,
+              judge_delta: Math.max(
+                Math.abs(judgeA.capability_score - judgeB.capability_score),
+                Math.abs(judgeA.relevance_score - judgeB.relevance_score),
+                Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
+              ),
+            },
+          },
         }),
         ARBITER_SCORING_TIMEOUT_MS,
         `Arbiter scoring (attempt ${attempt})`,
@@ -314,7 +341,7 @@ export async function scoreSingleCandidate(
     judgeHelpers: Parameters<typeof judgeScoreBatch>[7];
     arbiterHelpers: Parameters<typeof arbitrateCandidateScore>[7];
   },
-  context?: { searchId?: string; jobId?: string },
+  context?: { searchId?: string; jobId?: string; userId?: string },
 ): Promise<ScoredCandidateAssessment | null> {
   if (runtime.judgeMode === "single") {
     try {
@@ -452,6 +479,7 @@ export async function scoreSingleCandidate(
       judgeB,
       totalPoolSize,
       helpers.arbiterHelpers,
+      context,
     );
   } catch (error) {
     helpers.logSearchEvent("dual_review_arbiter_failure", {
@@ -597,7 +625,7 @@ export async function scoreCandidateBatch(
   selectedIndexes: number[],
   totalPoolSize: number,
   helpers: Parameters<typeof scoreSingleCandidate>[6],
-  context?: { searchId?: string; jobId?: string },
+  context?: { searchId?: string; jobId?: string; userId?: string },
 ): Promise<ScoredCandidateAssessment[]> {
   if (selectedIndexes.length === 0) return [];
 
@@ -777,6 +805,7 @@ export async function scoreCandidateBatch(
           judgeB,
           totalPoolSize,
           helpers.arbiterHelpers,
+          context,
         );
       } catch (error) {
         helpers.logSearchEvent("dual_review_arbiter_failure", {
@@ -836,6 +865,7 @@ export async function deepScoreSelectedProfiles(
     onCandidateScored?: (assessment: ScoredCandidateAssessment, completedCount: number) => void | Promise<void>;
     searchId?: string;
     jobId?: string;
+    userId?: string;
   },
 ): Promise<ScoredCandidateAssessment[]> {
   if (!selectedIndexes.length) return [];
@@ -850,7 +880,7 @@ export async function deepScoreSelectedProfiles(
       batchIndexes,
       totalPoolSize,
       helpers.scoringHelpers,
-      { searchId: options?.searchId, jobId: options?.jobId },
+      { searchId: options?.searchId, jobId: options?.jobId, userId: options?.userId },
     );
     for (const result of results) {
       completedCount += 1;

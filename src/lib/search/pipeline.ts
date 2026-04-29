@@ -375,6 +375,12 @@ async function parseJobDescription(
           temperature: 0,
           jsonSchema: JD_SEARCH_INTENT_JSON_SCHEMA,
           deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
+          usageEvent: {
+            searchId: context.searchId,
+            jobId: context.jobId,
+            userId: context.userId,
+            stage: "parse",
+          },
         }),
         60000,
         "Search intent generation",
@@ -627,6 +633,7 @@ async function scoreBrightDataProfiles(
       },
       searchId: context.searchId,
       jobId: context.jobId,
+      userId: context.userId,
     },
   );
 

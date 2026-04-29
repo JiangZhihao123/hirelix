@@ -316,6 +316,7 @@ export function buildBrightDataCandidateRows(
       outreach_draft: null,
       metadata: {
         source: "brightdata",
+        source_index: rawIndex,
         analysis_stage: "final",
         preliminary: false,
         pool_type: poolType,

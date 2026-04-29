@@ -2486,6 +2486,17 @@ async function generateOutreachDraftsForRows(
             temperature: 0,
             jsonSchema: buildOutreachDraftJsonSchema(),
             deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
+            usageEvent: {
+              searchId: context.searchId,
+              jobId: context.jobId,
+              userId: context.userId,
+              stage: "outreach",
+              batchSize: 1,
+              candidateIndexes:
+                typeof normalizedRow.metadata?.source_index === "number"
+                  ? [normalizedRow.metadata.source_index]
+                  : null,
+            },
           }),
           60000,
           `Outreach draft for ${normalizedRow.name}`,
@@ -2719,6 +2730,7 @@ async function scoreBrightDataProfiles(
       },
       searchId: context.searchId,
       jobId: context.jobId,
+      userId: context.userId,
     },
   );
 

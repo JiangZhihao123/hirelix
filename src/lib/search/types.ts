@@ -187,6 +187,34 @@ export type PipelineContext = {
   outreachPoolTarget: number;
 };
 
+export type LlmUsageEventPayload = {
+  searchId?: string | null;
+  jobId?: string | null;
+  userId?: string | null;
+  stage: string;
+  status?: "success" | "error" | "timeout";
+  model: string;
+  provider?: string;
+  attempt?: number;
+  batchSize?: number | null;
+  candidateIndexes?: number[] | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cachedInputTokens?: number;
+  cacheMissInputTokens?: number;
+  maxOutputTokens?: number | null;
+  thinking?: string | null;
+  reasoningEffort?: string | null;
+  latencyMs?: number | null;
+  errorMessage?: string | null;
+  requestHash?: string | null;
+  responseHash?: string | null;
+  requestPayload?: Record<string, unknown> | null;
+  responsePayload?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+};
+
 export type SearchDisplayStats = {
   retrieval_count: number;
   deep_review_count: number;

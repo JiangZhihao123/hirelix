@@ -2,6 +2,9 @@ import {
   HTTPClient,
   OpenRouter,
 } from "@openrouter/sdk";
+import { createHash } from "node:crypto";
+import { recordLlmUsageEvent } from "@/lib/search/persistence";
+import type { LlmUsageEventPayload } from "@/lib/search/types";
 
 export type LlmJsonSchemaConfig = {
   name: string;
@@ -33,6 +36,27 @@ type LlmTextOptions = {
   requireParameters?: boolean;
   deepSeekThinking?: DeepSeekThinkingMode;
   deepSeekReasoningEffort?: DeepSeekReasoningEffort;
+  usageEvent?: Omit<
+    LlmUsageEventPayload,
+    | "model"
+    | "provider"
+    | "status"
+    | "attempt"
+    | "inputTokens"
+    | "outputTokens"
+    | "totalTokens"
+    | "cachedInputTokens"
+    | "cacheMissInputTokens"
+    | "maxOutputTokens"
+    | "thinking"
+    | "reasoningEffort"
+    | "latencyMs"
+    | "errorMessage"
+    | "requestHash"
+    | "responseHash"
+    | "requestPayload"
+    | "responsePayload"
+  >;
 };
 
 type LlmTextResult = {
@@ -46,6 +70,69 @@ type LlmTextResult = {
   };
   rawResponse: unknown;
 };
+
+type LlmUsage = LlmTextResult["usage"];
+
+function stableJson(value: unknown) {
+  return JSON.stringify(value);
+}
+
+function sha256Json(value: unknown) {
+  return createHash("sha256").update(stableJson(value) || "").digest("hex");
+}
+
+function buildOfficialDeepSeekBody(
+  options: LlmTextOptions,
+  thinkingType: DeepSeekThinkingMode,
+  reasoningEffort: DeepSeekReasoningEffort | null,
+) {
+  return {
+    model: options.model,
+    messages: buildMessages(options),
+    stream: false,
+    ...(typeof options.maxOutputTokens === "number"
+      ? { max_tokens: options.maxOutputTokens }
+      : {}),
+    ...(options.jsonSchema || options.jsonMode
+      ? { response_format: { type: "json_object" } }
+      : {}),
+    thinking: { type: thinkingType },
+    ...(thinkingType === "enabled"
+      ? { reasoning_effort: reasoningEffort || "high" }
+      : typeof options.temperature === "number"
+        ? { temperature: options.temperature }
+        : {}),
+  };
+}
+
+function buildOpenRouterRequestPayload(options: LlmTextOptions) {
+  return {
+    model: options.model,
+    messages: buildMessages(options),
+    stream: false,
+    temperature: options.temperature ?? 0,
+    ...(typeof options.maxOutputTokens === "number"
+      ? { maxTokens: options.maxOutputTokens }
+      : {}),
+    ...(options.jsonSchema
+      ? {
+          responseFormat: {
+            type: "json_schema",
+            jsonSchema: options.jsonSchema,
+          },
+        }
+      : options.jsonMode
+        ? {
+            responseFormat: {
+              type: "json_object",
+            },
+          }
+        : {}),
+    ...(options.requireParameters
+      ? { provider: { requireParameters: true } }
+      : {}),
+  };
+}
 
 let cachedClient: OpenRouter | null = null;
 
@@ -471,6 +558,57 @@ function buildUsage(usage: unknown) {
   };
 }
 
+async function recordUsageFromExit(params: {
+  options: LlmTextOptions;
+  provider: string;
+  attempt: number;
+  status: "success" | "error" | "timeout";
+  usage?: LlmUsage | null;
+  thinking?: DeepSeekThinkingMode | null;
+  reasoningEffort?: DeepSeekReasoningEffort | null;
+  latencyMs: number;
+  errorMessage?: string | null;
+  requestPayload?: unknown;
+  responsePayload?: unknown;
+}) {
+  const usageEvent = params.options.usageEvent;
+  const requestPayload = (params.requestPayload ?? {
+    model: params.options.model,
+    messages: buildMessages(params.options),
+  }) as Record<string, unknown>;
+  const responsePayload = (params.responsePayload ?? null) as Record<string, unknown> | null;
+
+  try {
+    await recordLlmUsageEvent({
+      ...usageEvent,
+      stage: usageEvent?.stage || "unknown",
+      status: params.status,
+      provider: params.provider,
+      model: params.options.model,
+      attempt: params.attempt,
+      inputTokens: params.usage?.inputTokens ?? 0,
+      outputTokens: params.usage?.outputTokens ?? 0,
+      totalTokens: params.usage?.totalTokens ?? 0,
+      cachedInputTokens: params.usage?.cachedInputTokens ?? 0,
+      cacheMissInputTokens: params.usage?.cacheMissInputTokens ?? 0,
+      maxOutputTokens: params.options.maxOutputTokens ?? null,
+      thinking: params.thinking ?? null,
+      reasoningEffort: params.reasoningEffort ?? null,
+      latencyMs: params.latencyMs,
+      errorMessage: params.errorMessage ?? null,
+      requestHash: sha256Json(requestPayload),
+      responseHash: responsePayload ? sha256Json(responsePayload) : null,
+      requestPayload,
+      responsePayload,
+    });
+  } catch (error) {
+    console.error("[llm-client] record usage failed", {
+      stage: usageEvent?.stage || "unknown",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function generateOfficialDeepSeekText(
   options: LlmTextOptions,
 ): Promise<LlmTextResult> {
@@ -482,11 +620,45 @@ async function generateOfficialDeepSeekText(
 
   let lastError: Error | null = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const startedAt = Date.now();
+    const thinking =
+      options.deepSeekThinking ??
+      resolveDeepSeekThinkingMode("DEEPSEEK_THINKING", "enabled");
+    const reasoningEffort =
+      thinking === "enabled"
+        ? options.deepSeekReasoningEffort ??
+          resolveDeepSeekReasoningEffort("DEEPSEEK_REASONING_EFFORT", "high")
+        : null;
+    const requestPayload = buildOfficialDeepSeekBody(options, thinking, reasoningEffort);
     try {
-      return await sendOfficialDeepSeekRequest(options);
+      const result = await sendOfficialDeepSeekRequest(options);
+      await recordUsageFromExit({
+        options,
+        provider: "deepseek",
+        attempt,
+        status: "success",
+        usage: result.usage,
+        thinking,
+        reasoningEffort,
+        latencyMs: Date.now() - startedAt,
+        requestPayload,
+        responsePayload: result.rawResponse,
+      });
+      return result;
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error));
       lastError = normalizedError;
+      await recordUsageFromExit({
+        options,
+        provider: "deepseek",
+        attempt,
+        status: normalizedError.message.includes("timed out") ? "timeout" : "error",
+        thinking,
+        reasoningEffort,
+        latencyMs: Date.now() - startedAt,
+        errorMessage: normalizedError.message,
+        requestPayload,
+      });
       if (options.abortSignal?.aborted || attempt >= maxAttempts || !isRetriableLlmError(error)) {
         throw normalizedError;
       }
@@ -504,27 +676,12 @@ async function sendOfficialDeepSeekRequest(
   const thinkingType =
     options.deepSeekThinking ??
     resolveDeepSeekThinkingMode("DEEPSEEK_THINKING", "enabled");
-  const body: Record<string, unknown> = {
-    model: options.model,
-    messages: buildMessages(options),
-    stream: false,
-    ...(typeof options.maxOutputTokens === "number"
-      ? { max_tokens: options.maxOutputTokens }
-      : {}),
-    ...(options.jsonSchema || options.jsonMode
-      ? { response_format: { type: "json_object" } }
-      : {}),
-    thinking: { type: thinkingType },
-    ...(thinkingType === "enabled"
-      ? {
-          reasoning_effort:
-            options.deepSeekReasoningEffort ??
-            resolveDeepSeekReasoningEffort("DEEPSEEK_REASONING_EFFORT", "high"),
-        }
-      : typeof options.temperature === "number"
-        ? { temperature: options.temperature }
-        : {}),
-  };
+  const reasoningEffort =
+    thinkingType === "enabled"
+      ? options.deepSeekReasoningEffort ??
+        resolveDeepSeekReasoningEffort("DEEPSEEK_REASONING_EFFORT", "high")
+      : null;
+  const body = buildOfficialDeepSeekBody(options, thinkingType, reasoningEffort);
 
   const { signal, cleanup } = createRequestSignal(options);
   let release: (() => void) | null = null;
@@ -616,57 +773,86 @@ export async function generateLlmText(
   }
 
   const client = getOpenRouterFallbackClient();
-  const response = await client.chat.send(
-    {
-      chatGenerationParams: {
-        model: options.model,
-        messages: buildMessages(options),
-        stream: false,
-        temperature: options.temperature ?? 0,
-        ...(typeof options.maxOutputTokens === "number"
-          ? { maxTokens: options.maxOutputTokens }
-          : {}),
-        ...(options.jsonSchema
-          ? {
-              responseFormat: {
-                type: "json_schema",
-                jsonSchema: options.jsonSchema,
-              } as const,
-            }
-          : options.jsonMode
-            ? {
-                responseFormat: {
-                  type: "json_object",
-                } as const,
-              }
-            : {}),
-        ...(options.requireParameters
-          ? { provider: { requireParameters: true } }
-          : {}),
+  const requestPayload = buildOpenRouterRequestPayload(options);
+  const startedAt = Date.now();
+  type NonStreamingOpenRouterResponse = {
+    choices: Array<{ message?: { content?: unknown } }>;
+    usage?: unknown;
+  } & Record<string, unknown>;
+  let response: NonStreamingOpenRouterResponse;
+  try {
+    response = await client.chat.send(
+      {
+        chatGenerationParams: requestPayload as Parameters<typeof client.chat.send>[0]["chatGenerationParams"],
       },
-    },
-    {
-      signal: options.abortSignal,
-      timeoutMs: options.timeoutMs,
-    },
-  );
+      {
+        signal: options.abortSignal,
+        timeoutMs: options.timeoutMs,
+      },
+    ) as NonStreamingOpenRouterResponse;
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error(String(error));
+    await recordUsageFromExit({
+      options,
+      provider: "openrouter",
+      attempt: 1,
+      status: normalizedError.message.includes("timed out") ? "timeout" : "error",
+      latencyMs: Date.now() - startedAt,
+      errorMessage: normalizedError.message,
+      requestPayload,
+    });
+    throw normalizedError;
+  }
 
   // OpenRouter fallback may return 200 with empty choices and an error payload.
   const apiError = (response as unknown as Record<string, unknown>).error;
   if (apiError && typeof apiError === "object") {
     const { code, message: msg } = apiError as { code?: unknown; message?: unknown };
+    await recordUsageFromExit({
+      options,
+      provider: "openrouter",
+      attempt: 1,
+      status: "error",
+      usage: buildUsage(response.usage as unknown),
+      latencyMs: Date.now() - startedAt,
+      errorMessage: `OpenRouter API error ${String(code ?? "unknown")}: ${String(msg ?? "unknown error")}`,
+      requestPayload,
+      responsePayload: response,
+    });
     throw new Error(`OpenRouter API error ${String(code ?? "unknown")}: ${String(msg ?? "unknown error")}`);
   }
 
   const message = response.choices[0]?.message;
   if (!message) {
+    await recordUsageFromExit({
+      options,
+      provider: "openrouter",
+      attempt: 1,
+      status: "error",
+      usage: buildUsage(response.usage as unknown),
+      latencyMs: Date.now() - startedAt,
+      errorMessage: "LLM provider returned an empty response (no choices)",
+      requestPayload,
+      responsePayload: response,
+    });
     throw new Error("LLM provider returned an empty response (no choices)");
   }
-  return {
+  const result = {
     text: normalizeMessageContent(message?.content),
     usage: buildUsage(response.usage as unknown),
     rawResponse: response,
   };
+  await recordUsageFromExit({
+    options,
+    provider: "openrouter",
+    attempt: 1,
+    status: "success",
+    usage: result.usage,
+    latencyMs: Date.now() - startedAt,
+    requestPayload,
+    responsePayload: response,
+  });
+  return result;
 }
 
 export async function generateLlmJson<T>(
