@@ -261,6 +261,18 @@ type RecallFilterSummary = {
   avoid_profiles?: string[];
 };
 
+export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
+  hasSnapshotDrift: boolean;
+  existingSnapshotId?: string | null;
+  standardProfileRowCount?: number | null;
+}) {
+  return Boolean(
+    params.hasSnapshotDrift &&
+    params.existingSnapshotId &&
+    (params.standardProfileRowCount ?? 0) > 0,
+  );
+}
+
 function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
   return {
     strong_now: 0,
@@ -912,6 +924,17 @@ async function buildBrightDataDatasetCandidates(
       .slice(0, 10),
   };
   let standardCacheEntry: SnapshotCacheEntry | null = null;
+  const preloadedSnapshotProfileRows = new Map<string, Record<string, unknown>[] | null>();
+  const getSnapshotProfileRows = async (targetSnapshotId: string, sourceRound: string) => {
+    const key = `${targetSnapshotId}:${sourceRound}`;
+    if (preloadedSnapshotProfileRows.has(key)) {
+      return preloadedSnapshotProfileRows.get(key) ?? null;
+    }
+    const rows = await loadCachedSnapshotProfiles(targetSnapshotId, sourceRound);
+    const cachedRows = rows?.length ? rows : null;
+    preloadedSnapshotProfileRows.set(key, cachedRows);
+    return cachedRows;
+  };
 
   const buildRoundDiagnostics = (params: {
     standardReturned?: number | null;
@@ -1002,15 +1025,34 @@ async function buildBrightDataDatasetCandidates(
     await updateSearchParsedRequirements(context.searchId, parsed);
   };
 
-  if (
-    helpers.hasRecallSnapshotDrift(
-      existingRecallMetadata,
-      filterSummary,
-      executionProfile,
-      runtime,
-      recallRequest.recordsLimit,
-    )
-  ) {
+  const existingStandardSnapshotRows = snapshotId
+    ? await getSnapshotProfileRows(snapshotId, "standard")
+    : null;
+  const hasSnapshotDrift = helpers.hasRecallSnapshotDrift(
+    existingRecallMetadata,
+    filterSummary,
+    executionProfile,
+    runtime,
+    recallRequest.recordsLimit,
+  );
+  const shouldKeepSnapshotProfileCache = shouldReuseProfileCacheDespiteSnapshotDrift({
+    hasSnapshotDrift,
+    existingSnapshotId: existingRecallMetadata?.snapshot_id,
+    standardProfileRowCount: existingStandardSnapshotRows?.length,
+  });
+
+  if (shouldKeepSnapshotProfileCache) {
+    helpers.logSearchEvent("search_recall_snapshot_drift_ignored_for_profile_cache", {
+      search_id: context.searchId,
+      snapshot_id: existingRecallMetadata?.snapshot_id,
+      standard_profile_rows: existingStandardSnapshotRows?.length ?? 0,
+      previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
+      next_budget: executionProfile.filterLimit,
+      previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
+      next_judge_mode: runtime.judgeMode,
+      job_id: context.jobId,
+    });
+  } else if (hasSnapshotDrift) {
     helpers.logSearchEvent("search_recall_snapshot_invalidated", {
       search_id: context.searchId,
       old_snapshot_id: existingRecallMetadata?.snapshot_id,
@@ -1169,7 +1211,7 @@ async function buildBrightDataDatasetCandidates(
       : {}
   );
 
-  const cachedStandardRows = await loadCachedSnapshotProfiles(activeSnapshotId, "standard");
+  const cachedStandardRows = await getSnapshotProfileRows(activeSnapshotId, "standard");
   if (cachedStandardRows?.length) {
     standardLoadedFromProfileCache = true;
     profiles = cachedStandardRows.map(adaptDatasetRecordToBrightDataProfile);
@@ -1224,7 +1266,7 @@ async function buildBrightDataDatasetCandidates(
 
   const additionalSnapshotStates = await Promise.all(
     additionalSnapshotRefs.map(async (round) => {
-      const cachedRoundRows = await loadCachedSnapshotProfiles(round.snapshotId, round.round);
+      const cachedRoundRows = await getSnapshotProfileRows(round.snapshotId, round.round);
       if (cachedRoundRows?.length) {
         helpers.logSearchEvent("search_snapshot_profile_cache_hit", {
           search_id: context.searchId,

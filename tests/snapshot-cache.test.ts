@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getSnapshotCacheTtlDays } from "../src/lib/search/persistence";
+import { shouldReuseProfileCacheDespiteSnapshotDrift } from "../src/lib/search/pipeline";
 
 const mutableEnv = process.env as Record<string, string | undefined>;
 
@@ -34,4 +35,33 @@ test("getSnapshotCacheTtlDays honors positive overrides and caps stale windows",
   } else {
     mutableEnv.BRIGHTDATA_SNAPSHOT_CACHE_TTL_DAYS = original;
   }
+});
+
+test("retry keeps existing snapshot profile cache even when recall metadata drifts", () => {
+  assert.equal(
+    shouldReuseProfileCacheDespiteSnapshotDrift({
+      hasSnapshotDrift: true,
+      existingSnapshotId: "snap_existing",
+      standardProfileRowCount: 50,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldReuseProfileCacheDespiteSnapshotDrift({
+      hasSnapshotDrift: true,
+      existingSnapshotId: "snap_existing",
+      standardProfileRowCount: 0,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldReuseProfileCacheDespiteSnapshotDrift({
+      hasSnapshotDrift: false,
+      existingSnapshotId: "snap_existing",
+      standardProfileRowCount: 50,
+    }),
+    false,
+  );
 });
