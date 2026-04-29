@@ -65,8 +65,8 @@ export const GITHUB_ENRICH_LIMIT = getConfiguredPositiveInt(
 
 export const DEEP_SCORING_BATCH_SIZE = getConfiguredPositiveInt(
   "SEARCH_DEEP_SCORING_BATCH_SIZE",
-  1,
-  { max: 10 },
+  10,
+  { max: 40 },
 );
 
 export const DEEP_SCORING_CONCURRENCY = getConfiguredPositiveInt(
@@ -201,7 +201,7 @@ export const PARSE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
 export const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_JUDGE_MAX_OUTPUT_TOKENS",
   SEARCH_LOW_COST_MODE ? 900 : 2400,
-  { min: 120, max: 6000 },
+  { min: 120, max: 20000 },
 );
 
 export const ARBITER_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(

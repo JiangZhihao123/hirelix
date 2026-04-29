@@ -51,7 +51,7 @@ import {
   arbitrateCandidateScore,
   deepScoreSelectedProfiles,
   judgeScoreBatch,
-  scoreSingleCandidate,
+  scoreCandidateBatch,
 } from "@/lib/search/scoring-runtime";
 import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring";
 import type {
@@ -545,7 +545,7 @@ async function scoreBrightDataProfiles(
     selectedIndexes,
     brightProfiles.length,
     {
-      scoreSingleCandidate,
+      scoreCandidateBatch,
       sortCandidateAssessments: helpers.sortCandidateAssessments,
       scoringHelpers: {
         judgeScoreBatch,

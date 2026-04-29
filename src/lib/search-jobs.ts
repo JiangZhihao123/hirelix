@@ -140,7 +140,7 @@ import {
   arbitrateCandidateScore,
   deepScoreSelectedProfiles,
   judgeScoreBatch,
-  scoreSingleCandidate,
+  scoreCandidateBatch,
 } from "@/lib/search/scoring-runtime";
 import { completeSearch } from "@/lib/search/finalize";
 import {
@@ -1131,12 +1131,16 @@ function estimateBrightPipelineLlmCost(params: {
     params.renderProfileEntries.length *
     estimateLlmCallCost(preScreenInputTokens, preScreenOutputTokens);
 
-  const judgeInputTokens = searchContextTokens + truncatedJdTokens + avgProfileTokens + 260;
-  const judgeOutputTokens = Math.min(params.runtime.judgeMaxOutputTokens, 260);
+  const judgeBatchSize = Math.max(1, Math.min(DEEP_SCORING_BATCH_SIZE, params.selectedCount || 1));
+  const judgeBatchCount = Math.ceil(params.selectedCount / judgeBatchSize);
+  const avgJudgeBatchSize = judgeBatchCount > 0 ? params.selectedCount / judgeBatchCount : 1;
+  const judgeInputTokens =
+    searchContextTokens + truncatedJdTokens + Math.ceil(avgProfileTokens * avgJudgeBatchSize) + 260;
+  const judgeOutputTokens = Math.min(Math.ceil(260 * avgJudgeBatchSize), 20000);
   const judgeCallCount =
     params.runtime.judgeMode === "single"
-      ? params.selectedCount
-      : params.selectedCount * 2;
+      ? judgeBatchCount
+      : judgeBatchCount * 2;
   const judgeCost =
     judgeCallCount * estimateLlmCallCost(judgeInputTokens, judgeOutputTokens);
 
@@ -2618,7 +2622,7 @@ async function scoreBrightDataProfiles(
     selectedIndexes,
     brightProfiles.length,
     {
-      scoreSingleCandidate,
+      scoreCandidateBatch,
       sortCandidateAssessments,
       scoringHelpers: {
         judgeScoreBatch,

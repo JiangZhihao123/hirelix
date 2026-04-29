@@ -7,6 +7,7 @@ import {
   buildJudgeScoreJsonSchema,
 } from "@/lib/llm-schemas";
 import {
+  DEEP_SCORING_BATCH_SIZE,
   DEEP_CACHE_PRIMER_COUNT,
   ARBITER_SCORING_TIMEOUT_MS,
   DEEP_REVIEW_CONCURRENCY,
@@ -79,6 +80,10 @@ export async function judgeScoreBatch(
   );
   const judgeModel = helpers.getJudgeModel();
   const maxAttempts = runtime.judgeMaxAttempts;
+  const maxOutputTokens = Math.min(
+    Math.max(runtime.judgeMaxOutputTokens, runtime.judgeMaxOutputTokens * batchIndexes.length),
+    20000,
+  );
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -87,7 +92,7 @@ export async function judgeScoreBatch(
         (signal) => generateLlmJson<unknown>({
           model: judgeModel,
           prompt,
-          maxOutputTokens: runtime.judgeMaxOutputTokens,
+          maxOutputTokens,
           abortSignal: signal,
           timeoutMs: JUDGE_SCORING_TIMEOUT_MS,
           temperature: 0,
@@ -112,6 +117,7 @@ export async function judgeScoreBatch(
           batch_size: batchIndexes.length,
           input_tokens: usage.inputTokens,
           output_tokens: usage.outputTokens,
+          max_output_tokens: maxOutputTokens,
           cached_input_tokens: usage.cachedInputTokens,
           cache_miss_input_tokens: usage.cacheMissInputTokens,
           cache_hit_ratio:
@@ -471,6 +477,246 @@ export async function scoreSingleCandidate(
   }
 }
 
+function mapJudgeResultsByIndex(results: JudgeScoreResult[]) {
+  const byIndex = new Map<number, JudgeScoreResult>();
+  for (const result of results) {
+    byIndex.set(result.index, result);
+  }
+  return byIndex;
+}
+
+export async function scoreCandidateBatch(
+  runtime: SearchExecutionRuntime,
+  parsed: Record<string, unknown>,
+  jdText: string,
+  profileTexts: string[],
+  selectedIndexes: number[],
+  totalPoolSize: number,
+  helpers: Parameters<typeof scoreSingleCandidate>[6],
+  context?: { searchId?: string; jobId?: string },
+): Promise<ScoredCandidateAssessment[]> {
+  if (selectedIndexes.length === 0) return [];
+
+  if (selectedIndexes.length === 1) {
+    const single = await scoreSingleCandidate(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      selectedIndexes[0],
+      totalPoolSize,
+      helpers,
+      context,
+    );
+    return single ? [single] : [];
+  }
+
+  if (runtime.judgeMode === "single") {
+    try {
+      const judgeResults = await helpers.judgeScoreBatch(
+        runtime,
+        parsed,
+        jdText,
+        profileTexts,
+        selectedIndexes,
+        totalPoolSize,
+        "Judge A",
+        helpers.judgeHelpers,
+        context,
+      );
+      return judgeResults
+        .map((judge) => ({
+          ...mergeJudgeResults(judge, judge, {
+            computeQualityScore: helpers.computeQualityScore,
+            computeAdvanceScore: helpers.computeAdvanceScore,
+            deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
+            sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
+            normalizeNullableString: helpers.normalizeNullableString,
+          }),
+          scoring_method: "single_judge_debug" as const,
+          judge_delta: 0,
+          judge_conflict: false,
+        }))
+        .sort((left, right) => left.index - right.index);
+    } catch (error) {
+      helpers.logSearchEvent("single_judge_batch_scoring_failed", {
+        indexes: selectedIndexes,
+        batch_size: selectedIndexes.length,
+        error: error instanceof Error ? error.message : String(error),
+        ...(context?.searchId && { search_id: context.searchId }),
+        ...(context?.jobId && { job_id: context.jobId }),
+      });
+      return [];
+    }
+  }
+
+  const [judgeAResults, judgeBResults] = await Promise.allSettled([
+    helpers.judgeScoreBatch(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      selectedIndexes,
+      totalPoolSize,
+      "Judge A",
+      helpers.judgeHelpers,
+      context,
+    ),
+    helpers.judgeScoreBatch(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      selectedIndexes,
+      totalPoolSize,
+      "Judge B",
+      helpers.judgeHelpers,
+      context,
+    ),
+  ]);
+
+  if (judgeAResults.status === "rejected" || judgeBResults.status === "rejected") {
+    helpers.logSearchEvent("dual_review_batch_judge_failure", {
+      indexes: selectedIndexes,
+      batch_size: selectedIndexes.length,
+      judge_a_error:
+        judgeAResults.status === "rejected"
+          ? judgeAResults.reason instanceof Error
+            ? judgeAResults.reason.message
+            : String(judgeAResults.reason)
+          : null,
+      judge_b_error:
+        judgeBResults.status === "rejected"
+          ? judgeBResults.reason instanceof Error
+            ? judgeBResults.reason.message
+            : String(judgeBResults.reason)
+          : null,
+      ...(context?.searchId && { search_id: context.searchId }),
+      ...(context?.jobId && { job_id: context.jobId }),
+    });
+  }
+
+  const judgeAByIndex = mapJudgeResultsByIndex(
+    judgeAResults.status === "fulfilled" ? judgeAResults.value : [],
+  );
+  const judgeBByIndex = mapJudgeResultsByIndex(
+    judgeBResults.status === "fulfilled" ? judgeBResults.value : [],
+  );
+  const assessments: ScoredCandidateAssessment[] = [];
+  const conflicts: Array<{
+    index: number;
+    judgeA: JudgeScoreResult;
+    judgeB: JudgeScoreResult;
+  }> = [];
+
+  for (const selectedIndex of selectedIndexes) {
+    const judgeA = judgeAByIndex.get(selectedIndex) ?? null;
+    const judgeB = judgeBByIndex.get(selectedIndex) ?? null;
+
+    if (!judgeA && !judgeB) continue;
+    if (judgeA && !judgeB) {
+      assessments.push({
+        ...mergeJudgeResults(judgeA, judgeA, {
+          computeQualityScore: helpers.computeQualityScore,
+          computeAdvanceScore: helpers.computeAdvanceScore,
+          deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
+          sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
+          normalizeNullableString: helpers.normalizeNullableString,
+        }),
+        judge_delta: 0,
+      });
+      continue;
+    }
+    if (judgeB && !judgeA) {
+      assessments.push({
+        ...mergeJudgeResults(judgeB, judgeB, {
+          computeQualityScore: helpers.computeQualityScore,
+          computeAdvanceScore: helpers.computeAdvanceScore,
+          deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
+          sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
+          normalizeNullableString: helpers.normalizeNullableString,
+        }),
+        judge_delta: 0,
+      });
+      continue;
+    }
+
+    if (!judgeA || !judgeB) continue;
+    if (hasJudgeConflict(judgeA, judgeB, {
+      computeQualityScore: helpers.computeQualityScore,
+      deriveFitDecisionFromScore: helpers.deriveFitDecisionFromScore,
+    })) {
+      conflicts.push({ index: selectedIndex, judgeA, judgeB });
+      continue;
+    }
+
+    assessments.push({
+      ...mergeJudgeResults(judgeA, judgeB, {
+        computeQualityScore: helpers.computeQualityScore,
+        computeAdvanceScore: helpers.computeAdvanceScore,
+        deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
+        sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
+        normalizeNullableString: helpers.normalizeNullableString,
+      }),
+      judge_conflict: false,
+    });
+  }
+
+  const arbiterConcurrency = Math.min(2, conflicts.length);
+  const arbitrated = await runWithConcurrency(
+    conflicts,
+    arbiterConcurrency,
+    async ({ index, judgeA, judgeB }) => {
+      try {
+        return await helpers.arbitrateCandidateScore(
+          runtime,
+          parsed,
+          jdText,
+          profileTexts[index],
+          judgeA,
+          judgeB,
+          totalPoolSize,
+          helpers.arbiterHelpers,
+        );
+      } catch (error) {
+        helpers.logSearchEvent("dual_review_arbiter_failure", {
+          index,
+          error: error instanceof Error ? error.message : String(error),
+          ...(context?.searchId && { search_id: context.searchId }),
+          ...(context?.jobId && { job_id: context.jobId }),
+        });
+        return {
+          ...mergeJudgeResults(judgeA, judgeB, {
+            computeQualityScore: helpers.computeQualityScore,
+            computeAdvanceScore: helpers.computeAdvanceScore,
+            deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
+            sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
+            normalizeNullableString: helpers.normalizeNullableString,
+          }),
+          scoring_method: "dual_review_auto" as const,
+          judge_delta: Math.max(
+            Math.abs(judgeA.capability_score - judgeB.capability_score),
+            Math.abs(judgeA.relevance_score - judgeB.relevance_score),
+            Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
+          ),
+          judge_conflict: true,
+        };
+      }
+    },
+  );
+
+  return [...assessments, ...arbitrated.filter((entry): entry is ScoredCandidateAssessment => Boolean(entry))]
+    .sort((left, right) => left.index - right.index);
+}
+
+function chunkIndexes(indexes: number[], batchSize: number) {
+  const chunks: number[][] = [];
+  for (let index = 0; index < indexes.length; index += batchSize) {
+    chunks.push(indexes.slice(index, index + batchSize));
+  }
+  return chunks;
+}
+
 export async function deepScoreSelectedProfiles(
   runtime: SearchExecutionRuntime,
   parsed: Record<string, unknown>,
@@ -479,7 +725,7 @@ export async function deepScoreSelectedProfiles(
   selectedIndexes: number[],
   totalPoolSize: number,
   helpers: {
-    scoreSingleCandidate: typeof scoreSingleCandidate;
+    scoreCandidateBatch: typeof scoreCandidateBatch;
     sortCandidateAssessments: (
       left: ScoredCandidateAssessment,
       right: ScoredCandidateAssessment,
@@ -495,18 +741,18 @@ export async function deepScoreSelectedProfiles(
   if (!selectedIndexes.length) return [];
 
   let completedCount = 0;
-  const scoreIndex = async (selectedIndex: number) => {
-    const result = await helpers.scoreSingleCandidate(
+  const scoreBatch = async (batchIndexes: number[]) => {
+    const results = await helpers.scoreCandidateBatch(
       runtime,
       parsed,
       jdText,
       profileTexts,
-      selectedIndex,
+      batchIndexes,
       totalPoolSize,
       helpers.scoringHelpers,
       { searchId: options?.searchId, jobId: options?.jobId },
     );
-    if (result) {
+    for (const result of results) {
       completedCount += 1;
       try {
         await options?.onCandidateScored?.(result, completedCount);
@@ -514,26 +760,33 @@ export async function deepScoreSelectedProfiles(
         // non-blocking
       }
     }
-    return result;
+    return results;
   };
 
-  const primerCount = Math.min(DEEP_CACHE_PRIMER_COUNT, selectedIndexes.length);
-  const primerIndexes = selectedIndexes.slice(0, primerCount);
-  const remainingIndexes = selectedIndexes.slice(primerCount);
-  const primerAssessments: Array<ScoredCandidateAssessment | null> = [];
+  const batchSize = Math.min(
+    Math.max(1, DEEP_SCORING_BATCH_SIZE),
+    selectedIndexes.length,
+  );
+  const batches = chunkIndexes(selectedIndexes, batchSize);
+  const primerBatchCount = Math.min(
+    Math.max(1, DEEP_CACHE_PRIMER_COUNT),
+    batches.length,
+  );
+  const primerBatches = batches.slice(0, primerBatchCount);
+  const remainingBatches = batches.slice(primerBatchCount);
+  const primerAssessments: ScoredCandidateAssessment[] = [];
 
-  for (const selectedIndex of primerIndexes) {
-    primerAssessments.push(await scoreIndex(selectedIndex));
+  for (const batch of primerBatches) {
+    primerAssessments.push(...await scoreBatch(batch));
   }
 
-  const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, remainingIndexes.length);
-  const remainingAssessments = await runWithConcurrency(
-    remainingIndexes,
+  const workerCount = Math.min(DEEP_REVIEW_CONCURRENCY, remainingBatches.length);
+  const remainingAssessmentBatches = await runWithConcurrency(
+    remainingBatches,
     workerCount,
-    scoreIndex,
+    scoreBatch,
   );
 
-  return [...primerAssessments, ...remainingAssessments]
-    .filter((assessment): assessment is ScoredCandidateAssessment => Boolean(assessment))
+  return [...primerAssessments, ...remainingAssessmentBatches.flat()]
     .sort(helpers.sortCandidateAssessments);
 }
