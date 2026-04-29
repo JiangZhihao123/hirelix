@@ -134,6 +134,7 @@ export type CandidateRow = {
 };
 
 export type PublicEvidenceItem = {
+  citation_label?: string | null;
   source_type?: string | null;
   source_url?: string | null;
   title?: string | null;
@@ -237,6 +238,17 @@ export type GithubSignals = {
   profile_login?: string | null;
   activity_trend?: string | null;
   top_languages?: string[];
+  merged_pr_highlights?: Array<{
+    repo?: string | null;
+    repo_url?: string | null;
+    repo_description?: string | null;
+    repo_primary_language?: string | null;
+    repo_stargazers_count?: number | null;
+    repo_topics?: string[];
+    project_summary?: string | null;
+    title?: string | null;
+    url?: string | null;
+  }>;
   merged_pr_count?: number | null;
   commit_message_quality?: string | null;
   highlight?: string | null;

@@ -451,9 +451,10 @@ export async function enrichGithubSignalsForCandidate(
           top_languages: topLanguages,
           top_language_weights: topLanguageWeights,
           merged_pr_count: mergedPrSignals.count,
+          merged_pr_highlights: mergedPrSignals.highlights,
           commit_message_quality: `${commitMessageQuality.label}: ${commitMessageQuality.detail}`,
           highlight,
-         discovery_confidence: round(discovery.confidence, 3),
+          discovery_confidence: round(discovery.confidence, 3),
           identity_evidence: discovery.evidence,
           github_signal_score: githubSignalScore,
           evidence_strength: readout.evidenceStrength,
@@ -467,7 +468,7 @@ export async function enrichGithubSignalsForCandidate(
               highlight,
               activityTrend,
               mergedPrSignals.highlights[0]?.title
-                ? `Merged PR proof: ${mergedPrSignals.highlights[0]?.title}${mergedPrSignals.highlights[0]?.repo ? ` in ${mergedPrSignals.highlights[0]?.repo}` : ""}`
+                ? `Merged PR proof: ${mergedPrSignals.highlights[0]?.title}${mergedPrSignals.highlights[0]?.project_summary ? ` in ${mergedPrSignals.highlights[0]?.project_summary}` : mergedPrSignals.highlights[0]?.repo ? ` in ${mergedPrSignals.highlights[0]?.repo}` : ""}`
                 : mergedPrSignals.count > 0
                   ? `${mergedPrSignals.count} merged PRs into external repositories`
                   : null,

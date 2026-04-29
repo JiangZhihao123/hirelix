@@ -5,6 +5,7 @@ import type {
   ConstraintVerdict,
   ExcludedReason,
   GithubSignals,
+  PublicEvidence,
   SearchPageCacheSnapshot,
 } from "./types";
 
@@ -411,7 +412,7 @@ export function getCandidateGithubSignals(candidate: CandidateRow): GithubSignal
   };
 }
 
-export function getCandidatePublicEvidence(candidate: CandidateRow) {
+export function getCandidatePublicEvidence(candidate: CandidateRow): PublicEvidence | null {
   const value = candidate.metadata?.public_evidence;
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -435,6 +436,7 @@ export function getCandidatePublicEvidence(candidate: CandidateRow) {
       ? item.items
           .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
           .map((entry) => ({
+            citation_label: typeof entry.citation_label === "string" ? entry.citation_label : null,
             source_type: typeof entry.source_type === "string" ? entry.source_type : null,
             source_url: typeof entry.source_url === "string" ? entry.source_url : null,
             title: typeof entry.title === "string" ? entry.title : null,

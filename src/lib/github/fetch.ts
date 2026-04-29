@@ -130,6 +130,66 @@ function repositoryNameFromApiUrl(value: string | null | undefined) {
   return match?.[1] || null;
 }
 
+function buildRepoProjectSummary(params: {
+  repo: string | null;
+  description?: string | null;
+  language?: string | null;
+  stars?: number | null;
+  topics?: string[];
+}) {
+  if (!params.repo) return null;
+  const fragments = [
+    params.description?.trim() || null,
+    params.language ? `${params.language} project` : null,
+    typeof params.stars === "number" && params.stars > 0
+      ? `${params.stars.toLocaleString("en-US")} stars`
+      : null,
+    params.topics && params.topics.length > 0
+      ? `topics: ${params.topics.slice(0, 4).join(", ")}`
+      : null,
+  ].filter(Boolean);
+  return fragments.length > 0
+    ? `${params.repo} (${fragments.join("; ")})`
+    : params.repo;
+}
+
+async function fetchRepositoryMetadata(repo: string | null) {
+  if (!repo) return null;
+  try {
+    const data = await githubFetch(`/repos/${repo}`) as {
+      html_url?: string | null;
+      description?: string | null;
+      language?: string | null;
+      stargazers_count?: number | null;
+      topics?: string[] | null;
+    };
+    const topics = Array.isArray(data.topics) ? data.topics.filter(Boolean).slice(0, 8) : [];
+    return {
+      repo_url: data.html_url || `https://github.com/${repo}`,
+      repo_description: data.description || null,
+      repo_primary_language: data.language || null,
+      repo_stargazers_count: typeof data.stargazers_count === "number" ? data.stargazers_count : null,
+      repo_topics: topics,
+      project_summary: buildRepoProjectSummary({
+        repo,
+        description: data.description,
+        language: data.language,
+        stars: data.stargazers_count,
+        topics,
+      }),
+    };
+  } catch {
+    return {
+      repo_url: `https://github.com/${repo}`,
+      repo_description: null,
+      repo_primary_language: null,
+      repo_stargazers_count: null,
+      repo_topics: [],
+      project_summary: buildRepoProjectSummary({ repo }),
+    };
+  }
+}
+
 export async function fetchMergedPrSignals(username: string): Promise<MergedPrSignal> {
   const data = await githubFetch(`/search/issues?q=${encodeURIComponent(`type:pr is:merged author:${username} -user:${username} archived:false`)}&per_page=5`) as {
     total_count?: number;
@@ -139,13 +199,20 @@ export async function fetchMergedPrSignals(username: string): Promise<MergedPrSi
       repository_url?: string | null;
     }>;
   };
-  return {
-    count: data.total_count || 0,
-    highlights: (data.items || []).map((item) => ({
-      repo: repositoryNameFromApiUrl(item.repository_url),
+  const highlights = [];
+  for (const item of data.items || []) {
+    const repo = repositoryNameFromApiUrl(item.repository_url);
+    const repoMetadata = await fetchRepositoryMetadata(repo);
+    highlights.push({
+      repo,
+      ...(repoMetadata || {}),
       title: item.title || null,
       url: item.html_url || null,
-    })),
+    });
+  }
+  return {
+    count: data.total_count || 0,
+    highlights,
   };
 }
 
@@ -183,7 +250,8 @@ export function buildGithubHighlight(params: {
 }) {
   const topMergedPr = params.mergedPrSignals.highlights[0];
   if (topMergedPr?.repo && topMergedPr.title) {
-    return `${params.username} has a merged PR in ${topMergedPr.repo} titled "${topMergedPr.title}", which is a concrete open-source collaboration signal.`;
+    const projectContext = topMergedPr.project_summary || topMergedPr.repo;
+    return `${params.username} has a merged PR titled "${topMergedPr.title}" in ${projectContext}, which is a concrete open-source collaboration signal.`;
   }
   const topRepo = params.repoSummaries[0];
   if (topRepo) {

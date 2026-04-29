@@ -17,7 +17,7 @@ import {
 import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { sanitizeDisplayName } from "@/lib/display-name";
-import type { CandidateRow } from "./types";
+import type { CandidateRow, PublicEvidenceItem } from "./types";
 import {
   deriveCurrentCompany,
   deriveCurrentRole,
@@ -32,6 +32,10 @@ import {
   parseOutreach,
 } from "./utils";
 import { ActionabilityBadge, ContactActionStrip, InitialsAvatar, ScoreBadge } from "./ui";
+
+function citationLabelForItem(item: { citation_label?: string | null }, index: number) {
+  return item.citation_label || `[${index + 1}]`;
+}
 
 export function CandidateWorkbenchDetail({
   candidate,
@@ -104,7 +108,7 @@ export function CandidateWorkbenchDetail({
     : [];
   const hasVerifiedGithub = githubSignals?.status === "verified";
   const evidenceSourceLabel = getEvidenceSourceLabel(githubSignals);
-  const publicEvidenceItems =
+  const publicEvidenceItems: PublicEvidenceItem[] =
     publicEvidence?.items && publicEvidence.items.length > 0
       ? publicEvidence.items
       : hasVerifiedGithub && (githubSignals?.highlight || githubSignals?.recruiter_summary)
@@ -121,6 +125,7 @@ export function CandidateWorkbenchDetail({
                 githubSignals.evidence_strength === "weak"
                   ? githubSignals.evidence_strength
                   : "weak",
+              citation_label: "[1]",
               evidence_summary: githubSignals.highlight || githubSignals.recruiter_summary,
               outreach_angle: githubSignals.outreach_angle,
             },
@@ -202,7 +207,7 @@ export function CandidateWorkbenchDetail({
     ...riskFlags,
   ].slice(0, 5);
   const publicEvidenceSourceLabel = publicEvidenceItems[0]?.source_type
-    ? `Public ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
+    ? `${publicEvidenceItems[0].citation_label || "[1]"} Public ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
     : evidenceSourceLabel;
   const bestOpeningAngle =
     publicEvidenceItems[0]?.outreach_angle ||
@@ -409,16 +414,18 @@ export function CandidateWorkbenchDetail({
               <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
                   {publicEvidenceItems[0]?.source_type
-                    ? `PUBLIC ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
+                    ? `${publicEvidenceItems[0].citation_label || "[1]"} PUBLIC ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
                     : evidenceSourceLabel}
                 </p>
                 <p className="mt-2">{proofToReference}</p>
               </div>
               {publicEvidenceItems.length > 0 && (
                 <ul className="mt-3 space-y-2">
-                  {publicEvidenceItems.slice(0, 3).map((item) => (
+                  {publicEvidenceItems.slice(0, 3).map((item, index) => (
                     <li key={`${item.source_url}-${item.evidence_summary}`} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
-                      <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span className="mt-0.5 inline-flex h-5 min-w-7 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 px-1.5 text-[11px] font-semibold text-sky-700">
+                        {citationLabelForItem(item, index)}
+                      </span>
                       <span>
                         {item.evidence_summary}
                         {item.source_url && (
@@ -430,6 +437,23 @@ export function CandidateWorkbenchDetail({
                     </li>
                   ))}
                 </ul>
+              )}
+              {publicEvidenceItems.some((item) => item.source_url) && (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Sources
+                  </p>
+                  <ol className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
+                    {publicEvidenceItems.slice(0, 5).map((item, index) => item.source_url ? (
+                      <li key={`${item.source_url}-${index}`} className="flex gap-2">
+                        <span className="font-semibold text-slate-800">{citationLabelForItem(item, index)}</span>
+                        <a href={item.source_url} target="_blank" rel="noreferrer" className="break-all text-sky-700 hover:text-sky-900">
+                          {item.title || item.source_url}
+                        </a>
+                      </li>
+                    ) : null)}
+                  </ol>
+                </div>
               )}
               {publicEvidenceItems[0]?.outreach_angle && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">

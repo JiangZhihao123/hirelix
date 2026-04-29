@@ -69,6 +69,7 @@ export type GithubSignals = {
   top_languages: string[];
   top_language_weights?: GithubLanguageSignal[];
   merged_pr_count: number | null;
+  merged_pr_highlights?: MergedPrSignal["highlights"];
   commit_message_quality: string | null;
   highlight: string | null;
   discovery_confidence: number;
@@ -125,6 +126,12 @@ export type MergedPrSignal = {
   count: number;
   highlights: Array<{
     repo: string | null;
+    repo_url?: string | null;
+    repo_description?: string | null;
+    repo_primary_language?: string | null;
+    repo_stargazers_count?: number | null;
+    repo_topics?: string[];
+    project_summary?: string | null;
     title: string | null;
     url: string | null;
   }>;

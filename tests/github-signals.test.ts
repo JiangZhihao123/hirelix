@@ -16,6 +16,7 @@ import {
   GITHUB_IDENTITY_JUDGE_SYSTEM_PROMPT,
   shouldUseLlmIdentityJudge,
 } from "../src/lib/github/identity-judge";
+import { buildGithubHighlight } from "../src/lib/github/fetch";
 import { extractPublicProfileLinks } from "../src/lib/github/public-links";
 
 test("extractGitHubUrlsFromText returns unique GitHub profile URLs", () => {
@@ -229,6 +230,35 @@ test("buildRecruiterFacingGithubReadout produces recruiter-usable github summary
   assert.match(readout.recruiterSummary, /worth contacting/i);
   assert.match(readout.outreachAngle, /Open with this proof point/i);
   assert.ok(readout.verificationRisks.length >= 1);
+});
+
+test("buildGithubHighlight includes project context for merged PR evidence", () => {
+  const highlight = buildGithubHighlight({
+    username: "alice",
+    activityTrend: "Stable contributor.",
+    topLanguages: ["TypeScript"],
+    repoSummaries: [],
+    mergedPrSignals: {
+      count: 1,
+      highlights: [
+        {
+          repo: "elastic/kibana",
+          repo_url: "https://github.com/elastic/kibana",
+          repo_description: "Your window into the Elastic Stack",
+          repo_primary_language: "TypeScript",
+          repo_stargazers_count: 21200,
+          repo_topics: ["search", "observability"],
+          project_summary: "elastic/kibana (Your window into the Elastic Stack; TypeScript project; 21,200 stars; topics: search, observability)",
+          title: "Fix ranking dashboard query",
+          url: "https://github.com/elastic/kibana/pull/1",
+        },
+      ],
+    },
+  });
+
+  assert.match(highlight, /Fix ranking dashboard query/);
+  assert.match(highlight, /Elastic Stack/);
+  assert.match(highlight, /21,200 stars/);
 });
 
 test("buildRecruiterFacingGithubReadout falls back to LinkedIn narrative when github is missing", () => {

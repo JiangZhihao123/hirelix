@@ -31,7 +31,8 @@ export function buildPublicEvidenceMetadata(result: PublicEvidenceResult) {
   return {
     status: result.status,
     score: result.score,
-    items: result.items.slice(0, 5).map((item) => ({
+    items: result.items.slice(0, 5).map((item, index) => ({
+      citation_label: `[${index + 1}]`,
       source_type: item.sourceType,
       source_url: item.sourceUrl,
       title: item.title,

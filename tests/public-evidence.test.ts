@@ -64,6 +64,7 @@ test("buildPublicEvidenceMetadata keeps compact top evidence for candidate metad
   });
 
   assert.equal(metadata.status, "verified");
+  assert.equal(metadata.items[0]?.citation_label, "[1]");
   assert.equal(metadata.items[0]?.source_type, "package_registry");
   assert.equal(metadata.items[0]?.relevance_score, 88);
 });
