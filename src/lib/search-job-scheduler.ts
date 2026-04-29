@@ -1,4 +1,8 @@
 import { processNextSearchJob, reclaimStaleRunningJobs } from "@/lib/search";
+import {
+  processNextGithubEnrichmentJob,
+  reclaimStaleGithubEnrichmentJobs,
+} from "@/lib/github-enrichment-jobs";
 
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
@@ -61,7 +65,12 @@ async function runSchedulerLoop(workerIndex: number) {
   for (;;) {
     try {
       const result = await processNextSearchJob();
-      if (!result.processed && !result.hasMore) {
+      if (result.processed || result.hasMore) {
+        continue;
+      }
+
+      const githubResult = await processNextGithubEnrichmentJob();
+      if (!githubResult.processed && !githubResult.hasMore) {
         await sleep(idlePollMs);
       }
     } catch (error) {
@@ -79,6 +88,7 @@ function startReclaimTimer() {
   setInterval(async () => {
     try {
       await reclaimStaleRunningJobs();
+      await reclaimStaleGithubEnrichmentJobs();
     } catch (error) {
       console.error("[search_jobs] Reclaim timer failed:", error);
     }

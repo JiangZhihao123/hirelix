@@ -4,6 +4,7 @@ import type {
   SearchDisplayStats,
   SearchExecutionRuntime,
 } from "@/lib/search/types";
+import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
 
 export async function completeSearch(
   context: PipelineContext,
@@ -68,6 +69,22 @@ export async function completeSearch(
   await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
     replaceMissing: true,
   });
+  try {
+    const githubQueueResult = await enqueueGithubEnrichmentJobsForSearch({
+      searchId: context.searchId,
+      userId: context.userId,
+      limit: draftedRows.length,
+    });
+    helpers.logSearchEvent("github_enrichment_jobs_enqueued", {
+      search_id: context.searchId,
+      ...githubQueueResult,
+    });
+  } catch (error) {
+    helpers.logSearchEvent("github_enrichment_jobs_enqueue_failed", {
+      search_id: context.searchId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const finalParsed = helpers.withDisplayStats(parsed, finalDisplayStats);
   const createdAtMs = context.createdAt ? Date.parse(context.createdAt) : Number.NaN;
