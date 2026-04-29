@@ -51,10 +51,19 @@ function githubStatusFromMetadata(metadata: unknown) {
     : "none";
 }
 
+function githubEnrichmentVersionFromMetadata(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") return null;
+  const enrichment = (metadata as Record<string, unknown>).github_enrichment;
+  if (!enrichment || typeof enrichment !== "object") return null;
+  const version = (enrichment as Record<string, unknown>).version;
+  return typeof version === "number" ? version : null;
+}
+
 async function main() {
   const { initializeGlobalOutboundProxy } = await import("../../src/lib/server-outbound-proxy");
   const {
     enqueueGithubEnrichmentJobsForSearch,
+    GITHUB_ENRICHMENT_VERSION,
     processNextGithubEnrichmentJob,
   } = await import("../../src/lib/github-enrichment-jobs");
 
@@ -85,6 +94,7 @@ async function main() {
       id: candidate.id,
       name: candidate.name,
       github_status: githubStatusFromMetadata(candidate.metadata),
+      github_enrichment_version: githubEnrichmentVersionFromMetadata(candidate.metadata),
       github_url: candidate.github_url,
     })),
   });
@@ -105,11 +115,17 @@ async function main() {
   let processed = 0;
   for (let index = 0; index < beforeCandidates.length; index += 1) {
     const candidate = beforeCandidates[index];
-    if (terminalStatuses.has(githubStatusFromMetadata(candidate.metadata))) {
+    const githubStatus = githubStatusFromMetadata(candidate.metadata);
+    const githubEnrichmentVersion = githubEnrichmentVersionFromMetadata(candidate.metadata);
+    if (
+      terminalStatuses.has(githubStatus) &&
+      githubEnrichmentVersion === GITHUB_ENRICHMENT_VERSION
+    ) {
       console.log("[github-test] Skip already terminal candidate", {
         index: index + 1,
         candidate_id: candidate.id,
-        status: githubStatusFromMetadata(candidate.metadata),
+        status: githubStatus,
+        version: githubEnrichmentVersion,
       });
       continue;
     }
@@ -136,6 +152,7 @@ async function main() {
     id: candidate.id,
     name: candidate.name,
     github_status: githubStatusFromMetadata(candidate.metadata),
+    github_enrichment_version: githubEnrichmentVersionFromMetadata(candidate.metadata),
     github_url: candidate.github_url,
     github_score:
       candidate.metadata && typeof candidate.metadata === "object"

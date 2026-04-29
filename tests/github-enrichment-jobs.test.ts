@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildQueuedGithubMetadata,
   extractRequiredSkillsForGithub,
+  GITHUB_ENRICHMENT_VERSION,
   shouldQueueGithubEnrichment,
 } from "../src/lib/github-enrichment-jobs";
 
@@ -29,13 +30,35 @@ test("extractRequiredSkillsForGithub merges search requirements for GitHub scori
   ]);
 });
 
-test("shouldQueueGithubEnrichment skips terminal GitHub statuses", () => {
+test("shouldQueueGithubEnrichment requeues stale low-confidence terminal statuses", () => {
   assert.equal(
     shouldQueueGithubEnrichment({ github_signals: { status: "verified" } }),
     false,
   );
   assert.equal(
+    shouldQueueGithubEnrichment({ github_signals: { status: "api_error" } }),
+    false,
+  );
+  assert.equal(
     shouldQueueGithubEnrichment({ github_signals: { status: "missing_public_data" } }),
+    true,
+  );
+  assert.equal(
+    shouldQueueGithubEnrichment({
+      github_signals: { status: "missing_public_data" },
+      github_enrichment: { version: GITHUB_ENRICHMENT_VERSION },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldQueueGithubEnrichment({ github_signals: { status: "ambiguous_match" } }),
+    true,
+  );
+  assert.equal(
+    shouldQueueGithubEnrichment({
+      github_signals: { status: "ambiguous_match" },
+      github_enrichment: { version: GITHUB_ENRICHMENT_VERSION },
+    }),
     false,
   );
   assert.equal(

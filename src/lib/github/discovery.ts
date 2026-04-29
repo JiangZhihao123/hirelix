@@ -568,12 +568,13 @@ export async function discoverGithubIdentityViaSerper(input: GithubCandidateInpu
     extractCurrentCompanyFromMetadata(input.metadata) ||
     extractCurrentCompanyFromHeadline(input.headline) ||
     "";
+  const primaryRole = extractPrimaryRoleFromHeadline(input.headline) || "";
   const queryTemplates = compactStringArray(
     [
-      `site:github.com "${input.name}" github`,
-      `site:github.com "${input.name}" ${compactStringArray(input.skills || [], 2).join(" ")}`.trim(),
-      currentCompany ? `site:github.com "${input.name}" "${currentCompany}"` : null,
-      `site:github.com "${input.name}" ${extractPrimaryRoleFromHeadline(input.headline) || ""}`.trim(),
+      currentCompany ? `"${input.name}" "${currentCompany}" GitHub` : null,
+      primaryRole ? `"${input.name}" "${primaryRole}" GitHub` : null,
+      `"${input.name}" GitHub`,
+      `${input.name} GitHub ${compactStringArray(input.skills || [], 2).join(" ")}`.trim(),
     ],
     4,
   );
@@ -587,60 +588,90 @@ export async function discoverGithubIdentityViaSerper(input: GithubCandidateInpu
 
   for (const query of queryTemplates) {
     const results = await serperGithubSearch(apiKey, query);
-    for (const result of results) {
-      if (!result.link) continue;
-      const login = extractGithubOwnerCandidateFromUrl(result.link);
-      if (!login) continue;
+    for (const [resultIndex, result] of results.entries()) {
+      const candidateLinks = compactStringArray(
+        [
+          result.link || null,
+          ...extractGitHubUrlsFromText(`${result.title || ""}\n${result.snippet || ""}`),
+        ],
+        4,
+      );
+      if (
+        resultIndex < 2 &&
+        result.link &&
+        !extractGithubOwnerCandidateFromUrl(result.link) &&
+        /github|linkedin|profile|portfolio|personal|engineer|software/i.test(
+          `${result.title || ""}\n${result.snippet || ""}`,
+        )
+      ) {
+        const pageText = await fetchWebsiteText(result.link);
+        if (pageText) {
+          candidateLinks.push(...extractGitHubUrlsFromText(pageText).slice(0, 3));
+        }
+      }
 
-      try {
-        const profile = await githubFetch(`/users/${encodeURIComponent(login)}`) as {
-          login?: string;
-          html_url?: string;
-          name?: string | null;
-          company?: string | null;
-          bio?: string | null;
-          location?: string | null;
-          blog?: string | null;
-          type?: string | null;
-        };
-        if ((profile.type || "User") !== "User") {
-          continue;
+      for (const candidateLink of compactStringArray(candidateLinks, 5)) {
+        const login = extractGithubOwnerCandidateFromUrl(candidateLink);
+        if (!login) continue;
+
+        try {
+          const profile = await githubFetch(`/users/${encodeURIComponent(login)}`) as {
+            login?: string;
+            html_url?: string;
+            name?: string | null;
+            company?: string | null;
+            bio?: string | null;
+            location?: string | null;
+            blog?: string | null;
+            type?: string | null;
+          };
+          if ((profile.type || "User") !== "User") {
+            continue;
+          }
+          const match = computeUserMatchScore({
+            candidateName: input.name,
+            headline: input.headline,
+            location: input.location,
+            requiredSkills: input.requiredSkills || input.skills,
+            profile,
+          });
+          const externalBonus = computeExternalResultMatchBonus({
+            candidateName: input.name,
+            resultTitle: result.title,
+            resultSnippet: result.snippet,
+            headline: input.headline,
+            requiredSkills: input.requiredSkills || input.skills,
+          });
+          const directGithubResult = result.link
+            ? Boolean(extractGithubOwnerCandidateFromUrl(result.link))
+            : false;
+          const combinedScore = clamp(
+            round(match.score + externalBonus.bonus + (directGithubResult ? 0.12 : 0.08), 3),
+            0,
+            1,
+          );
+          const existing = candidateMap.get(profile.login || login);
+          const nextCandidate = {
+            login: profile.login || login,
+            url: profile.html_url || `https://github.com/${login}`,
+            score: combinedScore,
+            notes: compactStringArray(
+              [
+                ...match.notes,
+                ...externalBonus.notes,
+                directGithubResult ? "external_direct_github_result" : "external_page_github_link",
+                `serper_query:${query}`,
+                "serper_fallback",
+              ],
+              8,
+            ),
+          };
+          if (!existing || nextCandidate.score > existing.score) {
+            candidateMap.set(nextCandidate.login, nextCandidate);
+          }
+        } catch {
+          // Ignore and continue.
         }
-        const match = computeUserMatchScore({
-          candidateName: input.name,
-          headline: input.headline,
-          location: input.location,
-          requiredSkills: input.requiredSkills || input.skills,
-          profile,
-        });
-        const externalBonus = computeExternalResultMatchBonus({
-          candidateName: input.name,
-          resultTitle: result.title,
-          resultSnippet: result.snippet,
-          headline: input.headline,
-          requiredSkills: input.requiredSkills || input.skills,
-        });
-        const combinedScore = clamp(round(match.score + externalBonus.bonus + 0.08, 3), 0, 1);
-        const existing = candidateMap.get(profile.login || login);
-        const nextCandidate = {
-          login: profile.login || login,
-          url: profile.html_url || `https://github.com/${login}`,
-          score: combinedScore,
-          notes: compactStringArray(
-            [
-              ...match.notes,
-              ...externalBonus.notes,
-              `serper_query:${query}`,
-              "serper_fallback",
-            ],
-            8,
-          ),
-        };
-        if (!existing || nextCandidate.score > existing.score) {
-          candidateMap.set(nextCandidate.login, nextCandidate);
-        }
-      } catch {
-        // Ignore and continue.
       }
     }
   }

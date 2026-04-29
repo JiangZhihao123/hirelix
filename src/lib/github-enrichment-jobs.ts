@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabase-server";
 const GITHUB_ENRICHMENT_MAX_ATTEMPTS = 3;
 const GITHUB_ENRICHMENT_RETRY_DELAY_MS = 5 * 60 * 1000;
 const GITHUB_ENRICHMENT_STALE_MINUTES = 20;
+export const GITHUB_ENRICHMENT_VERSION = 2;
 
 type EnqueueGithubEnrichmentJobInput = {
   candidateId: string;
@@ -112,11 +113,15 @@ export function extractRequiredSkillsForGithub(
 }
 
 export function shouldQueueGithubEnrichment(metadata: unknown) {
-  const existing = asRecord(asRecord(metadata).github_signals);
+  const metadataRecord = asRecord(metadata);
+  const existing = asRecord(metadataRecord.github_signals);
+  const enrichment = asRecord(metadataRecord.github_enrichment);
   const status = existing.status;
-  return !["verified", "missing_public_data", "ambiguous_match", "api_error"].includes(
-    typeof status === "string" ? status : "",
-  );
+  if (status === "verified" || status === "api_error") return false;
+  if (status === "missing_public_data" || status === "ambiguous_match") {
+    return enrichment.version !== GITHUB_ENRICHMENT_VERSION;
+  }
+  return true;
 }
 
 export function buildQueuedGithubMetadata(params: {
@@ -135,6 +140,7 @@ export function buildQueuedGithubMetadata(params: {
   });
   metadata.github_enrichment = {
     status: "queued",
+    version: GITHUB_ENRICHMENT_VERSION,
     queued_at: nowIso(),
     candidate_id: params.candidate.id,
     search_id: params.searchId,
@@ -383,6 +389,7 @@ export async function processNextGithubEnrichmentJob(
     metadata.github_enrichment = {
       ...asRecord(metadata.github_enrichment),
       status: "done",
+      version: GITHUB_ENRICHMENT_VERSION,
       job_id: job.id,
       finished_at: nowIso(),
     };
