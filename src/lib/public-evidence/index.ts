@@ -41,6 +41,10 @@ export function buildPublicEvidenceMetadata(result: PublicEvidenceResult) {
       evidence_strength: item.evidenceStrength,
       evidence_summary: item.evidenceSummary,
       outreach_angle: item.outreachAngle,
+      publication:
+        item.sourceType === "paper" && item.rawMetadata.publication
+          ? item.rawMetadata.publication
+          : undefined,
     })),
     source_counts: result.sourceCounts,
     summary: result.summary,

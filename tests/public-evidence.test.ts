@@ -10,6 +10,8 @@ test("classifyPublicEvidenceSource recognizes public engineering evidence source
   assert.equal(classifyPublicEvidenceSource("https://pypi.org/project/fastapi/"), "package_registry");
   assert.equal(classifyPublicEvidenceSource("https://medium.com/@alice/search-ranking"), "technical_blog");
   assert.equal(classifyPublicEvidenceSource("https://arxiv.org/abs/2401.00001"), "paper");
+  assert.equal(classifyPublicEvidenceSource("https://openreview.net/forum?id=abc"), "paper");
+  assert.equal(classifyPublicEvidenceSource("https://aclanthology.org/2024.acl-long.1/"), "paper");
   assert.equal(classifyPublicEvidenceSource("https://speakerdeck.com/alice/kubernetes"), "talk");
   assert.equal(classifyPublicEvidenceSource("https://engineering.linkedin.com/blog/post"), "company_engineering_blog");
 });
@@ -36,6 +38,9 @@ test("buildPublicEvidenceQueries includes company, role, skills, and broad sourc
 
   assert.ok(queries.some((query) => query.includes('"Alex Forsyth" "Google"')));
   assert.ok(queries.some((query) => query.includes('"Alex Forsyth" "Search" GitHub')));
+  assert.ok(queries.some((query) => query.includes("site:arxiv.org")));
+  assert.ok(queries.some((query) => query.includes("site:openreview.net")));
+  assert.ok(queries.some((query) => query.includes("site:dblp.org")));
   assert.ok(queries.some((query) => query.includes("site:npmjs.com")));
 });
 
@@ -60,11 +65,40 @@ test("buildPublicEvidenceMetadata keeps compact top evidence for candidate metad
         outreachAngle: "Open with the package.",
         rawMetadata: {},
       },
+      {
+        sourceType: "paper",
+        sourceUrl: "https://arxiv.org/abs/2401.00001",
+        title: "Learning to Rank",
+        snippet: "Alice Example, 2024",
+        identityStatus: "verified",
+        identityConfidence: 0.94,
+        relevanceScore: 80,
+        evidenceStrength: "strong",
+        evidenceSummary: "Alice co-authored a relevant search ranking paper.",
+        outreachAngle: "Open with the ranking paper.",
+        rawMetadata: {
+          publication: {
+            title: "Learning to Rank",
+            venue: "arXiv",
+            year: "2024",
+            authors: ["Alice Example"],
+            citation_count: 12,
+          },
+        },
+      },
     ],
   });
 
   assert.equal(metadata.status, "verified");
   assert.equal(metadata.items[0]?.citation_label, "[1]");
+  assert.equal(metadata.items[1]?.citation_label, "[2]");
   assert.equal(metadata.items[0]?.source_type, "package_registry");
   assert.equal(metadata.items[0]?.relevance_score, 88);
+  assert.deepEqual(metadata.items[1]?.publication, {
+    title: "Learning to Rank",
+    venue: "arXiv",
+    year: "2024",
+    authors: ["Alice Example"],
+    citation_count: 12,
+  });
 });

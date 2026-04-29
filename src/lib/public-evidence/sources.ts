@@ -18,12 +18,22 @@ const PACKAGE_HOST_PATTERNS = [
 
 const PAPER_HOST_PATTERNS = [
   "arxiv.org",
+  "openreview.net",
   "scholar.google.com",
   "semanticscholar.org",
   "researchgate.net",
   "dblp.org",
+  "aclanthology.org",
+  "proceedings.mlr.press",
+  "neurips.cc",
   "acm.org",
   "ieee.org",
+  "usenix.org",
+  "biorxiv.org",
+  "medrxiv.org",
+  "nature.com",
+  "springer.com",
+  "sciencedirect.com",
 ];
 
 const TALK_HOST_PATTERNS = [

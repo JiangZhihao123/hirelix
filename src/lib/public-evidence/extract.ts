@@ -34,6 +34,11 @@ type PublicEvidenceExtractResponse = {
     capability_signals?: string[];
     domain_signals?: string[];
     technical_keywords?: string[];
+    publication_title?: string | null;
+    publication_venue?: string | null;
+    publication_year?: string | null;
+    publication_authors?: string[];
+    citation_count?: number | null;
     risks?: string[];
   }>;
 };
@@ -48,6 +53,8 @@ Stable rules:
 - Strong engineering evidence is concrete public work: merged PRs, maintained repos, packages, technical articles by the candidate, conference talks, papers, or company engineering blog posts with clear authorship.
 - Medium evidence is compatible but less direct: personal portfolio project, sparse GitHub profile with relevant repos, blog summary without deep technical detail.
 - Weak evidence is identity-confirmed but low engineering substance.
+- For paper/publication sources, verify that the candidate is an author or clearly linked researcher. Do not verify a paper just because it has relevant keywords.
+- For paper/publication sources, prefer evidence_summary that names the paper/project area and, when visible, venue or year.
 - Do not verify generic company pages, organization homepages, topic pages, search pages, or pages where the candidate name is absent.
 - Missing public evidence must not punish the candidate. Only verified useful evidence should produce positive summaries.
 
@@ -74,6 +81,11 @@ Return compact JSON only:
       "capability_signals": ["short phrases"],
       "domain_signals": ["short phrases"],
       "technical_keywords": ["keywords"],
+      "publication_title": "paper title when source_type is paper, else null",
+      "publication_venue": "venue/conference/journal when visible, else null",
+      "publication_year": "year when visible, else null",
+      "publication_authors": ["visible author names"],
+      "citation_count": 123,
       "risks": ["short caveats"]
     }
   ]
@@ -168,6 +180,16 @@ function normalizeExtractedItem(
       capability_signals: compactStringArray(raw.capability_signals || [], 8),
       domain_signals: compactStringArray(raw.domain_signals || [], 8),
       technical_keywords: compactStringArray(raw.technical_keywords || [], 12),
+      publication:
+        snapshot.source_type === "paper"
+          ? {
+              title: typeof raw.publication_title === "string" ? raw.publication_title : null,
+              venue: typeof raw.publication_venue === "string" ? raw.publication_venue : null,
+              year: typeof raw.publication_year === "string" ? raw.publication_year : null,
+              authors: compactStringArray(raw.publication_authors || [], 12),
+              citation_count: typeof raw.citation_count === "number" ? raw.citation_count : null,
+            }
+          : undefined,
       risks: compactStringArray(raw.risks || [], 8),
     },
   };

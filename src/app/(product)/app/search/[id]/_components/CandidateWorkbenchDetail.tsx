@@ -37,6 +37,18 @@ function citationLabelForItem(item: { citation_label?: string | null }, index: n
   return item.citation_label || `[${index + 1}]`;
 }
 
+function formatPublicationLine(item: PublicEvidenceItem) {
+  if (item.source_type !== "paper" || !item.publication) return null;
+  return [
+    item.publication.title,
+    item.publication.venue,
+    item.publication.year,
+    typeof item.publication.citation_count === "number"
+      ? `${item.publication.citation_count} citations`
+      : null,
+  ].filter(Boolean).join(" · ");
+}
+
 export function CandidateWorkbenchDetail({
   candidate,
   requiredSkills,
@@ -428,6 +440,11 @@ export function CandidateWorkbenchDetail({
                       </span>
                       <span>
                         {item.evidence_summary}
+                        {formatPublicationLine(item) && (
+                          <span className="mt-1 block text-xs leading-5 text-slate-500">
+                            {formatPublicationLine(item)}
+                          </span>
+                        )}
                         {item.source_url && (
                           <a href={item.source_url} target="_blank" rel="noreferrer" className="ml-2 font-medium text-sky-700 hover:text-sky-900">
                             Source

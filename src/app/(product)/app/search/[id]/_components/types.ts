@@ -138,6 +138,13 @@ export type PublicEvidenceItem = {
   source_type?: string | null;
   source_url?: string | null;
   title?: string | null;
+  publication?: {
+    title?: string | null;
+    venue?: string | null;
+    year?: string | null;
+    authors?: string[];
+    citation_count?: number | null;
+  } | null;
   identity_confidence?: number | null;
   relevance_score?: number | null;
   evidence_strength?: "strong" | "medium" | "weak";

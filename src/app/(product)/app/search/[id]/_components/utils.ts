@@ -440,6 +440,32 @@ export function getCandidatePublicEvidence(candidate: CandidateRow): PublicEvide
             source_type: typeof entry.source_type === "string" ? entry.source_type : null,
             source_url: typeof entry.source_url === "string" ? entry.source_url : null,
             title: typeof entry.title === "string" ? entry.title : null,
+            publication:
+              entry.publication && typeof entry.publication === "object"
+                ? {
+                    title:
+                      typeof (entry.publication as Record<string, unknown>).title === "string"
+                        ? ((entry.publication as Record<string, unknown>).title as string)
+                        : null,
+                    venue:
+                      typeof (entry.publication as Record<string, unknown>).venue === "string"
+                        ? ((entry.publication as Record<string, unknown>).venue as string)
+                        : null,
+                    year:
+                      typeof (entry.publication as Record<string, unknown>).year === "string"
+                        ? ((entry.publication as Record<string, unknown>).year as string)
+                        : null,
+                    authors: Array.isArray((entry.publication as Record<string, unknown>).authors)
+                      ? ((entry.publication as Record<string, unknown>).authors as unknown[]).filter(
+                          (author): author is string => typeof author === "string",
+                        )
+                      : [],
+                    citation_count:
+                      typeof (entry.publication as Record<string, unknown>).citation_count === "number"
+                        ? ((entry.publication as Record<string, unknown>).citation_count as number)
+                        : null,
+                  }
+                : null,
             identity_confidence:
               typeof entry.identity_confidence === "number" ? entry.identity_confidence : null,
             relevance_score:

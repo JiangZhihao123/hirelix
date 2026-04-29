@@ -7,10 +7,10 @@ function sourcePriority(sourceType: PublicEvidenceSourceCandidate["sourceType"])
   switch (sourceType) {
     case "github": return 18;
     case "personal_site": return 16;
+    case "paper": return 16;
     case "technical_blog": return 15;
     case "package_registry": return 14;
     case "company_engineering_blog": return 13;
-    case "paper": return 12;
     case "talk": return 11;
     case "stackoverflow": return 10;
     case "portfolio": return 9;
@@ -28,14 +28,22 @@ export function buildPublicEvidenceQueries(input: PublicEvidenceCandidateInput) 
     [
       company ? `"${input.name}" "${company}" engineer` : null,
       company ? `"${input.name}" "${company}" GitHub` : null,
+      company ? `"${input.name}" "${company}" paper` : null,
+      company ? `"${input.name}" "${company}" publication` : null,
       role ? `"${input.name}" "${role}" blog` : null,
       role ? `"${input.name}" "${role}" talk` : null,
+      role ? `"${input.name}" "${role}" paper` : null,
       skills[0] ? `"${input.name}" "${skills[0]}" GitHub` : null,
+      skills[0] ? `"${input.name}" "${skills[0]}" paper OR publication` : null,
       `"${input.name}" site:github.com OR site:medium.com OR site:dev.to`,
       `"${input.name}" site:npmjs.com OR site:pypi.org`,
-      `"${input.name}" site:stackoverflow.com OR site:scholar.google.com`,
+      `"${input.name}" site:stackoverflow.com`,
+      `"${input.name}" site:scholar.google.com OR site:semanticscholar.org`,
+      `"${input.name}" site:arxiv.org OR site:openreview.net`,
+      `"${input.name}" site:dblp.org OR site:aclanthology.org`,
+      `"${input.name}" site:proceedings.mlr.press OR site:neurips.cc`,
     ],
-    8,
+    16,
   );
 }
 
@@ -57,7 +65,10 @@ function rankEvidenceCandidate(params: {
   for (const skill of params.input.requiredSkills.slice(0, 6)) {
     if (combined.includes(normalizeText(skill))) score += 2;
   }
-  if (/github|blog|portfolio|package|paper|talk|speaker|engineer/i.test(params.query)) score += 1;
+  if (params.sourceType === "paper" && /paper|publication|arxiv|scholar|semantic|dblp|openreview|acl|pmlr|neurips/i.test(params.query)) {
+    score += 4;
+  }
+  if (/github|blog|portfolio|package|paper|publication|talk|speaker|engineer/i.test(params.query)) score += 1;
   return Math.round(score * 10) / 10;
 }
 
