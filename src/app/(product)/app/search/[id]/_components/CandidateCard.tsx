@@ -36,6 +36,7 @@ import {
   getCandidateScoringBreakdown,
   getCandidateSellingKit,
   getGithubBadge,
+  formatRecruiterSellingHeadline,
   parseOutreach,
 } from "./utils";
 import { ActionabilityBadge, ContactActionStrip, InitialsAvatar, ScoreBadge } from "./ui";
@@ -187,6 +188,7 @@ export function CandidateCard({
   const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
+  const recruiterHeadline = formatRecruiterSellingHeadline(candidate);
   const sellingBadges = sellingKit?.evidence_badges || [];
   const sellingRisks = sellingKit?.risk_flags || [];
   const recommendationLabel =
@@ -272,9 +274,9 @@ export function CandidateCard({
           {currentCompany && (
             <p className="mt-1 truncate text-[11px] text-muted-light">{currentCompany}</p>
           )}
-          {sellingKit?.one_line_pitch && (
-            <p className="mt-2 line-clamp-2 text-xs font-medium leading-5 text-foreground">
-              {sellingKit.one_line_pitch}
+          {recruiterHeadline && (
+            <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-foreground">
+              {recruiterHeadline}
             </p>
           )}
           {Boolean(sellingBadges.length || sellingRisks.length) && (

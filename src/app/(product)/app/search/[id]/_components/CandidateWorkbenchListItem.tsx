@@ -11,6 +11,7 @@ import {
   getCandidateSellingKit,
   getCandidateScoreMetrics,
   getGithubBadge,
+  formatRecruiterSellingHeadline,
 } from "./utils";
 import { InitialsAvatar, ScoreBadge } from "./ui";
 
@@ -34,6 +35,7 @@ export function CandidateWorkbenchListItem({
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
   const displayName = sanitizeDisplayName(candidate.name);
+  const recruiterHeadline = formatRecruiterSellingHeadline(candidate);
   const recommendationLabel =
     sellingKit?.recommendation === "reach_out_first"
       ? "Reach out first"
@@ -83,9 +85,9 @@ export function CandidateWorkbenchListItem({
               {currentCompany}
             </p>
           )}
-          {sellingKit?.one_line_pitch && (
-            <p className="mt-2 line-clamp-2 text-xs font-medium leading-5 text-slate-800">
-              {sellingKit.one_line_pitch}
+          {recruiterHeadline && (
+            <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-900">
+              {recruiterHeadline}
             </p>
           )}
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">

@@ -656,10 +656,6 @@ export default function SearchResultPage() {
   const retrievalCount =
     positiveInt(rawDisplayStats?.retrieval_count) ??
     Math.max(allCandidates.length, 0);
-  const deepReviewRequestedCount =
-    positiveInt(rawDisplayStats?.deep_review_requested_count) ??
-    positiveInt(rawDisplayStats?.deep_review_count) ??
-    Math.max(allCandidates.length, 0);
   const deepReviewCompletedCount =
     positiveInt(rawDisplayStats?.deep_review_completed_count) ??
     positiveInt(rawDisplayStats?.deep_review_count) ??
@@ -712,7 +708,6 @@ export default function SearchResultPage() {
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
   const githubBackedCandidateCount = allCandidates.filter(hasPublicGithubEvidence).length;
-  const githubBackedPriorityCount = priorityCandidates.filter(hasPublicGithubEvidence).length;
   const githubBackedVisibleCount = visibleCandidates.filter(hasPublicGithubEvidence).length;
   const selectedTierLabel = hasTieredPool ? formatTierLabel(activeCandidateTier) : "Candidate pool";
   const priorityTierLabel = formatTierLabel("priority_outreach");
@@ -811,7 +806,7 @@ export default function SearchResultPage() {
             </div>
           )}
         </div>
-        {reqs && (
+        {reqs && !isReviewable && (
           <div className="mt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               {requiredSkills.slice(0, 6).map((skill) => (
@@ -1031,8 +1026,8 @@ export default function SearchResultPage() {
       )}
 
       {isReviewable && allCandidates.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-col gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                 {isReadyWithWarning
@@ -1048,7 +1043,7 @@ export default function SearchResultPage() {
                     ? "Your candidate pool is ready to review"
                     : "Your candidate pool is ready"}
               </h2>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
+              <p className="mt-2 max-w-4xl text-sm text-slate-600">
                 {search.warning_message && !search.warning_message.includes("highlighted candidates")
                   ? search.warning_message
                   : qualityFloorApplied
@@ -1056,11 +1051,6 @@ export default function SearchResultPage() {
                     : isImprovingInBackground
                       ? "Hirelix is still refining the remaining scores in the background."
                       : `Hirelix turned this search into a workable pool: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
-              </p>
-              <p className="mt-3 max-w-2xl text-xs text-slate-500">
-                {githubBackedCandidateCount > 0
-                  ? `${githubBackedCandidateCount} of ${allCandidates.length} visible candidates currently include public GitHub evidence. The rest rely on LinkedIn evidence only.`
-                  : "This shortlist is currently LinkedIn-led. Hirelix only shows GitHub evidence when it can confidently verify a public match."}
               </p>
               {isImprovingInBackground && !search.warning_message && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -1076,51 +1066,26 @@ export default function SearchResultPage() {
                 </p>
               )}
             </div>
-            <div className="grid min-w-[220px] gap-3 sm:grid-cols-2 lg:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Candidates considered</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(recallProfileCount)}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {"From a broader LinkedIn search"}
-                </p>
+            <div className="flex flex-wrap gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Considered</span>
+                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(recallProfileCount)}</span>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Profiles deeply reviewed</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(deepReviewCompletedCount)}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {deepReviewRequestedCount > deepReviewCompletedCount
-                    ? `${formatDisplayCount(deepReviewRequestedCount)} requested`
-                    : "Full profiles evaluated before final ranking"}
-                </p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reviewed</span>
+                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(deepReviewCompletedCount)}</span>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Visible candidate pool</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {priorityOutreachCount > 0 || worthReviewingCount > 0
-                    ? `${priorityOutreachCount} reach out first · ${worthReviewingCount} keep reviewing`
-                    : `${visibleCandidateCount} ready to review`}
-                </p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Visible</span>
+                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</span>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">GitHub evidence</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {githubBackedCandidateCount > 0
-                    ? `${githubBackedPriorityCount} in ${priorityTierLabel.toLowerCase()}`
-                    : "Ranking is using LinkedIn evidence only right now"}
-                </p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Evidence</span>
+                <span className="text-sm font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</span>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why the pool narrowed</p>
-                <p className="mt-1 text-lg font-semibold text-slate-950">{formatDisplayCount(ruledOutCount)} ruled out</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {excludedReasonCounts[0]
-                    ? `${formatExcludedReasonLabel((excludedReasonCounts[0] as { reason: ExcludedReason; count: number }).reason)} was the biggest filter`
-                    : shortlistNoCount > 0
-                      ? `${shortlistNoCount} screened out in the final pass`
-                      : "This pool stayed tight because the final filters remained strict"}
-                </p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Ruled out</span>
+                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(ruledOutCount)}</span>
               </div>
             </div>
           </div>
@@ -1357,54 +1322,6 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {(excludedReasonCounts.length > 0 || widenPoolSuggestions.length > 0) && (
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Why more candidates didn&apos;t make the shortlist
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  {ruledOutCount > 0
-                    ? `${ruledOutCount} deeply reviewed profiles were ruled out from the visible pool.`
-                    : "No ruled-out breakdown is available for this search yet."}
-                </p>
-                <div className="mt-4 space-y-3">
-                  {(excludedReasonCounts as Array<{ reason: ExcludedReason; count: number }>).map((item) => (
-                    <div key={item.reason}>
-                      <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="font-medium text-slate-900">{formatExcludedReasonLabel(item.reason)}</span>
-                        <span className="text-slate-500">{item.count}</span>
-                      </div>
-                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-slate-800"
-                          style={{
-                            width: `${ruledOutCount > 0 ? Math.max(8, Math.round((item.count / ruledOutCount) * 100)) : 0}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  How to widen this pool
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  If you need more reviewable candidates, these are the first levers worth trying.
-                </p>
-                <ul className="mt-4 space-y-2">
-                  {widenPoolSuggestions.map((suggestion) => (
-                    <li key={suggestion} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
-                      <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
-                      {suggestion}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
           {visibleCandidates.length > 0 && (
             <>
               {activeCandidate && (
@@ -1454,7 +1371,7 @@ export default function SearchResultPage() {
                     {selectedTierLabel}
                   </p>
                   <p className="mt-1 text-sm text-slate-700">
-                    Mobile keeps the card view. Desktop uses the split workbench layout.
+                    Start with the strongest sellable profiles, then open each card for proof and outreach copy.
                   </p>
                 </div>
                 {visibleCandidates.map((c, idx) => (
@@ -1480,6 +1397,59 @@ export default function SearchResultPage() {
                 ))}
               </div>
             </>
+          )}
+          {(excludedReasonCounts.length > 0 || widenPoolSuggestions.length > 0) && (
+            <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+                Pool diagnostics and widening levers
+              </summary>
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Why more candidates didn&apos;t make the shortlist
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {ruledOutCount > 0
+                      ? `${ruledOutCount} deeply reviewed profiles were ruled out from the visible pool.`
+                      : "No ruled-out breakdown is available for this search yet."}
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {(excludedReasonCounts as Array<{ reason: ExcludedReason; count: number }>).map((item) => (
+                      <div key={item.reason}>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="font-medium text-slate-900">{formatExcludedReasonLabel(item.reason)}</span>
+                          <span className="text-slate-500">{item.count}</span>
+                        </div>
+                        <div className="mt-1 h-2 overflow-hidden rounded-full bg-white">
+                          <div
+                            className="h-full rounded-full bg-slate-800"
+                            style={{
+                              width: `${ruledOutCount > 0 ? Math.max(8, Math.round((item.count / ruledOutCount) * 100)) : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    How to widen this pool
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    If you need more reviewable candidates, these are the first levers worth trying.
+                  </p>
+                  <ul className="mt-4 space-y-2">
+                    {widenPoolSuggestions.map((suggestion) => (
+                      <li key={suggestion} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+                        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
+                        {suggestion}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </details>
           )}
         </div>
       )}

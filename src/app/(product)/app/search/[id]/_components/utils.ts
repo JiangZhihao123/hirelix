@@ -203,6 +203,28 @@ export function formatEvidenceStrength(value: GithubSignals["evidence_strength"]
   }
 }
 
+export function formatRecruiterSellingHeadline(candidate: CandidateRow) {
+  const pitch = getCandidateSellingKit(candidate)?.one_line_pitch?.trim();
+  if (!pitch) return null;
+
+  const normalized = pitch
+    .replace(/^LinkedIn-based\s*:?\s*/i, "")
+    .replace(/^Based on LinkedIn,\s*/i, "")
+    .replace(/\s+/g, " ")
+    .replace(/[.!?]\s*$/, "");
+
+  if (normalized.length <= 92) return normalized;
+
+  const breakpoint = Math.max(
+    normalized.lastIndexOf(" + ", 92),
+    normalized.lastIndexOf(" with ", 92),
+    normalized.lastIndexOf(", ", 92),
+    normalized.lastIndexOf(" and ", 92),
+  );
+  const end = breakpoint >= 52 ? breakpoint : 89;
+  return `${normalized.slice(0, end).trim()}...`;
+}
+
 export function getEvidenceSourceLabel(signals: GithubSignals | null) {
   if (signals?.status === "verified") return "GitHub evidence";
   if (signals?.status === "ambiguous_match") return "Possible GitHub match";

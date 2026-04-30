@@ -30,6 +30,7 @@ import {
   getCandidateSellingKit,
   getCandidateScoreMetrics,
   getEvidenceSourceLabel,
+  formatRecruiterSellingHeadline,
   parseOutreach,
 } from "./utils";
 import { ActionabilityBadge, ContactActionStrip, InitialsAvatar, ScoreBadge } from "./ui";
@@ -48,6 +49,36 @@ function formatPublicationLine(item: PublicEvidenceItem) {
       ? `${item.publication.citation_count} citations`
       : null,
   ].filter(Boolean).join(" · ");
+}
+
+function formatPublicEvidenceCategory(item: PublicEvidenceItem) {
+  switch (item.evidence_category) {
+    case "official_project_credit":
+      return "Official project credit";
+    case "research_publication":
+      return "Research publication";
+    case "technical_writing":
+      return "Technical writing";
+    case "package_or_tool":
+      return "Package or tool";
+    case "identity_support":
+      return "Identity support";
+    case "risk_only":
+      return "Risk only";
+    case "engineering_proof":
+      return "Engineering proof";
+    default:
+      return item.source_type ? item.source_type.replace(/_/g, " ") : "Public evidence";
+  }
+}
+
+function isSellingEvidence(item: PublicEvidenceItem) {
+  return (
+    item.safe_to_use_in_client_brief === true ||
+    item.safe_to_use_in_outreach === true ||
+    item.selling_tier === "strong_selling_point" ||
+    item.selling_tier === "supporting_point"
+  );
 }
 
 export function CandidateWorkbenchDetail({
@@ -91,6 +122,7 @@ export function CandidateWorkbenchDetail({
   const githubSignals = getCandidateGithubSignals(localCandidate);
   const publicEvidence = getCandidatePublicEvidence(localCandidate);
   const sellingKit = getCandidateSellingKit(localCandidate);
+  const recruiterHeadline = formatRecruiterSellingHeadline(localCandidate);
   const outreach = parseOutreach(localCandidate.outreach_draft);
   const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
   const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
@@ -145,6 +177,15 @@ export function CandidateWorkbenchDetail({
             },
           ]
         : [];
+  const sellingEvidenceItems = publicEvidenceItems.filter(isSellingEvidence);
+  const identityEvidenceItems = publicEvidenceItems.filter(
+    (item) => item.selling_tier === "identity_only" || item.evidence_category === "identity_support",
+  );
+  const primaryEvidenceItem =
+    sellingEvidenceItems[0] ||
+    publicEvidenceItems.find((item) => item.selling_tier !== "identity_only" && item.evidence_category !== "identity_support") ||
+    publicEvidenceItems[0] ||
+    null;
   const githubSignalCards = [
     {
       label: "Activity trend",
@@ -191,15 +232,15 @@ export function CandidateWorkbenchDetail({
           {
             label: "Top relevance",
             value:
-              typeof publicEvidenceItems[0]?.relevance_score === "number"
-                ? `${publicEvidenceItems[0]?.relevance_score}`
+              typeof primaryEvidenceItem?.relevance_score === "number"
+                ? `${primaryEvidenceItem.relevance_score}`
                 : "Not scored",
           },
           {
             label: "Identity confidence",
             value:
-              typeof publicEvidenceItems[0]?.identity_confidence === "number"
-                ? `${Math.round((publicEvidenceItems[0]?.identity_confidence || 0) * 100)}%`
+              typeof primaryEvidenceItem?.identity_confidence === "number"
+                ? `${Math.round((primaryEvidenceItem.identity_confidence || 0) * 100)}%`
                 : "Verified source",
           },
         ]
@@ -211,7 +252,7 @@ export function CandidateWorkbenchDetail({
     localCandidate.match_reasons[0] ||
     `${localDisplayName} looks relevant based on current LinkedIn evidence.`;
   const proofToReference =
-    publicEvidenceItems[0]?.evidence_summary ||
+    primaryEvidenceItem?.evidence_summary ||
     githubSignals?.highlight ||
     githubSignals?.evidence_summary?.[0] ||
     localCandidate.match_reasons[0] ||
@@ -220,12 +261,12 @@ export function CandidateWorkbenchDetail({
     ...(githubSignals?.verification_risks || []),
     ...riskFlags,
   ].slice(0, 5);
-  const publicEvidenceSourceLabel = publicEvidenceItems[0]?.source_type
-    ? `${publicEvidenceItems[0].citation_label || "[1]"} Public ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
+  const publicEvidenceSourceLabel = primaryEvidenceItem?.source_type
+    ? `${primaryEvidenceItem.citation_label || "[1]"} ${formatPublicEvidenceCategory(primaryEvidenceItem)}`
     : evidenceSourceLabel;
   const bestOpeningAngle =
     sellingKit?.outreach_opener ||
-    publicEvidenceItems[0]?.outreach_angle ||
+    primaryEvidenceItem?.outreach_angle ||
     githubSignals?.outreach_angle ||
     (publicEvidenceItems.length > 0
       ? "Lead with the strongest verified public engineering evidence."
@@ -392,13 +433,13 @@ export function CandidateWorkbenchDetail({
 
         <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-4">
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                     Candidate Selling Kit
                   </p>
-                  <p className="mt-1 text-sm text-emerald-900">
+                  <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
                     {linkedInBased
                       ? "LinkedIn-based pitch"
                       : sellingKit?.recommendation === "reach_out_first"
@@ -441,71 +482,82 @@ export function CandidateWorkbenchDetail({
                   )}
                 </div>
               </div>
-              <p className="mt-3 text-lg font-semibold leading-7 text-slate-950">
-                {sellingKit?.one_line_pitch || whyContactSummary}
+              <p className="mt-3 text-xl font-semibold leading-7 text-slate-950">
+                {recruiterHeadline || whyContactSummary}
               </p>
-              {publicEvidenceItems.some((item) => item.safe_to_use_in_client_brief) && (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+              <div className="mt-3 grid gap-3 md:grid-cols-[1.05fr,0.95fr]">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                    Strongest evidence
+                    Best usable proof
                   </p>
-                  <ul className="mt-2 space-y-1">
-                    {publicEvidenceItems
-                      .filter((item) => item.safe_to_use_in_client_brief)
-                      .slice(0, 3)
-                      .map((item, index) => (
-                        <li key={`${item.source_url}-${item.evidence_summary}`} className="text-sm leading-6 text-slate-700">
-                          {item.source_url ? (
-                            <a
-                              href={item.source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-semibold text-emerald-700 hover:text-emerald-900"
-                            >
-                              {citationLabelForItem(item, index)}
-                            </a>
-                          ) : (
-                            <span className="font-semibold text-emerald-700">
-                              {citationLabelForItem(item, index)}
-                            </span>
-                          )}{" "}
-                          {item.evidence_summary}
+                  {sellingEvidenceItems.length > 0 ? (
+                    <ul className="mt-2 space-y-1">
+                      {sellingEvidenceItems.slice(0, 2).map((item, index) => (
+                          <li key={`${item.source_url}-${item.evidence_summary}`} className="text-sm leading-6 text-slate-700">
+                            {item.source_url ? (
+                              <a
+                                href={item.source_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-semibold text-emerald-700 hover:text-emerald-900"
+                              >
+                                {citationLabelForItem(item, index)}
+                              </a>
+                            ) : (
+                              <span className="font-semibold text-emerald-700">
+                                {citationLabelForItem(item, index)}
+                              </span>
+                            )}{" "}
+                            {item.evidence_summary}
+                          </li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      No public engineering proof is safe enough to lead with yet. Use LinkedIn facts conservatively.
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                    Verify before pitching
+                  </p>
+                  {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).length > 0 ? (
+                    <ul className="mt-2 space-y-1">
+                      {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).slice(0, 2).map((risk) => (
+                        <li key={risk} className="text-sm leading-6 text-amber-900">
+                          {risk}
                         </li>
                       ))}
-                  </ul>
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-amber-900">
+                      Confirm current interest, compensation range, and role scope before submitting.
+                    </p>
+                  )}
                 </div>
-              )}
+              </div>
               {sellingKit?.outreach_opener && (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm leading-6 text-emerald-900">
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                    Outreach opener
+                    Copy-ready opener
                   </p>
                   <p className="mt-2">{sellingKit.outreach_opener}</p>
                 </div>
               )}
               {sellingKit?.client_brief && (
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                      Client brief
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      {sellingKit.client_brief.positioning}
-                    </p>
-                    <ul className="mt-2 space-y-1">
-                      {(sellingKit.client_brief.why_match || []).slice(0, 3).map((item) => (
-                        <li key={item} className="text-sm leading-6 text-slate-700">
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                      Evidence and risks
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {(sellingKit.evidence_badges || []).slice(0, 4).map((badge, index) => (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Client brief preview
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-700">
+                        {sellingKit.client_brief.positioning}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(sellingKit.evidence_badges || []).slice(0, 3).map((badge, index) => (
                         badge.citation_label && citationLinks.get(badge.citation_label) ? (
                           <a
                             key={`${badge.label}-${index}`}
@@ -523,31 +575,26 @@ export function CandidateWorkbenchDetail({
                         )
                       ))}
                     </div>
-                    {(sellingKit.client_brief.evidence_refs || []).slice(0, 3).map((ref) => {
-                      const citation = ref.match(/^\[\d+\]/)?.[0] || null;
-                      const href = citation ? citationLinks.get(citation) : null;
-                      return href ? (
-                        <a
-                          key={ref}
-                          href={href}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-2 block text-xs leading-5 text-emerald-700 hover:text-emerald-900"
-                        >
-                          {ref}
-                        </a>
-                      ) : (
-                        <p key={ref} className="mt-2 text-xs leading-5 text-slate-600">
-                          {ref}
-                        </p>
-                      );
-                    })}
-                    {(sellingKit.client_brief.risks_to_verify || sellingKit.risk_flags || []).slice(0, 3).map((risk) => (
-                      <p key={risk} className="mt-2 text-xs leading-5 text-amber-700">
-                        {risk}
-                      </p>
-                    ))}
                   </div>
+                  {(sellingKit.client_brief.evidence_refs || []).slice(0, 2).map((ref) => {
+                    const citation = ref.match(/^\[\d+\]/)?.[0] || null;
+                    const href = citation ? citationLinks.get(citation) : null;
+                    return href ? (
+                      <a
+                        key={ref}
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 block text-xs leading-5 text-emerald-700 hover:text-emerald-900"
+                      >
+                        {ref}
+                      </a>
+                    ) : (
+                      <p key={ref} className="mt-2 text-xs leading-5 text-slate-600">
+                        {ref}
+                      </p>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -605,30 +652,33 @@ export function CandidateWorkbenchDetail({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Public Evidence
+                    Evidence source details
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Verified public engineering proof from GitHub, writing, packages, papers, talks, or personal sites.
+                    Selling evidence is separated from identity support so recruiters do not overstate the proof.
                   </p>
                 </div>
                 <Github className="h-5 w-5 text-slate-400" />
               </div>
-              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-950">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
-                  {publicEvidenceItems[0]?.source_type
-                    ? `${publicEvidenceItems[0].citation_label || "[1]"} PUBLIC ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-slate-800">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                  {primaryEvidenceItem
+                    ? `${primaryEvidenceItem.citation_label || "[1]"} ${formatPublicEvidenceCategory(primaryEvidenceItem)}`
                     : evidenceSourceLabel}
                 </p>
                 <p className="mt-2">{proofToReference}</p>
               </div>
-              {publicEvidenceItems.length > 0 && (
+              {sellingEvidenceItems.length > 0 && (
                 <ul className="mt-3 space-y-2">
-                  {publicEvidenceItems.slice(0, 3).map((item, index) => (
+                  {sellingEvidenceItems.slice(0, 3).map((item, index) => (
                     <li key={`${item.source_url}-${item.evidence_summary}`} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
-                      <span className="mt-0.5 inline-flex h-5 min-w-7 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 px-1.5 text-[11px] font-semibold text-sky-700">
+                      <span className="mt-0.5 inline-flex h-5 min-w-7 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-1.5 text-[11px] font-semibold text-emerald-700">
                         {citationLabelForItem(item, index)}
                       </span>
                       <span>
+                        <span className="mr-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          {formatPublicEvidenceCategory(item)}
+                        </span>
                         {item.evidence_summary}
                         {formatPublicationLine(item) && (
                           <span className="mt-1 block text-xs leading-5 text-slate-500">
@@ -644,6 +694,27 @@ export function CandidateWorkbenchDetail({
                     </li>
                   ))}
                 </ul>
+              )}
+              {identityEvidenceItems.length > 0 && (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Identity support only
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {identityEvidenceItems.slice(0, 3).map((item, index) => (
+                      <li key={`${item.source_url}-${item.evidence_summary}-${index}`} className="text-sm leading-6 text-slate-600">
+                        {item.source_url ? (
+                          <a href={item.source_url} target="_blank" rel="noreferrer" className="font-semibold text-slate-700 hover:text-slate-950">
+                            {citationLabelForItem(item, index)}
+                          </a>
+                        ) : (
+                          <span className="font-semibold text-slate-700">{citationLabelForItem(item, index)}</span>
+                        )}{" "}
+                        {item.evidence_summary || "Useful for identity corroboration, not for a technical selling claim."}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {publicEvidenceItems.some((item) => item.source_url) && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
@@ -662,12 +733,12 @@ export function CandidateWorkbenchDetail({
                   </ol>
                 </div>
               )}
-              {publicEvidenceItems[0]?.outreach_angle && (
+              {primaryEvidenceItem?.outreach_angle && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Outreach angle
                   </p>
-                  <p className="mt-2">{publicEvidenceItems[0].outreach_angle}</p>
+                  <p className="mt-2">{primaryEvidenceItem.outreach_angle}</p>
                 </div>
               )}
               {publicEvidenceItems.length === 0 && githubSignals?.evidence_summary && githubSignals.evidence_summary.length > 0 && (
