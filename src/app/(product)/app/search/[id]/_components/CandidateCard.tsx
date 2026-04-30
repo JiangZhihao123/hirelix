@@ -34,6 +34,7 @@ import {
   getCandidateOverallScore,
   getCandidateScoreMetrics,
   getCandidateScoringBreakdown,
+  getCandidateSellingKit,
   getGithubBadge,
   parseOutreach,
 } from "./utils";
@@ -183,8 +184,29 @@ export function CandidateCard({
     null;
   const githubSignals = getCandidateGithubSignals(candidate);
   const githubBadge = getGithubBadge(githubSignals);
+  const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
+  const sellingBadges = sellingKit?.evidence_badges || [];
+  const sellingRisks = sellingKit?.risk_flags || [];
+  const recommendationLabel =
+    sellingKit?.evidence_basis === "linkedin_based"
+      ? "LinkedIn-based"
+      : sellingKit?.recommendation === "reach_out_first"
+        ? "Reach out first"
+        : sellingKit?.recommendation === "backup"
+          ? "Backup"
+          : sellingKit?.recommendation === "do_not_pitch"
+            ? "Do not pitch"
+            : null;
+  const recommendationClass =
+    sellingKit?.evidence_basis === "linkedin_based"
+      ? "bg-slate-100 text-slate-600"
+      : sellingKit?.recommendation === "reach_out_first"
+        ? "bg-emerald-50 text-emerald-700"
+        : sellingKit?.recommendation === "backup"
+          ? "bg-amber-50 text-amber-700"
+          : "bg-slate-100 text-slate-600";
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -221,7 +243,7 @@ export function CandidateCard({
         >
         <InitialsAvatar name={displayName} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <p className="truncate text-sm font-semibold">{displayName}</p>
             {isNew && (
               <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
@@ -230,6 +252,11 @@ export function CandidateCard({
             )}
             <ActionabilityBadge candidate={candidate} />
             <ScoreBadge score={overallScore} />
+            {recommendationLabel && (
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${recommendationClass}`}>
+                {recommendationLabel}
+              </span>
+            )}
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${githubBadge.className}`}>{githubBadge.text}</span>
             {candidate.status !== "new" && (
               <span
@@ -244,6 +271,34 @@ export function CandidateCard({
           </p>
           {currentCompany && (
             <p className="mt-1 truncate text-[11px] text-muted-light">{currentCompany}</p>
+          )}
+          {sellingKit?.one_line_pitch && (
+            <p className="mt-2 line-clamp-2 text-xs font-medium leading-5 text-foreground">
+              {sellingKit.one_line_pitch}
+            </p>
+          )}
+          {Boolean(sellingBadges.length || sellingRisks.length) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {sellingBadges.slice(0, 3).map((badge, index) => (
+                <span
+                  key={`${badge.label}-${badge.citation_label}-${index}`}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                    badge.tier === "strong"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : badge.tier === "medium"
+                        ? "border-sky-200 bg-sky-50 text-sky-700"
+                        : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                >
+                  {[badge.label, badge.citation_label].filter(Boolean).join(" ")}
+                </span>
+              ))}
+              {sellingRisks.slice(0, 1).map((risk) => (
+                <span key={risk} className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">
+                  {risk}
+                </span>
+              ))}
+            </div>
           )}
           {scoringBreakdown && (
             <div className="mt-2 flex flex-wrap gap-1.5">

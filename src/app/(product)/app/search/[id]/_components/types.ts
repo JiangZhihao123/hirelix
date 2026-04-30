@@ -180,6 +180,7 @@ export type PublicEvidence = {
 
 export type CandidateSellingKit = {
   version?: 1;
+  evidence_basis?: "public_evidence" | "linkedin_based";
   recommendation?: "reach_out_first" | "backup" | "do_not_pitch";
   one_line_pitch?: string | null;
   outreach_opener?: string | null;

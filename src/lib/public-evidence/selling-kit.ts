@@ -22,6 +22,7 @@ export type ClassifiedEvidenceItem = {
   source_type?: PublicEvidenceSourceType | string | null;
   source_url?: string | null;
   title?: string | null;
+  identity_status?: "verified" | "rejected" | "uncertain" | string | null;
   identity_confidence?: number | null;
   relevance_score?: number | null;
   evidence_strength?: "strong" | "medium" | "weak" | string | null;
@@ -43,6 +44,7 @@ export type ClassifiedEvidenceItem = {
 
 export type CandidateSellingKit = {
   version: 1;
+  evidence_basis: "public_evidence" | "linkedin_based";
   recommendation: "reach_out_first" | "backup" | "do_not_pitch";
   one_line_pitch: string;
   outreach_opener: string | null;
@@ -91,6 +93,8 @@ function sourceLabel(sourceType: string | null | undefined) {
       return "Talk";
     case "portfolio":
       return "Portfolio";
+    case "personal_site":
+      return "Profile";
     case "other_professional":
       return "Identity";
     default:
@@ -123,6 +127,8 @@ export function classifyPublicEvidenceForSelling(
   const sourceType = "sourceType" in item ? item.sourceType : item.source_type;
   const sourceUrl = "sourceUrl" in item ? item.sourceUrl : item.source_url;
   const title = item.title || null;
+  const identityStatus =
+    "identityStatus" in item ? item.identityStatus : item.identity_status;
   const identityConfidence =
     "identityConfidence" in item ? item.identityConfidence : item.identity_confidence;
   const relevanceScore =
@@ -145,7 +151,11 @@ export function classifyPublicEvidenceForSelling(
   let sellingTier: EvidenceSellingTier = "not_usable";
   let claimLimit = "Do not use this source as a candidate selling point.";
 
-  if (sourceType === "other_professional") {
+  if (identityStatus && identityStatus !== "verified") {
+    evidenceCategory = "risk_only";
+    sellingTier = "not_usable";
+    claimLimit = "Do not use because identity, authorship, or source relevance is not verified.";
+  } else if (sourceType === "other_professional") {
     evidenceCategory = "identity_support";
     sellingTier = "identity_only";
     claimLimit = "Use only to support identity, current role, or affiliation.";
@@ -193,6 +203,7 @@ export function classifyPublicEvidenceForSelling(
     source_type: sourceType || null,
     source_url: sourceUrl || null,
     title,
+    identity_status: typeof identityStatus === "string" ? identityStatus : null,
     publication: rawPublication || null,
     identity_confidence: typeof identityConfidence === "number" ? identityConfidence : null,
     relevance_score: typeof relevanceScore === "number" ? relevanceScore : null,
@@ -221,6 +232,7 @@ export function buildCandidateSellingKit(input: SellingKitCandidateInput): Candi
     item.selling_tier ? item : classifyPublicEvidenceForSelling(item),
   );
   const sellableItems = getSellableEvidenceItems(items);
+  const hasSellableEvidence = sellableItems.length > 0;
   const topEvidence = sellableItems[0] || null;
   const matchReasons = (input.matchReasons || []).map(clean).filter(Boolean);
   const riskFlags = [...(input.riskFlags || [])];
@@ -242,7 +254,7 @@ export function buildCandidateSellingKit(input: SellingKitCandidateInput): Candi
 
   const headline = clean(input.headline);
   const fallbackPitch =
-    clean(input.fallbackSummary) ||
+    (hasSellableEvidence ? clean(input.fallbackSummary) : "") ||
     matchReasons[0] ||
     headline ||
     `${input.name} has a potentially relevant LinkedIn background.`;
@@ -265,10 +277,15 @@ export function buildCandidateSellingKit(input: SellingKitCandidateInput): Candi
     const citation = item.citation_label || `[${index + 1}]`;
     return `${citation} ${clean(item.evidence_summary) || sourceLabel(item.source_type)}`;
   });
-  const whyMatch = [
-    ...matchReasons.slice(0, 2),
-    ...evidenceRefs.slice(0, 2),
-  ].filter(Boolean).slice(0, 3);
+  const whyMatch = hasSellableEvidence
+    ? [
+        ...evidenceRefs.slice(0, 2),
+        ...matchReasons.slice(0, 1).map((reason) => `LinkedIn/profile fit: ${reason}`),
+      ].filter(Boolean).slice(0, 3)
+    : [
+        `LinkedIn-based: ${fallbackPitch}`,
+        "No recruiter-usable public engineering evidence is verified yet.",
+      ].filter(Boolean).slice(0, 3);
   const evidenceBadges = items
     .filter((item) => item.selling_tier !== "not_usable")
     .slice(0, 4)
@@ -282,6 +299,7 @@ export function buildCandidateSellingKit(input: SellingKitCandidateInput): Candi
 
   return {
     version: 1,
+    evidence_basis: hasSellableEvidence ? "public_evidence" : "linkedin_based",
     recommendation,
     one_line_pitch: oneLinePitch,
     outreach_opener: outreachOpener,

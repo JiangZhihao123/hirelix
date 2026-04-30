@@ -65,6 +65,7 @@ test("buildPublicEvidenceQueries includes company, role, skills, and broad sourc
   assert.ok(queries.some((query) => query === '"Alex Forsyth" site:arxiv.org'));
   assert.ok(queries.some((query) => query === '"Alex Forsyth" site:openreview.net'));
   assert.ok(queries.some((query) => query === '"Alex Forsyth" site:dblp.org'));
+  assert.ok(queries.some((query) => query === '"Alex Forsyth" site:ifaamas.org'));
   assert.ok(queries.some((query) => query === '"Alex Forsyth" filetype:pdf paper'));
   assert.ok(queries.some((query) => query.includes("site:npmjs.com")));
 });
@@ -161,6 +162,22 @@ test("classifyPublicEvidenceForSelling models official project credits separatel
   assert.match(item.claim_limit || "", /not proof of sole ownership/i);
 });
 
+test("classifyPublicEvidenceForSelling rejects same-name papers without verified identity context", () => {
+  const item = classifyPublicEvidenceForSelling({
+    source_type: "paper",
+    source_url: "https://researchgate.net/publication/same-name-paper",
+    title: "A Same Name Research Result",
+    identity_status: "uncertain",
+    evidence_summary: "A paper result mentions the same name but not the candidate's institution.",
+    evidence_strength: "strong",
+    relevance_score: 89,
+  });
+
+  assert.equal(item.selling_tier, "not_usable");
+  assert.equal(item.safe_to_use_in_outreach, false);
+  assert.equal(item.evidence_category, "risk_only");
+});
+
 test("buildCandidateSellingKit creates recruiter selling material from strong evidence", () => {
   const kit = buildCandidateSellingKit({
     name: "Alex Forsyth",
@@ -190,4 +207,70 @@ test("buildCandidateSellingKit creates recruiter selling material from strong ev
   assert.deepEqual(kit.client_brief.evidence_refs, [
     "[1] AWS official blog lists Alex as a JavaScript and TypeScript SDK maintainer.",
   ]);
+});
+
+test("buildCandidateSellingKit marks conservative LinkedIn-based kits when public evidence is not sellable", () => {
+  const kit = buildCandidateSellingKit({
+    name: "Scarlett Example",
+    headline: "Staff Software Engineer at Example AI",
+    matchScore: 73,
+    matchReasons: ["LinkedIn profile shows ML infrastructure work at Example AI."],
+    publicEvidenceItems: [
+      {
+        citation_label: "[1]",
+        source_type: "other_professional",
+        evidence_summary: "RocketReach lists Scarlett at Example AI.",
+        evidence_strength: "strong",
+        selling_tier: "identity_only",
+        safe_to_use_in_outreach: false,
+        safe_to_use_in_client_brief: false,
+      },
+    ],
+  });
+
+  assert.equal(kit.evidence_basis, "linkedin_based");
+  assert.match(kit.one_line_pitch, /LinkedIn profile/);
+  assert.doesNotMatch(kit.one_line_pitch, /RocketReach/);
+  assert.equal(kit.outreach_opener, null);
+  assert.match(kit.client_brief.why_match.join(" "), /LinkedIn-based/);
+  assert.deepEqual(kit.client_brief.evidence_refs, []);
+});
+
+test("buildCandidateSellingKit keeps verified AAMAS paper and excludes same-name ResearchGate noise", () => {
+  const kit = buildCandidateSellingKit({
+    name: "Sajid Ali",
+    headline: "Senior Research Software Engineer at NYU",
+    matchScore: 92,
+    matchReasons: ["Research software engineering background at NYU."],
+    publicEvidenceItems: [
+      {
+        citation_label: "[1]",
+        source_type: "paper",
+        source_url: "https://www.ifaamas.org/Proceedings/aamas2024/pdfs/p771.pdf",
+        title: "Causal Explanations for Sequential Decision-Making",
+        evidence_summary: "AAMAS 2024 paper lists Sajid Ali as a verified co-author with NYU context.",
+        outreach_angle: "Open with the verified AAMAS 2024 paper.",
+        evidence_strength: "strong",
+        selling_tier: "strong_selling_point",
+        safe_to_use_in_outreach: true,
+        safe_to_use_in_client_brief: true,
+      },
+      {
+        citation_label: "[2]",
+        source_type: "paper",
+        source_url: "https://www.researchgate.net/publication/same-name",
+        title: "Unrelated same-name paper",
+        evidence_summary: "ResearchGate result shares the same name but lacks institution context.",
+        evidence_strength: "strong",
+        selling_tier: "not_usable",
+        safe_to_use_in_outreach: false,
+        safe_to_use_in_client_brief: false,
+      },
+    ],
+  });
+
+  assert.equal(kit.evidence_basis, "public_evidence");
+  assert.match(kit.outreach_opener || "", /AAMAS 2024/);
+  assert.match(kit.client_brief.evidence_refs.join(" "), /AAMAS 2024/);
+  assert.doesNotMatch(kit.client_brief.evidence_refs.join(" "), /ResearchGate/);
 });

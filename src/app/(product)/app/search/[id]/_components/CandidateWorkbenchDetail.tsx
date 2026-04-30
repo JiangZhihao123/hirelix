@@ -231,14 +231,20 @@ export function CandidateWorkbenchDetail({
       ? "Lead with the strongest verified public engineering evidence."
       : "No verified public engineering evidence found yet — reference their most relevant LinkedIn experience directly in the opening line.");
 
-  async function handleEnrich() {
+  async function handleEnrich(options: { regenerateOutreach?: boolean } = {}) {
     if (enriching || !session?.access_token) return;
     setEnrichError(null);
     setEnriching(true);
     try {
       const res = await fetch(`/api/candidates/${candidate.id}/enrich`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: options.regenerateOutreach
+          ? JSON.stringify({ regenerate_outreach: true })
+          : undefined,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -285,6 +291,14 @@ export function CandidateWorkbenchDetail({
           : []),
       ].filter(Boolean).join("\n")
     : "";
+  const citationLinks = new Map(
+    publicEvidenceItems
+      .filter((item) => item.citation_label && item.source_url)
+      .map((item) => [item.citation_label as string, item.source_url as string]),
+  );
+  const linkedInBased = sellingKit?.evidence_basis === "linkedin_based";
+  const canRegenerateWithPublicEvidence =
+    Boolean(localCandidate.outreach_draft && sellingKit?.evidence_basis === "public_evidence");
 
   return (
     <>
@@ -385,16 +399,28 @@ export function CandidateWorkbenchDetail({
                     Candidate Selling Kit
                   </p>
                   <p className="mt-1 text-sm text-emerald-900">
-                    {sellingKit?.recommendation === "reach_out_first"
-                      ? "Reach out first"
-                      : sellingKit?.recommendation === "backup"
-                        ? "Backup candidate"
-                        : sellingKit?.recommendation === "do_not_pitch"
-                          ? "Do not pitch yet"
-                          : "LinkedIn-based pitch"}
+                    {linkedInBased
+                      ? "LinkedIn-based pitch"
+                      : sellingKit?.recommendation === "reach_out_first"
+                        ? "Reach out first"
+                        : sellingKit?.recommendation === "backup"
+                          ? "Backup candidate"
+                          : sellingKit?.recommendation === "do_not_pitch"
+                            ? "Do not pitch yet"
+                            : "LinkedIn-based pitch"}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {canRegenerateWithPublicEvidence && (
+                    <button
+                      onClick={() => handleEnrich({ regenerateOutreach: true })}
+                      disabled={enriching}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      {enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                      Regenerate with public evidence
+                    </button>
+                  )}
                   {sellingKit?.outreach_opener && (
                     <button
                       onClick={() => copyText(sellingKit.outreach_opener || "", "opener")}
@@ -418,6 +444,37 @@ export function CandidateWorkbenchDetail({
               <p className="mt-3 text-lg font-semibold leading-7 text-slate-950">
                 {sellingKit?.one_line_pitch || whyContactSummary}
               </p>
+              {publicEvidenceItems.some((item) => item.safe_to_use_in_client_brief) && (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                    Strongest evidence
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {publicEvidenceItems
+                      .filter((item) => item.safe_to_use_in_client_brief)
+                      .slice(0, 3)
+                      .map((item, index) => (
+                        <li key={`${item.source_url}-${item.evidence_summary}`} className="text-sm leading-6 text-slate-700">
+                          {item.source_url ? (
+                            <a
+                              href={item.source_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-emerald-700 hover:text-emerald-900"
+                            >
+                              {citationLabelForItem(item, index)}
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-emerald-700">
+                              {citationLabelForItem(item, index)}
+                            </span>
+                          )}{" "}
+                          {item.evidence_summary}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
               {sellingKit?.outreach_opener && (
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm leading-6 text-emerald-900">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
@@ -449,11 +506,42 @@ export function CandidateWorkbenchDetail({
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {(sellingKit.evidence_badges || []).slice(0, 4).map((badge, index) => (
-                        <span key={`${badge.label}-${index}`} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
-                          {[badge.label, badge.citation_label].filter(Boolean).join(" ")}
-                        </span>
+                        badge.citation_label && citationLinks.get(badge.citation_label) ? (
+                          <a
+                            key={`${badge.label}-${index}`}
+                            href={citationLinks.get(badge.citation_label)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-100"
+                          >
+                            {[badge.label, badge.citation_label].filter(Boolean).join(" ")}
+                          </a>
+                        ) : (
+                          <span key={`${badge.label}-${index}`} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
+                            {[badge.label, badge.citation_label].filter(Boolean).join(" ")}
+                          </span>
+                        )
                       ))}
                     </div>
+                    {(sellingKit.client_brief.evidence_refs || []).slice(0, 3).map((ref) => {
+                      const citation = ref.match(/^\[\d+\]/)?.[0] || null;
+                      const href = citation ? citationLinks.get(citation) : null;
+                      return href ? (
+                        <a
+                          key={ref}
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 block text-xs leading-5 text-emerald-700 hover:text-emerald-900"
+                        >
+                          {ref}
+                        </a>
+                      ) : (
+                        <p key={ref} className="mt-2 text-xs leading-5 text-slate-600">
+                          {ref}
+                        </p>
+                      );
+                    })}
                     {(sellingKit.client_brief.risks_to_verify || sellingKit.risk_flags || []).slice(0, 3).map((risk) => (
                       <p key={risk} className="mt-2 text-xs leading-5 text-amber-700">
                         {risk}
@@ -808,7 +896,7 @@ export function CandidateWorkbenchDetail({
                   />
                 ) : (
                   <button
-                    onClick={handleEnrich}
+                    onClick={() => handleEnrich()}
                     disabled={enriching}
                     className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
                   >
@@ -852,6 +940,16 @@ export function CandidateWorkbenchDetail({
                     {copied === "all" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
                     {copied === "all" ? "Copied" : "Copy all"}
                   </button>
+                  {canRegenerateWithPublicEvidence && (
+                    <button
+                      onClick={() => handleEnrich({ regenerateOutreach: true })}
+                      disabled={enriching}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      {enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                      Regenerate
+                    </button>
+                  )}
                 </div>
 
                 {outreachTab === "email" && (

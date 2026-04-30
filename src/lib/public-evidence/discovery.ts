@@ -46,6 +46,7 @@ export function buildPublicEvidenceQueries(input: PublicEvidenceCandidateInput) 
       `"${input.name}" site:arxiv.org`,
       `"${input.name}" site:openreview.net`,
       `"${input.name}" site:dblp.org`,
+      `"${input.name}" site:ifaamas.org`,
       `"${input.name}" site:aclanthology.org`,
       `"${input.name}" site:proceedings.mlr.press`,
       `"${input.name}" site:neurips.cc`,

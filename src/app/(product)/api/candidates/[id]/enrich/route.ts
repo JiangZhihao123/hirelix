@@ -33,6 +33,9 @@ export async function POST(
   if (!auth?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const body = await req.json().catch(() => ({}));
+  const regenerateOutreach =
+    body && typeof body === "object" && (body as Record<string, unknown>).regenerate_outreach === true;
 
   try {
     const user = await getUserFromApiRequest(req);
@@ -54,8 +57,8 @@ export async function POST(
     }
 
     const updates: Record<string, unknown> = {};
-    const needsContactLookup = !candidate.email;
-    const needsDraftBackfill = !candidate.outreach_draft;
+    const needsContactLookup = !candidate.email && !regenerateOutreach;
+    const needsDraftBackfill = !candidate.outreach_draft || regenerateOutreach;
     const sanitizedCandidateName = sanitizeDisplayName(candidate.name);
     if (sanitizedCandidateName !== candidate.name) {
       updates.name = sanitizedCandidateName;

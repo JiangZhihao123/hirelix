@@ -160,6 +160,31 @@ test("buildRecruiterOutreachEvidence falls back to LinkedIn when public evidence
   assert.doesNotMatch(evidence.proofToReference, /RocketReach/);
 });
 
+test("buildRecruiterOutreachEvidence does not use not_usable public evidence", () => {
+  const evidence = buildRecruiterOutreachEvidence({
+    name: "Daylan Example",
+    headline: "Backend Engineer at Example",
+    skills: ["Distributed Systems"],
+    matchReasons: ["LinkedIn profile shows backend systems experience."],
+    publicEvidence: {
+      status: "verified",
+      items: [
+        {
+          citation_label: "[1]",
+          source_type: "paper",
+          evidence_summary: "A same-name paper appears in search results.",
+          evidence_strength: "strong",
+          selling_tier: "not_usable",
+          safe_to_use_in_outreach: false,
+        },
+      ],
+    },
+  });
+
+  assert.equal(evidence.evidenceSource, "linkedin");
+  assert.doesNotMatch(evidence.proofToReference, /same-name paper/i);
+});
+
 test("buildFallbackOutreachDraft softens language when evidence is weak", () => {
   const draft = buildFallbackOutreachDraft({
     firstName: "Evan",

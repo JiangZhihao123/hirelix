@@ -436,6 +436,7 @@ export function getCandidatePublicEvidence(candidate: CandidateRow): PublicEvide
     items: Array.isArray(item.items)
       ? item.items
           .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+          .filter((entry) => entry.selling_tier !== "not_usable")
           .map((entry) => ({
             citation_label: typeof entry.citation_label === "string" ? entry.citation_label : null,
             source_type: typeof entry.source_type === "string" ? entry.source_type : null,
@@ -523,6 +524,10 @@ export function getCandidateSellingKit(candidate: CandidateRow): CandidateSellin
     : null;
   return {
     version: item.version === 1 ? 1 : undefined,
+    evidence_basis:
+      item.evidence_basis === "public_evidence" || item.evidence_basis === "linkedin_based"
+        ? item.evidence_basis
+        : undefined,
     recommendation:
       item.recommendation === "reach_out_first" ||
       item.recommendation === "backup" ||
