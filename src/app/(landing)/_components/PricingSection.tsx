@@ -3,27 +3,30 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK } from "@/lib/billing";
 import type { User } from "@supabase/supabase-js";
 
-const planCtaLabels = {
-  free: "Start free",
-  pro_monthly: "Start monthly",
-  pro_annual: "Start annual",
-} as const;
+// Show these plans on the landing page (Pro Annual featured, Pro Monthly in settings only).
+const SHOWCASE_PLANS = ["free", "pro_annual", "business_monthly", "agency_monthly"] as const;
 
-const shortlistCopy = {
+const planCtaLabels: Record<string, string> = {
+  free: "Start free",
+  pro_annual: "Start annual",
+  business_monthly: "Start Business",
+  agency_monthly: "Contact us",
+};
+
+const shortlistCopy: Record<string, string> = {
   free: "Qualified candidates ranked by fit",
-  pro_monthly: "Qualified candidates ranked by fit and outreach priority",
   pro_annual: "Qualified candidates ranked by fit and outreach priority",
-} as const;
+  business_monthly: "Higher volume, team workspace, priority support",
+  agency_monthly: "Unlimited sourcing, API access, white-label export",
+};
 
 export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn: () => void }) {
-  // Compute monthly-equivalent savings between Pro Monthly and Pro Annual.
-  // pro_monthly.priceCents is per month; pro_annual.priceCents is per year.
-  const monthlyPlan = BILLING_PLANS.pro_monthly;
-  const annualPlan = BILLING_PLANS.pro_annual;
-  const annualMonthlyEquivalent = annualPlan ? annualPlan.priceCents / 12 : 0;
+  const proAnnual = BILLING_PLANS.pro_annual;
+  const proMonthly = BILLING_PLANS.pro_monthly;
+  const annualMonthlyEquivalent = proAnnual ? proAnnual.priceCents / 12 : 0;
   const annualSavingsPercent =
-    monthlyPlan && annualPlan && monthlyPlan.priceCents > 0
-      ? Math.round(((monthlyPlan.priceCents - annualMonthlyEquivalent) / monthlyPlan.priceCents) * 100)
+    proMonthly && proAnnual && proMonthly.priceCents > 0
+      ? Math.round(((proMonthly.priceCents - annualMonthlyEquivalent) / proMonthly.priceCents) * 100)
       : 0;
 
   return (
@@ -37,7 +40,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
             Start free. Upgrade when sourcing gets busy.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Run your first candidate search without a credit card. Paid plans add more searches,
+            Run your first two searches without a credit card. Paid plans add more searches,
             contact unlocks, exports, and outreach drafts.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs">
@@ -53,12 +56,14 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
           </div>
         </div>
 
-        <div className="mt-14 grid gap-5 lg:grid-cols-3 lg:items-stretch">
-          {Object.values(BILLING_PLANS).map((plan) => {
-            const isAnnual = plan.code === "pro_annual";
-            const isMonthly = plan.code === "pro_monthly";
+        <div className="mt-14 grid gap-5 lg:grid-cols-4 lg:items-stretch">
+          {SHOWCASE_PLANS.map((code) => {
+            const plan = BILLING_PLANS[code];
+            const isProAnnual = plan.code === "pro_annual";
             const isFree = plan.code === "free";
-            const isRecommended = isAnnual;
+            const isAgency = plan.code === "agency_monthly";
+            const isRecommended = isProAnnual;
+
             return (
               <div
                 key={plan.code}
@@ -73,15 +78,15 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                     Best value
                   </span>
                 )}
-                {isAnnual && annualSavingsPercent > 0 ? (
+                {isProAnnual && annualSavingsPercent > 0 ? (
                   <span className="absolute -top-3 right-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
                     Save {annualSavingsPercent}%
                   </span>
                 ) : null}
 
-                {isMonthly ? (
-                  <span className="absolute -top-3 right-5 rounded-lg border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
-                    Flexible
+                {isFree ? (
+                  <span className="absolute -top-3 right-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                    Free
                   </span>
                 ) : null}
 
@@ -92,11 +97,6 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                       {plan.description}
                     </p>
                   </div>
-                  {isFree ? (
-                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                      Free
-                    </span>
-                  ) : null}
                 </div>
 
                 <div className="mt-6 flex items-end gap-1.5">
@@ -109,9 +109,10 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                 </div>
                 <p className="mt-1 text-xs text-slate-500">{plan.cadenceLabel}</p>
 
-                {isAnnual ? (
+                {isProAnnual ? (
                   <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
-                    Billed ${Math.round(plan.priceCents / 100).toLocaleString()} annually.
+                    Billed ${Math.round(plan.priceCents / 100).toLocaleString()} annually. Monthly
+                    billing available ($299/mo) in settings.
                   </p>
                 ) : null}
 
@@ -119,19 +120,30 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>
-                      <strong className="text-slate-950">{plan.searchesPerMonth}</strong>{" "}
-                      {plan.searchesPerMonth === 1 ? "sourcing run" : "sourcing runs"} / month
+                      <strong className="text-slate-950">
+                        {plan.searchesPerMonth >= 9999 ? "Unlimited" : plan.searchesPerMonth}
+                      </strong>{" "}
+                      sourcing runs / month
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>{shortlistCopy[plan.code]}</span>
                   </li>
-                  {plan.enrichesPerMonth > 0 ? (
+                  {plan.enrichesPerMonth >= 99999 ? (
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                       <span>
-                        <strong className="text-slate-950">{plan.enrichesPerMonth}</strong>{" "}
+                        <strong className="text-slate-950">Unlimited</strong> contact unlocks
+                      </span>
+                    </li>
+                  ) : plan.enrichesPerMonth > 0 ? (
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>
+                        <strong className="text-slate-950">
+                          {plan.enrichesPerMonth.toLocaleString()}
+                        </strong>{" "}
                         contact unlocks with outreach drafts / month
                       </span>
                     </li>
@@ -144,7 +156,9 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                   {plan.exportEnabled ? (
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                      <span>CSV export included</span>
+                      <span>
+                        {isAgency ? "White-label CSV export + API access" : "CSV export included"}
+                      </span>
                     </li>
                   ) : (
                     <li className="flex items-start gap-2 text-slate-500">
@@ -152,10 +166,24 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                       <span>Upgrade for CSV export</span>
                     </li>
                   )}
+                  {isAgency ? (
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>Dedicated onboarding and priority support</span>
+                    </li>
+                  ) : null}
                 </ul>
 
                 <div className="mt-auto pt-7">
-                  {user ? (
+                  {isAgency ? (
+                    <a
+                      href="mailto:support@hirelix.online?subject=Agency%20Plan%20Inquiry"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-all hover:bg-slate-800"
+                    >
+                      {planCtaLabels[plan.code]}
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  ) : user ? (
                     <Link
                       href="/app/settings#billing"
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-all ${

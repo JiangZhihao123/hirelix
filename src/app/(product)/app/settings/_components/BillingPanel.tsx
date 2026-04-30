@@ -149,15 +149,17 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               Plans
             </p>
           </div>
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="grid gap-4 xl:grid-cols-5">
             {Object.values(BILLING_PLANS).map((plan) => {
               const isCurrent = billing.subscription.planCode === plan.code;
               const isPaidPlan = plan.code !== "free";
+              const isUnlimitedSearches = plan.searchesPerMonth >= 9999;
+              const isUnlimitedEnriches = plan.enrichesPerMonth >= 99999;
 
               return (
                 <div
                   key={plan.code}
-                  className={`rounded-xl border p-5 ${
+                  className={`rounded-xl border p-4 ${
                     plan.featured
                       ? "border-primary/25 bg-primary/5"
                       : "border-slate-200 bg-white"
@@ -165,30 +167,30 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-base font-semibold text-slate-950">{plan.name}</h3>
-                      <p className="mt-1 text-sm text-slate-600">{plan.description}</p>
+                      <h3 className="text-sm font-semibold text-slate-950">{plan.name}</h3>
+                      <p className="mt-1 text-xs text-slate-600">{plan.description}</p>
                     </div>
                     {plan.featured ? (
-                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                         Popular
                       </span>
                     ) : null}
                   </div>
 
-                  <div className="mt-5">
-                    <p className="text-2xl font-bold text-slate-950">{plan.priceLabel}</p>
+                  <div className="mt-4">
+                    <p className="text-xl font-bold text-slate-950">{plan.priceLabel}</p>
                     <p className="text-xs text-slate-500">{plan.cadenceLabel}</p>
                   </div>
 
-                  <div className="mt-5 space-y-2 text-sm text-slate-600">
+                  <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     <p>
-                      {plan.searchesPerMonth}{" "}
-                      {plan.searchesPerMonth === 1 ? "sourcing run" : "sourcing runs"} / month
+                      {isUnlimitedSearches ? "Unlimited" : plan.searchesPerMonth}{" "}
+                      sourcing runs / month
                     </p>
                     <p>Ranked qualified candidates by role fit</p>
                     <p>
-                      {plan.enrichesPerMonth}{" "}
-                      {plan.enrichesPerMonth === 1 ? "contact unlock" : "contact unlocks"} / month
+                      {isUnlimitedEnriches ? "Unlimited" : plan.enrichesPerMonth}{" "}
+                      contact unlocks / month
                     </p>
                     <p className="inline-flex items-center gap-1.5">
                       <Download className="h-3.5 w-3.5" />
@@ -217,7 +219,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                       <PaddleCheckoutButton
                         checkout={{
                           type: "plan",
-                          planCode: plan.code as "pro_monthly" | "pro_annual",
+                          planCode: plan.code as Exclude<import("@/lib/billing").BillingPlanCode, "free">,
                         }}
                         label={plan.ctaLabel}
                         onError={(message) =>

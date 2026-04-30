@@ -86,6 +86,8 @@ function resolvePlanCode(priceIds: string[]) {
   const config = getCheckoutConfig();
   if (priceIds.includes(config.monthlyPriceId)) return "pro_monthly";
   if (priceIds.includes(config.annualPriceId)) return "pro_annual";
+  if (priceIds.includes(config.businessPriceId)) return "business_monthly";
+  if (priceIds.includes(config.agencyPriceId)) return "agency_monthly";
   return null;
 }
 

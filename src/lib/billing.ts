@@ -1,4 +1,9 @@
-export type BillingPlanCode = "free" | "pro_monthly" | "pro_annual";
+export type BillingPlanCode =
+  | "free"
+  | "pro_monthly"
+  | "pro_annual"
+  | "business_monthly"
+  | "agency_monthly";
 export type BillingStatus = "active" | "trialing" | "past_due" | "canceled";
 export type BillingCycle = "month" | "year" | null;
 
@@ -47,6 +52,8 @@ export type BillingSummary = {
     paddleEnabled: boolean;
     monthlyPriceIdConfigured: boolean;
     annualPriceIdConfigured: boolean;
+    businessPriceIdConfigured: boolean;
+    agencyPriceIdConfigured: boolean;
     searchPackPriceIdConfigured: boolean;
     contactPackPriceIdConfigured: boolean;
   };
@@ -65,59 +72,87 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Validate one role with a ranked shortlist and a few contact unlocks.",
+    description: "Run 2 searches to see how AI sourcing with evidence works.",
     priceLabel: "$0",
     cadenceLabel: "free forever",
     billingCycle: null,
-    searchesPerMonth: 1,
+    searchesPerMonth: 2,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 3,
+    enrichesPerMonth: 5,
     exportEnabled: false,
     priceCents: 0,
     ctaLabel: "Current plan",
   },
   pro_monthly: {
     code: "pro_monthly",
-    name: "Pro Monthly",
-    description: "Flexible month-to-month sourcing for active roles and experiments.",
-    priceLabel: "$99",
+    name: "Pro",
+    description: "For independent technical headhunters sourcing active roles.",
+    priceLabel: "$299",
     cadenceLabel: "per seat / month",
     billingCycle: "month",
     searchesPerMonth: 30,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 300,
     exportEnabled: true,
-    priceCents: 9900,
+    priceCents: 29900,
     ctaLabel: "Upgrade monthly",
   },
   pro_annual: {
     code: "pro_annual",
     name: "Pro Annual",
-    description: "Best value for ongoing sourcing with higher contact capacity.",
-    priceLabel: "$79",
+    description: "Two months free. For headhunters with steady sourcing volume.",
+    priceLabel: "$249",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",
     searchesPerMonth: 30,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 500,
     exportEnabled: true,
-    priceCents: 94800,
+    priceCents: 298800,
     ctaLabel: "Upgrade annually",
     featured: true,
+  },
+  business_monthly: {
+    code: "business_monthly",
+    name: "Business",
+    description: "For small teams. Higher volume, shared workspace, priority support.",
+    priceLabel: "$799",
+    cadenceLabel: "up to 3 seats / month",
+    billingCycle: "month",
+    searchesPerMonth: 100,
+    candidateLimitPerSearch: 50,
+    enrichesPerMonth: 1000,
+    exportEnabled: true,
+    priceCents: 79900,
+    ctaLabel: "Upgrade to Business",
+  },
+  agency_monthly: {
+    code: "agency_monthly",
+    name: "Agency",
+    description: "Unlimited. White-label export, API access, dedicated onboarding.",
+    priceLabel: "$1,999",
+    cadenceLabel: "up to 10 seats / month",
+    billingCycle: "month",
+    searchesPerMonth: 9999,
+    candidateLimitPerSearch: 100,
+    enrichesPerMonth: 99999,
+    exportEnabled: true,
+    priceCents: 199900,
+    ctaLabel: "Contact us",
   },
 };
 
 export const SEARCH_PACK = {
   name: "Search Pack",
-  description: "10 extra searches for heavy months.",
-  priceLabel: "$29",
+  description: "10 extra searches when you need more this month.",
+  priceLabel: "$49",
   credits: 10,
 };
 
 export const CONTACT_PACK = {
   name: "Contact Pack",
-  description: "100 extra email + draft contact unlocks.",
-  priceLabel: "$29",
+  description: "100 extra contact unlocks with outreach drafts.",
+  priceLabel: "$49",
   credits: 100,
 };
 
@@ -134,8 +169,15 @@ export function getEffectivePlanCode(
   planCode: string | null | undefined,
   status: string | null | undefined,
 ): BillingPlanCode {
-  const normalizedPlan =
-    planCode === "pro_monthly" || planCode === "pro_annual" ? planCode : "free";
+  const validCodes = new Set<BillingPlanCode>([
+    "pro_monthly",
+    "pro_annual",
+    "business_monthly",
+    "agency_monthly",
+  ]);
+  const normalizedPlan = validCodes.has(planCode as BillingPlanCode)
+    ? (planCode as BillingPlanCode)
+    : "free";
   const normalizedStatus = normalizeBillingStatus(status);
 
   if (normalizedPlan === "free") return "free";
@@ -213,6 +255,8 @@ export function getCheckoutConfig(): {
   clientToken: string;
   monthlyPriceId: string;
   annualPriceId: string;
+  businessPriceId: string;
+  agencyPriceId: string;
   searchPackPriceId: string;
   contactPackPriceId: string;
 } {
@@ -227,6 +271,8 @@ export function getCheckoutConfig(): {
     clientToken: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "",
     monthlyPriceId: process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "",
     annualPriceId: process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID || "",
+    businessPriceId: process.env.NEXT_PUBLIC_PADDLE_BUSINESS_PRICE_ID || "",
+    agencyPriceId: process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "",
     searchPackPriceId: process.env.NEXT_PUBLIC_PADDLE_SEARCH_PACK_PRICE_ID || "",
     contactPackPriceId: process.env.NEXT_PUBLIC_PADDLE_CONTACT_PACK_PRICE_ID || "",
   };

@@ -60,7 +60,7 @@ export function CandidateCard({
   requiredSkills: string[];
   selected?: boolean;
   onToggleSelect?: () => void;
-  billingPlanCode: "free" | "pro_monthly" | "pro_annual";
+  billingPlanCode: import("@/lib/billing").BillingPlanCode;
   enrichesRemaining: number;
   refreshBilling: () => Promise<void>;
   onUpgradeClick: (surface: string) => void;

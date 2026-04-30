@@ -100,7 +100,7 @@ export function ContactActionStrip({
   onError,
   compact = false,
 }: {
-  billingPlanCode: "free" | "pro_monthly" | "pro_annual";
+  billingPlanCode: import("@/lib/billing").BillingPlanCode;
   hasRealEmail: boolean;
   enrichesRemaining: number;
   enriching: boolean;

@@ -59,17 +59,22 @@ type UserRow = {
 // ─── 辅助函数 ────────────────────────────────────────────────────────────────
 
 function planBadge(plan: string, status: string) {
-  const isPro =
-    (plan === "pro_monthly" || plan === "pro_annual") && status === "active";
+  const isPaid =
+    (plan === "pro_monthly" || plan === "pro_annual" || plan === "business_monthly" || plan === "agency_monthly") && status === "active";
+  const planLabel =
+    plan === "pro_annual" ? "Pro Annual" :
+    plan === "business_monthly" ? "Business" :
+    plan === "agency_monthly" ? "Agency" :
+    plan === "pro_monthly" ? "Pro Monthly" : "Free";
+  const badgeColor =
+    plan === "agency_monthly" ? "bg-purple-100 text-purple-800" :
+    plan === "business_monthly" ? "bg-indigo-100 text-indigo-800" :
+    isPaid ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-        isPro
-          ? "bg-amber-100 text-amber-800"
-          : "bg-slate-100 text-slate-600"
-      }`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeColor}`}
     >
-      {isPro ? (plan === "pro_annual" ? "Pro Annual" : "Pro Monthly") : "Free"}
+      {planLabel}
     </span>
   );
 }

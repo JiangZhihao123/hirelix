@@ -1,4 +1,6 @@
-export type SearchPlanCode = "free" | "pro_monthly" | "pro_annual";
+import type { BillingPlanCode } from "@/lib/billing";
+
+export type SearchPlanCode = BillingPlanCode;
 
 export type SearchExecutionProfileName =
   | "bright_test_full"
@@ -101,12 +103,21 @@ export function normalizeSearchExecutionProfileName(
   }
 }
 
+const PAID_PLAN_CODES = new Set<SearchPlanCode>([
+  "pro_monthly",
+  "pro_annual",
+  "business_monthly",
+  "agency_monthly",
+]);
+
 export function normalizeSearchPlanCode(value: unknown): SearchPlanCode {
-  return value === "pro_monthly" || value === "pro_annual" ? value : "free";
+  return PAID_PLAN_CODES.has(value as SearchPlanCode)
+    ? (value as SearchPlanCode)
+    : "free";
 }
 
 export function isProPlanCode(planCode: SearchPlanCode) {
-  return planCode === "pro_monthly" || planCode === "pro_annual";
+  return PAID_PLAN_CODES.has(planCode);
 }
 
 export function getSearchExecutionProfile(
