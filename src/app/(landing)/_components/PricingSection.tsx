@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK } from "@/lib/billing";
 import type { User } from "@supabase/supabase-js";
 
@@ -280,6 +281,21 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
               <p className="mt-2 text-sm text-slate-600">
                 {SEARCH_PACK.credits} extra sourcing runs for heavier sourcing weeks.
               </p>
+              {user ? (
+                <PaddleCheckoutButton
+                  checkout={{ type: "add_on", addOn: "search_pack" }}
+                  label="Buy Search Pack"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300"
+                >
+                  Sign in to buy
+                </button>
+              )}
             </div>
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <div className="flex items-baseline justify-between gap-3">
@@ -291,6 +307,21 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
               <p className="mt-2 text-sm text-slate-600">
                 {CONTACT_PACK.credits} extra contact unlocks with outreach drafts.
               </p>
+              {user ? (
+                <PaddleCheckoutButton
+                  checkout={{ type: "add_on", addOn: "contact_pack" }}
+                  label="Buy Contact Pack"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300"
+                >
+                  Sign in to buy
+                </button>
+              )}
             </div>
           </div>
         </div>
