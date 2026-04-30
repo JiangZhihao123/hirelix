@@ -23,7 +23,6 @@ import {
   deriveCurrentRole,
   fixSentenceSpacing,
   formatDimensionLabel,
-  formatEvidenceStrength,
   getCandidateGithubSignals,
   getCandidateOverallScore,
   getCandidatePublicEvidence,
@@ -99,6 +98,7 @@ export function CandidateWorkbenchDetail({
   onStatusChange: (id: string, status: string) => void;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeDetailTab, setActiveDetailTab] = useState<"sell" | "evidence" | "outreach" | "profile" | "score">("sell");
   const [copied, setCopied] = useState<string | false>(false);
   const [enriching, setEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
@@ -343,7 +343,7 @@ export function CandidateWorkbenchDetail({
 
   return (
     <>
-      <div className="relative rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
             <InitialsAvatar name={localDisplayName} />
@@ -358,7 +358,7 @@ export function CandidateWorkbenchDetail({
               <p className="mt-1 text-sm text-slate-600">
                 {currentRole}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
                 {currentCompany && (
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
                     {currentCompany}
@@ -369,68 +369,306 @@ export function CandidateWorkbenchDetail({
                     {localCandidate.location}
                   </span>
                 )}
-                {localCandidate.experience_years && (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                    {localCandidate.experience_years}+ years
-                  </span>
-                )}
-                {localCandidate.profile_url && (
-                  <a
-                    href={localCandidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700 transition hover:bg-slate-100"
-                  >
-                    LinkedIn profile
-                  </a>
-                )}
-                {localCandidate.github_url && (
-                  <a
-                    href={localCandidate.github_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700 transition hover:bg-slate-100"
-                  >
-                    GitHub
-                  </a>
-                )}
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                  {formatEvidenceStrength(githubSignals?.evidence_strength)}
-                </span>
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {["new", "starred", "contacted", "replied", "rejected"].map((status) => (
+          <div className="shrink-0">
+            <label className="sr-only" htmlFor={`candidate-status-${localCandidate.id}`}>
+              Candidate status
+            </label>
+            <select
+              id={`candidate-status-${localCandidate.id}`}
+              value={localCandidate.status}
+              onChange={(event) => onStatusChange(localCandidate.id, event.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold capitalize text-slate-700 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+            >
+              {["new", "starred", "contacted", "replied", "rejected"].map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 border-b border-slate-200">
+          <div className="flex flex-wrap gap-1">
+            {[
+              ["sell", "Sell"],
+              ["evidence", "Evidence"],
+              ["outreach", "Outreach"],
+              ["profile", "Profile"],
+              ["score", "Score"],
+            ].map(([key, label]) => (
               <button
-                key={status}
-                onClick={() => onStatusChange(localCandidate.id, status)}
-                className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition ${
-                  localCandidate.status === status
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                key={key}
+                type="button"
+                onClick={() => setActiveDetailTab(key as typeof activeDetailTab)}
+                className={`rounded-t-lg px-3 py-2 text-sm font-semibold transition ${
+                  activeDetailTab === key
+                    ? "border border-b-white border-slate-200 bg-white text-slate-950"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
-                {status}
+                {label}
               </button>
             ))}
           </div>
         </div>
 
-        {!hasRealEmail && (
-          <div className="mt-4">
-            <ContactActionStrip
-              billingPlanCode={billingPlanCode}
-              hasRealEmail={hasRealEmail}
-              enrichesRemaining={enrichesRemaining}
-              enriching={enriching}
-              onEnrich={handleEnrich}
-              onUpgradeClick={onUpgradeClick}
-              onError={(message) => setEnrichError(message)}
-            />
-          </div>
-        )}
+        <div className="mt-4">
+          {activeDetailTab === "sell" && (
+            <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
+              <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                      Candidate Selling Kit
+                    </p>
+                    <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                      {linkedInBased
+                        ? "LinkedIn-based pitch"
+                        : sellingKit?.recommendation === "reach_out_first"
+                          ? "Reach out first"
+                          : sellingKit?.recommendation === "backup"
+                            ? "Backup candidate"
+                            : sellingKit?.recommendation === "do_not_pitch"
+                              ? "Do not pitch yet"
+                              : "LinkedIn-based pitch"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {sellingKit?.outreach_opener && (
+                      <button
+                        onClick={() => copyText(sellingKit.outreach_opener || "", "opener")}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                      >
+                        {copied === "opener" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        Copy opener
+                      </button>
+                    )}
+                    {clientBriefText && (
+                      <button
+                        onClick={() => copyText(clientBriefText, "brief")}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                      >
+                        {copied === "brief" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        Copy client brief
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-4 text-xl font-semibold leading-7 text-slate-950">
+                  {recruiterHeadline || whyContactSummary}
+                </p>
+                {sellingKit?.outreach_opener && (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Copy-ready opener
+                    </p>
+                    <p className="mt-2">{sellingKit.outreach_opener}</p>
+                  </div>
+                )}
+                {sellingKit?.client_brief && (
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Client brief preview
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      {sellingKit.client_brief.positioning}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                    Best usable proof
+                  </p>
+                  {sellingEvidenceItems.length > 0 ? (
+                    <ul className="mt-2 space-y-2">
+                      {sellingEvidenceItems.slice(0, 3).map((item, index) => (
+                        <li key={`${item.source_url}-${item.evidence_summary}`} className="text-sm leading-6 text-slate-700">
+                          {item.source_url ? (
+                            <a href={item.source_url} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700 hover:text-emerald-900">
+                              {citationLabelForItem(item, index)}
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-emerald-700">{citationLabelForItem(item, index)}</span>
+                          )}{" "}
+                          {item.evidence_summary}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      No public engineering proof is safe enough to lead with yet. Use LinkedIn facts conservatively.
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                    Verify before pitching
+                  </p>
+                  {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || verificationChecklist).length > 0 ? (
+                    <ul className="mt-2 space-y-1">
+                      {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || verificationChecklist).slice(0, 4).map((risk) => (
+                        <li key={risk} className="text-sm leading-6 text-amber-900">{risk}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-amber-900">
+                      Confirm current interest, compensation range, and role scope before submitting.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
+          {activeDetailTab === "evidence" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Evidence source details
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Selling evidence is separated from identity support so recruiters do not overstate the proof.
+              </p>
+              <div className="mt-4 space-y-3">
+                {publicEvidenceItems.length > 0 ? publicEvidenceItems.slice(0, 6).map((item, index) => (
+                  <div key={`${item.source_url}-${item.evidence_summary}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-950">{citationLabelForItem(item, index)}</span>
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        {formatPublicEvidenceCategory(item)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{item.evidence_summary}</p>
+                    {item.source_url && (
+                      <a href={item.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-semibold text-sky-700 hover:text-sky-900">
+                        Source
+                      </a>
+                    )}
+                  </div>
+                )) : (
+                  <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                    No verified public engineering evidence found yet.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeDetailTab === "outreach" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Personalized outreach
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Current source: {publicEvidenceSourceLabel}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDrawerOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <Send className="h-4 w-4" />
+                  Open outreach editor
+                </button>
+              </div>
+              {!hasRealEmail && (
+                <div className="mt-4">
+                  <ContactActionStrip
+                    billingPlanCode={billingPlanCode}
+                    hasRealEmail={hasRealEmail}
+                    enrichesRemaining={enrichesRemaining}
+                    enriching={enriching}
+                    onEnrich={handleEnrich}
+                    onUpgradeClick={onUpgradeClick}
+                    onError={(message) => setEnrichError(message)}
+                  />
+                </div>
+              )}
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Best opening angle
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{bestOpeningAngle}</p>
+              </div>
+            </div>
+          )}
+
+          {activeDetailTab === "profile" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                LinkedIn resume
+              </p>
+              <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Work history</p>
+                  <div className="mt-3 space-y-3">
+                    {displayableWorkHistory.length > 0 ? displayableWorkHistory.map((job, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{job.title || "Unknown role"}</p>
+                          <p className="text-xs text-slate-500">{[job.company, job.start_date].filter(Boolean).join(" · ")}</p>
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-slate-500">No work history available.</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Education</p>
+                  <div className="mt-3 space-y-3">
+                    {displayableEducation.length > 0 ? displayableEducation.map((edu, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{edu.school || "Education"}</p>
+                          <p className="text-xs text-slate-500">{[edu.degree, edu.major].filter(Boolean).join(" · ")}</p>
+                        </div>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-slate-500">No education details available.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeDetailTab === "score" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Scorecard
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {scoreMetrics.map((metric) => (
+                  <div key={metric.key} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      {metric.label}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">
+                      {typeof metric.score === "number" ? metric.score : "—"} · {formatDimensionLabel(metric.score)}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">{metric.description}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-sm font-semibold text-slate-900">Why contact this person</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{whyContactSummary}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="hidden">
         <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-4">
             <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
@@ -910,6 +1148,7 @@ export function CandidateWorkbenchDetail({
           <Send className="h-4 w-4" />
           Generate outreach
         </button>
+      </div>
       </div>
 
       {drawerOpen && (

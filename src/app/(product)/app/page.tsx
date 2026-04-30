@@ -68,7 +68,7 @@ export default function DashboardPage() {
   const [candidateCounts, setCandidateCounts] = useState<Record<string, CandidateCount>>({});
   const [loading, setLoading] = useState(true);
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
-  const [filter, setFilter] = useState<"all" | "done" | "processing" | "error">("all");
+  const [filter, setFilter] = useState<"active" | "ready" | "running" | "issues" | "archived">("active");
   const [query, setQuery] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
@@ -205,8 +205,17 @@ export default function DashboardPage() {
         .slice(0, 3),
     [searches],
   );
+  const getDashboardBucket = (status: string): "ready" | "running" | "issues" | "archived" => {
+    if (getSearchStatusBucket(status) === "processing") return "running";
+    if (getSearchStatusBucket(status) === "error") return "issues";
+    if (isReviewableSearchStatus(status)) return "ready";
+    return "archived";
+  };
+
   const filteredSearches = searches.filter((search) => {
-    if (filter !== "all" && getSearchStatusBucket(search.status) !== filter) return false;
+    const bucket = getDashboardBucket(search.status);
+    if (filter === "active" && bucket === "issues") return false;
+    if (filter !== "active" && bucket !== filter) return false;
     if (query.trim()) {
       const q = query.toLowerCase();
       const title = (search.title ?? "").toLowerCase();
@@ -215,9 +224,14 @@ export default function DashboardPage() {
     }
     return true;
   });
-  const listSearches = filteredSearches.filter(
-    (search) => !isSearchTaskProcessingStatus(search.status),
-  );
+  const listSearches = filteredSearches;
+  const dashboardCounts = {
+    active: searches.filter((search) => getDashboardBucket(search.status) !== "issues").length,
+    ready: searches.filter((search) => getDashboardBucket(search.status) === "ready").length,
+    running: searches.filter((search) => getDashboardBucket(search.status) === "running").length,
+    issues: searches.filter((search) => getDashboardBucket(search.status) === "issues").length,
+    archived: searches.filter((search) => getDashboardBucket(search.status) === "archived").length,
+  };
 
   useEffect(() => {
     if (loading || hasTrackedDashboardViewRef.current) return;
@@ -440,23 +454,53 @@ export default function DashboardPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-950">Your sourcing tasks</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Sourcing cockpit
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Active Shortlists</h2>
               <p className="mt-1 text-sm text-muted">
-                Review what is ready, or launch another sourcing task when you are ready.
+                Pick the roles that need review, outreach, or cleanup today.
               </p>
             </div>
             <button
               type="button"
               onClick={() => navigateTo("/app/search/new", "dashboard_new_search")}
-              className="inline-flex items-center justify-center gap-2 text-sm font-medium text-muted transition-colors hover:text-foreground"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
             >
               {isNavigating && pendingHref === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              New sourcing task
+              New Search
             </button>
           </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            {[
+              { label: "Ready to contact", value: dashboardCounts.ready },
+              { label: "Needs review", value: Math.max(dashboardCounts.active - dashboardCounts.ready - dashboardCounts.running, 0) },
+              { label: "Running", value: dashboardCounts.running },
+              { label: "Issues", value: dashboardCounts.issues },
+            ].map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => {
+                  if (item.label === "Ready to contact") setFilter("ready");
+                  else if (item.label === "Running") setFilter("running");
+                  else if (item.label === "Issues") setFilter("issues");
+                  else setFilter("active");
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  {item.label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{item.value}</p>
+              </button>
+            ))}
+          </div>
+
           {/* Search + status filter */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[160px] max-w-xs">
@@ -470,10 +514,15 @@ export default function DashboardPage() {
               />
             </div>
           <div className="flex flex-wrap gap-1 rounded-lg bg-surface p-1">
-            {(["all", "done", "processing", "error"] as const).map((f) => {
-              const base = query.trim() ? filteredSearches : searches;
-              const count = f === "all" ? base.length : base.filter((s) => getSearchStatusBucket(s.status) === f).length;
-              const labels = { all: "All", done: "Ready", processing: "In Progress", error: "Failed" };
+            {(["active", "ready", "running", "issues", "archived"] as const).map((f) => {
+              const count = dashboardCounts[f];
+              const labels = {
+                active: "Active",
+                ready: "Ready",
+                running: "Running",
+                issues: "Issues",
+                archived: "Archived",
+              };
               return (
                 <button
                   key={f}
@@ -495,6 +544,13 @@ export default function DashboardPage() {
             })}
           </div>
           </div>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="grid grid-cols-[minmax(0,1fr)_130px_110px_120px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 max-lg:hidden">
+              <span>Role</span>
+              <span>Next action</span>
+              <span>Evidence</span>
+              <span className="text-right">Updated</span>
+            </div>
           {listSearches.map((s) => {
             const stats = candidateCounts[s.id];
             const displayTitle = getSearchDisplayTitle({
@@ -502,6 +558,22 @@ export default function DashboardPage() {
               fallback: "Untitled sourcing task",
             });
             const previewText = buildSearchPreview(displayTitle, s.jd_text);
+            const bucket = getDashboardBucket(s.status);
+            const nextAction =
+              bucket === "ready"
+                ? "Open workbench"
+                : bucket === "running"
+                  ? getSearchTaskStageLabel(getSearchTaskStage(s))
+                  : bucket === "issues"
+                    ? "Needs cleanup"
+                    : "Review later";
+            const evidenceLabel = stats
+              ? `${stats.total} candidates`
+              : bucket === "running"
+                ? "Pending"
+                : bucket === "ready"
+                  ? "Ready pool"
+                  : "No pool yet";
             return (
               <Link
                 key={s.id}
@@ -515,19 +587,20 @@ export default function DashboardPage() {
                     handlePrimaryCtaClick("dashboard_list_error", s.id);
                   }
                 }}
-                className="group flex items-center gap-4 rounded-xl border border-border p-4 transition-colors hover:border-muted-light hover:bg-surface sm:p-5"
+                className="group grid gap-4 border-b border-slate-100 p-4 transition-colors last:border-b-0 hover:bg-slate-50 lg:grid-cols-[minmax(0,1fr)_130px_110px_120px] lg:items-center"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <Search className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Search className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-semibold">
                       {displayTitle}
                     </p>
                     {statusIcon(s.status)}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-3">
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-3">
                     <p className="truncate text-xs text-muted">
                       {previewText}...
                     </p>
@@ -545,39 +618,26 @@ export default function DashboardPage() {
                         )}
                       </div>
                     )}
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-light">
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-light">
                     <span>{getSearchContextLabel(s.status, s.created_at, s.updated_at)}</span>
-                    <span>·</span>
-                    <span>{new Date(s.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {["queued", "parsing", "searching", "screening"].includes(s.status) && (
-                    <span className="hidden rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700 sm:block">
-                      Still running
-                    </span>
-                  )}
-                  {s.status === "deep_scoring" && (
-                    <span className="hidden rounded-full bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700 sm:block">
-                      Refining live
-                    </span>
-                  )}
-                  {s.status === "done" && (
-                    <span className="hidden rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 sm:block">
-                      Ready to review
-                    </span>
-                  )}
-                  {s.status === "degraded" && (
-                    <span className="hidden rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700 sm:block">
-                      Review with warning
-                    </span>
-                  )}
-                  {s.status === "error" && (
-                    <span className="hidden rounded-full bg-red-50 px-2 py-1 text-[10px] font-medium text-red-700 sm:block">
-                      Failed
-                    </span>
-                  )}
+                <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  bucket === "ready"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : bucket === "running"
+                      ? "bg-sky-50 text-sky-700"
+                      : bucket === "issues"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-slate-100 text-slate-600"
+                }`}>
+                  {nextAction}
+                </span>
+                <span className="text-xs text-slate-500">{evidenceLabel}</span>
+                <div className="flex items-center justify-between gap-2 lg:justify-end">
+                  <span className="text-xs text-slate-500">{formatRelativeTime(s.updated_at)}</span>
                   <button
                     onClick={(e) => deleteSearch(e, s.id)}
                     disabled={deleting === s.id}
@@ -594,12 +654,11 @@ export default function DashboardPage() {
               </Link>
             );
           })}
+          </div>
           {listSearches.length === 0 && (
             <div className="flex items-center justify-center rounded-xl border border-dashed border-border py-10">
               <p className="text-sm text-muted">
-                {filter === "processing" && activeSearches.length > 0
-                  ? "Active searches are shown above."
-                  : "No sourcing tasks with this status."}
+                No shortlists match this view.
               </p>
             </div>
           )}

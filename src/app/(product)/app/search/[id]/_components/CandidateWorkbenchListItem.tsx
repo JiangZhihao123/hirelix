@@ -27,7 +27,6 @@ export function CandidateWorkbenchListItem({
   isNew?: boolean;
 }) {
   const overallScore = getCandidateOverallScore(candidate);
-  const progressWidth = Math.max(6, Math.min(100, overallScore));
   const githubSignals = getCandidateGithubSignals(candidate);
   const githubBadge = getGithubBadge(githubSignals);
   const scoreMetrics = getCandidateScoreMetrics(candidate).filter((metric) => metric.key !== "overall");
@@ -54,7 +53,7 @@ export function CandidateWorkbenchListItem({
   return (
     <button
       onClick={onSelect}
-      className={`w-full rounded-2xl border p-4 text-left transition ${
+      className={`w-full rounded-xl border p-3 text-left transition ${
         selected
           ? "border-sky-300 bg-sky-50 shadow-sm"
           : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
@@ -90,18 +89,12 @@ export function CandidateWorkbenchListItem({
               {recruiterHeadline}
             </p>
           )}
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,#0f172a_0%,#38bdf8_100%)]"
-              style={{ width: `${progressWidth}%` }}
-            />
-          </div>
-          <div className="mt-2 grid grid-cols-3 gap-1.5">
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
             {scoreMetrics.map((metric) => (
               <span
                 key={metric.key}
                 title={metric.description}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600"
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600"
               >
                 {metric.shortLabel} {typeof metric.score === "number" ? metric.score : "—"}
               </span>

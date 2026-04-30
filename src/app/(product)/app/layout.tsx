@@ -13,12 +13,13 @@ import { BillingProvider, useBilling } from "@/lib/use-billing";
 import {
   Search,
   Plus,
-  Settings,
   LogOut,
   Loader2,
   Menu,
   X,
   ShieldCheck,
+  UserRound,
+  CreditCard,
 } from "lucide-react";
 
 export default function ProductLayout({
@@ -199,7 +200,7 @@ function ProductLayoutShell({
           className={getNavClassName(isDashboardRoute)}
         >
           {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          My Shortlists
+          Shortlists
         </Link>
         <Link
           href="/app/search/new"
@@ -210,18 +211,29 @@ function ProductLayoutShell({
           className={getNavClassName(isNewSearchRoute)}
         >
           {effectivePendingPath === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          New Shortlist
+          New Search
         </Link>
         <Link
-          href="/app/settings"
+          href="/app/settings#profile"
           onClick={() => {
             setSidebarOpen(false);
             setPendingPath("/app/settings");
           }}
           className={getNavClassName(isSettingsRoute)}
         >
-          {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
-          Settings & Billing
+          {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
+          Recruiter Profile
+        </Link>
+        <Link
+          href="/app/settings#billing"
+          onClick={() => {
+            setSidebarOpen(false);
+            setPendingPath("/app/settings");
+          }}
+          className={getNavClassName(isSettingsRoute)}
+        >
+          {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+          Billing
         </Link>
         {isAdmin && (
           <Link

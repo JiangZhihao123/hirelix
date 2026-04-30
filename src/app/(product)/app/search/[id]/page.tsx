@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
@@ -87,11 +87,10 @@ export default function SearchResultPage() {
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { billing, refresh: refreshBilling } = useBilling();
-  const cachedSnapshot = useMemo(() => readSearchPageCache(id), [id]);
-  const [search, setSearch] = useState<SearchRow | null>(() => cachedSnapshot?.search ?? null);
-  const [candidates, setCandidates] = useState<CandidateRow[]>(() => cachedSnapshot?.candidates ?? []);
+  const [search, setSearch] = useState<SearchRow | null>(null);
+  const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [newCandidateIds, setNewCandidateIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(() => !cachedSnapshot);
+  const [loading, setLoading] = useState(true);
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
@@ -109,9 +108,7 @@ export default function SearchResultPage() {
   const hasTrackedDegradedRef = useRef(false);
   const hasTrackedProcessingReassuranceRef = useRef(false);
   const hasTrackedUpgradeValueExposedRef = useRef(false);
-  const seenCandidateIdsRef = useRef<Set<string>>(
-    new Set(cachedSnapshot?.candidates.map((candidate) => candidate.id) ?? []),
-  );
+  const seenCandidateIdsRef = useRef<Set<string>>(new Set());
   const searchEmailNotificationsEnabled = areSearchNotificationsPromisedInClient();
   const analyticsContext = getAnalyticsContextFromBrowser({
     entry_mode: searchParams.get("entry") === "landing"
@@ -300,6 +297,17 @@ export default function SearchResultPage() {
       setCandidates(sorted);
     }
   }, [authLoading, user, id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const cachedSnapshot = readSearchPageCache(id);
+    if (!cachedSnapshot) return;
+
+    setSearch(cachedSnapshot.search);
+    setCandidates(cachedSnapshot.candidates);
+    seenCandidateIdsRef.current = new Set(cachedSnapshot.candidates.map((candidate) => candidate.id));
+    setLoading(false);
+  }, [id]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -1026,24 +1034,24 @@ export default function SearchResultPage() {
       )}
 
       {isReviewable && allCandidates.length > 0 && (
-        <div className="mb-4 rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
                 {isReadyWithWarning
                   ? "Ready with a warning"
                   : isImprovingInBackground
                     ? "Shortlist ready"
                     : "Shortlist complete"}
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950">
+              <h2 className="mt-1 text-lg font-semibold text-slate-950">
                 {isReadyWithWarning
                   ? "Your candidate pool is usable"
                   : isImprovingInBackground
                     ? "Your candidate pool is ready to review"
                     : "Your candidate pool is ready"}
               </h2>
-              <p className="mt-2 max-w-4xl text-sm text-slate-600">
+              <p className="mt-1 max-w-4xl text-sm text-slate-600">
                 {search.warning_message && !search.warning_message.includes("highlighted candidates")
                   ? search.warning_message
                   : qualityFloorApplied
@@ -1060,32 +1068,23 @@ export default function SearchResultPage() {
                     : "The visible candidate pool is still growing as more recalled profiles are reviewed..."}
                 </div>
               )}
-              {(!search.warning_message || search.warning_message.includes("highlighted candidates")) && (
-                <p className="mt-2 text-sm font-medium text-slate-950">
-                  Start with {priorityTierLabel}, then move into {worthReviewingTierLabel} if you need a broader pool before reaching out.
-                </p>
-              )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Considered</span>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reach first</span>
+                <span className="text-sm font-semibold text-slate-950">{priorityOutreachCount}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Backup</span>
+                <span className="text-sm font-semibold text-slate-950">{worthReviewingCount}</span>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reviewed</span>
                 <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(recallProfileCount)}</span>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reviewed</span>
-                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(deepReviewCompletedCount)}</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Visible</span>
-                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(visibleCandidateCount)}</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Evidence</span>
+              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Evidence</span>
                 <span className="text-sm font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Ruled out</span>
-                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(ruledOutCount)}</span>
               </div>
             </div>
           </div>
@@ -1145,28 +1144,6 @@ export default function SearchResultPage() {
       {/* Results */}
       {allCandidates.length > 0 && (
         <div className="space-y-3">
-          <div className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] px-4 py-4 text-sm text-slate-600 shadow-sm">
-            {allCandidates.length === 0 ? (
-              "No candidates have entered the visible pool yet. Refine the role or widen the search to unlock more viable targets."
-            ) : isImprovingInBackground ? (
-              <>
-                <span className="font-semibold text-slate-950">Your sourcing workbench is live.</span>
-                {" "}Candidates are already reviewable, and Hirelix is still refining the remaining scores in the background.
-              </>
-            ) : isReadyWithWarning ? (
-              <>
-                <span className="font-semibold text-slate-950">
-                  {visibleCandidateCount} visible candidate{visibleCandidateCount === 1 ? "" : "s"} ready to review
-                </span>
-                {" "}— open any profile in the workbench to inspect the evidence and decide who to contact first.
-              </>
-            ) : (
-              <>
-                <span className="font-semibold text-slate-950">This recruiter workbench is ready.</span>
-                {" "}You now have {priorityOutreachCount} candidate{priorityOutreachCount === 1 ? "" : "s"} to reach out to first and {worthReviewingCount} more to keep reviewing.
-              </>
-            )}
-          </div>
           {billing?.plan.code === "free" && (billing?.usage.enrichesRemaining ?? 0) <= 0 && allCandidates.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
@@ -1210,41 +1187,27 @@ export default function SearchResultPage() {
                     ? `${visibleCandidates.length} in ${selectedTierLabel.toLowerCase()}`
                     : `${allCandidates.length} candidates ready to review`}
               </p>
-              <div className="hidden items-center gap-1.5 text-xs text-muted-light sm:flex">
+              <div className="hidden flex-wrap items-center gap-1.5 text-xs text-muted-light sm:flex">
                 {visibleCandidates.length > 0 && (
                   <>
-                    <span>Overall avg: {averageQuality}%</span>
-                    <span>·</span>
-                    <span>Range: {Math.min(...visibleCandidates.map((c) => c.match_score))}–{Math.max(...visibleCandidates.map((c) => c.match_score))}%</span>
+                    <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Avg {averageQuality}%</span>
+                    <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Range {Math.min(...visibleCandidates.map((c) => c.match_score))}–{Math.max(...visibleCandidates.map((c) => c.match_score))}%</span>
                   </>
                 )}
                 {contactUnlockCandidates > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>{contactUnlockCandidates} ready for contact unlock</span>
-                  </>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} contact unlocks</span>
                 )}
                 {visibleCandidates.length > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>{githubBackedVisibleCount}/{visibleCandidates.length} with GitHub evidence</span>
-                  </>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{githubBackedVisibleCount}/{visibleCandidates.length} GitHub evidence</span>
                 )}
                 {billing?.usage.exportEnabled ? (
-                  <>
-                    <span>·</span>
-                    <span>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
                       {`${allCandidates.filter((candidate) => candidate.email).length}/${allCandidates.length} with contact info`}
-                    </span>
-                  </>
+                  </span>
                 ) : (
-                  <>
-                    <span>·</span>
-                    <span>Real LinkedIn profiles</span>
-                  </>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Real LinkedIn profiles</span>
                 )}
-                <span>·</span>
-                <span>Sorted by recruiter score</span>
+                <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Recruiter sorted</span>
               </div>
             </div>
             {isReviewable && (
@@ -1325,17 +1288,17 @@ export default function SearchResultPage() {
           {visibleCandidates.length > 0 && (
             <>
               {activeCandidate && (
-                <div className="hidden gap-4 xl:grid xl:grid-cols-[320px_minmax(0,1fr)]">
-                  <aside className="rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-sm">
+                <div className="hidden gap-4 lg:grid lg:grid-cols-[360px_minmax(0,1fr)]">
+                  <aside className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="mb-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Candidate list
+                        Candidate queue
                       </p>
                       <h3 className="mt-2 text-lg font-semibold text-slate-950">
                         {selectedTierLabel} ({visibleCandidates.length})
                       </h3>
                       <p className="mt-1 text-sm text-slate-600">
-                        Select a candidate on the left to view their profile, GitHub signals, and outreach options on the right.
+                        Work from the highest-signal people first. The right panel defaults to the copy-ready selling kit.
                       </p>
                     </div>
                     <div className="space-y-3">
@@ -1365,7 +1328,7 @@ export default function SearchResultPage() {
                 </div>
               )}
 
-              <div className="space-y-3 xl:hidden">
+              <div className="space-y-3 lg:hidden">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                     {selectedTierLabel}
