@@ -144,15 +144,15 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
 
 export const SEARCH_PACK = {
   name: "Search Pack",
-  description: "10 extra searches when you need more this month.",
-  priceLabel: "$49",
+  description: "10 extra searches when you hit your monthly limit.",
+  priceLabel: "$99",
   credits: 10,
 };
 
 export const CONTACT_PACK = {
   name: "Contact Pack",
   description: "100 extra contact unlocks with outreach drafts.",
-  priceLabel: "$49",
+  priceLabel: "$99",
   credits: 100,
 };
 
