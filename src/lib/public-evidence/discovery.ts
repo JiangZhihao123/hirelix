@@ -1,6 +1,6 @@
 import { getSerperApiKey, serperGithubSearch } from "@/lib/github/api";
 import { compactStringArray, extractCurrentCompanyFromHeadline, extractCurrentCompanyFromMetadata, normalizeText } from "@/lib/github/discovery";
-import { classifyPublicEvidenceSource, isLikelyUsefulPublicEvidenceUrl, normalizeEvidenceUrl } from "./sources";
+import { classifyPublicEvidenceSearchResult, isLikelyUsefulPublicEvidenceUrl, normalizeEvidenceUrl } from "./sources";
 import type { PublicEvidenceCandidateInput, PublicEvidenceSourceCandidate } from "./types";
 
 function sourcePriority(sourceType: PublicEvidenceSourceCandidate["sourceType"]) {
@@ -35,15 +35,22 @@ export function buildPublicEvidenceQueries(input: PublicEvidenceCandidateInput) 
       role ? `"${input.name}" "${role}" paper` : null,
       skills[0] ? `"${input.name}" "${skills[0]}" GitHub` : null,
       skills[0] ? `"${input.name}" "${skills[0]}" paper OR publication` : null,
-      `"${input.name}" site:github.com OR site:medium.com OR site:dev.to`,
-      `"${input.name}" site:npmjs.com OR site:pypi.org`,
+      `"${input.name}" site:github.com`,
+      `"${input.name}" site:medium.com`,
+      `"${input.name}" site:npmjs.com`,
+      `"${input.name}" site:pypi.org`,
       `"${input.name}" site:stackoverflow.com`,
-      `"${input.name}" site:scholar.google.com OR site:semanticscholar.org`,
-      `"${input.name}" site:arxiv.org OR site:openreview.net`,
-      `"${input.name}" site:dblp.org OR site:aclanthology.org`,
-      `"${input.name}" site:proceedings.mlr.press OR site:neurips.cc`,
+      `"${input.name}" site:scholar.google.com`,
+      `"${input.name}" site:semanticscholar.org`,
+      `"${input.name}" site:arxiv.org`,
+      `"${input.name}" site:openreview.net`,
+      `"${input.name}" site:dblp.org`,
+      `"${input.name}" site:aclanthology.org`,
+      `"${input.name}" site:proceedings.mlr.press`,
+      `"${input.name}" site:neurips.cc`,
+      `"${input.name}" filetype:pdf paper`,
     ],
-    16,
+    24,
   );
 }
 
@@ -84,7 +91,11 @@ export async function discoverPublicEvidenceSources(input: PublicEvidenceCandida
       if (!result.link) continue;
       const url = normalizeEvidenceUrl(result.link);
       if (!url || seen.has(url) || !isLikelyUsefulPublicEvidenceUrl(url)) continue;
-      const sourceType = classifyPublicEvidenceSource(url);
+      const sourceType = classifyPublicEvidenceSearchResult({
+        url,
+        title: result.title || null,
+        snippet: result.snippet || null,
+      });
       if (!sourceType) continue;
       seen.add(url);
       sources.push({

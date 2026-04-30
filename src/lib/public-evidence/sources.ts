@@ -26,6 +26,11 @@ const PAPER_HOST_PATTERNS = [
   "aclanthology.org",
   "proceedings.mlr.press",
   "neurips.cc",
+  "cvf.com",
+  "thecvf.com",
+  "aaai.org",
+  "ijcai.org",
+  "ifaamas.org",
   "acm.org",
   "ieee.org",
   "usenix.org",
@@ -42,6 +47,14 @@ const TALK_HOST_PATTERNS = [
   "slideshare.net",
   "speakerdeck.com",
   "confreaks.tv",
+];
+
+const PROFESSIONAL_AGGREGATOR_HOST_PATTERNS = [
+  "zoominfo.com",
+  "rocketreach.co",
+  "signalhire.com",
+  "growjo.com",
+  "theorg.com",
 ];
 
 export function normalizeEvidenceUrl(url: string) {
@@ -79,6 +92,7 @@ export function classifyPublicEvidenceSource(url: string): PublicEvidenceSourceT
     if (path.includes("portfolio") || path.includes("projects")) return "portfolio";
     if (
       host.includes("linkedin.com") ||
+      hostIncludes(host, PROFESSIONAL_AGGREGATOR_HOST_PATTERNS) ||
       host.includes("about.me") ||
       host.includes("read.cv") ||
       host.includes("wellfound.com")
@@ -88,6 +102,36 @@ export function classifyPublicEvidenceSource(url: string): PublicEvidenceSourceT
     if (!host.includes("google.") && !host.includes("facebook.com") && !host.includes("x.com")) {
       return "personal_site";
     }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function classifyPublicEvidenceSearchResult(params: {
+  url: string;
+  title?: string | null;
+  snippet?: string | null;
+}): PublicEvidenceSourceType | null {
+  try {
+    const parsed = new URL(params.url);
+    const path = parsed.pathname.toLowerCase();
+    const combined = `${params.title || ""}\n${params.snippet || ""}`.toLowerCase();
+    if (
+      path.endsWith(".pdf") &&
+      (
+        combined.includes("paper") ||
+        combined.includes("proceedings") ||
+        combined.includes("conference") ||
+        combined.includes("abstract") ||
+        combined.includes("author") ||
+        combined.includes("arxiv")
+      )
+    ) {
+      return "paper";
+    }
+    const directType = classifyPublicEvidenceSource(params.url);
+    if (directType) return directType;
     return null;
   } catch {
     return null;

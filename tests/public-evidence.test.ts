@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPublicEvidenceQueries } from "../src/lib/public-evidence/discovery";
-import { classifyPublicEvidenceSource, normalizeEvidenceUrl } from "../src/lib/public-evidence/sources";
+import {
+  classifyPublicEvidenceSearchResult,
+  classifyPublicEvidenceSource,
+  normalizeEvidenceUrl,
+} from "../src/lib/public-evidence/sources";
 import { buildPublicEvidenceMetadata } from "../src/lib/public-evidence";
 
 test("classifyPublicEvidenceSource recognizes public engineering evidence sources", () => {
@@ -12,8 +16,22 @@ test("classifyPublicEvidenceSource recognizes public engineering evidence source
   assert.equal(classifyPublicEvidenceSource("https://arxiv.org/abs/2401.00001"), "paper");
   assert.equal(classifyPublicEvidenceSource("https://openreview.net/forum?id=abc"), "paper");
   assert.equal(classifyPublicEvidenceSource("https://aclanthology.org/2024.acl-long.1/"), "paper");
+  assert.equal(classifyPublicEvidenceSource("https://www.ifaamas.org/Proceedings/aamas2024/pdfs/p771.pdf"), "paper");
   assert.equal(classifyPublicEvidenceSource("https://speakerdeck.com/alice/kubernetes"), "talk");
+  assert.equal(classifyPublicEvidenceSource("https://www.zoominfo.com/p/Alice-Example/123"), "other_professional");
+  assert.equal(classifyPublicEvidenceSource("https://rocketreach.co/alice-email_123"), "other_professional");
   assert.equal(classifyPublicEvidenceSource("https://engineering.linkedin.com/blog/post"), "company_engineering_blog");
+});
+
+test("classifyPublicEvidenceSearchResult treats academic PDFs as paper evidence", () => {
+  assert.equal(
+    classifyPublicEvidenceSearchResult({
+      url: "https://example.edu/proceedings/paper.pdf",
+      title: "[PDF] Causal Explanations for Sequential Decision-Making",
+      snippet: "Proceedings paper by Alice Example.",
+    }),
+    "paper",
+  );
 });
 
 test("normalizeEvidenceUrl removes unstable fragments and trailing slashes", () => {
@@ -38,9 +56,10 @@ test("buildPublicEvidenceQueries includes company, role, skills, and broad sourc
 
   assert.ok(queries.some((query) => query.includes('"Alex Forsyth" "Google"')));
   assert.ok(queries.some((query) => query.includes('"Alex Forsyth" "Search" GitHub')));
-  assert.ok(queries.some((query) => query.includes("site:arxiv.org")));
-  assert.ok(queries.some((query) => query.includes("site:openreview.net")));
-  assert.ok(queries.some((query) => query.includes("site:dblp.org")));
+  assert.ok(queries.some((query) => query === '"Alex Forsyth" site:arxiv.org'));
+  assert.ok(queries.some((query) => query === '"Alex Forsyth" site:openreview.net'));
+  assert.ok(queries.some((query) => query === '"Alex Forsyth" site:dblp.org'));
+  assert.ok(queries.some((query) => query === '"Alex Forsyth" filetype:pdf paper'));
   assert.ok(queries.some((query) => query.includes("site:npmjs.com")));
 });
 

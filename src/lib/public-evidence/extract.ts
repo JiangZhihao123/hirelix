@@ -3,7 +3,13 @@ import {
   getLightweightLlmModel,
   resolveDeepSeekThinkingMode,
 } from "@/lib/llm-client";
-import { compactStringArray, round } from "@/lib/github/discovery";
+import {
+  compactStringArray,
+  extractCurrentCompanyFromHeadline,
+  extractCurrentCompanyFromMetadata,
+  normalizeText,
+  round,
+} from "@/lib/github/discovery";
 import type {
   PublicEvidenceCandidateInput,
   PublicEvidenceItem,
@@ -55,6 +61,8 @@ Stable rules:
 - Weak evidence is identity-confirmed but low engineering substance.
 - For paper/publication sources, verify that the candidate is an author or clearly linked researcher. Do not verify a paper just because it has relevant keywords.
 - For paper/publication sources, prefer evidence_summary that names the paper/project area and, when visible, venue or year.
+- For paper/publication sources, use "uncertain" unless the source shows exact candidate authorship plus at least one corroborating identity signal such as employer/affiliation, profile cross-link, personal website, or a distinctive research domain from their profile.
+- An author profile with only a common name is not strong evidence. Mark it uncertain or weak unless affiliation/profile context matches.
 - Do not verify generic company pages, organization homepages, topic pages, search pages, or pages where the candidate name is absent.
 - Missing public evidence must not punish the candidate. Only verified useful evidence should produce positive summaries.
 
@@ -123,6 +131,13 @@ function safeJson(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+function compactSnapshotForRetry(snapshot: PageSnapshot): PageSnapshot {
+  return {
+    ...snapshot,
+    text: snapshot.text ? snapshot.text.slice(0, 2_500) : null,
+  };
+}
+
 export async function buildPublicEvidenceSnapshots(
   sources: PublicEvidenceSourceCandidate[],
 ): Promise<PageSnapshot[]> {
@@ -144,6 +159,7 @@ export async function buildPublicEvidenceSnapshots(
 function normalizeExtractedItem(
   raw: PublicEvidenceExtractResponse["items"][number],
   snapshotsByUrl: Map<string, PageSnapshot>,
+  candidate: PublicEvidenceCandidateInput,
 ): PublicEvidenceItem | null {
   const snapshot = snapshotsByUrl.get(raw.source_url);
   if (!snapshot) return null;
@@ -156,13 +172,52 @@ function normalizeExtractedItem(
   if (identityStatus !== "verified") return null;
   const identityConfidence = round(Math.max(0, Math.min(1, Number(raw.identity_confidence) || 0)), 3);
   if (identityConfidence < 0.78) return null;
+  const candidateName = normalizeText(candidate.name);
+  const currentCompany =
+    extractCurrentCompanyFromMetadata(candidate.metadata) ||
+    extractCurrentCompanyFromHeadline(candidate.headline);
+  const normalizedCompany = currentCompany ? normalizeText(currentCompany) : "";
+  const sourceContext = normalizeText(`${snapshot.title || ""}\n${snapshot.snippet || ""}\n${snapshot.text || ""}`);
+  const publicationAuthors = compactStringArray(raw.publication_authors || [], 12);
+  const hasCandidateAuthor = publicationAuthors.some((author) => {
+    const normalizedAuthor = normalizeText(author);
+    return Boolean(normalizedAuthor && (
+      normalizedAuthor === candidateName ||
+      normalizedAuthor.includes(candidateName) ||
+      candidateName.includes(normalizedAuthor)
+    ));
+  });
+  const hasCompanyContext = Boolean(
+    normalizedCompany &&
+    (sourceContext.includes(normalizedCompany) ||
+      (normalizedCompany.includes("new york university") && sourceContext.includes("nyu"))),
+  );
+  const hasPublicationTitle = typeof raw.publication_title === "string" && raw.publication_title.trim().length > 0;
   const evidenceStrength =
     raw.evidence_strength === "strong" ||
     raw.evidence_strength === "medium" ||
     raw.evidence_strength === "weak"
       ? raw.evidence_strength
       : "weak";
+  let adjustedEvidenceStrength = evidenceStrength;
+  let adjustedRelevanceCap: number | null = null;
+  if (snapshot.source_type === "paper") {
+    const hasPaperIdentityProof =
+      hasCompanyContext ||
+      (hasCandidateAuthor && identityConfidence >= 0.92) ||
+      (hasPublicationTitle && hasCandidateAuthor && sourceContext.includes(candidateName));
+    if (!hasPaperIdentityProof) return null;
+    if (!hasPublicationTitle || !hasCandidateAuthor) {
+      adjustedEvidenceStrength = "medium";
+      adjustedRelevanceCap = 70;
+    }
+  }
+  if (snapshot.source_type === "other_professional") {
+    adjustedEvidenceStrength = "weak";
+    adjustedRelevanceCap = 55;
+  }
   const relevanceScore = Math.max(0, Math.min(100, Math.round(Number(raw.relevance_score) || 0)));
+  const adjustedRelevanceScore = adjustedRelevanceCap ? Math.min(relevanceScore, adjustedRelevanceCap) : relevanceScore;
   if (!raw.evidence_summary || relevanceScore < 35) return null;
   return {
     sourceType: snapshot.source_type as PublicEvidenceItem["sourceType"],
@@ -171,8 +226,8 @@ function normalizeExtractedItem(
     snippet: snapshot.snippet,
     identityStatus,
     identityConfidence,
-    relevanceScore,
-    evidenceStrength,
+    relevanceScore: adjustedRelevanceScore,
+    evidenceStrength: adjustedEvidenceStrength,
     evidenceSummary: raw.evidence_summary,
     outreachAngle: typeof raw.outreach_angle === "string" ? raw.outreach_angle : null,
     rawMetadata: {
@@ -244,11 +299,16 @@ export async function extractPublicEvidenceItems(params: {
     ({ data } = await runExtraction(params.snapshots.slice(0, 12), 4200));
   } catch (error) {
     if (!params.snapshots[6]) throw error;
-    ({ data } = await runExtraction(params.snapshots.slice(0, 6), 3000));
+    try {
+      ({ data } = await runExtraction(params.snapshots.slice(0, 6).map(compactSnapshotForRetry), 3000));
+    } catch (retryError) {
+      if (!params.snapshots[3]) throw retryError;
+      ({ data } = await runExtraction(params.snapshots.slice(0, 3).map(compactSnapshotForRetry), 1800));
+    }
   }
   const snapshotsByUrl = new Map(params.snapshots.map((snapshot) => [snapshot.url, snapshot]));
   return (data.items || [])
-    .map((item) => normalizeExtractedItem(item, snapshotsByUrl))
+    .map((item) => normalizeExtractedItem(item, snapshotsByUrl, params.candidate))
     .filter((item): item is PublicEvidenceItem => Boolean(item))
     .sort((left, right) => right.relevanceScore - left.relevanceScore)
     .slice(0, 8);
