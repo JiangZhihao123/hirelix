@@ -153,8 +153,6 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             {Object.values(BILLING_PLANS).map((plan) => {
               const isCurrent = billing.subscription.planCode === plan.code;
               const isPaidPlan = plan.code !== "free";
-              const isUnlimitedSearches = plan.searchesPerMonth >= 9999;
-              const isUnlimitedEnriches = plan.enrichesPerMonth >= 99999;
 
               return (
                 <div
@@ -184,12 +182,12 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
 
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     <p>
-                      {isUnlimitedSearches ? "Unlimited" : plan.searchesPerMonth}{" "}
+                      {plan.searchesPerMonth}{" "}
                       sourcing runs / month
                     </p>
                     <p>Ranked qualified candidates by role fit</p>
                     <p>
-                      {isUnlimitedEnriches ? "Unlimited" : plan.enrichesPerMonth}{" "}
+                      {plan.enrichesPerMonth}{" "}
                       contact unlocks / month
                     </p>
                     <p className="inline-flex items-center gap-1.5">

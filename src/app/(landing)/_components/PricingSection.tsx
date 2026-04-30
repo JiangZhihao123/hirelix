@@ -120,9 +120,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>
-                      <strong className="text-slate-950">
-                        {plan.searchesPerMonth >= 9999 ? "Unlimited" : plan.searchesPerMonth}
-                      </strong>{" "}
+                      <strong className="text-slate-950">{plan.searchesPerMonth}</strong>{" "}
                       sourcing runs / month
                     </span>
                   </li>
@@ -130,14 +128,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>{shortlistCopy[plan.code]}</span>
                   </li>
-                  {plan.enrichesPerMonth >= 99999 ? (
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                      <span>
-                        <strong className="text-slate-950">Unlimited</strong> contact unlocks
-                      </span>
-                    </li>
-                  ) : plan.enrichesPerMonth > 0 ? (
+                  {plan.enrichesPerMonth > 0 ? (
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                       <span>
