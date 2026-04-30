@@ -191,7 +191,7 @@ export default function NewSearchPage() {
                 You&apos;ve used all sourcing runs for this billing cycle. Upgrade to continue.
               </p>
               <PaddleCheckoutButton
-                checkout={{ type: "plan", planCode: "pro_monthly" }}
+                checkout={{ type: "plan", planCode: "pro_annual" }}
                 label="Upgrade plan"
                 onError={(message) =>
                   setStage({ type: "error", message })

@@ -33,13 +33,17 @@ export function PaddleCheckoutButton({
 
   const priceId =
     checkout.type === "plan"
-      ? checkout.planCode === "pro_monthly"
-        ? config.monthlyPriceId
-        : checkout.planCode === "pro_annual"
-          ? config.annualPriceId
-          : checkout.planCode === "business_monthly"
-            ? config.businessPriceId
-            : config.agencyPriceId
+      ? checkout.planCode === "starter_monthly"
+        ? config.starterMonthlyPriceId
+        : checkout.planCode === "starter_annual"
+          ? config.starterAnnualPriceId
+          : checkout.planCode === "pro_monthly"
+            ? config.monthlyPriceId
+            : checkout.planCode === "pro_annual"
+              ? config.annualPriceId
+              : checkout.planCode === "business_monthly"
+                ? config.businessPriceId
+                : config.agencyPriceId
       : checkout.addOn === "search_pack"
         ? config.searchPackPriceId
         : config.contactPackPriceId;

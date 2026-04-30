@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         {
           error:
             billing.plan.code === "free"
-              ? "You have used your 1 free shortlist for this month. Upgrade to Pro to unlock more searches, contact details, export, and outreach execution."
+              ? "You have used your free shortlists for this month. Upgrade to keep sourcing with more searches, contact details, export, and outreach execution."
               : "You have reached this month's search limit. Add a Search Pack or wait for your next billing cycle.",
         },
         { status: 403 },

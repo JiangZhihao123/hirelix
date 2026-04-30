@@ -1,5 +1,7 @@
 export type BillingPlanCode =
   | "free"
+  | "starter_monthly"
+  | "starter_annual"
   | "pro_monthly"
   | "pro_annual"
   | "business_monthly"
@@ -52,6 +54,8 @@ export type BillingSummary = {
     paddleEnabled: boolean;
     monthlyPriceIdConfigured: boolean;
     annualPriceIdConfigured: boolean;
+    starterMonthlyPriceIdConfigured: boolean;
+    starterAnnualPriceIdConfigured: boolean;
     businessPriceIdConfigured: boolean;
     agencyPriceIdConfigured: boolean;
     searchPackPriceIdConfigured: boolean;
@@ -83,6 +87,34 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceCents: 0,
     ctaLabel: "Current plan",
   },
+  starter_monthly: {
+    code: "starter_monthly",
+    name: "Starter",
+    description: "For occasional solo technical recruiters working a few active roles.",
+    priceLabel: "$149",
+    cadenceLabel: "per seat / month",
+    billingCycle: "month",
+    searchesPerMonth: 10,
+    candidateLimitPerSearch: 25,
+    enrichesPerMonth: 100,
+    exportEnabled: false,
+    priceCents: 14900,
+    ctaLabel: "Start Starter",
+  },
+  starter_annual: {
+    code: "starter_annual",
+    name: "Starter Annual",
+    description: "For solo recruiters who want a lower annual rate for occasional sourcing.",
+    priceLabel: "$119",
+    cadenceLabel: "per seat / month, billed annually",
+    billingCycle: "year",
+    searchesPerMonth: 10,
+    candidateLimitPerSearch: 25,
+    enrichesPerMonth: 100,
+    exportEnabled: false,
+    priceCents: 142800,
+    ctaLabel: "Start annual Starter",
+  },
   pro_monthly: {
     code: "pro_monthly",
     name: "Pro",
@@ -91,7 +123,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     cadenceLabel: "per seat / month",
     billingCycle: "month",
     searchesPerMonth: 30,
-    candidateLimitPerSearch: 25,
+    candidateLimitPerSearch: 50,
     enrichesPerMonth: 300,
     exportEnabled: true,
     priceCents: 29900,
@@ -105,7 +137,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",
     searchesPerMonth: 30,
-    candidateLimitPerSearch: 25,
+    candidateLimitPerSearch: 50,
     enrichesPerMonth: 500,
     exportEnabled: true,
     priceCents: 298800,
@@ -121,7 +153,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     billingCycle: "month",
     searchesPerMonth: 100,
     candidateLimitPerSearch: 50,
-    enrichesPerMonth: 1000,
+    enrichesPerMonth: 1500,
     exportEnabled: true,
     priceCents: 79900,
     ctaLabel: "Upgrade to Business",
@@ -135,7 +167,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     billingCycle: "month",
     searchesPerMonth: 300,
     candidateLimitPerSearch: 100,
-    enrichesPerMonth: 3000,
+    enrichesPerMonth: 5000,
     exportEnabled: true,
     priceCents: 199900,
     ctaLabel: "Contact us",
@@ -170,6 +202,8 @@ export function getEffectivePlanCode(
   status: string | null | undefined,
 ): BillingPlanCode {
   const validCodes = new Set<BillingPlanCode>([
+    "starter_monthly",
+    "starter_annual",
     "pro_monthly",
     "pro_annual",
     "business_monthly",
@@ -255,6 +289,8 @@ export function getCheckoutConfig(): {
   clientToken: string;
   monthlyPriceId: string;
   annualPriceId: string;
+  starterMonthlyPriceId: string;
+  starterAnnualPriceId: string;
   businessPriceId: string;
   agencyPriceId: string;
   searchPackPriceId: string;
@@ -271,6 +307,8 @@ export function getCheckoutConfig(): {
     clientToken: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "",
     monthlyPriceId: process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "",
     annualPriceId: process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID || "",
+    starterMonthlyPriceId: process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID || "",
+    starterAnnualPriceId: process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID || "",
     businessPriceId: process.env.NEXT_PUBLIC_PADDLE_BUSINESS_PRICE_ID || "",
     agencyPriceId: process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "",
     searchPackPriceId: process.env.NEXT_PUBLIC_PADDLE_SEARCH_PACK_PRICE_ID || "",

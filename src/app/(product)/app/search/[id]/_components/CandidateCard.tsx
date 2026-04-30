@@ -336,7 +336,7 @@ export function CandidateCard({
         </button>
         {canUnlockAction && !hasRealEmail && (
           <PaddleCheckoutButton
-            checkout={{ type: "plan", planCode: "pro_monthly" }}
+            checkout={{ type: "plan", planCode: "pro_annual" }}
             label="Get email"
             onClick={() => onUpgradeClick("candidate_header_unlock")}
             onError={(message) => setEnrichError(message)}
@@ -684,7 +684,7 @@ export function CandidateCard({
                   </p>
                   {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                     <PaddleCheckoutButton
-                      checkout={{ type: "plan", planCode: "pro_monthly" }}
+                      checkout={{ type: "plan", planCode: "pro_annual" }}
                       label="Unlock contact details and outreach"
                       onClick={() => onUpgradeClick("candidate_outreach_gate")}
                       onError={(message) => setEnrichError(message)}

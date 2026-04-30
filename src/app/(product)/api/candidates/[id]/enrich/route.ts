@@ -69,7 +69,7 @@ export async function POST(
         {
           error:
             billing.plan.code === "free"
-              ? "You have used this month's free contact unlocks. Upgrade to Pro for more contact unlocks and outreach drafts."
+              ? "You have used this month's free contact unlocks. Upgrade for more contact unlocks and outreach drafts."
               : "You have reached this month's contact unlock limit. Add a Contact Pack or wait for your next billing cycle.",
         },
         { status: 403 },

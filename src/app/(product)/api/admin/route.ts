@@ -109,7 +109,9 @@ export async function GET(req: NextRequest) {
       totalUsers: totalUsers ?? 0,
       proUsers: (userSettings ?? []).filter(
         (s) =>
-          (s.subscription_plan === "pro_monthly" ||
+          (s.subscription_plan === "starter_monthly" ||
+            s.subscription_plan === "starter_annual" ||
+            s.subscription_plan === "pro_monthly" ||
             s.subscription_plan === "pro_annual" ||
             s.subscription_plan === "business_monthly" ||
             s.subscription_plan === "agency_monthly") &&

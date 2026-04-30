@@ -1189,7 +1189,7 @@ export default function SearchResultPage() {
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
-                  checkout={{ type: "plan", planCode: "pro_monthly" }}
+                  checkout={{ type: "plan", planCode: "pro_annual" }}
                   label="Unlock contact details"
                   onClick={() => handleUpgradeClick("results_first_use_strip")}
                   onError={(message) => setUpgradeError(message)}

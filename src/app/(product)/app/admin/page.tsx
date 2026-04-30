@@ -60,11 +60,13 @@ type UserRow = {
 
 function planBadge(plan: string, status: string) {
   const isPaid =
-    (plan === "pro_monthly" || plan === "pro_annual" || plan === "business_monthly" || plan === "agency_monthly") && status === "active";
+    (plan === "starter_monthly" || plan === "starter_annual" || plan === "pro_monthly" || plan === "pro_annual" || plan === "business_monthly" || plan === "agency_monthly") && status === "active";
   const planLabel =
     plan === "pro_annual" ? "Pro Annual" :
+    plan === "starter_annual" ? "Starter Annual" :
     plan === "business_monthly" ? "Business" :
     plan === "agency_monthly" ? "Agency" :
+    plan === "starter_monthly" ? "Starter" :
     plan === "pro_monthly" ? "Pro Monthly" : "Free";
   const badgeColor =
     plan === "agency_monthly" ? "bg-purple-100 text-purple-800" :

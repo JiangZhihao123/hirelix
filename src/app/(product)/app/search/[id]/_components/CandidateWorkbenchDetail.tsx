@@ -951,7 +951,7 @@ export function CandidateWorkbenchDetail({
                 </p>
                 {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                   <PaddleCheckoutButton
-                    checkout={{ type: "plan", planCode: "pro_monthly" }}
+                    checkout={{ type: "plan", planCode: "pro_annual" }}
                     label="Unlock outreach"
                     onClick={() => onUpgradeClick("workbench_outreach_drawer")}
                     onError={(message) => setEnrichError(message)}

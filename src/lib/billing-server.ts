@@ -95,6 +95,8 @@ export async function getBillingSummaryForUser(
       paddleEnabled: checkout.enabled,
       monthlyPriceIdConfigured: Boolean(checkout.monthlyPriceId),
       annualPriceIdConfigured: Boolean(checkout.annualPriceId),
+      starterMonthlyPriceIdConfigured: Boolean(checkout.starterMonthlyPriceId),
+      starterAnnualPriceIdConfigured: Boolean(checkout.starterAnnualPriceId),
       businessPriceIdConfigured: Boolean(checkout.businessPriceId),
       agencyPriceIdConfigured: Boolean(checkout.agencyPriceId),
       searchPackPriceIdConfigured: Boolean(checkout.searchPackPriceId),

@@ -84,6 +84,8 @@ function getPriceIds(data: Record<string, unknown>) {
 
 function resolvePlanCode(priceIds: string[]) {
   const config = getCheckoutConfig();
+  if (priceIds.includes(config.starterMonthlyPriceId)) return "starter_monthly";
+  if (priceIds.includes(config.starterAnnualPriceId)) return "starter_annual";
   if (priceIds.includes(config.monthlyPriceId)) return "pro_monthly";
   if (priceIds.includes(config.annualPriceId)) return "pro_annual";
   if (priceIds.includes(config.businessPriceId)) return "business_monthly";
@@ -197,7 +199,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
       user_id: userId,
       subscription_plan: planCode,
       subscription_status: status,
-      billing_cycle: planCode === "pro_annual" ? "year" : "month",
+      billing_cycle: planCode === "pro_annual" || planCode === "starter_annual" ? "year" : "month",
       paddle_customer_id: customerId,
       paddle_subscription_id: subscriptionId,
       subscription_started_at:

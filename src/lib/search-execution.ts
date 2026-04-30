@@ -104,6 +104,8 @@ export function normalizeSearchExecutionProfileName(
 }
 
 const PAID_PLAN_CODES = new Set<SearchPlanCode>([
+  "starter_monthly",
+  "starter_annual",
   "pro_monthly",
   "pro_annual",
   "business_monthly",
