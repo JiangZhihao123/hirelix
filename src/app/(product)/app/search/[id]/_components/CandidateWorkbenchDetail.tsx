@@ -27,6 +27,7 @@ import {
   getCandidateGithubSignals,
   getCandidateOverallScore,
   getCandidatePublicEvidence,
+  getCandidateSellingKit,
   getCandidateScoreMetrics,
   getEvidenceSourceLabel,
   parseOutreach,
@@ -89,6 +90,7 @@ export function CandidateWorkbenchDetail({
   const suitability = localCandidate.metadata?.suitability;
   const githubSignals = getCandidateGithubSignals(localCandidate);
   const publicEvidence = getCandidatePublicEvidence(localCandidate);
+  const sellingKit = getCandidateSellingKit(localCandidate);
   const outreach = parseOutreach(localCandidate.outreach_draft);
   const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
   const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
@@ -222,6 +224,7 @@ export function CandidateWorkbenchDetail({
     ? `${publicEvidenceItems[0].citation_label || "[1]"} Public ${publicEvidenceItems[0].source_type.replace(/_/g, " ")}`
     : evidenceSourceLabel;
   const bestOpeningAngle =
+    sellingKit?.outreach_opener ||
     publicEvidenceItems[0]?.outreach_angle ||
     githubSignals?.outreach_angle ||
     (publicEvidenceItems.length > 0
@@ -269,6 +272,19 @@ export function CandidateWorkbenchDetail({
       : activeBody;
     copyText(full, "all");
   }
+
+  const clientBriefText = sellingKit?.client_brief
+    ? [
+        sellingKit.client_brief.positioning,
+        ...(sellingKit.client_brief.why_match || []).map((item) => `- ${item}`),
+        ...(sellingKit.client_brief.evidence_refs && sellingKit.client_brief.evidence_refs.length > 0
+          ? ["Evidence:", ...sellingKit.client_brief.evidence_refs.map((item) => `- ${item}`)]
+          : []),
+        ...(sellingKit.client_brief.risks_to_verify && sellingKit.client_brief.risks_to_verify.length > 0
+          ? ["Risks to verify:", ...sellingKit.client_brief.risks_to_verify.map((item) => `- ${item}`)]
+          : []),
+      ].filter(Boolean).join("\n")
+    : "";
 
   return (
     <>
@@ -362,6 +378,92 @@ export function CandidateWorkbenchDetail({
 
         <div className="mt-6 grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
           <div className="space-y-4">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                    Candidate Selling Kit
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-900">
+                    {sellingKit?.recommendation === "reach_out_first"
+                      ? "Reach out first"
+                      : sellingKit?.recommendation === "backup"
+                        ? "Backup candidate"
+                        : sellingKit?.recommendation === "do_not_pitch"
+                          ? "Do not pitch yet"
+                          : "LinkedIn-based pitch"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sellingKit?.outreach_opener && (
+                    <button
+                      onClick={() => copyText(sellingKit.outreach_opener || "", "opener")}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      {copied === "opener" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      Copy opener
+                    </button>
+                  )}
+                  {clientBriefText && (
+                    <button
+                      onClick={() => copyText(clientBriefText, "brief")}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      {copied === "brief" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      Copy brief
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="mt-3 text-lg font-semibold leading-7 text-slate-950">
+                {sellingKit?.one_line_pitch || whyContactSummary}
+              </p>
+              {sellingKit?.outreach_opener && (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm leading-6 text-emerald-900">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                    Outreach opener
+                  </p>
+                  <p className="mt-2">{sellingKit.outreach_opener}</p>
+                </div>
+              )}
+              {sellingKit?.client_brief && (
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                      Client brief
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      {sellingKit.client_brief.positioning}
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {(sellingKit.client_brief.why_match || []).slice(0, 3).map((item) => (
+                        <li key={item} className="text-sm leading-6 text-slate-700">
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                      Evidence and risks
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(sellingKit.evidence_badges || []).slice(0, 4).map((badge, index) => (
+                        <span key={`${badge.label}-${index}`} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
+                          {[badge.label, badge.citation_label].filter(Boolean).join(" ")}
+                        </span>
+                      ))}
+                    </div>
+                    {(sellingKit.client_brief.risks_to_verify || sellingKit.risk_flags || []).slice(0, 3).map((risk) => (
+                      <p key={risk} className="mt-2 text-xs leading-5 text-amber-700">
+                        {risk}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>

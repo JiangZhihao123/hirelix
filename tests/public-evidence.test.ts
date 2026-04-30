@@ -7,6 +7,10 @@ import {
   normalizeEvidenceUrl,
 } from "../src/lib/public-evidence/sources";
 import { buildPublicEvidenceMetadata } from "../src/lib/public-evidence";
+import {
+  buildCandidateSellingKit,
+  classifyPublicEvidenceForSelling,
+} from "../src/lib/public-evidence/selling-kit";
 
 test("classifyPublicEvidenceSource recognizes public engineering evidence sources", () => {
   assert.equal(classifyPublicEvidenceSource("https://github.com/octocat"), "github");
@@ -20,6 +24,8 @@ test("classifyPublicEvidenceSource recognizes public engineering evidence source
   assert.equal(classifyPublicEvidenceSource("https://speakerdeck.com/alice/kubernetes"), "talk");
   assert.equal(classifyPublicEvidenceSource("https://www.zoominfo.com/p/Alice-Example/123"), "other_professional");
   assert.equal(classifyPublicEvidenceSource("https://rocketreach.co/alice-email_123"), "other_professional");
+  assert.equal(classifyPublicEvidenceSource("https://me.sh/profile/alice-example"), "other_professional");
+  assert.equal(classifyPublicEvidenceSource("https://openai.com/index/sora-2"), "official_project_credit");
   assert.equal(classifyPublicEvidenceSource("https://engineering.linkedin.com/blog/post"), "company_engineering_blog");
 });
 
@@ -120,4 +126,68 @@ test("buildPublicEvidenceMetadata keeps compact top evidence for candidate metad
     authors: ["Alice Example"],
     citation_count: 12,
   });
+  assert.equal(metadata.items[0]?.selling_tier, "strong_selling_point");
+  assert.equal(metadata.items[1]?.evidence_category, "research_publication");
+});
+
+test("classifyPublicEvidenceForSelling downgrades identity aggregators", () => {
+  const item = classifyPublicEvidenceForSelling({
+    source_type: "other_professional",
+    source_url: "https://rocketreach.co/alice",
+    title: "Alice Example",
+    evidence_summary: "Alice is listed as Senior Engineer at Example.",
+    evidence_strength: "strong",
+    relevance_score: 90,
+  });
+
+  assert.equal(item.selling_tier, "identity_only");
+  assert.equal(item.safe_to_use_in_outreach, false);
+  assert.equal(item.evidence_category, "identity_support");
+});
+
+test("classifyPublicEvidenceForSelling models official project credits separately", () => {
+  const item = classifyPublicEvidenceForSelling({
+    source_type: "official_project_credit",
+    source_url: "https://openai.com/index/sora-2",
+    title: "Sora 2",
+    evidence_summary: "OpenAI's official Sora 2 page credits Mick as part of the project team.",
+    evidence_strength: "strong",
+    relevance_score: 88,
+  });
+
+  assert.equal(item.evidence_category, "official_project_credit");
+  assert.equal(item.selling_tier, "strong_selling_point");
+  assert.equal(item.safe_to_use_in_client_brief, true);
+  assert.match(item.claim_limit || "", /not proof of sole ownership/i);
+});
+
+test("buildCandidateSellingKit creates recruiter selling material from strong evidence", () => {
+  const kit = buildCandidateSellingKit({
+    name: "Alex Forsyth",
+    headline: "Senior Software Engineer at Google",
+    matchScore: 88,
+    matchReasons: ["Search/NLU background at Google."],
+    displayTier: "priority_outreach",
+    publicEvidenceItems: [
+      {
+        citation_label: "[1]",
+        source_type: "company_engineering_blog",
+        source_url: "https://aws.amazon.com/blogs/developer/sdk",
+        evidence_summary: "AWS official blog lists Alex as a JavaScript and TypeScript SDK maintainer.",
+        outreach_angle: "Open with the AWS SDK maintainer proof.",
+        evidence_strength: "strong",
+        relevance_score: 90,
+        selling_tier: "strong_selling_point",
+        safe_to_use_in_outreach: true,
+        safe_to_use_in_client_brief: true,
+      },
+    ],
+  });
+
+  assert.equal(kit.recommendation, "reach_out_first");
+  assert.match(kit.one_line_pitch, /AWS official blog/);
+  assert.match(kit.outreach_opener || "", /AWS SDK/);
+  assert.deepEqual(kit.client_brief.evidence_refs, [
+    "[1] AWS official blog lists Alex as a JavaScript and TypeScript SDK maintainer.",
+  ]);
 });

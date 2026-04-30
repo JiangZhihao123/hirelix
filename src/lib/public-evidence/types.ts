@@ -14,6 +14,7 @@ export type PublicEvidenceSourceType =
   | "stackoverflow"
   | "paper"
   | "talk"
+  | "official_project_credit"
   | "company_engineering_blog"
   | "portfolio"
   | "other_professional";

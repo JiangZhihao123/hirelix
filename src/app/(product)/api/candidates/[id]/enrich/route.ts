@@ -189,13 +189,20 @@ export async function POST(
         skills: Array.isArray(candidate.skills) ? candidate.skills : [],
         matchReasons: Array.isArray(candidate.match_reasons) ? candidate.match_reasons : [],
         githubSignals: effectiveGithubSignals,
+        publicEvidence:
+          effectiveMetadata.public_evidence && typeof effectiveMetadata.public_evidence === "object"
+            ? effectiveMetadata.public_evidence
+            : null,
+        sellingKit:
+          effectiveMetadata.selling_kit && typeof effectiveMetadata.selling_kit === "object"
+            ? effectiveMetadata.selling_kit
+            : null,
       });
 
       // Build company context section
       let companySection = "";
       if (companyProfile && companyProfile.name) {
         const parts: string[] = [];
-        if (companyProfile.name) parts.push(`Company: ${companyProfile.name}`);
         if (companyProfile.industry) parts.push(`Industry: ${companyProfile.industry}`);
         if (companyProfile.size) parts.push(`Size: ${companyProfile.size}`);
         if (companyProfile.mission) parts.push(`Mission: ${companyProfile.mission}`);
@@ -203,13 +210,13 @@ export async function POST(
         if (companyProfile.benefits) parts.push(`Benefits: ${companyProfile.benefits}`);
         if (companyProfile.tech_stack) parts.push(`Tech stack: ${companyProfile.tech_stack}`);
         if (companyProfile.selling_points) parts.push(`Why join: ${companyProfile.selling_points}`);
-        companySection = `\n## Hiring Company\n${parts.join("\n")}\n`;
+        companySection = `\n## Confidential Hiring Company Context\n${parts.join("\n")}\n`;
       }
 
       const prompt = `Write a highly personalized recruiting outreach for this candidate. The message must feel genuinely crafted for THIS specific person, referencing their actual background and connecting it to what the company offers.
 
 ## Job Description
-Role: ${roleTitle}${parsed.company ? ` at ${parsed.company}` : ""}
+Role: ${roleTitle} for a confidential client
 ${parsedRequiredSkills.length > 0 ? `Key skills: ${parsedRequiredSkills.join(", ")}` : ""}
 ${companySection}
 ## Candidate
@@ -227,8 +234,10 @@ Outreach angle: ${evidence.outreachAngle}
 
 ## Guidelines
 - Reference something SPECIFIC from the candidate's background (a skill, company, or achievement)
+- Never reveal or name the client company. Refer to the role as "one of my clients" or a confidential opportunity.
 - You must use the proof line above. Do not invent extra proof.
 - If the evidence source is GitHub, use that concrete code/project/PR detail.
+- If the evidence source is Public Evidence, use only the proof line and approved public-evidence angle.
 - If the evidence source is LinkedIn, use a concrete LinkedIn detail instead.
 - If company info is provided, mention 1-2 compelling things about the company (mission, growth, tech stack, culture)
 - Connect the candidate's experience to WHY they'd be excited about this opportunity

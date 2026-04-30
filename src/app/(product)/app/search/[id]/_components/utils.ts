@@ -2,6 +2,7 @@ import { getSearchCompletionFollowUpCopy } from "@/lib/search-notification-confi
 import type {
   CandidateDisplayTier,
   CandidateRow,
+  CandidateSellingKit,
   ConstraintVerdict,
   ExcludedReason,
   GithubSignals,
@@ -480,9 +481,90 @@ export function getCandidatePublicEvidence(candidate: CandidateRow): PublicEvide
               typeof entry.evidence_summary === "string" ? entry.evidence_summary : null,
             outreach_angle:
               typeof entry.outreach_angle === "string" ? entry.outreach_angle : null,
+            evidence_category:
+              entry.evidence_category === "engineering_proof" ||
+              entry.evidence_category === "official_project_credit" ||
+              entry.evidence_category === "research_publication" ||
+              entry.evidence_category === "technical_writing" ||
+              entry.evidence_category === "package_or_tool" ||
+              entry.evidence_category === "identity_support" ||
+              entry.evidence_category === "risk_only"
+                ? entry.evidence_category
+                : undefined,
+            selling_tier:
+              entry.selling_tier === "strong_selling_point" ||
+              entry.selling_tier === "supporting_point" ||
+              entry.selling_tier === "identity_only" ||
+              entry.selling_tier === "not_usable"
+                ? entry.selling_tier
+                : undefined,
+            safe_to_use_in_outreach:
+              typeof entry.safe_to_use_in_outreach === "boolean"
+                ? entry.safe_to_use_in_outreach
+                : undefined,
+            safe_to_use_in_client_brief:
+              typeof entry.safe_to_use_in_client_brief === "boolean"
+                ? entry.safe_to_use_in_client_brief
+                : undefined,
+            claim_limit:
+              typeof entry.claim_limit === "string" ? entry.claim_limit : null,
           }))
       : [],
     last_enriched_at: typeof item.last_enriched_at === "string" ? item.last_enriched_at : null,
+  };
+}
+
+export function getCandidateSellingKit(candidate: CandidateRow): CandidateSellingKit | null {
+  const value = candidate.metadata?.selling_kit;
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const clientBrief = item.client_brief && typeof item.client_brief === "object"
+    ? item.client_brief as Record<string, unknown>
+    : null;
+  return {
+    version: item.version === 1 ? 1 : undefined,
+    recommendation:
+      item.recommendation === "reach_out_first" ||
+      item.recommendation === "backup" ||
+      item.recommendation === "do_not_pitch"
+        ? item.recommendation
+        : undefined,
+    one_line_pitch: typeof item.one_line_pitch === "string" ? item.one_line_pitch : null,
+    outreach_opener: typeof item.outreach_opener === "string" ? item.outreach_opener : null,
+    client_brief: clientBrief
+      ? {
+          positioning:
+            typeof clientBrief.positioning === "string" ? clientBrief.positioning : null,
+          why_match: Array.isArray(clientBrief.why_match)
+            ? clientBrief.why_match.filter((entry): entry is string => typeof entry === "string")
+            : [],
+          evidence_refs: Array.isArray(clientBrief.evidence_refs)
+            ? clientBrief.evidence_refs.filter((entry): entry is string => typeof entry === "string")
+            : [],
+          risks_to_verify: Array.isArray(clientBrief.risks_to_verify)
+            ? clientBrief.risks_to_verify.filter((entry): entry is string => typeof entry === "string")
+            : [],
+        }
+      : null,
+    evidence_badges: Array.isArray(item.evidence_badges)
+      ? item.evidence_badges
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+          .map((entry) => ({
+            label: typeof entry.label === "string" ? entry.label : null,
+            tier:
+              entry.tier === "strong" ||
+              entry.tier === "medium" ||
+              entry.tier === "weak"
+                ? entry.tier
+                : undefined,
+            citation_label:
+              typeof entry.citation_label === "string" ? entry.citation_label : null,
+          }))
+      : [],
+    risk_flags: Array.isArray(item.risk_flags)
+      ? item.risk_flags.filter((entry): entry is string => typeof entry === "string")
+      : [],
+    generated_at: typeof item.generated_at === "string" ? item.generated_at : null,
   };
 }
 

@@ -1,6 +1,11 @@
 import { applyGithubSignalsToCandidateRow, enrichGithubSignalsForCandidate } from "@/lib/github-signals";
 import { discoverPublicEvidenceSources } from "./discovery";
 import { buildPublicEvidenceSnapshots, extractPublicEvidenceItems } from "./extract";
+import {
+  buildCandidateSellingKit,
+  classifyPublicEvidenceForSelling,
+  getSellableEvidenceItems,
+} from "./selling-kit";
 import type { PublicEvidenceCandidateInput, PublicEvidenceItem, PublicEvidenceResult } from "./types";
 
 function nowIso() {
@@ -15,13 +20,20 @@ function sourceCounts(items: PublicEvidenceItem[]) {
 }
 
 function computePublicEvidenceScore(items: PublicEvidenceItem[]) {
-  if (!items.length) return null;
+  const sellableItems = getSellableEvidenceItems(items.map((item) => classifyPublicEvidenceForSelling(item)));
+  if (!sellableItems.length) return null;
   const strengthBonus = { strong: 18, medium: 10, weak: 3 };
   return Math.min(
     100,
     Math.round(
-      items.slice(0, 5).reduce((sum, item) =>
-        sum + item.relevanceScore * 0.18 + strengthBonus[item.evidenceStrength],
+      sellableItems.slice(0, 5).reduce((sum, item) =>
+        sum + (item.relevance_score || 0) * 0.18 + strengthBonus[
+          item.evidence_strength === "strong" ||
+          item.evidence_strength === "medium" ||
+          item.evidence_strength === "weak"
+            ? item.evidence_strength
+            : "weak"
+        ],
       0),
     ),
   );
@@ -31,21 +43,29 @@ export function buildPublicEvidenceMetadata(result: PublicEvidenceResult) {
   return {
     status: result.status,
     score: result.score,
-    items: result.items.slice(0, 5).map((item, index) => ({
-      citation_label: `[${index + 1}]`,
-      source_type: item.sourceType,
-      source_url: item.sourceUrl,
-      title: item.title,
-      identity_confidence: item.identityConfidence,
-      relevance_score: item.relevanceScore,
-      evidence_strength: item.evidenceStrength,
-      evidence_summary: item.evidenceSummary,
-      outreach_angle: item.outreachAngle,
-      publication:
-        item.sourceType === "paper" && item.rawMetadata.publication
-          ? item.rawMetadata.publication
-          : undefined,
-    })),
+    items: result.items.slice(0, 5).map((item, index) => {
+      const classified = classifyPublicEvidenceForSelling(item);
+      return {
+        citation_label: `[${index + 1}]`,
+        source_type: classified.source_type,
+        source_url: classified.source_url,
+        title: classified.title,
+        identity_confidence: classified.identity_confidence,
+        relevance_score: classified.relevance_score,
+        evidence_strength: classified.evidence_strength,
+        evidence_summary: classified.evidence_summary,
+        outreach_angle: classified.outreach_angle,
+        publication:
+          item.sourceType === "paper" && item.rawMetadata.publication
+            ? item.rawMetadata.publication
+            : undefined,
+        evidence_category: classified.evidence_category,
+        selling_tier: classified.selling_tier,
+        safe_to_use_in_outreach: classified.safe_to_use_in_outreach,
+        safe_to_use_in_client_brief: classified.safe_to_use_in_client_brief,
+        claim_limit: classified.claim_limit,
+      };
+    }),
     source_counts: result.sourceCounts,
     summary: result.summary,
     last_enriched_at: result.lastEnrichedAt,
@@ -107,6 +127,21 @@ export async function enrichPublicEvidenceForCandidate(input: PublicEvidenceCand
 
   const metadata = { ...(input.metadata || {}) };
   metadata.public_evidence = buildPublicEvidenceMetadata(result);
+  metadata.selling_kit = buildCandidateSellingKit({
+    name: input.name,
+    headline: input.headline,
+    matchScore: typeof input.metadata?.match_score === "number" ? input.metadata.match_score : null,
+    matchReasons: Array.isArray(input.metadata?.match_reasons)
+      ? input.metadata.match_reasons.filter((item): item is string => typeof item === "string")
+      : [],
+    displayTier: typeof input.metadata?.display_tier === "string" ? input.metadata.display_tier : null,
+    bucket: typeof input.metadata?.bucket === "string" ? input.metadata.bucket : null,
+    riskFlags: Array.isArray(input.metadata?.risk_flags)
+      ? input.metadata.risk_flags.filter((item): item is string => typeof item === "string")
+      : [],
+    publicEvidenceItems: (metadata.public_evidence as { items?: unknown[] }).items as never,
+    fallbackSummary: result.summary,
+  });
   const githubApplied = applyGithubSignalsToCandidateRow({
     candidate: {
       match_score: 0,

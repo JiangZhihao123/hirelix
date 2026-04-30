@@ -98,6 +98,68 @@ test("buildRecruiterOutreachPrompt keeps github evidence scoped to engineering c
   assert.match(prompt, /Do not infer payments or domain expertise unless the proof itself shows it/i);
 });
 
+test("buildRecruiterOutreachEvidence prefers safe public evidence over identity-only sources", () => {
+  const evidence = buildRecruiterOutreachEvidence({
+    name: "Sajid Ali",
+    headline: "Senior Research Software Engineer at NYU",
+    skills: ["AI", "Research Computing"],
+    matchReasons: ["Research software engineering background."],
+    publicEvidence: {
+      status: "verified",
+      items: [
+        {
+          citation_label: "[1]",
+          source_type: "paper",
+          evidence_summary: "Co-author on AAMAS 2024 paper about causal explanations in multi-agent systems.",
+          outreach_angle: "Open with the AAMAS 2024 paper.",
+          evidence_strength: "strong",
+          selling_tier: "strong_selling_point",
+          safe_to_use_in_outreach: true,
+          claim_limit: "Use as verified research publication evidence.",
+        },
+        {
+          citation_label: "[2]",
+          source_type: "other_professional",
+          evidence_summary: "RocketReach lists the candidate at NYU.",
+          evidence_strength: "strong",
+          selling_tier: "identity_only",
+          safe_to_use_in_outreach: false,
+        },
+      ],
+    },
+  });
+
+  assert.equal(evidence.evidenceSource, "public_evidence");
+  assert.match(evidence.proofToReference, /AAMAS 2024/);
+  assert.doesNotMatch(evidence.proofToReference, /RocketReach/);
+});
+
+test("buildRecruiterOutreachEvidence falls back to LinkedIn when public evidence is identity-only", () => {
+  const evidence = buildRecruiterOutreachEvidence({
+    name: "Scarlett Example",
+    headline: "Staff Software Engineer at Example AI",
+    skills: ["ML Infrastructure", "Python"],
+    matchReasons: ["LinkedIn profile shows ML infrastructure work at Example AI."],
+    publicEvidence: {
+      status: "verified",
+      items: [
+        {
+          citation_label: "[1]",
+          source_type: "other_professional",
+          evidence_summary: "RocketReach lists Scarlett at Example AI.",
+          evidence_strength: "strong",
+          selling_tier: "identity_only",
+          safe_to_use_in_outreach: false,
+        },
+      ],
+    },
+  });
+
+  assert.equal(evidence.evidenceSource, "linkedin");
+  assert.match(evidence.proofToReference, /LinkedIn profile/);
+  assert.doesNotMatch(evidence.proofToReference, /RocketReach/);
+});
+
 test("buildFallbackOutreachDraft softens language when evidence is weak", () => {
   const draft = buildFallbackOutreachDraft({
     firstName: "Evan",

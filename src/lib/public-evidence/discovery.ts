@@ -6,6 +6,7 @@ import type { PublicEvidenceCandidateInput, PublicEvidenceSourceCandidate } from
 function sourcePriority(sourceType: PublicEvidenceSourceCandidate["sourceType"]) {
   switch (sourceType) {
     case "github": return 18;
+    case "official_project_credit": return 17;
     case "personal_site": return 16;
     case "paper": return 16;
     case "technical_blog": return 15;

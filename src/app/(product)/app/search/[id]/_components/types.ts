@@ -123,6 +123,7 @@ export type CandidateRow = {
     about?: string | null;
     github_signals?: GithubSignals;
     public_evidence?: PublicEvidence;
+    selling_kit?: CandidateSellingKit;
     public_links?: {
       github_urls?: string[];
       personal_sites?: string[];
@@ -150,6 +151,22 @@ export type PublicEvidenceItem = {
   evidence_strength?: "strong" | "medium" | "weak";
   evidence_summary?: string | null;
   outreach_angle?: string | null;
+  evidence_category?:
+    | "engineering_proof"
+    | "official_project_credit"
+    | "research_publication"
+    | "technical_writing"
+    | "package_or_tool"
+    | "identity_support"
+    | "risk_only";
+  selling_tier?:
+    | "strong_selling_point"
+    | "supporting_point"
+    | "identity_only"
+    | "not_usable";
+  safe_to_use_in_outreach?: boolean;
+  safe_to_use_in_client_brief?: boolean;
+  claim_limit?: string | null;
 };
 
 export type PublicEvidence = {
@@ -159,6 +176,26 @@ export type PublicEvidence = {
   source_counts?: Record<string, number>;
   summary?: string | null;
   last_enriched_at?: string | null;
+};
+
+export type CandidateSellingKit = {
+  version?: 1;
+  recommendation?: "reach_out_first" | "backup" | "do_not_pitch";
+  one_line_pitch?: string | null;
+  outreach_opener?: string | null;
+  client_brief?: {
+    positioning?: string | null;
+    why_match?: string[];
+    evidence_refs?: string[];
+    risks_to_verify?: string[];
+  } | null;
+  evidence_badges?: Array<{
+    label?: string | null;
+    tier?: "strong" | "medium" | "weak";
+    citation_label?: string | null;
+  }>;
+  risk_flags?: string[];
+  generated_at?: string | null;
 };
 
 export type CandidateSortMode = "overall" | "capability" | "relevance" | "join_likelihood";

@@ -2471,6 +2471,14 @@ async function generateOutreachDraftsForRows(
         normalizedRow.metadata.github_signals && typeof normalizedRow.metadata.github_signals === "object"
           ? normalizedRow.metadata.github_signals
           : null;
+      const publicEvidence =
+        normalizedRow.metadata.public_evidence && typeof normalizedRow.metadata.public_evidence === "object"
+          ? normalizedRow.metadata.public_evidence
+          : null;
+      const sellingKit =
+        normalizedRow.metadata.selling_kit && typeof normalizedRow.metadata.selling_kit === "object"
+          ? normalizedRow.metadata.selling_kit
+          : null;
       const evidence = buildRecruiterOutreachEvidence({
         name: normalizedRow.name,
         headline: normalizedRow.headline,
@@ -2478,6 +2486,8 @@ async function generateOutreachDraftsForRows(
         skills: normalizedRow.skills,
         matchReasons: normalizedRow.match_reasons,
         githubSignals,
+        publicEvidence,
+        sellingKit,
       });
       const firstName = normalizedRow.name.split(/\s+/).filter(Boolean)[0] || "there";
 
@@ -2513,6 +2523,8 @@ async function generateOutreachDraftsForRows(
                 skills: normalizedRow.skills,
                 matchReasons: normalizedRow.match_reasons,
                 githubSignals,
+                publicEvidence,
+                sellingKit,
               },
             }),
             maxOutputTokens: runtime.outreachMaxOutputTokens,

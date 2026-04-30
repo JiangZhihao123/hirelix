@@ -55,6 +55,16 @@ const PROFESSIONAL_AGGREGATOR_HOST_PATTERNS = [
   "signalhire.com",
   "growjo.com",
   "theorg.com",
+  "me.sh",
+];
+
+const OFFICIAL_PROJECT_HOST_PATTERNS = [
+  "openai.com",
+  "anthropic.com",
+  "deepmind.google",
+  "ai.google",
+  "research.google",
+  "ai.meta.com",
 ];
 
 export function normalizeEvidenceUrl(url: string) {
@@ -85,6 +95,7 @@ export function classifyPublicEvidenceSource(url: string): PublicEvidenceSourceT
     if (hostIncludes(host, PACKAGE_HOST_PATTERNS)) return "package_registry";
     if (hostIncludes(host, PAPER_HOST_PATTERNS)) return "paper";
     if (hostIncludes(host, TALK_HOST_PATTERNS)) return "talk";
+    if (hostIncludes(host, OFFICIAL_PROJECT_HOST_PATTERNS)) return "official_project_credit";
     if (hostIncludes(host, BLOG_HOST_PATTERNS)) return "technical_blog";
     if (host.includes("engineering") || path.includes("/engineering") || path.includes("/blog")) {
       return "company_engineering_blog";

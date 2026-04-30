@@ -1,12 +1,13 @@
 import { extractRequiredSkillsForGithub } from "@/lib/github-enrichment-jobs";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { enrichPublicEvidenceForCandidate } from "@/lib/public-evidence";
+import { getSellableEvidenceItems } from "@/lib/public-evidence/selling-kit";
 import type { PublicEvidenceItem } from "@/lib/public-evidence/types";
 
 const PUBLIC_EVIDENCE_MAX_ATTEMPTS = 3;
 const PUBLIC_EVIDENCE_RETRY_DELAY_MS = 5 * 60 * 1000;
 const PUBLIC_EVIDENCE_STALE_MINUTES = 25;
-export const PUBLIC_EVIDENCE_VERSION = 1;
+export const PUBLIC_EVIDENCE_VERSION = 2;
 
 type PublicEvidenceJobRow = {
   id: string;
@@ -191,14 +192,14 @@ function blendScores(params: {
   metadata: Record<string, unknown>;
   publicEvidenceScore: number | null;
 }) {
-  if (typeof params.publicEvidenceScore !== "number") {
+  const publicEvidence = asRecord(params.metadata.public_evidence);
+  const publicEvidenceItems = Array.isArray(publicEvidence.items)
+    ? publicEvidence.items.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    : [];
+  const sellableItems = getSellableEvidenceItems(publicEvidenceItems);
+  if (typeof params.publicEvidenceScore !== "number" || sellableItems.length === 0) {
     return { matchScore: params.matchScore, metadata: params.metadata };
   }
-  const boost =
-    params.publicEvidenceScore >= 75 ? 3 :
-      params.publicEvidenceScore >= 50 ? 2 :
-        params.publicEvidenceScore >= 35 ? 1 :
-          0;
   const technicalBoost =
     params.publicEvidenceScore >= 75 ? 8 :
       params.publicEvidenceScore >= 50 ? 4 :
@@ -214,7 +215,7 @@ function blendScores(params: {
   metadata.technical_evidence_score = Math.min(100, Math.round(currentTechnical + technicalBoost));
   metadata.public_evidence_score = params.publicEvidenceScore;
   return {
-    matchScore: Math.min(100, Math.round(params.matchScore + boost)),
+    matchScore: params.matchScore,
     metadata,
   };
 }
@@ -276,6 +277,11 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
     }
 
     const requiredSkills = extractRequiredSkillsForGithub(search.parsed_requirements);
+    const candidateMetadata = {
+      ...asRecord(candidate.metadata),
+      match_score: candidate.match_score,
+      match_reasons: Array.isArray(candidate.match_reasons) ? candidate.match_reasons : [],
+    };
     const enrichment = await enrichPublicEvidenceForCandidate({
       candidateId: candidate.id,
       searchId: job.search_id,
@@ -285,7 +291,7 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
       location: candidate.location,
       profileUrl: candidate.profile_url,
       githubUrl: candidate.github_url,
-      metadata: asRecord(candidate.metadata),
+      metadata: candidateMetadata,
       requiredSkills,
     });
     const metadata = {
