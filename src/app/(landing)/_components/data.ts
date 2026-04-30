@@ -157,7 +157,7 @@ export const billingFaqs = [
   },
   {
     title: "Do I need a card to start?",
-    body: "No. The Free plan gives you 1 high-conviction shortlist per month before you upgrade.",
+    body: "No. The Free plan gives you 2 high-conviction shortlists per month before you upgrade.",
   },
 ];
 
