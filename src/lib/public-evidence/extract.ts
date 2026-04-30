@@ -138,21 +138,120 @@ function compactSnapshotForRetry(snapshot: PageSnapshot): PageSnapshot {
   };
 }
 
+function isOfficialPaperUrl(url: string) {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    return [
+      "ifaamas.org",
+      "openreview.net",
+      "aclanthology.org",
+      "proceedings.mlr.press",
+      "neurips.cc",
+      "thecvf.com",
+      "cvf.com",
+      "aaai.org",
+      "ijcai.org",
+      "acm.org",
+      "ieee.org",
+      "usenix.org",
+    ].some((pattern) => host === pattern || host.endsWith(`.${pattern}`));
+  } catch {
+    return false;
+  }
+}
+
+function officialPaperVenue(snapshot: PageSnapshot) {
+  const normalized = normalizeText(`${snapshot.url} ${snapshot.title || ""}`);
+  if (normalized.includes("aamas")) return "AAMAS";
+  if (normalized.includes("openreview")) return "OpenReview";
+  if (normalized.includes("acl")) return "ACL Anthology";
+  if (normalized.includes("neurips")) return "NeurIPS";
+  if (normalized.includes("cvf") || normalized.includes("thecvf")) return "CVF";
+  if (normalized.includes("aaai")) return "AAAI";
+  if (normalized.includes("ijcai")) return "IJCAI";
+  if (normalized.includes("acm")) return "ACM";
+  if (normalized.includes("ieee")) return "IEEE";
+  if (normalized.includes("usenix")) return "USENIX";
+  return "official conference proceedings";
+}
+
+function yearFromText(value: string) {
+  return value.match(/\b(20\d{2}|19\d{2})\b/)?.[1] || null;
+}
+
+function hasCompanyContext(sourceContext: string, currentCompany: string | null) {
+  const normalizedCompany = currentCompany ? normalizeText(currentCompany) : "";
+  return Boolean(
+    normalizedCompany &&
+    (sourceContext.includes(normalizedCompany) ||
+      (normalizedCompany.includes("new york university") && sourceContext.includes("nyu")) ||
+      (normalizedCompany === "nyu" && sourceContext.includes("new york university"))),
+  );
+}
+
+function buildOfficialPaperSnippetItems(
+  snapshots: PageSnapshot[],
+  candidate: PublicEvidenceCandidateInput,
+): PublicEvidenceItem[] {
+  const candidateName = normalizeText(candidate.name);
+  const currentCompany =
+    extractCurrentCompanyFromMetadata(candidate.metadata) ||
+    extractCurrentCompanyFromHeadline(candidate.headline);
+  return snapshots
+    .filter((snapshot) => snapshot.source_type === "paper" && isOfficialPaperUrl(snapshot.url))
+    .map((snapshot): PublicEvidenceItem | null => {
+      const sourceContext = normalizeText(`${snapshot.title || ""}\n${snapshot.snippet || ""}\n${snapshot.text || ""}`);
+      if (!sourceContext.includes(candidateName) || !hasCompanyContext(sourceContext, currentCompany)) {
+        return null;
+      }
+      const venue = officialPaperVenue(snapshot);
+      const year = yearFromText(`${snapshot.url} ${snapshot.title || ""} ${snapshot.snippet || ""}`);
+      const paperTitle = snapshot.title?.replace(/^\[PDF\]\s*/i, "").trim() || null;
+      return {
+        sourceType: "paper" as const,
+        sourceUrl: snapshot.url,
+        title: snapshot.title,
+        snippet: snapshot.snippet,
+        identityStatus: "verified" as const,
+        identityConfidence: 0.92,
+        relevanceScore: 88,
+        evidenceStrength: "strong" as const,
+        evidenceSummary: `${candidate.name} appears as a verified author on ${venue}${year ? ` ${year}` : ""} research with ${currentCompany || "institution"} context.`,
+        outreachAngle: `Open with the verified ${venue}${year ? ` ${year}` : ""} research authorship.`,
+        rawMetadata: {
+          extract_version: PUBLIC_EVIDENCE_EXTRACT_VERSION,
+          deterministic_source: "official_paper_snippet",
+          publication: {
+            title: paperTitle,
+            venue,
+            year,
+            authors: [candidate.name],
+            citation_count: null,
+          },
+        },
+      };
+    })
+    .filter((item): item is PublicEvidenceItem => Boolean(item));
+}
+
 export async function buildPublicEvidenceSnapshots(
   sources: PublicEvidenceSourceCandidate[],
 ): Promise<PageSnapshot[]> {
   const selected = sources.slice(0, 12);
   return Promise.all(
-    selected.map(async (source) => ({
-      url: source.url,
-      title: source.title,
-      snippet: source.snippet,
-      source_type: source.sourceType,
-      text:
+    selected.map(async (source) => {
+      const fetchedText =
         source.sourceType === "github"
           ? source.snippet
-          : await fetchPublicPageText(source.url),
-    })),
+          : await fetchPublicPageText(source.url);
+      return {
+        url: source.url,
+        title: source.title,
+        snippet: source.snippet,
+        source_type: source.sourceType,
+        text: fetchedText || source.snippet,
+      };
+    }),
   );
 }
 
@@ -307,9 +406,15 @@ export async function extractPublicEvidenceItems(params: {
     }
   }
   const snapshotsByUrl = new Map(params.snapshots.map((snapshot) => [snapshot.url, snapshot]));
-  return (data.items || [])
+  const llmItems = (data.items || [])
     .map((item) => normalizeExtractedItem(item, snapshotsByUrl, params.candidate))
-    .filter((item): item is PublicEvidenceItem => Boolean(item))
+    .filter((item): item is PublicEvidenceItem => Boolean(item));
+  const officialPaperItems = buildOfficialPaperSnippetItems(params.snapshots, params.candidate);
+  const byUrl = new Map<string, PublicEvidenceItem>();
+  for (const item of [...officialPaperItems, ...llmItems]) {
+    byUrl.set(item.sourceUrl, item);
+  }
+  return Array.from(byUrl.values())
     .sort((left, right) => right.relevanceScore - left.relevanceScore)
     .slice(0, 8);
 }

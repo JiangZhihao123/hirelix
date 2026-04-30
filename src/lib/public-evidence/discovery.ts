@@ -19,6 +19,28 @@ function sourcePriority(sourceType: PublicEvidenceSourceCandidate["sourceType"])
   }
 }
 
+function isOfficialPaperHost(url: string) {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    return [
+      "ifaamas.org",
+      "openreview.net",
+      "aclanthology.org",
+      "proceedings.mlr.press",
+      "neurips.cc",
+      "thecvf.com",
+      "cvf.com",
+      "aaai.org",
+      "ijcai.org",
+      "acm.org",
+      "ieee.org",
+      "usenix.org",
+    ].some((pattern) => host === pattern || host.endsWith(`.${pattern}`));
+  } catch {
+    return false;
+  }
+}
+
 export function buildPublicEvidenceQueries(input: PublicEvidenceCandidateInput) {
   const company =
     extractCurrentCompanyFromMetadata(input.metadata) ||
@@ -59,6 +81,7 @@ export function buildPublicEvidenceQueries(input: PublicEvidenceCandidateInput) 
 function rankEvidenceCandidate(params: {
   input: PublicEvidenceCandidateInput;
   sourceType: PublicEvidenceSourceCandidate["sourceType"];
+  url: string;
   title: string | null;
   snippet: string | null;
   query: string;
@@ -76,6 +99,9 @@ function rankEvidenceCandidate(params: {
   }
   if (params.sourceType === "paper" && /paper|publication|arxiv|scholar|semantic|dblp|openreview|acl|pmlr|neurips/i.test(params.query)) {
     score += 4;
+  }
+  if (params.sourceType === "paper" && isOfficialPaperHost(params.url)) {
+    score += 7;
   }
   if (/github|blog|portfolio|package|paper|publication|talk|speaker|engineer/i.test(params.query)) score += 1;
   return Math.round(score * 10) / 10;
@@ -109,6 +135,7 @@ export async function discoverPublicEvidenceSources(input: PublicEvidenceCandida
         rankScore: rankEvidenceCandidate({
           input,
           sourceType,
+          url,
           title: result.title || null,
           snippet: result.snippet || null,
           query,
