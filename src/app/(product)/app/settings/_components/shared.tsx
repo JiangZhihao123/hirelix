@@ -31,7 +31,10 @@ export function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-24 rounded-2xl border border-slate-200/90 bg-white">
+    <section
+      data-settings-section={id}
+      className="rounded-2xl border border-slate-200/90 bg-white"
+    >
       <div className="border-b border-slate-200/80 px-6 py-4 sm:px-7">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
           {eyebrow}

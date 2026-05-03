@@ -64,6 +64,17 @@ function ProductLayoutShell({
     },
     () => "workspace",
   );
+  const settingsHash = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("hashchange", onStoreChange);
+      return () => window.removeEventListener("hashchange", onStoreChange);
+    },
+    () => {
+      if (typeof window === "undefined") return "";
+      return window.location.hash.replace("#", "");
+    },
+    () => "",
+  );
   const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
   const isFocusedNewSearch =
     pathname === "/app/search/new" && entryMode === "landing" && Boolean(pendingJd);
@@ -73,6 +84,8 @@ function ProductLayoutShell({
   const isDashboardRoute =
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
+  const isProfileSettingsRoute = isSettingsRoute && settingsHash !== "billing";
+  const isBillingSettingsRoute = isSettingsRoute && settingsHash === "billing";
   const isAdminRoute = pathname.startsWith("/app/admin");
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
   const isAdmin = adminEmail
@@ -218,8 +231,9 @@ function ProductLayoutShell({
           onClick={() => {
             setSidebarOpen(false);
             setPendingPath("/app/settings");
+            window.scrollTo({ top: 0, behavior: "auto" });
           }}
-          className={getNavClassName(isSettingsRoute)}
+          className={getNavClassName(isProfileSettingsRoute)}
         >
           {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
           Recruiter Profile
@@ -229,8 +243,9 @@ function ProductLayoutShell({
           onClick={() => {
             setSidebarOpen(false);
             setPendingPath("/app/settings");
+            window.scrollTo({ top: 0, behavior: "auto" });
           }}
-          className={getNavClassName(isSettingsRoute)}
+          className={getNavClassName(isBillingSettingsRoute)}
         >
           {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
           Billing

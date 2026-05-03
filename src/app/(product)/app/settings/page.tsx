@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import Link from "next/link";
+import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
@@ -16,11 +15,21 @@ export default function SettingsPage() {
   const { session, user } = useAuth();
   const { billing: sharedBilling, refresh: refreshBilling } = useBilling();
   const searchParams = useSearchParams();
+  const settingsHash = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("hashchange", onStoreChange);
+      return () => window.removeEventListener("hashchange", onStoreChange);
+    },
+    () => {
+      if (typeof window === "undefined") return "";
+      return window.location.hash.replace("#", "");
+    },
+    () => "",
+  );
   const [loading, setLoading] = useState(true);
   const [headhunterProfile, setHeadhunterProfile] = useState<HeadhunterProfile>(EMPTY_PROFILE);
   const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
-  const isProgrammaticNavRef = useRef(false);
   const hasPasswordLogin = user?.user_metadata?.password_login_enabled === true;
 
   const sectionNav = [
@@ -78,62 +87,67 @@ export default function SettingsPage() {
   }, [fetchSettings, searchParams]);
 
   useEffect(() => {
-    const syncActiveSection = () => {
-      const hash = window.location.hash.replace("#", "");
-      if (hash === "account" || hash === "billing" || hash === "profile") {
-        setActiveSection(hash);
-      }
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration;
     };
-
-    syncActiveSection();
-    window.addEventListener("hashchange", syncActiveSection);
-    return () => window.removeEventListener("hashchange", syncActiveSection);
   }, []);
 
   useEffect(() => {
-    if (loading) return;
-    const hash = window.location.hash.replace("#", "");
-    if (hash !== "account" && hash !== "billing" && hash !== "profile") return;
+    if (settingsHash !== "account" && settingsHash !== "billing" && settingsHash !== "profile") {
+      return;
+    }
 
-    const section = document.getElementById(hash);
-    if (!section) return;
-
+    setActiveSection(settingsHash);
     requestAnimationFrame(() => {
-      section.scrollIntoView({ block: "start", behavior: "auto" });
+      window.scrollTo({ top: 0, behavior: "auto" });
     });
-  }, [loading]);
+  }, [settingsHash]);
 
   useEffect(() => {
     if (loading) return;
 
-    const sections = ["account", "billing", "profile"]
-      .map((id) => document.getElementById(id))
-      .filter((section): section is HTMLElement => Boolean(section));
-
-    if (sections.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isProgrammaticNavRef.current) return;
-
-        const visibleEntries = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-
-        const next = visibleEntries[0]?.target.id as SettingsSectionId | undefined;
-        if (!next || next === activeSection) return;
-
-        setActiveSection(next);
-      },
-      {
-        rootMargin: "-18% 0px -55% 0px",
-        threshold: [0.15, 0.35, 0.6],
-      },
-    );
-
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
   }, [activeSection, loading]);
+
+  function selectSection(id: SettingsSectionId) {
+    setActiveSection(id);
+    window.history.replaceState(null, "", `#${id}`);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  const selectedSection = (() => {
+    if (activeSection === "billing") {
+      return billing ? (
+        <BillingPanel billing={billing} />
+      ) : (
+        <SettingsPageSkeleton />
+      );
+    }
+
+    if (activeSection === "profile") {
+      return (
+        <RecruiterProfileSection
+          initialProfile={headhunterProfile}
+          onNameChange={(name) =>
+            setHeadhunterProfile((prev) => ({ ...prev, recruiter_name: name }))
+          }
+          refreshBilling={refreshBilling}
+        />
+      );
+    }
+
+    return (
+      <AccountSection
+        user={user}
+        hasPasswordLogin={hasPasswordLogin}
+        onPasswordUpdated={() => void refreshBilling()}
+      />
+    );
+  })();
 
   if (loading) {
     return <SettingsPageSkeleton />;
@@ -158,10 +172,10 @@ export default function SettingsPage() {
         {sectionNav.map((item) => {
           const isActive = activeSection === item.id;
           return (
-            <Link
+            <button
               key={item.id}
-              href={`#${item.id}`}
-              onClick={() => setActiveSection(item.id)}
+              type="button"
+              onClick={() => selectSection(item.id)}
               className={`inline-flex shrink-0 items-center rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? "border-slate-900 bg-slate-900 text-white"
@@ -169,7 +183,7 @@ export default function SettingsPage() {
               }`}
             >
               {item.label}
-            </Link>
+            </button>
           );
         })}
       </div>
@@ -184,50 +198,28 @@ export default function SettingsPage() {
               {sectionNav.map((item) => {
                 const isActive = activeSection === item.id;
                 return (
-                  <Link
+                  <button
                     key={item.id}
-                    href={`#${item.id}`}
-                    onClick={() => {
-                      isProgrammaticNavRef.current = true;
-                      setActiveSection(item.id);
-                      window.setTimeout(() => {
-                        isProgrammaticNavRef.current = false;
-                      }, 450);
-                    }}
-                    className={`block border-l-2 py-2 pl-3 pr-2 transition-colors ${
+                    type="button"
+                    onClick={() => selectSection(item.id)}
+                    className={`block w-full border-l-2 py-2 pl-3 pr-2 text-left transition-colors ${
                       isActive
                         ? "border-primary text-slate-950"
                         : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-950"
                     }`}
-                  >
-                    <p className={`text-sm ${isActive ? "font-semibold" : "font-medium"}`}>
-                      {item.label}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
-                  </Link>
+                    >
+                      <p className={`text-sm ${isActive ? "font-semibold" : "font-medium"}`}>
+                        {item.label}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
+                  </button>
                 );
               })}
             </div>
           </nav>
         </aside>
 
-        <div className="space-y-8">
-          <AccountSection
-            user={user}
-            hasPasswordLogin={hasPasswordLogin}
-            onPasswordUpdated={() => void refreshBilling()}
-          />
-
-          {billing && <BillingPanel billing={billing} />}
-
-          <RecruiterProfileSection
-            initialProfile={headhunterProfile}
-            onNameChange={(name) =>
-              setHeadhunterProfile((prev) => ({ ...prev, recruiter_name: name }))
-            }
-            refreshBilling={refreshBilling}
-          />
-        </div>
+        <div>{selectedSection}</div>
       </div>
     </div>
   );
