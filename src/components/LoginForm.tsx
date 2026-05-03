@@ -145,7 +145,9 @@ export function LoginForm({
     onSuccessStart?.();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}${nextPath}` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+      },
     });
     if (error) {
       logAuthDebug("google sign-in failed", error);

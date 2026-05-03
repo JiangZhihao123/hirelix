@@ -68,6 +68,21 @@ test.describe("Landing Page", () => {
     await expect(page.getByTestId("landing-auth-preview-title")).toHaveText("Senior Software Engineer");
   });
 
+  test("Google OAuth should route through the app auth callback", async ({ page }) => {
+    await page.getByRole("button", { name: /Sign in/i }).first().click();
+    await page.getByRole("button", { name: /Continue with Google/i }).click();
+
+    await expect(page).toHaveURL(/accounts\.google\.com/);
+    const googleUrl = new URL(page.url());
+    const oauthParams = new URLSearchParams(
+      decodeURIComponent(googleUrl.searchParams.get("opparams") ?? "").replace(/^\?/, ""),
+    );
+    const redirectTo = oauthParams.get("redirect_to") ?? "";
+
+    expect(redirectTo).toContain("/auth/callback");
+    expect(decodeURIComponent(redirectTo)).toContain("/app/search/new");
+  });
+
   test("pricing CTAs should preserve plan intent before sign in", async ({ page }) => {
     await page.getByRole("button", { name: "Start free" }).click();
     await expect(page.getByTestId("landing-auth-modal")).toHaveAttribute("data-selected-plan", "free");
