@@ -134,3 +134,15 @@ test.describe("Landing Page mobile responsiveness", () => {
     await expect(page.getByText("Need more in a heavy month?")).toBeHidden();
   });
 });
+
+test.describe("Auth callback", () => {
+  test("should bridge OAuth hash tokens to the intended app path", async ({ request }) => {
+    const response = await request.get("/auth/callback?next=/app/search/new%3Fentry%3Dsignin");
+
+    await expect(response).toBeOK();
+    expect(response.headers()["x-auth-callback-bridge"]).toBe("/app/search/new");
+    const body = await response.text();
+    expect(body).toContain("window.location.replace(target + hash)");
+    expect(body).toContain('var target = "/app/search/new?entry=signin";');
+  });
+});
