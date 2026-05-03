@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { CheckCircle2, FileText, LockKeyhole, Sparkles, X } from "lucide-react";
 import { LoginForm } from "@/components/LoginForm";
 import type { IntentPath } from "@/lib/analytics";
+import type { BillingPlanCode } from "@/lib/billing";
 
 export function AuthModal({
   open,
@@ -12,6 +14,7 @@ export function AuthModal({
   pendingJd,
   pendingIntentPath,
   pendingRedirectPath,
+  pendingSelectedPlan,
   modalPreviewTitle,
   onSuccessStart,
 }: {
@@ -21,9 +24,49 @@ export function AuthModal({
   pendingJd: string;
   pendingIntentPath: IntentPath;
   pendingRedirectPath: string;
+  pendingSelectedPlan: BillingPlanCode | null;
   modalPreviewTitle: string;
   onSuccessStart: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const titleId = "landing-auth-modal-title";
+  useEffect(() => {
+    if (!open) return;
+    closeButtonRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusableElements = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      const focusable = Array.from(focusableElements ?? []).filter(
+        (element) => !element.hasAttribute("disabled") && element.offsetParent !== null,
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
   if (!open) return null;
 
   const isSearchAuthIntent = authIntent === "search";
@@ -43,16 +86,22 @@ export function AuthModal({
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-6">
       <button
         type="button"
-        aria-label="Close sign in dialog"
+        aria-label="Close sign in dialog backdrop"
         onClick={onClose}
         className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
       />
 
       <div
+        ref={dialogRef}
         data-testid="landing-auth-modal"
+        data-selected-plan={pendingSelectedPlan ?? undefined}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="relative z-[71] max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_32px_120px_rgba(15,23,42,0.26)]"
       >
         <button
+          ref={closeButtonRef}
           type="button"
           aria-label="Close sign in dialog"
           onClick={onClose}
@@ -77,7 +126,7 @@ export function AuthModal({
                   <Sparkles className="h-3.5 w-3.5" />
                   {isSearchAuthIntent ? "Your search is ready" : "Welcome back"}
                 </p>
-                <h2 className="mt-4 max-w-[14ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+                <h2 id={titleId} className="mt-4 max-w-[14ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
                   {isSearchAuthIntent
                     ? "One more step to open your shortlist."
                     : "Sign in and keep moving."}
@@ -90,7 +139,7 @@ export function AuthModal({
               </div>
 
               {isSearchAuthIntent ? (
-                <div className="mt-6 hidden rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.07)] lg:block">
+                <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.07)] lg:mt-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -99,7 +148,7 @@ export function AuthModal({
                       </p>
                       <p
                         data-testid="landing-auth-preview-title"
-                        className="mt-2 text-base font-semibold text-slate-950"
+                        className="mt-2 line-clamp-2 text-base font-semibold text-slate-950"
                       >
                         {modalPreviewTitle}
                       </p>
@@ -108,7 +157,7 @@ export function AuthModal({
                       {pendingIntentPath === "sample" ? "Sample role" : "Your JD"}
                     </span>
                   </div>
-                  <p className="mt-4 max-h-28 overflow-hidden whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                  <p className="mt-4 hidden max-h-28 overflow-hidden whitespace-pre-wrap text-sm leading-6 text-slate-600 lg:block">
                     {pendingJd}
                   </p>
                 </div>

@@ -104,7 +104,7 @@ export function ComparisonSection() {
         </div>
 
         <p className="mx-auto mt-8 max-w-xl text-center text-sm text-slate-500">
-          Same role. Same data sources. Hirelix removes the keyboard between the JD and a credible shortlist.
+          Same role. Same data sources. Hirelix turns the JD into a shortlist your team can review and act on.
         </p>
       </div>
     </section>

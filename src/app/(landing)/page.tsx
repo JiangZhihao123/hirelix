@@ -27,6 +27,7 @@ import {
   trackEvent,
   type IntentPath,
 } from "@/lib/analytics";
+import type { BillingPlanCode } from "@/lib/billing";
 import { sampleJd } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
 import { BillingFaqSection } from "./_components/BillingFaqSection";
@@ -49,12 +50,15 @@ export default function Home() {
   const [pendingJd, setPendingJd] = useState("");
   const [pendingIntentPath, setPendingIntentPath] = useState<IntentPath>("direct_jd");
   const [pendingRedirectPath, setPendingRedirectPath] = useState("");
+  const [pendingSelectedPlan, setPendingSelectedPlan] = useState<BillingPlanCode | null>(null);
   const hasTrackedInputRef = useRef(false);
   const hasTrackedLandingViewRef = useRef(false);
+  const lastAuthTriggerRef = useRef<HTMLElement | null>(null);
 
   const trimmedJd = jdText.trim();
   const wordCount = trimmedJd ? trimmedJd.split(/\s+/).filter(Boolean).length : 0;
   const canSubmit = trimmedJd.length >= 50;
+  const heroPrimaryDisabled = !canSubmit || isSubmitting;
   const modalPreviewTitle = useMemo(() => {
     const firstMeaningfulLine = pendingJd
       .split("\n")
@@ -119,18 +123,27 @@ export default function Home() {
 
   function openAuthModal(
     intentPath: IntentPath,
-    options?: { authIntent?: "search" | "signin"; prefill?: string; redirectPath?: string },
+    options?: {
+      authIntent?: "search" | "signin";
+      prefill?: string;
+      redirectPath?: string;
+      selectedPlan?: BillingPlanCode;
+    },
   ) {
     const authIntentValue = options?.authIntent ?? "search";
     const prefill = options?.prefill ?? "";
     const redirectPath =
       options?.redirectPath ??
       buildTrackedHref("/app/search/new", intentPath, { jd: prefill });
+    const selectedPlan = options?.selectedPlan ?? null;
 
+    lastAuthTriggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAuthIntent(authIntentValue);
     setPendingJd(prefill);
     setPendingIntentPath(intentPath);
     setPendingRedirectPath(redirectPath);
+    setPendingSelectedPlan(selectedPlan);
     setAuthModalOpen(true);
     setIsSubmitting(false);
 
@@ -143,6 +156,16 @@ export default function Home() {
       route: "/",
       has_prefilled_jd: Boolean(prefill),
       signin_surface: "landing_modal",
+      selected_plan: selectedPlan,
+    });
+  }
+
+  function closeAuthModal() {
+    setAuthModalOpen(false);
+    setIsSubmitting(false);
+    window.requestAnimationFrame(() => {
+      lastAuthTriggerRef.current?.focus();
+      lastAuthTriggerRef.current = null;
     });
   }
 
@@ -154,6 +177,20 @@ export default function Home() {
     openAuthModal("signin", {
       authIntent: "signin",
       redirectPath: buildTrackedHref("/app/search/new", "signin", undefined, "signin"),
+    });
+  }
+
+  function handlePlanSignIn(planCode: BillingPlanCode) {
+    const selectedPlanQuery = { selected_plan: planCode, billing_intent: "plan" };
+    const redirectPath =
+      planCode === "free"
+        ? buildTrackedHref("/app/search/new", "signin", selectedPlanQuery, "landing")
+        : `${buildTrackedHref("/app/settings", "signin", selectedPlanQuery, "landing")}#billing`;
+
+    openAuthModal("signin", {
+      authIntent: "signin",
+      redirectPath,
+      selectedPlan: planCode,
     });
   }
 
@@ -292,7 +329,9 @@ export default function Home() {
                 <div className="mt-3 flex flex-col gap-3 text-xs text-slate-600 sm:flex-row sm:items-start sm:justify-between">
                   <span>
                     {wordCount > 0
-                      ? `${wordCount} words ready to analyze`
+                      ? canSubmit
+                        ? `${wordCount} words ready to analyze`
+                        : "Paste at least 50 characters to continue."
                       : "No JD handy? Try a sample:"}
                   </span>
                   <button
@@ -306,10 +345,14 @@ export default function Home() {
                 </div>
                 <button
                   type="submit"
-                  disabled={!canSubmit || isSubmitting}
+                  disabled={heroPrimaryDisabled}
                   data-testid="hero-primary-cta"
                   aria-busy={isSubmitting}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3.5 text-base font-semibold text-white shadow-[0_18px_42px_rgba(37,99,235,0.26)] transition-all hover:-translate-y-0.5 hover:bg-blue-700 disabled:cursor-wait disabled:opacity-70"
+                  className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3.5 text-base font-semibold transition-all ${
+                    heroPrimaryDisabled
+                      ? "!cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
+                      : "bg-blue-600 text-white shadow-[0_18px_42px_rgba(37,99,235,0.26)] hover:-translate-y-0.5 hover:bg-blue-700"
+                  }`}
                 >
                   {isSubmitting ? "Opening your shortlist..." : "Get ranked shortlist"}{" "}
                   <ArrowRight className="h-4 w-4" />
@@ -386,7 +429,7 @@ export default function Home() {
       <FeaturesSection />
       <HowItWorksSection />
       <ComparisonSection />
-      <PricingSection user={user} onSignIn={handleGenericSignIn} />
+      <PricingSection user={user} onSignIn={handlePlanSignIn} />
       <ObjectionsSection />
       <BillingFaqSection />
       <CtaSection
@@ -397,14 +440,12 @@ export default function Home() {
 
       <AuthModal
         open={authModalOpen}
-        onClose={() => {
-          setAuthModalOpen(false);
-          setIsSubmitting(false);
-        }}
+        onClose={closeAuthModal}
         authIntent={authIntent}
         pendingJd={pendingJd}
         pendingIntentPath={pendingIntentPath}
         pendingRedirectPath={pendingRedirectPath}
+        pendingSelectedPlan={pendingSelectedPlan}
         modalPreviewTitle={modalPreviewTitle}
         onSuccessStart={() => setIsSubmitting(true)}
       />

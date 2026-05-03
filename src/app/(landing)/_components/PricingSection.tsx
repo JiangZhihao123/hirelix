@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
-import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK } from "@/lib/billing";
+import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK, type BillingPlanCode } from "@/lib/billing";
 import type { User } from "@supabase/supabase-js";
 
 // Keep the public pricing focused on the solo technical recruiter path.
@@ -28,7 +28,13 @@ const shortlistCopy: Record<string, string> = {
   agency_monthly: "High-volume search firm capacity, API access, white-label export",
 };
 
-export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn: () => void }) {
+export function PricingSection({
+  user,
+  onSignIn,
+}: {
+  user: User | null;
+  onSignIn: (planCode: BillingPlanCode) => void;
+}) {
   const proAnnual = BILLING_PLANS.pro_annual;
   const proMonthly = BILLING_PLANS.pro_monthly;
   const starterAnnual = BILLING_PLANS.starter_annual;
@@ -72,11 +78,12 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
             const isStarter = plan.code === "starter_monthly";
             const isFree = plan.code === "free";
             const isRecommended = isProAnnual;
+            const mobileOrder = isFree ? "order-1" : isProAnnual ? "order-2" : "order-3";
 
             return (
               <div
                 key={plan.code}
-                className={`relative flex flex-col rounded-lg border p-6 shadow-[0_14px_40px_rgba(15,23,42,0.07)] transition-all ${
+                className={`relative ${mobileOrder} flex flex-col rounded-lg border p-6 shadow-[0_14px_40px_rgba(15,23,42,0.07)] transition-all lg:order-none ${
                   isRecommended
                     ? "border-blue-300 bg-[linear-gradient(180deg,#eff6ff_0%,#ffffff_42%)] ring-1 ring-blue-100 lg:-mt-3 lg:mb-3"
                     : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_50px_rgba(37,99,235,0.11)]"
@@ -130,7 +137,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                   </p>
                 ) : null}
                 {isStarter ? (
-                  <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                  <p className="mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 sm:block">
                     Annual Starter available at ${Math.round(starterAnnual.priceCents / 1200).toLocaleString()}/mo,
                     billed ${Math.round(starterAnnual.priceCents / 100).toLocaleString()}/year.
                   </p>
@@ -195,7 +202,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                   ) : (
                     <button
                       type="button"
-                      onClick={onSignIn}
+                      onClick={() => onSignIn(plan.code)}
                       className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-all ${
                         isRecommended
                           ? "bg-blue-600 text-white shadow-[0_14px_32px_rgba(37,99,235,0.24)] hover:bg-blue-700"
@@ -212,7 +219,56 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
           })}
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <details className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-5 lg:hidden">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-950">
+            Team plans and add-ons
+          </summary>
+          <div className="mt-4 space-y-4 text-sm text-slate-700">
+            {TEAM_PLANS.map((code) => {
+              const plan = BILLING_PLANS[code];
+              return (
+                <div key={plan.code} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-950">{plan.name}</p>
+                      <p className="mt-1 text-slate-600">{plan.description}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-bold text-slate-950">{plan.priceLabel}</p>
+                      <p className="text-xs text-slate-500">{plan.cadenceLabel}</p>
+                    </div>
+                  </div>
+                  {plan.code === "agency_monthly" ? (
+                    <a
+                      href="mailto:support@hirelix.online?subject=Agency%20Plan%20Inquiry"
+                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+                    >
+                      Contact us
+                      <ArrowRight className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onSignIn(plan.code)}
+                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950"
+                    >
+                      Start Business
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="font-semibold text-slate-950">Need extra credits?</p>
+              <p className="mt-1 text-slate-600">
+                Search Pack and Contact Pack add-ons are available from billing after sign in.
+              </p>
+            </div>
+          </div>
+        </details>
+
+        <div className="mt-6 hidden gap-4 lg:grid lg:grid-cols-2">
           {TEAM_PLANS.map((code) => {
             const plan = BILLING_PLANS[code];
             const isAgency = plan.code === "agency_monthly";
@@ -251,7 +307,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
                     ) : (
                       <button
                         type="button"
-                        onClick={onSignIn}
+                        onClick={() => onSignIn(plan.code)}
                         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300 sm:w-auto"
                       >
                         Start Business
@@ -265,7 +321,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
           })}
         </div>
 
-        <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-5">
+        <div className="mt-8 hidden rounded-lg border border-slate-200 bg-slate-50 p-5 lg:block">
           <div className="grid gap-4 lg:grid-cols-[0.9fr_1fr_1fr] lg:items-center">
             <div>
               <p className="text-sm font-semibold text-slate-950">Need more in a heavy month?</p>
@@ -290,7 +346,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
               ) : (
                 <button
                   type="button"
-                  onClick={onSignIn}
+                  onClick={() => onSignIn("free")}
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300"
                 >
                   Sign in to buy
@@ -316,7 +372,7 @@ export function PricingSection({ user, onSignIn }: { user: User | null; onSignIn
               ) : (
                 <button
                   type="button"
-                  onClick={onSignIn}
+                  onClick={() => onSignIn("free")}
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300"
                 >
                   Sign in to buy

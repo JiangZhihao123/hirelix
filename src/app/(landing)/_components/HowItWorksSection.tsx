@@ -28,7 +28,7 @@ export function HowItWorksSection() {
             From JD to outreach in one flow
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            The product should feel obvious before someone signs in: paste, rank, review, reach out.
+            Paste the role, review ranked matches, and send edited outreach from one workflow.
           </p>
         </div>
 
