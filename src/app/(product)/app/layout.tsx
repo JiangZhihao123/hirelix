@@ -18,8 +18,7 @@ import {
   Menu,
   X,
   ShieldCheck,
-  UserRound,
-  CreditCard,
+  Settings,
 } from "lucide-react";
 
 export default function ProductLayout({
@@ -64,17 +63,6 @@ function ProductLayoutShell({
     },
     () => "workspace",
   );
-  const settingsHash = useSyncExternalStore(
-    (onStoreChange) => {
-      window.addEventListener("hashchange", onStoreChange);
-      return () => window.removeEventListener("hashchange", onStoreChange);
-    },
-    () => {
-      if (typeof window === "undefined") return "";
-      return window.location.hash.replace("#", "");
-    },
-    () => "",
-  );
   const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
   const isFocusedNewSearch =
     pathname === "/app/search/new" && entryMode === "landing" && Boolean(pendingJd);
@@ -84,8 +72,6 @@ function ProductLayoutShell({
   const isDashboardRoute =
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
-  const isProfileSettingsRoute = isSettingsRoute && settingsHash !== "billing";
-  const isBillingSettingsRoute = isSettingsRoute && settingsHash === "billing";
   const isAdminRoute = pathname.startsWith("/app/admin");
   const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
   const isAdmin = adminEmail
@@ -93,10 +79,10 @@ function ProductLayoutShell({
     : false;
 
   const getNavClassName = (isActive: boolean) =>
-    `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+    `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
       isActive
-        ? "bg-primary/8 text-primary"
-        : "text-muted hover:bg-background hover:text-foreground"
+        ? "bg-slate-900 text-white shadow-sm"
+        : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
     }`;
 
   useEffect(() => {
@@ -186,93 +172,87 @@ function ProductLayoutShell({
 
   const sidebarContent = (
     <>
-      <div className="flex h-14 items-center justify-between border-b border-border px-5">
+      <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
         <Link
           href="/app"
           onClick={() => {
             setSidebarOpen(false);
             setPendingPath("/app");
           }}
-          className="flex items-center gap-2.5 rounded-lg transition-colors hover:text-foreground"
+          className="flex items-center gap-2.5 rounded-md transition-colors hover:text-slate-950"
         >
           <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
-          <span className="text-lg font-bold tracking-tight">Hirelix</span>
+          <span className="text-lg font-semibold tracking-tight text-slate-950">Hirelix</span>
         </Link>
-        <button onClick={() => setSidebarOpen(false)} className="lg:hidden cursor-pointer text-muted hover:text-foreground">
+        <button onClick={() => setSidebarOpen(false)} className="cursor-pointer text-slate-500 hover:text-slate-950 lg:hidden">
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 p-3">
-        <Link
-          href="/app"
-          onClick={() => {
-            setSidebarOpen(false);
-            setPendingPath("/app");
-          }}
-          className={getNavClassName(isDashboardRoute)}
-        >
-          {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          Shortlists
-        </Link>
-        <Link
-          href="/app/search/new"
-          onClick={() => {
-            setSidebarOpen(false);
-            setPendingPath("/app/search/new");
-          }}
-          className={getNavClassName(isNewSearchRoute)}
-        >
-          {effectivePendingPath === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          New Search
-        </Link>
-        <Link
-          href="/app/settings#profile"
-          onClick={() => {
-            setSidebarOpen(false);
-            setPendingPath("/app/settings");
-            window.scrollTo({ top: 0, behavior: "auto" });
-          }}
-          className={getNavClassName(isProfileSettingsRoute)}
-        >
-          {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
-          Recruiter Profile
-        </Link>
-        <Link
-          href="/app/settings#billing"
-          onClick={() => {
-            setSidebarOpen(false);
-            setPendingPath("/app/settings");
-            window.scrollTo({ top: 0, behavior: "auto" });
-          }}
-          className={getNavClassName(isBillingSettingsRoute)}
-        >
-          {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-          Billing
-        </Link>
-        {isAdmin && (
+      <nav className="flex-1 p-3">
+        <p className="px-3 pb-2 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          Workspace
+        </p>
+        <div className="space-y-1">
           <Link
-            href="/app/admin"
+            href="/app"
             onClick={() => {
               setSidebarOpen(false);
-              setPendingPath("/app/admin");
+              setPendingPath("/app");
             }}
-            className={getNavClassName(isAdminRoute)}
+            className={getNavClassName(isDashboardRoute)}
           >
-            {effectivePendingPath === "/app/admin" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            Admin
+            {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Shortlists
           </Link>
-        )}
+          <Link
+            href="/app/search/new"
+            onClick={() => {
+              setSidebarOpen(false);
+              setPendingPath("/app/search/new");
+            }}
+            className={getNavClassName(isNewSearchRoute)}
+          >
+            {effectivePendingPath === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            New search
+          </Link>
+          {isAdmin && (
+            <Link
+              href="/app/admin"
+              onClick={() => {
+                setSidebarOpen(false);
+                setPendingPath("/app/admin");
+              }}
+              className={getNavClassName(isAdminRoute)}
+            >
+              {effectivePendingPath === "/app/admin" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              Admin
+            </Link>
+          )}
+        </div>
       </nav>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-slate-200 p-3">
         <PlanStatusCard billing={billing} loading={billingLoading} />
-        <div className="mb-2 px-3 text-xs text-muted-light truncate">
+        <div className="mt-3 space-y-1">
+          <Link
+            href="/app/settings#billing"
+            onClick={() => {
+              setSidebarOpen(false);
+              setPendingPath("/app/settings");
+            }}
+            className={getNavClassName(isSettingsRoute)}
+          >
+            {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
+            Settings
+          </Link>
+        </div>
+        <div className="mt-3 truncate px-3 text-xs text-slate-500">
           {user.email}
         </div>
         <button
           onClick={() => signOut().then(() => router.push("/"))}
-          className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted transition-colors hover:bg-background hover:text-foreground"
+          className="mt-1 flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950"
         >
           <LogOut className="h-4 w-4" />
           Sign Out
@@ -282,16 +262,16 @@ function ProductLayoutShell({
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-slate-50">
       {/* Mobile top bar */}
-      <div className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 lg:hidden">
         <Link
           href="/app"
           onClick={() => setPendingPath("/app")}
-          className="flex items-center gap-2.5 rounded-lg transition-colors hover:text-foreground"
+          className="flex items-center gap-2.5 rounded-md transition-colors hover:text-slate-950"
         >
           <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
-          <span className="text-lg font-bold tracking-tight">Hirelix</span>
+          <span className="text-lg font-semibold tracking-tight text-slate-950">Hirelix</span>
         </Link>
         {isFocusedNewSearch ? (
           <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-700">
@@ -303,7 +283,7 @@ function ProductLayoutShell({
           <button
             onClick={() => setSidebarOpen((open) => !open)}
             aria-label={sidebarOpen ? "Close navigation" : "Open navigation"}
-            className="cursor-pointer rounded-md p-1 text-muted hover:bg-background hover:text-foreground"
+            className="cursor-pointer rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-950"
           >
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -321,7 +301,7 @@ function ProductLayoutShell({
       {/* Sidebar — desktop: fixed, mobile: drawer */}
       {!isFocusedNewSearch && (
         <aside
-          className={`fixed left-0 top-0 z-[60] flex h-full w-60 flex-col border-r border-border bg-surface transition-transform duration-200 lg:translate-x-0 ${
+          className={`fixed left-0 top-0 z-[60] flex h-full w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -330,7 +310,7 @@ function ProductLayoutShell({
       )}
 
       {/* Main content */}
-      <main className={`w-full flex-1 p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 lg:pt-8 ${isFocusedNewSearch ? "lg:ml-0" : "lg:ml-60"}`}>
+      <main className={`w-full flex-1 p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 lg:pt-8 ${isFocusedNewSearch ? "lg:ml-0" : "lg:ml-64"}`}>
         {children}
       </main>
     </div>

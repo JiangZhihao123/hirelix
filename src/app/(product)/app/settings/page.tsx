@@ -36,17 +36,17 @@ export default function SettingsPage() {
     {
       id: "account" as const,
       label: "Account",
-      detail: hasPasswordLogin ? "Password enabled" : "Password optional",
+      detail: hasPasswordLogin ? "Password enabled" : "Login access",
     },
     {
       id: "billing" as const,
       label: "Billing",
-      detail: billing ? getPlanStatusCopy(billing).title : "Plan details",
+      detail: billing ? getPlanStatusCopy(billing).title : "Plan and usage",
     },
     {
       id: "profile" as const,
-      label: "Profile",
-      detail: headhunterProfile.recruiter_name || "Profile details",
+      label: "Outreach identity",
+      detail: headhunterProfile.recruiter_name || "Recruiter details",
     },
   ];
 
@@ -155,20 +155,27 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Settings
-        </p>
-        <h1 className="mt-2 text-[32px] font-bold tracking-tight text-slate-950">
-          Manage your account, billing, and recruiter profile.
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-          Manage login access, this cycle&apos;s limits, and your recruiter profile Hirelix uses for
-          personalizing outreach.
-        </p>
+      <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Workspace
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+            Settings
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+            Manage account access, billing capacity, and the outreach identity used in candidate messages.
+          </p>
+        </div>
+        {billing ? (
+          <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm shadow-slate-200/30">
+            <span className="font-medium text-slate-950">{getPlanStatusCopy(billing).title}</span>
+            <span className="ml-2 text-slate-500">{getPlanStatusCopy(billing).usageLabel}</span>
+          </div>
+        ) : null}
       </div>
 
-      <div className="mb-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden">
         {sectionNav.map((item) => {
           const isActive = activeSection === item.id;
           return (
@@ -176,7 +183,7 @@ export default function SettingsPage() {
               key={item.id}
               type="button"
               onClick={() => selectSection(item.id)}
-              className={`inline-flex shrink-0 items-center rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+              className={`inline-flex shrink-0 items-center rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
@@ -188,12 +195,9 @@ export default function SettingsPage() {
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[232px_minmax(0,1fr)] lg:gap-8">
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,840px)] lg:gap-8">
         <aside className="hidden lg:block">
-          <nav className="sticky top-8">
-            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Sections
-            </p>
+          <nav className="sticky top-8 rounded-lg border border-slate-200 bg-white p-2 shadow-sm shadow-slate-200/30">
             <div className="space-y-1">
               {sectionNav.map((item) => {
                 const isActive = activeSection === item.id;
@@ -202,16 +206,18 @@ export default function SettingsPage() {
                     key={item.id}
                     type="button"
                     onClick={() => selectSection(item.id)}
-                    className={`block w-full border-l-2 py-2 pl-3 pr-2 text-left transition-colors ${
+                    className={`block w-full rounded-md px-3 py-2.5 text-left transition-colors ${
                       isActive
-                        ? "border-primary text-slate-950"
-                        : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-950"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                     }`}
                     >
                       <p className={`text-sm ${isActive ? "font-semibold" : "font-medium"}`}>
                         {item.label}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
+                      <p className={`mt-1 text-xs ${isActive ? "text-slate-300" : "text-slate-500"}`}>
+                        {item.detail}
+                      </p>
                   </button>
                 );
               })}

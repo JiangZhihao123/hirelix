@@ -33,7 +33,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           title="Current plan"
           description="This is the active plan and renewal state for your account."
         >
-          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:p-5">
+          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
             <div className="space-y-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -76,7 +76,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           description="Track the limits that matter for the current billing cycle."
         >
           <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <Search className="h-4 w-4 text-slate-400" />
@@ -99,7 +99,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <Mail className="h-4 w-4 text-slate-400" />
@@ -122,7 +122,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <p className="text-sm font-medium text-slate-800">Qualified results</p>
               <p className="mt-3 text-2xl font-semibold text-slate-950">Dynamic</p>
               <p className="mt-2 text-sm text-slate-600">Result count varies by role quality bar</p>
@@ -134,7 +134,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           title="Plans and add-ons"
           description="Upgrade the base plan or add one-off credits when you need extra capacity."
         >
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Hirelix is built for technical recruiters and headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
             <a
               className="font-medium underline decoration-amber-400 underline-offset-2"
@@ -149,7 +149,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               Plans
             </p>
           </div>
-          <div className="grid gap-4 xl:grid-cols-5">
+          <div className="grid gap-4 lg:grid-cols-2">
             {Object.values(BILLING_PLANS).map((plan) => {
               const isCurrent = billing.subscription.planCode === plan.code;
               const isPaidPlan = plan.code !== "free";
@@ -157,7 +157,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               return (
                 <div
                   key={plan.code}
-                  className={`rounded-xl border p-4 ${
+                  className={`rounded-lg border p-4 ${
                     plan.featured
                       ? "border-primary/25 bg-primary/5"
                       : "border-slate-200 bg-white"
@@ -201,7 +201,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                       <button
                         type="button"
                         disabled
-                        className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
+                        className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
                       >
                         {isCurrent ? "Current plan" : "Free plan"}
                       </button>
@@ -209,7 +209,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                       <button
                         type="button"
                         disabled
-                        className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
+                        className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
                       >
                         Current plan
                       </button>
@@ -223,7 +223,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                         onError={(message) =>
                           setBillingMessage({ type: "error", text: message })
                         }
-                        className="inline-flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                       />
                     )}
                   </div>
@@ -238,7 +238,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             </p>
           </div>
           <div className="mt-3 grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <div className="rounded-lg border border-slate-200 bg-white p-5">
               <p className="text-sm font-semibold text-slate-950">{SEARCH_PACK.name}</p>
               <p className="mt-1 text-sm text-slate-600">{SEARCH_PACK.description}</p>
               <p className="mt-4 text-2xl font-semibold text-slate-950">
@@ -257,12 +257,12 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   }
                   disabled={billing.plan.code === "free"}
                   onError={(message) => setBillingMessage({ type: "error", text: message })}
-                  className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <div className="rounded-lg border border-slate-200 bg-white p-5">
               <p className="text-sm font-semibold text-slate-950">{CONTACT_PACK.name}</p>
               <p className="mt-1 text-sm text-slate-600">{CONTACT_PACK.description}</p>
               <p className="mt-4 text-2xl font-semibold text-slate-950">
@@ -281,7 +281,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   }
                   disabled={billing.plan.code === "free"}
                   onError={(message) => setBillingMessage({ type: "error", text: message })}
-                  className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
             </div>

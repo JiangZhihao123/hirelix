@@ -44,7 +44,7 @@ export function PlanStatusCard({
 
   if (loading) {
     return (
-      <div className="rounded-md bg-slate-50 px-3 py-2">
+      <div className="rounded-md border border-slate-200 bg-white px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="h-4 w-20 animate-pulse rounded bg-slate-200" />
           <div className="h-4 w-16 animate-pulse rounded bg-slate-200" />
@@ -56,13 +56,13 @@ export function PlanStatusCard({
 
   const containerClassName =
     copy.state === "warning"
-      ? "bg-amber-50/80"
+      ? "border-amber-200 bg-amber-50"
       : copy.state === "unavailable"
-        ? "bg-slate-50"
-        : "bg-slate-50";
+        ? "border-slate-200 bg-white"
+        : "border-slate-200 bg-white";
 
   return (
-    <div className={`rounded-md px-3 py-2 ${containerClassName}`}>
+    <div className={`rounded-md border px-3 py-2.5 ${containerClassName}`}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-slate-900">{copy.title}</p>
         <Link
@@ -86,10 +86,10 @@ export function PlanStatusCard({
           {copy.actionLabel}
         </Link>
       </div>
-      <p className={`mt-1 text-[11px] font-medium ${copy.state === "warning" ? "text-amber-700" : "text-slate-600"}`}>
+      <p className={`mt-1 text-xs font-medium ${copy.state === "warning" ? "text-amber-700" : "text-slate-600"}`}>
         {copy.usageLabel}
       </p>
-      <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500">
+      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
         {copy.capabilityLabel}
         {copy.renewalLabel ? ` · ${copy.renewalLabel}` : ""}
       </p>

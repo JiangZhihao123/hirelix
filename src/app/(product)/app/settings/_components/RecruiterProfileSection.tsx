@@ -63,9 +63,9 @@ export function RecruiterProfileSection({
   return (
     <SettingsSection
       id="profile"
-      eyebrow="Profile"
-      title="Recruiter profile"
-      description="Your profile as a headhunter. Hirelix uses this to personalize outreach — candidates will see your name and firm, not your client's."
+      eyebrow="Outreach identity"
+      title="Recruiter identity"
+      description="Control how you appear in outreach drafts. Candidates see your name and firm, not your client's confidential details."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -82,7 +82,7 @@ export function RecruiterProfileSection({
                 value={profile.recruiter_name}
                 onChange={(e) => updateField("recruiter_name", e.target.value)}
                 placeholder="e.g. Sarah Chen"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               />
             </div>
             <div>
@@ -94,7 +94,7 @@ export function RecruiterProfileSection({
                 value={profile.firm_name}
                 onChange={(e) => updateField("firm_name", e.target.value)}
                 placeholder="e.g. Apex Search Partners (optional)"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               />
             </div>
           </div>
@@ -114,7 +114,7 @@ export function RecruiterProfileSection({
                 value={profile.specialization}
                 onChange={(e) => updateField("specialization", e.target.value)}
                 placeholder="e.g. Senior engineering roles at Series A–C startups"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               />
             </div>
             <div>
@@ -126,7 +126,7 @@ export function RecruiterProfileSection({
                 onChange={(e) => updateField("bio", e.target.value)}
                 placeholder="A sentence or two about your background — used to make outreach feel personal and credible."
                 rows={3}
-                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                className="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               />
             </div>
           </div>
@@ -140,7 +140,7 @@ export function RecruiterProfileSection({
             type="button"
             onClick={handleSaveProfile}
             disabled={savingProfile}
-            className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+            className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
             {savingProfile ? (
               <Loader2 className="h-4 w-4 animate-spin" />

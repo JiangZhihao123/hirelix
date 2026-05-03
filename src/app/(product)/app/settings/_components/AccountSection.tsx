@@ -78,7 +78,7 @@ export function AccountSection({
               : "No password is set yet for this account."
           }
         >
-          <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+          <div className="rounded-md border border-slate-200 bg-slate-50/80 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -114,7 +114,7 @@ export function AccountSection({
                 value={passwordForm.password}
                 onChange={(e) => setPasswordForm({ ...passwordForm, password: e.target.value })}
                 placeholder="At least 8 characters"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               />
             </div>
             <div>
@@ -128,7 +128,7 @@ export function AccountSection({
                   setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })
                 }
                 placeholder="Repeat your password"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
               />
             </div>
           </div>
@@ -141,7 +141,7 @@ export function AccountSection({
               type="button"
               onClick={handleSavePassword}
               disabled={savingPassword}
-              className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+              className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
             >
               {savingPassword ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
