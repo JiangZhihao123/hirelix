@@ -1934,14 +1934,18 @@ function computeQualityScore(
   return Math.round((capabilityScore + relevanceScore) / 2);
 }
 
-function computeAdvanceScore(
+export function computeAdvanceScore(
   capabilityScore: number,
   relevanceScore: number,
   joinLikelihoodScore: number,
   blockingSeverity: BlockingSeverity,
 ) {
+  // Reachability carries lower weight in passive sourcing: a technically strong
+  // but hard-to-reach candidate is exactly what recruiters pay us to surface.
+  // Reachability still informs outreach strategy via its own score, but should
+  // not dominate the shortlist gate.
   const baseScore = Math.round(
-    capabilityScore * 0.3 + relevanceScore * 0.4 + joinLikelihoodScore * 0.3,
+    capabilityScore * 0.35 + relevanceScore * 0.45 + joinLikelihoodScore * 0.2,
   );
   const penalty = blockingSeverity === "hard" ? 35 : blockingSeverity === "soft" ? 12 : 0;
   return Math.max(0, Math.min(100, baseScore - penalty));
@@ -2267,7 +2271,7 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
   );
 }
 
-function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
+export function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   const suitability = assessment.suitability;
   const breakdown = suitability.scoring_breakdown;
 
@@ -2283,22 +2287,26 @@ function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   const recruiterApproved =
     suitability.shortlist_decision === "yes" &&
     breakdown.relevance_score >= Math.min(SHORTLIST_RELEVANCE_MIN, 60) &&
-    breakdown.join_likelihood_score >= Math.min(SHORTLIST_JOIN_LIKELIHOOD_MIN, 45);
+    breakdown.join_likelihood_score >= Math.min(SHORTLIST_JOIN_LIKELIHOOD_MIN, 30);
 
   const strongTechnicalFit =
     breakdown.relevance_score >= SHORTLIST_RELEVANCE_MIN &&
     breakdown.capability_score >= SHORTLIST_CAPABILITY_MIN &&
     suitability.quality_score >= 70 &&
-    breakdown.join_likelihood_score >= 30;
+    breakdown.join_likelihood_score >= 20;
 
   const reviewableTechnicalFit =
     suitability.quality_score >= 75 &&
     breakdown.relevance_score >= 65 &&
-    breakdown.join_likelihood_score >= 40;
+    breakdown.join_likelihood_score >= 25;
 
+  // Escape hatch for technically strong candidates whose reachability looks
+  // low (happily employed senior engineers). This is the core passive-sourcing
+  // use case; without this path, high-quality candidates get filtered out
+  // before the recruiter ever sees them.
   const technicalWatchlistFit =
-    suitability.quality_score >= 82 &&
-    breakdown.relevance_score >= 80 &&
+    suitability.quality_score >= 72 &&
+    breakdown.relevance_score >= 68 &&
     breakdown.capability_score >= SHORTLIST_CAPABILITY_MIN &&
     ["strong", "partial"].includes(suitability.constraint_verdicts.must_have_coverage);
 
@@ -2323,7 +2331,7 @@ function getDisplayTierForAssessment(
   }
 }
 
-function deriveExcludedReason(assessment: ScoredCandidateAssessment): ExcludedReason {
+export function deriveExcludedReason(assessment: ScoredCandidateAssessment): ExcludedReason {
   const { suitability } = assessment;
   const verdicts = suitability.constraint_verdicts;
   const normalizedRiskText = [
@@ -2388,7 +2396,7 @@ function deriveExcludedReason(assessment: ScoredCandidateAssessment): ExcludedRe
     return "evidence_too_weak";
   }
 
-  if (suitability.scoring_breakdown.join_likelihood_score < 55) {
+  if (suitability.scoring_breakdown.join_likelihood_score < 35) {
     return "response_risk";
   }
 

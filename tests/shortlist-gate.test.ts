@@ -1,0 +1,190 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  computeAdvanceScore,
+  deriveExcludedReason,
+  shouldDisplayCandidate,
+} from "@/lib/search-jobs";
+import type {
+  BlockingSeverity,
+  ScoredCandidateAssessment,
+} from "@/lib/search/types";
+
+// The shortlist gate defends passive-sourcing recall: a technically strong
+// candidate with low Reachability should still surface, because that is
+// exactly the person recruiters pay us to find.
+
+function assessment(partial: {
+  capability: number;
+  relevance: number;
+  joinLikelihood: number;
+  quality?: number;
+  advance?: number;
+  bucket?: ScoredCandidateAssessment["suitability"]["bucket"];
+  blocking?: BlockingSeverity;
+  mustHaveCoverage?: ScoredCandidateAssessment["suitability"]["constraint_verdicts"]["must_have_coverage"];
+  shortlistDecision?: "yes" | "no";
+  evidenceQuality?: "high" | "medium" | "low";
+  whyThisCandidate?: string[];
+}): ScoredCandidateAssessment {
+  const quality =
+    partial.quality ?? Math.round((partial.capability + partial.relevance) / 2);
+  const advance =
+    partial.advance ??
+    computeAdvanceScore(
+      partial.capability,
+      partial.relevance,
+      partial.joinLikelihood,
+      partial.blocking ?? "none",
+    );
+  return {
+    index: 0,
+    skills: [],
+    experience_years: null,
+    location: null,
+    suitability: {
+      fit_decision: "viable_fit",
+      actionability: "needs_review",
+      bucket: partial.bucket ?? "consider_next",
+      match_score: advance,
+      quality_score: quality,
+      overall_score: advance,
+      advance_score: advance,
+      advance_recommendation: "hold",
+      primary_risk: null,
+      first_contact_confidence: "medium",
+      subscription_trigger_score: quality,
+      shortlist_decision: partial.shortlistDecision ?? "yes",
+      shortlist_reason: null,
+      blocking_constraints: [],
+      blocking_severity: partial.blocking ?? "none",
+      scoring_breakdown: {
+        capability_score: partial.capability,
+        relevance_score: partial.relevance,
+        join_likelihood_score: partial.joinLikelihood,
+        join_likelihood_reasons: [],
+        quality_score: quality,
+        overall_score: advance,
+        advance_score: advance,
+      },
+      constraint_verdicts: {
+        location_fit: "local",
+        work_model_fit: "yes",
+        must_have_coverage: partial.mustHaveCoverage ?? "strong",
+      },
+      constraint_risks: [],
+      risk_flags: [],
+      why_this_candidate: partial.whyThisCandidate ?? ["strong python depth"],
+      why_not_higher: [],
+      evidence_quality: partial.evidenceQuality ?? "medium",
+    },
+  };
+}
+
+test("computeAdvanceScore weights Reachability at 20%, not 30%", () => {
+  // capability 80, relevance 80, join 20 -> 80*0.35 + 80*0.45 + 20*0.2 = 68
+  assert.equal(computeAdvanceScore(80, 80, 20, "none"), 68);
+
+  // Identical caps/rel, higher join only lifts advance by the 20% slice
+  const lowReach = computeAdvanceScore(80, 80, 20, "none");
+  const highReach = computeAdvanceScore(80, 80, 80, "none");
+  assert.equal(highReach - lowReach, 12); // (80-20)*0.2 = 12
+});
+
+test("shouldDisplayCandidate: technically strong + low Reachability still passes", () => {
+  // Happily-employed senior engineer: cap=78, rel=75, join=15.
+  // Under old 0.3/0.4/0.3 weights with soft penalty this used to bucket as
+  // do_not_show and fail every gate; under new rules they qualify via
+  // technicalWatchlistFit or strongTechnicalFit.
+  const a = assessment({
+    capability: 78,
+    relevance: 75,
+    joinLikelihood: 15,
+    mustHaveCoverage: "strong",
+    bucket: "consider_next",
+  });
+  assert.equal(shouldDisplayCandidate(a), true);
+});
+
+test("shouldDisplayCandidate: technicalWatchlistFit escape hatch triggers at q>=72, r>=68", () => {
+  // Happily-employed mid-senior: join_likelihood ~25 is typical for this group.
+  // Under the old 82/80 gate this was filtered; under the new 72/68 gate the
+  // escape hatch fires.
+  const a = assessment({
+    capability: 72,
+    relevance: 68,
+    joinLikelihood: 25,
+    quality: 72,
+    mustHaveCoverage: "partial",
+  });
+  assert.equal(shouldDisplayCandidate(a), true);
+});
+
+test("shouldDisplayCandidate: explicitly unreachable candidate (join < ~15) is still filtered", () => {
+  // Sanity check: we did not accidentally let "will not respond" candidates
+  // through. An LLM rating join_likelihood=10 signals explicit disinterest,
+  // and the match_score floor catches them even with relaxed weights.
+  const a = assessment({
+    capability: 72,
+    relevance: 68,
+    joinLikelihood: 10,
+    quality: 72,
+    mustHaveCoverage: "partial",
+  });
+  assert.equal(shouldDisplayCandidate(a), false);
+});
+
+test("shouldDisplayCandidate: weak must-have coverage still blocks even if technically strong", () => {
+  const a = assessment({
+    capability: 80,
+    relevance: 80,
+    joinLikelihood: 60,
+    quality: 80,
+    mustHaveCoverage: "weak",
+    bucket: "do_not_show", // weak must-have pushes bucket in real flow
+  });
+  assert.equal(shouldDisplayCandidate(a), false);
+});
+
+test("shouldDisplayCandidate: hard blocker always filters out", () => {
+  const a = assessment({
+    capability: 90,
+    relevance: 90,
+    joinLikelihood: 80,
+    blocking: "hard",
+    bucket: "do_not_show",
+  });
+  assert.equal(shouldDisplayCandidate(a), false);
+});
+
+test("shouldDisplayCandidate: capability below floor blocks regardless of other scores", () => {
+  const a = assessment({
+    capability: 60, // below SHORTLIST_CAPABILITY_MIN (70)
+    relevance: 85,
+    joinLikelihood: 70,
+    quality: 72,
+  });
+  assert.equal(shouldDisplayCandidate(a), false);
+});
+
+test("deriveExcludedReason: only labels response_risk when join_likelihood < 35", () => {
+  const borderline = assessment({
+    capability: 72,
+    relevance: 60,
+    joinLikelihood: 40, // previously labeled response_risk at <55 threshold
+    quality: 66,
+    bucket: "do_not_show",
+  });
+  // With join=40, no stack/title/evidence issues -> falls through to multiple_risks
+  assert.equal(deriveExcludedReason(borderline), "multiple_risks");
+
+  const trulyUnreachable = assessment({
+    capability: 72,
+    relevance: 60,
+    joinLikelihood: 20,
+    quality: 66,
+    bucket: "do_not_show",
+  });
+  assert.equal(deriveExcludedReason(trulyUnreachable), "response_risk");
+});
