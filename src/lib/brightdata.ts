@@ -42,6 +42,125 @@ export type BrightDataDatasetFilterRequest = {
   recordsLimit: number;
 };
 
+const BRIGHTDATA_MAX_RULES_PER_GROUP = 4;
+const BRIGHTDATA_MAX_GROUP_DEPTH = 3;
+
+function isFilterGroup(
+  filter: BrightDataFilterRule,
+): filter is { operator: "and" | "or"; filters: BrightDataFilterRule[] } {
+  return "filters" in filter;
+}
+
+/**
+ * Bright Data 对过滤器的两条硬约束：
+ *   1) 每个 logical group（and/or）最多 4 条规则
+ *   2) logical operators 最多嵌套 3 层（根也算 1 层）
+ *
+ * 本工具自底向上整理：
+ *   - 先递归处理子过滤器，传递当前深度
+ *   - 拍平相同 operator 的相邻嵌套（关联律）以释放容量
+ *   - 按当前节点剩余深度预算迭代等量分组
+ *   - 若剩余预算耗尽仍超标，最终截断到 maxPerGroup（优先保留前缀）
+ *
+ * 例：or[a..g] → or[or[a..d], or[e..g]]；超深度预算时仅保留前 4 条。
+ */
+export function chunkBrightDataFilter(
+  filter: BrightDataFilterRule,
+  maxPerGroup: number = BRIGHTDATA_MAX_RULES_PER_GROUP,
+  maxDepth: number = BRIGHTDATA_MAX_GROUP_DEPTH,
+): BrightDataFilterRule {
+  if (maxPerGroup < 2) {
+    throw new Error("chunkBrightDataFilter: maxPerGroup must be at least 2");
+  }
+  if (maxDepth < 1) {
+    throw new Error("chunkBrightDataFilter: maxDepth must be at least 1");
+  }
+  return chunkAtDepth(filter, maxPerGroup, maxDepth, 1);
+}
+
+function chunkAtDepth(
+  filter: BrightDataFilterRule,
+  maxPerGroup: number,
+  maxDepth: number,
+  depth: number,
+): BrightDataFilterRule {
+  if (!isFilterGroup(filter)) return filter;
+
+  const recursivelyChunked = filter.filters.map((child) =>
+    chunkAtDepth(child, maxPerGroup, maxDepth, depth + 1),
+  );
+
+  const flattenedChildren: BrightDataFilterRule[] = [];
+  for (const child of recursivelyChunked) {
+    if (isFilterGroup(child) && child.operator === filter.operator) {
+      flattenedChildren.push(...child.filters);
+    } else {
+      flattenedChildren.push(child);
+    }
+  }
+
+  if (flattenedChildren.length === 0) {
+    return { operator: filter.operator, filters: [] };
+  }
+
+  if (flattenedChildren.length <= maxPerGroup) {
+    return { operator: filter.operator, filters: flattenedChildren };
+  }
+
+  const chunkingBudget = Math.max(0, maxDepth - depth);
+
+  // Preferred packing: bucket leaves together into a single sub-group, keeping
+  // existing sub-groups at the current level. This avoids pushing entire
+  // sub-trees one level deeper (which often violates the depth limit when an
+  // AND/OR root already contains deep OR/AND groups).
+  const leaves = flattenedChildren.filter((child) => !isFilterGroup(child));
+  const groups = flattenedChildren.filter(isFilterGroup);
+  const canReservePreferredSlot =
+    chunkingBudget >= 1 &&
+    groups.length + 1 <= maxPerGroup &&
+    leaves.length <= maxPerGroup;
+  if (canReservePreferredSlot && leaves.length >= 2) {
+    const leafBucket = chunkAtDepth(
+      { operator: filter.operator, filters: leaves },
+      maxPerGroup,
+      maxDepth,
+      depth + 1,
+    );
+    return { operator: filter.operator, filters: [...groups, leafBucket] };
+  }
+
+  // Fallback: iteratively bucket all children together, same operator, within
+  // the remaining depth budget. Truncate if the budget still cannot fit them.
+  let current: BrightDataFilterRule[] = flattenedChildren;
+  let passes = 0;
+  while (current.length > maxPerGroup && passes < chunkingBudget) {
+    const next: BrightDataFilterRule[] = [];
+    for (let i = 0; i < current.length; i += maxPerGroup) {
+      const slice = current.slice(i, i + maxPerGroup);
+      next.push(
+        slice.length === 1
+          ? slice[0]
+          : { operator: filter.operator, filters: slice },
+      );
+    }
+    current = next;
+    passes++;
+  }
+
+  if (current.length > maxPerGroup) {
+    current = current.slice(0, maxPerGroup);
+  }
+
+  if (
+    current.length === 1 &&
+    isFilterGroup(current[0]) &&
+    current[0].operator === filter.operator
+  ) {
+    return current[0];
+  }
+  return { operator: filter.operator, filters: current };
+}
+
 export type BrightDataSnapshotMetadata = {
   id: string;
   status: "scheduled" | "building" | "ready" | "failed";
@@ -521,6 +640,7 @@ export async function triggerDatasetFilter(
   apiToken: string,
   request: BrightDataDatasetFilterRequest,
 ): Promise<string> {
+  const normalizedFilter = chunkBrightDataFilter(request.filter);
   const res = await brightDataFetch(`${BRIGHTDATA_FILTER_API_BASE}/filter`, {
     method: "POST",
     headers: {
@@ -530,7 +650,7 @@ export async function triggerDatasetFilter(
     body: JSON.stringify({
       dataset_id: request.datasetId,
       records_limit: request.recordsLimit,
-      filter: request.filter,
+      filter: normalizedFilter,
     }),
   });
 
