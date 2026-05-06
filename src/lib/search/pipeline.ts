@@ -52,6 +52,7 @@ import {
 } from "@/lib/search/scoring-runtime";
 import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring";
 import type {
+  AdditionalRecallSnapshot,
   CandidateRowInput,
   ConstraintVerdict,
   ExcludedReasonCount,
@@ -136,11 +137,41 @@ type SearchPipelineHelpers = {
     stats: SearchDisplayStats,
   ) => Record<string, unknown>;
   canReuseParsedRequirements: (search: SearchRow) => boolean;
-  buildStandardSkillFilter: any;
-  buildRecallLocationFilter: any;
-  buildAdditionalSnapshotMetadata: any;
-  hasRecallSnapshotDrift: any;
-  mapSnapshotStatus: (metadata: BrightDataSnapshotMetadata | null | undefined) => string | undefined;
+  buildStandardSkillFilter: (
+    recallSpec: RecallSpec,
+    mode: "primary" | "relaxed",
+  ) => BrightDataDatasetFilterRequest["filter"] | null;
+  buildRecallLocationFilter: (
+    hiringBrief: HiringBrief,
+    recallSpec: RecallSpec,
+    countryCodes: string[],
+    mode: "primary" | "relaxed",
+  ) => BrightDataDatasetFilterRequest["filter"] | null;
+  buildAdditionalSnapshotMetadata: (params: {
+    round: string;
+    snapshotId: string;
+    recordsLimit?: number | null;
+    existing?: AdditionalRecallSnapshot | null;
+    status?: AdditionalRecallSnapshot["status"];
+    submittedAt?: string | null;
+    readyAt?: string | null;
+    failedAt?: string | null;
+    failureCode?: string | null;
+    lastPolledAt?: string | null;
+    downloadStartedAt?: string | null;
+    downloadCompletedAt?: string | null;
+    profilesReturned?: number | null;
+    incrementPollAttempt?: boolean;
+    incrementDownloadAttempt?: boolean;
+  }) => AdditionalRecallSnapshot;
+  hasRecallSnapshotDrift: (
+    metadata: RecallMetadata | null,
+    filterSummary: RecallFilterSummary,
+    executionProfile: SearchExecutionProfile,
+    runtime: ReturnType<typeof getExecutionRuntime>,
+    requestedLimit: number,
+  ) => boolean;
+  mapSnapshotStatus: (metadata: BrightDataSnapshotMetadata | null | undefined) => AdditionalRecallSnapshot["status"];
   isTransientSnapshotDownloadError: (error: unknown) => boolean;
   updateSearchDisplayStat: (
     searchId: string,
@@ -202,6 +233,16 @@ type SearchPipelineHelpers = {
     parsed: Record<string, unknown>,
     rows: CandidateRowInput[],
   ) => Promise<CandidateRowInput[]>;
+};
+
+type RecallFilterSummary = {
+  title_terms: string[];
+  country_codes: string[];
+  location_terms: string[];
+  strict_location_terms?: string[];
+  nearby_location_terms?: string[];
+  must_have_signals?: string[];
+  avoid_profiles?: string[];
 };
 
 async function parseJobDescription(
