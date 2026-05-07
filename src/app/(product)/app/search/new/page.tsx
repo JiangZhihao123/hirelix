@@ -49,6 +49,11 @@ export default function NewSearchPage() {
   const analyticsContext = getAnalyticsContextFromParams(searchParams);
 
   useEffect(() => {
+    // Only prefill when the JD came from the user (typed in landing hero or
+    // posted via API). Skip the canned sample so logged-in users always start
+    // with a blank textarea — preventing accidentally submitting the demo JD
+    // as a real search.
+    if (searchParams.get("intent_path") === "sample") return;
     const prefill = searchParams.get("jd");
     if (prefill) setJdText(prefill);
   }, [searchParams]);
