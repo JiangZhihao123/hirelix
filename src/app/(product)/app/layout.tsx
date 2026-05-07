@@ -64,8 +64,6 @@ function ProductLayoutShell({
     () => "workspace",
   );
   const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
-  const isFocusedNewSearch =
-    pathname === "/app/search/new" && entryMode === "landing" && Boolean(pendingJd);
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
   const isNewSearchRoute = pathname === "/app/search/new";
   const isSearchDetailRoute = pathname.startsWith("/app/search/") && !isNewSearchRoute;
@@ -273,11 +271,7 @@ function ProductLayoutShell({
           <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
           <span className="text-lg font-semibold tracking-tight text-slate-950">Hirelix</span>
         </Link>
-        {isFocusedNewSearch ? (
-          <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-700">
-            Focused flow
-          </span>
-        ) : sidebarOpen ? (
+        {sidebarOpen ? (
           <div aria-hidden="true" className="h-7 w-7" />
         ) : (
           <button
@@ -291,7 +285,7 @@ function ProductLayoutShell({
       </div>
 
       {/* Mobile overlay */}
-      {sidebarOpen && !isFocusedNewSearch && (
+      {sidebarOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
@@ -299,18 +293,16 @@ function ProductLayoutShell({
       )}
 
       {/* Sidebar — desktop: fixed, mobile: drawer */}
-      {!isFocusedNewSearch && (
-        <aside
-          className={`fixed left-0 top-0 z-[60] flex h-full w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          {sidebarContent}
-        </aside>
-      )}
+      <aside
+        className={`fixed left-0 top-0 z-[60] flex h-full w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {sidebarContent}
+      </aside>
 
       {/* Main content */}
-      <main className={`w-full flex-1 p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 lg:pt-8 ${isFocusedNewSearch ? "lg:ml-0" : "lg:ml-64"}`}>
+      <main className="w-full flex-1 p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 lg:pt-8 lg:ml-64">
         {children}
       </main>
     </div>
