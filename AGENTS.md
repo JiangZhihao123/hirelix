@@ -42,8 +42,8 @@
 | Commit Message | 使用中文，清楚说明解决了什么问题或完成了什么改动 |
 | 文本处理 | 核心文本理解、清洗、修复、分类、提取，优先用 LLM，不要用正则硬写 |
 | 页面渐进式测试 | 优先使用 Playwright MCP，边观察边决策 |
-| 本地代理 | 中国大陆本地开发通常需要 `http://127.0.0.1:7890` 访问 Supabase 和外部服务 |
-| 登录方式 | 测试账号使用邮箱 + 密码，不使用 Google OAuth |
+| 本地代理 | 中国大陆本地开发通常需要 `http://127.0.0.1:7890` 访问 Google OAuth 和外部服务 |
+| 登录方式 | 仅支持 Google OAuth（better-auth + Google Cloud OAuth Client） |
 
 ### 1.2 项目一句话说明
 
@@ -110,7 +110,8 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 |------|----------|------|
 | Next.js 前端 + API | Vercel | 无状态，承载页面与 API |
 | 搜索任务调度器 | VPS | 独立进程，负责长耗时任务 |
-| 数据库 / Auth | Supabase | PostgreSQL + Auth + 队列表 |
+| 数据库 | us-2 VPS Postgres | 自托管 PostgreSQL 17，所有 hirelix_* 业务表 + better-auth 表 |
+| Auth | better-auth | Google OAuth，session 写入同一 Postgres，无独立 Auth 服务 |
 
 ### 4.2 搜索流水线
 
@@ -141,7 +142,9 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | `src/lib/company-research.ts` | 目标公司研究 |
 | `src/lib/display-name.ts` | 候选人显示名清理 |
 | `src/lib/server-outbound-proxy.ts` | 全局代理初始化 |
-| `src/lib/supabase.ts` / `supabase-server.ts` | Supabase 客户端(浏览器/服务端) |
+| `src/lib/auth.ts` | better-auth 服务端实例（Google OAuth 配置） |
+| `src/lib/auth-client.ts` | better-auth 浏览器客户端（`useSession` / `signIn` / `signOut`） |
+| `src/app/api/auth/[...all]/route.ts` | better-auth 路由挂载点（`/api/auth/*`） |
 | `src/lib/api-auth.ts` / `client-auth.ts` | API 与客户端认证 |
 | `src/lib/billing.ts` / `billing-server.ts` | 计费逻辑 |
 | `src/lib/paddle.ts` | Paddle 支付集成 |
@@ -261,11 +264,11 @@ npx tsx scripts/debug/check-snapshot.ts
 
 | 环境 | 邮箱 | 密码 |
 |------|------|------|
-| 本地 dev / Supabase | `jzh_spring@163.com` | `88888888` |
+| 本地 dev | `noahjiang2@gmail.com` | 通过 Google OAuth 登录 |
 
 注意：
-- 登录方式使用邮箱 + 密码
-- 不要改用 Google OAuth
+- 登录方式仅支持 Google OAuth
+- 测试时通过浏览器手动登录；自动化测试可使用 Playwright + 已存的 session cookie
 
 ### 6.2 启动开发服务器
 
@@ -283,7 +286,7 @@ npm run scheduler:dev
 
 | 场景 | 代理设置 |
 |------|----------|
-| 中国大陆本地开发 | 通过本地代理 `http://127.0.0.1:7890` 访问 Supabase 和外部服务 |
+| 中国大陆本地开发 | 通过本地代理 `http://127.0.0.1:7890` 访问 Google OAuth 和外部服务 |
 | 生产环境 | 不需要代理 |
 
 注意：
@@ -295,8 +298,8 @@ npm run scheduler:dev
 
 | 分组 | 关键变量 |
 |------|----------|
-| 数据库 | `DATABASE_URL` |
-| Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| 数据库 | `DATABASE_URL`（指向 us-2 Postgres `hirelix` 库） |
+| Auth | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | AI 模型 | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_THINKING`, `DEEPSEEK_REASONING_EFFORT`, `SEARCH_PARSE_THINKING`, `SEARCH_OUTREACH_THINKING`, `SEARCH_JUDGE_REASONING_EFFORT`, `SEARCH_ARBITER_REASONING_EFFORT`, `ANTHROPIC_API_KEY` |
 | 搜索模型档位 | `SEARCH_LIGHT_MODEL`, `SEARCH_JUDGE_MODEL`, `SEARCH_ARBITER_MODEL` |
 | 数据源 | `BRIGHTDATA_API_TOKEN`, `GITHUB_TOKEN`, `HUNTER_API_KEY`, `SERPER_API_KEY`（仅用于 GitHub 身份发现兜底，可选） |
@@ -307,11 +310,11 @@ npm run scheduler:dev
 
 ### 6.5 数据库迁移
 
-SQL 迁移文件位于 `supabase/migrations/`，命名格式为 `YYYYMMDD_description.sql`。
+SQL 迁移文件位于 `supabase/migrations/`（路径名是历史包袱，实际跑在 us-2 自托管 Postgres 上）。命名格式为 `YYYYMMDD_description.sql`。
 
-- `supabase/full_migration.sql` / `supabase/schema.sql`：基础 schema
+- `supabase/vps_init.sql`：基础 schema（一次性初始化新库时使用）
 - `supabase/migrations/`：增量迁移，按日期前缀命名
-- 迁移通过 Supabase SQL Editor 手动执行，无自动迁移工具
+- 迁移通过 `ssh us-2 'sudo -u postgres psql -d hirelix -f /tmp/xxx.sql'` 手动执行
 
 ## 7. 测试与调试
 

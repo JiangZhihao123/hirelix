@@ -1,51 +1,53 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+import { createContext, useContext, type ReactNode } from "react";
+
+import { authClient, useSession } from "@/lib/auth-client";
+
+/**
+ * Subset of the better-auth user shape that the rest of the app reads.
+ * Kept structurally compatible with the previous Supabase `User` shape so
+ * call sites that already access `user.id`, `user.email`, and
+ * `user.user_metadata.{name,avatar_url}` keep working unchanged.
+ */
+type AppUser = {
+  id: string;
+  email?: string;
+  user_metadata: {
+    name?: string | null;
+    avatar_url?: string | null;
+    auth_provider?: string;
+  };
+};
 
 type AuthState = {
-  user: User | null;
-  session: Session | null;
+  user: AppUser | null;
   loading: boolean;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState>({
   user: null,
-  session: null,
   loading: true,
   signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isPending } = useSession();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const user: AppUser | null = data?.user
+    ? {
+        id: data.user.id,
+        email: data.user.email ?? undefined,
+        user_metadata: {
+          name: data.user.name ?? null,
+          avatar_url: data.user.image ?? null,
+          auth_provider: "better-auth",
+        },
+      }
+    : null;
 
   const signOut = async () => {
-    await supabase.auth.signOut();
     if (typeof window !== "undefined") {
       for (const key of Object.keys(window.sessionStorage)) {
         if (key.startsWith("hirelix:search-page:")) {
@@ -53,15 +55,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-    setSession(null);
+    await authClient.signOut();
+    if (typeof window !== "undefined") {
+      window.location.href = "/";
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
-        user: session?.user ?? null,
-        session,
-        loading,
+        user,
+        loading: isPending,
         signOut,
       }}
     >

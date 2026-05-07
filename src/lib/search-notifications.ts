@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_search_notifications, hirelix_searches } from "@/db/schema";
-import { supabaseAdmin } from "@/lib/supabase-server";
+import { getEmailByUserId } from "@/lib/user-identity";
 import { areSearchNotificationsEnabledOnServer } from "@/lib/search-notification-config";
 import { getSearchDisplayTitle } from "@/lib/search-title";
 
@@ -140,8 +140,7 @@ async function sendViaResend(notification: SearchNotificationRow) {
 }
 
 async function resolveRecipientEmail(userId: string) {
-  const result = await supabaseAdmin.auth.admin.getUserById(userId);
-  return result.data.user?.email || null;
+  return getEmailByUserId(userId);
 }
 
 export async function sendSearchNotification(notificationId: string) {

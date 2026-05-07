@@ -103,7 +103,7 @@ export function CandidateWorkbenchDetail({
   const [enriching, setEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [localCandidate, setLocalCandidate] = useState(candidate);
-  const { session } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     setLocalCandidate(candidate);
@@ -273,16 +273,14 @@ export function CandidateWorkbenchDetail({
       : "No verified public engineering evidence found yet — reference their most relevant LinkedIn experience directly in the opening line.");
 
   async function handleEnrich(options: { regenerateOutreach?: boolean } = {}) {
-    if (enriching || !session?.access_token) return;
+    if (enriching || !user) return;
     setEnrichError(null);
     setEnriching(true);
     try {
       const res = await fetch(`/api/candidates/${candidate.id}/enrich`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: options.regenerateOutreach
           ? JSON.stringify({ regenerate_outreach: true })
           : undefined,

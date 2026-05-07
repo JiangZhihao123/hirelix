@@ -1,13 +1,12 @@
 import type { NextRequest } from "next/server";
 
-import { verifySupabaseJwt } from "./jwt-verify";
+import { auth } from "./auth";
 
 /**
  * Minimal authenticated user shape used by API routes. Mirrors the subset of
- * `@supabase/supabase-js`'s `User` that callers actually consume (`id`,
- * `email`). We intentionally don't re-export the full Supabase `User` type so
- * the rest of the codebase stays decoupled from the Supabase JS SDK for data
- * access purposes.
+ * better-auth's `User` that callers actually consume. We intentionally keep
+ * the shape stable so the rest of the codebase doesn't need to know which
+ * Auth library is currently in use.
  */
 export type ApiAuthUser = {
   id: string;
@@ -17,44 +16,25 @@ export type ApiAuthUser = {
   user_metadata?: Record<string, unknown>;
 };
 
-function getBearerToken(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) {
-    return null;
-  }
-  const token = auth.slice(7).trim();
-  return token.length > 0 ? token : null;
-}
-
 /**
- * Resolve the authenticated user from a Supabase-issued JWT in the
- * `Authorization: Bearer <token>` header.
+ * Resolve the authenticated user from a better-auth session cookie.
  *
- * Verifies the JWT locally using `SUPABASE_JWT_SECRET`. This avoids a
- * round-trip to `${SUPABASE_URL}/auth/v1/user` for every API call, which is
- * critical for keeping Supabase Auth egress low after we move data hosting
- * off Supabase.
+ * better-auth uses an HttpOnly cookie (`better-auth.session_token`) that is
+ * sent automatically with same-origin requests. This function validates the
+ * session against the `session` table in our Postgres without any external
+ * network call.
  */
 export async function getUserFromApiRequest(
   req: NextRequest,
 ): Promise<ApiAuthUser | null> {
-  const token = getBearerToken(req);
-  if (!token) return null;
-
-  const payload = verifySupabaseJwt(token);
-  if (!payload) return null;
-
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session?.user) return null;
   return {
-    id: payload.sub,
-    email: typeof payload.email === "string" ? payload.email : undefined,
-    role: typeof payload.role === "string" ? payload.role : undefined,
-    app_metadata:
-      typeof payload.app_metadata === "object" && payload.app_metadata !== null
-        ? (payload.app_metadata as Record<string, unknown>)
-        : undefined,
-    user_metadata:
-      typeof payload.user_metadata === "object" && payload.user_metadata !== null
-        ? (payload.user_metadata as Record<string, unknown>)
-        : undefined,
+    id: session.user.id,
+    email: session.user.email ?? undefined,
+    user_metadata: {
+      name: session.user.name,
+      avatar_url: session.user.image,
+    },
   };
 }

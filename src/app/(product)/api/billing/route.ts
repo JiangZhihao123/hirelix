@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
-import { supabaseAdmin } from "@/lib/supabase-server";
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromApiRequest(req);

@@ -134,25 +134,12 @@ export default function AdminPage() {
   } | null>(null);
   const [savingCredits, setSavingCredits] = useState(false);
 
-  const getToken = useCallback(async () => {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
-  }, []);
-
   const fetchStats = useCallback(async () => {
-    const token = await getToken();
-    if (!token) return;
+    if (!user) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/admin", { credentials: "include" });
       if (res.status === 403) {
         setError("forbidden");
         return;
@@ -164,22 +151,19 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [user]);
 
   const fetchUsers = useCallback(async () => {
-    const token = await getToken();
-    if (!token) return;
+    if (!user) return;
     setUsersLoading(true);
     try {
-      const res = await fetch("/api/admin/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch("/api/admin/users", { credentials: "include" });
       const data = await res.json();
       setUsers(data.users ?? []);
     } finally {
       setUsersLoading(false);
     }
-  }, [getToken]);
+  }, [user]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -200,14 +184,11 @@ export default function AdminPage() {
   const saveCredits = async () => {
     if (!editingCredits) return;
     setSavingCredits(true);
-    const token = await getToken();
     try {
       await fetch("/api/admin/users", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: editingCredits.userId,
           extraSearchCredits: editingCredits.searches,

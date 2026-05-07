@@ -30,7 +30,7 @@ const BillingContext = createContext<BillingContextValue>({
 });
 
 export function BillingProvider({ children }: { children: ReactNode }) {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,7 +46,7 @@ export function BillingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!session?.access_token) {
+    if (!user) {
       setBilling(null);
       setLoading(false);
       return;
@@ -84,16 +84,16 @@ export function BillingProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", handleRefresh);
       document.removeEventListener("visibilitychange", handleRefresh);
     };
-  }, [fetchBilling, session?.access_token]);
+  }, [fetchBilling, user]);
 
   const value = useMemo<BillingContextValue>(() => ({
     billing,
     loading,
     refresh: async () => {
-      if (!session?.access_token) return;
+      if (!user) return;
       await fetchBilling();
     },
-  }), [billing, fetchBilling, loading, session?.access_token]);
+  }), [billing, fetchBilling, loading, user]);
 
   return <BillingContext.Provider value={value}>{children}</BillingContext.Provider>;
 }

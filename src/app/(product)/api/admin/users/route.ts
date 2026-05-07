@@ -3,7 +3,7 @@ import { and, desc, eq, gte, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
-import { supabaseAdmin } from "@/lib/supabase-server";
+import { getEmailsByUserIds } from "@/lib/user-identity";
 import { requireAdmin } from "../route";
 
 // GET /api/admin/users — 用户列表（含本月使用量）
@@ -53,20 +53,9 @@ export async function GET(req: NextRequest) {
     if (e.event_type === "candidate_enriched") usageByUser[e.user_id].enriches++;
   }
 
-  // 从 auth.users 批量获取邮箱
+  // 批量获取邮箱（来自 better-auth user 表）
   const userIds = settings.map((s) => s.user_id);
-  const emailMap: Record<string, string> = {};
-
-  // Supabase admin API 批量获取用户（每次最多50个）
-  for (let i = 0; i < userIds.length; i += 50) {
-    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers({
-      perPage: 50,
-      page: Math.floor(i / 50) + 1,
-    });
-    for (const u of authUsers?.users ?? []) {
-      if (u.email) emailMap[u.id] = u.email;
-    }
-  }
+  const emailMap = await getEmailsByUserIds(userIds);
 
   const users = settings.map((s) => ({
     userId: s.user_id,

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
 import { getPlanStatusCopy, type BillingSummary } from "@/lib/billing";
+import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
@@ -12,7 +13,7 @@ import { RecruiterProfileSection } from "./_components/RecruiterProfileSection";
 import { EMPTY_PROFILE, type HeadhunterProfile, type SettingsSectionId } from "./_components/shared";
 
 export default function SettingsPage() {
-  const { session, user } = useAuth();
+  const { user } = useAuth();
   const { billing: sharedBilling, refresh: refreshBilling } = useBilling();
   const searchParams = useSearchParams();
   const settingsHash = useSyncExternalStore(
@@ -30,13 +31,11 @@ export default function SettingsPage() {
   const [headhunterProfile, setHeadhunterProfile] = useState<HeadhunterProfile>(EMPTY_PROFILE);
   const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
-  const hasPasswordLogin = user?.user_metadata?.password_login_enabled === true;
-
   const sectionNav = [
     {
       id: "account" as const,
       label: "Account",
-      detail: hasPasswordLogin ? "Password enabled" : "Login access",
+      detail: "Sign-in with Google",
     },
     {
       id: "billing" as const,
@@ -51,11 +50,9 @@ export default function SettingsPage() {
   ];
 
   const fetchSettings = useCallback(async () => {
-    if (!session?.access_token) return;
+    if (!user) return;
     try {
-      const res = await fetch("/api/settings", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const res = await fetchWithUserSession("/api/settings");
       if (res.ok) {
         const data = await res.json();
         if (data.company_profile && typeof data.company_profile === "object") {
@@ -70,7 +67,7 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token]);
+  }, [user]);
 
   useEffect(() => {
     if (sharedBilling) setBilling(sharedBilling);
@@ -140,13 +137,7 @@ export default function SettingsPage() {
       );
     }
 
-    return (
-      <AccountSection
-        user={user}
-        hasPasswordLogin={hasPasswordLogin}
-        onPasswordUpdated={() => void refreshBilling()}
-      />
-    );
+    return <AccountSection user={user} />;
   })();
 
   if (loading) {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK, type BillingPlanCode } from "@/lib/billing";
-import type { User } from "@supabase/supabase-js";
+type User = { id: string };
 
 // Keep the public pricing focused on the solo technical recruiter path.
 const SHOWCASE_PLANS = ["free", "starter_monthly", "pro_annual"] as const;

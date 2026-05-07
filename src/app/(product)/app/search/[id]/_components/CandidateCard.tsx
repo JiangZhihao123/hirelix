@@ -78,7 +78,7 @@ export function CandidateCard({
   const [editedSubject, setEditedSubject] = useState(outreach.subject);
   const [editedLinkedin, setEditedLinkedin] = useState(outreach.linkedin);
   const [editedEmail, setEditedEmail] = useState(outreach.email);
-  const { session } = useAuth();
+  const { user } = useAuth();
 
   // Sync when candidate prop changes
   useEffect(() => {
@@ -96,13 +96,13 @@ export function CandidateCard({
   }, [localCandidate.outreach_draft, localCandidate.email]);
 
   async function handleEnrich() {
-    if (enriching || !session?.access_token) return;
+    if (enriching || !user) return;
     setEnrichError(null);
     setEnriching(true);
     try {
       const res = await fetch(`/api/candidates/${candidate.id}/enrich`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        credentials: "include",
       });
       if (res.ok) {
         const data = await res.json();
