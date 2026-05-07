@@ -9,8 +9,15 @@ import {
   type BrightDataProfile,
   type BrightDataSnapshotMetadata,
 } from "@/lib/brightdata";
+import { and, eq, gte } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  hirelix_llm_usage_events,
+  hirelix_searches,
+  hirelix_user_settings,
+} from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
-import { supabaseAdmin } from "@/lib/supabase-server";
 import {
   BRIGHTDATA_COMPANY_TARGET_LIMIT,
   BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
@@ -275,14 +282,35 @@ async function loadSearchLlmUsageStats(
   jobId: string,
   startedAtIso: string,
 ): Promise<Partial<SearchDisplayStats>> {
-  const { data, error } = await supabaseAdmin
-    .from("hirelix_llm_usage_events")
-    .select("model,input_tokens,output_tokens,cached_input_tokens,cache_miss_input_tokens")
-    .eq("search_id", searchId)
-    .eq("job_id", jobId)
-    .gte("created_at", startedAtIso);
+  let data: Array<{
+    model: string | null;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    cached_input_tokens: number | null;
+    cache_miss_input_tokens: number | null;
+  }> = [];
+  try {
+    data = await db
+      .select({
+        model: hirelix_llm_usage_events.model,
+        input_tokens: hirelix_llm_usage_events.input_tokens,
+        output_tokens: hirelix_llm_usage_events.output_tokens,
+        cached_input_tokens: hirelix_llm_usage_events.cached_input_tokens,
+        cache_miss_input_tokens: hirelix_llm_usage_events.cache_miss_input_tokens,
+      })
+      .from(hirelix_llm_usage_events)
+      .where(
+        and(
+          eq(hirelix_llm_usage_events.search_id, searchId),
+          eq(hirelix_llm_usage_events.job_id, jobId),
+          gte(hirelix_llm_usage_events.created_at, new Date(startedAtIso)),
+        ),
+      );
+  } catch {
+    return {};
+  }
 
-  if (error || !data?.length) return {};
+  if (!data.length) return {};
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -517,11 +545,12 @@ async function parseJobDescription(
   parsed.activation_run = helpers.isActivationRun(existingParsed);
 
   try {
-    const { data: settings } = await supabaseAdmin
-      .from("hirelix_user_settings")
-      .select("company_profile")
-      .eq("user_id", context.userId)
-      .single();
+    const settingsRows = await db
+      .select({ company_profile: hirelix_user_settings.company_profile })
+      .from(hirelix_user_settings)
+      .where(eq(hirelix_user_settings.user_id, context.userId))
+      .limit(1);
+    const settings = settingsRows[0] ?? null;
     const companyProfile = helpers.sanitizeCompanyProfile(settings?.company_profile);
     if (companyProfile) {
       parsed.company_profile = companyProfile;
@@ -563,15 +592,15 @@ async function parseJobDescription(
     time_to_brief_ready_ms:
       currentStats.time_to_brief_ready_ms ?? helpers.elapsedSince(startedAt, parseCompletedAt),
   });
-  await supabaseAdmin
-    .from("hirelix_searches")
-    .update({
-      title: parsed.title || "Untitled Role",
-      parsed_requirements: parsed,
-      parse_completed_at: parseCompletedAt,
-      updated_at: helpers.nowIso(),
+  await db
+    .update(hirelix_searches)
+    .set({
+      title: (parsed.title as string | undefined) || "Untitled Role",
+      parsed_requirements: parsed as unknown as Record<string, unknown>,
+      parse_completed_at: new Date(parseCompletedAt),
+      updated_at: new Date(),
     })
-    .eq("id", context.searchId);
+    .where(eq(hirelix_searches.id, context.searchId));
 
   helpers.logSearchEvent("search_step_completed", {
     search_id: context.searchId,
@@ -2229,11 +2258,20 @@ async function buildBrightDataDatasetCandidates(
 }
 
 export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipelineHelpers) {
-  const { data: search } = await supabaseAdmin
-    .from("hirelix_searches")
-    .select("id, user_id, jd_text, parsed_requirements, status, parse_completed_at, created_at")
-    .eq("id", job.search_id)
-    .single();
+  const searchRows = await db
+    .select({
+      id: hirelix_searches.id,
+      user_id: hirelix_searches.user_id,
+      jd_text: hirelix_searches.jd_text,
+      parsed_requirements: hirelix_searches.parsed_requirements,
+      status: hirelix_searches.status,
+      parse_completed_at: hirelix_searches.parse_completed_at,
+      created_at: hirelix_searches.created_at,
+    })
+    .from(hirelix_searches)
+    .where(eq(hirelix_searches.id, job.search_id))
+    .limit(1);
+  const search = searchRows[0];
 
   if (!search) {
     throw new Error("Search not found");
@@ -2246,7 +2284,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
       : null;
   let planCode = normalizeSearchPlanCode(existingParsed?.plan_code);
   if (!existingParsed?.plan_code) {
-    const billing = await getBillingSummaryForUser(supabaseAdmin, job.user_id);
+    const billing = await getBillingSummaryForUser(job.user_id);
     planCode = normalizeSearchPlanCode(billing.plan.code);
   }
   const storedInitialProfileName = normalizeSearchExecutionProfileName(existingParsed?.execution_profile);

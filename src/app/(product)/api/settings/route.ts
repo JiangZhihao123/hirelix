@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     .select("company_profile")
     .eq("user_id", user.id)
     .maybeSingle(),
-    getBillingSummaryForUser(supabaseAdmin, user.id),
+    getBillingSummaryForUser(user.id),
   ]);
 
   return NextResponse.json({

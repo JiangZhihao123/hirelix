@@ -1,3 +1,7 @@
+import { and, eq } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import { hirelix_search_notifications, hirelix_searches } from "@/db/schema";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { areSearchNotificationsEnabledOnServer } from "@/lib/search-notification-config";
 import { getSearchDisplayTitle } from "@/lib/search-title";
@@ -27,6 +31,20 @@ type SearchSummary = {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function nowDate() {
+  return new Date();
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  // postgres.js attaches the SQLSTATE code as `.code` on thrown errors.
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "23505"
+  );
 }
 
 function logSearchNotification(eventName: string, payload: Record<string, unknown>) {
@@ -127,39 +145,48 @@ async function resolveRecipientEmail(userId: string) {
 }
 
 export async function sendSearchNotification(notificationId: string) {
-  const { data: notification } = await supabaseAdmin
-    .from("hirelix_search_notifications")
-    .select("id, search_id, user_id, kind, channel, recipient, status, payload")
-    .eq("id", notificationId)
-    .maybeSingle();
+  const rows = await db
+    .select({
+      id: hirelix_search_notifications.id,
+      search_id: hirelix_search_notifications.search_id,
+      user_id: hirelix_search_notifications.user_id,
+      kind: hirelix_search_notifications.kind,
+      channel: hirelix_search_notifications.channel,
+      recipient: hirelix_search_notifications.recipient,
+      status: hirelix_search_notifications.status,
+      payload: hirelix_search_notifications.payload,
+    })
+    .from(hirelix_search_notifications)
+    .where(eq(hirelix_search_notifications.id, notificationId))
+    .limit(1);
 
-  const row = notification as SearchNotificationRow | null;
+  const row = rows[0] as SearchNotificationRow | undefined;
   if (!row || row.status !== "queued") return;
 
   if (!areSearchNotificationsEnabledOnServer()) {
-    await supabaseAdmin
-      .from("hirelix_search_notifications")
-      .update({
+    await db
+      .update(hirelix_search_notifications)
+      .set({
         status: "skipped",
         last_error: "Notifications disabled",
-        updated_at: nowIso(),
+        updated_at: nowDate(),
       })
-      .eq("id", row.id);
+      .where(eq(hirelix_search_notifications.id, row.id));
     return;
   }
 
   try {
     const providerMessageId = await sendViaResend(row);
-    await supabaseAdmin
-      .from("hirelix_search_notifications")
-      .update({
+    await db
+      .update(hirelix_search_notifications)
+      .set({
         status: "sent",
         provider_message_id: providerMessageId,
-        sent_at: nowIso(),
-        updated_at: nowIso(),
+        sent_at: nowDate(),
+        updated_at: nowDate(),
         last_error: null,
       })
-      .eq("id", row.id);
+      .where(eq(hirelix_search_notifications.id, row.id));
     logSearchNotification("search_notification_sent", {
       search_id: row.search_id,
       notification_id: row.id,
@@ -168,14 +195,14 @@ export async function sendSearchNotification(notificationId: string) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await supabaseAdmin
-      .from("hirelix_search_notifications")
-      .update({
+    await db
+      .update(hirelix_search_notifications)
+      .set({
         status: "failed",
         last_error: message,
-        updated_at: nowIso(),
+        updated_at: nowDate(),
       })
-      .eq("id", row.id);
+      .where(eq(hirelix_search_notifications.id, row.id));
     logSearchNotification("search_notification_failed", {
       search_id: row.search_id,
       notification_id: row.id,
@@ -189,14 +216,34 @@ export async function queueOrSendSearchNotification(
   searchId: string,
   kind: SearchNotificationKind,
 ) {
-  const { data: search } = await supabaseAdmin
-    .from("hirelix_searches")
-    .select("id, user_id, title, jd_text, created_at, error_message, parsed_requirements")
-    .eq("id", searchId)
-    .maybeSingle();
+  const searchRows = await db
+    .select({
+      id: hirelix_searches.id,
+      user_id: hirelix_searches.user_id,
+      title: hirelix_searches.title,
+      jd_text: hirelix_searches.jd_text,
+      created_at: hirelix_searches.created_at,
+      error_message: hirelix_searches.error_message,
+      parsed_requirements: hirelix_searches.parsed_requirements,
+    })
+    .from(hirelix_searches)
+    .where(eq(hirelix_searches.id, searchId))
+    .limit(1);
 
-  const searchRow = search as SearchSummary | null;
-  if (!searchRow) return;
+  const searchRowRaw = searchRows[0];
+  if (!searchRowRaw) return;
+  const searchRow: SearchSummary = {
+    id: searchRowRaw.id,
+    user_id: searchRowRaw.user_id,
+    title: searchRowRaw.title,
+    jd_text: searchRowRaw.jd_text,
+    created_at: searchRowRaw.created_at ? searchRowRaw.created_at.toISOString() : nowIso(),
+    error_message: searchRowRaw.error_message,
+    parsed_requirements:
+      searchRowRaw.parsed_requirements && typeof searchRowRaw.parsed_requirements === "object"
+        ? (searchRowRaw.parsed_requirements as Record<string, unknown>)
+        : null,
+  };
 
   const recipient = await resolveRecipientEmail(searchRow.user_id);
   if (!recipient) {
@@ -208,46 +255,51 @@ export async function queueOrSendSearchNotification(
     return;
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from("hirelix_search_notifications")
-    .select("id, status")
-    .eq("search_id", searchId)
-    .eq("kind", kind)
-    .eq("channel", "email")
-    .maybeSingle();
+  const existingRows = await db
+    .select({ id: hirelix_search_notifications.id })
+    .from(hirelix_search_notifications)
+    .where(
+      and(
+        eq(hirelix_search_notifications.search_id, searchId),
+        eq(hirelix_search_notifications.kind, kind),
+        eq(hirelix_search_notifications.channel, "email"),
+      ),
+    )
+    .limit(1);
 
-  if (existing?.id) {
+  if (existingRows[0]?.id) {
     return;
   }
 
   const payload = buildNotificationPayload(searchRow);
-  const { data: inserted, error } = await supabaseAdmin
-    .from("hirelix_search_notifications")
-    .insert({
-      search_id: searchId,
-      user_id: searchRow.user_id,
-      kind,
-      channel: "email",
-      recipient,
-      status: "queued",
-      payload,
-      updated_at: nowIso(),
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    if (error.code === "23505") return;
+  let insertedId: string | null = null;
+  try {
+    const inserted = await db
+      .insert(hirelix_search_notifications)
+      .values({
+        search_id: searchId,
+        user_id: searchRow.user_id,
+        kind,
+        channel: "email",
+        recipient,
+        status: "queued",
+        payload,
+        updated_at: nowDate(),
+      })
+      .returning({ id: hirelix_search_notifications.id });
+    insertedId = inserted[0]?.id ?? null;
+  } catch (error) {
+    if (isUniqueViolation(error)) return;
     throw error;
   }
 
-  if (!inserted?.id) return;
+  if (!insertedId) return;
 
   logSearchNotification("search_notification_queued", {
     search_id: searchId,
-    notification_id: inserted.id,
+    notification_id: insertedId,
     kind,
     recipient,
   });
-  await sendSearchNotification(inserted.id);
+  await sendSearchNotification(insertedId);
 }

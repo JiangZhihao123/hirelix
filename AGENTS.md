@@ -29,6 +29,7 @@
   - [6.5 数据库迁移](#65-数据库迁移)
 - [7. 测试与调试](#7-测试与调试)
 - [8. 生产环境](#8-生产环境)
+  - [8.8 us-2 个人 VPS 代理面板](#88-us-2-个人-vps-代理面板)
 - [9. 扩展参考](#9-扩展参考)
 
 ## 1. 快速入口
@@ -333,24 +334,24 @@ SQL 迁移文件位于 `supabase/migrations/`，命名格式为 `YYYYMMDD_descri
 
 ### 8.1 VPS 信息
 
-与 sibling 项目 `neliva` 共用同一台 Vultr VPS。
+调度器已从旧 Vultr VPS 迁移到 `us-2`。
 
 | 配置项 | 值 |
 |--------|-----|
-| Host | `66.42.53.127` |
-| SSH User | `root` |
-| SSH Port | `2222` |
-| Hostname | `vultr` |
+| Host | `104.244.88.240` |
+| SSH User | `noah` |
+| SSH Port | `22` |
+| Hostname | `clean-bump-1.localdomain` |
 | 部署目录 | `/opt/hirelix` |
 
 ### 8.2 SSH 连接命令
 
 ```bash
-# 直连（需本地代理）
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127
+# 直连
+ssh us-2
 
 # 快速连通性检查
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -o BatchMode=yes -o ConnectTimeout=10 -p 2222 root@66.42.53.127 'echo VPS_OK && hostname'
+ssh -o BatchMode=yes -o ConnectTimeout=10 us-2 'echo VPS_OK && hostname'
 ```
 
 ### 8.3 部署架构
@@ -387,16 +388,16 @@ GitHub Actions 触发
 
 ```bash
 ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/hirelix_deploy
-cat ~/.ssh/hirelix_deploy.pub | ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
+cat ~/.ssh/hirelix_deploy.pub | ssh us-2 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys'
 ```
 
 2. 添加 GitHub Secrets
 
 | Secret Name | Value |
 |-------------|-------|
-| `VPS_HOST` | `66.42.53.127` |
-| `VPS_USER` | `root` |
-| `VPS_PORT` | `2222` |
+| `VPS_HOST` | `104.244.88.240` |
+| `VPS_USER` | `noah` |
+| `VPS_PORT` | `22` |
 | `VPS_SSH_KEY` | `~/.ssh/hirelix_deploy` 私钥内容 |
 
 3. 验证部署
@@ -407,7 +408,7 @@ cat ~/.ssh/hirelix_deploy.pub | ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p"
 ### 8.6 手动回滚
 
 ```bash
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'cd /opt/hirelix && git reset --hard <commit-hash> && systemctl restart hirelix-scheduler'
+ssh us-2 'cd /opt/hirelix && sudo git reset --hard <commit-hash> && sudo systemctl restart hirelix-scheduler'
 ```
 
 生产环境变量位置：
@@ -420,23 +421,70 @@ ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'cd /
 ### 8.7 服务管理
 
 当前阶段说明：
-- 产品尚未正式上线时，VPS `hirelix-scheduler` 默认保持停用，避免抢占本地测试队列
+- 生产调度器运行在 `us-2`，systemd 服务名为 `hirelix-scheduler`
 - 本地验证搜索任务时，使用 localhost API runner 或 `npm run scheduler:dev`
-- 只有明确准备恢复线上调度时，才重新 `enable --now hirelix-scheduler`
+- 如需临时停用线上调度，执行 `sudo systemctl disable --now hirelix-scheduler`
 
 ```bash
 # 查看状态
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'systemctl status hirelix-scheduler --no-pager'
+ssh us-2 'sudo systemctl status hirelix-scheduler --no-pager'
 
 # 停用并禁止开机自启
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'systemctl disable --now hirelix-scheduler'
+ssh us-2 'sudo systemctl disable --now hirelix-scheduler'
 
 # 重启服务
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'systemctl restart hirelix-scheduler'
+ssh us-2 'sudo systemctl restart hirelix-scheduler'
 
 # 查看日志
-ssh -o "ProxyCommand=nc -x 127.0.0.1:7890 %h %p" -p 2222 root@66.42.53.127 'journalctl -u hirelix-scheduler -f'
+ssh us-2 'sudo journalctl -u hirelix-scheduler -f'
 ```
+
+### 8.8 us-2 个人 VPS 代理面板
+
+`us-2` 上运行了 v2rayA + xray，主要供个人服务通过代理出口使用。
+
+| 项目 | 值 |
+|------|----|
+| Host alias | `us-2` |
+| IP | `104.244.88.240` |
+| SSH User | `noah` |
+| v2rayA 远端端口 | `127.0.0.1:2017` |
+| 本地访问地址 | `http://127.0.0.1:2017/` |
+| 用户名 | `noah` |
+| 密码 | `527SBSHidzbextyScv2PaS6k` |
+
+本地 `~/.ssh/config` 已配置：
+
+```sshconfig
+Host us-2
+    HostName 104.244.88.240
+    User noah
+    IdentityFile ~/.ssh/id_ed25519
+    LocalForward 2017 127.0.0.1:2017
+```
+
+使用方式：
+
+```bash
+ssh us-2
+```
+
+保持 SSH 会话打开，然后访问 `http://127.0.0.1:2017/`。
+
+安全说明：
+- v2rayA 管理端口不要在 UFW 中放行公网访问
+- 当前 UFW 只放行 `22/tcp` 和 `5432/tcp`
+- 如果忘记 v2rayA 密码，先备份 `/etc/v2raya/bolt.db` 和 `/etc/v2raya/boltv4.db`，再执行：
+
+```bash
+sudo systemctl stop v2raya
+sudo v2raya --reset-password
+sudo systemctl start v2raya
+```
+
+最近一次重置：
+- 时间：`2026-05-06 17:28 Asia/Shanghai`
+- 备份：`/etc/v2raya/bolt.db.bak-20260506092851`、`/etc/v2raya/boltv4.db.bak-20260506092851`
 
 ## 9. 扩展参考
 

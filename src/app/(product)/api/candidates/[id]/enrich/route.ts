@@ -43,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
+    const billing = await getBillingSummaryForUser(user.id);
 
     // Get candidate + parent search
     const { data: candidate, error: candErr } = await supabaseAdmin

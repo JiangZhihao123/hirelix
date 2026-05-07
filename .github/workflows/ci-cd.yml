@@ -33,7 +33,12 @@ jobs:
         run: npm run build
 
       - name: Run unit tests
-        run: npm run test:unit
+        run: |
+          if [ -d tests ] && find tests -name '*.test.ts' -print -quit | grep -q .; then
+            npm run test:unit
+          else
+            echo "No unit tests found; skipping."
+          fi
 
   # ============ CD: 部署到 VPS ============
   deploy-scheduler:
@@ -48,24 +53,24 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || '2222' }}
+          port: ${{ secrets.VPS_PORT || '22' }}
           script: |
             echo "=== 开始部署调度器 ==="
             cd /opt/hirelix
 
             # 拉取最新代码
-            git fetch origin
-            git reset --hard origin/main
+            sudo git fetch origin
+            sudo git reset --hard origin/main
 
             # 安装依赖（如有新增）
-            npm ci
+            sudo npm ci
 
             # 重启调度器
-            systemctl restart hirelix-scheduler
+            sudo systemctl restart hirelix-scheduler
 
             # 检查状态
             sleep 3
-            systemctl is-active hirelix-scheduler && echo "✅ 调度器运行正常" || echo "❌ 调度器启动失败"
+            sudo systemctl is-active hirelix-scheduler && echo "✅ 调度器运行正常" || echo "❌ 调度器启动失败"
 
             echo "=== 部署完成 ==="
-            echo "当前版本: $(git rev-parse --short HEAD)"
+            echo "当前版本: $(sudo git rev-parse --short HEAD)"

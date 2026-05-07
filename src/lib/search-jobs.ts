@@ -184,7 +184,9 @@ export {
   resolveSearchJobRunnerBaseUrl,
 };
 
-import { supabaseAdmin } from "@/lib/supabase-server";
+import { eq, sql } from "drizzle-orm";
+import { db } from "@/db/client";
+import { hirelix_candidates } from "@/db/schema";
 
 const GEO_ALLOWLISTS = [
   {
@@ -3126,10 +3128,11 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       };
     }
 
-    const { count } = await supabaseAdmin
-      .from("hirelix_candidates")
-      .select("id", { count: "exact", head: true })
-      .eq("search_id", job.search_id);
+    const countRows = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(hirelix_candidates)
+      .where(eq(hirelix_candidates.search_id, job.search_id));
+    const count = countRows[0]?.count ?? 0;
 
     if ((count || 0) > 0) {
       await markSearchDegraded(

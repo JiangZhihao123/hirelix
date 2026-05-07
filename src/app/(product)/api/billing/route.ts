@@ -7,6 +7,6 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
+  const billing = await getBillingSummaryForUser(user.id);
   return NextResponse.json({ billing });
 }

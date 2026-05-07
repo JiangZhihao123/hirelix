@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { jd_text, candidate_count, parsed_requirements_override, user_clarification } = await req.json();
-    const billing = await getBillingSummaryForUser(supabaseAdmin, user.id);
+    const billing = await getBillingSummaryForUser(user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
     const requestedCandidates = Math.min(
