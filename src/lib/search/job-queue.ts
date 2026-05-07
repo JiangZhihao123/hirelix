@@ -1,5 +1,11 @@
+import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  hirelix_search_jobs,
+  hirelix_searches,
+} from "@/db/schema";
 import { getFetchDispatcherForUrl } from "@/lib/server-outbound-proxy";
-import { supabaseAdmin } from "@/lib/supabase-server";
 import {
   SEARCH_JOB_STARTUP_STALL_SECONDS,
   SEARCH_JOB_STALE_MINUTES,
@@ -10,12 +16,12 @@ import {
 } from "@/lib/search/normalize";
 import type { SearchJobRow } from "@/lib/search/types";
 
-function minutesAgoIso(minutes: number) {
-  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+function minutesAgoDate(minutes: number) {
+  return new Date(Date.now() - minutes * 60 * 1000);
 }
 
-function secondsAgoIso(seconds: number) {
-  return new Date(Date.now() - seconds * 1000).toISOString();
+function secondsAgoDate(seconds: number) {
+  return new Date(Date.now() - seconds * 1000);
 }
 
 const SNAPSHOT_PROFILE_CACHE_RERUN_MODE = "snapshot_profile_cache";
@@ -23,9 +29,9 @@ const SNAPSHOT_PROFILE_CACHE_RERUN_MODE = "snapshot_profile_cache";
 type SearchStartupState = {
   status: string | null;
   pipeline_step: string | null;
-  parse_completed_at?: string | null;
-  partial_ready_at?: string | null;
-  search_completed_at?: string | null;
+  parse_completed_at?: string | null | Date;
+  partial_ready_at?: string | null | Date;
+  search_completed_at?: string | null | Date;
   parsed_requirements?: unknown;
 };
 
@@ -103,48 +109,89 @@ export function resolveSearchJobRunnerBaseUrl(requestOrigin: string) {
   return process.env.APP_BASE_URL || requestOrigin;
 }
 
+/**
+ * Convert a Drizzle row (with Date columns) to the legacy `SearchJobRow` shape
+ * with ISO timestamp strings.
+ */
+function toSearchJobRow(row: typeof hirelix_search_jobs.$inferSelect): SearchJobRow {
+  return {
+    id: row.id,
+    search_id: row.search_id,
+    user_id: row.user_id,
+    jd_text: row.jd_text,
+    candidate_count: row.candidate_count,
+    status: row.status,
+    attempt_count: row.attempt_count,
+    last_error: row.last_error,
+    available_at: row.available_at.toISOString(),
+    started_at: row.started_at?.toISOString() ?? null,
+    locked_at: row.locked_at?.toISOString() ?? null,
+    updated_at: row.updated_at?.toISOString() ?? null,
+  } as SearchJobRow;
+}
+
 async function reclaimStuckStartingJobs() {
-  const cutoff = secondsAgoIso(SEARCH_JOB_STARTUP_STALL_SECONDS);
+  const cutoff = secondsAgoDate(SEARCH_JOB_STARTUP_STALL_SECONDS);
   const restartMessage =
     `Scheduler worker stopped before parsing began; re-queueing after ${SEARCH_JOB_STARTUP_STALL_SECONDS}s startup stall`;
-  const { data: stuckJobs } = await supabaseAdmin
-    .from("hirelix_search_jobs")
-    .select("id, search_id, attempt_count, locked_at")
-    .eq("status", "running")
-    .lt("locked_at", cutoff)
+
+  const stuckJobs = await db
+    .select({
+      id: hirelix_search_jobs.id,
+      search_id: hirelix_search_jobs.search_id,
+      attempt_count: hirelix_search_jobs.attempt_count,
+      locked_at: hirelix_search_jobs.locked_at,
+    })
+    .from(hirelix_search_jobs)
+    .where(
+      and(
+        eq(hirelix_search_jobs.status, "running"),
+        lt(hirelix_search_jobs.locked_at, cutoff),
+      ),
+    )
     .limit(50);
 
-  if (!stuckJobs?.length) return 0;
+  if (!stuckJobs.length) return 0;
 
   let reclaimedCount = 0;
   for (const stuckJob of stuckJobs) {
-    const { data: search } = await supabaseAdmin
-      .from("hirelix_searches")
-      .select("status, pipeline_step, parse_completed_at, partial_ready_at, search_completed_at, parsed_requirements")
-      .eq("id", stuckJob.search_id)
-      .maybeSingle();
+    const searchRows = await db
+      .select({
+        status: hirelix_searches.status,
+        pipeline_step: hirelix_searches.pipeline_step,
+        parse_completed_at: hirelix_searches.parse_completed_at,
+        partial_ready_at: hirelix_searches.partial_ready_at,
+        search_completed_at: hirelix_searches.search_completed_at,
+        parsed_requirements: hirelix_searches.parsed_requirements,
+      })
+      .from(hirelix_searches)
+      .where(eq(hirelix_searches.id, stuckJob.search_id))
+      .limit(1);
 
+    const search = searchRows[0];
     if (!search) continue;
-
     if (hasSearchJobStartedPipeline(search)) continue;
 
-    const { data: reclaimed } = await supabaseAdmin
-      .from("hirelix_search_jobs")
-      .update({
+    const reclaimed = await db
+      .update(hirelix_search_jobs)
+      .set({
         status: "queued",
         locked_at: null,
         started_at: null,
         finished_at: null,
-        updated_at: nowIso(),
+        updated_at: new Date(),
         last_error: restartMessage,
       })
-      .eq("id", stuckJob.id)
-      .eq("status", "running")
-      .lt("locked_at", cutoff)
-      .select("id")
-      .single();
+      .where(
+        and(
+          eq(hirelix_search_jobs.id, stuckJob.id),
+          eq(hirelix_search_jobs.status, "running"),
+          lt(hirelix_search_jobs.locked_at, cutoff),
+        ),
+      )
+      .returning({ id: hirelix_search_jobs.id });
 
-    if (!reclaimed?.id) continue;
+    if (!reclaimed[0]?.id) continue;
 
     reclaimedCount += 1;
     logSearchEvent("search_job_reclaimed", {
@@ -164,36 +211,49 @@ export async function reclaimStaleRunningJobs(options: {
 }) {
   await reclaimStuckStartingJobs();
 
-  const cutoff = minutesAgoIso(SEARCH_JOB_STALE_MINUTES);
+  const cutoff = minutesAgoDate(SEARCH_JOB_STALE_MINUTES);
   const staleMessage = `Search job exceeded ${SEARCH_JOB_STALE_MINUTES}-minute execution limit`;
-  const { data: staleJobs } = await supabaseAdmin
-    .from("hirelix_search_jobs")
-    .select("id, search_id, attempt_count")
-    .eq("status", "running")
-    .lt("locked_at", cutoff)
+
+  const staleJobs = await db
+    .select({
+      id: hirelix_search_jobs.id,
+      search_id: hirelix_search_jobs.search_id,
+      attempt_count: hirelix_search_jobs.attempt_count,
+    })
+    .from(hirelix_search_jobs)
+    .where(
+      and(
+        eq(hirelix_search_jobs.status, "running"),
+        lt(hirelix_search_jobs.locked_at, cutoff),
+      ),
+    )
     .limit(50);
 
-  if (!staleJobs?.length) return 0;
+  if (!staleJobs.length) return 0;
 
   let reclaimedCount = 0;
   for (const staleJob of staleJobs) {
-    const { data: reclaimed } = await supabaseAdmin
-      .from("hirelix_search_jobs")
-      .update({
+    const ts = new Date();
+    const reclaimed = await db
+      .update(hirelix_search_jobs)
+      .set({
         status: "fatal_error",
         locked_at: null,
         last_error: staleMessage,
-        available_at: nowIso(),
-        finished_at: nowIso(),
-        updated_at: nowIso(),
+        available_at: ts,
+        finished_at: ts,
+        updated_at: ts,
       })
-      .eq("id", staleJob.id)
-      .eq("status", "running")
-      .lt("locked_at", cutoff)
-      .select("id")
-      .single();
+      .where(
+        and(
+          eq(hirelix_search_jobs.id, staleJob.id),
+          eq(hirelix_search_jobs.status, "running"),
+          lt(hirelix_search_jobs.locked_at, cutoff),
+        ),
+      )
+      .returning({ id: hirelix_search_jobs.id });
 
-    if (reclaimed?.id) {
+    if (reclaimed[0]?.id) {
       await options.failSearch(staleJob.search_id, staleMessage);
       reclaimedCount += 1;
       logSearchEvent("search_job_reclaimed", {
@@ -215,31 +275,46 @@ export async function enqueueSearchJob(input: {
   jdText: string;
   candidateCount: number;
 }) {
-  const timestamp = nowIso();
-  const { data, error } = await supabaseAdmin
-    .from("hirelix_search_jobs")
-    .upsert(
-      {
-        search_id: input.searchId,
-        user_id: input.userId,
-        jd_text: input.jdText,
-        candidate_count: input.candidateCount,
-        status: "queued",
-        attempt_count: 0,
-        last_error: null,
-        available_at: timestamp,
-        locked_at: null,
-        started_at: null,
-        finished_at: null,
-        updated_at: timestamp,
-      },
-      { onConflict: "search_id" },
-    )
-    .select("id, search_id")
-    .single();
+  const ts = new Date();
+  const values = {
+    search_id: input.searchId,
+    user_id: input.userId,
+    jd_text: input.jdText,
+    candidate_count: input.candidateCount,
+    status: "queued",
+    attempt_count: 0,
+    last_error: null,
+    available_at: ts,
+    locked_at: null,
+    started_at: null,
+    finished_at: null,
+    updated_at: ts,
+  };
 
-  if (error || !data) {
-    throw new Error(error?.message || "Failed to enqueue search job");
+  const inserted = await db
+    .insert(hirelix_search_jobs)
+    .values(values)
+    .onConflictDoUpdate({
+      target: hirelix_search_jobs.search_id,
+      set: {
+        user_id: values.user_id,
+        jd_text: values.jd_text,
+        candidate_count: values.candidate_count,
+        status: values.status,
+        attempt_count: values.attempt_count,
+        last_error: values.last_error,
+        available_at: values.available_at,
+        locked_at: values.locked_at,
+        started_at: values.started_at,
+        finished_at: values.finished_at,
+        updated_at: values.updated_at,
+      },
+    })
+    .returning({ id: hirelix_search_jobs.id, search_id: hirelix_search_jobs.search_id });
+
+  const data = inserted[0];
+  if (!data) {
+    throw new Error("Failed to enqueue search job");
   }
 
   logSearchEvent("search_job_enqueued", {
@@ -261,26 +336,29 @@ export async function updateRunningJobStatus(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const { data, error } = await supabaseAdmin
-        .from("hirelix_search_jobs")
-        .update({
+      const updated = await db
+        .update(hirelix_search_jobs)
+        .set({
           status,
-          updated_at: nowIso(),
+          updated_at: new Date(),
           ...extra,
         })
-        .eq("id", jobId)
-        .eq("status", "running")
-        .select("id")
-        .maybeSingle();
+        .where(
+          and(
+            eq(hirelix_search_jobs.id, jobId),
+            eq(hirelix_search_jobs.status, "running"),
+          ),
+        )
+        .returning({ id: hirelix_search_jobs.id });
 
-      if (!error) {
-        return Boolean(data?.id);
-      }
-
-      lastError = { message: error.message, code: error.code };
+      return Boolean(updated[0]?.id);
     } catch (error) {
       lastError = {
         message: error instanceof Error ? error.message : String(error),
+        code:
+          typeof error === "object" && error !== null && "code" in error
+            ? String((error as { code: unknown }).code)
+            : undefined,
       };
     }
 
@@ -289,8 +367,8 @@ export async function updateRunningJobStatus(
       target_status: status,
       attempt,
       retrying: attempt < maxAttempts,
-      error: lastError.message,
-      code: lastError.code,
+      error: lastError?.message,
+      code: lastError?.code,
     });
 
     if (attempt < maxAttempts) {
@@ -307,56 +385,62 @@ export async function claimSearchJob(options: {
 }): Promise<SearchJobRow | null> {
   await options.reclaimStaleRunningJobs();
 
-  const now = nowIso();
-  const candidateRows: SearchJobRow[] = [];
+  const now = new Date();
+  const candidateRows: Array<typeof hirelix_search_jobs.$inferSelect> = [];
 
   if (options.preferredSearchId) {
-    const { data } = await supabaseAdmin
-      .from("hirelix_search_jobs")
-      .select("*")
-      .eq("search_id", options.preferredSearchId)
-      .eq("status", "queued")
-      .lte("available_at", now)
+    const data = await db
+      .select()
+      .from(hirelix_search_jobs)
+      .where(
+        and(
+          eq(hirelix_search_jobs.search_id, options.preferredSearchId),
+          eq(hirelix_search_jobs.status, "queued"),
+          lte(hirelix_search_jobs.available_at, now),
+        ),
+      )
       .limit(1);
-    if (data) candidateRows.push(...data);
-
-    // A targeted runner invocation must only process the requested search.
-    // Falling back to the global queue can make local/in-app retries advance
-    // unrelated jobs while the requested job is still locked or waiting.
-    if (candidateRows.length === 0) {
-      return null;
-    }
+    candidateRows.push(...data);
+    if (candidateRows.length === 0) return null;
   }
 
   if (candidateRows.length === 0) {
-    const { data } = await supabaseAdmin
-      .from("hirelix_search_jobs")
-      .select("*")
-      .eq("status", "queued")
-      .lte("available_at", now)
-      .order("available_at", { ascending: true })
+    const data = await db
+      .select()
+      .from(hirelix_search_jobs)
+      .where(
+        and(
+          eq(hirelix_search_jobs.status, "queued"),
+          lte(hirelix_search_jobs.available_at, now),
+        ),
+      )
+      .orderBy(asc(hirelix_search_jobs.available_at))
       .limit(10);
-    if (data) candidateRows.push(...data);
+    candidateRows.push(...data);
   }
 
   for (const job of candidateRows) {
-    const { data: claimed } = await supabaseAdmin
-      .from("hirelix_search_jobs")
-      .update({
+    const ts = new Date();
+    const claimed = await db
+      .update(hirelix_search_jobs)
+      .set({
         status: "running",
-        locked_at: nowIso(),
-        started_at: job.started_at ?? nowIso(),
+        locked_at: ts,
+        started_at: job.started_at ?? ts,
         attempt_count: (job.attempt_count || 0) + 1,
-        updated_at: nowIso(),
+        updated_at: ts,
         last_error: null,
       })
-      .eq("id", job.id)
-      .eq("status", "queued")
-      .select("*")
-      .single();
+      .where(
+        and(
+          eq(hirelix_search_jobs.id, job.id),
+          eq(hirelix_search_jobs.status, "queued"),
+        ),
+      )
+      .returning();
 
-    if (claimed) {
-      return claimed as SearchJobRow;
+    if (claimed[0]) {
+      return toSearchJobRow(claimed[0]);
     }
   }
 
@@ -364,11 +448,16 @@ export async function claimSearchJob(options: {
 }
 
 export async function hasRunnableSearchJobs() {
-  const { count } = await supabaseAdmin
-    .from("hirelix_search_jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "queued")
-    .lte("available_at", nowIso());
-
-  return (count || 0) > 0;
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(hirelix_search_jobs)
+    .where(
+      and(
+        eq(hirelix_search_jobs.status, "queued"),
+        lte(hirelix_search_jobs.available_at, new Date()),
+      ),
+    );
+  return (rows[0]?.count ?? 0) > 0;
 }
+
+void nowIso;

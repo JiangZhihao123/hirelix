@@ -1,4 +1,15 @@
-import { supabaseAdmin } from "@/lib/supabase-server";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  hirelix_candidates,
+  hirelix_dataset_snapshots,
+  hirelix_llm_usage_events,
+  hirelix_search_jobs,
+  hirelix_searches,
+  hirelix_snapshot_profiles,
+  hirelix_usage_events,
+} from "@/db/schema";
 import { nowIso } from "@/lib/search/normalize";
 import type {
   CandidateRowInput,
@@ -168,24 +179,53 @@ async function insertLlmUsageEventRows(rows: LlmUsageEventRow[]) {
   if (!rows.length) return;
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const { error } = await supabaseAdmin
-      .from("hirelix_llm_usage_events")
-      .insert(rows);
+    try {
+      await db.insert(hirelix_llm_usage_events).values(
+        rows.map((row) => ({
+          search_id: row.search_id,
+          job_id: row.job_id,
+          user_id: row.user_id,
+          stage: row.stage,
+          status: row.status,
+          model: row.model,
+          provider: row.provider,
+          attempt: row.attempt,
+          batch_size: row.batch_size,
+          candidate_indexes: row.candidate_indexes,
+          input_tokens: row.input_tokens,
+          output_tokens: row.output_tokens,
+          total_tokens: row.total_tokens,
+          cached_input_tokens: row.cached_input_tokens,
+          cache_miss_input_tokens: row.cache_miss_input_tokens,
+          max_output_tokens: row.max_output_tokens,
+          thinking: row.thinking,
+          reasoning_effort: row.reasoning_effort,
+          latency_ms: row.latency_ms,
+          error_message: row.error_message,
+          request_hash: row.request_hash,
+          response_hash: row.response_hash,
+          request_payload: row.request_payload,
+          response_payload: row.response_payload,
+          metadata: row.metadata,
+        })),
+      );
+      return;
+    } catch (error) {
+      const retrying = attempt < 3;
+      console.error("[search_persistence] recordLlmUsageEvent failed", {
+        batch_size: rows.length,
+        stages: [...new Set(rows.map((row) => row.stage))],
+        search_id: rows[0]?.search_id,
+        attempt,
+        retrying,
+        error: formatDbError(error),
+      });
 
-    if (!error) return;
-
-    const retrying = attempt < 3;
-    console.error("[search_persistence] recordLlmUsageEvent failed", {
-      batch_size: rows.length,
-      stages: [...new Set(rows.map((row) => row.stage))],
-      search_id: rows[0]?.search_id,
-      attempt,
-      retrying,
-      error: formatDbError(error),
-    });
-
-    if (retrying) {
-      await waitBeforeRetry(attempt);
+      if (retrying) {
+        await waitBeforeRetry(attempt);
+      } else {
+        return;
+      }
     }
   }
 }
@@ -261,7 +301,7 @@ export async function setSearchStatus(
   const payload = {
     status,
     pipeline_step: status === "degraded" ? "done" : status,
-    updated_at: nowIso(),
+    updated_at: new Date(),
     ...extra,
   };
 
@@ -269,19 +309,18 @@ export async function setSearchStatus(
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const { data, error } = await supabaseAdmin
-        .from("hirelix_searches")
-        .update(payload)
-        .eq("id", searchId)
-        .select("id")
-        .maybeSingle();
+      const updated = await db
+        .update(hirelix_searches)
+        .set(payload)
+        .where(eq(hirelix_searches.id, searchId))
+        .returning({ id: hirelix_searches.id });
 
-      if (!error && data?.id) {
+      if (updated[0]?.id) {
         lastError = null;
         break;
       }
 
-      lastError = error ?? new Error("Search status update matched no rows");
+      lastError = new Error("Search status update matched no rows");
     } catch (error) {
       lastError = error;
     }
@@ -306,28 +345,35 @@ export async function setSearchStatus(
   }
 
   if (status === "error" || status === "degraded" || status === "done") {
+    const ts = new Date();
     const terminalJobPayload: Record<string, unknown> = {
       status: status === "error" ? "fatal_error" : "done",
-      updated_at: nowIso(),
+      updated_at: ts,
       locked_at: null,
-      finished_at: nowIso(),
-      last_error: status === "error"
-        ? (typeof extra.error_message === "string" && extra.error_message.length > 0
-          ? extra.error_message
-          : "Search entered an error state")
-        : null,
+      finished_at: ts,
+      last_error:
+        status === "error"
+          ? typeof extra.error_message === "string" && extra.error_message.length > 0
+            ? extra.error_message
+            : "Search entered an error state"
+          : null,
     };
 
     if (status === "error") {
-      terminalJobPayload.available_at = nowIso();
+      terminalJobPayload.available_at = ts;
     }
 
-    const { error } = await supabaseAdmin
-      .from("hirelix_search_jobs")
-      .update(terminalJobPayload)
-      .eq("search_id", searchId)
-      .eq("status", "running");
-    if (error) {
+    try {
+      await db
+        .update(hirelix_search_jobs)
+        .set(terminalJobPayload)
+        .where(
+          and(
+            eq(hirelix_search_jobs.search_id, searchId),
+            eq(hirelix_search_jobs.status, "running"),
+          ),
+        );
+    } catch (error) {
       console.error("[search_persistence] terminal job update failed", {
         search_id: searchId,
         status,
@@ -339,20 +385,34 @@ export async function setSearchStatus(
 
 export async function lookupCachedSnapshot(filterHash: string): Promise<SnapshotCacheEntry | null> {
   try {
-    const { data } = await supabaseAdmin
-      .from("hirelix_dataset_snapshots")
-      .select("snapshot_id, dataset_size, cost, expires_at")
-      .eq("filter_hash", filterHash)
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const rows = await db
+      .select({
+        snapshot_id: hirelix_dataset_snapshots.snapshot_id,
+        dataset_size: hirelix_dataset_snapshots.dataset_size,
+        cost: hirelix_dataset_snapshots.cost,
+        expires_at: hirelix_dataset_snapshots.expires_at,
+      })
+      .from(hirelix_dataset_snapshots)
+      .where(
+        and(
+          eq(hirelix_dataset_snapshots.filter_hash, filterHash),
+          gt(hirelix_dataset_snapshots.expires_at, new Date()),
+        ),
+      )
+      .orderBy(desc(hirelix_dataset_snapshots.created_at))
+      .limit(1);
+    const data = rows[0];
     if (!data?.snapshot_id || !data.expires_at) return null;
     return {
-      snapshotId: data.snapshot_id as string,
+      snapshotId: data.snapshot_id,
       datasetSize: typeof data.dataset_size === "number" ? data.dataset_size : null,
-      cost: typeof data.cost === "number" ? data.cost : null,
-      expiresAt: data.expires_at as string,
+      cost:
+        data.cost === null || data.cost === undefined
+          ? null
+          : typeof data.cost === "number"
+            ? data.cost
+            : Number(data.cost),
+      expiresAt: data.expires_at.toISOString(),
     };
   } catch {
     return null;
@@ -366,19 +426,32 @@ export async function cacheSnapshotEntry(params: {
   filterSummary: unknown;
   recordsLimit: number;
 }): Promise<void> {
-  const expiresAt = new Date(Date.now() + getSnapshotCacheTtlDays() * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + getSnapshotCacheTtlDays() * 24 * 60 * 60 * 1000);
   try {
-    await supabaseAdmin.from("hirelix_dataset_snapshots").upsert(
-      {
-        snapshot_id: params.snapshotId,
-        round: params.round,
-        filter_hash: params.filterHash,
-        filter_summary: params.filterSummary ?? null,
-        records_limit: params.recordsLimit,
-        expires_at: expiresAt,
-      },
-      { onConflict: "snapshot_id" },
-    );
+    const values = {
+      snapshot_id: params.snapshotId,
+      round: params.round,
+      filter_hash: params.filterHash,
+      filter_summary:
+        params.filterSummary && typeof params.filterSummary === "object"
+          ? (params.filterSummary as Record<string, unknown>)
+          : null,
+      records_limit: params.recordsLimit,
+      expires_at: expiresAt,
+    };
+    await db
+      .insert(hirelix_dataset_snapshots)
+      .values(values)
+      .onConflictDoUpdate({
+        target: hirelix_dataset_snapshots.snapshot_id,
+        set: {
+          round: values.round,
+          filter_hash: values.filter_hash,
+          filter_summary: values.filter_summary,
+          records_limit: values.records_limit,
+          expires_at: values.expires_at,
+        },
+      });
   } catch {
     // Non-critical
   }
@@ -386,10 +459,10 @@ export async function cacheSnapshotEntry(params: {
 
 export async function expireCachedSnapshot(snapshotId: string): Promise<void> {
   try {
-    await supabaseAdmin
-      .from("hirelix_dataset_snapshots")
-      .update({ expires_at: new Date(0).toISOString() })
-      .eq("snapshot_id", snapshotId);
+    await db
+      .update(hirelix_dataset_snapshots)
+      .set({ expires_at: new Date(0) })
+      .where(eq(hirelix_dataset_snapshots.snapshot_id, snapshotId));
   } catch {
     // Non-critical
   }
@@ -400,20 +473,20 @@ export async function loadCachedSnapshotProfiles(
   sourceRound: string,
 ): Promise<Record<string, unknown>[] | null> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from("hirelix_snapshot_profiles")
-      .select("raw_data")
-      .eq("snapshot_id", snapshotId)
-      .eq("source_round", sourceRound)
-      .order("record_index", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("[snapshot_profiles] load error", { snapshotId, sourceRound, error });
-      return null;
-    }
+    const data = await db
+      .select({ raw_data: hirelix_snapshot_profiles.raw_data })
+      .from(hirelix_snapshot_profiles)
+      .where(
+        and(
+          eq(hirelix_snapshot_profiles.snapshot_id, snapshotId),
+          eq(hirelix_snapshot_profiles.source_round, sourceRound),
+        ),
+      )
+      .orderBy(
+        sql`${hirelix_snapshot_profiles.record_index} ASC NULLS LAST`,
+        asc(hirelix_snapshot_profiles.created_at),
+      );
     if (!data || data.length === 0) return null;
-
     return data
       .map((row) => row.raw_data)
       .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object");
@@ -448,9 +521,9 @@ export async function persistSnapshotProfiles(
       typeof record.url === "string" && record.url
         ? record.url
         : typeof record.input_url === "string" && record.input_url
-          ? record.input_url
+          ? (record.input_url as string)
           : record.input && typeof (record.input as Record<string, unknown>).url === "string"
-            ? (record.input as Record<string, unknown>).url as string
+            ? ((record.input as Record<string, unknown>).url as string)
             : null;
     return {
       snapshot_id: params.snapshotId,
@@ -465,22 +538,20 @@ export async function persistSnapshotProfiles(
   });
 
   try {
-    const { error: deleteError } = await supabaseAdmin
-      .from("hirelix_snapshot_profiles")
-      .delete()
-      .eq("snapshot_id", params.snapshotId)
-      .eq("source_round", params.sourceRound);
-    if (deleteError) console.error("[snapshot_profiles] delete error", deleteError);
+    await db
+      .delete(hirelix_snapshot_profiles)
+      .where(
+        and(
+          eq(hirelix_snapshot_profiles.snapshot_id, params.snapshotId),
+          eq(hirelix_snapshot_profiles.source_round, params.sourceRound),
+        ),
+      );
 
     const batchSize = 50;
     for (let index = 0; index < rows.length; index += batchSize) {
-      const { error: insertError } = await supabaseAdmin
-        .from("hirelix_snapshot_profiles")
-        .insert(rows.slice(index, index + batchSize));
-      if (insertError) {
-        console.error(`[snapshot_profiles] insert error batch i=${index}`, insertError);
-        throw insertError;
-      }
+      await db
+        .insert(hirelix_snapshot_profiles)
+        .values(rows.slice(index, index + batchSize));
     }
 
     console.log(
@@ -498,13 +569,14 @@ export async function updateCachedSnapshotMetadata(
   update: { datasetSize?: number | null; cost?: number | null },
 ): Promise<void> {
   try {
-    await supabaseAdmin
-      .from("hirelix_dataset_snapshots")
-      .update({
-        ...(update.datasetSize != null && { dataset_size: update.datasetSize }),
-        ...(update.cost != null && { cost: update.cost }),
-      })
-      .eq("snapshot_id", snapshotId);
+    const patch: Record<string, unknown> = {};
+    if (update.datasetSize != null) patch.dataset_size = update.datasetSize;
+    if (update.cost != null) patch.cost = update.cost as unknown as string;
+    if (Object.keys(patch).length === 0) return;
+    await db
+      .update(hirelix_dataset_snapshots)
+      .set(patch)
+      .where(eq(hirelix_dataset_snapshots.snapshot_id, snapshotId));
   } catch {
     // Non-critical
   }
@@ -518,21 +590,18 @@ export async function updateSearchParsedRequirements(
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const { data, error } = await supabaseAdmin
-        .from("hirelix_searches")
-        .update({
+      const updated = await db
+        .update(hirelix_searches)
+        .set({
           parsed_requirements: parsed,
-          updated_at: nowIso(),
+          updated_at: new Date(),
         })
-        .eq("id", searchId)
-        .select("id")
-        .maybeSingle();
+        .where(eq(hirelix_searches.id, searchId))
+        .returning({ id: hirelix_searches.id });
 
-      if (!error && data?.id) {
-        return;
-      }
+      if (updated[0]?.id) return;
 
-      lastError = error ?? new Error("Parsed requirements update matched no rows");
+      lastError = new Error("Parsed requirements update matched no rows");
     } catch (error) {
       lastError = error;
     }
@@ -558,15 +627,22 @@ export async function updateSearchUsageEventMetadata(
   searchId: string,
   metadataPatch: Record<string, unknown>,
 ) {
-  const { data: event } = await supabaseAdmin
-    .from("hirelix_usage_events")
-    .select("id, metadata")
-    .eq("related_id", searchId)
-    .eq("event_type", "search_created")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const eventRows = await db
+    .select({
+      id: hirelix_usage_events.id,
+      metadata: hirelix_usage_events.metadata,
+    })
+    .from(hirelix_usage_events)
+    .where(
+      and(
+        eq(hirelix_usage_events.related_id, searchId),
+        eq(hirelix_usage_events.event_type, "search_created"),
+      ),
+    )
+    .orderBy(desc(hirelix_usage_events.created_at))
+    .limit(1);
 
+  const event = eventRows[0];
   if (!event?.id) return;
 
   const currentMetadata =
@@ -574,15 +650,15 @@ export async function updateSearchUsageEventMetadata(
       ? (event.metadata as Record<string, unknown>)
       : {};
 
-  await supabaseAdmin
-    .from("hirelix_usage_events")
-    .update({
+  await db
+    .update(hirelix_usage_events)
+    .set({
       metadata: {
         ...currentMetadata,
         ...metadataPatch,
       },
     })
-    .eq("id", event.id);
+    .where(eq(hirelix_usage_events.id, event.id));
 }
 
 export async function upsertCandidatesForSearch(
@@ -590,14 +666,17 @@ export async function upsertCandidatesForSearch(
   rows: CandidateRowInput[],
   options?: { replaceMissing?: boolean },
 ) {
-  const { data: existingRows } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id, name, profile_url")
-    .eq("search_id", searchId);
+  const existing = await db
+    .select({
+      id: hirelix_candidates.id,
+      name: hirelix_candidates.name,
+      profile_url: hirelix_candidates.profile_url,
+    })
+    .from(hirelix_candidates)
+    .where(eq(hirelix_candidates.search_id, searchId));
 
-  const existing = existingRows || [];
   const matchedIds = new Set<string>();
-  const inserts: Record<string, unknown>[] = [];
+  const inserts: ReturnType<typeof buildCandidatePayload>[] = [];
 
   for (const row of rows) {
     const existingMatch = existing.find((candidate) => {
@@ -611,17 +690,17 @@ export async function upsertCandidatesForSearch(
 
     if (existingMatch) {
       matchedIds.add(existingMatch.id);
-      await supabaseAdmin
-        .from("hirelix_candidates")
-        .update(payload)
-        .eq("id", existingMatch.id);
+      await db
+        .update(hirelix_candidates)
+        .set(payload)
+        .where(eq(hirelix_candidates.id, existingMatch.id));
     } else {
       inserts.push(payload);
     }
   }
 
   if (inserts.length > 0) {
-    await supabaseAdmin.from("hirelix_candidates").insert(inserts);
+    await db.insert(hirelix_candidates).values(inserts);
   }
 
   if (options?.replaceMissing) {
@@ -630,7 +709,7 @@ export async function upsertCandidatesForSearch(
       .map((candidate) => candidate.id);
 
     if (idsToDelete.length > 0) {
-      await supabaseAdmin.from("hirelix_candidates").delete().in("id", idsToDelete);
+      await db.delete(hirelix_candidates).where(inArray(hirelix_candidates.id, idsToDelete));
     }
   }
 }
@@ -639,30 +718,41 @@ export async function upsertSingleCandidate(searchId: string, row: CandidateRowI
   const payload = buildCandidatePayload(searchId, row);
 
   if (row.profile_url) {
-    const { data: existing } = await supabaseAdmin
-      .from("hirelix_candidates")
-      .select("id")
-      .eq("search_id", searchId)
-      .eq("profile_url", row.profile_url)
-      .limit(1)
-      .maybeSingle();
+    const existingRows = await db
+      .select({ id: hirelix_candidates.id })
+      .from(hirelix_candidates)
+      .where(
+        and(
+          eq(hirelix_candidates.search_id, searchId),
+          eq(hirelix_candidates.profile_url, row.profile_url),
+        ),
+      )
+      .limit(1);
+    const existing = existingRows[0];
     if (existing) {
-      await supabaseAdmin.from("hirelix_candidates").update(payload).eq("id", existing.id);
+      await db
+        .update(hirelix_candidates)
+        .set(payload)
+        .where(eq(hirelix_candidates.id, existing.id));
       return;
     }
   }
 
-  await supabaseAdmin.from("hirelix_candidates").insert(payload);
+  await db.insert(hirelix_candidates).values(payload);
 }
 
 export async function retagSearchCandidatePoolTypes(searchId: string) {
-  const { data: candidates } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id, match_score, metadata")
-    .eq("search_id", searchId)
-    .order("match_score", { ascending: false });
+  const candidates = await db
+    .select({
+      id: hirelix_candidates.id,
+      match_score: hirelix_candidates.match_score,
+      metadata: hirelix_candidates.metadata,
+    })
+    .from(hirelix_candidates)
+    .where(eq(hirelix_candidates.search_id, searchId))
+    .orderBy(sql`${hirelix_candidates.match_score} DESC NULLS LAST`);
 
-  if (!candidates?.length) return;
+  if (!candidates.length) return;
 
   for (const candidate of candidates) {
     const metadata =
@@ -672,18 +762,21 @@ export async function retagSearchCandidatePoolTypes(searchId: string) {
     const nextPoolType = "main";
     if (metadata.pool_type === nextPoolType) continue;
     metadata.pool_type = nextPoolType;
-    await supabaseAdmin
-      .from("hirelix_candidates")
-      .update({ metadata })
-      .eq("id", candidate.id);
+    await db
+      .update(hirelix_candidates)
+      .set({ metadata })
+      .where(eq(hirelix_candidates.id, candidate.id));
   }
 }
 
 export async function countCandidatesForSearch(searchId: string) {
-  const { count } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id", { count: "exact", head: true })
-    .eq("search_id", searchId);
-
-  return count || 0;
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(hirelix_candidates)
+    .where(eq(hirelix_candidates.search_id, searchId));
+  return rows[0]?.count ?? 0;
 }
+
+// `nowIso` re-export to keep parity with previous default behavior; many call
+// sites import it through this module historically.
+void nowIso;

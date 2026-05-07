@@ -1,9 +1,16 @@
+import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  hirelix_candidates,
+  hirelix_github_enrichment_jobs,
+  hirelix_searches,
+} from "@/db/schema";
 import {
   applyGithubSignalsToCandidateRow,
   buildPendingGithubSignals,
   enrichGithubSignalsForCandidate,
 } from "@/lib/github-signals";
-import { supabaseAdmin } from "@/lib/supabase-server";
 
 const GITHUB_ENRICHMENT_MAX_ATTEMPTS = 3;
 const GITHUB_ENRICHMENT_RETRY_DELAY_MS = 5 * 60 * 1000;
@@ -56,8 +63,12 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function minutesAgoIso(minutes: number) {
-  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+function nowDate() {
+  return new Date();
+}
+
+function minutesAgoDate(minutes: number) {
+  return new Date(Date.now() - minutes * 60 * 1000);
 }
 
 function compactStringArray(values: unknown[], limit = 12) {
@@ -150,44 +161,64 @@ export function buildQueuedGithubMetadata(params: {
 }
 
 async function upsertGithubEnrichmentJob(input: EnqueueGithubEnrichmentJobInput) {
-  const timestamp = nowIso();
-  const { data, error } = await supabaseAdmin
-    .from("hirelix_github_enrichment_jobs")
-    .upsert(
-      {
-        candidate_id: input.candidateId,
-        search_id: input.searchId,
-        user_id: input.userId,
-        status: "queued",
-        attempt_count: 0,
-        available_at: timestamp,
-        locked_at: null,
-        started_at: null,
-        finished_at: null,
-        last_error: null,
-        updated_at: timestamp,
+  const ts = nowDate();
+  const values = {
+    candidate_id: input.candidateId,
+    search_id: input.searchId,
+    user_id: input.userId,
+    status: "queued",
+    attempt_count: 0,
+    available_at: ts,
+    locked_at: null,
+    started_at: null,
+    finished_at: null,
+    last_error: null,
+    updated_at: ts,
+  };
+  const inserted = await db
+    .insert(hirelix_github_enrichment_jobs)
+    .values(values)
+    .onConflictDoUpdate({
+      target: hirelix_github_enrichment_jobs.candidate_id,
+      set: {
+        search_id: values.search_id,
+        user_id: values.user_id,
+        status: values.status,
+        attempt_count: values.attempt_count,
+        available_at: values.available_at,
+        locked_at: values.locked_at,
+        started_at: values.started_at,
+        finished_at: values.finished_at,
+        last_error: values.last_error,
+        updated_at: values.updated_at,
       },
-      { onConflict: "candidate_id" },
-    )
-    .select("id")
-    .single();
-
-  if (error || !data?.id) {
-    throw new Error(error?.message || "Failed to enqueue GitHub enrichment job");
-  }
-
-  return data.id as string;
+    })
+    .returning({ id: hirelix_github_enrichment_jobs.id });
+  const id = inserted[0]?.id;
+  if (!id) throw new Error("Failed to enqueue GitHub enrichment job");
+  return id;
 }
 
 export async function enqueueGithubEnrichmentJob(
   input: EnqueueGithubEnrichmentJobInput,
 ): Promise<GithubEnrichmentJobResult> {
-  const { data: candidate } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id, name, headline, github_url, metadata")
-    .eq("id", input.candidateId)
-    .eq("search_id", input.searchId)
-    .maybeSingle();
+  const candidateRows = await db
+    .select({
+      id: hirelix_candidates.id,
+      name: hirelix_candidates.name,
+      headline: hirelix_candidates.headline,
+      github_url: hirelix_candidates.github_url,
+      metadata: hirelix_candidates.metadata,
+    })
+    .from(hirelix_candidates)
+    .where(
+      and(
+        eq(hirelix_candidates.id, input.candidateId),
+        eq(hirelix_candidates.search_id, input.searchId),
+      ),
+    )
+    .limit(1);
+  const candidate = candidateRows[0];
 
   if (!candidate) {
     return { metadata: {}, jobId: null, enqueued: false };
@@ -214,11 +245,15 @@ export async function enqueueGithubEnrichmentJob(
   });
   const jobId = await upsertGithubEnrichmentJob(input);
 
-  await supabaseAdmin
-    .from("hirelix_candidates")
-    .update({ metadata })
-    .eq("id", input.candidateId)
-    .eq("search_id", input.searchId);
+  await db
+    .update(hirelix_candidates)
+    .set({ metadata })
+    .where(
+      and(
+        eq(hirelix_candidates.id, input.candidateId),
+        eq(hirelix_candidates.search_id, input.searchId),
+      ),
+    );
 
   return { metadata, jobId, enqueued: true };
 }
@@ -228,20 +263,23 @@ export async function enqueueGithubEnrichmentJobsForSearch(input: {
   userId: string;
   limit?: number;
 }) {
-  const { data: candidates, error } = await supabaseAdmin
-    .from("hirelix_candidates")
-    .select("id, search_id, name, headline, github_url, metadata")
-    .eq("search_id", input.searchId)
-    .order("match_score", { ascending: false })
+  const candidates = await db
+    .select({
+      id: hirelix_candidates.id,
+      search_id: hirelix_candidates.search_id,
+      name: hirelix_candidates.name,
+      headline: hirelix_candidates.headline,
+      github_url: hirelix_candidates.github_url,
+      metadata: hirelix_candidates.metadata,
+    })
+    .from(hirelix_candidates)
+    .where(eq(hirelix_candidates.search_id, input.searchId))
+    .orderBy(sql`${hirelix_candidates.match_score} DESC NULLS LAST`)
     .limit(input.limit ?? 50);
-
-  if (error) {
-    throw new Error(error.message);
-  }
 
   let enqueued = 0;
   let skipped = 0;
-  for (const candidate of candidates || []) {
+  for (const candidate of candidates) {
     if (!shouldQueueGithubEnrichment(candidate.metadata)) {
       skipped += 1;
       continue;
@@ -255,7 +293,7 @@ export async function enqueueGithubEnrichmentJobsForSearch(input: {
   }
 
   return {
-    scanned: candidates?.length ?? 0,
+    scanned: candidates.length,
     enqueued,
     skipped,
   };
@@ -264,50 +302,77 @@ export async function enqueueGithubEnrichmentJobsForSearch(input: {
 async function claimGithubEnrichmentJob(
   preferredCandidateId?: string | null,
 ): Promise<GithubEnrichmentJobRow | null> {
-  const now = nowIso();
-  const candidateRows: GithubEnrichmentJobRow[] = [];
+  const now = nowDate();
+  const candidateRows: Array<typeof hirelix_github_enrichment_jobs.$inferSelect> = [];
 
   if (preferredCandidateId) {
-    const { data } = await supabaseAdmin
-      .from("hirelix_github_enrichment_jobs")
-      .select("*")
-      .eq("candidate_id", preferredCandidateId)
-      .eq("status", "queued")
-      .lte("available_at", now)
+    const data = await db
+      .select()
+      .from(hirelix_github_enrichment_jobs)
+      .where(
+        and(
+          eq(hirelix_github_enrichment_jobs.candidate_id, preferredCandidateId),
+          eq(hirelix_github_enrichment_jobs.status, "queued"),
+          lte(hirelix_github_enrichment_jobs.available_at, now),
+        ),
+      )
       .limit(1);
-    if (data) candidateRows.push(...(data as GithubEnrichmentJobRow[]));
+    candidateRows.push(...data);
     if (candidateRows.length === 0) return null;
   }
 
   if (candidateRows.length === 0) {
-    const { data } = await supabaseAdmin
-      .from("hirelix_github_enrichment_jobs")
-      .select("*")
-      .eq("status", "queued")
-      .lte("available_at", now)
-      .order("available_at", { ascending: true })
+    const data = await db
+      .select()
+      .from(hirelix_github_enrichment_jobs)
+      .where(
+        and(
+          eq(hirelix_github_enrichment_jobs.status, "queued"),
+          lte(hirelix_github_enrichment_jobs.available_at, now),
+        ),
+      )
+      .orderBy(asc(hirelix_github_enrichment_jobs.available_at))
       .limit(10);
-    if (data) candidateRows.push(...(data as GithubEnrichmentJobRow[]));
+    candidateRows.push(...data);
   }
 
   for (const job of candidateRows) {
-    const { data: claimed } = await supabaseAdmin
-      .from("hirelix_github_enrichment_jobs")
-      .update({
+    const ts = nowDate();
+    const claimed = await db
+      .update(hirelix_github_enrichment_jobs)
+      .set({
         status: "running",
-        locked_at: nowIso(),
-        started_at: job.started_at ?? nowIso(),
+        locked_at: ts,
+        started_at: job.started_at ?? ts,
         attempt_count: (job.attempt_count || 0) + 1,
-        updated_at: nowIso(),
+        updated_at: ts,
         last_error: null,
       })
-      .eq("id", job.id)
-      .eq("status", "queued")
-      .select("*")
-      .single();
+      .where(
+        and(
+          eq(hirelix_github_enrichment_jobs.id, job.id),
+          eq(hirelix_github_enrichment_jobs.status, "queued"),
+        ),
+      )
+      .returning();
 
-    if (claimed) {
-      return claimed as GithubEnrichmentJobRow;
+    if (claimed[0]) {
+      const row = claimed[0];
+      return {
+        id: row.id,
+        candidate_id: row.candidate_id,
+        search_id: row.search_id,
+        user_id: row.user_id,
+        status: row.status,
+        attempt_count: row.attempt_count,
+        last_error: row.last_error,
+        available_at: row.available_at.toISOString(),
+        locked_at: row.locked_at?.toISOString() ?? null,
+        started_at: row.started_at?.toISOString() ?? null,
+        finished_at: row.finished_at?.toISOString() ?? null,
+        created_at: row.created_at.toISOString(),
+        updated_at: row.updated_at.toISOString(),
+      };
     }
   }
 
@@ -319,17 +384,18 @@ async function updateJobStatus(
   status: "queued" | "done" | "error",
   extra: Record<string, unknown> = {},
 ) {
-  const timestamp = nowIso();
-  await supabaseAdmin
-    .from("hirelix_github_enrichment_jobs")
-    .update({
-      status,
-      updated_at: timestamp,
-      ...(status === "done" || status === "error" ? { finished_at: timestamp } : {}),
-      ...(status !== "queued" ? { locked_at: null } : {}),
-      ...extra,
-    })
-    .eq("id", jobId);
+  const ts = nowDate();
+  const patch: Record<string, unknown> = {
+    status,
+    updated_at: ts,
+    ...(status === "done" || status === "error" ? { finished_at: ts } : {}),
+    ...(status !== "queued" ? { locked_at: null } : {}),
+    ...extra,
+  };
+  await db
+    .update(hirelix_github_enrichment_jobs)
+    .set(patch)
+    .where(eq(hirelix_github_enrichment_jobs.id, jobId));
 }
 
 export async function processNextGithubEnrichmentJob(
@@ -342,19 +408,41 @@ export async function processNextGithubEnrichmentJob(
   }
 
   try {
-    const [{ data: candidate }, { data: search }] = await Promise.all([
-      supabaseAdmin
-        .from("hirelix_candidates")
-        .select("id, search_id, name, headline, location, skills, match_score, match_reasons, profile_url, github_url, metadata")
-        .eq("id", job.candidate_id)
-        .eq("search_id", job.search_id)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("hirelix_searches")
-        .select("id, user_id, parsed_requirements")
-        .eq("id", job.search_id)
-        .maybeSingle(),
+    const [candRows, searchRows] = await Promise.all([
+      db
+        .select({
+          id: hirelix_candidates.id,
+          search_id: hirelix_candidates.search_id,
+          name: hirelix_candidates.name,
+          headline: hirelix_candidates.headline,
+          location: hirelix_candidates.location,
+          skills: hirelix_candidates.skills,
+          match_score: hirelix_candidates.match_score,
+          match_reasons: hirelix_candidates.match_reasons,
+          profile_url: hirelix_candidates.profile_url,
+          github_url: hirelix_candidates.github_url,
+          metadata: hirelix_candidates.metadata,
+        })
+        .from(hirelix_candidates)
+        .where(
+          and(
+            eq(hirelix_candidates.id, job.candidate_id),
+            eq(hirelix_candidates.search_id, job.search_id),
+          ),
+        )
+        .limit(1),
+      db
+        .select({
+          id: hirelix_searches.id,
+          user_id: hirelix_searches.user_id,
+          parsed_requirements: hirelix_searches.parsed_requirements,
+        })
+        .from(hirelix_searches)
+        .where(eq(hirelix_searches.id, job.search_id))
+        .limit(1),
     ]);
+    const candidate = candRows[0];
+    const search = searchRows[0];
 
     if (!candidate || !search) {
       await updateJobStatus(job.id, "error", {
@@ -397,15 +485,15 @@ export async function processNextGithubEnrichmentJob(
       finished_at: nowIso(),
     };
 
-    await supabaseAdmin
-      .from("hirelix_candidates")
-      .update({
+    await db
+      .update(hirelix_candidates)
+      .set({
         github_url: enriched.github_url,
         match_score: enriched.match_score,
         match_reasons: enriched.match_reasons,
         metadata,
       })
-      .eq("id", candidate.id);
+      .where(eq(hirelix_candidates.id, candidate.id));
 
     await updateJobStatus(job.id, "done", {
       last_error: null,
@@ -445,45 +533,61 @@ export async function processNextGithubEnrichmentJob(
 }
 
 export async function reclaimStaleGithubEnrichmentJobs() {
-  const cutoff = minutesAgoIso(GITHUB_ENRICHMENT_STALE_MINUTES);
-  const { data: staleJobs } = await supabaseAdmin
-    .from("hirelix_github_enrichment_jobs")
-    .select("id, attempt_count")
-    .eq("status", "running")
-    .lt("locked_at", cutoff)
+  const cutoff = minutesAgoDate(GITHUB_ENRICHMENT_STALE_MINUTES);
+  const staleJobs = await db
+    .select({
+      id: hirelix_github_enrichment_jobs.id,
+      attempt_count: hirelix_github_enrichment_jobs.attempt_count,
+    })
+    .from(hirelix_github_enrichment_jobs)
+    .where(
+      and(
+        eq(hirelix_github_enrichment_jobs.status, "running"),
+        lt(hirelix_github_enrichment_jobs.locked_at, cutoff),
+      ),
+    )
     .limit(50);
 
-  if (!staleJobs?.length) return 0;
+  if (!staleJobs.length) return 0;
 
   let reclaimed = 0;
   for (const job of staleJobs) {
     const shouldRetry = (job.attempt_count || 0) < GITHUB_ENRICHMENT_MAX_ATTEMPTS;
-    const { data } = await supabaseAdmin
-      .from("hirelix_github_enrichment_jobs")
-      .update({
-        status: shouldRetry ? "queued" : "error",
-        locked_at: null,
-        available_at: nowIso(),
-        last_error: `GitHub enrichment exceeded ${GITHUB_ENRICHMENT_STALE_MINUTES}-minute execution limit`,
-        updated_at: nowIso(),
-        ...(shouldRetry ? {} : { finished_at: nowIso() }),
-      })
-      .eq("id", job.id)
-      .eq("status", "running")
-      .lt("locked_at", cutoff)
-      .select("id")
-      .maybeSingle();
-    if (data?.id) reclaimed += 1;
+    const ts = nowDate();
+    const patch: Record<string, unknown> = {
+      status: shouldRetry ? "queued" : "error",
+      locked_at: null,
+      available_at: ts,
+      last_error: `GitHub enrichment exceeded ${GITHUB_ENRICHMENT_STALE_MINUTES}-minute execution limit`,
+      updated_at: ts,
+      ...(shouldRetry ? {} : { finished_at: ts }),
+    };
+    const updated = await db
+      .update(hirelix_github_enrichment_jobs)
+      .set(patch)
+      .where(
+        and(
+          eq(hirelix_github_enrichment_jobs.id, job.id),
+          eq(hirelix_github_enrichment_jobs.status, "running"),
+          lt(hirelix_github_enrichment_jobs.locked_at, cutoff),
+        ),
+      )
+      .returning({ id: hirelix_github_enrichment_jobs.id });
+    if (updated[0]?.id) reclaimed += 1;
   }
   return reclaimed;
 }
 
 export async function hasRunnableGithubEnrichmentJobs() {
-  const { count } = await supabaseAdmin
-    .from("hirelix_github_enrichment_jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "queued")
-    .lte("available_at", nowIso());
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(hirelix_github_enrichment_jobs)
+    .where(
+      and(
+        eq(hirelix_github_enrichment_jobs.status, "queued"),
+        lte(hirelix_github_enrichment_jobs.available_at, nowDate()),
+      ),
+    );
 
-  return (count || 0) > 0;
+  return (rows[0]?.count ?? 0) > 0;
 }
