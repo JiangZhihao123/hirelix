@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  hirelix_searches,
+  hirelix_usage_events,
+} from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
   enqueueSearchJob,
@@ -11,7 +18,6 @@ import {
 } from "@/lib/search-execution";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { buildParsedRequirementsForLaunch } from "@/lib/jd-parse";
-import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const maxDuration = 30;
 const DEFAULT_OUTREACH_POOL_TARGET = 20;
@@ -93,34 +99,43 @@ export async function POST(req: NextRequest) {
           activation_run: false,
           search_phase: "mvp_focus",
         };
-    const { data: search, error: insertErr } = await supabaseAdmin
-      .from("hirelix_searches")
-      .insert({
-        user_id: user.id,
-        title:
-          typeof parsedRequirements.title === "string" && parsedRequirements.title.trim().length > 0
-            ? parsedRequirements.title.trim()
-            : null,
-        jd_text: jd_text.trim(),
-        status: "queued",
-        pipeline_step: "queued",
-        error_message: null,
-        warning_message: null,
-        parsed_requirements: parsedRequirements,
-        queued_at: timestamp,
-        parse_completed_at:
-          parsed_requirements_override && typeof parsed_requirements_override === "object"
-            ? timestamp
-            : null,
-        search_completed_at: null,
-        partial_ready_at: null,
-        done_at: null,
-      })
-      .select("id")
-      .single();
-
-    if (insertErr || !search) {
+    let search: { id: string } | undefined;
+    try {
+      const ts = new Date(timestamp);
+      const inserted = await db
+        .insert(hirelix_searches)
+        .values({
+          user_id: user.id,
+          title:
+            typeof parsedRequirements.title === "string" && parsedRequirements.title.trim().length > 0
+              ? parsedRequirements.title.trim()
+              : null,
+          jd_text: jd_text.trim(),
+          status: "queued",
+          pipeline_step: "queued",
+          error_message: null,
+          warning_message: null,
+          parsed_requirements: parsedRequirements,
+          queued_at: ts,
+          parse_completed_at:
+            parsed_requirements_override && typeof parsed_requirements_override === "object"
+              ? ts
+              : null,
+          search_completed_at: null,
+          partial_ready_at: null,
+          done_at: null,
+        })
+        .returning({ id: hirelix_searches.id });
+      search = inserted[0];
+    } catch (insertErr) {
       console.error("Insert search error:", insertErr);
+      return NextResponse.json(
+        { error: "Failed to create search" },
+        { status: 500 },
+      );
+    }
+
+    if (!search) {
       return NextResponse.json(
         { error: "Failed to create search" },
         { status: 500 },
@@ -140,7 +155,7 @@ export async function POST(req: NextRequest) {
     });
 
     try {
-      await supabaseAdmin.from("hirelix_usage_events").insert({
+      await db.insert(hirelix_usage_events).values({
         user_id: user.id,
         event_type: "search_created",
         related_id: search.id,
@@ -165,16 +180,16 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Search create error:", err);
     if (createdSearchId) {
-      await supabaseAdmin
-        .from("hirelix_searches")
-        .update({
+      await db
+        .update(hirelix_searches)
+        .set({
           status: "error",
           pipeline_step: "error",
           error_message: "Failed to enqueue search job",
           warning_message: null,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date(),
         })
-        .eq("id", createdSearchId);
+        .where(eq(hirelix_searches.id, createdSearchId));
     }
     return NextResponse.json(
       { error: "Internal server error" },

@@ -1,7 +1,10 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import { hirelix_billing_events, hirelix_user_settings } from "@/db/schema";
 import { CONTACT_PACK, SEARCH_PACK, getCheckoutConfig } from "@/lib/billing";
-import { supabaseAdmin } from "@/lib/supabase-server";
 
 function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
   console.log(`[billing:${eventName}] ${JSON.stringify(payload)}`);
@@ -33,16 +36,13 @@ function describeError(error: unknown): Record<string, unknown> {
   };
 }
 
-function throwIfSupabaseError(
-  error: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null } | null,
-  context: string,
-) {
-  if (!error) return;
-
-  throw {
-    context,
-    ...error,
-  };
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "23505"
+  );
 }
 
 function verifySignature(rawBody: string, signature: string | null) {
@@ -119,23 +119,21 @@ async function resolveUserId(data: Record<string, unknown>) {
         : null;
 
   if (subscriptionId) {
-    const { data: bySubscription, error } = await supabaseAdmin
-      .from("hirelix_user_settings")
-      .select("user_id")
-      .eq("paddle_subscription_id", subscriptionId)
-      .maybeSingle();
-    throwIfSupabaseError(error, "resolve_user_by_subscription");
-    if (bySubscription?.user_id) return bySubscription.user_id as string;
+    const rows = await db
+      .select({ user_id: hirelix_user_settings.user_id })
+      .from(hirelix_user_settings)
+      .where(eq(hirelix_user_settings.paddle_subscription_id, subscriptionId))
+      .limit(1);
+    if (rows[0]?.user_id) return rows[0].user_id;
   }
 
   if (customerId) {
-    const { data: byCustomer, error } = await supabaseAdmin
-      .from("hirelix_user_settings")
-      .select("user_id")
-      .eq("paddle_customer_id", customerId)
-      .maybeSingle();
-    throwIfSupabaseError(error, "resolve_user_by_customer");
-    if (byCustomer?.user_id) return byCustomer.user_id as string;
+    const rows = await db
+      .select({ user_id: hirelix_user_settings.user_id })
+      .from(hirelix_user_settings)
+      .where(eq(hirelix_user_settings.paddle_customer_id, customerId))
+      .limit(1);
+    if (rows[0]?.user_id) return rows[0].user_id;
   }
 
   return null;
@@ -147,18 +145,18 @@ async function recordEvent(
   userId: string | null,
   payload: Record<string, unknown>,
 ) {
-  const { error } = await supabaseAdmin.from("hirelix_billing_events").insert({
-    event_id: eventId,
-    event_type: eventType,
-    user_id: userId,
-    payload,
-  });
-
-  if (error && error.code !== "23505") {
+  try {
+    await db.insert(hirelix_billing_events).values({
+      event_id: eventId,
+      event_type: eventType,
+      user_id: userId,
+      payload,
+    });
+    return false;
+  } catch (error) {
+    if (isUniqueViolation(error)) return true;
     throw error;
   }
-
-  return error?.code === "23505";
 }
 
 async function updateSubscription(data: Record<string, unknown>, userId: string) {
@@ -194,22 +192,38 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
         ? data.subscription_id
         : null;
 
-  const { error } = await supabaseAdmin.from("hirelix_user_settings").upsert(
-    {
-      user_id: userId,
-      subscription_plan: planCode,
-      subscription_status: status,
-      billing_cycle: planCode === "pro_annual" || planCode === "starter_annual" ? "year" : "month",
-      paddle_customer_id: customerId,
-      paddle_subscription_id: subscriptionId,
-      subscription_started_at:
-        typeof data.started_at === "string" ? data.started_at : new Date().toISOString(),
-      subscription_renews_at: renewsAt,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
-  throwIfSupabaseError(error, "update_subscription");
+  const startedAt =
+    typeof data.started_at === "string" ? new Date(data.started_at) : new Date();
+  const renewsAtDate = renewsAt ? new Date(renewsAt) : null;
+  const billingCycle =
+    planCode === "pro_annual" || planCode === "starter_annual" ? "year" : "month";
+  const values = {
+    user_id: userId,
+    subscription_plan: planCode,
+    subscription_status: status,
+    billing_cycle: billingCycle,
+    paddle_customer_id: customerId,
+    paddle_subscription_id: subscriptionId,
+    subscription_started_at: startedAt,
+    subscription_renews_at: renewsAtDate,
+    updated_at: new Date(),
+  };
+  await db
+    .insert(hirelix_user_settings)
+    .values(values)
+    .onConflictDoUpdate({
+      target: hirelix_user_settings.user_id,
+      set: {
+        subscription_plan: values.subscription_plan,
+        subscription_status: values.subscription_status,
+        billing_cycle: values.billing_cycle,
+        paddle_customer_id: values.paddle_customer_id,
+        paddle_subscription_id: values.paddle_subscription_id,
+        subscription_started_at: values.subscription_started_at,
+        subscription_renews_at: values.subscription_renews_at,
+        updated_at: values.updated_at,
+      },
+    });
 }
 
 async function applyAddOns(data: Record<string, unknown>, userId: string) {
@@ -224,23 +238,33 @@ async function applyAddOns(data: Record<string, unknown>, userId: string) {
 
   if (!addSearchCredits && !addEnrichCredits) return;
 
-  const { data: settings, error: settingsError } = await supabaseAdmin
-    .from("hirelix_user_settings")
-    .select("extra_search_credits, extra_enrich_credits")
-    .eq("user_id", userId)
-    .maybeSingle();
-  throwIfSupabaseError(settingsError, "load_add_on_credits");
+  const settingsRows = await db
+    .select({
+      extra_search_credits: hirelix_user_settings.extra_search_credits,
+      extra_enrich_credits: hirelix_user_settings.extra_enrich_credits,
+    })
+    .from(hirelix_user_settings)
+    .where(eq(hirelix_user_settings.user_id, userId))
+    .limit(1);
+  const settings = settingsRows[0] ?? null;
 
-  const { error } = await supabaseAdmin.from("hirelix_user_settings").upsert(
-    {
-      user_id: userId,
-      extra_search_credits: (settings?.extra_search_credits ?? 0) + addSearchCredits,
-      extra_enrich_credits: (settings?.extra_enrich_credits ?? 0) + addEnrichCredits,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
-  throwIfSupabaseError(error, "apply_add_on_credits");
+  const values = {
+    user_id: userId,
+    extra_search_credits: (settings?.extra_search_credits ?? 0) + addSearchCredits,
+    extra_enrich_credits: (settings?.extra_enrich_credits ?? 0) + addEnrichCredits,
+    updated_at: new Date(),
+  };
+  await db
+    .insert(hirelix_user_settings)
+    .values(values)
+    .onConflictDoUpdate({
+      target: hirelix_user_settings.user_id,
+      set: {
+        extra_search_credits: values.extra_search_credits,
+        extra_enrich_credits: values.extra_enrich_credits,
+        updated_at: values.updated_at,
+      },
+    });
 }
 
 export async function POST(req: NextRequest) {

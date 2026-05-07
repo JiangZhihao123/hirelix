@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  hirelix_search_jobs,
+  hirelix_searches,
+  hirelix_usage_events,
+  hirelix_user_settings,
+} from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
-import { supabaseAdmin } from "@/lib/supabase-server";
 
 function getAdminEmails(): string[] {
   const raw = process.env.ADMIN_EMAIL ?? "";
@@ -31,83 +39,97 @@ export async function GET(req: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const [
-    { data: userSettings },
-    { count: totalUsers },
-    { data: usageThisMonth },
-    { data: recentSearches },
-    { data: recentErrors },
-    { data: schedulerJobs },
-  ] = await Promise.all([
-    // 订阅计划分布
-    supabaseAdmin
-      .from("hirelix_user_settings")
-      .select("subscription_plan, subscription_status, created_at"),
+  const [userSettings, totalUsersRows, usageThisMonth, recentSearches, recentErrors, schedulerJobs] =
+    await Promise.all([
+      db
+        .select({
+          subscription_plan: hirelix_user_settings.subscription_plan,
+          subscription_status: hirelix_user_settings.subscription_status,
+          created_at: hirelix_user_settings.created_at,
+        })
+        .from(hirelix_user_settings),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(hirelix_user_settings),
+      db
+        .select({
+          user_id: hirelix_usage_events.user_id,
+          event_type: hirelix_usage_events.event_type,
+          created_at: hirelix_usage_events.created_at,
+        })
+        .from(hirelix_usage_events)
+        .where(
+          and(
+            gte(hirelix_usage_events.created_at, monthStart),
+            lt(hirelix_usage_events.created_at, monthEnd),
+          ),
+        ),
+      db
+        .select({
+          id: hirelix_searches.id,
+          user_id: hirelix_searches.user_id,
+          title: hirelix_searches.title,
+          status: hirelix_searches.status,
+          pipeline_step: hirelix_searches.pipeline_step,
+          error_message: hirelix_searches.error_message,
+          created_at: hirelix_searches.created_at,
+        })
+        .from(hirelix_searches)
+        .orderBy(desc(hirelix_searches.created_at))
+        .limit(20),
+      db
+        .select({
+          id: hirelix_searches.id,
+          user_id: hirelix_searches.user_id,
+          title: hirelix_searches.title,
+          error_message: hirelix_searches.error_message,
+          created_at: hirelix_searches.created_at,
+        })
+        .from(hirelix_searches)
+        .where(eq(hirelix_searches.status, "error"))
+        .orderBy(desc(hirelix_searches.created_at))
+        .limit(10),
+      db
+        .select({
+          status: hirelix_search_jobs.status,
+          attempt_count: hirelix_search_jobs.attempt_count,
+          created_at: hirelix_search_jobs.created_at,
+          updated_at: hirelix_search_jobs.updated_at,
+        })
+        .from(hirelix_search_jobs)
+        .orderBy(desc(hirelix_search_jobs.created_at))
+        .limit(50),
+    ]);
 
-    // 总用户数（auth.users）
-    supabaseAdmin.from("hirelix_user_settings").select("*", { count: "exact", head: true }),
+  const totalUsers = totalUsersRows[0]?.count ?? 0;
 
-    // 本月使用事件
-    supabaseAdmin
-      .from("hirelix_usage_events")
-      .select("user_id, event_type, created_at")
-      .gte("created_at", monthStart)
-      .lt("created_at", monthEnd),
-
-    // 最近 20 条搜索
-    supabaseAdmin
-      .from("hirelix_searches")
-      .select("id, user_id, title, status, pipeline_step, error_message, created_at")
-      .order("created_at", { ascending: false })
-      .limit(20),
-
-    // 最近失败的搜索
-    supabaseAdmin
-      .from("hirelix_searches")
-      .select("id, user_id, title, error_message, created_at")
-      .eq("status", "error")
-      .order("created_at", { ascending: false })
-      .limit(10),
-
-    // 调度器任务队列状态
-    supabaseAdmin
-      .from("hirelix_search_jobs")
-      .select("status, attempt_count, created_at, updated_at")
-      .order("created_at", { ascending: false })
-      .limit(50),
-  ]);
-
-  // 统计计划分布
   const planDist: Record<string, number> = {};
-  for (const s of userSettings ?? []) {
+  for (const s of userSettings) {
     const key = `${s.subscription_plan ?? "free"}/${s.subscription_status ?? "none"}`;
     planDist[key] = (planDist[key] ?? 0) + 1;
   }
 
-  // 本月搜索数 / 丰富化数
-  const searchesThisMonth = (usageThisMonth ?? []).filter(
+  const searchesThisMonth = usageThisMonth.filter(
     (e) => e.event_type === "search_created",
   ).length;
-  const enrichesThisMonth = (usageThisMonth ?? []).filter(
+  const enrichesThisMonth = usageThisMonth.filter(
     (e) => e.event_type === "candidate_enriched",
   ).length;
 
-  // 活跃用户（本月有任意使用事件）
-  const activeUserIds = new Set((usageThisMonth ?? []).map((e) => e.user_id));
+  const activeUserIds = new Set(usageThisMonth.map((e) => e.user_id));
 
-  // 调度器健康
   const jobStatusDist: Record<string, number> = {};
-  for (const j of schedulerJobs ?? []) {
+  for (const j of schedulerJobs) {
     jobStatusDist[j.status] = (jobStatusDist[j.status] ?? 0) + 1;
   }
 
   return NextResponse.json({
     overview: {
-      totalUsers: totalUsers ?? 0,
-      proUsers: (userSettings ?? []).filter(
+      totalUsers,
+      proUsers: userSettings.filter(
         (s) =>
           (s.subscription_plan === "starter_monthly" ||
             s.subscription_plan === "starter_annual" ||
@@ -122,8 +144,8 @@ export async function GET(req: NextRequest) {
       enrichesThisMonth,
     },
     planDistribution: planDist,
-    recentSearches: recentSearches ?? [],
-    recentErrors: recentErrors ?? [],
+    recentSearches,
+    recentErrors,
     schedulerHealth: jobStatusDist,
   });
 }

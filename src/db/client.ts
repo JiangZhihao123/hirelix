@@ -78,7 +78,9 @@ export const db = new Proxy({} as DbClient, {
   get(_target, prop, receiver) {
     const real = getDb() as unknown as Record<PropertyKey, unknown>;
     const value = Reflect.get(real, prop, receiver);
-    return typeof value === "function" ? (value as Function).bind(real) : value;
+    return typeof value === "function"
+      ? (value as (...args: unknown[]) => unknown).bind(real)
+      : value;
   },
 });
 

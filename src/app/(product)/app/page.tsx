@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { DashboardPageSkeleton } from "@/components/ProductSkeletons";
-import { supabase } from "@/lib/supabase";
+import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import { getSearchDisplayTitle } from "@/lib/search-title";
 import {
@@ -86,43 +86,39 @@ export default function DashboardPage() {
       return;
     }
 
-    const { data: candidates } = await supabase
-      .from("hirelix_candidates")
-      .select("search_id, status")
-      .in("search_id", doneIds);
-
-    const counts: Record<string, CandidateCount> = {};
-    for (const candidate of candidates || []) {
-      if (!counts[candidate.search_id]) {
-        counts[candidate.search_id] = {
-          search_id: candidate.search_id,
-          total: 0,
-          starred: 0,
-          contacted: 0,
-        };
+    try {
+      const res = await fetchWithUserSession("/api/candidates/counts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ search_ids: doneIds }),
+      });
+      if (!res.ok) {
+        setCandidateCounts({});
+        return;
       }
-      counts[candidate.search_id].total++;
-      if (candidate.status === "starred") counts[candidate.search_id].starred++;
-      if (candidate.status === "contacted") counts[candidate.search_id].contacted++;
+      const data = (await res.json()) as { counts: Record<string, CandidateCount> };
+      setCandidateCounts(data.counts ?? {});
+    } catch {
+      setCandidateCounts({});
     }
-    setCandidateCounts(counts);
+  }, []);
+
+  const loadSearches = useCallback(async (): Promise<SearchRow[]> => {
+    const res = await fetchWithUserSession("/api/searches");
+    if (!res.ok) return [];
+    const data = (await res.json()) as { searches: SearchRow[] };
+    return data.searches ?? [];
   }, []);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
-    const { data: searchData } = await supabase
-      .from("hirelix_searches")
-      .select("id, title, parsed_requirements, status, pipeline_step, parse_completed_at, partial_ready_at, created_at, updated_at, error_message, warning_message, jd_text")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    const nextSearches = searchData || [];
+    const nextSearches = await loadSearches();
     setSearches(nextSearches);
     setLoading(false);
     setRelativeTimeNow(Date.now());
     void fetchCandidateCounts(nextSearches);
 
-    const staleSearchIds = (searchData || [])
+    const staleSearchIds = nextSearches
       .filter((search) =>
         isStaleProcessingSearch(search.status, search.updated_at),
       )
@@ -130,30 +126,23 @@ export default function DashboardPage() {
 
     if (staleSearchIds.length > 0) {
       void (async () => {
-        await supabase
-          .from("hirelix_searches")
-          .update({
-            status: "error",
-            pipeline_step: "error",
-            error_message: getStalledSearchMessage(),
-            updated_at: new Date().toISOString(),
-          })
-          .in("id", staleSearchIds)
-          .eq("user_id", user.id);
+        try {
+          await fetchWithUserSession("/api/searches/mark-stale", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: staleSearchIds }),
+          });
+        } catch {
+          // best-effort
+        }
 
-        const { data: refreshedSearches } = await supabase
-          .from("hirelix_searches")
-          .select("id, title, parsed_requirements, status, pipeline_step, parse_completed_at, partial_ready_at, created_at, updated_at, error_message, warning_message, jd_text")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-
-        const nextRefreshedSearches = refreshedSearches || [];
-        setSearches(nextRefreshedSearches);
+        const refreshed = await loadSearches();
+        setSearches(refreshed);
         setRelativeTimeNow(Date.now());
-        void fetchCandidateCounts(nextRefreshedSearches);
+        void fetchCandidateCounts(refreshed);
       })();
     }
-  }, [fetchCandidateCounts, user]);
+  }, [fetchCandidateCounts, loadSearches, user]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -283,10 +272,14 @@ export default function DashboardPage() {
     e.stopPropagation();
     if (!confirm("Delete this sourcing task and all its candidates?")) return;
     setDeleting(searchId);
-    await supabase.from("hirelix_candidates").delete().eq("search_id", searchId);
-    await supabase.from("hirelix_searches").delete().eq("id", searchId);
-    setSearches((prev) => prev.filter((s) => s.id !== searchId));
-    setDeleting(null);
+    try {
+      // Backend deletes the search row; the FK cascade also removes candidates,
+      // search jobs, notifications, etc.
+      await fetchWithUserSession(`/api/searches/${searchId}`, { method: "DELETE" });
+      setSearches((prev) => prev.filter((s) => s.id !== searchId));
+    } finally {
+      setDeleting(null);
+    }
   }
 
   const statusIcon = (status: string) => {

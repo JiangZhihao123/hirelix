@@ -6,7 +6,6 @@ import Link from "next/link";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { ResultPageSkeleton } from "@/components/ProductSkeletons";
 import { LinkedInScanAnimation } from "@/components/LinkedInScanAnimation";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { useBilling } from "@/lib/use-billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
@@ -153,9 +152,15 @@ export default function SearchResultPage() {
       prev.map((c) => (ids.includes(c.id) ? { ...c, status: newStatus } : c)),
     );
     setSelectedIds(new Set());
-    for (const cid of ids) {
-      await supabase.from("hirelix_candidates").update({ status: newStatus }).eq("id", cid);
-    }
+    await Promise.all(
+      ids.map((cid) =>
+        fetchWithUserSession(`/api/candidates/${cid}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        }).catch(() => null),
+      ),
+    );
   }
 
   function exportCSV(rows: CandidateRow[]) {
@@ -211,30 +216,40 @@ export default function SearchResultPage() {
   const fetchData = useCallback(async () => {
     if (authLoading || !user || !id) return;
 
-    const searchRequest = supabase.from("hirelix_searches").select("*").eq("id", id).single();
-    const candidatesRequest = supabase
-      .from("hirelix_candidates")
-      .select("*")
-      .eq("search_id", id)
-      .order("match_score", { ascending: false });
-
-    const { data: searchData } = await searchRequest;
+    let searchData: SearchRow | null = null;
+    let candidatesData: CandidateRow[] | null = null;
+    try {
+      const res = await fetchWithUserSession(`/api/searches/${id}`);
+      if (res.ok) {
+        const payload = (await res.json()) as {
+          search: SearchRow;
+          candidates: CandidateRow[];
+        };
+        searchData = payload.search ?? null;
+        candidatesData = payload.candidates ?? [];
+      }
+    } catch {
+      // best-effort
+    }
 
     let normalizedSearch = searchData;
     if (
       searchData &&
       isStaleProcessingSearch(searchData.status, searchData.updated_at)
     ) {
-      await supabase
-        .from("hirelix_searches")
-        .update({
-          status: "error",
-          pipeline_step: "error",
-          error_message: getStalledSearchMessage(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .eq("user_id", user.id);
+      try {
+        await fetchWithUserSession(`/api/searches/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "error",
+            pipeline_step: "error",
+            error_message: getStalledSearchMessage(),
+          }),
+        });
+      } catch {
+        // best-effort
+      }
 
       normalizedSearch = {
         ...searchData,
@@ -246,24 +261,26 @@ export default function SearchResultPage() {
     }
     if (normalizedSearch) setSearch(normalizedSearch);
     setLoading(false);
-    const { data: candidatesData } = await candidatesRequest;
     if (
       normalizedSearch &&
       normalizedSearch.status === "deep_scoring" &&
       (candidatesData?.length || 0) > 0 &&
       isOlderThanMinutes(normalizedSearch.updated_at)
     ) {
-      await supabase
-        .from("hirelix_searches")
-        .update({
-          status: "degraded",
-          pipeline_step: "done",
-          warning_message:
-            "Advanced profile refinement took too long, but your shortlist is still ready to review.",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id)
-        .eq("user_id", user.id);
+      try {
+        await fetchWithUserSession(`/api/searches/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "degraded",
+            pipeline_step: "done",
+            warning_message:
+              "Advanced profile refinement took too long, but your shortlist is still ready to review.",
+          }),
+        });
+      } catch {
+        // best-effort
+      }
 
       normalizedSearch = {
         ...normalizedSearch,
@@ -483,10 +500,15 @@ export default function SearchResultPage() {
         c.id === candidateId ? { ...c, status: newStatus } : c,
       ),
     );
-    await supabase
-      .from("hirelix_candidates")
-      .update({ status: newStatus })
-      .eq("id", candidateId);
+    try {
+      await fetchWithUserSession(`/api/candidates/${candidateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch {
+      // best-effort; UI state is optimistic
+    }
   }
 
   function handleCandidateExpand(candidate: CandidateRow) {

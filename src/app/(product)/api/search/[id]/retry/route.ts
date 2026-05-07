@@ -5,8 +5,11 @@ import {
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
 } from "@/lib/search";
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import { hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
-import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const maxDuration = 30;
 
@@ -20,11 +23,19 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: search } = await supabaseAdmin
-    .from("hirelix_searches")
-    .select("id, user_id, jd_text, parsed_requirements, status, updated_at")
-    .eq("id", id)
-    .single();
+  const searchRows = await db
+    .select({
+      id: hirelix_searches.id,
+      user_id: hirelix_searches.user_id,
+      jd_text: hirelix_searches.jd_text,
+      parsed_requirements: hirelix_searches.parsed_requirements,
+      status: hirelix_searches.status,
+      updated_at: hirelix_searches.updated_at,
+    })
+    .from(hirelix_searches)
+    .where(eq(hirelix_searches.id, id))
+    .limit(1);
+  const search = searchRows[0];
 
   if (!search || search.user_id !== user.id) {
     return NextResponse.json({ error: "Search not found" }, { status: 404 });
@@ -35,7 +46,7 @@ export async function POST(
     search.status === "degraded" ||
     isStaleProcessingSearch(
       search.status,
-      (search as { updated_at?: string | null }).updated_at,
+      search.updated_at?.toISOString() ?? null,
     );
 
   if (!canRetry) {
@@ -55,21 +66,21 @@ export async function POST(
     candidateCount,
   });
 
-  const timestamp = new Date().toISOString();
-  await supabaseAdmin
-    .from("hirelix_searches")
-    .update({
+  const ts = new Date();
+  await db
+    .update(hirelix_searches)
+    .set({
       status: "queued",
       pipeline_step: "queued",
       error_message: null,
       warning_message: null,
-      queued_at: timestamp,
+      queued_at: ts,
       search_completed_at: null,
       partial_ready_at: null,
       done_at: null,
-      updated_at: timestamp,
+      updated_at: ts,
     })
-    .eq("id", id);
+    .where(eq(hirelix_searches.id, id));
 
   kickSearchJobRunner(resolveSearchJobRunnerBaseUrl(req.nextUrl.origin), {
     searchId: id,

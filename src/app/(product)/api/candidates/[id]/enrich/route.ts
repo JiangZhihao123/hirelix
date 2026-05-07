@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import {
+  hirelix_candidates,
+  hirelix_searches,
+  hirelix_usage_events,
+  hirelix_user_settings,
+} from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { findEmail } from "@/lib/hunter";
 import { getUserFromApiRequest } from "@/lib/api-auth";
@@ -15,7 +24,6 @@ import {
   buildRecruiterOutreachEvidence,
 } from "@/lib/recruiter-outreach";
 import { sanitizeDisplayName } from "@/lib/display-name";
-import { supabaseAdmin } from "@/lib/supabase-server";
 
 /**
  * POST /api/candidates/[id]/enrich
@@ -46,15 +54,79 @@ export async function POST(
     const billing = await getBillingSummaryForUser(user.id);
 
     // Get candidate + parent search
-    const { data: candidate, error: candErr } = await supabaseAdmin
-      .from("hirelix_candidates")
-      .select("*, search:hirelix_searches(jd_text, parsed_requirements)")
-      .eq("id", id)
-      .single();
+    const candidateRows = await db
+      .select({
+        id: hirelix_candidates.id,
+        search_id: hirelix_candidates.search_id,
+        name: hirelix_candidates.name,
+        headline: hirelix_candidates.headline,
+        location: hirelix_candidates.location,
+        skills: hirelix_candidates.skills,
+        experience_years: hirelix_candidates.experience_years,
+        match_reasons: hirelix_candidates.match_reasons,
+        match_score: hirelix_candidates.match_score,
+        profile_url: hirelix_candidates.profile_url,
+        github_url: hirelix_candidates.github_url,
+        email: hirelix_candidates.email,
+        outreach_draft: hirelix_candidates.outreach_draft,
+        metadata: hirelix_candidates.metadata,
+        enriched_at: hirelix_candidates.enriched_at,
+        searchJdText: hirelix_searches.jd_text,
+        searchParsedRequirements: hirelix_searches.parsed_requirements,
+      })
+      .from(hirelix_candidates)
+      .leftJoin(hirelix_searches, eq(hirelix_searches.id, hirelix_candidates.search_id))
+      .where(eq(hirelix_candidates.id, id))
+      .limit(1);
 
-    if (candErr || !candidate) {
+    const candidateRow = candidateRows[0];
+    if (!candidateRow) {
       return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
     }
+
+    // Build a candidate object compatible with the original Supabase shape
+    // (which embedded `search` as a sub-object).
+    const candidate: Record<string, unknown> & {
+      id: string;
+      name: string;
+      search_id: string;
+      headline: string | null;
+      location: string | null;
+      skills: string[] | null;
+      experience_years: number | null;
+      match_reasons: string[] | null;
+      match_score: number | null;
+      profile_url: string | null;
+      github_url: string | null;
+      email: string | null;
+      outreach_draft: string | null;
+      metadata: unknown;
+      enriched_at: Date | null;
+      search: { jd_text: string | null; parsed_requirements: unknown } | null;
+    } = {
+      id: candidateRow.id,
+      name: candidateRow.name,
+      search_id: candidateRow.search_id,
+      headline: candidateRow.headline,
+      location: candidateRow.location,
+      skills: candidateRow.skills,
+      experience_years: candidateRow.experience_years,
+      match_reasons: candidateRow.match_reasons,
+      match_score: candidateRow.match_score,
+      profile_url: candidateRow.profile_url,
+      github_url: candidateRow.github_url,
+      email: candidateRow.email,
+      outreach_draft: candidateRow.outreach_draft,
+      metadata: candidateRow.metadata,
+      enriched_at: candidateRow.enriched_at,
+      search:
+        candidateRow.searchJdText !== null && candidateRow.searchJdText !== undefined
+          ? {
+              jd_text: candidateRow.searchJdText,
+              parsed_requirements: candidateRow.searchParsedRequirements,
+            }
+          : null,
+    };
 
     const updates: Record<string, unknown> = {};
     const needsContactLookup = !candidate.email && !regenerateOutreach;
@@ -79,11 +151,12 @@ export async function POST(
     // Get company profile from user settings
     let companyProfile: Record<string, string> | null = null;
     if (user) {
-      const { data: settings } = await supabaseAdmin
-        .from("hirelix_user_settings")
-        .select("company_profile")
-        .eq("user_id", user.id)
-        .single();
+      const settingsRows = await db
+        .select({ company_profile: hirelix_user_settings.company_profile })
+        .from(hirelix_user_settings)
+        .where(eq(hirelix_user_settings.user_id, user.id))
+        .limit(1);
+      const settings = settingsRows[0];
       if (settings?.company_profile && typeof settings.company_profile === "object") {
         companyProfile = settings.company_profile as Record<string, string>;
       }
@@ -288,16 +361,16 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
     // ── Update DB ──
     if (Object.keys(updates).length > 0) {
       if (!candidate.enriched_at && needsContactLookup) {
-        updates.enriched_at = new Date().toISOString();
+        updates.enriched_at = new Date();
       }
-      await supabaseAdmin
-        .from("hirelix_candidates")
-        .update(updates)
-        .eq("id", id);
+      await db
+        .update(hirelix_candidates)
+        .set(updates)
+        .where(eq(hirelix_candidates.id, id));
     }
 
     if (!candidate.enriched_at && needsContactLookup) {
-      await supabaseAdmin.from("hirelix_usage_events").insert({
+      await db.insert(hirelix_usage_events).values({
         user_id: user.id,
         event_type: "candidate_enriched",
         related_id: candidate.id,
