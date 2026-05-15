@@ -57,6 +57,10 @@ type CandidateCount = {
   total: number;
   starred: number;
   contacted: number;
+  replied: number;
+  submitted: number;
+  interview: number;
+  placed: number;
 };
 
 export default function DashboardPage() {
@@ -608,6 +612,18 @@ export default function DashboardPage() {
                         )}
                         {stats.contacted > 0 && (
                           <span className="text-blue-500">✉ {stats.contacted}</span>
+                        )}
+                        {stats.replied > 0 && (
+                          <span className="text-emerald-600">Reply {stats.replied}</span>
+                        )}
+                        {stats.submitted > 0 && (
+                          <span className="text-violet-600">Submit {stats.submitted}</span>
+                        )}
+                        {stats.interview > 0 && (
+                          <span className="text-indigo-600">Interview {stats.interview}</span>
+                        )}
+                        {stats.placed > 0 && (
+                          <span className="text-emerald-700">Placed {stats.placed}</span>
                         )}
                       </div>
                     )}

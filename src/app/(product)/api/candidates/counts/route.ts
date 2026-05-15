@@ -10,7 +10,7 @@ import { getUserFromApiRequest } from "@/lib/api-auth";
  *
  * Body: { search_ids: string[] }
  *
- * Returns a record keyed by `search_id` with `{ total, starred, contacted }`
+ * Returns a record keyed by `search_id` with validation counts for the dashboard.
  * counts for the dashboard. Only searches owned by the current user are
  * included; foreign / unknown ids are silently dropped.
  */
@@ -61,16 +61,38 @@ export async function POST(req: NextRequest) {
 
   const counts: Record<
     string,
-    { search_id: string; total: number; starred: number; contacted: number }
+    {
+      search_id: string;
+      total: number;
+      starred: number;
+      contacted: number;
+      replied: number;
+      submitted: number;
+      interview: number;
+      placed: number;
+    }
   > = {};
   for (const candidate of candidates) {
     const key = candidate.search_id;
     if (!counts[key]) {
-      counts[key] = { search_id: key, total: 0, starred: 0, contacted: 0 };
+      counts[key] = {
+        search_id: key,
+        total: 0,
+        starred: 0,
+        contacted: 0,
+        replied: 0,
+        submitted: 0,
+        interview: 0,
+        placed: 0,
+      };
     }
     counts[key].total += 1;
     if (candidate.status === "starred") counts[key].starred += 1;
     if (candidate.status === "contacted") counts[key].contacted += 1;
+    if (candidate.status === "replied") counts[key].replied += 1;
+    if (candidate.status === "submitted") counts[key].submitted += 1;
+    if (candidate.status === "interview") counts[key].interview += 1;
+    if (candidate.status === "placed") counts[key].placed += 1;
   }
 
   return NextResponse.json({ counts });

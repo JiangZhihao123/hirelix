@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_candidates, hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { isValidCandidateStatus } from "@/lib/candidate-status";
 
 export async function PATCH(
   req: NextRequest,
@@ -19,7 +20,7 @@ export async function PATCH(
     const body = await req.json();
     const { status } = body;
 
-    if (!status || !["new", "contacted", "replied", "rejected"].includes(status)) {
+    if (!isValidCandidateStatus(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 

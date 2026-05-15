@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
+import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_OPTIONS } from "@/lib/candidate-status";
 import { sanitizeDisplayName } from "@/lib/display-name";
 import type { CandidateRow } from "./types";
 import {
@@ -215,6 +216,9 @@ export function CandidateCard({
     starred: "text-amber-500",
     contacted: "text-blue-600",
     replied: "text-green-600",
+    submitted: "text-violet-600",
+    interview: "text-indigo-600",
+    placed: "text-emerald-700",
     rejected: "text-red-500",
   };
 
@@ -264,7 +268,7 @@ export function CandidateCard({
               <span
                 className={`text-xs font-medium capitalize ${statusColors[candidate.status] || ""}`}
               >
-                {candidate.status}
+                {CANDIDATE_STATUS_LABELS[candidate.status as keyof typeof CANDIDATE_STATUS_LABELS] || candidate.status}
               </span>
             )}
           </div>
@@ -651,7 +655,7 @@ export function CandidateCard({
                   Status
                 </p>
                 <div className="flex gap-2">
-                  {["new", "starred", "contacted", "replied", "rejected"].map((s) => (
+                  {CANDIDATE_STATUS_OPTIONS.map((s) => (
                     <button
                       key={s}
                       onClick={() => onStatusChange(candidate.id, s)}
@@ -661,7 +665,7 @@ export function CandidateCard({
                           : "bg-surface text-muted hover:bg-surface-dark"
                       }`}
                     >
-                      {s}
+                      {CANDIDATE_STATUS_LABELS[s]}
                     </button>
                   ))}
                 </div>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
+import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_OPTIONS } from "@/lib/candidate-status";
 import { sanitizeDisplayName } from "@/lib/display-name";
 import type { CandidateRow, PublicEvidenceItem } from "./types";
 import {
@@ -380,9 +381,9 @@ export function CandidateWorkbenchDetail({
               onChange={(event) => onStatusChange(localCandidate.id, event.target.value)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold capitalize text-slate-700 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
             >
-              {["new", "starred", "contacted", "replied", "rejected"].map((status) => (
+              {CANDIDATE_STATUS_OPTIONS.map((status) => (
                 <option key={status} value={status}>
-                  {status}
+                  {CANDIDATE_STATUS_LABELS[status]}
                 </option>
               ))}
             </select>

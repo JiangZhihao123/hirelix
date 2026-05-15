@@ -9,6 +9,7 @@ import { LinkedInScanAnimation } from "@/components/LinkedInScanAnimation";
 import { useAuth } from "@/components/AuthProvider";
 import { useBilling } from "@/lib/use-billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
+import { CANDIDATE_STATUS_LABELS } from "@/lib/candidate-status";
 import {
   getSearchTaskEtaCopy,
   getSearchTaskStage,
@@ -37,14 +38,18 @@ import {
 import {
   ArrowLeft,
   AlertCircle,
+  Check,
   CheckCircle2,
+  Copy,
   Download,
   Eye,
   EyeOff,
   FileText,
+  Mail,
   MapPin,
   RotateCcw,
   Search,
+  Send,
 } from "lucide-react";
 import type {
   CandidateDisplayTier,
@@ -64,22 +69,63 @@ import {
   formatRelocationTag,
   formatStartedAgo,
   formatTierLabel,
+  deriveCurrentCompany,
+  deriveCurrentRole,
   getCandidateCapabilityScore,
   getCandidateDisplayTier,
   getCandidateJoinLikelihoodScore,
   getCandidateOverallScore,
   getCandidateRelevanceScore,
+  getCandidateSellingKit,
   getProviderDelayCopy,
   getSearchErrorPresentation,
   getSearchPageCacheKey,
   hasPublicGithubEvidence,
+  parseOutreach,
   positiveInt,
   readSearchPageCache,
+  formatRecruiterSellingHeadline,
 } from "./_components/utils";
 import { CandidateCard } from "./_components/CandidateCard";
 import { CandidateWorkbenchDetail } from "./_components/CandidateWorkbenchDetail";
 import { CandidateWorkbenchListItem } from "./_components/CandidateWorkbenchListItem";
 import { TaskTimelinePanel } from "./_components/TaskTimelinePanel";
+
+function buildCandidateClientBrief(candidate: CandidateRow, index: number) {
+  const sellingKit = getCandidateSellingKit(candidate);
+  const headline = formatRecruiterSellingHeadline(candidate);
+  const currentRole = deriveCurrentRole(candidate);
+  const currentCompany = deriveCurrentCompany(candidate);
+  const titleLine = [
+    `${index + 1}. ${candidate.name}`,
+    currentRole,
+    currentCompany,
+    candidate.location,
+  ].filter(Boolean).join(" | ");
+  const clientBrief = sellingKit?.client_brief;
+  const whyMatch = clientBrief?.why_match?.length
+    ? clientBrief.why_match
+    : candidate.match_reasons.slice(0, 3);
+  const evidence = clientBrief?.evidence_refs?.length
+    ? clientBrief.evidence_refs
+    : (sellingKit?.evidence_badges || [])
+        .map((badge) => [badge.label, badge.citation_label].filter(Boolean).join(" "))
+        .filter(Boolean);
+  const risks = clientBrief?.risks_to_verify?.length
+    ? clientBrief.risks_to_verify
+    : sellingKit?.risk_flags || [];
+
+  return [
+    titleLine,
+    headline || clientBrief?.positioning || candidate.headline || "",
+    whyMatch.length ? "Why match:" : "",
+    ...whyMatch.map((item) => `- ${item}`),
+    evidence.length ? "Evidence:" : "",
+    ...evidence.slice(0, 3).map((item) => `- ${item}`),
+    risks.length ? "Risks to verify:" : "",
+    ...risks.slice(0, 2).map((item) => `- ${item}`),
+  ].filter(Boolean).join("\n");
+}
 
 export default function SearchResultPage() {
   const { id } = useParams<{ id: string }>();
@@ -96,6 +142,7 @@ export default function SearchResultPage() {
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
   const [candidateTier, setCandidateTier] = useState<CandidateDisplayTier>("priority_outreach");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
+  const [copiedWorkflowAction, setCopiedWorkflowAction] = useState<string | null>(null);
   const [, setUpgradeError] = useState<string | null>(null);
   const [rescoreError, setRescoreError] = useState<string | null>(null);
   const [rescoreSubmitting, setRescoreSubmitting] = useState(false);
@@ -190,6 +237,13 @@ export default function SearchResultPage() {
     })}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function copyWorkflowText(text: string, action: string) {
+    if (!text) return;
+    void navigator.clipboard.writeText(text);
+    setCopiedWorkflowAction(action);
+    window.setTimeout(() => setCopiedWorkflowAction(null), 1800);
   }
 
   async function rerunScoringFromCache() {
@@ -759,6 +813,24 @@ export default function SearchResultPage() {
     parsedRequirements: search.parsed_requirements,
     fallback: "New shortlist",
   });
+  const clientReadyCandidates = (priorityCandidates.length > 0 ? priorityCandidates : allCandidates).slice(0, 5);
+  const clientReadyBriefText = [
+    `Client-ready shortlist: ${displayTitle}`,
+    locationScope ? `Location/work model: ${[locationScope, workModel].filter(Boolean).join(" | ")}` : null,
+    requiredSkills.length > 0 ? `Must-haves: ${requiredSkills.slice(0, 8).join(", ")}` : null,
+    "",
+    ...clientReadyCandidates.map((candidate, index) => buildCandidateClientBrief(candidate, index)),
+  ].filter((line): line is string => typeof line === "string").join("\n\n");
+  const outreachQueueCandidates = (priorityCandidates.length > 0 ? priorityCandidates : visibleCandidates)
+    .filter((candidate) => candidate.status !== "rejected" && candidate.status !== "placed")
+    .slice(0, 8);
+  const validationCounts = {
+    contacted: allCandidates.filter((candidate) => candidate.status === "contacted").length,
+    replied: allCandidates.filter((candidate) => candidate.status === "replied").length,
+    submitted: allCandidates.filter((candidate) => candidate.status === "submitted").length,
+    interview: allCandidates.filter((candidate) => candidate.status === "interview").length,
+    placed: allCandidates.filter((candidate) => candidate.status === "placed").length,
+  };
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation(search.error_message);
@@ -1113,6 +1185,152 @@ export default function SearchResultPage() {
         </div>
       )}
 
+      {isReviewable && allCandidates.length > 0 && (
+        <div className="mb-4 grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
+          <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                  Client-ready shortlist
+                </p>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                  Copy a client brief before you start outreach.
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  Use this as the recruiter-facing summary: who to lead with, why they fit, what proof is usable, and what still needs verification.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyWorkflowText(clientReadyBriefText, "client-brief")}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+              >
+                {copiedWorkflowAction === "client-brief" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copiedWorkflowAction === "client-brief" ? "Copied" : "Copy brief"}
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {clientReadyCandidates.map((candidate, index) => {
+                const sellingKit = getCandidateSellingKit(candidate);
+                const headline = formatRecruiterSellingHeadline(candidate);
+                const currentCompany = deriveCurrentCompany(candidate);
+                const currentRole = deriveCurrentRole(candidate);
+                return (
+                  <div key={candidate.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                        #{index + 1}
+                      </span>
+                      <p className="text-sm font-semibold text-slate-950">{candidate.name}</p>
+                      <span className="text-xs text-slate-500">
+                        {[currentRole, currentCompany, candidate.location].filter(Boolean).join(" | ")}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      {headline || sellingKit?.client_brief?.positioning || candidate.match_reasons[0] || "Relevant based on the current search evidence."}
+                    </p>
+                    {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).length > 0 && (
+                      <p className="mt-2 text-xs text-amber-700">
+                        Verify: {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).slice(0, 2).join("; ")}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                  Outreach approval queue
+                </p>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                  Review, copy, then mark progress.
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  This keeps the workflow human-in-the-loop while still moving candidates from shortlist to contacted, replied, submitted, interview, and placed.
+                </p>
+              </div>
+              <div className="grid grid-cols-5 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                {(["contacted", "replied", "submitted", "interview", "placed"] as const).map((status) => (
+                  <div key={status} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                    <p>{CANDIDATE_STATUS_LABELS[status]}</p>
+                    <p className="mt-1 text-sm text-slate-950">{validationCounts[status]}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {outreachQueueCandidates.map((candidate) => {
+                const outreach = parseOutreach(candidate.outreach_draft);
+                const linkedinCopy = outreach.linkedin || outreach.email || "";
+                const emailCopy = outreach.email
+                  ? [outreach.subject ? `Subject: ${outreach.subject}` : null, outreach.email].filter(Boolean).join("\n\n")
+                  : "";
+                return (
+                  <div key={candidate.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-950">{candidate.name}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {[deriveCurrentRole(candidate), deriveCurrentCompany(candidate), candidate.location].filter(Boolean).join(" | ")}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                        {CANDIDATE_STATUS_LABELS[candidate.status as keyof typeof CANDIDATE_STATUS_LABELS] || candidate.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={!linkedinCopy}
+                        onClick={() => copyWorkflowText(linkedinCopy, `linkedin-${candidate.id}`)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {copiedWorkflowAction === `linkedin-${candidate.id}` ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        LinkedIn copy
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!emailCopy}
+                        onClick={() => copyWorkflowText(emailCopy, `email-${candidate.id}`)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {copiedWorkflowAction === `email-${candidate.id}` ? <Check className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+                        Email copy
+                      </button>
+                      {candidate.profile_url && (
+                        <a
+                          href={candidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Open profile
+                        </a>
+                      )}
+                      {(["contacted", "submitted"] as const).map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => void handleStatusChange(candidate.id, status)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          Mark {CANDIDATE_STATUS_LABELS[status].toLowerCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
       {/* JD original text toggle */}
       {showJd && search.jd_text && (
         <div className="mb-6 rounded-xl border border-border bg-surface p-5">
@@ -1292,14 +1510,14 @@ export default function SearchResultPage() {
                 </button>
                 {selectedIds.size > 0 && (
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted">{selectedIds.size} selected →</span>
-                    {["starred", "contacted", "rejected"].map((s) => (
+                    <span className="text-xs text-muted">{selectedIds.size} selected</span>
+                    {(["starred", "contacted", "submitted", "rejected"] as const).map((s) => (
                       <button
                         key={s}
                         onClick={() => bulkStatusChange(s)}
                         className="rounded-md cursor-pointer bg-surface px-2 py-0.5 text-xs font-medium text-muted capitalize hover:bg-surface-dark hover:text-foreground transition-colors"
                       >
-                        {s}
+                        {CANDIDATE_STATUS_LABELS[s]}
                       </button>
                     ))}
                   </div>

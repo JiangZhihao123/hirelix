@@ -33,6 +33,7 @@ This directory is the home for project documentation.
 ### Launch
 
 - [`launch/paid-beta-readiness.md`](./launch/paid-beta-readiness.md): paid beta launch checklist, rollout order, and production verification notes
+- [`launch/real-role-validation.md`](./launch/real-role-validation.md): design-partner validation playbook for real technical recruiter roles
 
 ### Marketing
 
