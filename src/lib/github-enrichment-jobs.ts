@@ -67,6 +67,26 @@ function nowDate() {
   return new Date();
 }
 
+const GITHUB_JOB_TIMESTAMP_FIELDS = new Set([
+  "available_at",
+  "locked_at",
+  "started_at",
+  "finished_at",
+  "updated_at",
+]);
+
+function normalizeTimestampFields(patch: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(patch).map(([key, value]) => {
+      if (typeof value === "string" && GITHUB_JOB_TIMESTAMP_FIELDS.has(key)) {
+        const date = new Date(value);
+        if (!Number.isNaN(date.valueOf())) return [key, date];
+      }
+      return [key, value];
+    }),
+  );
+}
+
 function minutesAgoDate(minutes: number) {
   return new Date(Date.now() - minutes * 60 * 1000);
 }
@@ -385,13 +405,13 @@ async function updateJobStatus(
   extra: Record<string, unknown> = {},
 ) {
   const ts = nowDate();
-  const patch: Record<string, unknown> = {
+  const patch: Record<string, unknown> = normalizeTimestampFields({
     status,
     updated_at: ts,
     ...(status === "done" || status === "error" ? { finished_at: ts } : {}),
     ...(status !== "queued" ? { locked_at: null } : {}),
     ...extra,
-  };
+  });
   await db
     .update(hirelix_github_enrichment_jobs)
     .set(patch)

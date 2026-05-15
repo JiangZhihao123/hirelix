@@ -333,6 +333,22 @@ export async function updateRunningJobStatus(
 ) {
   const maxAttempts = 3;
   let lastError: { message: string; code?: string } | null = null;
+  const timestampFields = new Set([
+    "available_at",
+    "locked_at",
+    "started_at",
+    "finished_at",
+    "updated_at",
+  ]);
+  const normalizedExtra = Object.fromEntries(
+    Object.entries(extra).map(([key, value]) => {
+      if (typeof value === "string" && timestampFields.has(key)) {
+        const date = new Date(value);
+        if (!Number.isNaN(date.valueOf())) return [key, date];
+      }
+      return [key, value];
+    }),
+  );
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -341,7 +357,7 @@ export async function updateRunningJobStatus(
         .set({
           status,
           updated_at: new Date(),
-          ...extra,
+          ...normalizedExtra,
         })
         .where(
           and(

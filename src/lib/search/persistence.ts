@@ -75,6 +75,31 @@ function safeInt(value: unknown, fallback = 0) {
     : fallback;
 }
 
+const SEARCH_TIMESTAMP_FIELDS = new Set([
+  "queued_at",
+  "parse_completed_at",
+  "search_completed_at",
+  "partial_ready_at",
+  "done_at",
+  "created_at",
+  "updated_at",
+]);
+
+function normalizeTimestampFields(
+  patch: Record<string, unknown>,
+  timestampFields: Set<string>,
+) {
+  return Object.fromEntries(
+    Object.entries(patch).map(([key, value]) => {
+      if (typeof value === "string" && timestampFields.has(key)) {
+        const date = new Date(value);
+        if (!Number.isNaN(date.valueOf())) return [key, date];
+      }
+      return [key, value];
+    }),
+  );
+}
+
 type LlmUsageEventRow = {
   search_id: string | null;
   job_id: string | null;
@@ -110,7 +135,6 @@ type LlmUsageWriterState = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __hirelixLlmUsageWriterState__: LlmUsageWriterState | undefined;
 }
 
@@ -298,11 +322,12 @@ export async function setSearchStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ) {
+  const normalizedExtra = normalizeTimestampFields(extra, SEARCH_TIMESTAMP_FIELDS);
   const payload = {
     status,
     pipeline_step: status === "degraded" ? "done" : status,
     updated_at: new Date(),
-    ...extra,
+    ...normalizedExtra,
   };
 
   const maxAttempts = 3;

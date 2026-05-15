@@ -212,12 +212,13 @@ export async function judgeGithubIdentityWithLlm(params: {
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_GITHUB_IDENTITY_THINKING", "disabled"),
     usageEvent: {
       searchId: params.searchId,
-      jobId: params.jobId,
+      jobId: null,
       userId: params.userId,
       stage: "github_identity_judge",
       batchSize: 1,
       metadata: {
         identity_judge_version: GITHUB_IDENTITY_JUDGE_VERSION,
+        github_enrichment_job_id: params.jobId ?? null,
         discovery_source: params.discovery.source,
         discovery_confidence: params.discovery.confidence,
       },
