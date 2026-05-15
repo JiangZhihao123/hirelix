@@ -227,8 +227,8 @@ export function AuthModal({
                 }
                 contextBody={
                   isSearchAuthIntent
-                    ? "Use Google or email to keep this exact role attached and move straight into the search."
-                    : "Use Google or email to sign in without breaking the flow."
+                    ? "Use Google to keep this exact role attached and move straight into the search."
+                    : "Use Google to sign in without breaking the flow."
                 }
                 onSuccessStart={onSuccessStart}
               />

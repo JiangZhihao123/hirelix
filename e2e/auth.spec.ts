@@ -8,24 +8,19 @@ test.describe("Authentication Page", () => {
   test("should show login form when not authenticated", async ({ page }) => {
     // Should show sign-in page with logo
     await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
-    await expect(page.getByText("Use Google, email, or password to continue into the next shortlist flow.")).toBeVisible();
+    await expect(page.getByText("Use Google to continue into the next shortlist flow.")).toBeVisible();
   });
 
   test("should display Google OAuth button", async ({ page }) => {
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
   });
 
-  test("should display email OTP form and allow switching to password login", async ({ page }) => {
-    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Use password instead" })).toBeVisible();
-
-    await page.getByRole("button", { name: "Use password instead" }).click();
-
-    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
-    await expect(page.getByPlaceholder("Password")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with password" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Use email code instead" })).toBeVisible();
+  test("should only expose Google sign in on the product auth gate", async ({ page }) => {
+    await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
+    await expect(page.getByPlaceholder("you@company.com")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use password instead" })).toHaveCount(0);
+    await expect(page.getByPlaceholder("Password")).toHaveCount(0);
   });
 
   test("should not expose sign up UI", async ({ page }) => {
@@ -41,10 +36,8 @@ test.describe("Authentication Page", () => {
     await expect(backLink).toHaveAttribute("href", "/");
   });
 
-  test("should not submit form with empty fields", async ({ page }) => {
-    // Try submit with empty fields — form should use native validation
-    await page.getByRole("button", { name: "Continue with email" }).click();
-    // Should still be on the auth page
+  test("should stay on the auth gate until Google sign in starts", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeEnabled();
   });
 });

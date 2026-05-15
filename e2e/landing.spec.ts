@@ -50,8 +50,8 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("heading", { name: "One more step to open your shortlist." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Use password instead" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use password instead" })).toHaveCount(0);
     await expect(modal.getByRole("button", { name: "Close sign in dialog" })).toBeFocused();
 
     await page.keyboard.press("Escape");
@@ -68,19 +68,22 @@ test.describe("Landing Page", () => {
     await expect(page.getByTestId("landing-auth-preview-title")).toHaveText("Senior Software Engineer");
   });
 
-  test("Google OAuth should route through the app auth callback", async ({ page }) => {
+  test("Google OAuth should request better-auth social sign in with the intended callback", async ({ page }) => {
+    const signInPayloads: Array<Record<string, unknown>> = [];
+    await page.route("**/api/auth/sign-in/social", async (route) => {
+      signInPayloads.push(JSON.parse(route.request().postData() || "{}") as Record<string, unknown>);
+      await route.fulfill({ json: { redirect: false, url: null } });
+    });
+
     await page.getByRole("button", { name: /Sign in/i }).first().click();
     await page.getByRole("button", { name: /Continue with Google/i }).click();
 
-    await expect(page).toHaveURL(/accounts\.google\.com/);
-    const googleUrl = new URL(page.url());
-    const oauthParams = new URLSearchParams(
-      decodeURIComponent(googleUrl.searchParams.get("opparams") ?? "").replace(/^\?/, ""),
-    );
-    const redirectTo = oauthParams.get("redirect_to") ?? "";
-
-    expect(redirectTo).toContain("/auth/callback");
-    expect(decodeURIComponent(redirectTo)).toContain("/app/search/new");
+    await expect.poll(() => signInPayloads.length).toBe(1);
+    const payload = signInPayloads[0];
+    expect(payload).toMatchObject({
+      provider: "google",
+    });
+    expect(String(payload.callbackURL)).toContain("/app/search/new");
   });
 
   test("pricing CTAs should preserve plan intent before sign in", async ({ page }) => {
@@ -122,7 +125,7 @@ test.describe("Landing Page mobile responsiveness", () => {
     await expect(page.getByTestId("landing-auth-modal").getByText("Your JD is saved", { exact: true })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
   });
 
   test("should keep mobile pricing focused on primary plans", async ({ page }) => {
@@ -135,14 +138,10 @@ test.describe("Landing Page mobile responsiveness", () => {
   });
 });
 
-test.describe("Auth callback", () => {
-  test("should bridge OAuth hash tokens to the intended app path", async ({ request }) => {
-    const response = await request.get("/auth/callback?next=/app/search/new%3Fentry%3Dsignin");
+test.describe("Auth routes", () => {
+  test("should expose better-auth session endpoint instead of a legacy callback bridge", async ({ request }) => {
+    const response = await request.get("/api/auth/get-session");
 
-    await expect(response).toBeOK();
-    expect(response.headers()["x-auth-callback-bridge"]).toBe("/app/search/new");
-    const body = await response.text();
-    expect(body).toContain("window.location.replace(target + hash)");
-    expect(body).toContain('var target = "/app/search/new?entry=signin";');
+    expect([200, 401]).toContain(response.status());
   });
 });
