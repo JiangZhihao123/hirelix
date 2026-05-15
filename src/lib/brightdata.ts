@@ -14,7 +14,7 @@ const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
 const BRIGHTDATA_FILTER_API_BASE = "https://api.brightdata.com/datasets";
 const BRIGHTDATA_REQUEST_TIMEOUT_MS = Math.max(
   5000,
-  Number.parseInt(process.env.SEARCH_BRIGHTDATA_REQUEST_TIMEOUT_MS || "", 10) || 30000,
+  Number.parseInt(process.env.SEARCH_BRIGHTDATA_REQUEST_TIMEOUT_MS || "", 10) || 300000,
 );
 
 type BrightDataScrapeOptions = {
