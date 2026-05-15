@@ -185,5 +185,5 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "current_company_name"));
   assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "position"));
   assert.ok(leafValues(rounds[2].request.filter).includes("elastic"));
-  assert.ok(leafValues(rounds[2].request.filter).includes("search infrastructure"));
+  assert.ok(!leafValues(rounds[2].request.filter).includes("search infrastructure"));
 });

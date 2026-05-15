@@ -694,15 +694,6 @@ export function buildBrightDataRecallFilters(
     ], 10);
     const companyTitleFilter = buildTitleFilter(companyTitleTerms);
     if (companyTitleFilter) companyFilters.push(companyTitleFilter);
-    const companySignalFilter = buildBalancedSkillFilter({
-      ...recallSpec,
-      core_skill_terms: signalGroups.platform_engineering,
-      baseline_skill_terms: signalGroups.platform_engineering,
-      differentiating_skill_terms: signalGroups.search_domain,
-      domain_terms: signalGroups.search_domain,
-      must_have_signals: signalGroups.search_domain,
-    });
-    if (companySignalFilter) companyFilters.push(companySignalFilter);
     companyFilters.push(...qualityFilters);
     const recordsLimit = executionProfile.companyTargetLimit || options.companyTargetLimit;
 
