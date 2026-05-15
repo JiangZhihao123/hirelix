@@ -121,6 +121,7 @@ export function buildJudgeScorePrompt(
 - Do not reward prestige alone.
 - For remote roles with an eligible country or region in Search Intent, set work_model_fit=yes when the profile location is eligible and there is no explicit work-model conflict. Do not mark work_model_fit=unclear merely because the profile does not state remote preference.
 - For onsite or hybrid roles, require concrete location/work-model evidence before setting work_model_fit=yes.
+- For IC engineering roles, people-management, program-management, director, or executive profiles are role mismatches unless the profile shows recent hands-on IC backend ownership. Mark shortlist_decision=no and list the mismatch in risk_flags/blocking_constraints.
 - must_have_coverage=strong requires concrete profile evidence for the JD's core must-haves. If a core must-have is merely implied by title/company, mark partial or unknown and list the gap in risk_flags.
 - evidence_quality=high requires concrete evidence in the profile text, not prestige, senior title, or employer brand alone.
 - first_contact_confidence=high requires no unresolved must-have gap, work-model uncertainty for the role type, or major verification risk. For remote roles, eligible country/location plus no explicit conflict is not work-model uncertainty.

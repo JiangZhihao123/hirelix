@@ -169,6 +169,25 @@ test("shouldDisplayCandidate: capability below floor blocks regardless of other 
   assert.equal(shouldDisplayCandidate(a), false);
 });
 
+test("shouldDisplayCandidate: clear IC versus manager mismatch blocks technical escape hatches", () => {
+  const a = assessment({
+    capability: 83,
+    relevance: 73,
+    joinLikelihood: 90,
+    quality: 78,
+    mustHaveCoverage: "partial",
+    bucket: "consider_next",
+    whyThisCandidate: ["PostgreSQL and backend stack"],
+  });
+  a.suitability.shortlist_decision = "no";
+  a.suitability.primary_risk = "Role seniority mismatch";
+  a.suitability.blocking_constraints = ["Seeking executive/management roles"];
+  a.suitability.risk_flags = ["Role seniority mismatch"];
+  a.suitability.why_not_higher = ["Leadership focus"];
+
+  assert.equal(shouldDisplayCandidate(a), false);
+});
+
 test("deriveExcludedReason: only labels response_risk when join_likelihood < 35", () => {
   const borderline = assessment({
     capability: 72,

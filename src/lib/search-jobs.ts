@@ -2273,6 +2273,35 @@ function sortCandidateAssessments(left: ScoredCandidateAssessment, right: Scored
   );
 }
 
+function hasClearRoleMismatch(suitability: CandidateSuitability) {
+  const text = [
+    suitability.primary_risk,
+    suitability.shortlist_reason,
+    ...suitability.blocking_constraints,
+    ...suitability.constraint_risks,
+    ...suitability.risk_flags,
+    ...suitability.why_not_higher,
+  ]
+    .map((value) => normalizeText(value))
+    .filter(Boolean)
+    .join(" ");
+
+  if (!text) return false;
+  return [
+    "role seniority mismatch",
+    "seniority mismatch",
+    "leadership focus",
+    "managerial focus",
+    "management focus",
+    "program manager",
+    "project manager",
+    "seeking executive",
+    "management roles",
+    "not an ic",
+    "not ic",
+  ].some((term) => text.includes(term));
+}
+
 export function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   const suitability = assessment.suitability;
   const breakdown = suitability.scoring_breakdown;
@@ -2280,6 +2309,7 @@ export function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   if (
     suitability.blocking_severity === "hard" ||
     suitability.bucket === "do_not_show" ||
+    hasClearRoleMismatch(suitability) ||
     (suitability.match_score < SHORTLIST_MATCH_SCORE_MIN && suitability.quality_score < 75) ||
     breakdown.capability_score < SHORTLIST_CAPABILITY_MIN
   ) {

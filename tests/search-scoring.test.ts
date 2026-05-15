@@ -135,6 +135,25 @@ test("judge prompt treats eligible remote candidates as work-model fit", () => {
   assert.match(prompt, /eligible country\/location plus no explicit conflict is not work-model uncertainty/);
 });
 
+test("judge prompt marks IC versus management profiles as mismatches", () => {
+  const prompt = buildJudgeScorePrompt(
+    {},
+    "Senior backend IC role",
+    "[8] Candidate A\nSenior Engineering Manager",
+    1,
+    "Judge A",
+    {
+      truncateForPrompt: (text) => text,
+      buildPromptSearchContext: () => "Title: Senior Backend Engineer\nFunction: Backend IC",
+      expectedIndexes: [8],
+    },
+  );
+
+  assert.match(prompt, /For IC engineering roles/);
+  assert.match(prompt, /people-management, program-management, director, or executive profiles/);
+  assert.match(prompt, /Mark shortlist_decision=no/);
+});
+
 test("parseJudgeScoreResults maps batch-relative indexes to expected global indexes", () => {
   const parsed = parseJudgeScoreResults(
     [baseJudgeItem(0), baseJudgeItem(1)],
