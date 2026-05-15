@@ -1552,6 +1552,17 @@ async function buildBrightDataDatasetCandidates(
   if (metadata?.status === "failed" && metadata.warning_code === "no_records_found") {
     standardRoundFailedEmpty = true;
   } else if (metadata?.status === "failed") {
+    if (standardCacheEntry) {
+      await expireCachedSnapshot(activeSnapshotId);
+      helpers.logSearchEvent("search_snapshot_cache_expired", {
+        search_id: context.searchId,
+        round: "standard",
+        snapshot_id: activeSnapshotId,
+        reason: "snapshot_failed",
+        job_id: context.jobId,
+        error: formatBrightDataSnapshotFailure(activeSnapshotId, metadata),
+      });
+    }
     throw new Error(formatBrightDataSnapshotFailure(activeSnapshotId, metadata));
   }
 
