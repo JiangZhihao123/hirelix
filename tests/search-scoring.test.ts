@@ -116,6 +116,25 @@ test("judge prompt tells batch scoring to use global profile header indexes", ()
   );
 });
 
+test("judge prompt treats eligible remote candidates as work-model fit", () => {
+  const prompt = buildJudgeScorePrompt(
+    {},
+    "US remote senior backend role",
+    "[4] Candidate A\nLocation: United States\nBackend engineer",
+    1,
+    "Judge A",
+    {
+      truncateForPrompt: (text) => text,
+      buildPromptSearchContext: () => "Work Model: remote\nTarget Location: US",
+      expectedIndexes: [4],
+    },
+  );
+
+  assert.match(prompt, /For remote roles with an eligible country or region/);
+  assert.match(prompt, /work_model_fit=yes when the profile location is eligible/);
+  assert.match(prompt, /eligible country\/location plus no explicit conflict is not work-model uncertainty/);
+});
+
 test("parseJudgeScoreResults maps batch-relative indexes to expected global indexes", () => {
   const parsed = parseJudgeScoreResults(
     [baseJudgeItem(0), baseJudgeItem(1)],

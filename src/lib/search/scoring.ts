@@ -119,9 +119,11 @@ export function buildJudgeScorePrompt(
 - Do not collapse quality because of sparse evidence alone. Use evidence_quality and risk fields to express uncertainty.
 - Reserve very low capability/relevance for explicit mismatch, not just missing fields.
 - Do not reward prestige alone.
+- For remote roles with an eligible country or region in Search Intent, set work_model_fit=yes when the profile location is eligible and there is no explicit work-model conflict. Do not mark work_model_fit=unclear merely because the profile does not state remote preference.
+- For onsite or hybrid roles, require concrete location/work-model evidence before setting work_model_fit=yes.
 - must_have_coverage=strong requires concrete profile evidence for the JD's core must-haves. If a core must-have is merely implied by title/company, mark partial or unknown and list the gap in risk_flags.
 - evidence_quality=high requires concrete evidence in the profile text, not prestige, senior title, or employer brand alone.
-- first_contact_confidence=high requires no unresolved must-have gap, work-model uncertainty, or major verification risk.
+- first_contact_confidence=high requires no unresolved must-have gap, work-model uncertainty for the role type, or major verification risk. For remote roles, eligible country/location plus no explicit conflict is not work-model uncertainty.
 - Keep short_reasons concrete and short. Max 2 items, each under 14 words.
 - first_contact_confidence should reflect whether a recruiter would feel good reaching out immediately.
 - Do not speculate about relocation or work authorization.
