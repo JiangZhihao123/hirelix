@@ -2302,6 +2302,29 @@ function hasClearRoleMismatch(suitability: CandidateSuitability) {
   ].some((term) => text.includes(term));
 }
 
+function hasRecruiterVisibleEvidence(suitability: CandidateSuitability) {
+  const verdicts = suitability.constraint_verdicts;
+  const breakdown = suitability.scoring_breakdown;
+
+  if (suitability.evidence_quality === "low") return false;
+  if (verdicts.location_fit !== "local" && verdicts.location_fit !== "nearby") return false;
+  if (verdicts.work_model_fit === "no") return false;
+  if (verdicts.must_have_coverage === "weak" || verdicts.must_have_coverage === "unknown") {
+    return false;
+  }
+
+  if (verdicts.must_have_coverage === "strong") {
+    return breakdown.capability_score >= SHORTLIST_CAPABILITY_MIN &&
+      breakdown.relevance_score >= Math.min(SHORTLIST_RELEVANCE_MIN, 65);
+  }
+
+  return (
+    suitability.quality_score >= 78 &&
+    breakdown.capability_score >= 75 &&
+    breakdown.relevance_score >= 72
+  );
+}
+
 export function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   const suitability = assessment.suitability;
   const breakdown = suitability.scoring_breakdown;
@@ -2313,6 +2336,10 @@ export function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
     (suitability.match_score < SHORTLIST_MATCH_SCORE_MIN && suitability.quality_score < 75) ||
     breakdown.capability_score < SHORTLIST_CAPABILITY_MIN
   ) {
+    return false;
+  }
+
+  if (!hasRecruiterVisibleEvidence(suitability)) {
     return false;
   }
 
@@ -2353,6 +2380,10 @@ export function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
 function getDisplayTierForAssessment(
   assessment: ScoredCandidateAssessment,
 ): CandidateDisplayTier | null {
+  if (!hasRecruiterVisibleEvidence(assessment.suitability)) {
+    return null;
+  }
+
   switch (assessment.suitability.bucket) {
     case "strong_now": {
       const breakdown = assessment.suitability.scoring_breakdown;

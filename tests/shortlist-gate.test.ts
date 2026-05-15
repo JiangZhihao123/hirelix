@@ -25,6 +25,8 @@ function assessment(partial: {
   bucket?: ScoredCandidateAssessment["suitability"]["bucket"];
   blocking?: BlockingSeverity;
   mustHaveCoverage?: ScoredCandidateAssessment["suitability"]["constraint_verdicts"]["must_have_coverage"];
+  locationFit?: ScoredCandidateAssessment["suitability"]["constraint_verdicts"]["location_fit"];
+  workModelFit?: ScoredCandidateAssessment["suitability"]["constraint_verdicts"]["work_model_fit"];
   shortlistDecision?: "yes" | "no";
   evidenceQuality?: "high" | "medium" | "low";
   whyThisCandidate?: string[];
@@ -70,8 +72,8 @@ function assessment(partial: {
         advance_score: advance,
       },
       constraint_verdicts: {
-        location_fit: "local",
-        work_model_fit: "yes",
+        location_fit: partial.locationFit ?? "local",
+        work_model_fit: partial.workModelFit ?? "yes",
         must_have_coverage: partial.mustHaveCoverage ?? "strong",
       },
       constraint_risks: [],
@@ -108,18 +110,50 @@ test("shouldDisplayCandidate: technically strong + low Reachability still passes
   assert.equal(shouldDisplayCandidate(a), true);
 });
 
-test("shouldDisplayCandidate: technicalWatchlistFit escape hatch triggers at q>=72, r>=68", () => {
+test("shouldDisplayCandidate: technicalWatchlistFit escape hatch requires clear strong evidence", () => {
   // Happily-employed mid-senior: join_likelihood ~25 is typical for this group.
   // Under the old 82/80 gate this was filtered; under the new 72/68 gate the
-  // escape hatch fires.
+  // escape hatch fires only when must-have and location evidence are clear.
   const a = assessment({
     capability: 72,
     relevance: 68,
     joinLikelihood: 25,
     quality: 72,
-    mustHaveCoverage: "partial",
+    mustHaveCoverage: "strong",
   });
   assert.equal(shouldDisplayCandidate(a), true);
+});
+
+test("shouldDisplayCandidate: unknown location no longer enters recruiter-visible shortlist", () => {
+  const a = assessment({
+    capability: 90,
+    relevance: 88,
+    joinLikelihood: 70,
+    quality: 89,
+    mustHaveCoverage: "strong",
+    locationFit: "unknown",
+  });
+  assert.equal(shouldDisplayCandidate(a), false);
+});
+
+test("shouldDisplayCandidate: partial must-have needs strong enough evidence", () => {
+  const weakPartial = assessment({
+    capability: 72,
+    relevance: 70,
+    joinLikelihood: 70,
+    quality: 71,
+    mustHaveCoverage: "partial",
+  });
+  assert.equal(shouldDisplayCandidate(weakPartial), false);
+
+  const strongPartial = assessment({
+    capability: 78,
+    relevance: 76,
+    joinLikelihood: 55,
+    quality: 78,
+    mustHaveCoverage: "partial",
+  });
+  assert.equal(shouldDisplayCandidate(strongPartial), true);
 });
 
 test("shouldDisplayCandidate: explicitly unreachable candidate (join < ~15) is still filtered", () => {
