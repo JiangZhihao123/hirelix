@@ -1017,6 +1017,12 @@ export default function SearchResultPage() {
                 ...search,
                 standard_recall_completed_at: standardRecallCompletedAt,
               }}
+              metrics={{
+                recalledCount: recallProfileCount,
+                reviewedCount: deepReviewCompletedCount,
+                visibleCandidateCount,
+                evidenceCount: githubBackedCandidateCount,
+              }}
             />
           </div>
           {(taskStage === "linkedin_scan" || taskStage === "reviewing_profiles") && (
@@ -1148,6 +1154,8 @@ export default function SearchResultPage() {
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
                 {search.warning_message && !search.warning_message.includes("highlighted candidates")
                   ? search.warning_message
+                  : isReadyWithWarning
+                    ? `You can use this shortlist now: ${priorityOutreachCount} first-priority candidates, ${worthReviewingCount} backup candidates, and ${githubBackedCandidateCount} with public evidence. Some background scoring or enrichment did not finish cleanly.`
                   : qualityFloorApplied
                     ? "Hirelix searched a broader recall pool and kept the candidates that already look credible enough to work now."
                     : isImprovingInBackground
@@ -1161,6 +1169,17 @@ export default function SearchResultPage() {
                     ? `Found ${candidates.length} visible candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
                     : "The visible candidate pool is still growing as more recalled profiles are reviewed..."}
                 </div>
+              )}
+              {isReadyWithWarning && canRerunScoringFromCache && (
+                <button
+                  type="button"
+                  onClick={rerunScoringFromCache}
+                  disabled={rescoreSubmitting}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RotateCcw className={`h-3.5 w-3.5 ${rescoreSubmitting ? "animate-spin" : ""}`} />
+                  {rescoreSubmitting ? "Retrying unfinished scoring" : "Retry unfinished scoring"}
+                </button>
               )}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
@@ -1186,10 +1205,45 @@ export default function SearchResultPage() {
       )}
 
       {isReviewable && allCandidates.length > 0 && (
-        <div className="mb-4 grid gap-4 xl:grid-cols-[1.05fr,0.95fr]">
+        <div className="mb-4 grid min-w-0 gap-4 xl:grid-cols-[1.05fr,0.95fr]">
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Search outcome
+                </p>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                  {priorityOutreachCount > 0
+                    ? `${priorityOutreachCount} candidates are ready for first outreach.`
+                    : `${allCandidates.length} candidates are ready for review.`}
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  Start with reach-first profiles, verify the amber risks, then move the best people into the outreach queue.
+                </p>
+              </div>
+              <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto">
+                <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Reach first</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-950">{priorityOutreachCount}</p>
+                </div>
+                <div className="min-w-0 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
+                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">Backup</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-950">{worthReviewingCount}</p>
+                </div>
+                <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Ruled out</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-950">{shortlistNoCount || ruledOutCount}</p>
+                </div>
+                <div className="min-w-0 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
+                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">Evidence</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</p>
+                </div>
+              </div>
+            </div>
+          </section>
           <section
             data-testid="client-ready-shortlist"
-            className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm"
+            className="min-w-0 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -1246,7 +1300,7 @@ export default function SearchResultPage() {
 
           <section
             data-testid="outreach-approval-queue"
-            className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm"
+            className="min-w-0 rounded-2xl border border-sky-200 bg-white p-5 shadow-sm"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
