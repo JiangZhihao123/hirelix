@@ -595,6 +595,54 @@ function mergeDualJudgeResult(
   };
 }
 
+function buildFastJudgeFailureAssessment(index: number): ScoredCandidateAssessment {
+  return {
+    index,
+    skills: [],
+    experience_years: null,
+    location: null,
+    scoring_method: "fast_judge_triage",
+    judge_delta: 0,
+    judge_conflict: false,
+    suitability: {
+      fit_decision: "reject",
+      actionability: "not_actionable",
+      bucket: "do_not_show",
+      match_score: 0,
+      quality_score: 0,
+      overall_score: 0,
+      advance_score: 0,
+      advance_recommendation: "reject",
+      primary_risk: "Fast judge failed for this profile",
+      first_contact_confidence: "low",
+      subscription_trigger_score: 0,
+      shortlist_decision: "no",
+      shortlist_reason: "Profile could not be safely scored.",
+      blocking_constraints: ["scoring failed"],
+      blocking_severity: "hard",
+      scoring_breakdown: {
+        capability_score: 0,
+        relevance_score: 0,
+        join_likelihood_score: 0,
+        join_likelihood_reasons: [],
+        quality_score: 0,
+        overall_score: 0,
+        advance_score: 0,
+      },
+      constraint_verdicts: {
+        location_fit: "unknown",
+        work_model_fit: "unclear",
+        must_have_coverage: "unknown",
+      },
+      constraint_risks: ["Profile skipped after repeated scoring failure."],
+      risk_flags: ["Profile skipped after repeated scoring failure."],
+      why_this_candidate: [],
+      why_not_higher: ["Profile skipped after repeated scoring failure."],
+      evidence_quality: "low",
+    },
+  };
+}
+
 function shouldRequestSecondReview(assessment: ScoredCandidateAssessment) {
   const suitability = assessment.suitability;
   const breakdown = suitability.scoring_breakdown;
@@ -954,7 +1002,44 @@ async function scoreFastJudgeBatch(
       ...(context?.searchId && { search_id: context.searchId }),
       ...(context?.jobId && { job_id: context.jobId }),
     });
-    return [];
+
+    if (selectedIndexes.length > 1) {
+      const splitAt = Math.ceil(selectedIndexes.length / 2);
+      helpers.logSearchEvent("fast_judge_batch_split_retry", {
+        indexes: selectedIndexes,
+        batch_size: selectedIndexes.length,
+        split_sizes: [splitAt, selectedIndexes.length - splitAt],
+        ...(context?.searchId && { search_id: context.searchId }),
+        ...(context?.jobId && { job_id: context.jobId }),
+      });
+      const retryBatches = await Promise.all([
+        scoreFastJudgeBatch(
+          runtime,
+          parsed,
+          jdText,
+          profileTexts,
+          selectedIndexes.slice(0, splitAt),
+          totalPoolSize,
+          helpers,
+          context,
+        ),
+        scoreFastJudgeBatch(
+          runtime,
+          parsed,
+          jdText,
+          profileTexts,
+          selectedIndexes.slice(splitAt),
+          totalPoolSize,
+          helpers,
+          context,
+        ),
+      ]);
+      return retryBatches.flat();
+    }
+
+    return selectedIndexes.length === 1
+      ? [buildFastJudgeFailureAssessment(selectedIndexes[0])]
+      : [];
   }
 }
 

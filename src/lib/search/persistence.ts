@@ -75,6 +75,40 @@ function safeInt(value: unknown, fallback = 0) {
     : fallback;
 }
 
+function toJsonbSafeValue(value: unknown): unknown {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (typeof value === "string") return value.replace(/\u0000/g, "");
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "bigint") return value.toString();
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: value.stack ?? null,
+    };
+  }
+  if (Array.isArray(value)) return value.map(toJsonbSafeValue);
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        toJsonbSafeValue(entry),
+      ]),
+    );
+  }
+  return String(value);
+}
+
+function toJsonbSafeRecord(value: unknown): Record<string, unknown> {
+  const normalized = toJsonbSafeValue(value);
+  return normalized && typeof normalized === "object" && !Array.isArray(normalized)
+    ? (normalized as Record<string, unknown>)
+    : {};
+}
+
 const SEARCH_TIMESTAMP_FIELDS = new Set([
   "queued_at",
   "parse_completed_at",
@@ -193,9 +227,9 @@ function buildLlmUsageEventRow(payload: LlmUsageEventPayload): LlmUsageEventRow 
     error_message: payload.errorMessage || null,
     request_hash: payload.requestHash || null,
     response_hash: payload.responseHash || null,
-    request_payload: payload.requestPayload ?? null,
-    response_payload: payload.responsePayload ?? null,
-    metadata: payload.metadata || {},
+    request_payload: payload.requestPayload ? toJsonbSafeRecord(payload.requestPayload) : null,
+    response_payload: payload.responsePayload ? toJsonbSafeRecord(payload.responsePayload) : null,
+    metadata: toJsonbSafeRecord(payload.metadata || {}),
   };
 }
 
