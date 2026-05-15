@@ -3,6 +3,7 @@ import {
   brightDataProfileToRichText,
   computeFilterHash,
   downloadDatasetSnapshot,
+  formatBrightDataSnapshotFailure,
   getDatasetSnapshotMetadata,
   triggerDatasetFilter,
   type BrightDataDatasetFilterRequest,
@@ -1551,9 +1552,7 @@ async function buildBrightDataDatasetCandidates(
   if (metadata?.status === "failed" && metadata.warning_code === "no_records_found") {
     standardRoundFailedEmpty = true;
   } else if (metadata?.status === "failed") {
-    throw new Error(
-      `Bright Data snapshot ${activeSnapshotId} failed${metadata.error_code ? ` (error_code=${String(metadata.error_code)})` : ""}`,
-    );
+    throw new Error(formatBrightDataSnapshotFailure(activeSnapshotId, metadata));
   }
 
   const waitingOnStandard = metadata?.status !== "ready" && !standardRoundFailedEmpty;

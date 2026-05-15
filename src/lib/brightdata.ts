@@ -168,10 +168,27 @@ export type BrightDataSnapshotMetadata = {
   dataset_size?: number;
   file_size?: number;
   cost?: number;
+  error?: string;
   error_code?: string | number;
   warning?: string;
   warning_code?: string | number;
 };
+
+export function formatBrightDataSnapshotFailure(
+  snapshotId: string,
+  metadata: Pick<
+    BrightDataSnapshotMetadata,
+    "error" | "error_code" | "warning" | "warning_code"
+  >,
+) {
+  const details = [
+    metadata.warning ? `warning=${metadata.warning}` : null,
+    metadata.warning_code ? `warning_code=${String(metadata.warning_code)}` : null,
+    metadata.error ? `error=${metadata.error}` : null,
+    metadata.error_code ? `error_code=${String(metadata.error_code)}` : null,
+  ].filter(Boolean);
+  return `Bright Data snapshot ${snapshotId} failed${details.length ? ` (${details.join(", ")})` : ""}`;
+}
 
 export class BrightDataSnapshotNotReadyError extends Error {
   constructor(message: string) {
@@ -772,14 +789,8 @@ export async function waitForDatasetSnapshot(
       };
     }
     if (metadata.status === "failed") {
-      const failureCode =
-        typeof metadata.warning_code === "string" || typeof metadata.warning_code === "number"
-          ? ` (warning_code=${String(metadata.warning_code)})`
-          : typeof metadata.error_code === "string" || typeof metadata.error_code === "number"
-            ? ` (error_code=${String(metadata.error_code)})`
-            : "";
       throw new BrightDataSnapshotFailedError(
-        `Bright Data snapshot ${snapshotId} failed${failureCode}`,
+        formatBrightDataSnapshotFailure(snapshotId, metadata),
         metadata,
       );
     }
