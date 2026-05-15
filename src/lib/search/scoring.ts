@@ -119,6 +119,9 @@ export function buildJudgeScorePrompt(
 - Do not collapse quality because of sparse evidence alone. Use evidence_quality and risk fields to express uncertainty.
 - Reserve very low capability/relevance for explicit mismatch, not just missing fields.
 - Do not reward prestige alone.
+- must_have_coverage=strong requires concrete profile evidence for the JD's core must-haves. If a core must-have is merely implied by title/company, mark partial or unknown and list the gap in risk_flags.
+- evidence_quality=high requires concrete evidence in the profile text, not prestige, senior title, or employer brand alone.
+- first_contact_confidence=high requires no unresolved must-have gap, work-model uncertainty, or major verification risk.
 - Keep short_reasons concrete and short. Max 2 items, each under 14 words.
 - first_contact_confidence should reflect whether a recruiter would feel good reaching out immediately.
 - Do not speculate about relocation or work authorization.
@@ -400,6 +403,56 @@ export function hasJudgeConflict(
   return maxQuality >= 85 && hasHardBlockerConflict;
 }
 
+function mergeConstraintVerdicts(
+  judgeA: JudgeScoreResult["constraint_verdicts"],
+  judgeB: JudgeScoreResult["constraint_verdicts"],
+): JudgeScoreResult["constraint_verdicts"] {
+  const locationRank = {
+    non_local: 0,
+    unknown: 1,
+    nearby: 2,
+    local: 3,
+  } as const;
+  const workModelRank = {
+    no: 0,
+    unclear: 1,
+    yes: 2,
+  } as const;
+  const mustHaveRank = {
+    weak: 0,
+    unknown: 1,
+    partial: 2,
+    strong: 3,
+  } as const;
+
+  return {
+    location_fit:
+      locationRank[judgeA.location_fit] <= locationRank[judgeB.location_fit]
+        ? judgeA.location_fit
+        : judgeB.location_fit,
+    work_model_fit:
+      workModelRank[judgeA.work_model_fit] <= workModelRank[judgeB.work_model_fit]
+        ? judgeA.work_model_fit
+        : judgeB.work_model_fit,
+    must_have_coverage:
+      mustHaveRank[judgeA.must_have_coverage] <= mustHaveRank[judgeB.must_have_coverage]
+        ? judgeA.must_have_coverage
+        : judgeB.must_have_coverage,
+  };
+}
+
+function mergeEvidenceQuality(
+  judgeA: JudgeScoreResult["evidence_quality"],
+  judgeB: JudgeScoreResult["evidence_quality"],
+): JudgeScoreResult["evidence_quality"] {
+  const evidenceRank = {
+    low: 0,
+    medium: 1,
+    high: 2,
+  } as const;
+  return evidenceRank[judgeA] <= evidenceRank[judgeB] ? judgeA : judgeB;
+}
+
 export function mergeJudgeResults(
   judgeA: JudgeScoreResult,
   judgeB: JudgeScoreResult,
@@ -448,6 +501,10 @@ export function mergeJudgeResults(
     judgeA.shortlist_decision === "no" || judgeB.shortlist_decision === "no"
       ? "no"
       : "yes";
+  const constraintVerdicts = mergeConstraintVerdicts(
+    judgeA.constraint_verdicts,
+    judgeB.constraint_verdicts,
+  );
   const suitability = options.sanitizeCandidateSuitability({
     capability_score: capabilityScore,
     relevance_score: relevanceScore,
@@ -467,17 +524,12 @@ export function mergeJudgeResults(
     join_likelihood_reasons: Array.from(
       new Set([...judgeA.join_likelihood_reasons, ...judgeB.join_likelihood_reasons]),
     ).slice(0, 6),
-    constraint_verdicts: judgeA.constraint_verdicts,
+    constraint_verdicts: constraintVerdicts,
     risk_flags: [...judgeA.risk_flags, ...judgeB.risk_flags],
     constraint_risks: [...judgeA.risk_flags, ...judgeB.risk_flags],
     why_this_candidate: [...judgeA.short_reasons, ...judgeB.short_reasons],
     why_not_higher: [...judgeA.risk_flags, ...judgeB.risk_flags],
-    evidence_quality:
-      judgeA.evidence_quality === "high" || judgeB.evidence_quality === "high"
-        ? "high"
-        : judgeA.evidence_quality === "medium" || judgeB.evidence_quality === "medium"
-          ? "medium"
-          : "low",
+    evidence_quality: mergeEvidenceQuality(judgeA.evidence_quality, judgeB.evidence_quality),
   });
 
   return {

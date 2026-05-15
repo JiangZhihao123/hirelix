@@ -805,9 +805,9 @@ async function scoreBrightDataProfiles(
     sortCandidateAssessments: helpers.sortCandidateAssessments,
   });
   const priorityAssessments = deepSelection.selected
-    .filter((assessment) => assessment.suitability.bucket === "strong_now");
+    .filter((assessment) => helpers.getDisplayTierForAssessment(assessment) === "priority_outreach");
   const worthReviewingAssessments = deepSelection.selected
-    .filter((assessment) => assessment.suitability.bucket === "consider_next");
+    .filter((assessment) => helpers.getDisplayTierForAssessment(assessment) === "worth_reviewing");
   const ruledOutAssessments = deepAssessments
     .filter((assessment) => assessment.suitability.bucket === "do_not_show");
   const visibleAssessments = [...priorityAssessments, ...worthReviewingAssessments];

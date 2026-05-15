@@ -2324,8 +2324,20 @@ function getDisplayTierForAssessment(
   assessment: ScoredCandidateAssessment,
 ): CandidateDisplayTier | null {
   switch (assessment.suitability.bucket) {
-    case "strong_now":
-      return "priority_outreach";
+    case "strong_now": {
+      const breakdown = assessment.suitability.scoring_breakdown;
+      const isFirstPriority =
+        assessment.suitability.advance_recommendation === "advance" &&
+        assessment.suitability.first_contact_confidence === "high" &&
+        assessment.suitability.evidence_quality !== "low" &&
+        assessment.suitability.constraint_verdicts.must_have_coverage === "strong" &&
+        assessment.suitability.constraint_verdicts.work_model_fit === "yes" &&
+        assessment.suitability.quality_score >= 82 &&
+        assessment.suitability.advance_score >= 78 &&
+        breakdown.relevance_score >= 78 &&
+        breakdown.capability_score >= 78;
+      return isFirstPriority ? "priority_outreach" : "worth_reviewing";
+    }
     case "consider_next":
       return "worth_reviewing";
     default:
@@ -2840,9 +2852,9 @@ async function scoreBrightDataProfiles(
   // Use deepSelection.selected (filtered by shouldDisplayCandidate) as the source for visible
   // candidates so that score thresholds and location gates are actually enforced.
   const priorityAssessments = deepSelection.selected
-    .filter((assessment) => assessment.suitability.bucket === "strong_now");
+    .filter((assessment) => getDisplayTierForAssessment(assessment) === "priority_outreach");
   const worthReviewingAssessments = deepSelection.selected
-    .filter((assessment) => assessment.suitability.bucket === "consider_next");
+    .filter((assessment) => getDisplayTierForAssessment(assessment) === "worth_reviewing");
   const ruledOutAssessments = deepAssessments
     .filter((assessment) => assessment.suitability.bucket === "do_not_show");
   const visibleAssessments = [...priorityAssessments, ...worthReviewingAssessments];

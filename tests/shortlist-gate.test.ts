@@ -6,6 +6,7 @@ import {
   deriveExcludedReason,
   shouldDisplayCandidate,
 } from "@/lib/search-jobs";
+import { mergeJudgeResults } from "@/lib/search/scoring";
 import type {
   BlockingSeverity,
   ScoredCandidateAssessment,
@@ -187,4 +188,80 @@ test("deriveExcludedReason: only labels response_risk when join_likelihood < 35"
     bucket: "do_not_show",
   });
   assert.equal(deriveExcludedReason(trulyUnreachable), "response_risk");
+});
+
+test("mergeJudgeResults keeps the more conservative structured verdicts", () => {
+  const baseJudge = {
+    index: 0,
+    capability_score: 88,
+    relevance_score: 86,
+    join_likelihood_score: 55,
+    join_likelihood_reasons: [],
+    short_reasons: ["strong backend"],
+    risk_flags: [],
+    blocking_constraints: [],
+    blocking_severity: "none" as const,
+    advance_recommendation: "advance" as const,
+    shortlist_decision: "yes" as const,
+    shortlist_reason: null,
+    constraint_verdicts: {
+      location_fit: "local" as const,
+      work_model_fit: "yes" as const,
+      must_have_coverage: "strong" as const,
+    },
+    evidence_quality: "high" as const,
+    skills: [],
+    experience_years: null,
+    location: null,
+    why_reachable_now: null,
+  };
+
+  const merged = mergeJudgeResults(
+    baseJudge,
+    {
+      ...baseJudge,
+      evidence_quality: "medium",
+      constraint_verdicts: {
+        location_fit: "unknown",
+        work_model_fit: "unclear",
+        must_have_coverage: "partial",
+      },
+      risk_flags: ["PostgreSQL unconfirmed"],
+    },
+    {
+      computeQualityScore: (capabilityScore, relevanceScore) =>
+        Math.round((capabilityScore + relevanceScore) / 2),
+      computeAdvanceScore,
+      deriveAdvanceRecommendation: (advanceScore, blockingSeverity) => {
+        if (blockingSeverity === "hard") return "reject";
+        return advanceScore >= 72 ? "advance" : advanceScore >= 45 ? "hold" : "reject";
+      },
+      sanitizeCandidateSuitability: (value) => {
+        const item = value as {
+          capability_score: number;
+          relevance_score: number;
+          join_likelihood_score: number;
+          constraint_verdicts: ScoredCandidateAssessment["suitability"]["constraint_verdicts"];
+          evidence_quality: "high" | "medium" | "low";
+        };
+        const suitability = assessment({
+          capability: item.capability_score,
+          relevance: item.relevance_score,
+          joinLikelihood: item.join_likelihood_score,
+          mustHaveCoverage: item.constraint_verdicts.must_have_coverage,
+          evidenceQuality: item.evidence_quality,
+        }).suitability;
+        return {
+          ...suitability,
+          constraint_verdicts: item.constraint_verdicts,
+        };
+      },
+      normalizeNullableString: (value) => (typeof value === "string" ? value : null),
+    },
+  );
+
+  assert.equal(merged.suitability.constraint_verdicts.location_fit, "unknown");
+  assert.equal(merged.suitability.constraint_verdicts.work_model_fit, "unclear");
+  assert.equal(merged.suitability.constraint_verdicts.must_have_coverage, "partial");
+  assert.equal(merged.suitability.evidence_quality, "medium");
 });

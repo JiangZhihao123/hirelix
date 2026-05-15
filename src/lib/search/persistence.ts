@@ -75,10 +75,14 @@ function safeInt(value: unknown, fallback = 0) {
     : fallback;
 }
 
+function sanitizeJsonbString(value: string) {
+  return value.replace(/\u0000/g, "").replace(/\\u0000/gi, "");
+}
+
 function toJsonbSafeValue(value: unknown): unknown {
   if (value === undefined) return null;
   if (value === null) return null;
-  if (typeof value === "string") return value.replace(/\u0000/g, "");
+  if (typeof value === "string") return sanitizeJsonbString(value);
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "bigint") return value.toString();
@@ -94,7 +98,7 @@ function toJsonbSafeValue(value: unknown): unknown {
   if (typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
-        key,
+        sanitizeJsonbString(key),
         toJsonbSafeValue(entry),
       ]),
     );
@@ -104,9 +108,18 @@ function toJsonbSafeValue(value: unknown): unknown {
 
 function toJsonbSafeRecord(value: unknown): Record<string, unknown> {
   const normalized = toJsonbSafeValue(value);
-  return normalized && typeof normalized === "object" && !Array.isArray(normalized)
-    ? (normalized as Record<string, unknown>)
-    : {};
+  if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) return {};
+  try {
+    const serialized = JSON.stringify(normalized);
+    if (!serialized) return {};
+    const jsonbSafeText = sanitizeJsonbString(serialized);
+    const reparsed = JSON.parse(jsonbSafeText);
+    return reparsed && typeof reparsed === "object" && !Array.isArray(reparsed)
+      ? (reparsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
 }
 
 const SEARCH_TIMESTAMP_FIELDS = new Set([
@@ -227,8 +240,8 @@ function buildLlmUsageEventRow(payload: LlmUsageEventPayload): LlmUsageEventRow 
     error_message: payload.errorMessage || null,
     request_hash: payload.requestHash || null,
     response_hash: payload.responseHash || null,
-    request_payload: payload.requestPayload ? toJsonbSafeRecord(payload.requestPayload) : null,
-    response_payload: payload.responsePayload ? toJsonbSafeRecord(payload.responsePayload) : null,
+    request_payload: null,
+    response_payload: null,
     metadata: toJsonbSafeRecord(payload.metadata || {}),
   };
 }
