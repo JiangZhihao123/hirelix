@@ -79,8 +79,9 @@ import {
   getCandidateSellingKit,
   getProviderDelayCopy,
   getSearchErrorPresentation,
+  getCandidateDecisionAudit,
   getSearchPageCacheKey,
-  hasPublicGithubEvidence,
+  hasVerifiedPublicEvidence,
   parseOutreach,
   positiveInt,
   readSearchPageCache,
@@ -791,8 +792,8 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
-  const githubBackedCandidateCount = allCandidates.filter(hasPublicGithubEvidence).length;
-  const githubBackedVisibleCount = visibleCandidates.filter(hasPublicGithubEvidence).length;
+  const githubBackedCandidateCount = allCandidates.filter(hasVerifiedPublicEvidence).length;
+  const githubBackedVisibleCount = visibleCandidates.filter(hasVerifiedPublicEvidence).length;
   const selectedTierLabel = hasTieredPool ? formatTierLabel(activeCandidateTier) : "Candidate pool";
   const priorityTierLabel = formatTierLabel("priority_outreach");
   const worthReviewingTierLabel = formatTierLabel("worth_reviewing");
@@ -814,6 +815,12 @@ export default function SearchResultPage() {
     fallback: "New shortlist",
   });
   const clientReadyCandidates = (priorityCandidates.length > 0 ? priorityCandidates : allCandidates).slice(0, 5);
+  const actionPlanCandidates = (priorityCandidates.length > 0 ? priorityCandidates : allCandidates)
+    .slice(0, 3)
+    .map((candidate, index) => ({
+      candidate,
+      audit: getCandidateDecisionAudit(candidate, index + 1),
+    }));
   const clientReadyBriefText = [
     `Client-ready shortlist: ${displayTitle}`,
     locationScope ? `Location/work model: ${[locationScope, workModel].filter(Boolean).join(" | ")}` : null,
@@ -1206,7 +1213,7 @@ export default function SearchResultPage() {
 
       {isReviewable && allCandidates.length > 0 && (
         <div className="mb-4 grid min-w-0 gap-4 xl:grid-cols-[1.05fr,0.95fr]">
-          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
             <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1239,6 +1246,38 @@ export default function SearchResultPage() {
                   <p className="mt-1 text-xl font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</p>
                 </div>
               </div>
+            </div>
+            <div className="mt-5 grid gap-3 lg:grid-cols-3">
+              {actionPlanCandidates.map(({ candidate, audit }, index) => (
+                <div key={candidate.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-950 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      #{index + 1}
+                    </span>
+                    <p className="text-sm font-semibold text-slate-950">{candidate.name}</p>
+                  </div>
+                  <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    audit.trust.tone === "strong"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : audit.trust.tone === "medium"
+                        ? "bg-sky-100 text-sky-800"
+                        : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {audit.trust.label}
+                  </p>
+                  <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-700">
+                    <span className="font-semibold text-slate-950">Proof:</span>{" "}
+                    {audit.proofLines[0]}
+                  </p>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-amber-800">
+                    <span className="font-semibold">Risk:</span>{" "}
+                    {audit.riskLines[0]}
+                  </p>
+                  <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-emerald-800">
+                    {audit.nextAction}
+                  </p>
+                </div>
+              ))}
             </div>
           </section>
           <section

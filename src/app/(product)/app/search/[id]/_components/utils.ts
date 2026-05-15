@@ -599,3 +599,139 @@ export function hasPublicGithubEvidence(candidate: CandidateRow) {
   const signals = getCandidateGithubSignals(candidate);
   return signals?.status === "verified" || Boolean(candidate.github_url);
 }
+
+export function hasVerifiedPublicEvidence(candidate: CandidateRow) {
+  const publicEvidence = getCandidatePublicEvidence(candidate);
+  const signals = getCandidateGithubSignals(candidate);
+  return (
+    publicEvidence?.items?.some(
+      (item) =>
+        item.safe_to_use_in_client_brief === true ||
+        item.safe_to_use_in_outreach === true ||
+        item.selling_tier === "strong_selling_point" ||
+        item.selling_tier === "supporting_point",
+    ) ||
+    signals?.status === "verified" ||
+    Boolean(candidate.github_url)
+  );
+}
+
+export function getCandidateTrustLabel(candidate: CandidateRow) {
+  const publicEvidence = getCandidatePublicEvidence(candidate);
+  const githubSignals = getCandidateGithubSignals(candidate);
+  const sellingKit = getCandidateSellingKit(candidate);
+  const safePublicEvidenceCount = publicEvidence?.items?.filter(
+    (item) =>
+      item.safe_to_use_in_client_brief === true ||
+      item.safe_to_use_in_outreach === true ||
+      item.selling_tier === "strong_selling_point" ||
+      item.selling_tier === "supporting_point",
+  ).length ?? 0;
+
+  if (safePublicEvidenceCount > 0) {
+    return {
+      label: "Public evidence verified",
+      tone: "strong" as const,
+      description: "Safe public proof is available for the client brief or outreach.",
+    };
+  }
+
+  if (githubSignals?.status === "verified" || candidate.github_url) {
+    return {
+      label: "GitHub verified",
+      tone: "medium" as const,
+      description: "GitHub identity was found, but use the specific proof lines before pitching.",
+    };
+  }
+
+  if (sellingKit?.evidence_basis === "linkedin_based") {
+    return {
+      label: "LinkedIn-only, verify first",
+      tone: "caution" as const,
+      description: "Ranking is based on LinkedIn profile facts. Verify before outreach or client submission.",
+    };
+  }
+
+  return {
+    label: "Evidence needs review",
+    tone: "caution" as const,
+    description: "Public proof is missing or not strong enough to lead with yet.",
+  };
+}
+
+function isUsefulProofLine(value: string | null | undefined) {
+  if (!value) return false;
+  const normalized = value.toLowerCase();
+  const weakPhrases = [
+    "queued",
+    "pending",
+    "not verified",
+    "no public",
+    "could not",
+    "not available",
+    "missing",
+    "failed",
+  ];
+  return !weakPhrases.some((phrase) => normalized.includes(phrase));
+}
+
+export function getCandidateDecisionAudit(candidate: CandidateRow, rank?: number) {
+  const sellingKit = getCandidateSellingKit(candidate);
+  const publicEvidence = getCandidatePublicEvidence(candidate);
+  const githubSignals = getCandidateGithubSignals(candidate);
+  const trust = getCandidateTrustLabel(candidate);
+  const currentRole = deriveCurrentRole(candidate);
+  const currentCompany = deriveCurrentCompany(candidate);
+  const score = getCandidateOverallScore(candidate);
+  const capability = getCandidateCapabilityScore(candidate);
+  const relevance = getCandidateRelevanceScore(candidate);
+  const reachability = getCandidateJoinLikelihoodScore(candidate);
+  const proofLines = [
+    ...(sellingKit?.client_brief?.evidence_refs || []),
+    ...(publicEvidence?.items || [])
+      .filter(
+        (item) =>
+          item.safe_to_use_in_client_brief === true ||
+          item.safe_to_use_in_outreach === true ||
+          item.selling_tier === "strong_selling_point" ||
+          item.selling_tier === "supporting_point",
+      )
+      .map((item) => item.evidence_summary)
+      .filter((item): item is string => Boolean(item)),
+    ...(githubSignals?.evidence_summary || []),
+    ...(sellingKit?.client_brief?.why_match || []),
+    ...candidate.match_reasons,
+  ].filter((line): line is string => typeof line === "string" && isUsefulProofLine(line));
+  const riskLines = [
+    ...(sellingKit?.client_brief?.risks_to_verify || []),
+    ...(sellingKit?.risk_flags || []),
+    ...(candidate.metadata?.risk_flags || []),
+    ...(candidate.metadata?.suitability?.risk_flags || []),
+    ...(candidate.metadata?.why_not_higher || []),
+  ].filter(Boolean);
+  const uniqueProof = Array.from(new Set(proofLines)).slice(0, 3);
+  const uniqueRisks = Array.from(new Set(riskLines)).slice(0, 3);
+  const hasCitableProof = uniqueProof.length > 0;
+  const hasStrongEvidence = trust.tone === "strong" && hasCitableProof;
+  const hasMediumEvidence = trust.tone === "medium" && hasCitableProof;
+  const nextAction =
+    sellingKit?.recommendation === "do_not_pitch" ||
+    candidate.metadata?.suitability?.advance_recommendation === "reject"
+      ? "Hold. Review the risk before outreach."
+      : hasStrongEvidence && score >= 80
+        ? "Contact first. Use the strongest proof line in the opener."
+        : hasStrongEvidence || hasMediumEvidence
+          ? "Review then contact. Confirm fit before sending."
+          : "Verify first. Treat as LinkedIn-only until proof is checked.";
+  const rankPrefix = typeof rank === "number" ? `#${rank}: ` : "";
+  const rankingReason =
+    `${rankPrefix}${currentRole}${currentCompany ? ` at ${currentCompany}` : ""} ranks here because overall ${score}, technical ${capability || "unknown"}, role fit ${relevance || "unknown"}, reachability ${reachability || "unknown"}.`;
+
+  return {
+    trust,
+    proofLines: uniqueProof.length > 0 ? uniqueProof : ["LinkedIn profile facts support initial review, but no public proof is ready to cite."],
+    riskLines: uniqueRisks.length > 0 ? uniqueRisks : ["Verify current interest, compensation range, and role scope before pitching."],
+    nextAction,
+    rankingReason,
+  };
+}

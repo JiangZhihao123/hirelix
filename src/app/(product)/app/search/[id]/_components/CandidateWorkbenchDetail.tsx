@@ -24,6 +24,7 @@ import {
   deriveCurrentRole,
   fixSentenceSpacing,
   formatDimensionLabel,
+  getCandidateDecisionAudit,
   getCandidateGithubSignals,
   getCandidateOverallScore,
   getCandidatePublicEvidence,
@@ -123,6 +124,7 @@ export function CandidateWorkbenchDetail({
   const githubSignals = getCandidateGithubSignals(localCandidate);
   const publicEvidence = getCandidatePublicEvidence(localCandidate);
   const sellingKit = getCandidateSellingKit(localCandidate);
+  const audit = getCandidateDecisionAudit(localCandidate);
   const recruiterHeadline = formatRecruiterSellingHeadline(localCandidate);
   const outreach = parseOutreach(localCandidate.outreach_draft);
   const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
@@ -478,8 +480,33 @@ export function CandidateWorkbenchDetail({
                     </p>
                   </div>
                 )}
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Ranking reason
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {audit.rankingReason}
+                  </p>
+                </div>
               </div>
               <div className="space-y-4">
+                <div className={`rounded-2xl border px-4 py-3 ${
+                  audit.trust.tone === "strong"
+                    ? "border-emerald-200 bg-emerald-50"
+                    : audit.trust.tone === "medium"
+                      ? "border-sky-200 bg-sky-50"
+                      : "border-amber-200 bg-amber-50"
+                }`}>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                    Trust check
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-slate-950">
+                    {audit.trust.label}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-700">
+                    {audit.trust.description}
+                  </p>
+                </div>
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
                     Best usable proof
@@ -520,6 +547,14 @@ export function CandidateWorkbenchDetail({
                       Confirm current interest, compensation range, and role scope before submitting.
                     </p>
                   )}
+                </div>
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                    Next action
+                  </p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
+                    {audit.nextAction}
+                  </p>
                 </div>
               </div>
             </div>

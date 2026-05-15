@@ -12,6 +12,7 @@ import {
   deriveCurrentRole,
   formatEvidenceStrength,
   getCandidateGithubSignals,
+  getCandidateDecisionAudit,
   getCandidateOverallScore,
   getCandidateSellingKit,
   getCandidateScoreMetrics,
@@ -40,24 +41,7 @@ export function CandidateWorkbenchListItem({
   const currentRole = deriveCurrentRole(candidate);
   const displayName = sanitizeDisplayName(candidate.name);
   const recruiterHeadline = formatRecruiterSellingHeadline(candidate);
-  const whyLines = (
-    sellingKit?.client_brief?.why_match?.length
-      ? sellingKit.client_brief.why_match
-      : candidate.match_reasons
-  ).filter(Boolean).slice(0, 2);
-  const evidenceLines = (
-    sellingKit?.client_brief?.evidence_refs?.length
-      ? sellingKit.client_brief.evidence_refs
-      : (sellingKit?.evidence_badges || [])
-          .map((badge) => [badge.label, badge.citation_label].filter(Boolean).join(" "))
-  ).filter(Boolean).slice(0, 2);
-  const riskLines = (
-    sellingKit?.client_brief?.risks_to_verify?.length
-      ? sellingKit.client_brief.risks_to_verify
-      : sellingKit?.risk_flags?.length
-        ? sellingKit.risk_flags
-        : candidate.metadata?.risk_flags || candidate.metadata?.suitability?.risk_flags || []
-  ).filter(Boolean).slice(0, 1);
+  const audit = getCandidateDecisionAudit(candidate);
   const recommendationLabel =
     sellingKit?.recommendation === "reach_out_first"
       ? "Reach out first"
@@ -113,30 +97,24 @@ export function CandidateWorkbenchListItem({
             </p>
           )}
           <div className="mt-3 space-y-1.5">
-            {whyLines.length > 0 && (
-              <div className="flex gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                <p className="line-clamp-2 text-[11px] leading-5 text-emerald-800">
-                  {whyLines.join(" · ")}
-                </p>
-              </div>
-            )}
-            {evidenceLines.length > 0 && (
-              <div className="flex gap-2 rounded-lg border border-sky-100 bg-sky-50 px-2.5 py-2">
-                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
-                <p className="line-clamp-2 text-[11px] leading-5 text-sky-800">
-                  {evidenceLines.join(" · ")}
-                </p>
-              </div>
-            )}
-            {riskLines.length > 0 && (
-              <div className="flex gap-2 rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2">
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <p className="line-clamp-2 text-[11px] leading-5 text-amber-800">
-                  {riskLines.join(" · ")}
-                </p>
-              </div>
-            )}
+            <div className="flex gap-2 rounded-lg border border-sky-100 bg-sky-50 px-2.5 py-2">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
+              <p className="line-clamp-2 text-[11px] leading-5 text-sky-800">
+                {audit.proofLines.slice(0, 2).join(" · ")}
+              </p>
+            </div>
+            <div className="flex gap-2 rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <p className="line-clamp-2 text-[11px] leading-5 text-amber-800">
+                {audit.riskLines.slice(0, 1).join(" · ")}
+              </p>
+            </div>
+            <div className="flex gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+              <p className="line-clamp-2 text-[11px] leading-5 text-emerald-800">
+                {audit.nextAction}
+              </p>
+            </div>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-1.5">
             {scoreMetrics.map((metric) => (

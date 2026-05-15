@@ -31,6 +31,7 @@ import {
   formatConstraintValue,
   formatDimensionLabel,
   formatEvidenceStrength,
+  getCandidateDecisionAudit,
   getCandidateGithubSignals,
   getCandidateOverallScore,
   getCandidateScoreMetrics,
@@ -190,6 +191,7 @@ export function CandidateCard({
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
   const recruiterHeadline = formatRecruiterSellingHeadline(candidate);
+  const audit = getCandidateDecisionAudit(candidate);
   const sellingBadges = sellingKit?.evidence_badges || [];
   const sellingRisks = sellingKit?.risk_flags || [];
   const recommendationLabel =
@@ -283,6 +285,17 @@ export function CandidateCard({
               {recruiterHeadline}
             </p>
           )}
+          <div className="mt-2 grid gap-1.5">
+            <div className="rounded-lg border border-sky-100 bg-sky-50 px-2.5 py-2 text-[11px] leading-5 text-sky-800">
+              <span className="font-semibold">Proof:</span> {audit.proofLines[0]}
+            </div>
+            <div className="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-800">
+              <span className="font-semibold">Risk:</span> {audit.riskLines[0]}
+            </div>
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold leading-5 text-emerald-800">
+              {audit.nextAction}
+            </div>
+          </div>
           {Boolean(sellingBadges.length || sellingRisks.length) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {sellingBadges.slice(0, 3).map((badge, index) => (
