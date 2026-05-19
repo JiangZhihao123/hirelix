@@ -355,7 +355,7 @@ Mock 是辅助，不是结论；核心用户价值必须用真实链路验证或
 
 | 配置项 | 值 |
 |--------|-----|
-| Host | `104.244.88.240` |
+| Host | `65.49.232.163` |
 | SSH User | `noah` |
 | SSH Port | `22` |
 | Hostname | `clean-bump-1.localdomain` |
@@ -412,7 +412,7 @@ cat ~/.ssh/hirelix_deploy.pub | ssh us-2 'mkdir -p ~/.ssh && cat >> ~/.ssh/autho
 
 | Secret Name | Value |
 |-------------|-------|
-| `VPS_HOST` | `104.244.88.240` |
+| `VPS_HOST` | `65.49.232.163` |
 | `VPS_USER` | `noah` |
 | `VPS_PORT` | `22` |
 | `VPS_SSH_KEY` | `~/.ssh/hirelix_deploy` 私钥内容 |
@@ -463,7 +463,7 @@ ssh us-2 'sudo journalctl -u hirelix-scheduler -f'
 | 项目 | 值 |
 |------|----|
 | Host alias | `us-2` |
-| IP | `104.244.88.240` |
+| IP | `65.49.232.163` |
 | SSH User | `noah` |
 | v2rayA 远端端口 | `127.0.0.1:2017` |
 | 本地访问地址 | `http://127.0.0.1:2017/` |
@@ -474,7 +474,7 @@ ssh us-2 'sudo journalctl -u hirelix-scheduler -f'
 
 ```sshconfig
 Host us-2
-    HostName 104.244.88.240
+    HostName 65.49.232.163
     User noah
     IdentityFile ~/.ssh/id_ed25519
     LocalForward 2017 127.0.0.1:2017
