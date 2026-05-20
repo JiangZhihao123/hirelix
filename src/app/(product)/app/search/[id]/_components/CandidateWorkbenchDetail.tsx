@@ -18,6 +18,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_OPTIONS } from "@/lib/candidate-status";
 import { sanitizeDisplayName } from "@/lib/display-name";
+import { PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE } from "@/lib/public-errors";
 import type { CandidateRow, PublicEvidenceItem } from "./types";
 import {
   deriveCurrentCompany,
@@ -289,8 +290,7 @@ export function CandidateWorkbenchDetail({
           : undefined,
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "We couldn't enrich this candidate.");
+        throw new Error(PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE);
       }
       const data = await res.json();
       setLocalCandidate((prev) => ({
@@ -302,7 +302,7 @@ export function CandidateWorkbenchDetail({
       }));
       await refreshBilling();
     } catch (error) {
-      setEnrichError(error instanceof Error ? error.message : "We couldn't enrich this candidate.");
+      setEnrichError(error instanceof Error ? error.message : PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE);
     } finally {
       setEnriching(false);
     }

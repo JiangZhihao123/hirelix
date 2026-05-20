@@ -16,6 +16,9 @@ import {
   getLlmApiKey,
 } from "@/lib/llm-client";
 import { AI_COMPANY_RESPONSE_JSON_SCHEMA } from "@/lib/llm-schemas";
+import { getLogger, errorLogFields } from "@/lib/logger";
+
+const routeLogger = getLogger({ component: "api_settings_ai_company" });
 
 type CompanyProfile = {
   name: string;
@@ -214,7 +217,7 @@ export async function POST(req: NextRequest) {
       research_mode: "fallback_domain_inference" satisfies CompanyResearchMode,
     });
   } catch (err) {
-    console.error("[ai-company] Error:", err);
+    routeLogger.error({ ...errorLogFields(err) }, "AI company profile generation failed");
     return NextResponse.json(
       { error: "We couldn't read enough from the website. Try another URL or fill the profile manually." },
       { status: 500 },

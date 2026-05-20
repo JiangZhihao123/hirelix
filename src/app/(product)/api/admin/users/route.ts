@@ -4,7 +4,11 @@ import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
 import { getEmailsByUserIds } from "@/lib/user-identity";
+import { getLogger, errorLogFields } from "@/lib/logger";
+import { PUBLIC_GENERIC_ERROR_MESSAGE } from "@/lib/public-errors";
 import { requireAdmin } from "../route";
+
+const routeLogger = getLogger({ component: "api_admin_users" });
 
 // GET /api/admin/users — 用户列表（含本月使用量）
 export async function GET(req: NextRequest) {
@@ -102,8 +106,15 @@ export async function PATCH(req: NextRequest) {
       .set(update)
       .where(eq(hirelix_user_settings.user_id, userId));
   } catch (error) {
+    routeLogger.error(
+      {
+        target_user_id: userId,
+        ...errorLogFields(error),
+      },
+      "Admin user settings update failed",
+    );
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: PUBLIC_GENERIC_ERROR_MESSAGE },
       { status: 500 },
     );
   }

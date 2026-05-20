@@ -34,6 +34,7 @@ import {
   getAnalyticsContextFromBrowser,
   trackEvent,
 } from "@/lib/analytics";
+import { PUBLIC_RESCORE_ERROR_MESSAGE } from "@/lib/public-errors";
 import {
   ArrowLeft,
   AlertCircle,
@@ -253,14 +254,13 @@ export default function SearchResultPage() {
       const response = await fetchWithUserSession(`/api/search/${id}/rescore`, {
         method: "POST",
       });
-      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || "Could not rerun scoring from the cached profiles.");
+        throw new Error(PUBLIC_RESCORE_ERROR_MESSAGE);
       }
       window.sessionStorage.removeItem(getSearchPageCacheKey(id));
       await fetchData();
     } catch (error) {
-      setRescoreError(error instanceof Error ? error.message : "Could not rerun scoring from the cached profiles.");
+      setRescoreError(error instanceof Error ? error.message : PUBLIC_RESCORE_ERROR_MESSAGE);
     } finally {
       setRescoreSubmitting(false);
     }
@@ -795,7 +795,7 @@ export default function SearchResultPage() {
   };
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
-  const errorPresentation = getSearchErrorPresentation(search.error_message);
+  const errorPresentation = getSearchErrorPresentation();
   const entryQuery =
     analyticsContext.entry_mode === "workspace"
       ? ""
@@ -1411,14 +1411,6 @@ export default function SearchResultPage() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {search.error_message?.includes("Settings") && (
-                <Link
-                  href="/app/settings"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-hover transition-colors"
-                >
-                  Go to Settings
-                </Link>
-              )}
               <Link
                 href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"

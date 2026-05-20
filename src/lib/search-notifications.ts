@@ -73,7 +73,6 @@ function buildNotificationPayload(search: SearchSummary) {
     role_title: roleTitle,
     started_at: search.created_at,
     search_url: buildSearchUrl(search.id),
-    error_message: search.error_message,
   };
 }
 
@@ -86,13 +85,12 @@ function renderNotificationHtml(kind: SearchNotificationKind, payload: Record<st
     })
     : "recently";
   const searchUrl = typeof payload.search_url === "string" ? payload.search_url : "";
-  const errorMessage = typeof payload.error_message === "string" ? payload.error_message : "Hirelix could not finish the run.";
   const intro = kind === "first_shortlist_ready"
     ? `Your shortlist for <strong>${roleTitle}</strong> is ready to review.`
     : `Your search for <strong>${roleTitle}</strong> needs attention before it can continue.`;
   const body = kind === "first_shortlist_ready"
     ? `We started this search on ${startedAt}. Hirelix has ranked the first credible candidates and your shortlist is now ready to review.`
-    : `We started this search on ${startedAt}, but it did not finish successfully. Error summary: ${errorMessage}`;
+    : `We started this search on ${startedAt}, but it did not finish successfully. The detailed error has been logged for debugging.`;
   const ctaLabel = kind === "first_shortlist_ready" ? "Review shortlist" : "Retry search";
 
   return `

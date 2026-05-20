@@ -9,9 +9,12 @@ import {
   getLightweightLlmModel,
   resolveDeepSeekThinkingMode,
 } from "@/lib/llm-client";
+import { getLogger, errorLogFields } from "@/lib/logger";
+import { PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE } from "@/lib/public-errors";
 
 export const maxDuration = 60;
 const DEFAULT_CLARIFY_TIMEOUT_MS = 12_000;
+const routeLogger = getLogger({ component: "api_search_clarify" });
 
 function getClarifyTimeoutMs() {
   const raw = process.env.SEARCH_CLARIFY_TIMEOUT_MS;
@@ -103,9 +106,9 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[search/clarify] Error:", error);
+    routeLogger.error({ ...errorLogFields(error) }, "Failed to clarify job description");
     return NextResponse.json(
-      { error: "Failed to analyze job description" },
+      { error: PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE },
       { status: 500 },
     );
   }

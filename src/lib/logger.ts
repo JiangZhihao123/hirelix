@@ -33,3 +33,8 @@ export const logger = pino({
 export function getLogger(bindings: pino.Bindings) {
   return logger.child(bindings);
 }
+
+export function errorLogFields(error: unknown) {
+  if (error instanceof Error) return { err: error };
+  return { error: String(error) };
+}

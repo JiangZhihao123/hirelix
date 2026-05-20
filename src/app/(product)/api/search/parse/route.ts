@@ -4,8 +4,11 @@ import {
   parseJobDescriptionToDraft,
   summarizeParsedJob,
 } from "@/lib/jd-parse";
+import { getLogger, errorLogFields } from "@/lib/logger";
+import { PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE } from "@/lib/public-errors";
 
 export const maxDuration = 60;
+const routeLogger = getLogger({ component: "api_search_parse" });
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
@@ -32,9 +35,9 @@ export async function POST(req: NextRequest) {
       summary: summarizeParsedJob(parsed),
     });
   } catch (error) {
-    console.error("[search/parse] Error:", error);
+    routeLogger.error({ ...errorLogFields(error) }, "Failed to parse job description");
     return NextResponse.json(
-      { error: "Failed to parse job description" },
+      { error: PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE },
       { status: 500 },
     );
   }

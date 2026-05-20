@@ -21,6 +21,10 @@ import { buildOutreachDraftJsonSchema } from "@/lib/llm-schemas";
 import { enqueueGithubEnrichmentJob } from "@/lib/github-enrichment-jobs";
 import { buildRecruiterOutreachEvidence } from "@/lib/recruiter-outreach";
 import { sanitizeDisplayName } from "@/lib/display-name";
+import { getLogger, errorLogFields } from "@/lib/logger";
+import { PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE } from "@/lib/public-errors";
+
+const routeLogger = getLogger({ component: "api_candidate_enrich" });
 
 /**
  * POST /api/candidates/[id]/enrich
@@ -239,7 +243,15 @@ export async function POST(
             console.log(`[enrich] Email found for ${sanitizedCandidateName}: ${emailResult.email} (via ${emailResult.source})`);
           }
         } catch (err) {
-          console.log(`[enrich] Email lookup failed for ${sanitizedCandidateName}: ${err instanceof Error ? err.message : String(err)}`);
+          routeLogger.error(
+            {
+              candidate_id: candidate.id,
+              search_id: candidate.search_id,
+              user_id: user.id,
+              ...errorLogFields(err),
+            },
+            "Candidate email lookup failed",
+          );
         }
       }
     }
@@ -355,7 +367,14 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
         linkedin,
         ...(hasEmail ? { email: emailDraft } : {}),
       });
-      console.log(`[enrich] Outreach generated for ${sanitizedCandidateName}`);
+      routeLogger.info(
+        {
+          candidate_id: candidate.id,
+          search_id: candidate.search_id,
+          user_id: user.id,
+        },
+        "Candidate outreach generated",
+      );
     }
 
     // ── Update DB ──
@@ -388,7 +407,13 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
       outreach_draft: updates.outreach_draft || candidate.outreach_draft || null,
     });
   } catch (err) {
-    console.error("[enrich] Error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    routeLogger.error(
+      {
+        candidate_id: id,
+        ...errorLogFields(err),
+      },
+      "Candidate enrich failed",
+    );
+    return NextResponse.json({ error: PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE }, { status: 500 });
   }
 }

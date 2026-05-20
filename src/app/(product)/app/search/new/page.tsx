@@ -8,6 +8,10 @@ import {
   getAnalyticsContextFromParams,
   trackEvent,
 } from "@/lib/analytics";
+import {
+  PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE,
+  PUBLIC_SEARCH_CREATE_ERROR_MESSAGE,
+} from "@/lib/public-errors";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import { ArrowRight, Loader2, Send, Sparkles } from "lucide-react";
@@ -95,8 +99,7 @@ export default function NewSearchPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to analyze JD");
+        throw new Error(PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE);
       }
 
       const data = (await res.json()) as ClarifyResponse;
@@ -109,7 +112,7 @@ export default function NewSearchPage() {
     } catch (error) {
       setStage({
         type: "error",
-        message: error instanceof Error ? error.message : "Something went wrong",
+        message: error instanceof Error ? error.message : PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE,
       });
     }
   }
@@ -135,9 +138,8 @@ export default function NewSearchPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         if (res.status === 403) void refresh();
-        throw new Error(data.error || "Failed to create sourcing task");
+        throw new Error(PUBLIC_SEARCH_CREATE_ERROR_MESSAGE);
       }
 
       const { id } = await res.json();
@@ -154,7 +156,7 @@ export default function NewSearchPage() {
     } catch (error) {
       setStage({
         type: "error",
-        message: error instanceof Error ? error.message : "Something went wrong",
+        message: error instanceof Error ? error.message : PUBLIC_SEARCH_CREATE_ERROR_MESSAGE,
       });
     }
   }

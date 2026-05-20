@@ -19,9 +19,12 @@ import {
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { buildParsedRequirementsForLaunch } from "@/lib/jd-parse";
 import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
+import { getLogger, errorLogFields } from "@/lib/logger";
+import { PUBLIC_SEARCH_CREATE_ERROR_MESSAGE, PUBLIC_SEARCH_FAILURE_MESSAGE } from "@/lib/public-errors";
 
 export const maxDuration = 30;
 const DEFAULT_OUTREACH_POOL_TARGET = 20;
+const routeLogger = getLogger({ component: "api_search_create" });
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
@@ -129,9 +132,9 @@ export async function POST(req: NextRequest) {
         .returning({ id: hirelix_searches.id });
       search = inserted[0];
     } catch (insertErr) {
-      console.error("Insert search error:", insertErr);
+      routeLogger.error({ user_id: user.id, ...errorLogFields(insertErr) }, "Failed to insert search");
       return NextResponse.json(
-        { error: "Failed to create search" },
+        { error: PUBLIC_SEARCH_CREATE_ERROR_MESSAGE },
         { status: 500 },
       );
     }
@@ -174,25 +177,39 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch (usageError) {
-      console.error("Search usage event error:", usageError);
+      routeLogger.error(
+        {
+          user_id: user.id,
+          search_id: search.id,
+          ...errorLogFields(usageError),
+        },
+        "Failed to record search usage event",
+      );
     }
 
     return NextResponse.json({ id: search.id });
   } catch (err) {
-    console.error("Search create error:", err);
+    routeLogger.error(
+      {
+        user_id: user.id,
+        search_id: createdSearchId,
+        ...errorLogFields(err),
+      },
+      "Failed to create search",
+    );
     if (createdSearchId) {
       await db
         .update(hirelix_searches)
         .set({
           status: "error",
           pipeline_step: "error",
-          error_message: "Failed to enqueue search job",
+          error_message: PUBLIC_SEARCH_FAILURE_MESSAGE,
           updated_at: new Date(),
         })
         .where(eq(hirelix_searches.id, createdSearchId));
     }
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: PUBLIC_SEARCH_CREATE_ERROR_MESSAGE },
       { status: 500 },
     );
   }

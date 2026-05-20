@@ -23,6 +23,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_OPTIONS } from "@/lib/candidate-status";
 import { sanitizeDisplayName } from "@/lib/display-name";
+import { PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE } from "@/lib/public-errors";
 import type { CandidateRow } from "./types";
 import {
   deriveCurrentCompany,
@@ -117,12 +118,10 @@ export function CandidateCard({
         }));
         await refreshBilling();
       } else {
-        const data = await res.json().catch(() => ({}));
-        setEnrichError(data.error || "We couldn't enrich this candidate.");
+        setEnrichError(PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE);
       }
-    } catch (err) {
-      console.error("Enrich failed:", err);
-      setEnrichError("We couldn't enrich this candidate right now.");
+    } catch {
+      setEnrichError(PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE);
     } finally {
       setEnriching(false);
     }

@@ -278,32 +278,10 @@ export function getProviderDelayCopy(elapsedMs: number | null, emailEnabled: boo
   return `This is taking a bit longer than usual. ${getSearchCompletionFollowUpCopy(emailEnabled)}.`;
 }
 
-export function getSearchErrorPresentation(errorMessage: string | null | undefined) {
-  const normalized = (errorMessage || "").toLowerCase();
-  if (normalized.includes("insufficient funds")) {
-    return {
-      title: "External profile provider balance is too low",
-      body: "The LinkedIn search could not start due to a configuration issue on our end. Please retry or contact support.",
-      hint: "Top up the provider balance, then retry this shortlist.",
-    };
-  }
-  if (normalized.includes("timed out")) {
-    return {
-      title: "Profile recall took too long",
-      body: "The external profile provider did not finish in time, so Hirelix could not continue this shortlist run.",
-      hint: "Retrying is usually enough when the provider is temporarily slow.",
-    };
-  }
-  if (normalized.includes("no candidates") || normalized.includes("no results")) {
-    return {
-      title: "No profiles made it through review",
-      body: "Hirelix finished the search, but no recalled profiles passed the recruiter shortlist decision.",
-      hint: "Try widening location, relaxing must-haves, or clarifying the JD before retrying.",
-    };
-  }
+export function getSearchErrorPresentation() {
   return {
     title: "This shortlist run didn't finish",
-    body: errorMessage || "We couldn't generate candidates for this shortlist.",
+    body: "Hirelix couldn't finish this search. The detailed error has been logged for debugging.",
     hint: "Retry from here, or tighten the JD if the role is too vague.",
   };
 }

@@ -150,6 +150,8 @@ import {
   DatasetRecallPendingError,
   runSearchPipeline,
 } from "@/lib/search/pipeline";
+import { getLogger, errorLogFields } from "@/lib/logger";
+import { PUBLIC_SEARCH_FAILURE_MESSAGE } from "@/lib/public-errors";
 import type {
   AdvanceRecommendation,
   BlockingSeverity,
@@ -183,6 +185,8 @@ export {
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
 };
+
+const searchJobLogger = getLogger({ component: "search_jobs" });
 
 const GEO_ALLOWLISTS = [
   {
@@ -2717,7 +2721,13 @@ async function markSearchReviewable(
     error_message: null,
   });
   void queueOrSendSearchNotification(context.searchId, "first_shortlist_ready").catch((error) => {
-    console.error("[search_notifications] Failed to queue first shortlist notification:", error);
+    searchJobLogger.error(
+      {
+        search_id: context.searchId,
+        ...errorLogFields(error),
+      },
+      "Failed to queue first shortlist notification",
+    );
   });
 }
 
@@ -3038,15 +3048,21 @@ async function scoreBrightDataProfiles(
   };
 }
 
-async function failSearch(searchId: string, message: string) {
+async function failSearch(searchId: string) {
   await setSearchStatus(searchId, "error", {
-    error_message: message,
+    error_message: PUBLIC_SEARCH_FAILURE_MESSAGE,
   });
   const count = await countCandidatesForSearch(searchId);
 
   if (count === 0) {
     void queueOrSendSearchNotification(searchId, "search_failed").catch((error) => {
-      console.error("[search_notifications] Failed to queue failure notification:", error);
+      searchJobLogger.error(
+        {
+          search_id: searchId,
+          ...errorLogFields(error),
+        },
+        "Failed to queue search failure notification",
+      );
     });
   }
 }
@@ -3150,15 +3166,24 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       };
     }
 
-    const message = error instanceof Error
+    const internalMessage = error instanceof Error
         ? error.message
         : "Search job failed";
+    searchJobLogger.error(
+      {
+        job_id: job.id,
+        search_id: job.search_id,
+        attempt_count: job.attempt_count,
+        ...errorLogFields(error),
+      },
+      "Search job failed",
+    );
     const updated = await updateRunningJobStatus(
       job.id,
       "fatal_error",
       {
         available_at: nowIso(),
-        last_error: message,
+        last_error: internalMessage,
         locked_at: null,
         finished_at: nowIso(),
       },
@@ -3171,11 +3196,11 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       };
     }
 
-    await failSearch(job.search_id, message);
+    await failSearch(job.search_id);
 
     logSearchEvent("search_provider_failed", {
       search_id: job.search_id,
-      reason: message,
+      reason: "internal_error_logged",
       retryable: false,
       attempt_count: job.attempt_count,
       job_id: job.id,

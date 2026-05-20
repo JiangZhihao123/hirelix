@@ -5,6 +5,10 @@ import { db } from "@/db/client";
 import { hirelix_candidates, hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { isValidCandidateStatus } from "@/lib/candidate-status";
+import { getLogger, errorLogFields } from "@/lib/logger";
+import { PUBLIC_GENERIC_ERROR_MESSAGE } from "@/lib/public-errors";
+
+const routeLogger = getLogger({ component: "api_candidate_update" });
 
 export async function PATCH(
   req: NextRequest,
@@ -45,8 +49,17 @@ export async function PATCH(
         .set({ status })
         .where(eq(hirelix_candidates.id, id));
     } catch (error) {
+      routeLogger.error(
+        {
+          candidate_id: id,
+          user_id: user.id,
+          target_status: status,
+          ...errorLogFields(error),
+        },
+        "Candidate status update failed",
+      );
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : String(error) },
+        { error: PUBLIC_GENERIC_ERROR_MESSAGE },
         { status: 500 },
       );
     }

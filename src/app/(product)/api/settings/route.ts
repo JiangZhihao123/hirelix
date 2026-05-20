@@ -5,8 +5,11 @@ import { db } from "@/db/client";
 import { hirelix_user_settings } from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { getLogger, errorLogFields } from "@/lib/logger";
 
 /** GET /api/settings — returns user settings */
+const routeLogger = getLogger({ component: "api_settings" });
+
 export async function GET(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -54,7 +57,13 @@ export async function POST(req: NextRequest) {
         set: setOnConflict,
       });
   } catch (error) {
-    console.error("Save settings error:", error);
+    routeLogger.error(
+      {
+        user_id: user.id,
+        ...errorLogFields(error),
+      },
+      "Failed to save settings",
+    );
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }
 
