@@ -10,12 +10,12 @@ export function ObjectionsSection() {
     {
       icon: ShieldCheck,
       title: "Do I need to pay before seeing value?",
-      desc: "No credit card is required to get started. The first step is understanding what the workflow looks like.",
+      desc: "No credit card is required to build the first real shortlist preview. Upgrade when contact actions or export save you time.",
     },
     {
       icon: Search,
       title: "Who is this built for first?",
-      desc: "Recruiters, headhunters, and hiring teams who want a ranked shortlist with evidence instead of another pile of profiles.",
+      desc: "Independent technical headhunters who need a credible shortlist faster than manual profile review.",
     },
     {
       icon: Mail,

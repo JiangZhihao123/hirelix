@@ -73,8 +73,8 @@ export function AuthModal({
   const benefits = isSearchAuthIntent
     ? [
         "Keep this role attached after sign in",
-        "Open the real search workspace",
-        "Review shortlist and outreach drafts",
+        "Build a real technical shortlist",
+        "Review fit evidence, risks, and outreach",
       ]
     : [
         "Return to your sourcing workspace",
@@ -124,11 +124,11 @@ export function AuthModal({
               <div className="mt-8">
                 <p className="inline-flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
                   <Sparkles className="h-3.5 w-3.5" />
-                  {isSearchAuthIntent ? "Your search is ready" : "Welcome back"}
+                  {isSearchAuthIntent ? "Your client role is saved" : "Welcome back"}
                 </p>
                 <h2 id={titleId} className="mt-4 max-w-[14ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
                   {isSearchAuthIntent
-                    ? "One more step to open your shortlist."
+                    ? "One more step to build your shortlist."
                     : "Sign in and keep moving."}
                 </h2>
                 <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
@@ -227,7 +227,7 @@ export function AuthModal({
                 }
                 contextBody={
                   isSearchAuthIntent
-                    ? "Use Google to keep this exact role attached and move straight into the search."
+                    ? "Use Google to keep this exact role attached and move straight into the shortlist workflow."
                     : "Use Google to sign in without breaking the flow."
                 }
                 onSuccessStart={onSuccessStart}

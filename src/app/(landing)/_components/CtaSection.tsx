@@ -23,7 +23,7 @@ export function CtaSection({
             Start with the role already on your desk.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            Paste a JD, review the shortlist, and edit the outreach before anything gets sent.
+            Paste a client JD, review the shortlist, and edit the outreach before anything gets sent.
             No credit card required to start.
           </p>
 
@@ -39,7 +39,7 @@ export function CtaSection({
               onClick={onTrySample}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(37,99,235,0.24)] transition-all hover:-translate-y-0.5 hover:bg-blue-700 sm:hidden"
             >
-              Try a sample search <ArrowRight className="h-4 w-4" />
+              View sample shortlist <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-sm text-slate-600">
               Already have an account?{" "}
@@ -78,8 +78,8 @@ export function CtaSection({
               <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
               <span className="font-semibold text-slate-950">Hirelix</span>
             </div>
-            <p>AI-powered candidate sourcing from real LinkedIn profiles.</p>
-            <p>Built for recruiters, search firms, and hiring teams.</p>
+            <p>Evidence-backed technical shortlists from real LinkedIn profiles.</p>
+            <p>Built first for independent technical headhunters.</p>
             <p>Support: <a className="text-sky-700 hover:text-sky-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>
             <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>

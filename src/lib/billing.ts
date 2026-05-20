@@ -20,6 +20,7 @@ export type BillingPlan = {
   candidateLimitPerSearch: number;
   enrichesPerMonth: number;
   exportEnabled: boolean;
+  clientBriefEnabled: boolean;
   priceCents: number;
   ctaLabel: string;
   featured?: boolean;
@@ -36,6 +37,7 @@ export type UsageSummary = {
   enrichesRemaining: number;
   candidateLimitPerSearch: number;
   exportEnabled: boolean;
+  clientBriefEnabled: boolean;
   extraSearchCredits: number;
   extraEnrichCredits: number;
 };
@@ -76,72 +78,77 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Run 2 searches to see how AI sourcing with evidence works.",
+    description: "Run one real client-role shortlist and see the evidence before you pay.",
     priceLabel: "$0",
     cadenceLabel: "free forever",
     billingCycle: null,
-    searchesPerMonth: 2,
+    searchesPerMonth: 1,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 5,
     exportEnabled: false,
+    clientBriefEnabled: false,
     priceCents: 0,
     ctaLabel: "Current plan",
   },
   starter_monthly: {
     code: "starter_monthly",
-    name: "Starter",
-    description: "For occasional solo technical recruiters working a few active roles.",
+    name: "Solo",
+    description: "For independent technical headhunters working a few active client roles.",
     priceLabel: "$149",
     cadenceLabel: "per seat / month",
     billingCycle: "month",
     searchesPerMonth: 10,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 100,
-    exportEnabled: false,
+    exportEnabled: true,
+    clientBriefEnabled: false,
     priceCents: 14900,
-    ctaLabel: "Start Starter",
+    ctaLabel: "Start Solo",
   },
   starter_annual: {
     code: "starter_annual",
-    name: "Starter Annual",
-    description: "For solo recruiters who want a lower annual rate for occasional sourcing.",
+    name: "Solo Annual",
+    description: "For solo technical recruiters who want a lower annual rate.",
     priceLabel: "$119",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",
     searchesPerMonth: 10,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 100,
-    exportEnabled: false,
+    exportEnabled: true,
+    clientBriefEnabled: false,
     priceCents: 142800,
-    ctaLabel: "Start annual Starter",
+    ctaLabel: "Start annual Solo",
   },
   pro_monthly: {
     code: "pro_monthly",
     name: "Pro",
-    description: "For independent technical headhunters sourcing active roles.",
-    priceLabel: "$299",
+    description: "For steady solo headhunters who need client-ready briefs and deeper capacity.",
+    priceLabel: "$249",
     cadenceLabel: "per seat / month",
     billingCycle: "month",
-    searchesPerMonth: 30,
+    searchesPerMonth: 25,
     candidateLimitPerSearch: 50,
     enrichesPerMonth: 300,
     exportEnabled: true,
-    priceCents: 29900,
-    ctaLabel: "Upgrade monthly",
+    clientBriefEnabled: true,
+    priceCents: 24900,
+    ctaLabel: "Start Pro",
   },
   pro_annual: {
     code: "pro_annual",
     name: "Pro Annual",
-    description: "Two months free. For headhunters with steady sourcing volume.",
-    priceLabel: "$249",
+    description: "For steady solo headhunters who want the lower annual Pro rate.",
+    priceLabel: "$199",
     cadenceLabel: "per seat / month, billed annually",
     billingCycle: "year",
-    searchesPerMonth: 30,
+    searchesPerMonth: 25,
     candidateLimitPerSearch: 50,
-    enrichesPerMonth: 500,
+    enrichesPerMonth: 300,
     exportEnabled: true,
-    priceCents: 298800,
-    ctaLabel: "Upgrade annually",
+    clientBriefEnabled: true,
+    priceCents: 238800,
+    ctaLabel: "Start annual Pro",
     featured: true,
   },
   business_monthly: {
@@ -155,6 +162,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     candidateLimitPerSearch: 50,
     enrichesPerMonth: 1500,
     exportEnabled: true,
+    clientBriefEnabled: true,
     priceCents: 79900,
     ctaLabel: "Upgrade to Business",
   },
@@ -169,6 +177,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     candidateLimitPerSearch: 100,
     enrichesPerMonth: 5000,
     exportEnabled: true,
+    clientBriefEnabled: true,
     priceCents: 199900,
     ctaLabel: "Contact us",
   },
@@ -176,16 +185,16 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
 
 export const SEARCH_PACK = {
   name: "Search Pack",
-  description: "10 extra searches when you hit your monthly limit.",
-  priceLabel: "$99",
-  credits: 10,
+  description: "3 extra searches when a client role needs more sourcing capacity.",
+  priceLabel: "$49",
+  credits: 3,
 };
 
 export const CONTACT_PACK = {
   name: "Contact Pack",
-  description: "100 extra contact unlocks with outreach drafts.",
-  priceLabel: "$99",
-  credits: 100,
+  description: "50 extra contact unlocks with outreach-ready context.",
+  priceLabel: "$49",
+  credits: 50,
 };
 
 const ACTIVE_BILLING_STATUSES = new Set<BillingStatus>(["active", "trialing"]);
@@ -272,11 +281,13 @@ export function getPlanStatusCopy(
   return {
     title: isFreePlan ? "Free plan" : billing.plan.name,
     usageLabel: isExhausted
-      ? "No searches left this cycle"
-      : `${searchesRemaining} / ${searchesLimit} searches left this cycle`,
+      ? "No shortlist builds left this cycle"
+      : `${searchesRemaining} / ${searchesLimit} shortlist builds left`,
     capabilityLabel: isFreePlan
-      ? "Includes limited contact unlocks; export is on Pro"
-      : "Includes contact unlocks, export, and outreach",
+      ? "Includes a real shortlist preview and limited contact unlocks"
+      : billing.usage.clientBriefEnabled
+        ? "Includes contact unlocks, export, outreach, and client-ready briefs"
+        : "Includes contact unlocks, export, and outreach-ready shortlists",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",
     state: isExhausted ? "warning" : "default",

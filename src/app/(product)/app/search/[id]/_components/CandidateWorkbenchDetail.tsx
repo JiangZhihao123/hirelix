@@ -87,6 +87,7 @@ export function CandidateWorkbenchDetail({
   candidate,
   requiredSkills,
   billingPlanCode,
+  clientBriefEnabled,
   enrichesRemaining,
   refreshBilling,
   onUpgradeClick,
@@ -95,6 +96,7 @@ export function CandidateWorkbenchDetail({
   candidate: CandidateRow;
   requiredSkills: string[];
   billingPlanCode: import("@/lib/billing").BillingPlanCode;
+  clientBriefEnabled: boolean;
   enrichesRemaining: number;
   refreshBilling: () => Promise<void>;
   onUpgradeClick: (surface: string) => void;
@@ -339,6 +341,7 @@ export function CandidateWorkbenchDetail({
       .map((item) => [item.citation_label as string, item.source_url as string]),
   );
   const linkedInBased = sellingKit?.evidence_basis === "linkedin_based";
+  const canCopyClientBrief = clientBriefEnabled && Boolean(clientBriefText);
   const canRegenerateWithPublicEvidence =
     Boolean(localCandidate.outreach_draft && sellingKit?.evidence_basis === "public_evidence");
 
@@ -448,7 +451,7 @@ export function CandidateWorkbenchDetail({
                         Copy opener
                       </button>
                     )}
-                    {clientBriefText && (
+                    {clientBriefText && canCopyClientBrief && (
                       <button
                         onClick={() => copyText(clientBriefText, "brief")}
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
@@ -456,6 +459,15 @@ export function CandidateWorkbenchDetail({
                         {copied === "brief" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                         Copy client brief
                       </button>
+                    )}
+                    {clientBriefText && !canCopyClientBrief && (
+                      <PaddleCheckoutButton
+                        checkout={{ type: "plan", planCode: "pro_monthly" }}
+                        label="Go Pro for client brief"
+                        onClick={() => onUpgradeClick("workbench_client_brief_button")}
+                        onError={(message) => setEnrichError(message)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                      />
                     )}
                   </div>
                 </div>
@@ -478,6 +490,11 @@ export function CandidateWorkbenchDetail({
                     <p className="mt-2 text-sm leading-6 text-slate-700">
                       {sellingKit.client_brief.positioning}
                     </p>
+                    {!clientBriefEnabled && (
+                      <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                        Full client-ready brief export is included on Pro.
+                      </p>
+                    )}
                   </div>
                 )}
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -743,7 +760,7 @@ export function CandidateWorkbenchDetail({
                       Copy opener
                     </button>
                   )}
-                  {clientBriefText && (
+                  {clientBriefText && canCopyClientBrief && (
                     <button
                       onClick={() => copyText(clientBriefText, "brief")}
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -751,6 +768,15 @@ export function CandidateWorkbenchDetail({
                       {copied === "brief" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                       Copy brief
                     </button>
+                  )}
+                  {clientBriefText && !canCopyClientBrief && (
+                    <PaddleCheckoutButton
+                      checkout={{ type: "plan", planCode: "pro_monthly" }}
+                      label="Go Pro for brief"
+                      onClick={() => onUpgradeClick("workbench_client_brief_button_compact")}
+                      onError={(message) => setEnrichError(message)}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                    />
                   )}
                 </div>
               </div>
@@ -867,6 +893,11 @@ export function CandidateWorkbenchDetail({
                       </p>
                     );
                   })}
+                  {!clientBriefEnabled && (
+                    <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                      Upgrade to Pro when you need the full client-ready brief.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -1224,8 +1255,8 @@ export function CandidateWorkbenchDetail({
                 </p>
                 {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                   <PaddleCheckoutButton
-                    checkout={{ type: "plan", planCode: "pro_annual" }}
-                    label="Unlock outreach"
+                    checkout={{ type: "plan", planCode: "starter_monthly" }}
+                    label="Start Solo for outreach"
                     onClick={() => onUpgradeClick("workbench_outreach_drawer")}
                     onError={(message) => setEnrichError(message)}
                     className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"

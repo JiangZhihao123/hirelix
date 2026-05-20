@@ -6,24 +6,23 @@ type User = { id: string };
 
 // Keep the public pricing focused on the solo technical recruiter path.
 const SHOWCASE_PLANS = ["free", "starter_monthly", "pro_annual"] as const;
-const TEAM_PLANS = ["business_monthly", "agency_monthly"] as const;
 
 const planCtaLabels: Record<string, string> = {
   free: "Start free",
-  starter_monthly: "Start Starter",
-  starter_annual: "Start Starter annual",
-  pro_annual: "Start annual",
-  pro_monthly: "Start monthly",
+  starter_monthly: "Start Solo",
+  starter_annual: "Start Solo annual",
+  pro_annual: "Start annual Pro",
+  pro_monthly: "Start Pro",
   business_monthly: "Start Business",
   agency_monthly: "Contact us",
 };
 
 const shortlistCopy: Record<string, string> = {
-  free: "Qualified candidates ranked by fit",
-  starter_monthly: "Evidence-backed shortlists for occasional technical roles",
-  starter_annual: "Lower annual rate for occasional solo sourcing",
-  pro_monthly: "Client-ready Pitch Kit, export, and evidence refresh capacity",
-  pro_annual: "Client-ready Pitch Kit, export, and evidence refresh capacity",
+  free: "One real shortlist preview with fit evidence and risks",
+  starter_monthly: "Evidence-backed shortlists, contact unlocks, and CSV export",
+  starter_annual: "Lower annual rate for independent solo sourcing",
+  pro_monthly: "Client-ready briefs, export, and deeper shortlist capacity",
+  pro_annual: "Client-ready briefs, export, and deeper shortlist capacity",
   business_monthly: "Shared workspace, higher volume, priority support",
   agency_monthly: "High-volume search firm capacity, API access, white-label export",
 };
@@ -52,11 +51,11 @@ export function PricingSection({
             Pricing
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Start free. Upgrade when sourcing gets busy.
+            Start with one real shortlist. Upgrade when it saves sourcing time.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Run your first two searches without a credit card. Pro Annual is the recommended
-            path for technical recruiters who source every month.
+            Built for independent technical headhunters: prove one client role first, then
+            choose Solo for monthly sourcing or Pro when you need client-ready briefs.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs">
             <span className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-1 font-semibold text-blue-700">
@@ -75,8 +74,8 @@ export function PricingSection({
           {SHOWCASE_PLANS.map((code) => {
             const plan = BILLING_PLANS[code];
             const isProAnnual = plan.code === "pro_annual";
-            const isStarter = plan.code === "starter_monthly";
-            const isFree = plan.code === "free";
+              const isStarter = plan.code === "starter_monthly";
+              const isFree = plan.code === "free";
             const isRecommended = isProAnnual;
             const mobileOrder = isFree ? "order-1" : isProAnnual ? "order-2" : "order-3";
 
@@ -96,7 +95,7 @@ export function PricingSection({
                 )}
                 {isStarter ? (
                   <span className="absolute -top-3 right-5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-sky-700">
-                    Solo entry
+                    Solo
                   </span>
                 ) : null}
                 {isProAnnual && annualSavingsPercent > 0 ? (
@@ -133,12 +132,12 @@ export function PricingSection({
                 {isProAnnual ? (
                   <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
                     Billed ${Math.round(plan.priceCents / 100).toLocaleString()} annually. Monthly
-                    billing available ($299/mo) in settings.
+                    billing available ($249/mo) in settings.
                   </p>
                 ) : null}
                 {isStarter ? (
                   <p className="mt-3 hidden rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 sm:block">
-                    Annual Starter available at ${Math.round(starterAnnual.priceCents / 1200).toLocaleString()}/mo,
+                    Annual Solo available at ${Math.round(starterAnnual.priceCents / 1200).toLocaleString()}/mo,
                     billed ${Math.round(starterAnnual.priceCents / 100).toLocaleString()}/year.
                   </p>
                 ) : null}
@@ -148,7 +147,7 @@ export function PricingSection({
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>
                       <strong className="text-slate-950">{plan.searchesPerMonth}</strong>{" "}
-                      sourcing runs / month
+                      shortlist builds / month
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
@@ -162,7 +161,7 @@ export function PricingSection({
                         <strong className="text-slate-950">
                           {plan.enrichesPerMonth.toLocaleString()}
                         </strong>{" "}
-                        contact unlocks with outreach drafts / month
+                        contact unlocks with outreach-ready context / month
                       </span>
                     </li>
                   ) : (
@@ -182,6 +181,17 @@ export function PricingSection({
                     <li className="flex items-start gap-2 text-slate-500">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
                       <span>Upgrade for CSV export</span>
+                    </li>
+                  )}
+                  {plan.clientBriefEnabled ? (
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>Client-ready brief included</span>
+                    </li>
+                  ) : (
+                    <li className="flex items-start gap-2 text-slate-500">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
+                      <span>Upgrade to Pro for client-ready briefs</span>
                     </li>
                   )}
                 </ul>
@@ -221,44 +231,23 @@ export function PricingSection({
 
         <details className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-5 lg:hidden">
           <summary className="cursor-pointer text-sm font-semibold text-slate-950">
-            Team plans and add-ons
+            Team volume and add-ons
           </summary>
           <div className="mt-4 space-y-4 text-sm text-slate-700">
-            {TEAM_PLANS.map((code) => {
-              const plan = BILLING_PLANS[code];
-              return (
-                <div key={plan.code} className="rounded-lg border border-slate-200 bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-slate-950">{plan.name}</p>
-                      <p className="mt-1 text-slate-600">{plan.description}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="font-bold text-slate-950">{plan.priceLabel}</p>
-                      <p className="text-xs text-slate-500">{plan.cadenceLabel}</p>
-                    </div>
-                  </div>
-                  {plan.code === "agency_monthly" ? (
-                    <a
-                      href="mailto:support@hirelix.online?subject=Agency%20Plan%20Inquiry"
-                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
-                    >
-                      Contact us
-                      <ArrowRight className="h-4 w-4" />
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onSignIn(plan.code)}
-                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950"
-                    >
-                      Start Business
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <p className="font-semibold text-slate-950">Need team volume?</p>
+              <p className="mt-1 text-slate-600">
+                Business and agency plans are available for search firms that need shared workspace,
+                white-label export, or high-volume sourcing.
+              </p>
+              <a
+                href="mailto:support@hirelix.online?subject=Team%20Volume%20Inquiry"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                Contact us
+                <ArrowRight className="h-4 w-4" />
+              </a>
+            </div>
             <div className="rounded-lg border border-slate-200 bg-white p-4">
               <p className="font-semibold text-slate-950">Need extra credits?</p>
               <p className="mt-1 text-slate-600">
@@ -268,57 +257,23 @@ export function PricingSection({
           </div>
         </details>
 
-        <div className="mt-6 hidden gap-4 lg:grid lg:grid-cols-2">
-          {TEAM_PLANS.map((code) => {
-            const plan = BILLING_PLANS[code];
-            const isAgency = plan.code === "agency_monthly";
-            return (
-              <div key={plan.code} className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      For teams
-                    </p>
-                    <h3 className="mt-2 text-lg font-semibold text-slate-950">{plan.name}</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">{plan.description}</p>
-                    <p className="mt-3 text-sm text-slate-700">
-                      {plan.searchesPerMonth} sourcing runs · {plan.enrichesPerMonth.toLocaleString()} contact unlocks · {shortlistCopy[plan.code]}
-                    </p>
-                  </div>
-                  <div className="shrink-0 sm:text-right">
-                    <p className="text-2xl font-bold text-slate-950">{plan.priceLabel}</p>
-                    <p className="text-xs text-slate-500">{plan.cadenceLabel}</p>
-                    {isAgency ? (
-                      <a
-                        href="mailto:support@hirelix.online?subject=Agency%20Plan%20Inquiry"
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-slate-800 sm:w-auto"
-                      >
-                        Contact us
-                        <ArrowRight className="h-4 w-4" />
-                      </a>
-                    ) : user ? (
-                      <Link
-                        href="/app/settings#billing"
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300 sm:w-auto"
-                      >
-                        Open billing
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onSignIn(plan.code)}
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition-all hover:border-blue-300 sm:w-auto"
-                      >
-                        Start Business
-                        <ArrowRight className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="mt-6 hidden rounded-lg border border-slate-200 bg-slate-50 p-5 lg:block">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">Need team volume?</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Business and agency plans are available for search firms that need shared workspace,
+                white-label export, or high-volume sourcing.
+              </p>
+            </div>
+            <a
+              href="mailto:support@hirelix.online?subject=Team%20Volume%20Inquiry"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-slate-800 sm:w-auto"
+            >
+              Contact us
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
         </div>
 
         <div className="mt-8 hidden rounded-lg border border-slate-200 bg-slate-50 p-5 lg:block">
@@ -335,7 +290,7 @@ export function PricingSection({
                 <span className="text-base font-bold text-slate-950">{SEARCH_PACK.priceLabel}</span>
               </div>
               <p className="mt-2 text-sm text-slate-600">
-                {SEARCH_PACK.credits} extra sourcing runs for heavier sourcing weeks.
+                {SEARCH_PACK.credits} extra shortlist builds for heavier sourcing weeks.
               </p>
               {user ? (
                 <PaddleCheckoutButton

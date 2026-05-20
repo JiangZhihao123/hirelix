@@ -9,11 +9,11 @@ export function FeaturesSection() {
             What you get
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            A shortlist your team can actually review
+            A shortlist a solo headhunter can act on
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Hirelix keeps the workflow focused on people, evidence, and outreach instead of
-            forcing recruiters to translate every JD into brittle filters.
+            Hirelix keeps the workflow focused on fewer profiles to review, clearer evidence,
+            and faster first outreach.
           </p>
         </div>
 
@@ -27,7 +27,7 @@ export function FeaturesSection() {
             {
               icon: ListChecks,
               title: "Explainable ranking",
-              desc: "Every candidate comes with concise fit reasons so the shortlist is easy to trust.",
+              desc: "Every candidate comes with concise fit reasons and risks so the shortlist is easy to trust.",
             },
             {
               icon: Github,

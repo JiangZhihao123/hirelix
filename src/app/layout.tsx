@@ -14,9 +14,9 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Hirelix — Ranked Candidate Shortlists from a JD",
+  title: "Hirelix — Evidence-Backed Technical Shortlists",
   description:
-    "Paste a job description and get a ranked candidate shortlist from relevant profiles, evidence-based fit reasons, public signals when available, and editable outreach drafts.",
+    "Turn a client JD into an evidence-backed technical shortlist with fit reasons, risks to verify, and outreach-ready candidates.",
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
@@ -25,9 +25,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Hirelix — Ranked Candidate Shortlists from a JD",
+    title: "Hirelix — Evidence-Backed Technical Shortlists",
     description:
-      "Paste a JD and get a ranked candidate shortlist with fit reasons, public evidence when available, and editable outreach drafts.",
+      "Turn a client JD into an evidence-backed technical shortlist with fit reasons, risks to verify, and outreach-ready candidates.",
     type: "website",
     url: "https://hirelix.online",
     siteName: "Hirelix",
@@ -36,15 +36,15 @@ export const metadata: Metadata = {
         url: "https://hirelix.online/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Hirelix — AI-Powered Candidate Sourcing",
+        alt: "Hirelix — Evidence-backed technical shortlist workbench",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Hirelix — Ranked Candidate Shortlists from a JD",
+    title: "Hirelix — Evidence-Backed Technical Shortlists",
     description:
-      "Paste a JD and get a ranked candidate shortlist with fit reasons, public evidence when available, and editable outreach drafts.",
+      "Turn a client JD into an evidence-backed technical shortlist with fit reasons, risks to verify, and outreach-ready candidates.",
     images: ["https://hirelix.online/og-image.png"],
   },
 };

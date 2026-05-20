@@ -53,7 +53,16 @@ function resolveSearchExecutionMode(): SearchExecutionMode {
   return process.env.NODE_ENV === "production" ? "production" : "test";
 }
 
-const DEFAULT_SHORTLIST_CAP = 20;
+const DEFAULT_SHORTLIST_CAP = 25;
+const PLAN_SHORTLIST_CAPS: Record<SearchPlanCode, number> = {
+  free: 25,
+  starter_monthly: 25,
+  starter_annual: 25,
+  pro_monthly: 50,
+  pro_annual: 50,
+  business_monthly: 50,
+  agency_monthly: 100,
+};
 
 const SEARCH_EXECUTION_PROFILES: Record<
   SearchExecutionProfileName,
@@ -141,10 +150,12 @@ export function getInitialSearchTargets(
   planCode: SearchPlanCode,
 ) {
   const profile = getInitialSearchExecutionProfile(planCode);
+  const planCap = PLAN_SHORTLIST_CAPS[normalizeSearchPlanCode(planCode)];
+  const candidateCount = Math.max(profile.finalResultCap, planCap);
   return {
-    candidateCount: profile.finalResultCap,
-    displayCount: profile.finalResultCap,
-    highlightCount: Math.min(profile.highlightCount, profile.finalResultCap),
+    candidateCount,
+    displayCount: candidateCount,
+    highlightCount: Math.min(profile.highlightCount, candidateCount),
     executionProfile: profile.name,
   };
 }

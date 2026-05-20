@@ -3,7 +3,7 @@ export function HowItWorksSection() {
     {
       step: "1",
       title: "Paste the real job description",
-      desc: "Hirelix turns the JD into a search brief with role level, must-have skills, target signals, and constraints.",
+      desc: "Hirelix turns the client JD into a search brief with role level, must-have skills, target signals, and constraints.",
     },
     {
       step: "2",
@@ -13,7 +13,7 @@ export function HowItWorksSection() {
     {
       step: "3",
       title: "Review evidence and edit outreach",
-      desc: "Recruiters get a ranked shortlist, concise fit reasons, and drafts they can personalize before sending.",
+      desc: "Independent headhunters get a ranked shortlist, concise fit reasons, and drafts they can personalize before sending.",
     },
   ];
 
@@ -25,7 +25,7 @@ export function HowItWorksSection() {
             How it works
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            From JD to outreach in one flow
+            From client JD to first outreach in one flow
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
             Paste the role, review ranked matches, and send edited outreach from one workflow.

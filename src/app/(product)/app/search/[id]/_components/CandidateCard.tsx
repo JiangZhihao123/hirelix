@@ -350,10 +350,10 @@ export function CandidateCard({
           )}
         </div>
         </button>
-        {canUnlockAction && !hasRealEmail && (
-          <PaddleCheckoutButton
-            checkout={{ type: "plan", planCode: "pro_annual" }}
-            label="Get email"
+          {canUnlockAction && !hasRealEmail && (
+            <PaddleCheckoutButton
+            checkout={{ type: "plan", planCode: "starter_monthly" }}
+            label="Start Solo"
             onClick={() => onUpgradeClick("candidate_header_unlock")}
             onError={(message) => setEnrichError(message)}
             className="hidden shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100 lg:inline-flex"
@@ -700,8 +700,8 @@ export function CandidateCard({
                   </p>
                   {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                     <PaddleCheckoutButton
-                      checkout={{ type: "plan", planCode: "pro_annual" }}
-                      label="Unlock contact details and outreach"
+                      checkout={{ type: "plan", planCode: "starter_monthly" }}
+                      label="Start Solo for contact details"
                       onClick={() => onUpgradeClick("candidate_outreach_gate")}
                       onError={(message) => setEnrichError(message)}
                       className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"

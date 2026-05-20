@@ -27,6 +27,7 @@ import {
 import {
   Plus,
   Search,
+  FileText,
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -72,6 +73,7 @@ export default function DashboardPage() {
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now());
   const [filter, setFilter] = useState<"active" | "ready" | "running" | "issues" | "archived">("active");
   const [query, setQuery] = useState("");
+  const [emptyStateJd, setEmptyStateJd] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [isNavigating, startTransition] = useTransition();
@@ -357,6 +359,17 @@ export default function DashboardPage() {
     });
   };
 
+  const handleEmptyStateBuild = () => {
+    const trimmed = emptyStateJd.trim();
+    if (trimmed.length < 50) return;
+    const params = new URLSearchParams({
+      jd: trimmed,
+      entry: "workspace",
+      intent_path: "direct_jd",
+    });
+    navigateTo(`/app/search/new?${params.toString()}`, "dashboard_empty_jd_intake");
+  };
+
   return (
     <div className="mx-auto max-w-5xl">
       {activeSearches.length > 0 && (
@@ -423,24 +436,45 @@ export default function DashboardPage() {
       {loading ? (
         <DashboardPageSkeleton />
     ) : searches.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-              <Sparkles className="h-5 w-5 text-primary" />
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 text-white shadow-sm">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                  First client role
+                </p>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">Paste a client role</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  Start with the real JD. Hirelix turns it into a brief, screens technical profiles,
+                  and opens a shortlist workbench when candidates are ready.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-950">What your first sourcing task includes</h2>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Start with one full JD. Hirelix parses the brief, finds the best-fit technical candidates, and opens a recruiter workbench you can review before unlocking contact actions.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">JD parsing + editable brief</span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">LinkedIn ranking</span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">2 free sourcing runs each month</span>
+            <textarea
+              value={emptyStateJd}
+              onChange={(event) => setEmptyStateJd(event.target.value)}
+              rows={8}
+              placeholder="Paste the full client job description here..."
+              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Editable brief</span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Fit evidence</span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Outreach-ready shortlist</span>
               </div>
-              <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-3 text-xs text-slate-600">
-                Next step: paste the real role, confirm the brief, then open the workbench and review candidates.
-              </div>
+              <button
+                type="button"
+                onClick={handleEmptyStateBuild}
+                disabled={emptyStateJd.trim().length < 50 || isNavigating}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isNavigating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Build shortlist
+              </button>
             </div>
           </div>
         </div>
@@ -468,7 +502,7 @@ export default function DashboardPage() {
 
           <div className="grid gap-3 md:grid-cols-4">
             {[
-              { label: "Ready to contact", value: dashboardCounts.ready },
+                  { label: "Ready to contact", value: dashboardCounts.ready },
               { label: "Needs review", value: Math.max(dashboardCounts.active - dashboardCounts.ready - dashboardCounts.running, 0) },
               { label: "Running", value: dashboardCounts.running },
               { label: "Issues", value: dashboardCounts.issues },
@@ -552,7 +586,9 @@ export default function DashboardPage() {
             const bucket = getDashboardBucket(s.status);
             const nextAction =
               bucket === "ready"
-                ? "Open workbench"
+                ? billing?.usage.exportEnabled
+                  ? "Export client list"
+                  : "Unlock contacts"
                 : bucket === "running"
                   ? getSearchTaskStageLabel(getSearchTaskStage(s))
                   : bucket === "issues"

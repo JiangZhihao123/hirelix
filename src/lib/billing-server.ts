@@ -12,6 +12,9 @@ import {
   type BillingSummary,
   type BillingStatus,
 } from "@/lib/billing";
+import { getLogger } from "@/lib/logger";
+
+const billingLogger = getLogger({ component: "billing_server" });
 
 export async function getBillingSummaryForUser(userId: string): Promise<BillingSummary> {
   const { startIso, endIso } = getBillingPeriodBounds();
@@ -73,6 +76,28 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     settings?.subscription_status,
   );
   const checkout = getCheckoutConfig();
+  const missingConfiguredPrices = [
+    ["starter_monthly", checkout.starterMonthlyPriceId],
+    ["starter_annual", checkout.starterAnnualPriceId],
+    ["pro_monthly", checkout.monthlyPriceId],
+    ["pro_annual", checkout.annualPriceId],
+    ["business_monthly", checkout.businessPriceId],
+    ["agency_monthly", checkout.agencyPriceId],
+    ["search_pack", checkout.searchPackPriceId],
+    ["contact_pack", checkout.contactPackPriceId],
+  ]
+    .filter(([, priceId]) => !priceId)
+    .map(([key]) => key);
+
+  if (
+    missingConfiguredPrices.length > 0 &&
+    (checkout.enabled || process.env.NODE_ENV === "production")
+  ) {
+    billingLogger.warn(
+      { missing_prices: missingConfiguredPrices },
+      "Paddle checkout is enabled but some price ids are missing",
+    );
+  }
 
   return {
     plan,
@@ -101,6 +126,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       enrichesRemaining: clampRemaining(enrichLimit, enrichesUsed),
       candidateLimitPerSearch: plan.candidateLimitPerSearch,
       exportEnabled: plan.exportEnabled,
+      clientBriefEnabled: plan.clientBriefEnabled,
       extraSearchCredits,
       extraEnrichCredits,
     },

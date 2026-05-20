@@ -26,7 +26,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
       id="billing"
       eyebrow="Billing"
       title="Billing and usage"
-      description="Manage your plan, monitor this cycle's limits, and upgrade only when you actually need more capacity."
+      description="Manage shortlist builds, contact unlocks, export, and client-ready brief access."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -79,8 +79,8 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-                  <Search className="h-4 w-4 text-slate-400" />
-                  Searches
+                <Search className="h-4 w-4 text-slate-400" />
+                  Shortlist builds
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.searchesUsed}/{billing.usage.searchesLimit}
@@ -95,7 +95,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.searchesRemaining} searches left this cycle
+                {billing.usage.searchesRemaining} shortlist builds left this cycle
               </p>
             </div>
 
@@ -123,9 +123,15 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
-              <p className="text-sm font-medium text-slate-800">Qualified results</p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">Dynamic</p>
-              <p className="mt-2 text-sm text-slate-600">Result count varies by role quality bar</p>
+              <p className="text-sm font-medium text-slate-800">Client handoff</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">
+                {billing.usage.clientBriefEnabled ? "Briefs" : "Locked"}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {billing.usage.clientBriefEnabled
+                  ? "Client-ready shortlist briefs are included"
+                  : "Upgrade to Pro for client-ready briefs"}
+              </p>
             </div>
           </div>
         </SettingsFieldGroup>
@@ -135,7 +141,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           description="Upgrade the base plan or add one-off credits when you need extra capacity."
         >
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Hirelix is built for technical recruiters and headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
+            Hirelix is built for independent technical headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
             <a
               className="font-medium underline decoration-amber-400 underline-offset-2"
               href="mailto:support@hirelix.online"
@@ -183,9 +189,9 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     <p>
                       {plan.searchesPerMonth}{" "}
-                      sourcing runs / month
+                      shortlist builds / month
                     </p>
-                    <p>Ranked qualified candidates by role fit</p>
+                    <p>Evidence-backed technical shortlists by role fit</p>
                     <p>
                       {plan.enrichesPerMonth}{" "}
                       contact unlocks / month
@@ -193,6 +199,9 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                     <p className="inline-flex items-center gap-1.5">
                       <Download className="h-3.5 w-3.5" />
                       {plan.exportEnabled ? "CSV export included" : "CSV export locked"}
+                    </p>
+                    <p>
+                      {plan.clientBriefEnabled ? "Client-ready brief included" : "Client-ready brief locked"}
                     </p>
                   </div>
 
@@ -245,7 +254,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 {SEARCH_PACK.priceLabel}
               </p>
               <p className="mt-1 text-sm text-slate-500">
-                Adds {SEARCH_PACK.credits} sourcing runs to this billing period.
+                Adds {SEARCH_PACK.credits} shortlist builds to this billing period.
               </p>
               <div className="mt-5">
                 <PaddleCheckoutButton

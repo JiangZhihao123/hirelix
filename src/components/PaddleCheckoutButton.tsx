@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import {
+  ANALYTICS_EVENTS,
+  getAnalyticsContextFromBrowser,
+  trackEvent,
+} from "@/lib/analytics";
 import { getCheckoutConfig, type BillingPlanCode } from "@/lib/billing";
 import { loadPaddle } from "@/lib/paddle";
 
@@ -50,11 +55,30 @@ export function PaddleCheckoutButton({
 
   async function handleCheckout() {
     onClick?.();
+    const purchaseType = checkout.type === "plan" ? checkout.planCode : checkout.addOn;
+    trackEvent(ANALYTICS_EVENTS.checkoutStart, {
+      ...getAnalyticsContextFromBrowser(),
+      purchase_type: purchaseType,
+      checkout_kind: checkout.type,
+    });
+
     if (!user) {
+      trackEvent(ANALYTICS_EVENTS.checkoutError, {
+        ...getAnalyticsContextFromBrowser(),
+        purchase_type: purchaseType,
+        checkout_kind: checkout.type,
+        error_reason: "not_signed_in",
+      });
       onError?.("Sign in to purchase a plan.");
       return;
     }
     if (!config.enabled || !priceId) {
+      trackEvent(ANALYTICS_EVENTS.checkoutError, {
+        ...getAnalyticsContextFromBrowser(),
+        purchase_type: purchaseType,
+        checkout_kind: checkout.type,
+        error_reason: "missing_price_id",
+      });
       onError?.("Paddle checkout is not configured yet.");
       return;
     }
@@ -63,6 +87,12 @@ export function PaddleCheckoutButton({
     try {
       const paddle = await loadPaddle(config.clientToken, config.environment);
       if (!paddle) {
+        trackEvent(ANALYTICS_EVENTS.checkoutError, {
+          ...getAnalyticsContextFromBrowser(),
+          purchase_type: purchaseType,
+          checkout_kind: checkout.type,
+          error_reason: "paddle_load_failed",
+        });
         onError?.("Paddle checkout failed to load.");
         return;
       }
@@ -75,7 +105,7 @@ export function PaddleCheckoutButton({
         },
         customData: {
           user_id: user.id,
-          purchase_type: checkout.type === "plan" ? checkout.planCode : checkout.addOn,
+          purchase_type: purchaseType,
         },
         settings: {
           displayMode: "overlay",
@@ -83,10 +113,20 @@ export function PaddleCheckoutButton({
         },
       });
     } catch (err) {
+      trackEvent(ANALYTICS_EVENTS.checkoutError, {
+        ...getAnalyticsContextFromBrowser(),
+        purchase_type: purchaseType,
+        checkout_kind: checkout.type,
+        error_reason: err instanceof Error ? err.message : "unknown",
+      });
       onError?.(err instanceof Error ? err.message : "Paddle checkout failed.");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!config.enabled || !priceId) {
+    return null;
   }
 
   return (

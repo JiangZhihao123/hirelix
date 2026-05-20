@@ -6,6 +6,11 @@ import { useAuth } from "@/components/AuthProvider";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
 import { getPlanStatusCopy, type BillingSummary } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
+import {
+  ANALYTICS_EVENTS,
+  getAnalyticsContextFromBrowser,
+  trackEvent,
+} from "@/lib/analytics";
 import { useBilling } from "@/lib/use-billing";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
@@ -79,6 +84,9 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (searchParams.get("checkout") === "success") {
+      trackEvent(ANALYTICS_EVENTS.checkoutSuccess, {
+        ...getAnalyticsContextFromBrowser(),
+      });
       fetchSettings();
     }
   }, [fetchSettings, searchParams]);

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { candidateRows } from "./data";
 
-const processSteps = ["JD parsed", "Search", "Rank", "Outreach"];
+const processSteps = ["JD parsed", "Screen profiles", "Shortlist", "Outreach"];
 const candidateAvatars = [
   "/landing/avatar-james.png",
   "/landing/avatar-anika.png",
@@ -22,7 +22,7 @@ const candidateAvatars = [
 
 const outreachDrafts = {
   inmail: {
-    cta: "Send InMail",
+    cta: "Unlock InMail draft",
     body: [
       "Hi James,",
       "Your platform work at Shopify looks close to this Senior Backend Engineer role, especially the API and distributed systems experience.",
@@ -31,7 +31,7 @@ const outreachDrafts = {
     ],
   },
   email: {
-    cta: "Send email",
+    cta: "Unlock email draft",
     body: [
       "Subject: Your Shopify platform work",
       "Hi James,",
@@ -120,7 +120,7 @@ export function HeroPreview({ onSignInClick }: { onSignInClick: () => void }) {
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-semibold text-slate-950">Ranked candidates</h2>
                   <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-                    Top matches ready
+                    Reach out first
                   </span>
                 </div>
                 <button
@@ -192,7 +192,7 @@ export function HeroPreview({ onSignInClick }: { onSignInClick: () => void }) {
               </div>
 
               <a href="#pricing" className="inline-flex items-center gap-1.5 px-3 py-3 text-xs font-semibold text-blue-700 hover:text-blue-900">
-                Open reviewed profile pool <span>-&gt;</span>
+                    Review shortlist and paid actions <span>-&gt;</span>
               </a>
             </div>
           </div>
@@ -200,8 +200,8 @@ export function HeroPreview({ onSignInClick }: { onSignInClick: () => void }) {
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-950">Outreach draft preview</p>
-                <p className="mt-1 text-xs text-slate-500">Personalized with role and profile evidence</p>
+                <p className="text-sm font-semibold text-slate-950">Outreach + client handoff</p>
+                <p className="mt-1 text-xs text-slate-500">Unlock when this shortlist is worth working</p>
               </div>
               <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
                 Ready
@@ -249,8 +249,8 @@ export function HeroPreview({ onSignInClick }: { onSignInClick: () => void }) {
             </button>
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
               <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />
-              Drafts can be edited before anything is sent.
-            </div>
+                Contact unlock, export, and client brief are paid actions after value is visible.
+              </div>
           </div>
         </div>
       </div>

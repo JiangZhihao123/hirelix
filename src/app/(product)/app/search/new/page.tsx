@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useMemo, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
@@ -14,9 +14,7 @@ import {
 } from "@/lib/public-errors";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
-import { ArrowRight, Loader2, Send, Sparkles } from "lucide-react";
-
-const FIXED_CANDIDATE_COUNT = 20;
+import { ArrowRight, CheckCircle2, Loader2, Send, Sparkles } from "lucide-react";
 
 type ClarifyResponse = {
   parsed_requirements: Record<string, unknown>;
@@ -27,6 +25,11 @@ type ClarifyResponse = {
     experienceYearsMin: number | null;
     workModel: string;
     locationScope: string | null;
+    locationFlexibility?: "strict" | "moderate" | "flexible";
+    relocationAllowed?: "yes" | "no" | "unknown";
+    mustHaveConstraints?: string[];
+    softConstraints?: string[];
+    constraintReasoning?: string | null;
   };
   clarification: {
     message: string;
@@ -34,10 +37,19 @@ type ClarifyResponse = {
   };
 };
 
+type EditableBrief = {
+  title: string;
+  requiredSkillsText: string;
+  experienceYearsMin: string;
+  workModel: string;
+  locationScope: string;
+  hardFiltersText: string;
+};
+
 type Stage =
   | { type: "input" }
   | { type: "analyzing" }
-  | { type: "clarifying"; response: ClarifyResponse; reply: string }
+  | { type: "confirming"; response: ClarifyResponse; brief: EditableBrief; reply: string }
   | { type: "launching" }
   | { type: "error"; message: string };
 
@@ -71,13 +83,81 @@ export default function NewSearchPage() {
     });
   }, [analyticsContext, searchParams]);
 
+  const shouldFocusClarification =
+    stage.type === "confirming" && !stage.response.clarification.ready_to_launch;
+
   useEffect(() => {
-    if (stage.type === "clarifying") {
+    if (shouldFocusClarification) {
       replyInputRef.current?.focus();
     }
-  }, [stage.type]);
+  }, [shouldFocusClarification]);
 
   const isOutOfSearches = billing?.usage.searchesRemaining === 0 && billing.plan.code === "free";
+  const candidateCount = billing?.usage.candidateLimitPerSearch ?? 25;
+
+  const buildEditableBrief = (response: ClarifyResponse): EditableBrief => ({
+    title: response.summary.title,
+    requiredSkillsText: response.summary.requiredSkills.join(", "),
+    experienceYearsMin:
+      typeof response.summary.experienceYearsMin === "number"
+        ? String(response.summary.experienceYearsMin)
+        : "",
+    workModel: response.summary.workModel || "unknown",
+    locationScope: response.summary.locationScope || "",
+    hardFiltersText: (response.summary.mustHaveConstraints || []).join("\n"),
+  });
+
+  const updateConfirmingBrief = (patch: Partial<EditableBrief>) => {
+    setStage((current) =>
+      current.type === "confirming"
+        ? { ...current, brief: { ...current.brief, ...patch } }
+        : current,
+    );
+  };
+
+  const editedParsedRequirements = (response: ClarifyResponse, brief: EditableBrief) => {
+    const requiredSkills = brief.requiredSkillsText
+      .split(/[,\n]/)
+      .map((skill) => skill.trim())
+      .filter(Boolean);
+    const hardFilters = brief.hardFiltersText
+      .split(/\n/)
+      .map((filter) => filter.trim())
+      .filter(Boolean);
+    const experienceYearsMin = brief.experienceYearsMin.trim()
+      ? Number.parseInt(brief.experienceYearsMin, 10)
+      : null;
+    const previousHiringBrief =
+      response.parsed_requirements.hiring_brief &&
+      typeof response.parsed_requirements.hiring_brief === "object"
+        ? (response.parsed_requirements.hiring_brief as Record<string, unknown>)
+        : {};
+    const previousRoleCore =
+      previousHiringBrief.role_core && typeof previousHiringBrief.role_core === "object"
+        ? (previousHiringBrief.role_core as Record<string, unknown>)
+        : {};
+
+    return {
+      ...response.parsed_requirements,
+      title: brief.title.trim() || response.summary.title,
+      required_skills: requiredSkills,
+      location: brief.locationScope.trim() || null,
+      experience_years_min: Number.isFinite(experienceYearsMin)
+        ? experienceYearsMin
+        : response.summary.experienceYearsMin,
+      hiring_brief: {
+        ...previousHiringBrief,
+        work_model: brief.workModel || "unknown",
+        location_scope: brief.locationScope.trim() || null,
+        must_have_constraints: hardFilters,
+        role_core: {
+          ...previousRoleCore,
+          title: brief.title.trim() || response.summary.title,
+          required_skills: requiredSkills,
+        },
+      },
+    };
+  };
 
   async function handleStart() {
     if (jdText.trim().length < 50) return;
@@ -104,11 +184,12 @@ export default function NewSearchPage() {
 
       const data = (await res.json()) as ClarifyResponse;
 
-      if (data.clarification.ready_to_launch) {
-        await launchSearch(data, "");
-      } else {
-        setStage({ type: "clarifying", response: data, reply: "" });
-      }
+      setStage({ type: "confirming", response: data, brief: buildEditableBrief(data), reply: "" });
+      trackEvent(ANALYTICS_EVENTS.briefConfirmationView, {
+        ...analyticsContext,
+        ready_to_launch: data.clarification.ready_to_launch,
+        required_skill_count: data.summary.requiredSkills.length,
+      });
     } catch (error) {
       setStage({
         type: "error",
@@ -118,11 +199,21 @@ export default function NewSearchPage() {
   }
 
   async function handleReply() {
-    if (stage.type !== "clarifying") return;
-    await launchSearch(stage.response, stage.reply.trim());
+    if (stage.type !== "confirming") return;
+    trackEvent(ANALYTICS_EVENTS.briefLaunchClick, {
+      ...analyticsContext,
+      ready_to_launch: stage.response.clarification.ready_to_launch,
+      had_clarification: Boolean(stage.reply.trim()),
+      candidate_count: candidateCount,
+    });
+    await launchSearch(stage.response, stage.reply.trim(), stage.brief);
   }
 
-  async function launchSearch(clarifyData: ClarifyResponse, userClarification: string) {
+  async function launchSearch(
+    clarifyData: ClarifyResponse,
+    userClarification: string,
+    brief: EditableBrief,
+  ) {
     setStage({ type: "launching" });
 
     try {
@@ -131,8 +222,8 @@ export default function NewSearchPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jd_text: jdText.trim(),
-          candidate_count: FIXED_CANDIDATE_COUNT,
-          parsed_requirements_override: clarifyData.parsed_requirements,
+          candidate_count: candidateCount,
+          parsed_requirements_override: editedParsedRequirements(clarifyData, brief),
           ...(userClarification ? { user_clarification: userClarification } : {}),
         }),
       });
@@ -146,7 +237,7 @@ export default function NewSearchPage() {
       void refresh();
       trackEvent(ANALYTICS_EVENTS.searchCreateSuccess, {
         ...analyticsContext,
-        candidate_count: FIXED_CANDIDATE_COUNT,
+        candidate_count: candidateCount,
         search_id: id,
         had_clarification: Boolean(userClarification),
       });
@@ -162,18 +253,22 @@ export default function NewSearchPage() {
   }
 
   const canStart = jdText.trim().length >= 50 && !isOutOfSearches;
+  const wordCount = useMemo(
+    () => jdText.trim().split(/\s+/).filter(Boolean).length,
+    [jdText],
+  );
 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-8">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">
-          New sourcing run
+          New shortlist build
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          Paste the JD and start sourcing.
+          Paste the client role and confirm the brief.
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Hirelix reads the JD, may ask one quick question, then sources and ranks candidates with outreach drafts ready to send.
+          Hirelix reads the JD, shows the search brief, then builds an evidence-backed technical shortlist.
         </p>
       </div>
 
@@ -186,7 +281,7 @@ export default function NewSearchPage() {
             if (stage.type !== "input") setStage({ type: "input" });
           }}
           rows={14}
-          placeholder="Paste the full job description here..."
+          placeholder="Paste the full client job description here..."
           disabled={stage.type === "analyzing" || stage.type === "launching" || isNavigating}
           className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white disabled:opacity-60"
         />
@@ -195,11 +290,11 @@ export default function NewSearchPage() {
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-amber-900">
-                You&apos;ve used all sourcing runs for this billing cycle. Upgrade to continue.
+                You&apos;ve used all shortlist builds for this billing cycle. Start Solo to keep sourcing.
               </p>
               <PaddleCheckoutButton
-                checkout={{ type: "plan", planCode: "pro_annual" }}
-                label="Upgrade plan"
+                checkout={{ type: "plan", planCode: "starter_monthly" }}
+                label="Start Solo"
                 onError={(message) =>
                   setStage({ type: "error", message })
                 }
@@ -212,8 +307,8 @@ export default function NewSearchPage() {
         <div className="mt-4 flex items-center justify-between">
           <p className="text-xs text-slate-400">
             {jdText.trim().length > 0
-              ? `${jdText.trim().split(/\s+/).filter(Boolean).length} words`
-              : "Tip: the fuller the JD, the better the results."}
+              ? `${wordCount} words`
+              : "Tip: the fuller the client role, the better the shortlist."}
           </p>
           {stage.type === "input" || stage.type === "error" ? (
             <button
@@ -223,7 +318,7 @@ export default function NewSearchPage() {
               className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Sparkles className="h-4 w-4" />
-              Start sourcing
+              Build brief
             </button>
           ) : null}
         </div>
@@ -233,8 +328,8 @@ export default function NewSearchPage() {
         )}
       </div>
 
-      {/* Chat area — shown after JD submitted */}
-      {(stage.type === "analyzing" || stage.type === "clarifying" || stage.type === "launching" || isNavigating) && (
+      {/* Confirmation area — shown after JD submitted */}
+      {(stage.type === "analyzing" || stage.type === "confirming" || stage.type === "launching" || isNavigating) && (
         <div className="mt-6 space-y-4">
           {/* AI bubble */}
           <div className="flex items-start gap-3">
@@ -247,7 +342,7 @@ export default function NewSearchPage() {
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Reading JD...
                 </span>
-              ) : stage.type === "clarifying" ? (
+              ) : stage.type === "confirming" ? (
                 <p className="text-sm leading-relaxed text-slate-800">
                   {stage.response.clarification.message}
                 </p>
@@ -260,47 +355,115 @@ export default function NewSearchPage() {
             </div>
           </div>
 
-          {/* Reply input or launch button */}
-          {stage.type === "clarifying" && (
-            <div className="ml-11">
-              <div className="flex gap-2">
+          {stage.type === "confirming" && (
+            <div className="ml-11 space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                      Confirm search brief
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Edit the constraints that would change who you contact first.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {candidateCount} candidate cap
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Role title
+                    <input
+                      value={stage.brief.title}
+                      onChange={(event) => updateConfirmingBrief({ title: event.target.value })}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Minimum years
+                    <input
+                      inputMode="numeric"
+                      value={stage.brief.experienceYearsMin}
+                      onChange={(event) => updateConfirmingBrief({ experienceYearsMin: event.target.value })}
+                      placeholder="Not specified"
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Location / remote scope
+                    <input
+                      value={stage.brief.locationScope}
+                      onChange={(event) => updateConfirmingBrief({ locationScope: event.target.value })}
+                      placeholder="Remote, US, New York, etc."
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-slate-700">
+                    Work model
+                    <select
+                      value={stage.brief.workModel}
+                      onChange={(event) => updateConfirmingBrief({ workModel: event.target.value })}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
+                    >
+                      <option value="unknown">Unknown</option>
+                      <option value="remote">Remote</option>
+                      <option value="hybrid">Hybrid</option>
+                      <option value="onsite">Onsite</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="mt-4 block text-sm font-medium text-slate-700">
+                  Must-have skills
+                  <textarea
+                    rows={3}
+                    value={stage.brief.requiredSkillsText}
+                    onChange={(event) => updateConfirmingBrief({ requiredSkillsText: event.target.value })}
+                    className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
+                  />
+                </label>
+                <label className="mt-4 block text-sm font-medium text-slate-700">
+                  Hard filters
+                  <textarea
+                    rows={3}
+                    value={stage.brief.hardFiltersText}
+                    onChange={(event) => updateConfirmingBrief({ hardFiltersText: event.target.value })}
+                    placeholder="One hard filter per line, only if it changes who should be sourced."
+                    className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
+                  />
+                </label>
+              </div>
+              {!stage.response.clarification.ready_to_launch && (
                 <input
                   ref={replyInputRef}
                   type="text"
                   value={stage.reply}
-                  onChange={(e) =>
-                    setStage({ ...stage, reply: e.target.value })
-                  }
+                  onChange={(e) => setStage({ ...stage, reply: e.target.value })}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       void handleReply();
                     }
                   }}
-                  placeholder="Reply here, or leave blank and launch..."
-                  className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-1 focus:ring-sky-400/20"
+                  placeholder="Reply to the clarification, or leave blank and launch..."
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-1 focus:ring-sky-400/20"
                 />
+              )}
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <p className="text-xs text-slate-400">
+                  You can leave the task page after launch; Hirelix keeps running the shortlist.
+                </p>
                 <button
                   type="button"
                   onClick={() => void handleReply()}
                   className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
-                  {stage.reply.trim() ? (
-                    <>
-                      <Send className="h-4 w-4" />
-                      Send
-                    </>
-                  ) : (
-                    <>
-                      Launch
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
+                  {stage.reply.trim() ? <Send className="h-4 w-4" /> : null}
+                  Launch shortlist
+                  <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-2 text-xs text-slate-400">
-                Press Enter or click Launch to start sourcing immediately.
-              </p>
             </div>
           )}
         </div>

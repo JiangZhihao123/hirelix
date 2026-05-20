@@ -138,8 +138,8 @@ export function ContactActionStrip({
 
         {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
           <PaddleCheckoutButton
-            checkout={{ type: "plan", planCode: "pro_annual" }}
-            label="Get email"
+            checkout={{ type: "plan", planCode: "starter_monthly" }}
+            label="Start Solo"
             onClick={() => onUpgradeClick(compact ? "candidate_email_strip_compact" : "candidate_email_strip")}
             onError={onError}
             className="inline-flex shrink-0 cursor-pointer items-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"

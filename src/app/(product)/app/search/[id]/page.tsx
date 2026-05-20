@@ -151,9 +151,11 @@ export default function SearchResultPage() {
   const hasTrackedBriefReadyViewRef = useRef(false);
   const hasTrackedProcessingViewRef = useRef(false);
   const hasTrackedResultsViewRef = useRef(false);
+  const hasTrackedResultsSummaryViewRef = useRef(false);
   const hasTrackedDoneRef = useRef(false);
   const hasTrackedProcessingReassuranceRef = useRef(false);
   const hasTrackedUpgradeValueExposedRef = useRef(false);
+  const hasTrackedClientBriefGateRef = useRef(false);
   const seenCandidateIdsRef = useRef<Set<string>>(new Set());
   const searchEmailNotificationsEnabled = areSearchNotificationsPromisedInClient();
   const analyticsContext = getAnalyticsContextFromBrowser({
@@ -448,6 +450,23 @@ export default function SearchResultPage() {
       has_email_candidates: candidates.some((candidate) => Boolean(candidate.email)),
       plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
     });
+    if (!hasTrackedResultsSummaryViewRef.current) {
+      hasTrackedResultsSummaryViewRef.current = true;
+      trackEvent(ANALYTICS_EVENTS.resultsSummaryView, {
+        ...analyticsContext,
+        search_id: search.id,
+        search_status: search.status,
+        candidate_count: candidates.length,
+        reach_out_first_count: candidates.filter(
+          (candidate) => getCandidateDisplayTier(candidate) === "priority_outreach",
+        ).length,
+        worth_reviewing_count: candidates.filter(
+          (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
+        ).length,
+        contact_ready_count: candidates.filter((candidate) => Boolean(candidate.email)).length,
+        plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+      });
+    }
   }, [analyticsContext, billing, candidates, candidates.length, search]);
 
   useEffect(() => {
@@ -502,7 +521,36 @@ export default function SearchResultPage() {
       candidate_count: candidates.length,
       upgrade_surface: "results_capability_unlock",
     });
+    trackEvent(ANALYTICS_EVENTS.contactUnlockGateView, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      candidate_count: candidates.length,
+      upgrade_surface: "results_capability_unlock",
+    });
   }, [analyticsContext, billing?.plan.code, candidates, search]);
+
+  useEffect(() => {
+    if (
+      !search ||
+      !isReviewableSearchStatus(search.status) ||
+      candidates.length === 0 ||
+      billing?.usage.clientBriefEnabled ||
+      hasTrackedClientBriefGateRef.current
+    ) {
+      return;
+    }
+
+    hasTrackedClientBriefGateRef.current = true;
+    trackEvent(ANALYTICS_EVENTS.clientBriefGateView, {
+      ...analyticsContext,
+      search_id: search.id,
+      search_status: search.status,
+      candidate_count: candidates.length,
+      plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
+      upgrade_surface: "results_client_brief_gate",
+    });
+  }, [analyticsContext, billing, candidates.length, search]);
 
 
   async function handleStatusChange(candidateId: string, newStatus: string) {
@@ -793,6 +841,10 @@ export default function SearchResultPage() {
     interview: allCandidates.filter((candidate) => candidate.status === "interview").length,
     placed: allCandidates.filter((candidate) => candidate.status === "placed").length,
   };
+  const risksFoundCount = allCandidates.filter((candidate) => {
+    const audit = getCandidateDecisionAudit(candidate);
+    return audit.riskLines.length > 0;
+  }).length;
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation();
@@ -1230,15 +1282,25 @@ export default function SearchResultPage() {
                   Use this as the recruiter-facing summary: who to lead with, why they fit, what proof is usable, and what still needs verification.
                 </p>
               </div>
-              <button
-                type="button"
-                data-testid="copy-client-brief"
-                onClick={() => copyWorkflowText(clientReadyBriefText, "client-brief")}
-                className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
-              >
-                {copiedWorkflowAction === "client-brief" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copiedWorkflowAction === "client-brief" ? "Copied" : "Copy brief"}
-              </button>
+              {billing?.usage.clientBriefEnabled ? (
+                <button
+                  type="button"
+                  data-testid="copy-client-brief"
+                  onClick={() => copyWorkflowText(clientReadyBriefText, "client-brief")}
+                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                >
+                  {copiedWorkflowAction === "client-brief" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copiedWorkflowAction === "client-brief" ? "Copied" : "Copy brief"}
+                </button>
+              ) : (
+                <PaddleCheckoutButton
+                  checkout={{ type: "plan", planCode: "pro_monthly" }}
+                  label="Need client briefs? Go Pro"
+                  onClick={() => handleUpgradeClick("results_client_brief_gate")}
+                  onError={(message) => setUpgradeError(message)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                />
+              )}
             </div>
             <div className="mt-4 space-y-3">
               {clientReadyCandidates.map((candidate, index) => {
@@ -1425,6 +1487,38 @@ export default function SearchResultPage() {
       {/* Results */}
       {allCandidates.length > 0 && (
         <div className="space-y-3">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Shortlist outcome
+                </p>
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+                  Start with the people most worth a first message.
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500">
+                Workflow: {validationCounts.contacted} contacted · {validationCounts.submitted} submitted · {validationCounts.interview} interview · {validationCounts.placed} placed
+              </p>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+              {[
+                { label: "Reviewed", value: deepReviewCompletedCount },
+                { label: "Reach out first", value: priorityOutreachCount },
+                { label: "Worth reviewing", value: worthReviewingCount },
+                { label: "Screened out", value: shortlistNoCount || ruledOutCount },
+                { label: "Contact-ready", value: contactUnlockCandidates },
+                { label: "Risks found", value: risksFoundCount },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-950">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </section>
           {billing?.plan.code === "free" && (billing?.usage.enrichesRemaining ?? 0) <= 0 && allCandidates.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
@@ -1434,7 +1528,7 @@ export default function SearchResultPage() {
                 Unlock outreach for the strongest matches.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Upgrade for more contact unlocks, CSV export, and outreach when you&apos;re ready to work this candidate pool.
+                Start Solo for contact unlocks, CSV export, and outreach when you&apos;re ready to work this candidate pool.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} {priorityTierLabel.toLowerCase()}</span>
@@ -1447,8 +1541,8 @@ export default function SearchResultPage() {
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
-                  checkout={{ type: "plan", planCode: "pro_annual" }}
-                  label="Unlock contact details"
+                  checkout={{ type: "plan", planCode: "starter_monthly" }}
+                  label="Start Solo - $149/mo"
                   onClick={() => handleUpgradeClick("results_first_use_strip")}
                   onError={(message) => setUpgradeError(message)}
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
@@ -1601,6 +1695,7 @@ export default function SearchResultPage() {
                     candidate={activeCandidate}
                     requiredSkills={requiredSkills}
                     billingPlanCode={billing?.subscription.planCode || "free"}
+                    clientBriefEnabled={billing?.usage.clientBriefEnabled ?? false}
                     enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
                     refreshBilling={refreshBilling}
                     onUpgradeClick={handleUpgradeClick}
