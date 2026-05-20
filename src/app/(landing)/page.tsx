@@ -546,6 +546,7 @@ export default function Home() {
         pendingSelectedPlan={pendingSelectedPlan}
         modalPreviewTitle={modalPreviewTitle}
         onSuccessStart={() => setIsSubmitting(true)}
+        onFailure={() => setIsSubmitting(false)}
       />
     </div>
   );

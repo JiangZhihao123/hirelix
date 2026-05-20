@@ -17,6 +17,7 @@ export function AuthModal({
   pendingSelectedPlan,
   modalPreviewTitle,
   onSuccessStart,
+  onFailure,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,6 +28,7 @@ export function AuthModal({
   pendingSelectedPlan: BillingPlanCode | null;
   modalPreviewTitle: string;
   onSuccessStart: () => void;
+  onFailure: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -231,6 +233,7 @@ export function AuthModal({
                     : "Use Google to sign in without breaking the flow."
                 }
                 onSuccessStart={onSuccessStart}
+                onFailure={onFailure}
               />
             </div>
           </div>
