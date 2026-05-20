@@ -8,6 +8,7 @@ import {
   hirelix_searches,
 } from "@/db/schema";
 import { extractRequiredSkillsForGithub } from "@/lib/github-enrichment-jobs";
+import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 import { enrichPublicEvidenceForCandidate } from "@/lib/public-evidence";
 import { getSellableEvidenceItems } from "@/lib/public-evidence/selling-kit";
 import type { PublicEvidenceItem } from "@/lib/public-evidence/types";
@@ -153,7 +154,7 @@ export async function enqueuePublicEvidenceJobsForSearch(input: {
     });
     await db
       .update(hirelix_candidates)
-      .set({ metadata })
+      .set({ metadata: toJsonbSafeRecord(metadata) })
       .where(eq(hirelix_candidates.id, candidate.id));
     enqueued += 1;
   }
@@ -290,7 +291,7 @@ async function persistPublicEvidenceItems(params: {
       evidence_strength: item.evidenceStrength,
       evidence_summary: item.evidenceSummary,
       outreach_angle: item.outreachAngle,
-      raw_metadata: item.rawMetadata,
+      raw_metadata: toJsonbSafeRecord(item.rawMetadata),
       updated_at: nowDate(),
     })),
   );
@@ -387,7 +388,7 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
       .set({
         github_url: enrichment.githubUrl || candidate.github_url,
         match_score: blended.matchScore,
-        metadata: blended.metadata,
+        metadata: toJsonbSafeRecord(blended.metadata),
       })
       .where(eq(hirelix_candidates.id, candidate.id));
     await updateJobStatus(job.id, "done", { last_error: null });
