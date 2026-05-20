@@ -10,6 +10,14 @@ jobs:
   # ============ CI: 编译与测试 ============
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hirelix?sslmode=disable
+      BETTER_AUTH_SECRET: ci-better-auth-secret-for-build-only
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
