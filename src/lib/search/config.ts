@@ -69,6 +69,12 @@ export const SEARCH_JOB_STARTUP_STALL_SECONDS = getConfiguredPositiveInt(
   { min: 15, max: 900 },
 );
 
+export const SEARCH_JOB_HEARTBEAT_SECONDS = getConfiguredPositiveInt(
+  "SEARCH_JOB_HEARTBEAT_SECONDS",
+  30,
+  { min: 5, max: 300 },
+);
+
 export const GITHUB_ENRICH_LIMIT = getConfiguredPositiveInt(
   "SEARCH_GITHUB_ENRICH_LIMIT",
   20,

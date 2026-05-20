@@ -90,6 +90,7 @@ import {
   hasSearchJobStartedPipeline,
   reclaimStaleRunningJobs as reclaimStaleRunningJobsInternal,
   resolveSearchJobRunnerBaseUrl,
+  startSearchJobHeartbeat,
   updateRunningJobStatus,
 } from "@/lib/search/job-queue";
 import {
@@ -183,10 +184,6 @@ export {
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
 };
-
-import { eq, sql } from "drizzle-orm";
-import { db } from "@/db/client";
-import { hirelix_candidates } from "@/db/schema";
 
 const GEO_ALLOWLISTS = [
   {
@@ -3063,14 +3060,6 @@ async function scoreBrightDataProfiles(
   };
 }
 
-async function markSearchDegraded(searchId: string, warningMessage: string) {
-  await setSearchStatus(searchId, "degraded", {
-    done_at: nowIso(),
-    warning_message: warningMessage,
-    error_message: null,
-  });
-}
-
 async function failSearch(searchId: string, message: string) {
   await setSearchStatus(searchId, "error", {
     error_message: message,
@@ -3094,77 +3083,83 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
     return { processed: false, hasMore: false };
   }
 
+  const stopHeartbeat = startSearchJobHeartbeat(job.id);
+
   try {
-    await runSearchPipeline(job, {
-      nowIso,
-      logSearchEvent,
-      normalizeNullableString,
-      normalizeCountryCode,
-      normalizeText,
-      normalizeScore,
-      normalizeStringArray,
-      normalizeEnumValue,
-      normalizeExperienceYears,
-      truncateForPrompt,
-      isPlaceholderTitle,
-      deriveCoreSkillsFromJdText,
-      inferCountriesFromJdText,
-      sanitizeHiringBrief,
-      sanitizeCompanyProfile,
-      sanitizeCandidateSuitability,
-      sanitizeConstraintVerdicts,
-      normalizeBlockingConstraints,
-      normalizeBlockingSeverity,
-      normalizeAdvanceRecommendation,
-      normalizeRecallSpec,
-      normalizeRecallMetadata,
-      normalizeSearchDisplayStats,
-      buildSearchDisplayStats,
-      buildSearchIntentInput: (jdText, userClarification) =>
-        buildSearchIntentInput(jdText, userClarification),
-      isWeakParsedIntent,
-      enrichRecallSpecFromJd,
-      isActivationRun,
-      getSearchStartedAt,
-      elapsedSince,
-      withExecutionState: (parsed, executionProfile, overrides) =>
-        withExecutionState(parsed, executionProfile, {
-          planCode: normalizeSearchPlanCode(overrides.planCode),
-          displayCount: overrides.displayCount,
-        }),
-      withDisplayStats,
-      canReuseParsedRequirements,
-      buildStandardSkillFilter,
-      buildRecallLocationFilter,
-      buildAdditionalSnapshotMetadata,
-      hasRecallSnapshotDrift,
-      mapSnapshotStatus: (metadata) => mapSnapshotStatus(metadata) ?? "submitted",
-      isTransientSnapshotDownloadError,
-      updateSearchDisplayStat,
-      updateSearchDisplayStats,
-      markSearchReviewable,
-      estimateBrightPipelineLlmCost,
-      sortCandidateAssessments,
-      computeQualityScore,
-      computeAdvanceScore,
-      deriveAdvanceRecommendation,
-      deriveFitDecisionFromScore,
-      deriveShortlistDecision,
-      shouldDisplayCandidate,
-      getDisplayTierForAssessment,
-      buildExcludedReasonCounts,
-      buildPromptSearchContext,
-      buildCompanyProfileContext,
-      getJudgeModel,
-      getArbiterModel,
-      stripSpeculativeRelocation,
-      generateOutreachDraftsForRows,
-    });
-    await updateRunningJobStatus(job.id, "done", {
-      finished_at: nowIso(),
-      locked_at: null,
-      last_error: null,
-    });
+    try {
+      await runSearchPipeline(job, {
+        nowIso,
+        logSearchEvent,
+        normalizeNullableString,
+        normalizeCountryCode,
+        normalizeText,
+        normalizeScore,
+        normalizeStringArray,
+        normalizeEnumValue,
+        normalizeExperienceYears,
+        truncateForPrompt,
+        isPlaceholderTitle,
+        deriveCoreSkillsFromJdText,
+        inferCountriesFromJdText,
+        sanitizeHiringBrief,
+        sanitizeCompanyProfile,
+        sanitizeCandidateSuitability,
+        sanitizeConstraintVerdicts,
+        normalizeBlockingConstraints,
+        normalizeBlockingSeverity,
+        normalizeAdvanceRecommendation,
+        normalizeRecallSpec,
+        normalizeRecallMetadata,
+        normalizeSearchDisplayStats,
+        buildSearchDisplayStats,
+        buildSearchIntentInput: (jdText, userClarification) =>
+          buildSearchIntentInput(jdText, userClarification),
+        isWeakParsedIntent,
+        enrichRecallSpecFromJd,
+        isActivationRun,
+        getSearchStartedAt,
+        elapsedSince,
+        withExecutionState: (parsed, executionProfile, overrides) =>
+          withExecutionState(parsed, executionProfile, {
+            planCode: normalizeSearchPlanCode(overrides.planCode),
+            displayCount: overrides.displayCount,
+          }),
+        withDisplayStats,
+        canReuseParsedRequirements,
+        buildStandardSkillFilter,
+        buildRecallLocationFilter,
+        buildAdditionalSnapshotMetadata,
+        hasRecallSnapshotDrift,
+        mapSnapshotStatus: (metadata) => mapSnapshotStatus(metadata) ?? "submitted",
+        isTransientSnapshotDownloadError,
+        updateSearchDisplayStat,
+        updateSearchDisplayStats,
+        markSearchReviewable,
+        estimateBrightPipelineLlmCost,
+        sortCandidateAssessments,
+        computeQualityScore,
+        computeAdvanceScore,
+        deriveAdvanceRecommendation,
+        deriveFitDecisionFromScore,
+        deriveShortlistDecision,
+        shouldDisplayCandidate,
+        getDisplayTierForAssessment,
+        buildExcludedReasonCounts,
+        buildPromptSearchContext,
+        buildCompanyProfileContext,
+        getJudgeModel,
+        getArbiterModel,
+        stripSpeculativeRelocation,
+        generateOutreachDraftsForRows,
+      });
+      await updateRunningJobStatus(job.id, "done", {
+        finished_at: nowIso(),
+        locked_at: null,
+        last_error: null,
+      });
+    } finally {
+      stopHeartbeat();
+    }
   } catch (error) {
     if (error instanceof DatasetRecallPendingError) {
       await updateRunningJobStatus(job.id, "queued", {
@@ -3178,9 +3173,7 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       };
     }
 
-    const message = error instanceof DatasetRecallPendingError
-      ? "Bright Data snapshot is still processing. Retry from the shortlist page to download the existing snapshot."
-      : error instanceof Error
+    const message = error instanceof Error
         ? error.message
         : "Search job failed";
     const updated = await updateRunningJobStatus(
@@ -3201,20 +3194,7 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       };
     }
 
-    const countRows = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(hirelix_candidates)
-      .where(eq(hirelix_candidates.search_id, job.search_id));
-    const count = countRows[0]?.count ?? 0;
-
-    if ((count || 0) > 0) {
-      await markSearchDegraded(
-        job.search_id,
-        "The shortlist is still usable, but the remaining provider work did not finish. Retry from the page to continue with the existing snapshot.",
-      );
-    } else {
-      await failSearch(job.search_id, message);
-    }
+    await failSearch(job.search_id, message);
 
     logSearchEvent("search_provider_failed", {
       search_id: job.search_id,

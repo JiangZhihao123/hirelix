@@ -18,6 +18,7 @@ import {
 } from "@/lib/search-execution";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { buildParsedRequirementsForLaunch } from "@/lib/jd-parse";
+import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 
 export const maxDuration = 30;
 const DEFAULT_OUTREACH_POOL_TARGET = 20;
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
         ? { ...baseOverride, user_clarification: user_clarification.trim() }
         : baseOverride;
 
-    const parsedRequirements: Record<string, unknown> =
+    const parsedRequirements: Record<string, unknown> = toJsonbSafeRecord(
       overrideWithClarification
         ? buildParsedRequirementsForLaunch(
           overrideWithClarification,
@@ -98,7 +99,8 @@ export async function POST(req: NextRequest) {
           execution_profile: searchTargets.executionProfile,
           activation_run: false,
           search_phase: "mvp_focus",
-        };
+        },
+    );
     let search: { id: string } | undefined;
     try {
       const ts = new Date(timestamp);

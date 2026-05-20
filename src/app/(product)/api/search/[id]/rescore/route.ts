@@ -10,6 +10,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_searches, hirelix_snapshot_profiles } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 
 export const maxDuration = 30;
 
@@ -124,7 +125,7 @@ export async function POST(
       ? parsedRequirements.candidate_count
       : 5;
   const timestamp = new Date().toISOString();
-  const nextParsedRequirements = {
+  const nextParsedRequirements = toJsonbSafeRecord({
     ...(parsedRequirements ?? {}),
     rerun_mode: RERUN_MODE,
     rerun_requested_at: timestamp,
@@ -140,7 +141,7 @@ export async function POST(
       deep_review_completed_count: 0,
       visible_candidate_count: 0,
     },
-  };
+  });
 
   await enqueueSearchJob({
     searchId: id,

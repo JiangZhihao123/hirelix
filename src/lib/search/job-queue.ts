@@ -7,6 +7,7 @@ import {
 } from "@/db/schema";
 import { getFetchDispatcherForUrl } from "@/lib/server-outbound-proxy";
 import {
+  SEARCH_JOB_HEARTBEAT_SECONDS,
   SEARCH_JOB_STARTUP_STALL_SECONDS,
   SEARCH_JOB_STALE_MINUTES,
 } from "@/lib/search/config";
@@ -393,6 +394,38 @@ export async function updateRunningJobStatus(
   }
 
   return false;
+}
+
+export async function touchRunningSearchJob(jobId: string) {
+  const updated = await db
+    .update(hirelix_search_jobs)
+    .set({
+      locked_at: new Date(),
+      updated_at: new Date(),
+    })
+    .where(
+      and(
+        eq(hirelix_search_jobs.id, jobId),
+        eq(hirelix_search_jobs.status, "running"),
+      ),
+    )
+    .returning({ id: hirelix_search_jobs.id });
+
+  return Boolean(updated[0]?.id);
+}
+
+export function startSearchJobHeartbeat(jobId: string) {
+  const intervalMs = SEARCH_JOB_HEARTBEAT_SECONDS * 1000;
+  const timer = setInterval(() => {
+    void touchRunningSearchJob(jobId).catch((error) => {
+      logSearchEvent("search_job_heartbeat_failed", {
+        job_id: jobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, intervalMs);
+
+  return () => clearInterval(timer);
 }
 
 export async function claimSearchJob(options: {

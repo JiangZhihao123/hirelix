@@ -53,7 +53,7 @@ function buildCandidatePayload(searchId: string, row: CandidateRowInput) {
     github_url: row.github_url,
     email: row.email,
     outreach_draft: row.outreach_draft,
-    metadata: row.metadata,
+    metadata: toJsonbSafeRecord(row.metadata),
   };
 }
 
@@ -323,7 +323,10 @@ export async function setSearchStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ) {
-  const normalizedExtra = normalizeTimestampFields(extra, SEARCH_TIMESTAMP_FIELDS);
+  const normalizedExtra = normalizeTimestampFields(
+    sanitizeSearchJsonbPatch(extra),
+    SEARCH_TIMESTAMP_FIELDS,
+  );
   const payload = {
     status,
     pipeline_step: status === "degraded" ? "done" : status,
@@ -460,7 +463,7 @@ export async function cacheSnapshotEntry(params: {
       filter_hash: params.filterHash,
       filter_summary:
         params.filterSummary && typeof params.filterSummary === "object"
-          ? (params.filterSummary as Record<string, unknown>)
+          ? toJsonbSafeRecord(params.filterSummary)
           : null,
       records_limit: params.recordsLimit,
       expires_at: expiresAt,
@@ -559,7 +562,7 @@ export async function persistSnapshotProfiles(
       record_index: index,
       linkedin_id: linkedinId,
       profile_url: profileUrl,
-      raw_data: record,
+      raw_data: toJsonbSafeRecord(record),
     };
   });
 
@@ -619,7 +622,7 @@ export async function updateSearchParsedRequirements(
       const updated = await db
         .update(hirelix_searches)
         .set({
-          parsed_requirements: parsed,
+          parsed_requirements: toJsonbSafeRecord(parsed),
           updated_at: new Date(),
         })
         .where(eq(hirelix_searches.id, searchId))
@@ -679,10 +682,10 @@ export async function updateSearchUsageEventMetadata(
   await db
     .update(hirelix_usage_events)
     .set({
-      metadata: {
+      metadata: toJsonbSafeRecord({
         ...currentMetadata,
         ...metadataPatch,
-      },
+      }),
     })
     .where(eq(hirelix_usage_events.id, event.id));
 }
@@ -790,9 +793,17 @@ export async function retagSearchCandidatePoolTypes(searchId: string) {
     metadata.pool_type = nextPoolType;
     await db
       .update(hirelix_candidates)
-      .set({ metadata })
+      .set({ metadata: toJsonbSafeRecord(metadata) })
       .where(eq(hirelix_candidates.id, candidate.id));
   }
+}
+
+function sanitizeSearchJsonbPatch(patch: Record<string, unknown>) {
+  if (!("parsed_requirements" in patch)) return patch;
+  return {
+    ...patch,
+    parsed_requirements: toJsonbSafeRecord(patch.parsed_requirements),
+  };
 }
 
 export async function countCandidatesForSearch(searchId: string) {
