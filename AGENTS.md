@@ -110,10 +110,12 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 
 | 组件 | 部署位置 | 说明 |
 |------|----------|------|
-| Next.js 前端 + API | Vercel | 无状态，承载页面与 API |
-| 搜索任务调度器 | VPS | 独立进程，负责长耗时任务 |
+| Next.js 前端 + API | Vercel | 无状态，承载页面、产品 API、Auth API、Paddle webhook、内部调度触发 API |
+| 搜索任务调度器 | us-2 VPS | 独立 systemd 进程 `hirelix-scheduler`，负责长耗时搜索任务 |
 | 数据库 | us-2 VPS Postgres | 自托管 PostgreSQL 17，所有 hirelix_* 业务表 + better-auth 表 |
 | Auth | better-auth | Google OAuth，session 写入同一 Postgres，无独立 Auth 服务 |
+
+当前生产部署以本文件为准。`README.md` 与 `docs/migrate_to_vps_postgres.md` 里仍可能保留 Supabase Auth / Vultr / 旧迁移阶段口径，排查生产问题时不要优先引用这些旧说法。
 
 ### 4.2 搜索流水线
 
@@ -375,11 +377,27 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 us-2 'echo VPS_OK && hostname'
 
 | 组件 | 部署位置 | 说明 |
 |------|----------|------|
-| Next.js 前端 + API | Vercel | 不含调度器 |
-| 搜索任务调度器 | VPS | 独立进程，systemd 服务名为 `hirelix-scheduler` |
+| Next.js 前端 + API Routes | Vercel | 不含调度器；本地已 link 到 Vercel 项目 `hirelix` |
+| 搜索任务调度器 | us-2 VPS `/opt/hirelix` | 独立进程，systemd 服务名为 `hirelix-scheduler` |
+| PostgreSQL | us-2 VPS | 自托管 PostgreSQL 17，生产库名 `hirelix` |
+| Auth | better-auth + us-2 Postgres | Google OAuth；`user`、`session`、`account`、`verification` 表在同一数据库 |
 
 生产域名：
 - `hirelix.online`
+
+当前检查命令：
+
+```bash
+# 本地 Git 状态与远端差异
+git fetch --prune origin
+git status --short --branch
+git log --oneline --decorate --left-right --graph origin/main...HEAD
+
+# VPS 服务与线上代码版本
+ssh us-2 'cd /opt/hirelix && sudo git status --short --branch && sudo git rev-parse --short HEAD'
+ssh us-2 'sudo systemctl status hirelix-scheduler --no-pager'
+ssh us-2 'sudo systemctl is-active postgresql && sudo -u postgres psql -tAc "SELECT version();"'
+```
 
 ### 8.4 调度器部署
 
