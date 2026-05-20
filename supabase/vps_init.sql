@@ -23,17 +23,18 @@ CREATE TABLE IF NOT EXISTS public.hirelix_searches (
   title TEXT,
   jd_text TEXT NOT NULL,
   parsed_requirements JSONB,
-  status TEXT DEFAULT 'pending',
+  status TEXT NOT NULL DEFAULT 'queued',
   pipeline_step TEXT,
   error_message TEXT,
-  warning_message TEXT,
   queued_at TIMESTAMPTZ,
   parse_completed_at TIMESTAMPTZ,
   search_completed_at TIMESTAMPTZ,
   partial_ready_at TIMESTAMPTZ,
   done_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT hirelix_searches_status_check
+    CHECK (status IN ('queued', 'parsing', 'searching', 'screening', 'deep_scoring', 'done', 'error'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_hirelix_searches_user_id

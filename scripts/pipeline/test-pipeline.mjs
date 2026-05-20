@@ -96,7 +96,7 @@ async function main() {
 
     const { data: s } = await supabase
       .from("hirelix_searches")
-      .select("status, warning_message, error_message")
+      .select("status, error_message")
       .eq("id", search.id)
       .single();
 
@@ -105,12 +105,12 @@ async function main() {
       .select("id", { count: "exact", head: true })
       .eq("search_id", search.id);
 
-    console.log(`[${elapsed}s] status=${s?.status} candidates=${count || 0} warning=${s?.warning_message || "none"} error=${s?.error_message || "none"}`);
+    console.log(`[${elapsed}s] status=${s?.status} candidates=${count || 0} error=${s?.error_message || "none"}`);
 
-    if (["done", "degraded", "error"].includes(s?.status)) {
+    if (["done", "error"].includes(s?.status)) {
       console.log(`\n=== Pipeline finished: ${s.status} (${elapsed}s) ===`);
 
-      if (s.status === "done" || s.status === "degraded") {
+      if (s.status === "done") {
         const { data: candidates } = await supabase
           .from("hirelix_candidates")
           .select("name, headline, match_score, profile_url")

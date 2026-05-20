@@ -68,7 +68,6 @@ async function main() {
       status: "queued",
       pipeline_step: "queued",
       error_message: null,
-      warning_message: null,
       parsed_requirements: parsedRequirements,
       queued_at: timestamp,
       parse_completed_at: null,

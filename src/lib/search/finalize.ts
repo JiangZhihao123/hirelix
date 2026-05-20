@@ -1,6 +1,7 @@
 import type {
   CandidateRowInput,
   PipelineContext,
+  SearchStatus,
   SearchDisplayStats,
   SearchExecutionRuntime,
 } from "@/lib/search/types";
@@ -36,7 +37,7 @@ export async function completeSearch(
     ) => Record<string, unknown>;
     setSearchStatus: (
       searchId: string,
-      status: string,
+      status: SearchStatus,
       extra?: Record<string, unknown>,
     ) => Promise<void>;
     updateSearchUsageEventMetadata: (
@@ -97,7 +98,6 @@ export async function completeSearch(
   await helpers.setSearchStatus(context.searchId, "done", {
     done_at: doneAt,
     error_message: null,
-    warning_message: null,
     parsed_requirements: finalParsed,
   });
 

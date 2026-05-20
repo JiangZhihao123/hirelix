@@ -35,7 +35,6 @@ export const ANALYTICS_EVENTS = {
   searchReturnedAfterNotification: "search_returned_after_notification",
   searchResultsView: "search_results_view",
   searchDone: "search_done",
-  searchDegraded: "search_degraded",
   searchCreateSuccess: "search_create_success",
   candidateExpand: "candidate_expand",
   upgradeCtaClick: "upgrade_cta_click",

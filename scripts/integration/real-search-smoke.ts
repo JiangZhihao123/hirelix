@@ -132,7 +132,6 @@ async function fetchSearch(searchId: string) {
       status: hirelix_searches.status,
       pipeline_step: hirelix_searches.pipeline_step,
       error_message: hirelix_searches.error_message,
-      warning_message: hirelix_searches.warning_message,
       parsed_requirements: hirelix_searches.parsed_requirements,
       updated_at: hirelix_searches.updated_at,
     })
@@ -218,7 +217,6 @@ async function resumeFailedSearch(searchId: string) {
       status: "queued",
       pipeline_step: "queued",
       error_message: null,
-      warning_message: null,
       updated_at: now,
     })
     .where(eq(hirelix_searches.id, searchId));
@@ -256,7 +254,7 @@ async function printBrightSnapshotFacts(searchId: string) {
 }
 
 async function pollSearch(searchId: string, args: Args) {
-  const terminalStatuses = new Set(["done", "degraded", "error"]);
+  const terminalStatuses = new Set(["done", "error"]);
   const startedAt = Date.now();
   let lastPrintedSnapshotAt = 0;
 

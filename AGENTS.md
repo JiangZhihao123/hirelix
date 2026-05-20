@@ -204,7 +204,6 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 
 ```
 queued → parsing → searching → screening → deep_scoring → done
-                                                         → degraded (部分成功)
                                                          → error
 ```
 
@@ -216,7 +215,6 @@ queued → parsing → searching → screening → deep_scoring → done
 | `screening` | AI 预筛（地域 hard gate + 基础匹配） |
 | `deep_scoring` | AI 深度评分（匹配/能力/加入意愿） |
 | `done` | 全部完成 |
-| `degraded` | 部分完成（如部分候选人深度评分失败但仍有可用结果） |
 | `error` | 搜索失败 |
 
 调度器通过 `pipeline_step` 追踪当前阶段（`accepted` → `brief_ready` → `linkedin_scan` → `reviewing_profiles` → `shortlist_ready`）。

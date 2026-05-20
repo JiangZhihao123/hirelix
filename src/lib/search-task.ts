@@ -46,7 +46,7 @@ export function isSearchTaskProcessingStatus(status: string | null | undefined) 
 }
 
 export function getSearchTaskStage(search: SearchTaskLike): SearchTaskStage {
-  if (search.partial_ready_at || search.status === "deep_scoring" || search.status === "done" || search.status === "degraded") {
+  if (search.partial_ready_at || search.status === "deep_scoring" || search.status === "done") {
     return "shortlist_ready";
   }
 

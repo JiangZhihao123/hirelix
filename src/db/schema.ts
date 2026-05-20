@@ -37,10 +37,9 @@ export const hirelix_searches = pgTable(
     title: text("title"),
     jd_text: text("jd_text").notNull(),
     parsed_requirements: jsonb("parsed_requirements"),
-    status: text("status").default("pending"),
+    status: text("status").notNull().default("queued"),
     pipeline_step: text("pipeline_step"),
     error_message: text("error_message"),
-    warning_message: text("warning_message"),
     queued_at: timestamp("queued_at", { withTimezone: true }),
     parse_completed_at: timestamp("parse_completed_at", { withTimezone: true }),
     search_completed_at: timestamp("search_completed_at", { withTimezone: true }),
@@ -550,4 +549,3 @@ export const schema = {
   account,
   verification,
 };
-

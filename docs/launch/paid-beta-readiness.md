@@ -14,7 +14,7 @@ This checklist is for the Hirelix paid launch.
 ### Search pipeline
 
 - Verify `/api/internal/search-jobs/run` is reachable with the service role bearer token.
-- Confirm queued searches move through `queued -> parsing -> searching/screening -> deep_scoring -> done/degraded`.
+- Confirm queued searches move through `queued -> parsing -> searching/screening -> deep_scoring -> done`.
 - Confirm phase 2 resumes correctly after polling delays and does not hide the phase 1 shortlist.
 - Confirm retry from the search detail page clears old candidates and re-enqueues the job.
 
@@ -60,5 +60,5 @@ This checklist is for the Hirelix paid launch.
 
 - Any paid-user billing issue is a `P0`.
 - Search creation failures or widespread stuck jobs are a `P0`.
-- `degraded` searches are acceptable only when the shortlist remains reviewable and the retry path works.
+- Partial search completion is not an acceptable launch state; unresolved core-chain failures must end as `error` and be fixed at the root.
 - If shortlist quality on strict-location roles regresses after raising `bright_production_full` recall to `200+100+100`, revert before widening traffic.

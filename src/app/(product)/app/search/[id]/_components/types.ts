@@ -6,7 +6,6 @@ export type SearchRow = {
   status: string;
   pipeline_step: string | null;
   error_message: string | null;
-  warning_message?: string | null;
   queued_at?: string | null;
   parse_completed_at?: string | null;
   search_completed_at?: string | null;

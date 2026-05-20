@@ -80,7 +80,6 @@ const completedSearch = {
     status: "done",
     pipeline_step: "done",
     error_message: null,
-    warning_message: null,
     queued_at: "2026-05-15T07:48:00.000Z",
     parse_completed_at: "2026-05-15T07:50:00.000Z",
     search_completed_at: "2026-05-15T07:58:00.000Z",

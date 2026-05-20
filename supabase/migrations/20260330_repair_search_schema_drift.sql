@@ -1,7 +1,6 @@
 ALTER TABLE public.hirelix_searches
   ADD COLUMN IF NOT EXISTS pipeline_step TEXT,
   ADD COLUMN IF NOT EXISTS error_message TEXT,
-  ADD COLUMN IF NOT EXISTS warning_message TEXT,
   ADD COLUMN IF NOT EXISTS queued_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS parse_completed_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS search_completed_at TIMESTAMPTZ,

@@ -47,7 +47,6 @@ type SearchRow = {
   created_at: string;
   updated_at: string;
   error_message?: string | null;
-  warning_message?: string | null;
   jd_text: string;
 };
 
@@ -289,7 +288,6 @@ export default function DashboardPage() {
     switch (status) {
       case "done":
       case "deep_scoring":
-      case "degraded":
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case "queued":
       case "parsing":
@@ -332,9 +330,6 @@ export default function DashboardPage() {
     }
     if (status === "deep_scoring") {
       return `Review now, refining in background · updated ${formatRelativeTime(updatedAt)}`;
-    }
-    if (status === "degraded") {
-      return `Reviewable with a warning · updated ${formatRelativeTime(updatedAt)}`;
     }
     if (status === "done") return `Ready to review · created ${formatRelativeTime(createdAt)}`;
     if (status === "error") return `Failed · updated ${formatRelativeTime(updatedAt)}`;

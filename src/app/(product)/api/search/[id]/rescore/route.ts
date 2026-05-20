@@ -157,7 +157,6 @@ export async function POST(
       status: "queued",
       pipeline_step: "queued",
       error_message: null,
-      warning_message: null,
       queued_at: ts,
       search_completed_at: null,
       partial_ready_at: null,

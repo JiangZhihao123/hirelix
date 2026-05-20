@@ -91,7 +91,6 @@ function statusBadge(status: string) {
     running: "bg-sky-100 text-sky-800",
     pending: "bg-slate-100 text-slate-600",
     queued: "bg-slate-100 text-slate-600",
-    degraded: "bg-amber-100 text-amber-800",
   };
   return (
     <span

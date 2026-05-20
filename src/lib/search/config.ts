@@ -7,7 +7,6 @@ export const SEARCH_JOB_MAX_ATTEMPTS = 3;
 export const REVIEWABLE_SEARCH_STATUSES = [
   "deep_scoring",
   "done",
-  "degraded",
 ] as const;
 
 function getConfiguredPositiveInt(

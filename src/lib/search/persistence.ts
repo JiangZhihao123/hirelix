@@ -15,7 +15,9 @@ import { nowIso } from "@/lib/search/normalize";
 import type {
   CandidateRowInput,
   LlmUsageEventPayload,
+  SearchStatus,
 } from "@/lib/search/types";
+import { SEARCH_STATUS_VALUES } from "@/lib/search/types";
 
 export type SnapshotCacheEntry = {
   snapshotId: string;
@@ -31,6 +33,11 @@ export type SnapshotProfilePersistResult = {
 };
 
 const DEFAULT_SNAPSHOT_CACHE_TTL_DAYS = 14;
+function assertSearchStatus(status: string): asserts status is SearchStatus {
+  if (!SEARCH_STATUS_VALUES.includes(status as SearchStatus)) {
+    throw new Error(`Invalid search status: ${status}`);
+  }
+}
 
 export function getSnapshotCacheTtlDays() {
   const raw = process.env.BRIGHTDATA_SNAPSHOT_CACHE_TTL_DAYS;
@@ -320,12 +327,10 @@ export async function flushPendingLlmUsageEvents() {
 
 export async function setSearchStatus(
   searchId: string,
-  status: string,
+  status: SearchStatus,
   extra: Record<string, unknown> = {},
 ) {
-  if (status === "degraded") {
-    throw new Error("New search status transitions to degraded are disabled.");
-  }
+  assertSearchStatus(status);
   const normalizedExtra = normalizeTimestampFields(
     sanitizeSearchJsonbPatch(extra),
     SEARCH_TIMESTAMP_FIELDS,

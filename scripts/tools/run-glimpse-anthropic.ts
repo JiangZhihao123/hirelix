@@ -14,7 +14,7 @@ function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 async function fetchState(searchId: string) {
   const { data: search } = await supabase
     .from('hirelix_searches')
-    .select('id,status,pipeline_step,error_message,warning_message,parsed_requirements,updated_at')
+    .select('id,status,pipeline_step,error_message,parsed_requirements,updated_at')
     .eq('id', searchId)
     .single();
   const { count: candidateCount } = await supabase
@@ -39,7 +39,6 @@ async function main() {
       status: 'queued',
       pipeline_step: 'queued',
       error_message: null,
-      warning_message: null,
       parsed_requirements: {
         candidate_count: REQUESTED_CANDIDATE_COUNT,
         display_count: REQUESTED_CANDIDATE_COUNT,
@@ -69,7 +68,7 @@ async function main() {
   });
   console.log(`[RUN] search_id=${searchId}`);
 
-  const terminal = new Set(['done', 'degraded', 'error']);
+  const terminal = new Set(['done', 'error']);
   for (let i = 0; i < 120; i++) {
     const stateBefore = await fetchState(searchId);
     console.log(`[POLL_BEFORE] i=${i} status=${stateBefore.search?.status} step=${stateBefore.search?.pipeline_step} candidates=${stateBefore.candidateCount} job=${stateBefore.job?.status} attempts=${stateBefore.job?.attempt_count}`);
@@ -94,7 +93,6 @@ async function main() {
     job_status: finalState.job?.status || null,
     job_attempt_count: finalState.job?.attempt_count || null,
     job_last_error: finalState.job?.last_error || null,
-    warning_message: finalState.search?.warning_message || null,
     error_message: finalState.search?.error_message || null,
     display_stats: stats,
   }));

@@ -151,7 +151,6 @@ export default function SearchResultPage() {
   const hasTrackedProcessingViewRef = useRef(false);
   const hasTrackedResultsViewRef = useRef(false);
   const hasTrackedDoneRef = useRef(false);
-  const hasTrackedDegradedRef = useRef(false);
   const hasTrackedProcessingReassuranceRef = useRef(false);
   const hasTrackedUpgradeValueExposedRef = useRef(false);
   const seenCandidateIdsRef = useRef<Set<string>>(new Set());
@@ -463,17 +462,6 @@ export default function SearchResultPage() {
   }, [analyticsContext, candidates.length, search]);
 
   useEffect(() => {
-    if (!search || search.status !== "degraded" || hasTrackedDegradedRef.current) return;
-    hasTrackedDegradedRef.current = true;
-    trackEvent(ANALYTICS_EVENTS.searchDegraded, {
-      ...analyticsContext,
-      search_id: search.id,
-      candidate_count: candidates.length,
-      warning_message: search.warning_message ?? null,
-    });
-  }, [analyticsContext, candidates.length, search]);
-
-  useEffect(() => {
     if (!search || !["queued", "parsing", "searching", "screening"].includes(search.status) || hasTrackedProcessingReassuranceRef.current) {
       return;
     }
@@ -608,7 +596,6 @@ export default function SearchResultPage() {
   const launchScope = typeof reqs?.launch_scope === "string" ? reqs.launch_scope : null;
   const isReviewable = isReviewableSearchStatus(search.status);
   const isImprovingInBackground = search.status === "deep_scoring";
-  const isReadyWithWarning = search.status === "degraded";
   const isPreResultsProcessing =
     search.status === "queued" ||
     search.status === "parsing" ||
@@ -1113,48 +1100,27 @@ export default function SearchResultPage() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                {isReadyWithWarning
-                  ? "Ready with a warning"
-                  : isImprovingInBackground
-                    ? "Shortlist ready"
-                    : "Shortlist complete"}
+                {isImprovingInBackground ? "Shortlist ready" : "Shortlist complete"}
               </p>
               <h2 className="mt-1 text-lg font-semibold text-slate-950">
-                {isReadyWithWarning
-                  ? "Your candidate pool is usable"
-                  : isImprovingInBackground
-                    ? "Your candidate pool is ready to review"
-                    : "Your candidate pool is ready"}
+                {isImprovingInBackground
+                  ? "Your candidate pool is ready to review"
+                  : "Your candidate pool is ready"}
               </h2>
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
-                {search.warning_message && !search.warning_message.includes("highlighted candidates")
-                  ? search.warning_message
-                  : isReadyWithWarning
-                    ? `You can use this shortlist now: ${priorityOutreachCount} first-priority candidates, ${worthReviewingCount} backup candidates, and ${githubBackedCandidateCount} with public evidence. Some background scoring or enrichment did not finish cleanly.`
-                  : qualityFloorApplied
+                {qualityFloorApplied
                     ? "Hirelix searched a broader recall pool and kept the candidates that already look credible enough to work now."
                     : isImprovingInBackground
                       ? "Hirelix is still refining the remaining scores in the background."
                       : `Hirelix turned this search into a workable pool: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
               </p>
-              {isImprovingInBackground && !search.warning_message && (
+              {isImprovingInBackground && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
                   {candidates.length > 0
                     ? `Found ${candidates.length} visible candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
                     : "The visible candidate pool is still growing as more recalled profiles are reviewed..."}
                 </div>
-              )}
-              {isReadyWithWarning && canRerunScoringFromCache && (
-                <button
-                  type="button"
-                  onClick={rerunScoringFromCache}
-                  disabled={rescoreSubmitting}
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <RotateCcw className={`h-3.5 w-3.5 ${rescoreSubmitting ? "animate-spin" : ""}`} />
-                  {rescoreSubmitting ? "Retrying unfinished scoring" : "Retry unfinished scoring"}
-                </button>
               )}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">

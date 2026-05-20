@@ -35,7 +35,6 @@ type SearchSnapshot = {
   status: string | null;
   pipeline_step: string | null;
   error_message: string | null;
-  warning_message: string | null;
   parsed_requirements: JsonRecord | null;
 };
 
@@ -194,7 +193,7 @@ function parseOutreachDraft(value: string | null) {
 async function readSearch(searchId: string): Promise<SearchSnapshot> {
   const { data, error } = await supabase
     .from("hirelix_searches")
-    .select("id,status,pipeline_step,error_message,warning_message,parsed_requirements")
+    .select("id,status,pipeline_step,error_message,parsed_requirements")
     .eq("id", searchId)
     .single();
 
@@ -392,7 +391,7 @@ async function createAndRunSearch(label: string): Promise<RunResult> {
   console.log(`[${label}] search_id=${searchId} job_id=${jobId}`);
 
   const startedAt = Date.now();
-  const terminalStatuses = new Set(["done", "degraded", "error"]);
+  const terminalStatuses = new Set(["done", "error"]);
   let lastSignature = "";
 
   for (let poll = 0; poll < 240; poll += 1) {

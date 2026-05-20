@@ -95,7 +95,6 @@ export async function PATCH(
   };
   if (typeof body.pipeline_step === "string") patch.pipeline_step = body.pipeline_step;
   if (typeof body.error_message === "string") patch.error_message = body.error_message;
-  patch.warning_message = null;
 
   const updated = await db
     .update(hirelix_searches)

@@ -70,12 +70,12 @@ async function main() {
     candidateCount: 10,
   });
 
-  const terminal = new Set(['done', 'degraded', 'error']);
+  const terminal = new Set(['done', 'error']);
   for (let i = 0; i < 120; i++) {
     const result = await processNextSearchJob(searchId);
     const { data: currentSearch } = await supabase
       .from('hirelix_searches')
-      .select('status,pipeline_step,error_message,warning_message,parsed_requirements')
+      .select('status,pipeline_step,error_message,parsed_requirements')
       .eq('id', searchId)
       .single();
 
@@ -94,7 +94,6 @@ async function main() {
         final_step: currentSearch.pipeline_step,
         candidate_count: count || 0,
         error_message: currentSearch.error_message || null,
-        warning_message: currentSearch.warning_message || null,
         display_stats: (currentSearch.parsed_requirements as any)?.display_stats || {},
         recall_metadata: (currentSearch.parsed_requirements as any)?.recall_metadata || null,
         top_candidates: (candidates || []).slice(0, 25).map((c: any) => ({

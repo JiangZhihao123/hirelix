@@ -8,7 +8,6 @@ const RUNNING_SEARCH_STATUSES = [
 const REVIEWABLE_SEARCH_STATUSES = [
   "deep_scoring",
   "done",
-  "degraded",
 ] as const;
 
 export function isStaleTrackableSearchStatus(status: string | null | undefined) {

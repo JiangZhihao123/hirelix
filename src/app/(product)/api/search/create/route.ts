@@ -116,7 +116,6 @@ export async function POST(req: NextRequest) {
           status: "queued",
           pipeline_step: "queued",
           error_message: null,
-          warning_message: null,
           parsed_requirements: parsedRequirements,
           queued_at: ts,
           parse_completed_at:
@@ -188,7 +187,6 @@ export async function POST(req: NextRequest) {
           status: "error",
           pipeline_step: "error",
           error_message: "Failed to enqueue search job",
-          warning_message: null,
           updated_at: new Date(),
         })
         .where(eq(hirelix_searches.id, createdSearchId));

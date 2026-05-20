@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
       created_at: hirelix_searches.created_at,
       updated_at: hirelix_searches.updated_at,
       error_message: hirelix_searches.error_message,
-      warning_message: hirelix_searches.warning_message,
       jd_text: hirelix_searches.jd_text,
     })
     .from(hirelix_searches)

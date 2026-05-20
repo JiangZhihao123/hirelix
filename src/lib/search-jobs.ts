@@ -2715,7 +2715,6 @@ async function markSearchReviewable(
     partial_ready_at: reqs.partial_ready_at,
     parsed_requirements: reqs,
     error_message: null,
-    warning_message: null,
   });
   void queueOrSendSearchNotification(context.searchId, "first_shortlist_ready").catch((error) => {
     console.error("[search_notifications] Failed to queue first shortlist notification:", error);
@@ -3042,7 +3041,6 @@ async function scoreBrightDataProfiles(
 async function failSearch(searchId: string, message: string) {
   await setSearchStatus(searchId, "error", {
     error_message: message,
-    warning_message: null,
   });
   const count = await countCandidatesForSearch(searchId);
 

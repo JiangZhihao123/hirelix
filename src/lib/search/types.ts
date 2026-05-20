@@ -1,5 +1,17 @@
 import type { SearchPlanCode } from "@/lib/search-execution";
 
+export const SEARCH_STATUS_VALUES = [
+  "queued",
+  "parsing",
+  "searching",
+  "screening",
+  "deep_scoring",
+  "done",
+  "error",
+] as const;
+
+export type SearchStatus = (typeof SEARCH_STATUS_VALUES)[number];
+
 export type SearchJobRow = {
   id: string;
   search_id: string;
