@@ -17,22 +17,6 @@ const PUBLIC_EVIDENCE_RETRY_DELAY_MS = 5 * 60 * 1000;
 const PUBLIC_EVIDENCE_STALE_MINUTES = 25;
 export const PUBLIC_EVIDENCE_VERSION = 2;
 
-type PublicEvidenceJobRow = {
-  id: string;
-  candidate_id: string;
-  search_id: string;
-  user_id: string;
-  status: string;
-  attempt_count: number;
-  last_error: string | null;
-  available_at: string;
-  locked_at: string | null;
-  started_at: string | null;
-  finished_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 function nowIso() {
   return new Date().toISOString();
 }
@@ -43,6 +27,28 @@ function nowDate() {
 
 function minutesAgoDate(minutes: number) {
   return new Date(Date.now() - minutes * 60 * 1000);
+}
+
+const PUBLIC_EVIDENCE_JOB_TIMESTAMP_FIELDS = new Set([
+  "available_at",
+  "locked_at",
+  "started_at",
+  "finished_at",
+  "updated_at",
+]);
+
+export function normalizePublicEvidenceJobTimestampFields(
+  patch: Record<string, unknown>,
+) {
+  return Object.fromEntries(
+    Object.entries(patch).map(([key, value]) => {
+      if (typeof value === "string" && PUBLIC_EVIDENCE_JOB_TIMESTAMP_FIELDS.has(key)) {
+        const date = new Date(value);
+        if (!Number.isNaN(date.valueOf())) return [key, date];
+      }
+      return [key, value];
+    }),
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -212,13 +218,13 @@ async function updateJobStatus(
   extra: Record<string, unknown> = {},
 ) {
   const ts = nowDate();
-  const patch: Record<string, unknown> = {
+  const patch = normalizePublicEvidenceJobTimestampFields({
     status,
     updated_at: ts,
     ...(status === "done" || status === "error" ? { finished_at: ts } : {}),
     ...(status !== "queued" ? { locked_at: null } : {}),
     ...extra,
-  };
+  });
   await db
     .update(hirelix_public_evidence_jobs)
     .set(patch as Parameters<typeof db.update>[0] extends never ? never : Record<string, unknown>)

@@ -7,10 +7,12 @@ import {
   processNextPublicEvidenceJob,
   reclaimStalePublicEvidenceJobs,
 } from "@/lib/public-evidence-jobs";
+import { getLogger } from "@/lib/logger";
 
 const DEFAULT_IDLE_POLL_MS = 3000;
 const DEFAULT_ERROR_BACKOFF_MS = 5000;
 const DEFAULT_CONCURRENCY = 1;
+const schedulerLogger = getLogger({ component: "search_job_scheduler" });
 
 type SchedulerState = {
   started: boolean;
@@ -83,7 +85,7 @@ async function runSchedulerLoop(workerIndex: number) {
         await sleep(idlePollMs);
       }
     } catch (error) {
-      console.error(`[search_jobs] Scheduler worker ${workerIndex} failed:`, error);
+      schedulerLogger.error({ err: error, workerIndex }, "scheduler worker failed");
       await sleep(errorBackoffMs);
     }
   }
@@ -100,16 +102,14 @@ function startReclaimTimer() {
       await reclaimStaleGithubEnrichmentJobs();
       await reclaimStalePublicEvidenceJobs();
     } catch (error) {
-      console.error("[search_jobs] Reclaim timer failed:", error);
+      schedulerLogger.error({ err: error }, "reclaim timer failed");
     }
   }, RECLAIM_INTERVAL_MS);
 }
 
 export function startSearchJobScheduler() {
   if (!getSchedulerEnabled()) {
-    console.warn(
-      `[search_jobs] In-process scheduler disabled (env=${process.env.NODE_ENV ?? "unknown"})`,
-    );
+    schedulerLogger.warn({ env: process.env.NODE_ENV ?? "unknown" }, "in-process scheduler disabled");
     return;
   }
 
@@ -121,15 +121,13 @@ export function startSearchJobScheduler() {
   state.started = true;
   startReclaimTimer();
   const concurrency = getConfiguredConcurrency();
-  console.log(
-    `[search_jobs] In-process scheduler started with concurrency=${concurrency}`,
-  );
+  schedulerLogger.info({ concurrency }, "in-process scheduler started");
   state.startPromise = Promise.all(
     Array.from({ length: concurrency }, (_, index) => runSchedulerLoop(index + 1)),
   ).catch((error) => {
     state.started = false;
     state.startPromise = null;
-    console.error("[search_jobs] Scheduler exited:", error);
+    schedulerLogger.error({ err: error }, "scheduler exited");
     throw error;
   });
 }

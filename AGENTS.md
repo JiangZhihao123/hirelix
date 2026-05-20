@@ -28,6 +28,7 @@
   - [6.4 环境变量分组](#64-环境变量分组)
   - [6.5 数据库迁移](#65-数据库迁移)
 - [7. 测试与调试](#7-测试与调试)
+  - [7.4 日志排查](#74-日志排查)
 - [8. 生产环境](#8-生产环境)
   - [8.8 us-2 个人 VPS 代理面板](#88-us-2-个人-vps-代理面板)
 - [9. 扩展参考](#9-扩展参考)
@@ -348,6 +349,23 @@ Mock 是辅助，不是结论；核心用户价值必须用真实链路验证或
 - 搜索队列表 `hirelix_search_jobs`
 - GitHub 富化队列表 `hirelix_github_enrichment_jobs`
 - VPS 上的 `hirelix-scheduler` systemd 服务状态与日志
+
+### 7.4 日志排查
+
+当前项目使用 `pino` 提供服务端结构化日志能力，入口为 `src/lib/logger.ts`。
+
+| 场景 | 查看方式 |
+|------|----------|
+| Vercel 前端/API | Vercel Function Logs / Runtime Logs |
+| us-2 调度器 | `ssh us-2 'sudo journalctl -u hirelix-scheduler -f'` |
+| 本地开发 | 终端 stdout/stderr |
+| 本地历史测试 | `logs/`、`.playwright-mcp/`、`.playwright-cli/` |
+
+执行原则：
+- 新增服务端日志优先使用 `getLogger({ component: "..." })`，不要继续扩散裸 `console.*`
+- 生产日志默认输出 JSON，便于后续接入 Better Stack / Axiom / Datadog / Loki 等集中式日志平台
+- 日志字段里不要写入明文 token、password、authorization header；`src/lib/logger.ts` 已配置基础 redact，但调用侧仍要避免传入敏感大对象
+- 调度器问题优先按 `component`、`search_id`、`job_id`、`candidate_id`、`workerIndex` 这些字段定位
 
 ## 8. 生产环境
 
