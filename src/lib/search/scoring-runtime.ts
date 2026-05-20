@@ -263,7 +263,7 @@ export async function arbitrateCandidateScore(
     ) => number;
   },
   context?: { searchId?: string; jobId?: string; userId?: string },
-): Promise<ScoredCandidateAssessment | null> {
+): Promise<ScoredCandidateAssessment> {
   const prompt = buildArbiterPrompt(
     parsed,
     jdText,
@@ -388,7 +388,7 @@ export async function scoreSingleCandidate(
     arbiterHelpers: Parameters<typeof arbitrateCandidateScore>[7];
   },
   context?: { searchId?: string; jobId?: string; userId?: string },
-): Promise<ScoredCandidateAssessment | null> {
+): Promise<ScoredCandidateAssessment> {
   if (runtime.judgeMode === "single") {
     try {
       const judgeResults = await helpers.judgeScoreBatch(
@@ -403,7 +403,7 @@ export async function scoreSingleCandidate(
         context,
       );
       const judge = judgeResults[0];
-      if (!judge) return null;
+      if (!judge) throw new Error(`Single judge returned no score for candidate ${selectedIndex}`);
       return {
         ...mergeJudgeResults(judge, judge, {
           computeQualityScore: helpers.computeQualityScore,
@@ -421,7 +421,7 @@ export async function scoreSingleCandidate(
         index: selectedIndex,
         error: error instanceof Error ? error.message : String(error),
       });
-      return null;
+      throw error;
     }
   }
 
@@ -472,33 +472,19 @@ export async function scoreSingleCandidate(
     });
   }
 
-  if (!judgeA && !judgeB) return null;
+  if (!judgeA && !judgeB) {
+    throw new Error(`Both judges failed to score candidate ${selectedIndex}`);
+  }
   if (judgeA && !judgeB) {
-    return {
-      ...mergeJudgeResults(judgeA, judgeA, {
-        computeQualityScore: helpers.computeQualityScore,
-        computeAdvanceScore: helpers.computeAdvanceScore,
-        deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-        sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-        normalizeNullableString: helpers.normalizeNullableString,
-      }),
-      judge_delta: 0,
-    };
+    throw new Error(`Judge B failed to score candidate ${selectedIndex}`);
   }
   if (judgeB && !judgeA) {
-    return {
-      ...mergeJudgeResults(judgeB, judgeB, {
-        computeQualityScore: helpers.computeQualityScore,
-        computeAdvanceScore: helpers.computeAdvanceScore,
-        deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-        sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-        normalizeNullableString: helpers.normalizeNullableString,
-      }),
-      judge_delta: 0,
-    };
+    throw new Error(`Judge A failed to score candidate ${selectedIndex}`);
   }
 
-  if (!judgeA || !judgeB) return null;
+  if (!judgeA || !judgeB) {
+    throw new Error(`Dual review incomplete for candidate ${selectedIndex}`);
+  }
   if (!hasJudgeConflict(judgeA, judgeB, {
     computeQualityScore: helpers.computeQualityScore,
     deriveFitDecisionFromScore: helpers.deriveFitDecisionFromScore,
@@ -515,40 +501,17 @@ export async function scoreSingleCandidate(
     };
   }
 
-  try {
-    return await helpers.arbitrateCandidateScore(
-      runtime,
-      parsed,
-      jdText,
-      profileTexts[selectedIndex],
-      judgeA,
-      judgeB,
-      totalPoolSize,
-      helpers.arbiterHelpers,
-      context,
-    );
-  } catch (error) {
-    helpers.logSearchEvent("dual_review_arbiter_failure", {
-      index: selectedIndex,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {
-      ...mergeJudgeResults(judgeA, judgeB, {
-        computeQualityScore: helpers.computeQualityScore,
-        computeAdvanceScore: helpers.computeAdvanceScore,
-        deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-        sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-        normalizeNullableString: helpers.normalizeNullableString,
-      }),
-      scoring_method: "dual_review_auto",
-      judge_delta: Math.max(
-        Math.abs(judgeA.capability_score - judgeB.capability_score),
-        Math.abs(judgeA.relevance_score - judgeB.relevance_score),
-        Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
-      ),
-      judge_conflict: true,
-    };
-  }
+  return await helpers.arbitrateCandidateScore(
+    runtime,
+    parsed,
+    jdText,
+    profileTexts[selectedIndex],
+    judgeA,
+    judgeB,
+    totalPoolSize,
+    helpers.arbiterHelpers,
+    context,
+  );
 }
 
 function mapJudgeResultsByIndex(results: JudgeScoreResult[]) {
@@ -592,54 +555,6 @@ function mergeDualJudgeResult(
     }),
     scoring_method: "selective_dual_review",
     judge_conflict: false,
-  };
-}
-
-function buildFastJudgeFailureAssessment(index: number): ScoredCandidateAssessment {
-  return {
-    index,
-    skills: [],
-    experience_years: null,
-    location: null,
-    scoring_method: "fast_judge_triage",
-    judge_delta: 0,
-    judge_conflict: false,
-    suitability: {
-      fit_decision: "reject",
-      actionability: "not_actionable",
-      bucket: "do_not_show",
-      match_score: 0,
-      quality_score: 0,
-      overall_score: 0,
-      advance_score: 0,
-      advance_recommendation: "reject",
-      primary_risk: "Fast judge failed for this profile",
-      first_contact_confidence: "low",
-      subscription_trigger_score: 0,
-      shortlist_decision: "no",
-      shortlist_reason: "Profile could not be safely scored.",
-      blocking_constraints: ["scoring failed"],
-      blocking_severity: "hard",
-      scoring_breakdown: {
-        capability_score: 0,
-        relevance_score: 0,
-        join_likelihood_score: 0,
-        join_likelihood_reasons: [],
-        quality_score: 0,
-        overall_score: 0,
-        advance_score: 0,
-      },
-      constraint_verdicts: {
-        location_fit: "unknown",
-        work_model_fit: "unclear",
-        must_have_coverage: "unknown",
-      },
-      constraint_risks: ["Profile skipped after repeated scoring failure."],
-      risk_flags: ["Profile skipped after repeated scoring failure."],
-      why_this_candidate: [],
-      why_not_higher: ["Profile skipped after repeated scoring failure."],
-      evidence_quality: "low",
-    },
   };
 }
 
@@ -807,21 +722,24 @@ export async function scoreCandidateBatch(
         ...(context?.searchId && { search_id: context.searchId }),
         ...(context?.jobId && { job_id: context.jobId }),
       });
-      return [];
+      throw error;
     }
   }
 
-  const judgeAResults = await helpers.judgeScoreBatch(
-    runtime,
-    parsed,
-    jdText,
-    profileTexts,
-    selectedIndexes,
-    totalPoolSize,
-    "Judge A",
-    helpers.judgeHelpers,
-    context,
-  ).catch((error) => {
+  let judgeAResults: JudgeScoreResult[];
+  try {
+    judgeAResults = await helpers.judgeScoreBatch(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      selectedIndexes,
+      totalPoolSize,
+      "Judge A",
+      helpers.judgeHelpers,
+      context,
+    );
+  } catch (error) {
     helpers.logSearchEvent("selective_review_primary_judge_failed", {
       indexes: selectedIndexes,
       batch_size: selectedIndexes.length,
@@ -829,8 +747,8 @@ export async function scoreCandidateBatch(
       ...(context?.searchId && { search_id: context.searchId }),
       ...(context?.jobId && { job_id: context.jobId }),
     });
-    return [] as JudgeScoreResult[];
-  });
+    throw error;
+  }
 
   const judgeAByIndex = mapJudgeResultsByIndex(judgeAResults);
   const provisionalAssessments = Array.from(judgeAByIndex.values()).map((judge) =>
@@ -854,17 +772,20 @@ export async function scoreCandidateBatch(
     return provisionalAssessments.sort((left, right) => left.index - right.index);
   }
 
-  const judgeBResults = await helpers.judgeScoreBatch(
-    runtime,
-    parsed,
-    jdText,
-    profileTexts,
-    secondReviewIndexes,
-    totalPoolSize,
-    "Judge B",
-    helpers.judgeHelpers,
-    context,
-  ).catch((error) => {
+  let judgeBResults: JudgeScoreResult[];
+  try {
+    judgeBResults = await helpers.judgeScoreBatch(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts,
+      secondReviewIndexes,
+      totalPoolSize,
+      "Judge B",
+      helpers.judgeHelpers,
+      context,
+    );
+  } catch (error) {
     helpers.logSearchEvent("selective_review_secondary_judge_failed", {
       indexes: secondReviewIndexes,
       batch_size: secondReviewIndexes.length,
@@ -872,8 +793,8 @@ export async function scoreCandidateBatch(
       ...(context?.searchId && { search_id: context.searchId }),
       ...(context?.jobId && { job_id: context.jobId }),
     });
-    return [] as JudgeScoreResult[];
-  });
+    throw error;
+  }
   const judgeBByIndex = mapJudgeResultsByIndex(judgeBResults);
   const assessments = provisionalAssessments.filter(
     (assessment) => !secondReviewIndexes.includes(assessment.index),
@@ -888,10 +809,11 @@ export async function scoreCandidateBatch(
     const judgeA = judgeAByIndex.get(selectedIndex);
     const judgeB = judgeBByIndex.get(selectedIndex) ?? null;
 
-    if (!judgeA) continue;
+    if (!judgeA) {
+      throw new Error(`Primary judge did not return candidate ${selectedIndex}`);
+    }
     if (!judgeB) {
-      assessments.push(mergeSingleJudgeResult(judgeA, helpers));
-      continue;
+      throw new Error(`Secondary judge did not return candidate ${selectedIndex}`);
     }
 
     if (shouldArbitrateActionConflict(judgeA, judgeB, helpers)) {
@@ -923,44 +845,17 @@ export async function scoreCandidateBatch(
   const arbitrated = await runWithConcurrency(
     conflicts,
     arbiterConcurrency,
-    async ({ index, judgeA, judgeB }) => {
-      try {
-        return await helpers.arbitrateCandidateScore(
-          runtime,
-          parsed,
-          jdText,
-          profileTexts[index],
-          judgeA,
-          judgeB,
-          totalPoolSize,
-          helpers.arbiterHelpers,
-          context,
-        );
-      } catch (error) {
-        helpers.logSearchEvent("dual_review_arbiter_failure", {
-          index,
-          error: error instanceof Error ? error.message : String(error),
-          ...(context?.searchId && { search_id: context.searchId }),
-          ...(context?.jobId && { job_id: context.jobId }),
-        });
-        return {
-          ...mergeJudgeResults(judgeA, judgeB, {
-            computeQualityScore: helpers.computeQualityScore,
-            computeAdvanceScore: helpers.computeAdvanceScore,
-            deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-            sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-            normalizeNullableString: helpers.normalizeNullableString,
-          }),
-          scoring_method: "dual_review_auto" as const,
-          judge_delta: Math.max(
-            Math.abs(judgeA.capability_score - judgeB.capability_score),
-            Math.abs(judgeA.relevance_score - judgeB.relevance_score),
-            Math.abs(judgeA.join_likelihood_score - judgeB.join_likelihood_score),
-          ),
-          judge_conflict: true,
-        };
-      }
-    },
+    async ({ index, judgeA, judgeB }) => helpers.arbitrateCandidateScore(
+      runtime,
+      parsed,
+      jdText,
+      profileTexts[index],
+      judgeA,
+      judgeB,
+      totalPoolSize,
+      helpers.arbiterHelpers,
+      context,
+    ),
   );
 
   return [...assessments, ...arbitrated.filter((entry): entry is ScoredCandidateAssessment => Boolean(entry))]
@@ -1037,9 +932,7 @@ async function scoreFastJudgeBatch(
       return retryBatches.flat();
     }
 
-    return selectedIndexes.length === 1
-      ? [buildFastJudgeFailureAssessment(selectedIndexes[0])]
-      : [];
+    throw error;
   }
 }
 

@@ -27,7 +27,6 @@ import {
   isReviewableSearchStatus,
   isRunningSearchStatus,
   getStalledSearchMessage,
-  isOlderThanMinutes,
   isStaleProcessingSearch,
 } from "@/lib/search-state";
 import {
@@ -316,37 +315,6 @@ export default function SearchResultPage() {
     }
     if (normalizedSearch) setSearch(normalizedSearch);
     setLoading(false);
-    if (
-      normalizedSearch &&
-      normalizedSearch.status === "deep_scoring" &&
-      (candidatesData?.length || 0) > 0 &&
-      isOlderThanMinutes(normalizedSearch.updated_at)
-    ) {
-      try {
-        await fetchWithUserSession(`/api/searches/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "degraded",
-            pipeline_step: "done",
-            warning_message:
-              "Advanced profile refinement took too long, but your shortlist is still ready to review.",
-          }),
-        });
-      } catch {
-        // best-effort
-      }
-
-      normalizedSearch = {
-        ...normalizedSearch,
-        status: "degraded",
-        pipeline_step: "done",
-        warning_message:
-          "Advanced profile refinement took too long, but your shortlist is still ready to review.",
-        updated_at: new Date().toISOString(),
-      };
-      setSearch(normalizedSearch);
-    }
     if (candidatesData) {
       // Track new candidates for highlight (diff against previously seen)
       const newIds = new Set<string>();

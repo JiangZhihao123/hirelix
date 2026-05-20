@@ -18,7 +18,6 @@ import {
 } from "@/lib/brightdata";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
-  buildFallbackOutreachDraft,
   buildRecruiterOutreachPrompt,
   buildRecruiterOutreachEvidence,
 } from "@/lib/recruiter-outreach";
@@ -2585,79 +2584,58 @@ async function generateOutreachDraftsForRows(
         };
       }
 
-      try {
-        const { data: parsedDraft } = await withTimeout(
-          (signal) => generateLlmJson<{
-            subject?: string;
-            linkedin?: string;
-            email?: string;
-          }>({
-            model: getLightModel(),
-            prompt: buildRecruiterOutreachPrompt({
-              roleTitle: normalizeNullableString(parsed.title) || "this role",
-              jdText: context.jdText,
-              candidate: {
-                name: normalizedRow.name,
-                headline: normalizedRow.headline,
-                location: normalizedRow.location,
-                skills: normalizedRow.skills,
-                matchReasons: normalizedRow.match_reasons,
-                githubSignals,
-                publicEvidence,
-                sellingKit,
-              },
-            }),
-            maxOutputTokens: runtime.outreachMaxOutputTokens,
-            abortSignal: signal,
-            timeoutMs: 60000,
-            temperature: 0,
-            jsonSchema: buildOutreachDraftJsonSchema(),
-            deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
-            usageEvent: {
-              searchId: context.searchId,
-              jobId: context.jobId,
-              userId: context.userId,
-              stage: "outreach",
-              batchSize: 1,
-              candidateIndexes:
-                typeof normalizedRow.metadata?.source_index === "number"
-                  ? [normalizedRow.metadata.source_index]
-                  : null,
+      const { data: parsedDraft } = await withTimeout(
+        (signal) => generateLlmJson<{
+          subject?: string;
+          linkedin?: string;
+          email?: string;
+        }>({
+          model: getLightModel(),
+          prompt: buildRecruiterOutreachPrompt({
+            roleTitle: normalizeNullableString(parsed.title) || "this role",
+            jdText: context.jdText,
+            candidate: {
+              name: normalizedRow.name,
+              headline: normalizedRow.headline,
+              location: normalizedRow.location,
+              skills: normalizedRow.skills,
+              matchReasons: normalizedRow.match_reasons,
+              githubSignals,
+              publicEvidence,
+              sellingKit,
             },
           }),
-          60000,
-          `Outreach draft for ${normalizedRow.name}`,
-        );
-        return {
-          ...normalizedRow,
-          outreach_draft: JSON.stringify({
-            subject: normalizeNullableString(parsedDraft.subject) || `${normalizeNullableString(parsed.title) || "Opportunity"} opportunity`,
-            linkedin:
-              normalizeNullableString(parsedDraft.linkedin) ||
-              `Hi ${normalizedRow.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?`,
-            email:
-              normalizeNullableString(parsedDraft.email) ||
-              `Hi ${normalizedRow.name.split(/\s+/)[0] || "there"}, I came across your background and thought it looked highly relevant to our ${normalizeNullableString(parsed.title) || "open role"}. Would you be open to a quick chat?\n\nBest regards`,
-          }),
-        };
-      } catch (error) {
-        logSearchEvent("search_outreach_draft_fallback", {
-          search_id: context.searchId,
-          candidate: normalizedRow.name,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return {
-          ...normalizedRow,
-          outreach_draft: JSON.stringify(
-            buildFallbackOutreachDraft({
-              firstName,
-              roleTitle: normalizeNullableString(parsed.title) || "open role",
-              evidence,
-              hasEmail: true,
-            }),
-          ),
-        };
+          maxOutputTokens: runtime.outreachMaxOutputTokens,
+          abortSignal: signal,
+          timeoutMs: 60000,
+          temperature: 0,
+          jsonSchema: buildOutreachDraftJsonSchema(),
+          deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
+          usageEvent: {
+            searchId: context.searchId,
+            jobId: context.jobId,
+            userId: context.userId,
+            stage: "outreach",
+            batchSize: 1,
+            candidateIndexes:
+              typeof normalizedRow.metadata?.source_index === "number"
+                ? [normalizedRow.metadata.source_index]
+                : null,
+          },
+        }),
+        60000,
+        `Outreach draft for ${normalizedRow.name}`,
+      );
+      const subject = normalizeNullableString(parsedDraft.subject);
+      const linkedin = normalizeNullableString(parsedDraft.linkedin);
+      const email = normalizeNullableString(parsedDraft.email);
+      if (!subject || !linkedin || !email) {
+        throw new Error(`Outreach draft LLM returned incomplete content for ${normalizedRow.name}`);
       }
+      return {
+        ...normalizedRow,
+        outreach_draft: JSON.stringify({ subject, linkedin, email }),
+      };
     }),
   );
 
@@ -2951,11 +2929,13 @@ async function scoreBrightDataProfiles(
       ? finalRows[finalRows.length - 1]?.match_score ?? 0
       : 0;
 
-  let warningMessage: string | null = null;
   if (finalRows.length === 0) {
-    warningMessage = "No candidates were ranked into the visible result set.";
-  } else if (fullDetailIncomplete) {
-    warningMessage = "Some deep reviews timed out, and only completed deep scores were ranked.";
+    throw new Error("No candidates were ranked into the visible result set.");
+  }
+  if (fullDetailIncomplete) {
+    throw new Error(
+      `Deep scoring incomplete: reviewed ${deepAssessments.length}/${selectedIndexes.length} recalled profiles.`,
+    );
   }
   const estimatedCosts = estimateBrightPipelineLlmCost({
     context,
@@ -3012,7 +2992,6 @@ async function scoreBrightDataProfiles(
 
   return {
     finalRows,
-    warningMessage,
     assessments: deepAssessments,
     displayStats: buildSearchDisplayStats({
       retrieval_count: retrievalCount,

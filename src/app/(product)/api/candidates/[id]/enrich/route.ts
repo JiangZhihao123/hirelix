@@ -19,10 +19,7 @@ import {
 } from "@/lib/llm-client";
 import { buildOutreachDraftJsonSchema } from "@/lib/llm-schemas";
 import { enqueueGithubEnrichmentJob } from "@/lib/github-enrichment-jobs";
-import {
-  buildFallbackOutreachDraft,
-  buildRecruiterOutreachEvidence,
-} from "@/lib/recruiter-outreach";
+import { buildRecruiterOutreachEvidence } from "@/lib/recruiter-outreach";
 import { sanitizeDisplayName } from "@/lib/display-name";
 
 /**
@@ -327,35 +324,38 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
 
       Return ONLY valid JSON, no markdown.`;
 
-      try {
-        const { data: draft } = await generateLlmJson<{
-          subject?: string;
-          linkedin?: string;
-          email?: string;
-        }>({
-          model,
-          prompt,
-          maxOutputTokens: 1000,
-          temperature: 0,
-          jsonSchema: buildOutreachDraftJsonSchema({
-            includeEmail: hasEmail,
-          }),
-          deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
-        });
-        updates.outreach_draft = JSON.stringify(draft);
-        console.log(`[enrich] Outreach generated for ${sanitizedCandidateName}`);
-      } catch (err) {
-        console.log(`[enrich] Outreach generation failed: ${err instanceof Error ? err.message : String(err)}`);
-        // Fallback
-        updates.outreach_draft = JSON.stringify(
-          buildFallbackOutreachDraft({
-            firstName,
-            roleTitle: String(roleTitle),
-            evidence,
-            hasEmail,
-          }),
-        );
+      const { data: draft } = await generateLlmJson<{
+        subject?: string;
+        linkedin?: string;
+        email?: string;
+      }>({
+        model,
+        prompt,
+        maxOutputTokens: 1000,
+        temperature: 0,
+        jsonSchema: buildOutreachDraftJsonSchema({
+          includeEmail: hasEmail,
+        }),
+        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
+      });
+      const subject = typeof draft.subject === "string" && draft.subject.trim().length > 0
+        ? draft.subject.trim()
+        : null;
+      const linkedin = typeof draft.linkedin === "string" && draft.linkedin.trim().length > 0
+        ? draft.linkedin.trim()
+        : null;
+      const emailDraft = !hasEmail || (typeof draft.email === "string" && draft.email.trim().length > 0)
+        ? draft.email?.trim()
+        : null;
+      if (!subject || !linkedin || (hasEmail && !emailDraft)) {
+        throw new Error(`Outreach generation returned incomplete content for ${sanitizedCandidateName}`);
       }
+      updates.outreach_draft = JSON.stringify({
+        subject,
+        linkedin,
+        ...(hasEmail ? { email: emailDraft } : {}),
+      });
+      console.log(`[enrich] Outreach generated for ${sanitizedCandidateName}`);
     }
 
     // ── Update DB ──

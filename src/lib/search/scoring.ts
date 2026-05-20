@@ -393,11 +393,6 @@ export function hasJudgeConflict(
     deriveFitDecisionFromScore: (score: number) => ScoredCandidateAssessment["suitability"]["fit_decision"];
   },
 ) {
-  const syncArbiterEnabled = ["1", "true", "yes", "on"].includes(
-    (process.env.SEARCH_SYNC_ARBITER_ENABLED || "").trim().toLowerCase(),
-  );
-  if (!syncArbiterEnabled) return false;
-
   const judgeAQuality = options.computeQualityScore(judgeA.capability_score, judgeA.relevance_score);
   const judgeBQuality = options.computeQualityScore(judgeB.capability_score, judgeB.relevance_score);
   const maxQuality = Math.max(judgeAQuality, judgeBQuality);
@@ -577,7 +572,7 @@ export function mergeJudgeResults(
     experience_years: judgeA.experience_years ?? judgeB.experience_years,
     location: judgeA.location ?? judgeB.location,
     why_reachable_now: judgeA.why_reachable_now ?? judgeB.why_reachable_now,
-    scoring_method: "dual_review_auto",
+    scoring_method: "selective_dual_review",
     judge_delta: Math.max(
       Math.abs(judgeA.capability_score - judgeB.capability_score),
       Math.abs(judgeA.relevance_score - judgeB.relevance_score),

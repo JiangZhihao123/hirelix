@@ -149,7 +149,6 @@ export type ScoredCandidateAssessment = {
     | "single_judge_debug"
     | "single_judge_triage"
     | "selective_dual_review"
-    | "dual_review_auto"
     | "dual_review_arbitrated";
   judge_delta?: number;
   judge_conflict?: boolean;
@@ -282,7 +281,6 @@ export type SearchDisplayStats = {
 export type SearchPipelineResult = {
   finalRows: CandidateRowInput[];
   displayStats: SearchDisplayStats;
-  warningMessage?: string | null;
   assessments?: ScoredCandidateAssessment[];
 };
 
@@ -361,7 +359,6 @@ export type RecallMetadata = {
   standard_recall_completed_at?: string | null;
   standard_download_started_at?: string | null;
   standard_download_completed_at?: string | null;
-  snapshot_profile_persist_warning?: string | null;
   all_recall_completed_at?: string | null;
   round_diagnostics?: RecallRoundDiagnostics[];
   status?: "submitted" | "polling" | "ready";

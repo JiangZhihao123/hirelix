@@ -389,32 +389,6 @@ Rules:
 - No markdown. No code fences. No extra keys.`;
 }
 
-export function buildFallbackOutreachDraft(params: {
-  firstName: string;
-  roleTitle: string;
-  evidence: RecruiterOutreachEvidence;
-  hasEmail: boolean;
-}) {
-  const firstName = params.firstName || "there";
-  const subject = `${params.roleTitle} opportunity`;
-  const opener = `Hi ${firstName},`;
-  const overlapLine =
-    params.evidence.proofConfidence === "weak"
-      ? "and thought there may be overlap with a search I'm running for one of my clients."
-      : "and thought it could translate well to a search I'm running for one of my clients.";
-  const body = `${opener} one thing that caught my eye was ${params.evidence.proofToReference} I'm working on a ${params.roleTitle} role ${overlapLine} Open to a quick chat?`;
-
-  return {
-    subject,
-    linkedin: body,
-    ...(params.hasEmail
-      ? {
-          email: `${body}\n\nBest regards`,
-        }
-      : {}),
-  };
-}
-
 export function buildDeterministicWeakEvidenceOutreachDraft(params: {
   firstName: string;
   roleTitle: string;

@@ -91,11 +91,6 @@ export type ParsedJobSummary = {
   constraintReasoning: string | null;
 };
 
-export type JobClarification = {
-  message: string;
-  ready_to_launch: boolean;
-};
-
 function normalizeNullableString(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -438,28 +433,21 @@ export async function parseJobDescriptionToDraft(
   jdText: string,
   options: ParseJobDescriptionOptions = {},
 ) {
-  let parsed: ParsedSearchIntent | null = null;
-
-  try {
-    getLlmApiKey();
-    const { data } = await generateLlmJson<ParsedSearchIntent>({
-      model: getDefaultLlmModel(),
-      system: JD_SEARCH_INTENT_PROMPT,
-      prompt: jdText,
-      maxOutputTokens: 3200,
-      temperature: 0,
-      timeoutMs: 50000,
-      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
-      // Use json_mode instead of strict JSON schema — the schema constrained the model
-      // too much and caused it to return empty arrays for lateral_title_variants and
-      // target_companies even with explicit prompt instructions to fill them.
-      // sanitizeIntentCandidate normalizes all fields so loose JSON is fine here.
-      jsonMode: true,
-    });
-    parsed = data;
-  } catch {
-    parsed = null;
-  }
+  getLlmApiKey();
+  const { data: parsed } = await generateLlmJson<ParsedSearchIntent>({
+    model: getDefaultLlmModel(),
+    system: JD_SEARCH_INTENT_PROMPT,
+    prompt: jdText,
+    maxOutputTokens: 3200,
+    temperature: 0,
+    timeoutMs: 50000,
+    deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
+    // Use json_mode instead of strict JSON schema — the schema constrained the model
+    // too much and caused it to return empty arrays for lateral_title_variants and
+    // target_companies even with explicit prompt instructions to fill them.
+    // sanitizeIntentCandidate normalizes all fields so loose JSON is fine here.
+    jsonMode: true,
+  });
 
   const result = sanitizeIntentCandidate(parsed, jdText);
 
@@ -473,53 +461,48 @@ export async function parseJobDescriptionToDraft(
     options.populateTargetCompanies ?? true;
 
   if (shouldPopulateTargetCompanies && existingCompanies.length === 0) {
-    try {
-      const titleStr = typeof result.title === "string" ? result.title : "";
-      const rs2 = result.recall_spec as Record<string, unknown> | undefined;
-      const domainTerms = Array.isArray(rs2?.domain_terms) ? (rs2.domain_terms as string[]) : [];
-      const coreSkills = Array.isArray(rs2?.core_skill_terms) ? (rs2.core_skill_terms as string[]).slice(0, 4) : [];
-      const jdSnippet = jdText.slice(0, 600);
+    const titleStr = typeof result.title === "string" ? result.title : "";
+    const rs2 = result.recall_spec as Record<string, unknown> | undefined;
+    const domainTerms = Array.isArray(rs2?.domain_terms) ? (rs2.domain_terms as string[]) : [];
+    const coreSkills = Array.isArray(rs2?.core_skill_terms) ? (rs2.core_skill_terms as string[]).slice(0, 4) : [];
+    const jdSnippet = jdText.slice(0, 600);
 
-      const { data: raw } = await generateLlmJson<{ companies: string[] }>({
-        model: getDefaultLlmModel(),
-        system: "You are an expert headhunter. Return ONLY valid JSON.",
-        prompt: `I'm sourcing for: ${titleStr}
+    const { data: raw } = await generateLlmJson<{ companies: string[] }>({
+      model: getDefaultLlmModel(),
+      system: "You are an expert headhunter. Return ONLY valid JSON.",
+      prompt: `I'm sourcing for: ${titleStr}
 Industry/domain: ${[...domainTerms, ...coreSkills].join(", ") || "technology"}
 JD excerpt: ${jdSnippet}
 
 Name 8-12 companies where strong candidates for this role currently work today — direct competitors, same-vertical companies, or companies known for this type of talent.
 Return a JSON object with a "companies" key: {"companies": ["Company A", "Company B", ...]}`,
-        maxOutputTokens: 300,
-        temperature: 0,
-        timeoutMs: 12000,
-        jsonMode: true,
-        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
-      });
+      maxOutputTokens: 300,
+      temperature: 0,
+      timeoutMs: 12000,
+      jsonMode: true,
+      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
+    });
 
-      // Extract companies array from the response object
-      let companies: string[] = [];
-      if (raw && typeof raw === "object") {
-        const obj = raw as Record<string, unknown>;
-        const val = obj.companies ?? obj.target_companies ?? obj.data ?? Object.values(obj)[0];
-        if (Array.isArray(val)) {
-          companies = val.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
-        }
+    // Extract companies array from the response object
+    let companies: string[] = [];
+    if (raw && typeof raw === "object") {
+      const obj = raw as Record<string, unknown>;
+      const val = obj.companies ?? obj.target_companies ?? obj.data ?? Object.values(obj)[0];
+      if (Array.isArray(val)) {
+        companies = val.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
       }
+    }
 
-      if (companies.length > 0 && recallSpec) {
-        recallSpec.target_companies = companies.slice(0, 15);
-        recallSpec.recall_strategy = "multi_round";
-      }
-    } catch (err) {
-      console.error("[jd-parse] target_companies second call failed:", err instanceof Error ? err.message : String(err));
+    if (companies.length === 0) {
+      throw new Error("Target company generation returned no companies.");
+    }
+    if (recallSpec) {
+      recallSpec.target_companies = companies.slice(0, 15);
+      recallSpec.recall_strategy = "multi_round";
     }
   }
 
   return result;
-}
-
-export function buildHeuristicJobDescriptionDraft(jdText: string) {
-  return sanitizeIntentCandidate(null, jdText);
 }
 
 export function buildParsedRequirementsForLaunch(
@@ -632,51 +615,5 @@ export function summarizeParsedJob(draft: ParsedSearchIntent): ParsedJobSummary 
     mustHaveConstraints: normalizeStringArray(hiringBrief.must_have_constraints, 10),
     softConstraints: normalizeStringArray(hiringBrief.soft_constraints, 10),
     constraintReasoning: normalizeNullableString(hiringBrief.constraint_reasoning),
-  };
-}
-
-export function buildFallbackJobClarification(
-  summary: ParsedJobSummary,
-): JobClarification {
-  const questions: string[] = [];
-
-  if (summary.title === "Untitled Role") {
-    questions.push("what exact title should I anchor this search on");
-  }
-
-  if (summary.requiredSkills.length === 0) {
-    questions.push("what are the 2-4 must-have skills I should treat as non-negotiable");
-  }
-
-  const needsLocation =
-    summary.workModel === "unknown" || !summary.locationScope;
-  if (needsLocation) {
-    questions.push(
-      "should I keep this search remote, hybrid, or onsite, and is there a target geography",
-    );
-  }
-
-  if (summary.experienceYearsMin == null) {
-    questions.push(
-      "what seniority bar should I use, for example senior, staff, or a minimum years range",
-    );
-  }
-
-  if (questions.length === 0) {
-    return {
-      message: "I have enough to start the search and I am ready to launch.",
-      ready_to_launch: true,
-    };
-  }
-
-  const topQuestions = questions.slice(0, 2);
-  const prompt =
-    topQuestions.length === 1
-      ? `Before I start, ${topQuestions[0]}?`
-      : `Before I start, ${topQuestions[0]}? Also, ${topQuestions[1]}?`;
-
-  return {
-    message: prompt,
-    ready_to_launch: false,
   };
 }

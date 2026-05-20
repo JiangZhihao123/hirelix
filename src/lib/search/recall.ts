@@ -326,7 +326,7 @@ export function buildBrightDataCandidateRows(
         analysis_stage: "final",
         preliminary: false,
         pool_type: poolType,
-        scoring_method: item.scoring_method || "dual_review_auto",
+        scoring_method: item.scoring_method || "selective_dual_review",
         judge_delta: item.judge_delta ?? 0,
         judge_conflict: item.judge_conflict ?? false,
         quality_score: item.suitability.quality_score,

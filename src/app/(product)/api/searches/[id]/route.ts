@@ -60,9 +60,9 @@ export async function GET(
  *
  * Apply a small set of allowed status transitions on a search owned by the
  * current user. Used by the dashboard / detail page to mark a stalled search
- * as `error` or transition a stuck `deep_scoring` task into `degraded`.
+ * as `error`.
  *
- * Body: { status: 'error' | 'degraded', pipeline_step?, error_message?, warning_message? }
+ * Body: { status: 'error', pipeline_step?, error_message? }
  */
 export async function PATCH(
   req: NextRequest,
@@ -78,7 +78,6 @@ export async function PATCH(
     status?: unknown;
     pipeline_step?: unknown;
     error_message?: unknown;
-    warning_message?: unknown;
   };
   try {
     body = (await req.json()) as Record<string, unknown>;
@@ -86,8 +85,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const allowedStatuses = new Set(["error", "degraded"]);
-  if (typeof body.status !== "string" || !allowedStatuses.has(body.status)) {
+  if (body.status !== "error") {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
@@ -97,7 +95,7 @@ export async function PATCH(
   };
   if (typeof body.pipeline_step === "string") patch.pipeline_step = body.pipeline_step;
   if (typeof body.error_message === "string") patch.error_message = body.error_message;
-  if (typeof body.warning_message === "string") patch.warning_message = body.warning_message;
+  patch.warning_message = null;
 
   const updated = await db
     .update(hirelix_searches)

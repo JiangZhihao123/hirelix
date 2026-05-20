@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
-  buildHeuristicJobDescriptionDraft,
-  buildFallbackJobClarification,
+  parseJobDescriptionToDraft,
   summarizeParsedJob,
 } from "@/lib/jd-parse";
 import {
@@ -73,51 +72,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = {
-      ...buildHeuristicJobDescriptionDraft(jd_text.trim()),
-      parse_origin: "clarify_preview",
-    };
+    const parsed = await parseJobDescriptionToDraft(jd_text.trim(), {
+      populateTargetCompanies: false,
+    });
+    parsed.parse_origin = "clarify_preview";
     const summary = summarizeParsedJob(parsed);
 
-    const fallbackClarification = buildFallbackJobClarification(summary);
-    let clarification = fallbackClarification;
-
-    try {
-      const { data } = await generateLlmJson<{
-        message: string;
-        ready_to_launch: boolean;
-      }>({
-        model: getLightweightLlmModel(),
-        prompt: buildClarifyPrompt(jd_text.trim(), summary),
-        maxOutputTokens: 160,
-        temperature: 0.3,
-        timeoutMs: getClarifyTimeoutMs(),
-        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
-      });
-
-      clarification = {
-        message:
-          typeof data.message === "string" && data.message.trim().length > 0
-            ? data.message.trim()
-            : fallbackClarification.message,
-        ready_to_launch:
-          typeof data.ready_to_launch === "boolean"
-            ? data.ready_to_launch
-            : fallbackClarification.ready_to_launch,
-      };
-    } catch (error) {
-      console.error(
-        "[search/clarify] Falling back to heuristic clarification:",
-        error,
-      );
+    const { data } = await generateLlmJson<{
+      message: string;
+      ready_to_launch: boolean;
+    }>({
+      model: getLightweightLlmModel(),
+      prompt: buildClarifyPrompt(jd_text.trim(), summary),
+      maxOutputTokens: 160,
+      temperature: 0.3,
+      timeoutMs: getClarifyTimeoutMs(),
+      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
+    });
+    const message = typeof data.message === "string" ? data.message.trim() : "";
+    if (!message || typeof data.ready_to_launch !== "boolean") {
+      throw new Error("Clarification LLM returned incomplete content.");
     }
 
     return NextResponse.json({
       parsed_requirements: parsed,
       summary,
       clarification: {
-        message: clarification.message,
-        ready_to_launch: clarification.ready_to_launch,
+        message,
+        ready_to_launch: data.ready_to_launch,
       },
     });
   } catch (error) {

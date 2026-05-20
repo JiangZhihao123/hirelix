@@ -45,7 +45,6 @@ export async function completeSearch(
     ) => Promise<void>;
     logSearchEvent: (eventName: string, payload: Record<string, unknown>) => void;
   },
-  warningMessage?: string | null,
   options?: { generateOutreachDrafts?: boolean; runtime?: SearchExecutionRuntime },
 ) {
   const doneAt = helpers.nowIso();
@@ -70,49 +69,35 @@ export async function completeSearch(
   await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
     replaceMissing: true,
   });
-  try {
-    const publicEvidenceQueueResult = await enqueuePublicEvidenceJobsForSearch({
-      searchId: context.searchId,
-      userId: context.userId,
-      limit: draftedRows.length,
-    });
-    helpers.logSearchEvent("public_evidence_jobs_enqueued", {
-      search_id: context.searchId,
-      ...publicEvidenceQueueResult,
-    });
-  } catch (error) {
-    helpers.logSearchEvent("public_evidence_jobs_enqueue_failed", {
-      search_id: context.searchId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  const publicEvidenceQueueResult = await enqueuePublicEvidenceJobsForSearch({
+    searchId: context.searchId,
+    userId: context.userId,
+    limit: draftedRows.length,
+  });
+  helpers.logSearchEvent("public_evidence_jobs_enqueued", {
+    search_id: context.searchId,
+    ...publicEvidenceQueueResult,
+  });
 
-  try {
-    const githubQueueResult = await enqueueGithubEnrichmentJobsForSearch({
-      searchId: context.searchId,
-      userId: context.userId,
-      limit: draftedRows.length,
-    });
-    helpers.logSearchEvent("github_enrichment_jobs_enqueued", {
-      search_id: context.searchId,
-      ...githubQueueResult,
-    });
-  } catch (error) {
-    helpers.logSearchEvent("github_enrichment_jobs_enqueue_failed", {
-      search_id: context.searchId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  const githubQueueResult = await enqueueGithubEnrichmentJobsForSearch({
+    searchId: context.searchId,
+    userId: context.userId,
+    limit: draftedRows.length,
+  });
+  helpers.logSearchEvent("github_enrichment_jobs_enqueued", {
+    search_id: context.searchId,
+    ...githubQueueResult,
+  });
 
   const finalParsed = helpers.withDisplayStats(parsed, finalDisplayStats);
   const createdAtMs = context.createdAt ? Date.parse(context.createdAt) : Number.NaN;
   const finalReadyLatencyMs = Number.isFinite(createdAtMs)
     ? Math.max(0, Date.now() - createdAtMs)
     : null;
-  await helpers.setSearchStatus(context.searchId, warningMessage ? "degraded" : "done", {
+  await helpers.setSearchStatus(context.searchId, "done", {
     done_at: doneAt,
     error_message: null,
-    warning_message: warningMessage ?? null,
+    warning_message: null,
     parsed_requirements: finalParsed,
   });
 
@@ -148,10 +133,9 @@ export async function completeSearch(
     judge_mode: finalDisplayStats.judge_mode ?? finalParsed.judge_mode ?? null,
   });
 
-  helpers.logSearchEvent(warningMessage ? "search_degraded" : "search_done", {
+  helpers.logSearchEvent("search_done", {
     search_id: context.searchId,
     candidate_count: draftedRows.length,
-    warning_message: warningMessage ?? null,
     final_ready_latency_ms: finalReadyLatencyMs,
     bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
     estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,

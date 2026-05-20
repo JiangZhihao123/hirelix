@@ -225,7 +225,7 @@ function buildScoringHelpers(params: {
         });
       });
     },
-    arbitrateCandidateScore: async (_runtime, _parsed, _jdText, _profileText, _judgeA, _judgeB) => {
+    arbitrateCandidateScore: async (_runtime, _parsed, _jdText, _profileText, _judgeA) => {
       params.arbiters.push(_judgeA.index);
       return {
         ...assessmentForIndex(_judgeA.index),
@@ -397,4 +397,145 @@ test("scoreCandidateBatch skips second review for clear non-borderline holds", a
     { judge: "Judge A", indexes: [0, 1] },
   ]);
   assert.equal(results.find((result) => result.index === 1)?.scoring_method, "single_judge_triage");
+});
+
+test("scoreCandidateBatch fails when primary judge scoring fails", async () => {
+  const calls: Array<{ judge: string; indexes: number[] }> = [];
+  const events: string[] = [];
+  const helpers = buildScoringHelpers({ calls, arbiters: [], events });
+  helpers.judgeScoreBatch = async (_runtime, _parsed, _jdText, _profileTexts, indexes, _totalPoolSize, judgeLabel) => {
+    calls.push({ judge: judgeLabel, indexes: [...indexes] });
+    throw new Error("judge provider unavailable");
+  };
+
+  await assert.rejects(
+    scoreCandidateBatch(
+      {
+        lightPrescreenMaxOutputTokens: 200,
+        judgeMaxOutputTokens: 2400,
+        arbiterMaxOutputTokens: 4000,
+        outreachMaxOutputTokens: 700,
+        judgeMaxAttempts: 1,
+        arbiterMaxAttempts: 1,
+        judgeMode: "dual",
+      },
+      {},
+      "JD",
+      ["[0] Candidate"],
+      [0],
+      1,
+      helpers,
+    ),
+    /judge provider unavailable/,
+  );
+  assert.deepEqual(calls, [{ judge: "Judge A", indexes: [0] }]);
+  assert.ok(events.includes("selective_review_primary_judge_failed"));
+});
+
+test("scoreCandidateBatch fails when secondary judge omits a requested second-review candidate", async () => {
+  const calls: Array<{ judge: string; indexes: number[] }> = [];
+  const helpers = buildScoringHelpers({ calls, arbiters: [], events: [] });
+  helpers.judgeScoreBatch = async (_runtime, _parsed, _jdText, _profileTexts, indexes, _totalPoolSize, judgeLabel) => {
+    calls.push({ judge: judgeLabel, indexes: [...indexes] });
+    if (judgeLabel === "Judge B") return [];
+    return indexes.map((index) => judgeResult(index, {
+      capability_score: 86,
+      relevance_score: 82,
+      join_likelihood_score: 38,
+      advance_recommendation: "advance",
+      shortlist_decision: "yes",
+      constraint_verdicts: {
+        location_fit: "nearby",
+        work_model_fit: "yes",
+        must_have_coverage: "strong",
+      },
+    }));
+  };
+
+  await assert.rejects(
+    scoreCandidateBatch(
+      {
+        lightPrescreenMaxOutputTokens: 200,
+        judgeMaxOutputTokens: 2400,
+        arbiterMaxOutputTokens: 4000,
+        outreachMaxOutputTokens: 700,
+        judgeMaxAttempts: 1,
+        arbiterMaxAttempts: 1,
+        judgeMode: "dual",
+      },
+      {},
+      "JD",
+      ["[0] Candidate"],
+      [0],
+      1,
+      helpers,
+    ),
+    /Secondary judge did not return candidate 0/,
+  );
+  assert.deepEqual(calls, [
+    { judge: "Judge A", indexes: [0] },
+    { judge: "Judge B", indexes: [0] },
+  ]);
+});
+
+test("scoreCandidateBatch fails when arbiter cannot resolve a real judge conflict", async () => {
+  const calls: Array<{ judge: string; indexes: number[] }> = [];
+  const arbiters: number[] = [];
+  const helpers = buildScoringHelpers({ calls, arbiters, events: [] });
+  helpers.judgeScoreBatch = async (_runtime, _parsed, _jdText, _profileTexts, indexes, _totalPoolSize, judgeLabel) => {
+    calls.push({ judge: judgeLabel, indexes: [...indexes] });
+    return indexes.map((index) => judgeResult(index, judgeLabel === "Judge A"
+      ? {
+        capability_score: 90,
+        relevance_score: 88,
+        join_likelihood_score: 76,
+        advance_recommendation: "advance",
+        shortlist_decision: "yes",
+        constraint_verdicts: {
+          location_fit: "local",
+          work_model_fit: "yes",
+          must_have_coverage: "strong",
+        },
+      }
+      : {
+        capability_score: 40,
+        relevance_score: 34,
+        join_likelihood_score: 20,
+        advance_recommendation: "reject",
+        shortlist_decision: "no",
+        blocking_constraints: ["hard location mismatch"],
+        blocking_severity: "hard",
+        constraint_verdicts: {
+          location_fit: "non_local",
+          work_model_fit: "no",
+          must_have_coverage: "weak",
+        },
+      }));
+  };
+  helpers.arbitrateCandidateScore = async (_runtime, _parsed, _jdText, _profileText, judgeA) => {
+    arbiters.push(judgeA.index);
+    throw new Error("arbiter unavailable");
+  };
+
+  await assert.rejects(
+    scoreCandidateBatch(
+      {
+        lightPrescreenMaxOutputTokens: 200,
+        judgeMaxOutputTokens: 2400,
+        arbiterMaxOutputTokens: 4000,
+        outreachMaxOutputTokens: 700,
+        judgeMaxAttempts: 1,
+        arbiterMaxAttempts: 1,
+        judgeMode: "dual",
+      },
+      {},
+      "JD",
+      ["[0] Candidate"],
+      [0],
+      1,
+      helpers,
+    ),
+    /arbiter unavailable/,
+  );
+  assert.deepEqual(arbiters, [0]);
 });

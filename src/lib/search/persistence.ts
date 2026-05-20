@@ -323,13 +323,16 @@ export async function setSearchStatus(
   status: string,
   extra: Record<string, unknown> = {},
 ) {
+  if (status === "degraded") {
+    throw new Error("New search status transitions to degraded are disabled.");
+  }
   const normalizedExtra = normalizeTimestampFields(
     sanitizeSearchJsonbPatch(extra),
     SEARCH_TIMESTAMP_FIELDS,
   );
   const payload = {
     status,
-    pipeline_step: status === "degraded" ? "done" : status,
+    pipeline_step: status,
     updated_at: new Date(),
     ...normalizedExtra,
   };
@@ -373,7 +376,7 @@ export async function setSearchStatus(
     );
   }
 
-  if (status === "error" || status === "degraded" || status === "done") {
+  if (status === "error" || status === "done") {
     const ts = new Date();
     const terminalJobPayload: Record<string, unknown> = {
       status: status === "error" ? "fatal_error" : "done",

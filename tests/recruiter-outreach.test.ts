@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
-  buildFallbackOutreachDraft,
   buildRecruiterOutreachEvidence,
   buildRecruiterOutreachPrompt,
 } from "../src/lib/recruiter-outreach";
@@ -183,24 +182,6 @@ test("buildRecruiterOutreachEvidence does not use not_usable public evidence", (
 
   assert.equal(evidence.evidenceSource, "linkedin");
   assert.doesNotMatch(evidence.proofToReference, /same-name paper/i);
-});
-
-test("buildFallbackOutreachDraft softens language when evidence is weak", () => {
-  const draft = buildFallbackOutreachDraft({
-    firstName: "Evan",
-    roleTitle: "Staff Software Engineer",
-    hasEmail: true,
-    evidence: buildRecruiterOutreachEvidence({
-      name: "Evan Andrews",
-      headline: "at Stripe",
-      skills: ["Payments", "Go"],
-      matchReasons: ["Profile suggests deep payments and risk expertise."],
-    }),
-  });
-
-  assert.match(draft.linkedin, /may be overlap/);
-  assert.match(draft.linkedin, /^Hi Evan,/);
-  assert.equal(draft.subject, "Staff Software Engineer opportunity");
 });
 
 test("buildDeterministicWeakEvidenceOutreachDraft stays grounded in safe profile facts", () => {

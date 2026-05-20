@@ -16,7 +16,6 @@ import {
 } from "@/lib/search-task";
 import {
   getSearchStatusBucket,
-  getStalledSearchMessage,
   isReviewableSearchStatus,
   isStaleProcessingSearch,
 } from "@/lib/search-state";
