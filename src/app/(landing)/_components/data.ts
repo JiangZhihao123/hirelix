@@ -145,7 +145,7 @@ export const outreachChannels = [
 export const billingFaqs = [
   {
     title: "Do subscriptions renew automatically?",
-    body: "Yes. Pro Monthly and Pro Annual renew automatically until you cancel.",
+    body: "Yes. Solo, Pro, Business, and Agency subscriptions renew automatically until you cancel.",
   },
   {
     title: "How do I cancel?",
@@ -157,7 +157,7 @@ export const billingFaqs = [
   },
   {
     title: "Do I need a card to start?",
-    body: "No. The Free plan gives you 2 high-conviction shortlists per month before you upgrade.",
+    body: "No. The Free plan gives you one real shortlist preview per month before you upgrade.",
   },
 ];
 
