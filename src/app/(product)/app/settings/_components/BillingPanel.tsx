@@ -7,6 +7,7 @@ import {
   BILLING_PLANS,
   CONTACT_PACK,
   SEARCH_PACK,
+  formatCountLabel,
   type BillingSummary,
 } from "@/lib/billing";
 import {
@@ -189,12 +190,20 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     <p>
                       {plan.searchesPerMonth}{" "}
-                      shortlist builds / month
+                      {formatCountLabel(
+                        plan.searchesPerMonth,
+                        "shortlist build / month",
+                        "shortlist builds / month",
+                      )}
                     </p>
                     <p>Evidence-backed technical shortlists by role fit</p>
                     <p>
                       {plan.enrichesPerMonth}{" "}
-                      contact unlocks / month
+                      {formatCountLabel(
+                        plan.enrichesPerMonth,
+                        "contact unlock / month",
+                        "contact unlocks / month",
+                      )}
                     </p>
                     <p className="inline-flex items-center gap-1.5">
                       <Download className="h-3.5 w-3.5" />

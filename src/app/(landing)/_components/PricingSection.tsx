@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
-import { BILLING_PLANS, CONTACT_PACK, SEARCH_PACK, type BillingPlanCode } from "@/lib/billing";
+import {
+  BILLING_PLANS,
+  CONTACT_PACK,
+  SEARCH_PACK,
+  formatCountLabel,
+  type BillingPlanCode,
+} from "@/lib/billing";
 type User = { id: string };
 
 // Keep the public pricing focused on the solo technical recruiter path.
@@ -147,7 +153,11 @@ export function PricingSection({
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <span>
                       <strong className="text-slate-950">{plan.searchesPerMonth}</strong>{" "}
-                      shortlist builds / month
+                      {formatCountLabel(
+                        plan.searchesPerMonth,
+                        "shortlist build / month",
+                        "shortlist builds / month",
+                      )}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">

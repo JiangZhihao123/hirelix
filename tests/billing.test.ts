@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   BILLING_PLANS,
   CONTACT_PACK,
+  formatCountLabel,
   getCheckoutConfig,
   getPlanStatusCopy,
   SEARCH_PACK,
@@ -97,6 +98,11 @@ test("plan status copy marks exhausted pro plan and includes client briefs", () 
   assert.equal(copy.state, "warning");
   assert.equal(copy.usageLabel, "No shortlist builds left this cycle");
   assert.match(copy.capabilityLabel, /client-ready briefs/);
+});
+
+test("count labels use singular copy for one remaining unit", () => {
+  assert.equal(formatCountLabel(1, "shortlist build", "shortlist builds"), "shortlist build");
+  assert.equal(formatCountLabel(10, "shortlist build", "shortlist builds"), "shortlist builds");
 });
 
 test("getCheckoutConfig trims configured Paddle values", () => {

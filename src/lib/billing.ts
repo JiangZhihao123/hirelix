@@ -74,6 +74,10 @@ export type PlanStatusCopy = {
   state: "default" | "warning" | "unavailable";
 };
 
+export function formatCountLabel(count: number, singular: string, plural: string) {
+  return count === 1 ? singular : plural;
+}
+
 export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
