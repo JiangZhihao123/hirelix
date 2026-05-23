@@ -307,22 +307,28 @@ export function getCheckoutConfig(): {
   searchPackPriceId: string;
   contactPackPriceId: string;
 } {
+  const clientToken = (process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "").trim();
+  const monthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "").trim();
+  const annualPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID || "").trim();
+  const starterMonthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID || "").trim();
+  const starterAnnualPriceId = (process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID || "").trim();
+  const businessPriceId = (process.env.NEXT_PUBLIC_PADDLE_BUSINESS_PRICE_ID || "").trim();
+  const agencyPriceId = (process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "").trim();
+  const searchPackPriceId = (process.env.NEXT_PUBLIC_PADDLE_SEARCH_PACK_PRICE_ID || "").trim();
+  const contactPackPriceId = (process.env.NEXT_PUBLIC_PADDLE_CONTACT_PACK_PRICE_ID || "").trim();
+
   return {
-    enabled: Boolean(
-      process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN &&
-        process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID &&
-        process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID,
-    ),
+    enabled: Boolean(clientToken && monthlyPriceId && annualPriceId),
     environment:
       process.env.NEXT_PUBLIC_PADDLE_ENV === "production" ? "production" : "sandbox",
-    clientToken: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "",
-    monthlyPriceId: process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "",
-    annualPriceId: process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID || "",
-    starterMonthlyPriceId: process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID || "",
-    starterAnnualPriceId: process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID || "",
-    businessPriceId: process.env.NEXT_PUBLIC_PADDLE_BUSINESS_PRICE_ID || "",
-    agencyPriceId: process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "",
-    searchPackPriceId: process.env.NEXT_PUBLIC_PADDLE_SEARCH_PACK_PRICE_ID || "",
-    contactPackPriceId: process.env.NEXT_PUBLIC_PADDLE_CONTACT_PACK_PRICE_ID || "",
+    clientToken,
+    monthlyPriceId,
+    annualPriceId,
+    starterMonthlyPriceId,
+    starterAnnualPriceId,
+    businessPriceId,
+    agencyPriceId,
+    searchPackPriceId,
+    contactPackPriceId,
   };
 }

@@ -12,10 +12,14 @@ import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 import { enrichPublicEvidenceForCandidate } from "@/lib/public-evidence";
 import { getSellableEvidenceItems } from "@/lib/public-evidence/selling-kit";
 import type { PublicEvidenceItem } from "@/lib/public-evidence/types";
+import { withTimeout } from "@/lib/search/concurrency";
 
 const PUBLIC_EVIDENCE_MAX_ATTEMPTS = 3;
 const PUBLIC_EVIDENCE_RETRY_DELAY_MS = 5 * 60 * 1000;
 const PUBLIC_EVIDENCE_STALE_MINUTES = 25;
+const DEFAULT_PUBLIC_EVIDENCE_JOB_TIMEOUT_MS = 240_000;
+const MIN_PUBLIC_EVIDENCE_JOB_TIMEOUT_MS = 30_000;
+const MAX_PUBLIC_EVIDENCE_JOB_TIMEOUT_MS = 240_000;
 export const PUBLIC_EVIDENCE_VERSION = 2;
 
 function nowIso() {
@@ -28,6 +32,19 @@ function nowDate() {
 
 function minutesAgoDate(minutes: number) {
   return new Date(Date.now() - minutes * 60 * 1000);
+}
+
+export function getPublicEvidenceJobTimeoutMs(
+  env: Record<string, string | undefined> = process.env,
+) {
+  const parsed = env.PUBLIC_EVIDENCE_JOB_TIMEOUT_MS
+    ? Number.parseInt(env.PUBLIC_EVIDENCE_JOB_TIMEOUT_MS, 10)
+    : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_PUBLIC_EVIDENCE_JOB_TIMEOUT_MS;
+  return Math.max(
+    MIN_PUBLIC_EVIDENCE_JOB_TIMEOUT_MS,
+    Math.min(parsed, MAX_PUBLIC_EVIDENCE_JOB_TIMEOUT_MS),
+  );
 }
 
 const PUBLIC_EVIDENCE_JOB_TIMESTAMP_FIELDS = new Set([
@@ -351,18 +368,22 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
       match_score: candidate.match_score,
       match_reasons: Array.isArray(candidate.match_reasons) ? candidate.match_reasons : [],
     };
-    const enrichment = await enrichPublicEvidenceForCandidate({
-      candidateId: candidate.id,
-      searchId: job.search_id,
-      userId: job.user_id ?? "",
-      name: candidate.name || "Unknown candidate",
-      headline: candidate.headline,
-      location: candidate.location,
-      profileUrl: candidate.profile_url,
-      githubUrl: candidate.github_url,
-      metadata: candidateMetadata,
-      requiredSkills,
-    });
+    const enrichment = await withTimeout(
+      () => enrichPublicEvidenceForCandidate({
+        candidateId: candidate.id,
+        searchId: job.search_id,
+        userId: job.user_id ?? "",
+        name: candidate.name || "Unknown candidate",
+        headline: candidate.headline,
+        location: candidate.location,
+        profileUrl: candidate.profile_url,
+        githubUrl: candidate.github_url,
+        metadata: candidateMetadata,
+        requiredSkills,
+      }),
+      getPublicEvidenceJobTimeoutMs(),
+      `Public evidence job ${job.id}`,
+    );
     const metadata = {
       ...asRecord(enrichment.metadata),
       public_evidence: {

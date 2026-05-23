@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   BILLING_PLANS,
   CONTACT_PACK,
+  getCheckoutConfig,
   getPlanStatusCopy,
   SEARCH_PACK,
   type BillingSummary,
@@ -96,4 +97,28 @@ test("plan status copy marks exhausted pro plan and includes client briefs", () 
   assert.equal(copy.state, "warning");
   assert.equal(copy.usageLabel, "No shortlist builds left this cycle");
   assert.match(copy.capabilityLabel, /client-ready briefs/);
+});
+
+test("getCheckoutConfig trims configured Paddle values", () => {
+  const originalEnv = {
+    NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN,
+    NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID: process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID: process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID,
+  };
+
+  process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = " token \n";
+  process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = " monthly \n";
+  process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = " annual \t";
+
+  try {
+    const config = getCheckoutConfig();
+    assert.equal(config.clientToken, "token");
+    assert.equal(config.monthlyPriceId, "monthly");
+    assert.equal(config.annualPriceId, "annual");
+    assert.equal(config.enabled, true);
+  } finally {
+    process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = originalEnv.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
+    process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = originalEnv.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = originalEnv.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
+  }
 });

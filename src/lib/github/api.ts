@@ -7,11 +7,14 @@ import type {
   GithubDiscoverySource,
   SerperGithubSearchResult,
 } from "./types";
+import { withTimeout } from "@/lib/search/concurrency";
 
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
 const SERPER_API_BASE = "https://google.serper.dev";
 const GITHUB_RATE_LIMIT_FALLBACK_COOLDOWN_MS = 60_000;
+const DEFAULT_GITHUB_REQUEST_TIMEOUT_MS = 20_000;
+const DEFAULT_SERPER_REQUEST_TIMEOUT_MS = 15_000;
 
 // Proactive rate limiter: spaces out requests so we never exceed GitHub API limits.
 // All workers in the same process share the same limiter instances.
@@ -212,6 +215,31 @@ function throwIfGithubApiCoolingDown() {
   }
 }
 
+function getGithubRequestTimeoutMs() {
+  const parsed = Number.parseInt(process.env.GITHUB_REQUEST_TIMEOUT_MS || "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_GITHUB_REQUEST_TIMEOUT_MS;
+  return parsed;
+}
+
+function getSerperRequestTimeoutMs() {
+  const parsed = Number.parseInt(process.env.SERPER_REQUEST_TIMEOUT_MS || "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_SERPER_REQUEST_TIMEOUT_MS;
+  return parsed;
+}
+
+function mergeAbortSignals(signal: AbortSignal | null | undefined, timeoutSignal: AbortSignal) {
+  if (!signal) return timeoutSignal;
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([signal, timeoutSignal]);
+  }
+  if (signal.aborted) return signal;
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal.reason || timeoutSignal.reason);
+  signal.addEventListener("abort", abort, { once: true });
+  timeoutSignal.addEventListener("abort", abort, { once: true });
+  return controller.signal;
+}
+
 export function getGitHubToken() {
   const token = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || "";
   return token.trim() || null;
@@ -241,10 +269,15 @@ export async function githubFetch(path: string, init?: RequestInit) {
   }
   const startedAt = Date.now();
 
-  const response = await fetch(`${GITHUB_API_BASE}${path}`, {
-    ...init,
-    headers: getGitHubRequestHeaders(token, init),
-  });
+  const response = await withTimeout(
+    (signal) => fetch(`${GITHUB_API_BASE}${path}`, {
+      ...init,
+      signal: mergeAbortSignals(init?.signal, signal),
+      headers: getGitHubRequestHeaders(token, init),
+    }),
+    getGithubRequestTimeoutMs(),
+    `GitHub REST ${path}`,
+  );
   const rateLimitHeaders = readGithubRateLimitHeaders(response.headers);
 
   if (!response.ok) {
@@ -297,14 +330,19 @@ export async function githubGraphql<T>(query: string, variables: Record<string, 
   const startedAt = Date.now();
   const category = classifyGithubGraphqlQuery(query);
 
-  const response = await fetch(GITHUB_GRAPHQL_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getGitHubRequestHeaders(token),
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+  const response = await withTimeout(
+    (signal) => fetch(GITHUB_GRAPHQL_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getGitHubRequestHeaders(token),
+      },
+      body: JSON.stringify({ query, variables }),
+      signal,
+    }),
+    getGithubRequestTimeoutMs(),
+    "GitHub GraphQL",
+  );
   const rateLimitHeaders = readGithubRateLimitHeaders(response.headers);
 
   if (!response.ok) {
@@ -369,14 +407,19 @@ export async function githubGraphql<T>(query: string, variables: Record<string, 
 }
 
 export async function serperGithubSearch(apiKey: string, query: string) {
-  const response = await fetch(`${SERPER_API_BASE}/search`, {
-    method: "POST",
-    headers: {
-      "X-API-KEY": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ q: query, num: 5, page: 1 }),
-  });
+  const response = await withTimeout(
+    (signal) => fetch(`${SERPER_API_BASE}/search`, {
+      method: "POST",
+      headers: {
+        "X-API-KEY": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ q: query, num: 5, page: 1 }),
+      signal,
+    }),
+    getSerperRequestTimeoutMs(),
+    `Serper search ${query}`,
+  );
 
   if (!response.ok) {
     const text = await response.text();
