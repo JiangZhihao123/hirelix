@@ -5,7 +5,7 @@ test.describe("Responsive - Landing Page", () => {
 
   test("should show the mobile landing hero and primary action", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Paste a JD/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Turn a client JD into an evidence-backed shortlist/i })).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toBeVisible();
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
     await expect(page.getByTestId("nav-primary-cta")).toBeVisible();
@@ -14,24 +14,23 @@ test.describe("Responsive - Landing Page", () => {
   test("should keep the JD form and shortlist preview usable on mobile", async ({ page }) => {
     await page.goto("/");
     await expect(
-      page.getByPlaceholder("Paste the full job description here..."),
+      page.getByPlaceholder("Paste the full client job description here..."),
     ).toBeVisible();
     await expect(page.getByText("James Liu")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Get started free" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Start free" })).toBeVisible();
   });
 
-  test("should open the auth modal from the mobile primary action", async ({ page }) => {
+  test("should focus the JD form from the mobile primary action", async ({ page }) => {
     await page.goto("/");
     await page.getByTestId("nav-primary-cta").click();
-    await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "One more step to open your shortlist." })).toBeVisible();
-    await expect(page.getByTestId("landing-auth-preview-title")).toHaveText("Senior Software Engineer");
+    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
+    await expect(page.getByPlaceholder("Paste the full client job description here...")).toBeFocused();
   });
 
   test("should still render the major conversion sections on mobile", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Paste a JD/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "From JD to outreach in one flow" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Turn a client JD into an evidence-backed shortlist/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "From client JD to first outreach in one flow" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Why teams switch from manual sourcing" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Objections answered up front" })).toBeVisible();
   });

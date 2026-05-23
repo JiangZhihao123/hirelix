@@ -15,6 +15,7 @@ const billingSummary = {
     candidateLimitPerSearch: 50,
     enrichesPerMonth: 300,
     exportEnabled: true,
+    clientBriefEnabled: true,
     priceCents: 29900,
     ctaLabel: "Upgrade monthly",
   },
@@ -36,6 +37,7 @@ const billingSummary = {
     enrichesRemaining: 279,
     candidateLimitPerSearch: 50,
     exportEnabled: true,
+    clientBriefEnabled: true,
     extraSearchCredits: 0,
     extraEnrichCredits: 0,
   },
@@ -226,11 +228,11 @@ test.describe("Core user flow", () => {
   test("keeps a pasted JD through the landing auth gate", async ({ page }) => {
     await page.goto("/");
 
-    await page.getByPlaceholder("Paste the full job description here...").fill(jdText);
+    await page.getByPlaceholder("Paste the full client job description here...").fill(jdText);
     await page.getByTestId("hero-primary-cta").click();
 
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "One more step to open your shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "One more step to build your shortlist." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("We are hiring a Senior Backend Engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
   });
@@ -242,12 +244,13 @@ test.describe("Core user flow", () => {
     await mockLoggedInCoreFlow(page, calls);
 
     await page.goto("/app/search/new");
-    await expect(page.getByRole("heading", { name: "Paste the JD and start sourcing." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Paste the client role and confirm the brief." })).toBeVisible();
 
-    await page.getByPlaceholder("Paste the full job description here...").fill(jdText);
-    await page.getByRole("button", { name: "Start sourcing" }).click();
+    await page.getByPlaceholder("Paste the full client job description here...").fill(jdText);
+    await page.getByRole("button", { name: "Build brief" }).click();
 
     await expect(page.getByText("Reading JD...")).toBeVisible();
+    await page.getByRole("button", { name: "Launch shortlist" }).click();
     await expect(page).toHaveURL(/\/app\/search\/core-search$/);
     await expect(page.getByRole("heading", { name: "Senior Backend Engineer" })).toBeVisible();
     await expect(page.getByTestId("client-ready-shortlist")).toContainText("Jordan Lee");
@@ -258,7 +261,7 @@ test.describe("Core user flow", () => {
     });
     expect(calls.find((call) => call.path === "/api/search/create")?.body).toMatchObject({
       jd_text: jdText,
-      candidate_count: 20,
+      candidate_count: 50,
     });
   });
 });
