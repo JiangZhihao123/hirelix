@@ -45,7 +45,7 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-function verifySignature(rawBody: string, signature: string | null) {
+export function verifyPaddleSignature(rawBody: string, signature: string | null) {
   const secret = process.env.PADDLE_WEBHOOK_SECRET;
   if (!secret || !signature) return false;
 
@@ -62,6 +62,7 @@ function verifySignature(rawBody: string, signature: string | null) {
     .createHmac("sha256", secret)
     .update(`${parts.ts}:${rawBody}`)
     .digest("hex");
+  if (parts.h1.length !== expected.length) return false;
 
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.h1));
 }
@@ -271,7 +272,7 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get("paddle-signature");
 
-  if (!verifySignature(rawBody, signature)) {
+  if (!verifyPaddleSignature(rawBody, signature)) {
     logBillingEvent("webhook_invalid_signature", {});
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
