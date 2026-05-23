@@ -4,6 +4,7 @@ export type SearchPlanCode = BillingPlanCode;
 
 export type SearchExecutionProfileName =
   | "bright_test_full"
+  | "bright_free_preview"
   | "bright_production_full";
 
 type SearchExecutionMode = "test" | "production";
@@ -81,6 +82,19 @@ const SEARCH_EXECUTION_PROFILES: Record<
     lowCostMode: false,
     singleJudgeMode: false,
   },
+  bright_free_preview: {
+    name: "bright_free_preview",
+    mode: "production",
+    filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", 20),
+    hiddenGemLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT", 0),
+    companyTargetLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_COMPANY_TARGET_LIMIT", 0),
+    finalResultCap: 5,
+    highlightCount: 3,
+    minVisibleQualityScore: 0,
+    strongNowQualityScore: 72,
+    lowCostMode: false,
+    singleJudgeMode: false,
+  },
   bright_production_full: {
     name: "bright_production_full",
     mode: "production",
@@ -101,6 +115,7 @@ export function normalizeSearchExecutionProfileName(
 ): SearchExecutionProfileName | null {
   switch (value) {
     case "bright_test_full":
+    case "bright_free_preview":
     case "bright_production_full":
       return value;
     case "bright_fast_free":
@@ -140,7 +155,9 @@ export function getSearchExecutionProfile(
 export function getInitialSearchExecutionProfile(
   planCode: SearchPlanCode,
 ): SearchExecutionProfile {
-  void planCode;
+  if (normalizeSearchPlanCode(planCode) === "free") {
+    return SEARCH_EXECUTION_PROFILES.bright_free_preview;
+  }
   return resolveSearchExecutionMode() === "production"
     ? SEARCH_EXECUTION_PROFILES.bright_production_full
     : SEARCH_EXECUTION_PROFILES.bright_test_full;
