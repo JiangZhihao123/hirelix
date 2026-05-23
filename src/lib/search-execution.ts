@@ -24,10 +24,10 @@ export type SearchExecutionProfile = {
   singleJudgeMode: boolean;
 };
 
-function getConfiguredPositiveInt(envName: string, fallback: number) {
+function getConfiguredNonNegativeInt(envName: string, fallback: number) {
   const raw = process.env[envName];
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function getConfiguredModeLimit(
@@ -36,9 +36,9 @@ function getConfiguredModeLimit(
   fallback: number,
 ) {
   const modePrefix = mode === "production" ? "PRODUCTION" : "TEST";
-  return getConfiguredPositiveInt(
+  return getConfiguredNonNegativeInt(
     `SEARCH_${modePrefix}_BRIGHTDATA_${round}_LIMIT`,
-    getConfiguredPositiveInt(`SEARCH_BRIGHTDATA_${round}_LIMIT`, fallback),
+    getConfiguredNonNegativeInt(`SEARCH_BRIGHTDATA_${round}_LIMIT`, fallback),
   );
 }
 

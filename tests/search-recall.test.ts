@@ -187,3 +187,31 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(leafValues(rounds[2].request.filter).includes("elastic"));
   assert.ok(!leafValues(rounds[2].request.filter).includes("search infrastructure"));
 });
+
+test("buildBrightDataRecallFilters skips optional sourcing rounds when limits are zero", () => {
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Senior Software Engineer",
+      recall_spec: recallSpec,
+      hiring_brief: hiringBrief,
+    },
+    20,
+    {
+      ...executionProfile,
+      hiddenGemLimit: 0,
+      companyTargetLimit: 0,
+    },
+    {
+      normalizeRecallSpec: (value) => value as RecallSpec,
+      sanitizeHiringBrief: () => hiringBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => null,
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 25,
+      companyTargetLimit: 25,
+    },
+  );
+
+  assert.deepEqual(rounds.map((round) => round.round), ["standard"]);
+  assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50]);
+});
