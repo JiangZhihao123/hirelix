@@ -142,6 +142,8 @@ const DEFAULT_LLM_GLOBAL_CONCURRENCY = 12;
 const DEFAULT_LLM_MAX_ATTEMPTS = 4;
 const DEFAULT_LLM_RETRY_BASE_MS = 2000;
 const DEFAULT_LLM_RETRY_MAX_MS = 30000;
+const DEFAULT_OFFICIAL_DEEPSEEK_MODEL = "deepseek-v4-flash";
+const DEFAULT_OFFICIAL_DEEPSEEK_ARBITER_MODEL = "deepseek-v4-pro";
 
 type LlmLimiterState = {
   active: number;
@@ -389,13 +391,40 @@ export function getLlmBaseUrl() {
   return OPENROUTER_BASE_URL;
 }
 
+export function normalizeLlmModelForCurrentProvider(model: string) {
+  const trimmed = model.trim();
+  if (!trimmed) {
+    return isUsingOfficialDeepSeek()
+      ? DEFAULT_OFFICIAL_DEEPSEEK_MODEL
+      : "deepseek/deepseek-v4-flash";
+  }
+
+  if (!isUsingOfficialDeepSeek()) {
+    return trimmed;
+  }
+
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "deepseek-v4-pro") return DEFAULT_OFFICIAL_DEEPSEEK_ARBITER_MODEL;
+  if (normalized === "deepseek-v4-flash") return DEFAULT_OFFICIAL_DEEPSEEK_MODEL;
+  if (normalized.includes("pro") || normalized.includes("reasoner")) {
+    return DEFAULT_OFFICIAL_DEEPSEEK_ARBITER_MODEL;
+  }
+  return DEFAULT_OFFICIAL_DEEPSEEK_MODEL;
+}
+
+function firstConfiguredModel(...values: Array<string | undefined>) {
+  return values.find((value) => value?.trim()) || "";
+}
+
 export function getDefaultLlmModel() {
   if (isUsingOfficialDeepSeek()) {
-    return (
-      process.env.AI_MODEL ||
-      process.env.SEARCH_JUDGE_MODEL ||
-      process.env.DEEPSEEK_MODEL ||
-      "deepseek-v4-flash"
+    return normalizeLlmModelForCurrentProvider(
+      firstConfiguredModel(
+        process.env.AI_MODEL,
+        process.env.SEARCH_JUDGE_MODEL,
+        process.env.DEEPSEEK_MODEL,
+        DEFAULT_OFFICIAL_DEEPSEEK_MODEL,
+      ),
     );
   }
 
@@ -408,13 +437,15 @@ export function getDefaultLlmModel() {
 
 export function getLightweightLlmModel() {
   if (isUsingOfficialDeepSeek()) {
-    return (
-      process.env.SEARCH_LIGHT_MODEL ||
-      process.env.DEEPSEEK_LIGHT_MODEL ||
-      process.env.AI_MODEL ||
-      process.env.SEARCH_JUDGE_MODEL ||
-      process.env.DEEPSEEK_MODEL ||
-      "deepseek-v4-flash"
+    return normalizeLlmModelForCurrentProvider(
+      firstConfiguredModel(
+        process.env.SEARCH_LIGHT_MODEL,
+        process.env.DEEPSEEK_LIGHT_MODEL,
+        process.env.AI_MODEL,
+        process.env.SEARCH_JUDGE_MODEL,
+        process.env.DEEPSEEK_MODEL,
+        DEFAULT_OFFICIAL_DEEPSEEK_MODEL,
+      ),
     );
   }
 
@@ -768,12 +799,17 @@ export function extractJsonText(text: string): string {
 export async function generateLlmText(
   options: LlmTextOptions,
 ): Promise<LlmTextResult> {
+  const normalizedOptions = {
+    ...options,
+    model: normalizeLlmModelForCurrentProvider(options.model),
+  };
+
   if (isUsingOfficialDeepSeek()) {
-    return generateOfficialDeepSeekText(options);
+    return generateOfficialDeepSeekText(normalizedOptions);
   }
 
   const client = getOpenRouterFallbackClient();
-  const requestPayload = buildOpenRouterRequestPayload(options);
+  const requestPayload = buildOpenRouterRequestPayload(normalizedOptions);
   const startedAt = Date.now();
   type NonStreamingOpenRouterResponse = {
     choices: Array<{ message?: { content?: unknown } }>;
@@ -786,14 +822,14 @@ export async function generateLlmText(
         chatGenerationParams: requestPayload as Parameters<typeof client.chat.send>[0]["chatGenerationParams"],
       },
       {
-        signal: options.abortSignal,
-        timeoutMs: options.timeoutMs,
+        signal: normalizedOptions.abortSignal,
+        timeoutMs: normalizedOptions.timeoutMs,
       },
     ) as NonStreamingOpenRouterResponse;
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error));
     await recordUsageFromExit({
-      options,
+      options: normalizedOptions,
       provider: "openrouter",
       attempt: 1,
       status: normalizedError.message.includes("timed out") ? "timeout" : "error",
@@ -809,7 +845,7 @@ export async function generateLlmText(
   if (apiError && typeof apiError === "object") {
     const { code, message: msg } = apiError as { code?: unknown; message?: unknown };
     await recordUsageFromExit({
-      options,
+      options: normalizedOptions,
       provider: "openrouter",
       attempt: 1,
       status: "error",
@@ -825,7 +861,7 @@ export async function generateLlmText(
   const message = response.choices[0]?.message;
   if (!message) {
     await recordUsageFromExit({
-      options,
+      options: normalizedOptions,
       provider: "openrouter",
       attempt: 1,
       status: "error",
@@ -843,7 +879,7 @@ export async function generateLlmText(
     rawResponse: response,
   };
   await recordUsageFromExit({
-    options,
+    options: normalizedOptions,
     provider: "openrouter",
     attempt: 1,
     status: "success",
