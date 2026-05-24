@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Mail, Search } from "lucide-react";
+import { CreditCard, Download, Mail, Search } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   BILLING_PLANS,
@@ -20,7 +21,12 @@ import {
 } from "./shared";
 
 export function BillingPanel({ billing }: { billing: BillingSummary }) {
+  const { user } = useAuth();
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const isAdmin = adminEmail
+    ? user?.email?.toLowerCase() === adminEmail.toLowerCase()
+    : false;
 
   return (
     <SettingsSection
@@ -304,6 +310,28 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               </div>
             </div>
           </div>
+
+          {isAdmin && billing.checkout.testPaymentPriceIdConfigured ? (
+            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950">
+                    <CreditCard className="h-4 w-4 text-slate-500" />
+                    Payment smoke test
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Admin-only $1 Paddle charge. Records the webhook event without changing plan or credits.
+                  </p>
+                </div>
+                <PaddleCheckoutButton
+                  checkout={{ type: "test_payment" }}
+                  label="Run $1 test"
+                  onError={(message) => setBillingMessage({ type: "error", text: message })}
+                  className="inline-flex w-full shrink-0 items-center justify-center rounded-md bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                />
+              </div>
+            </div>
+          ) : null}
         </SettingsFieldGroup>
 
         <MessageBanner message={billingMessage} />

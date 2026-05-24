@@ -140,6 +140,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       agencyPriceIdConfigured: Boolean(checkout.agencyPriceId),
       searchPackPriceIdConfigured: Boolean(checkout.searchPackPriceId),
       contactPackPriceIdConfigured: Boolean(checkout.contactPackPriceId),
+      testPaymentPriceIdConfigured: Boolean(checkout.testPaymentPriceId),
     },
   };
 }

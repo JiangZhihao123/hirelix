@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { verifyPaddleSignature } from "../src/app/api/paddle/webhook/route";
+import { isTestPayment, verifyPaddleSignature } from "../src/app/api/paddle/webhook/route";
 
 function signPayload(secret: string, timestamp: string, body: string) {
   return crypto
@@ -37,3 +37,24 @@ test("verifyPaddleSignature rejects malformed signatures without throwing", () =
   }
 });
 
+test("isTestPayment identifies the dedicated $1 Paddle price", () => {
+  const originalPriceId = process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID;
+  process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID = "pri_test_payment";
+
+  try {
+    assert.equal(
+      isTestPayment({
+        items: [{ price: { id: "pri_test_payment" } }],
+      }),
+      true,
+    );
+    assert.equal(
+      isTestPayment({
+        items: [{ price: { id: "pri_search_pack" } }],
+      }),
+      false,
+    );
+  } finally {
+    process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID = originalPriceId;
+  }
+});

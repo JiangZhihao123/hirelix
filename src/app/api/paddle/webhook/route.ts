@@ -94,6 +94,12 @@ function resolvePlanCode(priceIds: string[]) {
   return null;
 }
 
+export function isTestPayment(data: Record<string, unknown>) {
+  const config = getCheckoutConfig();
+  const priceIds = getPriceIds(data);
+  return Boolean(config.testPaymentPriceId && priceIds.includes(config.testPaymentPriceId));
+}
+
 function extractCustomUserId(data: Record<string, unknown>) {
   const customData = data.custom_data;
   if (!customData || typeof customData !== "object") return null;
@@ -318,7 +324,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (userId && eventType === "transaction.completed") {
-      await applyAddOns(data, userId);
+      if (isTestPayment(data)) {
+        logBillingEvent("webhook_test_payment_recorded", {
+          event_id: eventId,
+          event_type: eventType,
+          user_id: userId,
+        });
+      } else {
+        await applyAddOns(data, userId);
+      }
     }
 
     logBillingEvent("webhook_processed", {
