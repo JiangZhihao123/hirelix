@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { findEmail } from "../src/lib/hunter";
+import { checkApolloHealth, findEmail } from "../src/lib/hunter";
 
 const originalFetch = globalThis.fetch;
 
@@ -11,11 +11,16 @@ test.afterEach(() => {
 
 test("findEmail falls through to Hunter when Apollo rejects current credentials", async () => {
   const requests: string[] = [];
-  globalThis.fetch = async (input, init) => {
+  globalThis.fetch = async (input) => {
     const url = String(input);
     requests.push(url);
 
     if (url.includes("apollo.io")) {
+      assert.equal(url.startsWith("https://api.apollo.io/api/v1/people/match?"), true);
+      const params = new URL(url).searchParams;
+      assert.equal(params.get("linkedin_url"), "https://www.linkedin.com/in/ada-lovelace/");
+      assert.equal(params.get("domain"), "example.com");
+      assert.equal(params.get("reveal_personal_emails"), "false");
       return new Response("Invalid access credentials.", { status: 401 });
     }
 
@@ -55,6 +60,58 @@ test("findEmail falls through to Hunter when Apollo rejects current credentials"
     source: "hunter",
   });
   assert.equal(requests.length, 2);
+});
+
+test("findEmail returns Apollo as the primary precise source when people enrichment finds work email", async () => {
+  const requests: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requests.push(url);
+
+    if (url.includes("apollo.io")) {
+      return Response.json({
+        person: {
+          email: "ada@apollo-example.com",
+        },
+      });
+    }
+
+    throw new Error(`Unexpected fallback request: ${url}`);
+  };
+
+  const result = await findEmail({
+    apolloApiKey: "apollo-key",
+    hunterApiKey: "hunter-key",
+    firstName: "Ada",
+    lastName: "Lovelace",
+    linkedinUrl: "https://www.linkedin.com/in/ada-lovelace/",
+    metadata: {
+      company_domain: "apollo-example.com",
+    },
+  });
+
+  assert.deepEqual(result, {
+    name: "Ada Lovelace",
+    email: "ada@apollo-example.com",
+    confidence: 90,
+    source: "apollo",
+  });
+  assert.equal(requests.length, 1);
+});
+
+test("checkApolloHealth requires Apollo to report an authenticated API key", async () => {
+  globalThis.fetch = async (input) => {
+    assert.equal(String(input), "https://api.apollo.io/api/v1/auth/health");
+    return Response.json({
+      healthy: true,
+      is_logged_in: true,
+    });
+  };
+
+  assert.deepEqual(await checkApolloHealth("apollo-key"), {
+    healthy: true,
+    isLoggedIn: true,
+  });
 });
 
 test("findEmail verifies guessed email patterns only when Hunter marks them valid with enough score", async () => {

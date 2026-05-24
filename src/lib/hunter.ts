@@ -21,6 +21,7 @@ import {
 import { COMPANY_INFO_EXTRACTION_JSON_SCHEMA } from "@/lib/llm-schemas";
 
 const HUNTER_BASE = "https://api.hunter.io/v2";
+const APOLLO_BASE = "https://api.apollo.io/api/v1";
 
 // ──────────────────── Types ────────────────────
 
@@ -38,22 +39,41 @@ export type EmailLookupResult = {
   source: "apollo" | "hunter" | null;
 };
 
+export type ApolloHealthResult = {
+  healthy: boolean;
+  isLoggedIn: boolean;
+};
+
 // ──────────────────── Apollo.io People Match ────────────────────
 
 async function apolloLookup(
   apiKey: string,
-  linkedinUrl: string,
+  params: {
+    firstName: string;
+    lastName: string;
+    linkedinUrl: string;
+    domain?: string | null;
+  },
 ): Promise<{ email: string | null; source: string }> {
-  const res = await fetch("https://api.apollo.io/v1/people/match", {
+  const searchParams = new URLSearchParams({
+    first_name: params.firstName,
+    last_name: params.lastName,
+    name: `${params.firstName} ${params.lastName}`.trim(),
+    linkedin_url: params.linkedinUrl,
+    reveal_personal_emails: "false",
+    reveal_phone_number: "false",
+  });
+  if (params.domain) {
+    searchParams.set("domain", params.domain);
+  }
+
+  const res = await fetch(`${APOLLO_BASE}/people/match?${searchParams}`, {
     method: "POST",
     headers: {
+      "Cache-Control": "no-cache",
       "Content-Type": "application/json",
       "X-Api-Key": apiKey,
     },
-    body: JSON.stringify({
-      linkedin_url: linkedinUrl,
-      reveal_personal_emails: false,
-    }),
   });
 
   if (!res.ok) {
@@ -65,8 +85,30 @@ async function apolloLookup(
   const person = data.person || data;
 
   // Try work email first, then personal
-  const email = person.email || person.personal_emails?.[0] || null;
+  const email = person.email || person.organization_email || person.personal_emails?.[0] || null;
   return { email, source: "apollo" };
+}
+
+export async function checkApolloHealth(apiKey: string): Promise<ApolloHealthResult> {
+  const res = await fetch(`${APOLLO_BASE}/auth/health`, {
+    method: "GET",
+    headers: {
+      "Cache-Control": "no-cache",
+      "Content-Type": "application/json",
+      "X-Api-Key": apiKey,
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Apollo health check failed (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  return {
+    healthy: data.healthy === true,
+    isLoggedIn: data.is_logged_in === true,
+  };
 }
 
 // ──────────────────── LLM Extract Company Info ────────────────────
@@ -303,11 +345,17 @@ export async function findEmail(opts: {
 }): Promise<EmailLookupResult> {
   const { apolloApiKey, hunterApiKey, firstName, lastName, linkedinUrl, metadata = {}, headline = null } = opts;
   const fullName = `${firstName} ${lastName}`.trim();
+  const metadataCompanyInfo = extractCompanyInfoFromMetadata(metadata);
 
   // Strategy 1: Apollo.io (LinkedIn URL direct lookup)
   if (apolloApiKey) {
     try {
-      const result = await apolloLookup(apolloApiKey, linkedinUrl);
+      const result = await apolloLookup(apolloApiKey, {
+        firstName,
+        lastName,
+        linkedinUrl,
+        domain: metadataCompanyInfo.domain,
+      });
       if (result.email) {
         console.log(`[email] ✅ Apollo found: ${result.email} for ${fullName}`);
         return { name: fullName, email: result.email, confidence: 90, source: "apollo" };
@@ -324,7 +372,10 @@ export async function findEmail(opts: {
 
   // Strategy 2: LLM extract company name + domain from metadata
   console.log(`[email] Extracting company info via LLM for ${fullName}...`);
-  const { companyName, domain: extractedDomain } = await extractCompanyInfo(metadata, headline);
+  const { companyName, domain: extractedDomain } =
+    metadataCompanyInfo.companyName || metadataCompanyInfo.domain
+      ? metadataCompanyInfo
+      : await extractCompanyInfo(metadata, headline);
   console.log(`[email] LLM extracted: company="${companyName}", domain="${extractedDomain}"`);
 
   let domain = extractedDomain;
