@@ -25,6 +25,11 @@ Use this to judge whether the first outbound batch is producing useful market si
   - Sent invitation manager still showed Brian K. Williams, Lexi Lewtan, and Rameet Singh pending.
   - No accepted connection or first-DM opportunity was visible.
   - Batch 2 is prepared in `docs/growth/linkedin-send-queue-2026-05-24.md`, but should wait for personalized note availability or a Batch 1 acceptance.
+- 2026-05-25 00:12 CST check:
+  - Erika Klics connection flow showed "Add message", but LinkedIn then displayed that the monthly personalized invite quota was fully used.
+  - No no-note invite was sent and no Premium trial was started.
+  - Erika is recorded as `blocked_by_linkedin` in `docs/growth/linkedin-outreach-2026-05-24.csv`.
+  - Cold email should become the next outbound lane while waiting for LinkedIn accepts or personalized invite quota reset.
 
 ## Metrics
 
