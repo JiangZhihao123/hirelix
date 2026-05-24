@@ -39,6 +39,26 @@ Evidence:
   - ready to review
   - 10 candidates
 
+### Shortlist detail page
+
+Evidence:
+
+- Playwright opened `https://hirelix.online/app/search/8450503e-3f1e-4efb-888d-25a27bc5d992` with the existing authenticated session.
+- Page showed:
+  - `Senior Backend Engineer`
+  - `Shortlist complete`
+  - `3 candidates to reach out to first`
+  - `7 more to keep reviewing`
+  - `150+ deeply reviewed`
+  - candidate evidence and risk labels
+  - client-ready shortlist section
+  - outreach approval queue
+  - LinkedIn copy and email copy actions
+
+Artifact:
+
+- `docs/launch/production-smoke-search-detail-text-2026-05-24.txt`
+
 ### Billing settings
 
 Evidence:
@@ -88,9 +108,9 @@ The production landing text did not contain:
 - LinkedIn profile update package: `docs/growth/linkedin-profile-update-package-2026-05-24.md`
 - LinkedIn response playbook: `docs/growth/linkedin-response-playbook-2026-05-24.md`
 - Customer discovery call script: `docs/growth/customer-discovery-call-script-2026-05-24.md`
+- Product demo script: `docs/growth/hirelix-demo-script-2026-05-24.md`
 - One-page sales note: `docs/marketing/hirelix-one-page-sales-note-2026-05-24.md`
 
 ## Next external-action step
 
 After action-time confirmation, update the LinkedIn profile and send the first batch of connection requests from `docs/growth/linkedin-send-queue-2026-05-24.md`.
-

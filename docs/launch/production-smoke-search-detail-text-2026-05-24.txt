@@ -1,0 +1,393 @@
+Hirelix
+
+WORKSPACE
+
+Shortlists
+New search
+Admin
+
+Free plan
+
+Manage
+
+No shortlist builds left this cycle
+
+Includes a real shortlist preview and limited contact unlocks
+
+Settings
+noahjiang2@gmail.com
+Sign Out
+Back to shortlists
+Senior Backend Engineer
+View JD
+Rerun scoring
+Export this shortlist
+New shortlist
+
+SHORTLIST COMPLETE
+
+Your candidate pool is ready
+
+Hirelix turned this search into a workable pool: 3 candidates to reach out to first, 7 more to keep reviewing, and 150+ deeply reviewed.
+
+REACH FIRST
+3
+BACKUP
+7
+REVIEWED
+150+
+EVIDENCE
+5/10
+
+SEARCH OUTCOME
+
+3 candidates are ready for first outreach.
+
+Start with reach-first profiles, verify the amber risks, then move the best people into the outreach queue.
+
+REACH FIRST
+
+3
+
+BACKUP
+
+7
+
+RULED OUT
+
+90
+
+EVIDENCE
+
+5/10
+
+#1
+
+Hans Norheim
+
+Public evidence verified
+
+Proof: [1] Co-authored Lakebase Public Preview blog post detailing Databricks' managed PostgreSQL service with compute-storage separation.
+
+Risk: Overqualified for IC role
+
+Contact first. Use the strongest proof line in the opener.
+
+#2
+
+Deonte Binion
+
+LinkedIn-only, verify first
+
+Proof: No recruiter-usable public engineering evidence is verified yet.
+
+Risk: Verify current interest, compensation range, and role scope before pitching.
+
+Verify first. Treat as LinkedIn-only until proof is checked.
+
+#3
+
+Juan Solis
+
+LinkedIn-only, verify first
+
+Proof: Possible GitHub match was found but identity confidence stayed below the verified threshold.
+
+Risk: Verify current interest, compensation range, and role scope before pitching.
+
+Verify first. Treat as LinkedIn-only until proof is checked.
+
+CLIENT-READY SHORTLIST
+
+Copy a client brief before you start outreach.
+
+Use this as the recruiter-facing summary: who to lead with, why they fit, what proof is usable, and what still needs verification.
+
+Need client briefs? Go Pro
+#1
+
+Hans Norheim
+
+Senior Staff Software Engineer | Databricks | Greater Seattle Area, US
+
+Hans Norheim still looks worth reviewing from LinkedIn as a Sr. Staff Software Engineer @...
+
+Verify: Overqualified for IC role; Possibly overqualified for growth-stage role
+
+#2
+
+Deonte Binion
+
+Senior Software Engineer | Biztech Consulting & Solutions | Atlanta, Georgia, United States, US
+
+Deonte Binion still looks worth reviewing from LinkedIn as a Senior Software Engineer (Py...
+
+#3
+
+Juan Solis
+
+Senior Software Engineer, Data & Analytics | HENSEL PHELPS | United States, US
+
+Juan Solis still looks worth reviewing from LinkedIn as a Senior Software Engineer | DevO...
+
+OUTREACH APPROVAL QUEUE
+
+Review, copy, then mark progress.
+
+This keeps the workflow human-in-the-loop while still moving candidates from shortlist to contacted, replied, submitted, interview, and placed.
+
+CONTACTED
+
+0
+
+REPLIED
+
+0
+
+SUBMITTED
+
+0
+
+INTERVIEW
+
+0
+
+PLACED
+
+0
+
+Hans Norheim
+
+Senior Staff Software Engineer | Databricks | Greater Seattle Area, US
+
+New
+LinkedIn copy
+Email copy
+Open profile
+Mark contacted
+Mark submitted
+
+Deonte Binion
+
+Senior Software Engineer | Biztech Consulting & Solutions | Atlanta, Georgia, United States, US
+
+New
+LinkedIn copy
+Email copy
+Open profile
+Mark contacted
+Mark submitted
+
+Juan Solis
+
+Senior Software Engineer, Data & Analytics | HENSEL PHELPS | United States, US
+
+New
+LinkedIn copy
+Email copy
+Open profile
+Mark contacted
+Mark submitted
+
+SHORTLIST OUTCOME
+
+Start with the people most worth a first message.
+
+Workflow: 0 contacted · 0 submitted · 0 interview · 0 placed
+
+REVIEWED
+
+150
+
+REACH OUT FIRST
+
+3
+
+WORTH REVIEWING
+
+7
+
+SCREENED OUT
+
+90
+
+CONTACT-READY
+
+10
+
+RISKS FOUND
+
+10
+
+3 in reach out first
+
+Avg 83%
+Range 81–85%
+10 contact unlocks
+1/3 GitHub evidence
+Real LinkedIn profiles
+Recruiter sorted
+Reach Out First (3)
+Worth Reviewing (7)
+Sort by
+Overall score
+Capability
+Role Fit
+Reachability
+Select all
+
+CANDIDATE QUEUE
+
+Reach Out First (3)
+
+Work from the highest-signal people first. The right panel defaults to the copy-ready selling kit.
+
+HN
+
+Hans Norheim
+
+85% overall
+Reach out first
+
+Senior Staff Software Engineer
+
+Databricks
+
+Hans Norheim still looks worth reviewing from LinkedIn as a Sr. Staff Software Engineer @...
+
+[1] Co-authored Lakebase Public Preview blog post detailing Databricks' managed PostgreSQL service with compute-storage separation. · [2] Author page on Databricks blog confirms Hans Norheim as a Databricks engineer writing about Lakebase and PostgreSQL.
+
+Overqualified for IC role
+
+Contact first. Use the strongest proof line in the opener.
+
+Tech 100
+Role Fit 90
+Reachability 55
+Greater Seattle Area, US
+Possible GitHub
+Engineering blog [1]
+Engineering blog [2]
+Engineering blog [3]
+Overqualified for IC role
+DB
+
+Deonte Binion
+
+83% overall
+Reach out first
+
+Senior Software Engineer
+
+Biztech Consulting & Solutions
+
+Deonte Binion still looks worth reviewing from LinkedIn as a Senior Software Engineer (Py...
+
+No recruiter-usable public engineering evidence is verified yet. · Strong Python and PostgreSQL
+
+Verify current interest, compensation range, and role scope before pitching.
+
+Verify first. Treat as LinkedIn-only until proof is checked.
+
+Tech 80
+Role Fit 85
+Reachability 85
+Atlanta, Georgia, United States, US
+No GitHub found
+LinkedIn-only
+JS
+
+Juan Solis
+
+81% overall
+Reach out first
+
+Senior Software Engineer, Data & Analytics
+
+HENSEL PHELPS
+
+Juan Solis still looks worth reviewing from LinkedIn as a Senior Software Engineer | DevO...
+
+Possible GitHub match was found but identity confidence stayed below the verified threshold. · identity_cache:matched
+
+Verify current interest, compensation range, and role scope before pitching.
+
+Verify first. Treat as LinkedIn-only until proof is checked.
+
+Tech 85
+Role Fit 90
+Reachability 55
+United States, US
+Possible GitHub
+LinkedIn-only
+HN
+Hans Norheim
+Ready to act
+85% overall
+
+Senior Staff Software Engineer
+
+Databricks
+Greater Seattle Area, US
+Candidate status
+New
+Starred
+Contacted
+Replied
+Submitted
+Interview
+Placed
+Rejected
+Sell
+Evidence
+Outreach
+Profile
+Score
+
+CANDIDATE SELLING KIT
+
+Reach out first
+
+Copy opener
+Go Pro for client brief
+
+Hans Norheim still looks worth reviewing from LinkedIn as a Sr. Staff Software Engineer @...
+
+COPY-READY OPENER
+
+Your co-authorship on Lakebase launch shows leadership in building a PostgreSQL-based database for AI apps.
+
+CLIENT BRIEF PREVIEW
+
+Hans Norheim is easiest to pitch around co-authored Lakebase Public Preview blog post detailing Databricks' managed PostgreSQL service with compute-storage separation.
+
+Full client-ready brief export is included on Pro.
+
+RANKING REASON
+
+Senior Staff Software Engineer at Databricks ranks here because overall 85, technical 100, role fit 90, reachability 55.
+
+TRUST CHECK
+
+Public evidence verified
+
+Safe public proof is available for the client brief or outreach.
+
+BEST USABLE PROOF
+
+[1] Co-authored Lakebase Public Preview blog post detailing Databricks' managed PostgreSQL service with compute-storage separation.
+[2] Author page on Databricks blog confirms Hans Norheim as a Databricks engineer writing about Lakebase and PostgreSQL.
+[3] Authored detailed engineering blog on prewarming technique to eliminate performance degradation during PostgreSQL restarts.
+
+VERIFY BEFORE PITCHING
+
+Overqualified for IC role
+Possibly overqualified for growth-stage role
+
+NEXT ACTION
+
+Contact first. Use the strongest proof line in the opener.
+
+Pool diagnostics and widening levers
+
+Built for technical recruiters and headhunters. If your shortlist misses the mark or your billing looks wrong, email support@hirelix.online.
