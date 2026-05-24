@@ -1,0 +1,251 @@
+Hirelix
+
+WORKSPACE
+
+Shortlists
+New search
+Admin
+
+Free plan
+
+Manage
+
+No shortlist builds left this cycle
+
+Includes a real shortlist preview and limited contact unlocks
+
+Settings
+noahjiang2@gmail.com
+Sign Out
+
+WORKSPACE
+
+Settings
+
+Manage account access, billing capacity, and the outreach identity used in candidate messages.
+
+Free planNo shortlist builds left this cycle
+
+Account
+
+Sign-in with Google
+
+Billing
+
+Free plan
+
+Outreach identity
+
+Recruiter details
+
+BILLING
+
+Billing and usage
+
+Manage shortlist builds, contact unlocks, export, and client-ready brief access.
+
+Current plan
+
+This is the active plan and renewal state for your account.
+
+Free
+
+Run one real client-role shortlist and see the evidence before you pay.
+
+$0
+
+free forever
+
+SUBSCRIPTION
+
+Subscription active
+
+RENEWAL
+
+Not scheduled
+
+Usage
+
+Track the limits that matter for the current billing cycle.
+
+Shortlist builds
+1/1
+
+0 shortlist builds left this cycle
+
+Contact unlocks
+0/5
+
+5 contact unlocks left this cycle
+
+Client handoff
+
+Locked
+
+Upgrade to Pro for client-ready briefs
+
+Plans and add-ons
+
+Upgrade the base plan or add one-off credits when you need extra capacity.
+
+Hirelix is built for independent technical headhunters. For billing issues, missing credits, or shortlist problems, email support@hirelix.online.
+
+PLANS
+
+Free
+
+Run one real client-role shortlist and see the evidence before you pay.
+
+$0
+
+free forever
+
+1 shortlist build / month
+
+Evidence-backed technical shortlists by role fit
+
+5 contact unlocks / month
+
+CSV export locked
+
+Client-ready brief locked
+
+Current plan
+Solo
+
+For independent technical headhunters working a few active client roles.
+
+$149
+
+per seat / month
+
+10 shortlist builds / month
+
+Evidence-backed technical shortlists by role fit
+
+100 contact unlocks / month
+
+CSV export included
+
+Client-ready brief locked
+
+Start Solo
+Solo Annual
+
+For solo technical recruiters who want a lower annual rate.
+
+$119
+
+per seat / month, billed annually
+
+10 shortlist builds / month
+
+Evidence-backed technical shortlists by role fit
+
+100 contact unlocks / month
+
+CSV export included
+
+Client-ready brief locked
+
+Start annual Solo
+Pro
+
+For steady solo headhunters who need client-ready briefs and deeper capacity.
+
+$249
+
+per seat / month
+
+25 shortlist builds / month
+
+Evidence-backed technical shortlists by role fit
+
+300 contact unlocks / month
+
+CSV export included
+
+Client-ready brief included
+
+Start Pro
+Pro Annual
+
+For steady solo headhunters who want the lower annual Pro rate.
+
+POPULAR
+
+$199
+
+per seat / month, billed annually
+
+25 shortlist builds / month
+
+Evidence-backed technical shortlists by role fit
+
+300 contact unlocks / month
+
+CSV export included
+
+Client-ready brief included
+
+Start annual Pro
+Business
+
+For small teams. Higher volume, shared workspace, priority support.
+
+$799
+
+up to 3 seats / month
+
+100 shortlist builds / month
+
+Evidence-backed technical shortlists by role fit
+
+1500 contact unlocks / month
+
+CSV export included
+
+Client-ready brief included
+
+Upgrade to Business
+Agency
+
+For search firms. High volume, white-label export, API, dedicated onboarding.
+
+$1,999
+
+up to 10 seats / month
+
+300 shortlist builds / month
+
+Evidence-backed technical shortlists by role fit
+
+5000 contact unlocks / month
+
+CSV export included
+
+Client-ready brief included
+
+Contact us
+
+ADD-ONS
+
+Search Pack
+
+3 extra searches when a client role needs more sourcing capacity.
+
+$49
+
+Adds 3 shortlist builds to this billing period.
+
+Upgrade plan to buy search pack
+
+Contact Pack
+
+50 extra contact unlocks with outreach-ready context.
+
+$49
+
+Adds 50 contact unlocks to this billing period.
+
+Upgrade plan to buy contact pack
