@@ -46,7 +46,7 @@ export type ApolloHealthResult = {
 
 // ──────────────────── Apollo.io People Match ────────────────────
 
-async function apolloLookup(
+export async function apolloLookup(
   apiKey: string,
   params: {
     firstName: string;

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 
-import { checkApolloHealth } from "@/lib/hunter";
+import { apolloLookup, checkApolloHealth } from "@/lib/hunter";
 import { initializeGlobalOutboundProxy } from "@/lib/server-outbound-proxy";
 
 function parseEnvFile(path: string) {
@@ -34,6 +34,7 @@ function loadVercelProductionEnv() {
 }
 
 const useVercelProduction = process.argv.includes("--vercel-production");
+const runPeopleMatch = process.argv.includes("--people-match");
 
 if (useVercelProduction) {
   loadVercelProductionEnv();
@@ -64,6 +65,27 @@ async function main() {
 
   if (!health.healthy || !health.isLoggedIn) {
     throw new Error("Apollo API key is not authenticated. Create or regenerate an API key with People Enrichment access.");
+  }
+
+  if (runPeopleMatch) {
+    const result = await apolloLookup(apiKey, {
+      firstName: "Tim",
+      lastName: "Zheng",
+      linkedinUrl: "https://www.linkedin.com/in/tim-zheng/",
+      domain: "apollo.io",
+    });
+    console.log(
+      JSON.stringify(
+        {
+          peopleMatch: {
+            emailFound: Boolean(result.email),
+            source: result.source,
+          },
+        },
+        null,
+        2,
+      ),
+    );
   }
 }
 

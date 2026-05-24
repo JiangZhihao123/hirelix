@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkApolloHealth, findEmail } from "../src/lib/hunter";
+import { apolloLookup, checkApolloHealth, findEmail } from "../src/lib/hunter";
 
 const originalFetch = globalThis.fetch;
 
@@ -112,6 +112,41 @@ test("checkApolloHealth requires Apollo to report an authenticated API key", asy
     healthy: true,
     isLoggedIn: true,
   });
+});
+
+test("apolloLookup sends official people enrichment parameters", async () => {
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    assert.equal(url.startsWith("https://api.apollo.io/api/v1/people/match?"), true);
+    const params = new URL(url).searchParams;
+    assert.equal(params.get("first_name"), "Ada");
+    assert.equal(params.get("last_name"), "Lovelace");
+    assert.equal(params.get("name"), "Ada Lovelace");
+    assert.equal(params.get("linkedin_url"), "https://www.linkedin.com/in/ada-lovelace/");
+    assert.equal(params.get("domain"), "example.com");
+    assert.equal(params.get("reveal_personal_emails"), "false");
+    assert.equal(params.get("reveal_phone_number"), "false");
+    assert.equal(init?.method, "POST");
+    assert.equal((init?.headers as Record<string, string>)["X-Api-Key"], "apollo-key");
+    return Response.json({
+      person: {
+        email: "ada@example.com",
+      },
+    });
+  };
+
+  assert.deepEqual(
+    await apolloLookup("apollo-key", {
+      firstName: "Ada",
+      lastName: "Lovelace",
+      linkedinUrl: "https://www.linkedin.com/in/ada-lovelace/",
+      domain: "example.com",
+    }),
+    {
+      email: "ada@example.com",
+      source: "apollo",
+    },
+  );
 });
 
 test("findEmail verifies guessed email patterns only when Hunter marks them valid with enough score", async () => {
