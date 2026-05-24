@@ -67,7 +67,7 @@ export function verifyPaddleSignature(rawBody: string, signature: string | null)
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.h1));
 }
 
-function getPriceIds(data: Record<string, unknown>) {
+export function getPaddlePriceIds(data: Record<string, unknown>) {
   const items = Array.isArray(data.items) ? data.items : [];
   return items
     .map((item) => {
@@ -83,7 +83,7 @@ function getPriceIds(data: Record<string, unknown>) {
     .filter((value): value is string => Boolean(value));
 }
 
-function resolvePlanCode(priceIds: string[]) {
+export function resolvePaddlePlanCode(priceIds: string[]) {
   const config = getCheckoutConfig();
   if (priceIds.includes(config.starterMonthlyPriceId)) return "starter_monthly";
   if (priceIds.includes(config.starterAnnualPriceId)) return "starter_annual";
@@ -170,8 +170,8 @@ async function recordEvent(
 }
 
 async function updateSubscription(data: Record<string, unknown>, userId: string) {
-  const priceIds = getPriceIds(data);
-  const planCode = resolvePlanCode(priceIds);
+  const priceIds = getPaddlePriceIds(data);
+  const planCode = resolvePaddlePlanCode(priceIds);
   if (!planCode) return;
 
   const status =
@@ -238,7 +238,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
 
 async function applyAddOns(data: Record<string, unknown>, userId: string) {
   const config = getCheckoutConfig();
-  const priceIds = getPriceIds(data);
+  const priceIds = getPaddlePriceIds(data);
   const addSearchCredits = priceIds.includes(config.searchPackPriceId)
     ? SEARCH_PACK.credits
     : 0;

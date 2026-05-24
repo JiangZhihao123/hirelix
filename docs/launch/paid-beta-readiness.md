@@ -20,12 +20,22 @@ This checklist is for the Hirelix paid launch.
 
 ### Billing
 
-- Verify Paddle production client token and price IDs are configured.
-- Test monthly checkout end-to-end.
-- Test annual checkout end-to-end.
-- Test search pack checkout end-to-end.
-- Test contact pack checkout end-to-end.
-- Verify webhook processing updates subscription plan, credits, and renew dates.
+- Verified Paddle production client token and price IDs are configured in Vercel Production.
+- Real `$1` Paddle test payment completed and reached production webhook event storage.
+- Verified non-test Search Pack entitlement handling with a signed production webhook smoke event:
+  - event ID `evt_prod_smoke_1779637232507`
+  - production webhook returned HTTP `200`
+  - production DB temporarily showed `extra_search_credits = 3`
+  - temporary rows were cleaned up and rechecked.
+- Verified Solo monthly subscription entitlement handling with a signed production webhook smoke event:
+  - event ID `evt_prod_smoke_sub_1779637326284`
+  - production webhook returned HTTP `200`
+  - production DB temporarily showed `subscription_plan = starter_monthly`, `subscription_status = active`, `billing_cycle = month`, and renew date `2026-06-24 15:45:00+00`
+  - temporary rows were cleaned up and rechecked.
+- Normal paid webhook processing updates subscription plan, credits, and renew dates at the production webhook/API/DB layer.
+- Still not performed: real paid monthly checkout with a `$149+` card charge.
+- Still not performed: real paid annual checkout with a `$1,428+` card charge.
+- Still not performed: real paid Contact Pack checkout with a `$49` card charge.
 - Verify duplicate webhook delivery is ignored safely.
 
 ### UX and messaging

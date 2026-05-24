@@ -104,6 +104,38 @@ Artifact:
 
 - `docs/launch/production-smoke-settings-billing-text-2026-05-24.txt`
 
+### Paddle payment and entitlement path
+
+Evidence:
+
+- The earlier real `$1` Paddle test payment completed and reached production webhook storage:
+  - `transaction.created`
+  - `transaction.updated`
+  - `transaction.completed`
+  - Paddle transaction: `txn_01ksc9xdeprwrx8gp19n4kga15`
+  - Paddle price: `pri_01ksc66s8a6x6gkey0bz7ebxxf`
+  - custom data: `purchase_type = test_payment`
+- The `$1` test payment correctly did not change `hirelix_user_settings`, because `purchase_type = test_payment` is record-only by design.
+- Production Vercel environment variables include `PADDLE_WEBHOOK_SECRET`, `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `NEXT_PUBLIC_PADDLE_ENV`, and all live plan/add-on price IDs.
+- A signed production webhook smoke event for a non-test Search Pack completed with HTTP `200`:
+  - temporary event ID: `evt_prod_smoke_1779637232507`
+  - event type: `transaction.completed`
+  - target user: `852c199d-3fc1-4543-bea5-34d2db7a54e3`
+  - verified DB effect before cleanup: `extra_search_credits = 3`, `extra_enrich_credits = 0`
+  - cleanup verified: temporary billing event rows remaining `0`, temporary settings rows remaining `0`
+- A signed production webhook smoke event for Solo monthly subscription completed with HTTP `200`:
+  - temporary event ID: `evt_prod_smoke_sub_1779637326284`
+  - event type: `subscription.created`
+  - target user: `852c199d-3fc1-4543-bea5-34d2db7a54e3`
+  - verified DB effect before cleanup: `subscription_plan = starter_monthly`, `subscription_status = active`, `billing_cycle = month`, subscription renews at `2026-06-24 15:45:00+00`
+  - cleanup verified: temporary billing event rows remaining `0`, temporary settings rows remaining `0`
+
+Interpretation:
+
+- Real Paddle-to-production webhook delivery is proven by the completed `$1` payment.
+- Normal paid entitlement handling is proven at the production webhook/API/DB layer by signed production smoke events.
+- A real paid Solo or Pro card charge has not been performed yet.
+
 ## Removed test payment check
 
 The production landing text did not contain:
@@ -117,7 +149,7 @@ The production landing text did not contain:
 
 ## Notes and remaining gaps
 
-- The settings page confirms paid entry points are visible. I did not click paid checkout CTAs in this pass to avoid creating external Paddle checkout sessions during a smoke check.
+- The settings page confirms paid entry points are visible. Normal paid entitlement handling has now been verified through signed production webhook smoke events, but not through an actual `$149+` customer card charge.
 - A direct `HEAD` request to `/api/auth/session` returned `404` while matching `/api/auth/[...all]`; this appears to be a route-path mismatch for that specific probe, not evidence that browser auth is broken, because the authenticated `/app` and `/app/settings#billing` pages loaded successfully.
 - Playwright recorded one Google/DoubleClick analytics collection connection error on the public landing page. This is non-core for product and billing, but it may affect launch analytics completeness.
 
@@ -133,4 +165,4 @@ The production landing text did not contain:
 
 ## Next external-action step
 
-After action-time confirmation, update the LinkedIn profile and send the first batch of connection requests from `docs/growth/linkedin-send-queue-2026-05-24.md`.
+Check whether any of the first three LinkedIn connection requests have been accepted. If accepted, send the first DM from the response playbook. If none have accepted and personalized invite quota is still exhausted, expand the ICP queue and wait for quota reset rather than sending no-note invites by default.

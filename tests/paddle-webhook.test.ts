@@ -2,7 +2,12 @@ import crypto from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { isTestPayment, verifyPaddleSignature } from "../src/app/api/paddle/webhook/route";
+import {
+  getPaddlePriceIds,
+  isTestPayment,
+  resolvePaddlePlanCode,
+  verifyPaddleSignature,
+} from "../src/app/api/paddle/webhook/route";
 
 function signPayload(secret: string, timestamp: string, body: string) {
   return crypto
@@ -56,4 +61,38 @@ test("isTestPayment identifies legacy test-payment webhook metadata", () => {
     }),
     false,
   );
+});
+
+test("Paddle webhook maps nested and flat price ids to paid entitlements", () => {
+  const originalEnv = {
+    NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID,
+  };
+
+  process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID = "pri_starter_monthly";
+  process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = "pri_pro_annual";
+
+  try {
+    assert.deepEqual(
+      getPaddlePriceIds({
+        items: [
+          { price: { id: "pri_starter_monthly" } },
+          { price_id: "pri_search_pack" },
+          { price: {} },
+          null,
+        ],
+      }),
+      ["pri_starter_monthly", "pri_search_pack"],
+    );
+    assert.equal(resolvePaddlePlanCode(["pri_starter_monthly"]), "starter_monthly");
+    assert.equal(resolvePaddlePlanCode(["pri_pro_annual"]), "pro_annual");
+    assert.equal(resolvePaddlePlanCode(["pri_unknown"]), null);
+  } finally {
+    process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
+  }
 });
