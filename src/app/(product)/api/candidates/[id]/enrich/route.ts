@@ -38,10 +38,6 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
   const body = await req.json().catch(() => ({}));
   const regenerateOutreach =
     body && typeof body === "object" && (body as Record<string, unknown>).regenerate_outreach === true;
@@ -240,6 +236,7 @@ export async function POST(
           });
           if (emailResult.email) {
             updates.email = emailResult.email;
+            updates.enrich_source = emailResult.source;
             console.log(`[enrich] Email found for ${sanitizedCandidateName}: ${emailResult.email} (via ${emailResult.source})`);
           }
         } catch (err) {

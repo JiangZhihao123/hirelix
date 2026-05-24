@@ -52,7 +52,7 @@ async function apolloLookup(
     },
     body: JSON.stringify({
       linkedin_url: linkedinUrl,
-      reveal_personal_emails: true,
+      reveal_personal_emails: false,
     }),
   });
 
@@ -75,6 +75,11 @@ async function extractCompanyInfo(
   metadata: Record<string, unknown>,
   headline: string | null,
 ): Promise<{ companyName: string | null; domain: string | null }> {
+  const metadataCompanyInfo = extractCompanyInfoFromMetadata(metadata);
+  if (metadataCompanyInfo.companyName || metadataCompanyInfo.domain) {
+    return metadataCompanyInfo;
+  }
+
   try {
     getLlmApiKey();
   } catch {
@@ -116,6 +121,77 @@ If uncertain, return null for that field. Return ONLY valid JSON, no markdown.`;
     console.log(`[email] LLM company extraction failed: ${err instanceof Error ? err.message : String(err)}`);
     return { companyName: null, domain: null };
   }
+}
+
+function cleanDomain(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = trimmed.includes("://")
+      ? new URL(trimmed)
+      : new URL(`https://${trimmed}`);
+    return parsed.hostname.replace(/^www\./, "") || null;
+  } catch {
+    return trimmed
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .split("/")[0]
+      .split("?")[0]
+      .trim() || null;
+  }
+}
+
+function extractCompanyInfoFromMetadata(
+  metadata: Record<string, unknown>,
+): { companyName: string | null; domain: string | null } {
+  const directDomain =
+    cleanDomain(metadata.company_domain) ||
+    cleanDomain(metadata.current_company_domain) ||
+    cleanDomain(metadata.domain) ||
+    cleanDomain(metadata.company_website) ||
+    cleanDomain(metadata.website);
+
+  const currentCompany = metadata.current_company;
+  if (currentCompany && typeof currentCompany === "object") {
+    const record = currentCompany as Record<string, unknown>;
+    return {
+      companyName: typeof record.name === "string" && record.name.trim() ? record.name.trim() : null,
+      domain:
+        directDomain ||
+        cleanDomain(record.domain) ||
+        cleanDomain(record.website) ||
+        cleanDomain(record.url),
+    };
+  }
+
+  const workHistory = Array.isArray(metadata.work_history)
+    ? metadata.work_history
+    : [];
+  const currentWork = workHistory.find((item) => {
+    if (!item || typeof item !== "object") return false;
+    const record = item as Record<string, unknown>;
+    return record.current === true || record.end_date === null || record.endDate === null;
+  });
+  const firstWork = workHistory.find((item) => item && typeof item === "object");
+  const workRecord = (currentWork || firstWork) as Record<string, unknown> | undefined;
+
+  return {
+    companyName:
+      typeof metadata.company_name === "string" && metadata.company_name.trim()
+        ? metadata.company_name.trim()
+        : typeof metadata.current_company_name === "string" && metadata.current_company_name.trim()
+          ? metadata.current_company_name.trim()
+          : typeof workRecord?.company === "string" && workRecord.company.trim()
+            ? workRecord.company.trim()
+            : null,
+    domain:
+      directDomain ||
+      cleanDomain(workRecord?.domain) ||
+      cleanDomain(workRecord?.company_domain) ||
+      cleanDomain(workRecord?.website),
+  };
 }
 
 // ──────────────────── Hunter.io Domain Search ────────────────────
