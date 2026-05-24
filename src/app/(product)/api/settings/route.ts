@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { hirelix_user_settings } from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { isAdminEmail } from "@/lib/admin";
 import { getLogger, errorLogFields } from "@/lib/logger";
 
 /** GET /api/settings — returns user settings */
@@ -20,7 +21,9 @@ export async function GET(req: NextRequest) {
       .from(hirelix_user_settings)
       .where(eq(hirelix_user_settings.user_id, user.id))
       .limit(1),
-    getBillingSummaryForUser(user.id),
+    getBillingSummaryForUser(user.id, {
+      includeAdminDiagnostics: isAdminEmail(user.email, process.env.ADMIN_EMAIL),
+    }),
   ]);
   const data = settingsRows[0];
 

@@ -1,7 +1,7 @@
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
+import { hirelix_billing_events, hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
 import {
   clampRemaining,
   getBillingPeriodBounds,
@@ -11,12 +11,78 @@ import {
   normalizeBillingStatus,
   type BillingSummary,
   type BillingStatus,
+  type TestPaymentStatus,
 } from "@/lib/billing";
 import { getLogger } from "@/lib/logger";
 
 const billingLogger = getLogger({ component: "billing_server" });
 
-export async function getBillingSummaryForUser(userId: string): Promise<BillingSummary> {
+type BillingSummaryOptions = {
+  includeAdminDiagnostics?: boolean;
+};
+
+type PaddleEventPayload = {
+  data?: {
+    id?: string;
+    custom_data?: {
+      purchase_type?: string;
+    };
+    items?: Array<{
+      price?: {
+        id?: string;
+      };
+    }>;
+  };
+};
+
+function getPaddlePayloadPriceIds(payload: PaddleEventPayload): string[] {
+  return (payload.data?.items ?? [])
+    .map((item) => item.price?.id)
+    .filter((priceId): priceId is string => Boolean(priceId));
+}
+
+async function getTestPaymentStatusForUser(
+  userId: string,
+  configuredPriceId: string,
+): Promise<TestPaymentStatus> {
+  const eventRows = await db
+    .select({
+      event_id: hirelix_billing_events.event_id,
+      payload: hirelix_billing_events.payload,
+      created_at: hirelix_billing_events.created_at,
+    })
+    .from(hirelix_billing_events)
+    .where(
+      and(
+        eq(hirelix_billing_events.user_id, userId),
+        eq(hirelix_billing_events.event_type, "transaction.completed"),
+      ),
+    )
+    .orderBy(desc(hirelix_billing_events.created_at))
+    .limit(10);
+
+  const matchingEvent = eventRows.find((event) => {
+    const payload = event.payload as PaddleEventPayload;
+    return (
+      payload.data?.custom_data?.purchase_type === "test_payment" &&
+      getPaddlePayloadPriceIds(payload).includes(configuredPriceId)
+    );
+  });
+
+  const payload = matchingEvent?.payload as PaddleEventPayload | undefined;
+  return {
+    configuredPriceId,
+    lastCompletedAt: matchingEvent?.created_at.toISOString() ?? null,
+    lastEventId: matchingEvent?.event_id ?? null,
+    lastTransactionId: payload?.data?.id ?? null,
+    lastPriceIds: payload ? getPaddlePayloadPriceIds(payload) : [],
+  };
+}
+
+export async function getBillingSummaryForUser(
+  userId: string,
+  options: BillingSummaryOptions = {},
+): Promise<BillingSummary> {
   const { startIso, endIso } = getBillingPeriodBounds();
   const startDate = new Date(startIso);
   const endDate = new Date(endIso);
@@ -99,7 +165,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     );
   }
 
-  return {
+  const summary: BillingSummary = {
     plan,
     subscription: {
       planCode,
@@ -143,4 +209,20 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       testPaymentPriceIdConfigured: Boolean(checkout.testPaymentPriceId),
     },
   };
+
+  if (options.includeAdminDiagnostics) {
+    summary.adminDiagnostics = {
+      testPayment: checkout.testPaymentPriceId
+        ? await getTestPaymentStatusForUser(userId, checkout.testPaymentPriceId)
+        : {
+            configuredPriceId: null,
+            lastCompletedAt: null,
+            lastEventId: null,
+            lastTransactionId: null,
+            lastPriceIds: [],
+          },
+    };
+  }
+
+  return summary;
 }

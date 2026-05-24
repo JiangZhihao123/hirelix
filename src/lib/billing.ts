@@ -42,6 +42,14 @@ export type UsageSummary = {
   extraEnrichCredits: number;
 };
 
+export type TestPaymentStatus = {
+  configuredPriceId: string | null;
+  lastCompletedAt: string | null;
+  lastEventId: string | null;
+  lastTransactionId: string | null;
+  lastPriceIds: string[];
+};
+
 export type BillingSummary = {
   plan: BillingPlan;
   subscription: {
@@ -63,6 +71,9 @@ export type BillingSummary = {
     searchPackPriceIdConfigured: boolean;
     contactPackPriceIdConfigured: boolean;
     testPaymentPriceIdConfigured: boolean;
+  };
+  adminDiagnostics?: {
+    testPayment: TestPaymentStatus;
   };
 };
 
