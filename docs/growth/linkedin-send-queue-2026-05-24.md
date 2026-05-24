@@ -133,6 +133,80 @@ Hi Vitaly, I am building Hirelix for technical recruiters working on engineering
 Hi Henry, I am building Hirelix for technical recruiters sourcing software engineers. Your solo engineering recruiting work with Bay Area startups looks very relevant - would love to connect.
 ```
 
+## Batch 2 prepared
+
+Do not send these as no-note invites. Use this batch after the personalized invite quota resets, after an acceptance from Batch 1, or if LinkedIn clearly allows a personalized note again.
+
+17. Jackie Moore
+   - URL: https://www.linkedin.com/in/moorejackie
+   - Note:
+```text
+Hi Jackie, I am building Hirelix for technical sourcers working on engineering roles. Your principal sourcing work at NVIDIA looks highly relevant - would love to connect and learn from your workflow.
+```
+
+18. Mariangela Spilsbury
+   - URL: https://www.linkedin.com/in/mariangelaspilsbury
+   - Note:
+```text
+Hi Mariangela, I am building Hirelix for technical recruiters sourcing AI and robotics engineers. Your Tesla AI/robotics recruiting perspective looks very relevant - would love to connect.
+```
+
+19. Teresa Dinh
+   - URL: https://www.linkedin.com/in/dinhteresa
+   - Note:
+```text
+Hi Teresa, I am building Hirelix for technical recruiters working on robotics, AI, and software roles. Your Epic Games technical recruiting work looks very relevant - would love to connect.
+```
+
+20. Barbara Burns
+   - URL: https://www.linkedin.com/in/barbburns
+   - Note:
+```text
+Hi Barbara, I am building Hirelix for technical recruiters sourcing AI and robotics talent. Your AI Institute recruiting work looks highly relevant - would love to connect.
+```
+
+21. Colin Boon
+   - URL: https://www.linkedin.com/in/colin-boon-060612b5
+   - Note:
+```text
+Hi Colin, I am building Hirelix for technical recruiters working on early engineering teams. Your first-recruiter work at Figure looks very relevant - would love to connect.
+```
+
+22. Mark Lagman
+   - URL: https://www.linkedin.com/in/mark-lagman-030608ba
+   - Note:
+```text
+Hi Mark, I am building Hirelix for technical sourcers working on software and GenAI roles. Your Meta sourcing perspective looks very relevant - would love to connect.
+```
+
+23. Justin Pooler
+   - URL: https://www.linkedin.com/in/justin-pooler-b3523a76
+   - Note:
+```text
+Hi Justin, I am building Hirelix for recruiters sourcing GenAI, LLM, and software talent. Your full-cycle recruiting and sourcing background looks very relevant - would love to connect.
+```
+
+24. Janan Basaran
+   - URL: https://www.linkedin.com/in/janan-basaran-b1b16299
+   - Note:
+```text
+Hi Janan, I am building Hirelix for technical sourcers working on ML, robotics, and software roles. Your Wayve/Talentful sourcing work looks very relevant - would love to connect.
+```
+
+25. Ravi B.
+   - URL: https://www.linkedin.com/in/ravi-b-68277a171
+   - Note:
+```text
+Hi Ravi, I am building Hirelix for technical recruiters scaling engineering and product teams. Your startup and B2B SaaS recruiting work looks very relevant - would love to connect.
+```
+
+26. Drew Koloski
+   - URL: https://www.linkedin.com/in/drewk
+   - Note:
+```text
+Hi Drew, I am building Hirelix, an early AI sourcing tool for technical recruiters. Your recruiting technology background looks very relevant - would love to connect and compare notes.
+```
+
 ## Recording rules
 
 - After sending a connection request, set `message_sent` to the exact note and `status` to `connection_sent`.
