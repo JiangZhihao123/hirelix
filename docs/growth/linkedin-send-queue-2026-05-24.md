@@ -8,6 +8,15 @@ Source tracker: `docs/growth/linkedin-outreach-2026-05-24.csv`
 
 Send as connection requests first. If already connected or LinkedIn allows direct message, use the first DM from `linkedin-outreach-2026-05-24.md`.
 
+Before sending, make the visible LinkedIn profile English-first:
+
+- `Noah Jiang` display name.
+- English profile language or English profile version.
+- English public URL if available.
+- English headline and About.
+- Hirelix website featured link.
+- Hirelix banner.
+
 1. Rameet Singh
    - URL: https://www.linkedin.com/in/rameet
    - Note:
