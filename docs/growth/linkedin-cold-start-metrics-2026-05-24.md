@@ -10,6 +10,13 @@ Use this to judge whether the first outbound batch is producing useful market si
 - Keep the audience narrow: technical recruiters, technical sourcers, boutique search founders, and AI/software recruiting operators.
 - Stop early if LinkedIn shows account warnings, CAPTCHA, rate limits, or unusually low acceptance.
 
+## 2026-05-24 launch state
+
+- LinkedIn founder profile is now English-first and includes Hirelix banner, About, founder/builder experience, English public URL, and Featured website link.
+- Confirmed profile URL: `https://www.linkedin.com/in/noah-jiang-b4b7922a7/`.
+- First personalized connection requests sent: Rameet Singh, Lexi Lewtan, and Brian K. Williams.
+- Personalized invite quota appeared exhausted after Brian K. Williams, so the next step is to wait for accepts or quota reset before more personalized requests.
+
 ## Metrics
 
 Track these daily for 7 days after sending.
@@ -77,4 +84,3 @@ If a prospect has an active role:
 - Move to `trial_requested`.
 - Ask for the role type and must-have skills.
 - Encourage the free preview first; do not push payment before value is visible.
-

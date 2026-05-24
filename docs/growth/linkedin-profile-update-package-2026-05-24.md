@@ -6,19 +6,22 @@ Date: 2026-05-24
 
 Make the founder profile credible before first outbound: clear product context, truthful early-stage positioning, and a clean branded banner.
 
-## Current visible issues
+## Current visible state
 
-Observed on the live LinkedIn profile:
+Verified on the live LinkedIn profile after the 2026-05-24 update:
 
-- Display name is Chinese: `姜志豪`.
-- Public URL includes Chinese characters: `linkedin.com/in/志豪-姜-b38635157`.
-- Profile language is `Simplified Chinese`.
-- Current company and school are shown in Chinese on the first screen.
-- About is still missing.
-- No profile photo.
-- Banner is still generic.
+- Profile URL: `https://www.linkedin.com/in/noah-jiang-b4b7922a7/`.
+- Display name: `Noah Jiang`.
+- Headline: `Founder, Hirelix | AI sourcing for technical recruiters | Software Engineer`.
+- Profile language panel: `English` selected as the primary profile language; `简体中文` remains as a secondary profile.
+- Public URL: `www.linkedin.com/in/noah-jiang-b4b7922a7`.
+- About: English Hirelix founder-builder summary added.
+- Experience: `Founder / Builder` at `Hirelix`, start year `2026`, current role, remote in Hong Kong.
+- Banner: Hirelix branded banner uploaded.
+- Featured: Hirelix website link added.
+- Profile photo: existing real user photo is present.
 
-These are not wrong, but they create the wrong first impression for an English-speaking technical recruiter ICP. The first viewport should read like an international-facing B2B SaaS founder profile.
+Remaining caveat: the LinkedIn product UI is still localized in Simplified Chinese for the logged-in account, but the visible profile content used for outbound is English-first.
 
 ## Display name
 
@@ -123,6 +126,12 @@ Description:
 AI sourcing for technical recruiters and independent headhunters.
 ```
 
+Execution note:
+
+- First save attempt with a manually edited long title and description returned LinkedIn `保存失败`.
+- Retried with LinkedIn's fetched preview and shorter generated title: `Hirelix — Evidence-Backed Technical Shortlists`.
+- Final visible Featured card links to `https://hirelix.online/` through LinkedIn safety redirect and shows the Hirelix preview image.
+
 ## Services
 
 Only add services if LinkedIn offers a clear category that does not imply agency recruiting services. Prefer product/tooling wording:
@@ -137,11 +146,10 @@ Avoid wording that implies Noah personally provides recruiting placement service
 
 ## Photo
 
-Needed, but not solved yet:
+Current state:
 
-- Use a real professional headshot if the user provides one.
-- Do not use AI-generated identity photos for LinkedIn unless the user explicitly asks and reviews the result.
-- Until a real photo exists, the banner and English profile copy still improve the first impression substantially.
+- A real profile photo is already present.
+- Do not replace it with an AI-generated identity photo unless the user explicitly asks and reviews the result.
 
 ## Profile language guidance
 
@@ -175,16 +183,18 @@ Role brief -> ranked profiles -> fit evidence -> outreach context
 
 ## Execution order
 
-1. Change display name to `Noah Jiang`.
-2. Change or add English profile language.
-3. Change public profile URL to an English vanity URL if available.
-4. Save headline and About.
-5. Add or prioritize the Hirelix founder/builder experience.
-6. Add Featured website link to `https://hirelix.online`.
-7. Upload the banner image.
-8. Verify name, URL, language, headline, About, Featured, Experience, and banner on the public profile view.
-9. Start Batch 1 from `docs/growth/linkedin-send-queue-2026-05-24.md`.
-10. Record each action in `docs/growth/linkedin-outreach-2026-05-24.csv`.
+Completed:
+
+1. Changed display name to `Noah Jiang`.
+2. Added/switched to English profile language.
+3. Public profile URL is English-only: `www.linkedin.com/in/noah-jiang-b4b7922a7`.
+4. Saved headline and About.
+5. Added Hirelix founder/builder experience.
+6. Uploaded the Hirelix banner image.
+7. Added Featured website link to `https://hirelix.online/`.
+8. Verified name, URL, language, headline, About, Featured, Experience, and banner on the live profile.
+9. Started Batch 1 from `docs/growth/linkedin-send-queue-2026-05-24.md`.
+10. Recorded sent actions in `docs/growth/linkedin-outreach-2026-05-24.csv`.
 
 ## Guardrails
 
