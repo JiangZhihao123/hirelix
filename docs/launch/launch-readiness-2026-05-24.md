@@ -14,7 +14,7 @@ Evidence:
 
 - `curl -I https://hirelix.online` returned `HTTP/2 200`.
 - Playwright opened `https://hirelix.online`.
-- Page title: `Hirelix - Evidence-Backed Technical Shortlists`.
+- Page title: `Hirelix — Evidence-Backed Technical Shortlists`.
 - Landing page shows:
   - independent technical headhunter positioning
   - sample shortlist preview
@@ -32,21 +32,18 @@ Artifact:
 Evidence:
 
 - Production HTML includes:
-  - `<title>Hirelix - Evidence-Backed Technical Shortlists</title>`
+  - `<title>Hirelix — Evidence-Backed Technical Shortlists</title>`
   - meta description for evidence-backed technical shortlists
+  - canonical URL `https://hirelix.online`
   - Open Graph title, description, URL, site name, image, and image dimensions
   - Twitter summary large image card
-- `https://hirelix.online/og-image.png` returned `HTTP/2 200`.
+- `https://hirelix.online/og-image.png` returned `HTTP/2 200` with `content-length: 63963`, matching the updated production OG asset.
 - `https://hirelix.online/sitemap.xml` returned `HTTP/2 200` and lists the public marketing/legal pages.
 - `https://hirelix.online/robots.txt` allows the public pages and disallows `/app/` and `/api/`.
 - The OG image copy has been updated to the current truthful positioning:
   - `Evidence-backed technical shortlists`
   - `AI sourcing for technical recruiters`
   - `Role brief -> ranked profiles -> fit evidence -> outreach context`
-
-Note:
-
-- Canonical URL metadata was added in code after this check and should be verified on production after the next deployment.
 
 ### Product workspace
 
@@ -75,6 +72,7 @@ Evidence:
   - client-ready shortlist section
   - outreach approval queue
   - LinkedIn copy and email copy actions
+- Latest verification on 2026-05-24 confirmed this page still loads in the authenticated production session and shows candidate evidence, copy-ready outreach, status controls, and external LinkedIn profile links.
 
 Artifact:
 
@@ -100,6 +98,7 @@ Evidence:
 - Settings page showed paid add-ons:
   - Search Pack, $49
   - Contact Pack, $49
+- Latest verification on 2026-05-24 confirmed the removed `$1` Paddle test item is not visible in the production billing UI.
 
 Artifact:
 
