@@ -13,8 +13,7 @@ import { loadPaddle } from "@/lib/paddle";
 
 type CheckoutKind =
   | { type: "plan"; planCode: Exclude<BillingPlanCode, "free"> }
-  | { type: "add_on"; addOn: "search_pack" | "contact_pack" }
-  | { type: "test_payment" };
+  | { type: "add_on"; addOn: "search_pack" | "contact_pack" };
 
 type PaddleCheckoutButtonProps = {
   checkout: CheckoutKind;
@@ -54,16 +53,14 @@ export function PaddleCheckoutButton({
         ? checkout.addOn === "search_pack"
           ? config.searchPackPriceId
           : config.contactPackPriceId
-      : config.testPaymentPriceId;
+      : "";
 
   async function handleCheckout() {
     onClick?.();
     const purchaseType =
       checkout.type === "plan"
         ? checkout.planCode
-        : checkout.type === "add_on"
-          ? checkout.addOn
-          : "test_payment";
+        : checkout.addOn;
     trackEvent(ANALYTICS_EVENTS.checkoutStart, {
       ...getAnalyticsContextFromBrowser(),
       purchase_type: purchaseType,

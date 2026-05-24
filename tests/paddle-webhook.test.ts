@@ -37,24 +37,23 @@ test("verifyPaddleSignature rejects malformed signatures without throwing", () =
   }
 });
 
-test("isTestPayment identifies the dedicated $1 Paddle price", () => {
-  const originalPriceId = process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID;
-  process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID = "pri_test_payment";
-
-  try {
-    assert.equal(
-      isTestPayment({
-        items: [{ price: { id: "pri_test_payment" } }],
-      }),
-      true,
-    );
-    assert.equal(
-      isTestPayment({
-        items: [{ price: { id: "pri_search_pack" } }],
-      }),
-      false,
-    );
-  } finally {
-    process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID = originalPriceId;
-  }
+test("isTestPayment identifies legacy test-payment webhook metadata", () => {
+  assert.equal(
+    isTestPayment({
+      custom_data: {
+        purchase_type: "test_payment",
+      },
+      items: [{ price: { id: "pri_removed_test_payment" } }],
+    }),
+    true,
+  );
+  assert.equal(
+    isTestPayment({
+      custom_data: {
+        purchase_type: "search_pack",
+      },
+      items: [{ price: { id: "pri_search_pack" } }],
+    }),
+    false,
+  );
 });

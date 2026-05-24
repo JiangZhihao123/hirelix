@@ -55,7 +55,6 @@ function makeBillingSummary(
       agencyPriceIdConfigured: false,
       searchPackPriceIdConfigured: false,
       contactPackPriceIdConfigured: false,
-      testPaymentPriceIdConfigured: false,
     },
   };
 }
@@ -111,25 +110,21 @@ test("getCheckoutConfig trims configured Paddle values", () => {
     NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN,
     NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID: process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID,
     NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID: process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID,
-    NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID: process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID,
   };
 
   process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = " token \n";
   process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = " monthly \n";
   process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = " annual \t";
-  process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID = " test-price \n";
 
   try {
     const config = getCheckoutConfig();
     assert.equal(config.clientToken, "token");
     assert.equal(config.monthlyPriceId, "monthly");
     assert.equal(config.annualPriceId, "annual");
-    assert.equal(config.testPaymentPriceId, "test-price");
     assert.equal(config.enabled, true);
   } finally {
     process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = originalEnv.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
     process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = originalEnv.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID;
     process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = originalEnv.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
-    process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID = originalEnv.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID;
   }
 });

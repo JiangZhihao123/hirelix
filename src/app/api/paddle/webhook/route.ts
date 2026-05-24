@@ -95,9 +95,12 @@ function resolvePlanCode(priceIds: string[]) {
 }
 
 export function isTestPayment(data: Record<string, unknown>) {
-  const config = getCheckoutConfig();
-  const priceIds = getPriceIds(data);
-  return Boolean(config.testPaymentPriceId && priceIds.includes(config.testPaymentPriceId));
+  const customData = data.custom_data;
+  return (
+    Boolean(customData) &&
+    typeof customData === "object" &&
+    (customData as Record<string, unknown>).purchase_type === "test_payment"
+  );
 }
 
 function extractCustomUserId(data: Record<string, unknown>) {

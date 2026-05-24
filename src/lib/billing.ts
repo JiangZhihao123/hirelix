@@ -42,14 +42,6 @@ export type UsageSummary = {
   extraEnrichCredits: number;
 };
 
-export type TestPaymentStatus = {
-  configuredPriceId: string | null;
-  lastCompletedAt: string | null;
-  lastEventId: string | null;
-  lastTransactionId: string | null;
-  lastPriceIds: string[];
-};
-
 export type BillingSummary = {
   plan: BillingPlan;
   subscription: {
@@ -70,10 +62,6 @@ export type BillingSummary = {
     agencyPriceIdConfigured: boolean;
     searchPackPriceIdConfigured: boolean;
     contactPackPriceIdConfigured: boolean;
-    testPaymentPriceIdConfigured: boolean;
-  };
-  adminDiagnostics?: {
-    testPayment: TestPaymentStatus;
   };
 };
 
@@ -322,7 +310,6 @@ export function getCheckoutConfig(): {
   agencyPriceId: string;
   searchPackPriceId: string;
   contactPackPriceId: string;
-  testPaymentPriceId: string;
 } {
   const clientToken = (process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "").trim();
   const monthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "").trim();
@@ -333,7 +320,6 @@ export function getCheckoutConfig(): {
   const agencyPriceId = (process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "").trim();
   const searchPackPriceId = (process.env.NEXT_PUBLIC_PADDLE_SEARCH_PACK_PRICE_ID || "").trim();
   const contactPackPriceId = (process.env.NEXT_PUBLIC_PADDLE_CONTACT_PACK_PRICE_ID || "").trim();
-  const testPaymentPriceId = (process.env.NEXT_PUBLIC_PADDLE_TEST_PAYMENT_PRICE_ID || "").trim();
 
   return {
     enabled: Boolean(clientToken && monthlyPriceId && annualPriceId),
@@ -348,6 +334,5 @@ export function getCheckoutConfig(): {
     agencyPriceId,
     searchPackPriceId,
     contactPackPriceId,
-    testPaymentPriceId,
   };
 }

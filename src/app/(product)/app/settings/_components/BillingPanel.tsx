@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CreditCard, Download, Mail, Search } from "lucide-react";
-import { useAuth } from "@/components/AuthProvider";
+import { Download, Mail, Search } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   BILLING_PLANS,
@@ -11,7 +10,6 @@ import {
   formatCountLabel,
   type BillingSummary,
 } from "@/lib/billing";
-import { isAdminEmail } from "@/lib/admin";
 import {
   formatDateLabel,
   getUsageWidth,
@@ -22,10 +20,7 @@ import {
 } from "./shared";
 
 export function BillingPanel({ billing }: { billing: BillingSummary }) {
-  const { user } = useAuth();
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
-  const isAdmin = isAdminEmail(user?.email, process.env.NEXT_PUBLIC_ADMIN_EMAIL);
-  const testPayment = billing.adminDiagnostics?.testPayment;
 
   return (
     <SettingsSection
@@ -310,57 +305,6 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             </div>
           </div>
 
-          {isAdmin && billing.checkout.testPaymentPriceIdConfigured ? (
-            <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <CreditCard className="h-4 w-4 text-slate-500" />
-                    Payment smoke test
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Admin-only $1 Paddle charge. Records the webhook event without changing plan or credits.
-                  </p>
-                  <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-                    <p className="inline-flex items-center gap-1.5 font-medium text-slate-800">
-                      {testPayment?.lastCompletedAt ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      ) : null}
-                      {testPayment?.lastCompletedAt
-                        ? "Last $1 webhook recorded"
-                        : "No $1 webhook recorded yet"}
-                    </p>
-                    {testPayment?.lastCompletedAt ? (
-                      <div className="mt-2 grid gap-1 text-slate-500 sm:grid-cols-2">
-                        <p>
-                          <span className="font-medium text-slate-700">Completed:</span>{" "}
-                          {formatDateLabel(testPayment.lastCompletedAt)}
-                        </p>
-                        <p className="truncate">
-                          <span className="font-medium text-slate-700">Transaction:</span>{" "}
-                          {testPayment.lastTransactionId ?? "Unknown"}
-                        </p>
-                        <p className="truncate sm:col-span-2">
-                          <span className="font-medium text-slate-700">Event:</span>{" "}
-                          {testPayment.lastEventId ?? "Unknown"}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-slate-500">
-                        Complete checkout, then return here or refresh billing to confirm the webhook landed.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <PaddleCheckoutButton
-                  checkout={{ type: "test_payment" }}
-                  label="Run $1 test"
-                  onError={(message) => setBillingMessage({ type: "error", text: message })}
-                  className="inline-flex w-full shrink-0 items-center justify-center rounded-md bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                />
-              </div>
-            </div>
-          ) : null}
         </SettingsFieldGroup>
 
         <MessageBanner message={billingMessage} />
