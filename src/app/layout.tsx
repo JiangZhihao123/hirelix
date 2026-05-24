@@ -14,9 +14,13 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://hirelix.online"),
   title: "Hirelix — Evidence-Backed Technical Shortlists",
   description:
     "Turn a client JD into an evidence-backed technical shortlist with fit reasons, risks to verify, and outreach-ready candidates.",
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },

@@ -22,7 +22,7 @@ I kept hearing from recruiters that sourcing just eats the day. Open LinkedIn, t
 
 So I built something to see if it could be faster.
 
-You paste a job description. It searches 270M+ professional profiles (LinkedIn, GitHub, etc.), ranks the best matches, and generates a personalized outreach email for each candidate — one that actually references their background. The whole thing takes about 5 minutes.
+You paste a job description. It searches for real technical profiles, ranks the best matches with fit reasons and risks to verify, and prepares outreach context you can edit before sending.
 
 It's called **Hirelix**: https://hirelix.online
 

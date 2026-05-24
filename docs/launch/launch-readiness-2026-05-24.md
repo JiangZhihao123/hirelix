@@ -27,6 +27,27 @@ Artifact:
 
 - `docs/launch/production-smoke-landing-text-2026-05-24.txt`
 
+### SEO and social preview
+
+Evidence:
+
+- Production HTML includes:
+  - `<title>Hirelix - Evidence-Backed Technical Shortlists</title>`
+  - meta description for evidence-backed technical shortlists
+  - Open Graph title, description, URL, site name, image, and image dimensions
+  - Twitter summary large image card
+- `https://hirelix.online/og-image.png` returned `HTTP/2 200`.
+- `https://hirelix.online/sitemap.xml` returned `HTTP/2 200` and lists the public marketing/legal pages.
+- `https://hirelix.online/robots.txt` allows the public pages and disallows `/app/` and `/api/`.
+- The OG image copy has been updated to the current truthful positioning:
+  - `Evidence-backed technical shortlists`
+  - `AI sourcing for technical recruiters`
+  - `Role brief -> ranked profiles -> fit evidence -> outreach context`
+
+Note:
+
+- Canonical URL metadata was added in code after this check and should be verified on production after the next deployment.
+
 ### Product workspace
 
 Evidence:
