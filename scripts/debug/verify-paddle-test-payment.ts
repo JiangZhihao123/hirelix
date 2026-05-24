@@ -103,7 +103,7 @@ async function main() {
         transactionId
           ? sql`${hirelix_billing_events.payload}::text ilike ${`%${transactionId}%`}`
           : userId
-            ? eq(hirelix_billing_events.user_id, userId)
+            ? sql`(${hirelix_billing_events.user_id} = ${userId} or ${hirelix_billing_events.payload}->'data'->'custom_data'->>'user_id' = ${userId})`
             : sql`${hirelix_billing_events.payload}::text ilike ${`%${email}%`}`,
       ),
     )

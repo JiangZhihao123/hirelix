@@ -26,6 +26,7 @@ type PaddleEventPayload = {
     id?: string;
     custom_data?: {
       purchase_type?: string;
+      user_id?: string;
     };
     items?: Array<{
       price?: {
@@ -54,7 +55,7 @@ async function getTestPaymentStatusForUser(
     .from(hirelix_billing_events)
     .where(
       and(
-        eq(hirelix_billing_events.user_id, userId),
+        sql`(${hirelix_billing_events.user_id} = ${userId} or ${hirelix_billing_events.payload}->'data'->'custom_data'->>'user_id' = ${userId})`,
         eq(hirelix_billing_events.event_type, "transaction.completed"),
       ),
     )

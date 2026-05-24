@@ -105,7 +105,7 @@ export function PaddleCheckoutButton({
         return;
       }
 
-      const successUrl = `${window.location.origin}/app/settings?checkout=success`;
+      const successUrl = `${window.location.origin}/app/settings?checkout=success#billing`;
       paddle.Checkout.open({
         items: [{ priceId, quantity: 1 }],
         customer: {
