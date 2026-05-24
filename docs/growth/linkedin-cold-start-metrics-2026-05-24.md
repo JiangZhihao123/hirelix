@@ -21,6 +21,10 @@ Use this to judge whether the first outbound batch is producing useful market si
   - My Network overview showed `3` sent invitations, `0` connections, and no pending received invitations.
   - Sent invitation manager showed Brian K. Williams, Lexi Lewtan, and Rameet Singh still pending, each sent about 1 hour earlier.
   - No first DM was sent yet because none of the first three prospects had accepted.
+- 2026-05-25 00:02 CST check:
+  - Sent invitation manager still showed Brian K. Williams, Lexi Lewtan, and Rameet Singh pending.
+  - No accepted connection or first-DM opportunity was visible.
+  - Batch 2 is prepared in `docs/growth/linkedin-send-queue-2026-05-24.md`, but should wait for personalized note availability or a Batch 1 acceptance.
 
 ## Metrics
 

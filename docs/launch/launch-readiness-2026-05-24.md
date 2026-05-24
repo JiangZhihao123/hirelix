@@ -123,6 +123,12 @@ Evidence:
   - target user: `852c199d-3fc1-4543-bea5-34d2db7a54e3`
   - verified DB effect before cleanup: `extra_search_credits = 3`, `extra_enrich_credits = 0`
   - cleanup verified: temporary billing event rows remaining `0`, temporary settings rows remaining `0`
+- A signed production webhook smoke event for a non-test Contact Pack completed with HTTP `200`:
+  - temporary event ID: `evt_prod_smoke_contact_1779638414889`
+  - event type: `transaction.completed`
+  - target user: `852c199d-3fc1-4543-bea5-34d2db7a54e3`
+  - verified DB effect before cleanup: `extra_search_credits = 0`, `extra_enrich_credits = 50`
+  - cleanup verified: temporary billing event rows remaining `0`, temporary settings rows remaining `0`
 - A signed production webhook smoke event for Solo monthly subscription completed with HTTP `200`:
   - temporary event ID: `evt_prod_smoke_sub_1779637326284`
   - event type: `subscription.created`
@@ -139,7 +145,7 @@ Evidence:
 Interpretation:
 
 - Real Paddle-to-production webhook delivery is proven by the completed `$1` payment.
-- Normal paid entitlement handling is proven at the production webhook/API/DB layer by signed production smoke events.
+- Normal paid plan, Search Pack, and Contact Pack entitlement handling is proven at the production webhook/API/DB layer by signed production smoke events.
 - Duplicate Paddle deliveries are ignored without double-crediting.
 - A real paid Solo or Pro card charge has not been performed yet.
 

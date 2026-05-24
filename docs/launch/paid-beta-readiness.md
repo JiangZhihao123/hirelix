@@ -27,6 +27,11 @@ This checklist is for the Hirelix paid launch.
   - production webhook returned HTTP `200`
   - production DB temporarily showed `extra_search_credits = 3`
   - temporary rows were cleaned up and rechecked.
+- Verified non-test Contact Pack entitlement handling with a signed production webhook smoke event:
+  - event ID `evt_prod_smoke_contact_1779638414889`
+  - production webhook returned HTTP `200`
+  - production DB temporarily showed `extra_search_credits = 0` and `extra_enrich_credits = 50`
+  - temporary rows were cleaned up and rechecked.
 - Verified Solo monthly subscription entitlement handling with a signed production webhook smoke event:
   - event ID `evt_prod_smoke_sub_1779637326284`
   - production webhook returned HTTP `200`
@@ -41,7 +46,6 @@ This checklist is for the Hirelix paid launch.
   - temporary rows were cleaned up and rechecked.
 - Still not performed: real paid monthly checkout with a `$149+` card charge.
 - Still not performed: real paid annual checkout with a `$1,428+` card charge.
-- Still not performed: real paid Contact Pack checkout with a `$49` card charge.
 
 ### UX and messaging
 
