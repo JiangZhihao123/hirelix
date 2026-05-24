@@ -33,10 +33,15 @@ This checklist is for the Hirelix paid launch.
   - production DB temporarily showed `subscription_plan = starter_monthly`, `subscription_status = active`, `billing_cycle = month`, and renew date `2026-06-24 15:45:00+00`
   - temporary rows were cleaned up and rechecked.
 - Normal paid webhook processing updates subscription plan, credits, and renew dates at the production webhook/API/DB layer.
+- Verified duplicate webhook delivery is ignored safely:
+  - event ID `evt_prod_smoke_dup_1779637820401`
+  - first delivery returned `{"ok":true}`
+  - second delivery returned `{"ok":true,"duplicate":true}`
+  - production DB temporarily showed one event row and `extra_search_credits = 3`, not `6`
+  - temporary rows were cleaned up and rechecked.
 - Still not performed: real paid monthly checkout with a `$149+` card charge.
 - Still not performed: real paid annual checkout with a `$1,428+` card charge.
 - Still not performed: real paid Contact Pack checkout with a `$49` card charge.
-- Verify duplicate webhook delivery is ignored safely.
 
 ### UX and messaging
 

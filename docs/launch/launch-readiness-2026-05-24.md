@@ -129,11 +129,18 @@ Evidence:
   - target user: `852c199d-3fc1-4543-bea5-34d2db7a54e3`
   - verified DB effect before cleanup: `subscription_plan = starter_monthly`, `subscription_status = active`, `billing_cycle = month`, subscription renews at `2026-06-24 15:45:00+00`
   - cleanup verified: temporary billing event rows remaining `0`, temporary settings rows remaining `0`
+- Duplicate delivery was verified with a signed production webhook smoke event:
+  - temporary event ID: `evt_prod_smoke_dup_1779637820401`
+  - first delivery returned HTTP `200` with `{"ok":true}`
+  - second delivery returned HTTP `200` with `{"ok":true,"duplicate":true}`
+  - verified DB effect before cleanup: one billing event row and `extra_search_credits = 3`, not `6`
+  - cleanup verified: temporary billing event rows remaining `0`, temporary settings rows remaining `0`
 
 Interpretation:
 
 - Real Paddle-to-production webhook delivery is proven by the completed `$1` payment.
 - Normal paid entitlement handling is proven at the production webhook/API/DB layer by signed production smoke events.
+- Duplicate Paddle deliveries are ignored without double-crediting.
 - A real paid Solo or Pro card charge has not been performed yet.
 
 ## Removed test payment check
