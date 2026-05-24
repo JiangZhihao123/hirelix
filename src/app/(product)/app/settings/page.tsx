@@ -92,6 +92,20 @@ export default function SettingsPage() {
   }, [fetchSettings, searchParams]);
 
   useEffect(() => {
+    if (searchParams.get("checkout") !== "success") return;
+
+    const timers = [3000, 8000, 15000].map((delay) =>
+      window.setTimeout(() => {
+        void fetchSettings();
+        void refreshBilling();
+      }, delay),
+    );
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [fetchSettings, refreshBilling, searchParams]);
+
+  useEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
     return () => {
