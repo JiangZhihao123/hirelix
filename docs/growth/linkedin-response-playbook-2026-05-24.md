@@ -56,6 +56,7 @@ Tracker update:
 
 - `status`: `meeting_requested`
 - Add availability or preferred format to `notes`
+- Use `docs/growth/customer-discovery-call-script-2026-05-24.md` for the call.
 
 ## If they are not a fit
 
@@ -83,3 +84,21 @@ Tracker update:
 - `status`: `followed_up`
 - `next_follow_up`: blank unless a second follow-up is intentionally planned
 
+## If they want a short written overview
+
+Send:
+
+```text
+Here is the short version:
+
+Hirelix helps independent technical recruiters turn a role brief into an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach-ready context.
+
+The first use case is simple: test it on one real software engineering role and see whether the shortlist evidence is useful enough to trust.
+
+Link: https://hirelix.online
+```
+
+Tracker update:
+
+- `status`: `overview_sent`
+- Add whether they asked about pricing, data sources, or workflow to `notes`
