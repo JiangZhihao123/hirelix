@@ -11,6 +11,7 @@ import {
   formatCountLabel,
   type BillingSummary,
 } from "@/lib/billing";
+import { isAdminEmail } from "@/lib/admin";
 import {
   formatDateLabel,
   getUsageWidth,
@@ -23,10 +24,7 @@ import {
 export function BillingPanel({ billing }: { billing: BillingSummary }) {
   const { user } = useAuth();
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  const isAdmin = adminEmail
-    ? user?.email?.toLowerCase() === adminEmail.toLowerCase()
-    : false;
+  const isAdmin = isAdminEmail(user?.email, process.env.NEXT_PUBLIC_ADMIN_EMAIL);
 
   return (
     <SettingsSection

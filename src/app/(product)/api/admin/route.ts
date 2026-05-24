@@ -8,19 +8,11 @@ import {
   hirelix_usage_events,
   hirelix_user_settings,
 } from "@/db/schema";
+import { isAdminEmail as matchesAdminEmail } from "@/lib/admin";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 
-function getAdminEmails(): string[] {
-  const raw = process.env.ADMIN_EMAIL ?? "";
-  return raw
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 export function isAdminEmail(email: string | undefined): boolean {
-  if (!email) return false;
-  return getAdminEmails().includes(email.toLowerCase());
+  return matchesAdminEmail(email, process.env.ADMIN_EMAIL);
 }
 
 export async function requireAdmin(
