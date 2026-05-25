@@ -4,6 +4,9 @@ import { db } from "@/db/client";
 import { hirelix_growth_outreach_clicks } from "@/db/schema";
 
 const DEFAULT_CLICK_ALERT_RECIPIENT = "jzh_spring@163.com";
+const OUTREACH_EMAIL_ID_PATTERN = /^20\d{2}-\d{2}-\d{2}-batch\d+-[a-z0-9-]+$/;
+const STATIC_ASSET_PATTERN = /(?:^|\/)(?:_next\/static|static\/|assets\/|favicon\.|robots\.txt|sitemap\.xml)|\.(?:js|css|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$/i;
+const SCANNER_USER_AGENT_PATTERN = /virustotal|appengine-google|python-requests|go-http-client|urlscan|googleimageproxy|proofpoint|mimecast|barracuda|mandrill|sendgrid|mailchimp|linkexpand|preview|crawler|spider|bot/i;
 
 function getBaseUrl() {
   return process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://hirelix.online";
@@ -20,6 +23,18 @@ function getIpAddress(req: NextRequest) {
   return getHeader(req, "x-real-ip");
 }
 
+function safeQueryValue(value: string | null, maxLength: number) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLength) return null;
+  if (STATIC_ASSET_PATTERN.test(trimmed)) return null;
+  return trimmed;
+}
+
+function hasStaticAssetQueryValue(url: URL) {
+  return Array.from(url.searchParams.values()).some((value) => STATIC_ASSET_PATTERN.test(value));
+}
+
 function buildDestination(req: NextRequest, emailId: string) {
   const url = new URL(req.url);
   const baseUrl = getBaseUrl();
@@ -32,9 +47,9 @@ function buildDestination(req: NextRequest, emailId: string) {
   destination.searchParams.set("entry", "landing");
   destination.searchParams.set("intent_path", "direct_jd");
   destination.searchParams.set("traffic_source", "cold_email");
-  const batchId = url.searchParams.get("batch");
-  const recipient = url.searchParams.get("to");
-  const company = url.searchParams.get("company");
+  const batchId = safeQueryValue(url.searchParams.get("batch"), 80);
+  const recipient = safeQueryValue(url.searchParams.get("to"), 200);
+  const company = safeQueryValue(url.searchParams.get("company"), 200);
   if (batchId) destination.searchParams.set("batch", batchId);
   if (recipient) destination.searchParams.set("to", recipient);
   if (company) destination.searchParams.set("company", company);
@@ -60,6 +75,24 @@ function getClickAlertFromEmail() {
     process.env.SEARCH_NOTIFICATIONS_FROM_EMAIL ||
     process.env.BILLING_ALERTS_FROM_EMAIL ||
     "Hirelix <notifications@hirelix.online>";
+}
+
+function isLikelySecurityScan(userAgent: string | null) {
+  return Boolean(userAgent && SCANNER_USER_AGENT_PATTERN.test(userAgent));
+}
+
+function shouldNotifyClick(params: {
+  emailId: string;
+  batchId: string | null;
+  recipient: string | null;
+  userAgent: string | null;
+  hasStaticAssetQuery: boolean;
+}) {
+  if (!OUTREACH_EMAIL_ID_PATTERN.test(params.emailId)) return false;
+  if (!params.batchId || !params.recipient) return false;
+  if (params.hasStaticAssetQuery) return false;
+  if (isLikelySecurityScan(params.userAgent)) return false;
+  return true;
 }
 
 async function notifyClick(params: {
@@ -122,11 +155,19 @@ export async function GET(
   const { emailId } = await params;
   const url = new URL(req.url);
   const destination = buildDestination(req, emailId);
-  const batchId = url.searchParams.get("batch");
-  const recipient = url.searchParams.get("to");
-  const company = url.searchParams.get("company");
+  const batchId = safeQueryValue(url.searchParams.get("batch"), 80);
+  const recipient = safeQueryValue(url.searchParams.get("to"), 200);
+  const company = safeQueryValue(url.searchParams.get("company"), 200);
   const ipAddress = getIpAddress(req);
   const userAgent = getHeader(req, "user-agent");
+  const hasStaticAssetQuery = hasStaticAssetQueryValue(url);
+  const shouldNotify = shouldNotifyClick({
+    emailId,
+    batchId,
+    recipient,
+    userAgent,
+    hasStaticAssetQuery,
+  });
 
   try {
     await db.insert(hirelix_growth_outreach_clicks).values({
@@ -141,6 +182,9 @@ export async function GET(
       referer: getHeader(req, "referer"),
       metadata: {
         campaign: url.searchParams.get("campaign") || "founder_outreach",
+        alert_suppressed: !shouldNotify,
+        likely_security_scan: isLikelySecurityScan(userAgent),
+        static_asset_query: hasStaticAssetQuery,
       },
     });
   } catch (error) {
@@ -150,21 +194,23 @@ export async function GET(
     });
   }
 
-  try {
-    await notifyClick({
-      emailId,
-      batchId,
-      recipient,
-      company,
-      destinationUrl: destination.toString(),
-      ipAddress,
-      userAgent,
-    });
-  } catch (error) {
-    console.error("[growth:outreach_click_alert_failed]", {
-      email_id: emailId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+  if (shouldNotify) {
+    try {
+      await notifyClick({
+        emailId,
+        batchId,
+        recipient,
+        company,
+        destinationUrl: destination.toString(),
+        ipAddress,
+        userAgent,
+      });
+    } catch (error) {
+      console.error("[growth:outreach_click_alert_failed]", {
+        email_id: emailId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   return NextResponse.redirect(destination, 302);

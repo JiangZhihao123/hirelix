@@ -1,0 +1,50 @@
+{
+  "date": "2026-05-25",
+  "batch": 9,
+  "tracking_batch_id": "9",
+  "tracking_campaign": "founder_outreach_batch9_public_email",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_with_public_email_tracking_and_reply_to_owner",
+  "notes": [
+    "Ninth batch uses emails explicitly published on recruiter websites.",
+    "Hunter was not used for this batch; public website emails were preferred.",
+    "Links are tracked through /go/[email_id].",
+    "Click alerts are delivered to jzh_spring@163.com via Resend.",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "Every email includes a clear opt-out line and mailing address."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch9-trg",
+      "to": "enquiries@trg-uk.com",
+      "first_name": "Team",
+      "company": "trg.",
+      "priority": 1,
+      "source_url": "https://www.trg-uk.com/contact/",
+      "subject": "Quick question on technical recruiting workflow",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and specialist search teams.\n\ntrg. looked relevant because your work sits close to the workflow I am trying to support: engineering, DevOps, product, data, UX, and community-led technical recruitment where candidate signal matters more than resume volume.\n\nHirelix focuses on one narrow workflow: client JD in, evidence-backed technical shortlist out. Each candidate comes with fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would be useful for a technical recruiting desk?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch9-harrington-starr",
+      "to": "info@harringtonstarr.com",
+      "first_name": "Team",
+      "company": "Harrington Starr",
+      "priority": 2,
+      "source_url": "https://www.harringtonstarr.com/contact-us/",
+      "subject": "Quick question on fintech technical search",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and specialist search teams.\n\nHarrington Starr looked relevant because fintech technical hiring often needs more context than keyword matching can provide: software engineering, data, DevOps, cloud, cybersecurity, quantitative finance, and product roles all require credible evidence before a recruiter sends someone forward.\n\nHirelix turns a client JD into a ranked shortlist of real technical profiles, with fit evidence, risks to verify, and outreach-ready context for each person.\n\nWould you be open to giving blunt feedback on whether this would help with selective fintech technology searches?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch9-source-group-international",
+      "to": "hello@sourcegroupinternational.com",
+      "first_name": "Team",
+      "company": "Source Group International",
+      "priority": 3,
+      "source_url": "https://www.sourcegroupinternational.com",
+      "subject": "Quick question on technology staffing workflow",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and technology staffing teams.\n\nSource Group International looked relevant because you cover niche technology staffing across software development, AI and machine learning, data, cloud, cybersecurity, infrastructure, and ERP. Those searches often need a recruiter to understand technical fit before submitting a shortlist.\n\nHirelix takes a client JD and produces an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would be useful for your technology staffing workflow?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
