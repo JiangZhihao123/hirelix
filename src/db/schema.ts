@@ -236,6 +236,37 @@ export const hirelix_billing_events = pgTable("hirelix_billing_events", {
 });
 
 // ---------------------------------------------------------------------------
+// Growth outreach tracking
+// ---------------------------------------------------------------------------
+export const hirelix_growth_outreach_clicks = pgTable(
+  "hirelix_growth_outreach_clicks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email_id: text("email_id").notNull(),
+    batch_id: text("batch_id"),
+    recipient: text("recipient"),
+    company: text("company"),
+    source_url: text("source_url"),
+    destination_url: text("destination_url").notNull(),
+    ip_address: text("ip_address"),
+    user_agent: text("user_agent"),
+    referer: text("referer"),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    email_created_idx: index("idx_hirelix_growth_outreach_clicks_email_created").on(
+      t.email_id,
+      t.created_at,
+    ),
+    batch_created_idx: index("idx_hirelix_growth_outreach_clicks_batch_created").on(
+      t.batch_id,
+      t.created_at,
+    ),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // LLM usage events
 // ---------------------------------------------------------------------------
 export const hirelix_llm_usage_events = pgTable(
@@ -536,6 +567,7 @@ export const schema = {
   hirelix_user_settings,
   hirelix_usage_events,
   hirelix_billing_events,
+  hirelix_growth_outreach_clicks,
   hirelix_llm_usage_events,
   hirelix_github_identity_cache,
   hirelix_github_profile_cache,

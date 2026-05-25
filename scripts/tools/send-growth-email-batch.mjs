@@ -5,6 +5,7 @@ import path from "node:path";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const ADDRESS_PLACEHOLDER = "{{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}";
+const DEFAULT_PRODUCT_URL = "https://hirelix.online";
 
 function loadDotEnv(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -39,6 +40,7 @@ Required for --send:
 
 Optional:
   OUTREACH_LOG_PATH        defaults to docs/growth/cold-email-send-log-2026-05-25.csv
+  OUTREACH_TRACKING_BASE   defaults to https://hirelix.online
 `);
 }
 
@@ -66,6 +68,28 @@ function appendLog(logPath, row) {
 
 function renderBody(body, postalAddress) {
   return body.replaceAll(ADDRESS_PLACEHOLDER, postalAddress);
+}
+
+function buildTrackingUrl(email, batch, trackingBase) {
+  const base = (trackingBase || DEFAULT_PRODUCT_URL).replace(/\/+$/, "");
+  const params = new URLSearchParams();
+  const batchId = batch.tracking_batch_id || batch.batch || batch.date || "";
+  if (batchId) params.set("batch", String(batchId));
+  params.set("campaign", batch.tracking_campaign || "founder_outreach");
+  if (email.to) params.set("to", email.to);
+  if (email.company) params.set("company", email.company);
+  return `${base}/go/${encodeURIComponent(email.id)}?${params.toString()}`;
+}
+
+function renderTrackedBody(email, batch, env) {
+  const postalAddress = env.OUTREACH_POSTAL_ADDRESS || ADDRESS_PLACEHOLDER;
+  const trackingUrl = buildTrackingUrl(email, batch, env.OUTREACH_TRACKING_BASE);
+  const productUrls = new Set([batch.product_url || DEFAULT_PRODUCT_URL, DEFAULT_PRODUCT_URL]);
+  let body = renderBody(email.body, postalAddress);
+  for (const productUrl of productUrls) {
+    body = body.replaceAll(productUrl, trackingUrl);
+  }
+  return body;
 }
 
 function validateSendConfig(env) {
@@ -145,7 +169,7 @@ if (!shouldSend) {
     console.log("\n---");
     console.log(`To: ${email.to}`);
     console.log(`Subject: ${email.subject}`);
-    console.log(email.body);
+    console.log(renderTrackedBody(email, batch, env));
   }
   console.log("\nNo emails sent. Add --send --yes to send after final approval.");
   process.exit(0);
@@ -155,7 +179,7 @@ validateSendConfig(env);
 
 const logPath = env.OUTREACH_LOG_PATH || "docs/growth/cold-email-send-log-2026-05-25.csv";
 for (const email of emails) {
-  const body = renderBody(email.body, env.OUTREACH_POSTAL_ADDRESS);
+  const body = renderTrackedBody(email, batch, env);
   try {
     const result = await sendEmail({
       apiKey: env.RESEND_API_KEY,
