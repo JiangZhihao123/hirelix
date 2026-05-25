@@ -1,0 +1,58 @@
+{
+  "date": "2026-05-25",
+  "batch": 4,
+  "tracking_batch_id": "4",
+  "tracking_campaign": "founder_outreach_batch4",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_with_tracking_click_alert_and_reply_to_owner",
+  "notes": [
+    "Fourth batch uses tracked Hirelix links through /go/[email_id].",
+    "Click alerts are delivered to jzh_spring@163.com via Resend.",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "Every email includes a clear opt-out line."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch4-stephanie-grosso",
+      "to": "stephanie.grosso@averityteam.com",
+      "first_name": "Stephanie",
+      "company": "Averity",
+      "priority": 1,
+      "source_url": "https://www.averityteam.com",
+      "subject": "Quick question on technical recruiting workflow",
+      "body": "Hi Stephanie,\n\nI am building Hirelix for technical recruiters who work on software, data, DevOps, and security roles.\n\nAverity's specialized teams around software engineering, data engineering, data science, DevOps, and security looked very relevant. Hirelix focuses on one narrow workflow: client JD in, evidence-backed technical shortlist out.\n\nIt ranks real profiles with fit reasons, risks to verify, and outreach context a recruiter can personalize before contacting candidates.\n\nWould you be open to a quick look and blunt feedback on whether this would save review time for a technical recruiting desk?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch4-tom-potanski",
+      "to": "tpotanski@devsdata.com",
+      "first_name": "Tom",
+      "company": "DevsData",
+      "priority": 2,
+      "source_url": "https://devsdata.com/top-machine-learning-recruitment-agencies",
+      "subject": "Quick question on ML/engineering recruiting",
+      "body": "Hi Tom,\n\nI am building Hirelix for technical recruiters working on engineering, ML, and data roles.\n\nDevsData's ML and senior engineering recruiting content stood out to me. Hirelix is trying to help a recruiter get from a real client JD to a credible shortlist faster, with evidence instead of just keyword matches.\n\nEach profile gets fit reasons, risks to verify, and outreach-ready context so the recruiter can make a better first-pass call.\n\nWould you be open to giving blunt feedback on whether this would help with one ML or engineering search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch4-leon-rutkowski",
+      "to": "leon@lr2sq.com",
+      "first_name": "Leon",
+      "company": "LR Squared",
+      "priority": 3,
+      "source_url": "https://www.linkedin.com/in/leon-rutkowski-8151106",
+      "subject": "Quick question on AI/cloud recruiting",
+      "body": "Hi Leon,\n\nI am building Hirelix for specialist recruiters working technical searches.\n\nYour focus on early-stage vendors across infrastructure, AI/cloud computing, cybersecurity, networking, automation, and SaaS looked relevant to the workflow I am trying to improve.\n\nHirelix turns a client JD into an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach context. The goal is to help a recruiter judge fit faster without losing the human touch.\n\nWould you be open to a quick look and blunt feedback?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch4-dave-bevington",
+      "to": "dbevington@directrecruiters.com",
+      "first_name": "Dave",
+      "company": "Direct Recruiters",
+      "priority": 4,
+      "source_url": "https://directrecruiters.com/practice-areas/industrial-ai-executive-search-and-recruiters",
+      "subject": "Quick question on industrial AI recruiting",
+      "body": "Hi Dave,\n\nI am building Hirelix for technical recruiters and headhunters working hard-to-fill engineering roles.\n\nYour Industrial AI and automation recruiting work stood out because those searches need more technical context than a normal keyword pass can provide.\n\nHirelix turns a client JD into a ranked shortlist of real profiles, with fit evidence, risks to verify, and outreach-ready context for each person.\n\nWould you be open to giving blunt feedback on whether this would help with an industrial AI, robotics, or automation search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}

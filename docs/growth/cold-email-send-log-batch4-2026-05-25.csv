@@ -1,0 +1,5 @@
+date,email_id,to,company,status,resend_id,error,notes
+2026-05-25T06:47:36.824Z,2026-05-25-batch4-stephanie-grosso,stephanie.grosso@averityteam.com,Averity,sent,40de2901-c35b-4da2-8e8c-c87c6c18494e,,
+2026-05-25T06:47:38.138Z,2026-05-25-batch4-tom-potanski,tpotanski@devsdata.com,DevsData,sent,e601a37f-b645-40dc-a9f6-53fee2679413,,
+2026-05-25T06:47:38.547Z,2026-05-25-batch4-leon-rutkowski,leon@lr2sq.com,LR Squared,sent,8f6b390e-575d-4129-bd5f-fc6b1253c371,,
+2026-05-25T06:47:38.920Z,2026-05-25-batch4-dave-bevington,dbevington@directrecruiters.com,Direct Recruiters,sent,be238431-0d2a-4a5a-8227-057704603bec,,

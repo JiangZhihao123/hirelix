@@ -1,0 +1,7 @@
+checked_at,email_id,to,company,resend_id,last_event,notes
+2026-05-25T06:38:00Z,2026-05-25-batch3-max-schnepper,max@maxtechtalent.com,Max Tech Talent,ad14c5bd-77eb-428a-af4f-3259d3137e0b,delivered,
+2026-05-25T06:38:00Z,2026-05-25-batch3-david-bitton,david@devtalent.io,DevTalent,e001ae7c-addf-416b-9287-af0cbac88922,delivered,
+2026-05-25T06:38:00Z,2026-05-25-batch3-joe-coletta,joe@180engineering.com,180 Engineering,1cdd5db4-160b-4e3e-a018-e65e72242216,delivered,
+2026-05-25T06:38:00Z,2026-05-25-batch3-rob-reeves,rob@redfishtech.com,Redfish Technology,747039dd-f364-4d08-ab7b-2d5f1fc73edc,delivered,
+2026-05-25T06:38:00Z,2026-05-25-batch3-leah-oflynn,leah@expectllc.com,Expect Technical Staffing,6a2a2fc1-90df-4036-80df-4652c60f715b,bounced,"Do not reuse this email; replace with another Expect contact only after verification."
+2026-05-25T06:38:00Z,2026-05-25-batch2-danny-hansard,danny@weareeight.com.au,We Are Eight,afe621e1-5c3a-438a-8912-76585972fdc6,bounced,"Do not reuse this email; Hunter confidence was high but real delivery bounced."
