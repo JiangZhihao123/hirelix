@@ -1,0 +1,49 @@
+{
+  "date": "2026-05-25",
+  "batch": 6,
+  "tracking_batch_id": "6",
+  "tracking_campaign": "founder_outreach_batch6_public_email",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_with_public_email_tracking_and_reply_to_owner",
+  "notes": [
+    "Sixth batch prioritizes emails explicitly published on recruiter websites.",
+    "Links are tracked through /go/[email_id].",
+    "Click alerts are delivered to jzh_spring@163.com via Resend.",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "Every email includes a clear opt-out line and mailing address."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch6-debora-rubin",
+      "to": "contact@bnvrecruiting.com",
+      "first_name": "Debora",
+      "company": "BNV Recruiting",
+      "priority": 1,
+      "source_url": "https://www.bnvrecruiting.com",
+      "subject": "Quick question on technical recruiting workflow",
+      "body": "Hi Debora,\n\nI am building Hirelix for independent technical recruiters and boutique search teams.\n\nBNV Recruiting looked especially relevant because you work with startups and scaleups hiring software, AI, cloud, product, data, and leadership talent. Hirelix focuses on one narrow workflow: client JD in, evidence-backed technical shortlist out.\n\nIt ranks real profiles with fit reasons, risks to verify, and outreach context a recruiter can personalize before contacting candidates.\n\nWould you be open to a quick look and blunt feedback on whether this would save review time for a technical recruiting search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch6-the-tech-recruiters",
+      "to": "info@thetechrecruiters.com",
+      "first_name": "Team",
+      "company": "The Tech Recruiters",
+      "priority": 2,
+      "source_url": "https://www.thetechrecruiters.com/contact",
+      "subject": "Quick question on AI and SaaS search workflow",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and specialist search teams.\n\nThe Tech Recruiters' focus on venture-backed blockchain, fintech, AI, and SaaS companies looked very relevant. Hirelix is narrower than a full recruiting platform: it turns a client JD into an evidence-backed technical shortlist, with fit reasons, risks to verify, and outreach-ready context for each profile.\n\nThe goal is to help a recruiter judge technical fit faster without turning the process into generic resume forwarding.\n\nWould you be open to a quick look and blunt feedback on whether this would be useful for an AI, platform, or SaaS search desk?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch6-opus-resourcing",
+      "to": "info@opusresourcing.com",
+      "first_name": "Team",
+      "company": "Opus Resourcing",
+      "priority": 3,
+      "source_url": "https://www.opusresourcing.com/about-us-tech-recruitment-specialists",
+      "subject": "Quick question on boutique tech recruitment workflow",
+      "body": "Hi Team,\n\nI am building Hirelix for boutique technical recruiters and small search teams.\n\nOpus Resourcing's specialist work across SaaS, AI/ML, software engineering, DevOps/platform engineering, product, and executive hiring looked relevant to the workflow I am trying to improve.\n\nHirelix takes a client JD and produces a ranked shortlist of real technical profiles, with fit evidence, risks to verify, and outreach context a recruiter can edit before contacting candidates.\n\nWould you be open to giving blunt feedback on whether this would help with a technical recruitment mandate?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
