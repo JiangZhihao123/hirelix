@@ -1,0 +1,95 @@
+{
+  "date": "2026-05-25",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_pending_sender_and_postal_address",
+  "notes": [
+    "Use a founder or support sender, not notifications@hirelix.online.",
+    "Replace {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}} with a valid physical postal address or registered mailbox before sending.",
+    "Keep the first live batch to 5-8 emails, one recipient per company where possible.",
+    "Every email includes a clear opt-out line."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-sam-jones",
+      "to": "samjones@peopleinai.com",
+      "first_name": "Sam",
+      "company": "People In AI",
+      "priority": 1,
+      "source_url": "https://featured.com/p/sam-jones-8138",
+      "subject": "Quick question on technical sourcing",
+      "body": "Hi Sam,\n\nI am building Hirelix, an early AI sourcing tool for technical recruiters and independent headhunters.\n\nI noticed People In AI's focus on AI engineering, ML, data engineering, MLOps, and robotics roles. That is exactly the kind of technical search where recruiters need more than keyword matching.\n\nHirelix turns a role brief into an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach-ready context.\n\nWould you be open to giving blunt feedback on whether this would help with a real AI or software role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-will-sanders",
+      "to": "will@recruitingfromscratch.com",
+      "first_name": "Will",
+      "company": "Recruiting from Scratch",
+      "priority": 2,
+      "source_url": "https://www.recruitingfromscratch.com",
+      "subject": "Quick question on technical sourcing",
+      "body": "Hi Will,\n\nI am building Hirelix, an early AI sourcing tool for technical recruiters.\n\nRecruiting from Scratch's positioning around AI-native startups, senior software engineers, and software-driven recruiting stood out to me. Hirelix is trying to solve a narrow piece of that workflow: turning a role brief into a ranked, evidence-backed shortlist with fit reasons, risks, and outreach context.\n\nI am not asking to replace the recruiter relationship. I am trying to learn whether this kind of shortlist would actually be useful to a strong technical recruiting team.\n\nWould you be open to a quick look or blunt feedback?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-elena-volk",
+      "to": "elenavolk@evotalents.com",
+      "first_name": "Elena",
+      "company": "EvoTalents",
+      "priority": 3,
+      "source_url": "https://evotalents.com/en",
+      "subject": "Quick question on technical sourcing",
+      "body": "Hi Elena,\n\nI am building Hirelix, an early AI sourcing tool for technical recruiters and boutique search teams.\n\nI read EvoTalents' writing on X-Ray search and finding hard-to-reach tech talent beyond standard LinkedIn workflows. That is close to the problem Hirelix is focused on.\n\nHirelix turns a role brief into an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach-ready context.\n\nWould you be open to giving blunt feedback on whether this would help on a real senior software or AI search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-elliot-kipling",
+      "to": "elliot@artifeks.co.uk",
+      "first_name": "Elliot",
+      "company": "Artifeks",
+      "priority": 4,
+      "source_url": "https://prospeo.io/c/artifeks",
+      "subject": "Quick question on software engineering sourcing",
+      "body": "Hi Elliot,\n\nI am building Hirelix, an early AI sourcing tool for technical recruiters.\n\nArtifeks looks tightly focused on software engineering talent for startups and scale-ups, which is the exact workflow I am trying to improve: role brief in, evidence-backed technical shortlist out.\n\nHirelix ranks real technical profiles with concise fit reasons, risks to verify, and outreach-ready context so a recruiter is not starting from a blank page.\n\nWould you be open to a quick look or blunt feedback on whether this would help your kind of search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-brian-williams",
+      "to": "brian@mytechhire.com",
+      "first_name": "Brian",
+      "company": "MyTechHire",
+      "priority": 5,
+      "source_url": "https://www.linkedin.com/in/brian-k-williams-40a4a79",
+      "subject": "Quick question on technical sourcing",
+      "body": "Hi Brian,\n\nI am building Hirelix, an early AI sourcing tool for independent technical recruiters and headhunters.\n\nYour MyTechHire work around technical recruiting for AI, robotics, and space teams looked highly relevant. Those roles seem to need more evidence and calibration than a normal keyword search can provide.\n\nHirelix turns a role brief into a ranked shortlist with technical fit evidence, risks to verify, and outreach-ready context.\n\nWould you be open to giving blunt feedback on whether this would help with one hard technical role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-sonny-sarna",
+      "to": "sonny@recruityear.com",
+      "first_name": "Sonny",
+      "company": "Recruit Year",
+      "priority": 6,
+      "source_url": "https://recruityear.com/blogs",
+      "subject": "Quick question on AI and robotics sourcing",
+      "body": "Hi Sonny,\n\nI am building Hirelix, an early AI sourcing tool for technical recruiters.\n\nYour focus on physical AI, robotics, and executive search stood out to me. Those searches seem especially hard to judge from profile keywords alone.\n\nHirelix turns a role brief into an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach-ready context.\n\nWould you be open to a quick look and blunt feedback on whether this would help for a robotics or AI role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-lexi-lewtan",
+      "to": "lexi@leopard.fyi",
+      "first_name": "Lexi",
+      "company": "Leopard.FYI",
+      "priority": 7,
+      "source_url": "https://leopard.fyi/blog/introduce-your-company-to-leopard",
+      "subject": "Quick question on engineering sourcing",
+      "body": "Hi Lexi,\n\nI am building Hirelix, an early AI sourcing tool for technical recruiters.\n\nLeopard's focus on senior engineering community and high-signal introductions stood out to me. I like that the model is not just resume volume.\n\nHirelix is trying to help recruiters get from a role brief to a smaller evidence-backed shortlist, with fit reasons, risks to verify, and outreach-ready context.\n\nWould you be open to giving blunt feedback on whether this would help with a real software engineering role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-drew-koloski",
+      "to": "drew@fonzi.ai",
+      "first_name": "Drew",
+      "company": "Fonzi AI",
+      "priority": 8,
+      "source_url": "https://fonzi.ai/blog/top-tech-recruiting-companies-agencies",
+      "subject": "Quick founder question on AI recruiting",
+      "body": "Hi Drew,\n\nI am building Hirelix, an early AI sourcing tool for technical recruiters.\n\nFonzi's writing on AI recruiting, human oversight, and structured technical hiring caught my eye. Hirelix is narrower: paste a role brief, get a ranked shortlist of real technical profiles with fit evidence, risks to verify, and outreach context.\n\nI know this is adjacent to your world, so I am mainly looking for sharp feedback rather than a generic sales call.\n\nWould you be open to a quick look?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
