@@ -1,0 +1,68 @@
+{
+  "date": "2026-05-25",
+  "batch": 5,
+  "tracking_batch_id": "5",
+  "tracking_campaign": "founder_outreach_batch5",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_with_tracking_click_alert_and_reply_to_owner",
+  "notes": [
+    "Fifth batch uses tracked Hirelix links through /go/[email_id].",
+    "Click alerts are delivered to jzh_spring@163.com via Resend.",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "Every email includes a clear opt-out line and mailing address."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch5-jake-whitcomb",
+      "to": "jwhitcomb@acceler8talent.com",
+      "first_name": "Jake",
+      "company": "Acceler8 Talent",
+      "priority": 1,
+      "source_url": "https://acceler8talent.com/about-us/meet-the-team/profile/jake-whitcomb",
+      "subject": "Quick question on AI recruiting workflow",
+      "body": "Hi Jake,\n\nI am building Hirelix for technical recruiters working on AI, ML, data, and software roles.\n\nAcceler8 Talent's focus on high-growth AI and technology hiring looked very relevant. Hirelix is trying to improve one narrow part of the workflow: client JD in, evidence-backed technical shortlist out.\n\nIt ranks real profiles with fit reasons, risks to verify, and outreach context a recruiter can personalize before contacting candidates.\n\nWould you be open to a quick look and blunt feedback on whether this would save review time for an AI recruiting desk?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch5-ihor-shcherbinin",
+      "to": "ihor@distantjob.com",
+      "first_name": "Ihor",
+      "company": "DistantJob",
+      "priority": 2,
+      "source_url": "https://distantjob.com/blog/2017-06-30-specialist-recruitment-why-a-boutique-agency-makes-all-the-difference",
+      "subject": "Quick question on remote developer recruiting",
+      "body": "Hi Ihor,\n\nI am building Hirelix for technical recruiters and specialist headhunters.\n\nDistantJob's remote developer recruiting focus stood out because those searches require more than a keyword pass: stack fit, seniority signals, remote experience, and enough context for credible outreach.\n\nHirelix turns a client JD into a ranked shortlist of real profiles, with fit evidence, risks to verify, and outreach-ready context for each person.\n\nWould you be open to giving blunt feedback on whether this would help with one remote developer search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch5-matt-collingwood",
+      "to": "matt.collingwood@viqu.co.uk",
+      "first_name": "Matt",
+      "company": "VIQU IT",
+      "priority": 3,
+      "source_url": "https://viqu.co.uk/it-recruitment-specialists/development-technical-recruitment",
+      "subject": "Quick question on technical recruitment workflow",
+      "body": "Hi Matt,\n\nI am building Hirelix for specialist technical recruiters and small recruiting teams.\n\nVIQU's development and technical recruitment work looked relevant because those roles need real context around software, data, AI, IoT, and digital delivery instead of broad CV matching.\n\nHirelix turns a client JD into an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would be useful for a technical recruitment team?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch5-mariam-kvaratskheliia",
+      "to": "mariam@thirstysprout.com",
+      "first_name": "Mariam",
+      "company": "ThirstySprout",
+      "priority": 4,
+      "source_url": "https://www.thirstysprout.com/post/best-tech-recruiting-agencies",
+      "subject": "Quick question on engineering candidate review",
+      "body": "Hi Mariam,\n\nI am building Hirelix for technical recruiters working on software, AI, and data roles.\n\nThirstySprout's engineering and AI recruiting content looked relevant to the workflow I am trying to improve: faster first-pass review without losing the details that make a technical candidate credible.\n\nHirelix ranks real profiles from a client JD and gives fit reasons, risks to verify, and outreach-ready context for each person.\n\nWould you be open to giving blunt feedback on whether this would save time in your candidate review workflow?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch5-anant-chaudhary",
+      "to": "anant@getrocket.com",
+      "first_name": "Anant",
+      "company": "Rocket",
+      "priority": 5,
+      "source_url": "https://www.getrocket.com",
+      "subject": "Founder-to-founder question on AI recruiting",
+      "body": "Hi Anant,\n\nI am building Hirelix, an early AI sourcing product for technical recruiters and specialist headhunters.\n\nRocket's AI-native recruiting positioning caught my eye. Hirelix is narrower: it takes a client JD and produces an evidence-backed technical shortlist, with fit reasons, risks to verify, and outreach context a recruiter can edit before contacting candidates.\n\nI am not asking for a sales call. I would value blunt founder-to-founder feedback on whether this kind of workflow would be useful, too obvious, or missing the real pain.\n\nWould you be open to a quick look?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
