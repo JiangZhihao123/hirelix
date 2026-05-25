@@ -32,6 +32,12 @@ function buildDestination(req: NextRequest, emailId: string) {
   destination.searchParams.set("entry", "landing");
   destination.searchParams.set("intent_path", "direct_jd");
   destination.searchParams.set("traffic_source", "cold_email");
+  const batchId = url.searchParams.get("batch");
+  const recipient = url.searchParams.get("to");
+  const company = url.searchParams.get("company");
+  if (batchId) destination.searchParams.set("batch", batchId);
+  if (recipient) destination.searchParams.set("to", recipient);
+  if (company) destination.searchParams.set("company", company);
 
   return destination;
 }

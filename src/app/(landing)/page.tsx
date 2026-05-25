@@ -54,6 +54,8 @@ export default function Home() {
   const [pendingSelectedPlan, setPendingSelectedPlan] = useState<BillingPlanCode | null>(null);
   const hasTrackedInputRef = useRef(false);
   const hasTrackedLandingViewRef = useRef(false);
+  const hasTrackedGrowthInputRef = useRef(false);
+  const hasTrackedGrowthSampleRef = useRef(false);
   const lastAuthTriggerRef = useRef<HTMLElement | null>(null);
   const heroJdTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -85,6 +87,85 @@ export default function Home() {
       });
     }
   }, [experiments, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const trafficSource = params.get("traffic_source") || params.get("utm_source");
+    const isColdEmailVisitor =
+      trafficSource === "cold_email" || params.get("utm_medium") === "email";
+
+    if (!isColdEmailVisitor) return;
+
+    const visitorKey = "hirelix.growth.visitor_id";
+    const existingVisitorId = window.localStorage.getItem(visitorKey);
+    const visitorId = existingVisitorId || crypto.randomUUID();
+    if (!existingVisitorId) {
+      window.localStorage.setItem(visitorKey, visitorId);
+    }
+
+    const sessionId = crypto.randomUUID();
+    const common = {
+      visitor_id: visitorId,
+      session_id: sessionId,
+      email_id: params.get("utm_content"),
+      batch_id: params.get("batch"),
+      recipient: params.get("to"),
+      company: params.get("company"),
+      page_url: window.location.href,
+      referrer: document.referrer,
+      metadata: {
+        utm_source: params.get("utm_source"),
+        utm_medium: params.get("utm_medium"),
+        utm_campaign: params.get("utm_campaign"),
+        traffic_source: params.get("traffic_source"),
+        page_variant: params.get("page_variant"),
+        intent_path: params.get("intent_path"),
+      },
+    };
+
+    function sendGrowthEvent(eventType: string, metadata: Record<string, string | number | boolean | null> = {}) {
+      const payload = JSON.stringify({
+        ...common,
+        event_type: eventType,
+        metadata: {
+          ...common.metadata,
+          ...metadata,
+        },
+      });
+
+      if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: "application/json" });
+        navigator.sendBeacon("/api/growth/landing-event", blob);
+        return;
+      }
+
+      void fetch("/api/growth/landing-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      });
+    }
+
+    sendGrowthEvent("page_view");
+    const engagedTimer = window.setTimeout(() => {
+      sendGrowthEvent("engaged_10s", {
+        scroll_y: Math.round(window.scrollY),
+        viewport_height: window.innerHeight,
+      });
+    }, 10_000);
+
+    window.__hirelixGrowthTrack = sendGrowthEvent;
+
+    return () => {
+      window.clearTimeout(engagedTimer);
+      if (window.__hirelixGrowthTrack === sendGrowthEvent) {
+        delete window.__hirelixGrowthTrack;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!authModalOpen) return;
@@ -160,6 +241,11 @@ export default function Home() {
       signin_surface: "landing_modal",
       selected_plan: selectedPlan,
     });
+    window.__hirelixGrowthTrack?.("signin_view", {
+      intent_path: intentPath,
+      has_prefilled_jd: Boolean(prefill),
+      selected_plan: selectedPlan,
+    });
   }
 
   function closeAuthModal() {
@@ -189,6 +275,10 @@ export default function Home() {
         page_variant: experiments.pageVariant,
         intent_path: "signin",
       }),
+      selected_plan: planCode,
+      pricing_surface: "landing_pricing",
+    });
+    window.__hirelixGrowthTrack?.("pricing_plan_select", {
       selected_plan: planCode,
       pricing_surface: "landing_pricing",
     });
@@ -225,6 +315,10 @@ export default function Home() {
       ...eventContext,
       jd_word_count: wordCount,
     });
+    window.__hirelixGrowthTrack?.("hero_submit_attempt", {
+      jd_word_count: wordCount,
+      is_authenticated: Boolean(user),
+    });
 
     if (user) {
       goToSearch(trimmedJd, "direct_jd");
@@ -247,6 +341,12 @@ export default function Home() {
       ...eventContext,
       sample_name: "senior_software_engineer",
     });
+    if (!hasTrackedGrowthSampleRef.current) {
+      hasTrackedGrowthSampleRef.current = true;
+      window.__hirelixGrowthTrack?.("sample_view", {
+        sample_name: "senior_software_engineer",
+      });
+    }
 
     setSampleShortlistOpen(true);
     window.requestAnimationFrame(() => {
@@ -275,6 +375,12 @@ export default function Home() {
           page_variant: experiments.pageVariant,
           intent_path: "direct_jd",
         }),
+      });
+    }
+    if (!hasTrackedGrowthInputRef.current && value.trim().length > 0) {
+      hasTrackedGrowthInputRef.current = true;
+      window.__hirelixGrowthTrack?.("hero_input_start", {
+        input_length: value.trim().length,
       });
     }
   }

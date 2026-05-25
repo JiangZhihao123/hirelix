@@ -87,6 +87,10 @@ declare global {
   interface Window {
     dataLayer?: Array<Record<string, unknown>>;
     gtag?: (...args: unknown[]) => void;
+    __hirelixGrowthTrack?: (
+      eventType: string,
+      metadata?: Record<string, string | number | boolean | null>,
+    ) => void;
   }
 }
 

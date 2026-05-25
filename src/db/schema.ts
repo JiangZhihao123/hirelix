@@ -266,6 +266,40 @@ export const hirelix_growth_outreach_clicks = pgTable(
   }),
 );
 
+export const hirelix_growth_landing_events = pgTable(
+  "hirelix_growth_landing_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    event_type: text("event_type").notNull(),
+    visitor_id: text("visitor_id"),
+    session_id: text("session_id"),
+    email_id: text("email_id"),
+    batch_id: text("batch_id"),
+    recipient: text("recipient"),
+    company: text("company"),
+    page_url: text("page_url"),
+    referrer: text("referrer"),
+    ip_address: text("ip_address"),
+    user_agent: text("user_agent"),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    email_created_idx: index("idx_hirelix_growth_landing_events_email_created").on(
+      t.email_id,
+      t.created_at,
+    ),
+    event_created_idx: index("idx_hirelix_growth_landing_events_event_created").on(
+      t.event_type,
+      t.created_at,
+    ),
+    session_created_idx: index("idx_hirelix_growth_landing_events_session_created").on(
+      t.session_id,
+      t.created_at,
+    ),
+  }),
+);
+
 // ---------------------------------------------------------------------------
 // LLM usage events
 // ---------------------------------------------------------------------------
@@ -568,6 +602,7 @@ export const schema = {
   hirelix_usage_events,
   hirelix_billing_events,
   hirelix_growth_outreach_clicks,
+  hirelix_growth_landing_events,
   hirelix_llm_usage_events,
   hirelix_github_identity_cache,
   hirelix_github_profile_cache,
