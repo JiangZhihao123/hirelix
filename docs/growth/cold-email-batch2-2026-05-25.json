@@ -1,0 +1,86 @@
+{
+  "date": "2026-05-25",
+  "batch": 2,
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_pending_sender_and_postal_address",
+  "notes": [
+    "Second batch is narrowed to independent technical headhunters and small boutique recruiting firms.",
+    "Use a founder or support sender, not notifications@hirelix.online.",
+    "Replace {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}} with a valid physical postal address or registered mailbox before sending.",
+    "Every email includes a clear opt-out line."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch2-daniel-kim",
+      "to": "daniel@headhuntedai.com.au",
+      "first_name": "Daniel",
+      "company": "HeadHunted AI",
+      "priority": 1,
+      "source_url": "https://headhuntedai.com.au/contact",
+      "subject": "Quick question on AI engineering sourcing",
+      "body": "Hi Daniel,\n\nI am building Hirelix for independent technical headhunters who work on software, AI, and data roles.\n\nHeadHunted AI looks tightly focused on AI, ML, MLOps, GenAI, and data engineering search. That is the exact kind of work where a recruiter needs more than keyword matching.\n\nHirelix turns a client JD into a ranked shortlist of real technical profiles, with evidence for fit, risks to verify, and outreach-ready context.\n\nWould you be open to giving blunt feedback on whether this would save sourcing or review time on one real AI role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch2-jovena-natal",
+      "to": "jovena@clutchtalent.com",
+      "first_name": "Jovena",
+      "company": "Clutch Talent",
+      "priority": 2,
+      "source_url": "https://clutchtalent.com",
+      "subject": "Quick question on software engineering sourcing",
+      "body": "Hi Jovena,\n\nI am building Hirelix for independent technical headhunters and small recruiting teams.\n\nClutch Talent's focus on software engineering careers and targeted introductions stood out to me. Hirelix is meant for that kind of high-signal search: paste a client JD, then get a smaller evidence-backed shortlist instead of starting from a blank page.\n\nIt includes fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would help with one software engineering search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch2-tim-lockwood",
+      "to": "tim@growrecruiting.com",
+      "first_name": "Tim",
+      "company": "Grow Data Partners",
+      "priority": 3,
+      "source_url": "https://www.growrecruiting.com/about",
+      "subject": "Quick question on AI/data sourcing",
+      "body": "Hi Tim,\n\nI am building Hirelix for technical headhunters working hard engineering searches.\n\nGrow Data Partners' focus on AI, ML, data, cloud, and software engineering roles is very close to the problem I am trying to solve. Hirelix turns a client JD into a ranked technical shortlist with fit evidence, risks to verify, and outreach-ready context.\n\nThe goal is not to replace recruiter judgment. It is to help a small specialist team get to the first credible slate faster.\n\nWould you be open to giving blunt feedback on whether this would save sourcing or review time?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch2-shana-roberts",
+      "to": "shana@robertsrecruiting.com",
+      "first_name": "Shana",
+      "company": "Roberts Recruiting",
+      "priority": 4,
+      "source_url": "https://robertsrecruiting.com/contact",
+      "subject": "Quick question on startup technical sourcing",
+      "body": "Hi Shana,\n\nI am building Hirelix for independent technical headhunters and founder-led recruiting shops.\n\nYour work with venture-backed, high-growth startups across Boston, NYC, and SF looked very relevant. Those searches usually need a tight shortlist and good calibration, not a pile of resumes.\n\nHirelix turns a client JD into an evidence-backed ranked shortlist, with fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would help with one startup engineering role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch2-mark-dinan",
+      "to": "mark@dinanrecruiting.com",
+      "first_name": "Mark",
+      "company": "Dinan Recruiting",
+      "priority": 5,
+      "source_url": "https://dinanrecruiting.com/contact-us",
+      "subject": "Quick question on senior software sourcing",
+      "body": "Hi Mark,\n\nI am building Hirelix for independent technical headhunters who work on senior software and engineering leadership searches.\n\nYour Silicon Valley recruiting work around senior software talent looked like a strong fit for feedback. Hirelix turns a client JD into a ranked shortlist of real technical profiles, with evidence for fit, risks to verify, and outreach-ready context.\n\nI am trying to learn whether this actually helps a recruiter make better first-pass decisions, not just generate more noise.\n\nWould you be open to a quick look?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch2-danny-hansard",
+      "to": "danny@weareeight.com.au",
+      "first_name": "Danny",
+      "company": "We Are Eight",
+      "priority": 6,
+      "source_url": "https://weareeight.com.au/team",
+      "subject": "Quick question on tech recruiter workflow",
+      "body": "Hi Danny,\n\nI am building Hirelix for independent technical recruiters and small specialist firms.\n\nYour tech recruiting work at We Are Eight looked relevant to what I am trying to improve: getting from a client JD to a credible, evidence-backed shortlist faster.\n\nHirelix ranks real technical profiles with fit reasons, risks to verify, and outreach context a recruiter can personalize before sending.\n\nWould you be open to giving blunt feedback on whether this would save review time on one engineering role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch2-eric-wedoe",
+      "to": "eric@wedoesearch.com",
+      "first_name": "Eric",
+      "company": "Wedoe Search Group",
+      "priority": 7,
+      "source_url": "https://www.linkedin.com/in/ericwedoe",
+      "subject": "Quick founder question on recruiting workflow",
+      "body": "Hi Eric,\n\nI am building Hirelix for independent recruiters and small search firms working technical roles.\n\nYour founder-led search work and public interest in recruiting agency tooling caught my eye. Hirelix is focused on one narrow workflow: client JD in, evidence-backed technical shortlist out, with fit reasons, risks to verify, and outreach context.\n\nI am looking for sharp operator feedback from people who actually run a recruiting desk.\n\nWould you be open to a quick look and blunt feedback?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
