@@ -3,12 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { hirelix_billing_events, hirelix_user_settings } from "@/db/schema";
+import { hirelix_billing_events, hirelix_user_settings, user } from "@/db/schema";
 import { CONTACT_PACK, SEARCH_PACK, getCheckoutConfig } from "@/lib/billing";
 
 function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
   console.log(`[billing:${eventName}] ${JSON.stringify(payload)}`);
 }
+
+const DEFAULT_SUBSCRIPTION_ALERT_RECIPIENT = "jzh_spring@163.com";
 
 function describeError(error: unknown): Record<string, unknown> {
   if (error instanceof Error) {
@@ -115,6 +117,124 @@ function extractCustomUserId(data: Record<string, unknown>) {
   return null;
 }
 
+export function getSubscriptionAlertRecipient() {
+  return process.env.BILLING_SUBSCRIPTION_ALERT_EMAIL || DEFAULT_SUBSCRIPTION_ALERT_RECIPIENT;
+}
+
+function getSubscriptionAlertFromEmail() {
+  return process.env.BILLING_ALERTS_FROM_EMAIL || process.env.SEARCH_NOTIFICATIONS_FROM_EMAIL;
+}
+
+function extractCustomerEmail(data: Record<string, unknown>) {
+  if (typeof data.customer_email === "string") return data.customer_email;
+  if (data.customer && typeof data.customer === "object") {
+    const email = (data.customer as Record<string, unknown>).email;
+    if (typeof email === "string") return email;
+  }
+  if (data.custom_data && typeof data.custom_data === "object") {
+    const email = (data.custom_data as Record<string, unknown>).email;
+    if (typeof email === "string") return email;
+  }
+  return null;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+async function getUserEmail(userId: string | null) {
+  if (!userId) return null;
+  const rows = await db
+    .select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return rows[0]?.email ?? null;
+}
+
+async function notifySubscriptionAlert(params: {
+  eventId: string;
+  eventType: string;
+  userId: string;
+  data: Record<string, unknown>;
+  planCode: string;
+}) {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const from = getSubscriptionAlertFromEmail();
+  const to = getSubscriptionAlertRecipient();
+  if (!resendApiKey || !from || !to) {
+    logBillingEvent("subscription_alert_skipped", {
+      event_id: params.eventId,
+      reason: "missing_email_config",
+    });
+    return;
+  }
+
+  const customerEmail = extractCustomerEmail(params.data) || await getUserEmail(params.userId);
+  const subscriptionId =
+    typeof params.data.id === "string"
+      ? params.data.id
+      : typeof params.data.subscription_id === "string"
+        ? params.data.subscription_id
+        : null;
+  const customerId =
+    typeof params.data.customer_id === "string"
+      ? params.data.customer_id
+      : params.data.customer && typeof params.data.customer === "object" && typeof (params.data.customer as Record<string, unknown>).id === "string"
+        ? ((params.data.customer as Record<string, unknown>).id as string)
+        : null;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
+      <h2 style="margin:0 0 12px">Hirelix has a new paid subscription</h2>
+      <p>A real Paddle subscription event was processed. Time to consider enabling Apollo.</p>
+      <ul>
+        <li><strong>Plan:</strong> ${escapeHtml(params.planCode)}</li>
+        <li><strong>Event:</strong> ${escapeHtml(params.eventType)}</li>
+        <li><strong>User ID:</strong> ${escapeHtml(params.userId)}</li>
+        <li><strong>Customer email:</strong> ${escapeHtml(customerEmail || "unknown")}</li>
+        <li><strong>Paddle subscription:</strong> ${escapeHtml(subscriptionId || "unknown")}</li>
+        <li><strong>Paddle customer:</strong> ${escapeHtml(customerId || "unknown")}</li>
+      </ul>
+      <p style="color:#475569;font-size:14px">This email is only sent for non-test subscription webhooks.</p>
+    </div>
+  `;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: `Hirelix paid subscriber: ${params.planCode}`,
+      html,
+    }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = typeof result?.message === "string"
+      ? result.message
+      : `Resend failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  logBillingEvent("subscription_alert_sent", {
+    event_id: params.eventId,
+    event_type: params.eventType,
+    user_id: params.userId,
+    recipient: to,
+  });
+}
+
 async function resolveUserId(data: Record<string, unknown>) {
   const directUserId = extractCustomUserId(data);
   if (directUserId) return directUserId;
@@ -172,7 +292,7 @@ async function recordEvent(
 async function updateSubscription(data: Record<string, unknown>, userId: string) {
   const priceIds = getPaddlePriceIds(data);
   const planCode = resolvePaddlePlanCode(priceIds);
-  if (!planCode) return;
+  if (!planCode) return null;
 
   const status =
     typeof data.status === "string"
@@ -234,6 +354,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
         updated_at: values.updated_at,
       },
     });
+  return planCode;
 }
 
 async function applyAddOns(data: Record<string, unknown>, userId: string) {
@@ -322,8 +443,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, duplicate: true });
     }
 
-    if (userId && eventType.startsWith("subscription.")) {
-      await updateSubscription(data, userId);
+    if (userId && eventType.startsWith("subscription.") && !isTestPayment(data)) {
+      const planCode = await updateSubscription(data, userId);
+      if (planCode && (eventType === "subscription.created" || eventType === "subscription.activated")) {
+        await notifySubscriptionAlert({
+          eventId,
+          eventType,
+          userId,
+          data,
+          planCode,
+        });
+      }
     }
 
     if (userId && eventType === "transaction.completed") {

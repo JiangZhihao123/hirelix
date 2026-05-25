@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 
 import {
   getPaddlePriceIds,
+  getSubscriptionAlertRecipient,
   isTestPayment,
   resolvePaddlePlanCode,
   verifyPaddleSignature,
@@ -94,5 +95,18 @@ test("Paddle webhook maps nested and flat price ids to paid entitlements", () =>
       originalEnv.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID;
     process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID =
       originalEnv.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
+  }
+});
+
+test("subscription alert recipient defaults to founder inbox", () => {
+  const originalRecipient = process.env.BILLING_SUBSCRIPTION_ALERT_EMAIL;
+  delete process.env.BILLING_SUBSCRIPTION_ALERT_EMAIL;
+
+  try {
+    assert.equal(getSubscriptionAlertRecipient(), "jzh_spring@163.com");
+    process.env.BILLING_SUBSCRIPTION_ALERT_EMAIL = "ops@example.com";
+    assert.equal(getSubscriptionAlertRecipient(), "ops@example.com");
+  } finally {
+    process.env.BILLING_SUBSCRIPTION_ALERT_EMAIL = originalRecipient;
   }
 });
