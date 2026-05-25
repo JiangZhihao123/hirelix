@@ -50,7 +50,10 @@ function getClickAlertRecipient() {
 }
 
 function getClickAlertFromEmail() {
-  return process.env.GROWTH_OUTREACH_ALERT_FROM_EMAIL || process.env.SEARCH_NOTIFICATIONS_FROM_EMAIL;
+  return process.env.GROWTH_OUTREACH_ALERT_FROM_EMAIL ||
+    process.env.SEARCH_NOTIFICATIONS_FROM_EMAIL ||
+    process.env.BILLING_ALERTS_FROM_EMAIL ||
+    "Hirelix <notifications@hirelix.online>";
 }
 
 async function notifyClick(params: {
