@@ -1,0 +1,50 @@
+{
+  "date": "2026-05-25",
+  "batch": 10,
+  "tracking_batch_id": "10",
+  "tracking_campaign": "founder_outreach_batch10_public_email",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_with_public_email_tracking_and_reply_to_owner",
+  "notes": [
+    "Tenth batch uses emails explicitly published on recruiter websites.",
+    "Hunter was not used for this batch; public website emails were preferred.",
+    "Links are tracked through /go/[email_id].",
+    "Click alerts are delivered to jzh_spring@163.com via Resend for non-scanner clicks.",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "Every email includes a clear opt-out line and mailing address."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch10-linuxrecruit",
+      "to": "london@linuxrecruit.co.uk",
+      "first_name": "Team",
+      "company": "LinuxRecruit",
+      "priority": 1,
+      "source_url": "https://www.linuxrecruit.co.uk/contact-us",
+      "subject": "Quick question on DevOps and cloud search workflow",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and specialist search teams.\n\nLinuxRecruit looked especially relevant because you work in DevOps, cloud, open source, platform, SRE, and AI-adjacent engineering roles where a recruiter needs real technical signal before sending someone forward.\n\nHirelix focuses on one narrow workflow: client JD in, evidence-backed technical shortlist out. Each candidate comes with fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would be useful for your technical recruiting workflow?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch10-digital-waffle",
+      "to": "hello@digitalwaffle.co",
+      "first_name": "Team",
+      "company": "Digital Waffle",
+      "priority": 2,
+      "source_url": "https://www.digitalwaffle.co",
+      "subject": "Quick question on tech recruiting workflow",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and specialist tech search teams.\n\nDigital Waffle looked relevant because you cover tech, IT, and data roles where recruiters often need to understand more than keywords: platform engineering, infrastructure, data science, and similar roles all need credible fit evidence before a shortlist goes to a client.\n\nHirelix turns a client JD into a ranked shortlist of real technical profiles, with fit evidence, risks to verify, and outreach-ready context for each person.\n\nWould you be open to giving blunt feedback on whether this would help with selective technical searches?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch10-venturi",
+      "to": "tom.goulding@venturi-group.com",
+      "first_name": "Tom",
+      "company": "Venturi Group",
+      "priority": 3,
+      "source_url": "https://www.venturi-group.com",
+      "subject": "Quick question on software engineering recruiting",
+      "body": "Hi Tom,\n\nI am building Hirelix for technical recruiters and specialist search teams.\n\nVenturi looked relevant because you place tech talent across software engineering, data and analytics, ERP, and CRM, including work with startups and larger technology-focused businesses.\n\nHirelix takes a client JD and produces an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach context a recruiter can personalize before contacting candidates.\n\nWould you be open to a quick look and blunt feedback on whether this would be useful for your technology recruitment workflow?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
