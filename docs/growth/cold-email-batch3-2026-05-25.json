@@ -1,0 +1,68 @@
+{
+  "date": "2026-05-25",
+  "batch": 3,
+  "tracking_batch_id": "3",
+  "tracking_campaign": "founder_outreach_batch3",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_with_tracking_and_reply_to_owner",
+  "notes": [
+    "Third batch uses tracked Hirelix links through /go/[email_id].",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "One recipient per company to protect domain reputation.",
+    "Every email includes a clear opt-out line."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch3-max-schnepper",
+      "to": "max@maxtechtalent.com",
+      "first_name": "Max",
+      "company": "Max Tech Talent",
+      "priority": 1,
+      "source_url": "https://www.maxtechtalent.com/about",
+      "subject": "Quick question on software recruiter workflow",
+      "body": "Hi Max,\n\nI am building Hirelix for independent technical recruiters and small specialist firms.\n\nMax Tech Talent's boutique focus on software, DevOps, QA automation, and front-end roles looked very relevant. Hirelix is trying to help that kind of recruiter get from a client JD to a credible shortlist faster.\n\nIt ranks real technical profiles with fit evidence, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would save review time on one software role?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch3-david-bitton",
+      "to": "david@devtalent.io",
+      "first_name": "David",
+      "company": "DevTalent",
+      "priority": 2,
+      "source_url": "https://nexusitgroup.com/blog/top-software-development-recruiters",
+      "subject": "Quick question on startup engineering sourcing",
+      "body": "Hi David,\n\nI am building Hirelix for technical recruiters helping startups hire software engineers.\n\nDevTalent's positioning around venture-backed startups and software engineering teams stood out to me. Hirelix focuses on one narrow workflow: paste a client JD, then get a ranked shortlist with technical fit evidence, risks to verify, and outreach-ready context.\n\nThe goal is to help a small recruiting team make better first-pass decisions without reading hundreds of profiles.\n\nWould you be open to giving blunt feedback on whether this would help your kind of search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch3-joe-coletta",
+      "to": "joe@180engineering.com",
+      "first_name": "Joe",
+      "company": "180 Engineering",
+      "priority": 3,
+      "source_url": "https://180engineering.com/our-team",
+      "subject": "Quick question on engineering recruiting",
+      "body": "Hi Joe,\n\nI am building Hirelix for technical headhunters who need stronger evidence before presenting a shortlist.\n\n180 Engineering's story stood out because it was founded around a very real recruiting pain: agencies sending resumes without enough technical understanding. Hirelix is aimed at that exact gap.\n\nIt turns a client JD into a ranked shortlist of real technical profiles, with fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would help with an engineering search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch3-rob-reeves",
+      "to": "rob@redfishtech.com",
+      "first_name": "Rob",
+      "company": "Redfish Technology",
+      "priority": 4,
+      "source_url": "https://redfishtech.com/meet-the-team",
+      "subject": "Quick question on AI/software sourcing",
+      "body": "Hi Rob,\n\nI am building Hirelix for technical recruiters working on software, AI, data, DevOps, and cloud roles.\n\nRedfish's technical recruiting focus is close to the problem I am trying to solve: how to get from a role brief to a smaller, evidence-backed shortlist without drowning in profile review.\n\nHirelix adds concise fit reasons, risks to verify, and outreach-ready context for each ranked profile.\n\nWould you be open to giving blunt feedback on whether this would save time for a technical recruiting team?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch3-leah-oflynn",
+      "to": "leah@expectllc.com",
+      "first_name": "Leah",
+      "company": "Expect Technical Staffing",
+      "priority": 5,
+      "source_url": "https://www.linkedin.com/company/expect-technical-staffing",
+      "subject": "Quick question on technical staffing workflow",
+      "body": "Hi Leah,\n\nI am building Hirelix for small technical recruiting and staffing teams.\n\nExpect's focus on software developers, ML, AI, DevOps, computer vision, and engineering roles looked very relevant. Those searches are hard to judge from keywords alone.\n\nHirelix turns a client JD into a ranked shortlist with technical fit evidence, risks to verify, and outreach context a recruiter can personalize before contacting candidates.\n\nWould you be open to a quick look and blunt feedback on whether this would save sourcing or review time?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
