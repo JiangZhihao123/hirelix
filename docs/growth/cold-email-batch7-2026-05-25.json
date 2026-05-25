@@ -1,0 +1,49 @@
+{
+  "date": "2026-05-25",
+  "batch": 7,
+  "tracking_batch_id": "7",
+  "tracking_campaign": "founder_outreach_batch7_public_email",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_with_public_email_tracking_and_reply_to_owner",
+  "notes": [
+    "Seventh batch prioritizes emails explicitly published on recruiter websites.",
+    "Links are tracked through /go/[email_id].",
+    "Click alerts are delivered to jzh_spring@163.com via Resend.",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "Every email includes a clear opt-out line and mailing address."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-25-batch7-david-rincon",
+      "to": "david@wizhirellc.com",
+      "first_name": "David",
+      "company": "Wizhire",
+      "priority": 1,
+      "source_url": "https://www.wizhirellc.com",
+      "subject": "Founder-to-founder question on technical search",
+      "body": "Hi David,\n\nI am building Hirelix for independent technical recruiters and boutique search teams.\n\nWizhire's approach stood out because it is very close to the pain I am working on: senior engineering searches, structured scorecards, signal over volume, and shortlists that help CTOs make faster decisions.\n\nHirelix is narrower than a full recruiting platform. It takes a client JD and produces an evidence-backed technical shortlist, with fit reasons, risks to verify, and outreach context a recruiter can edit before contacting candidates.\n\nI would value blunt founder-to-founder feedback on whether this would help a technical recruiting desk, or where it misses the real workflow.\n\nWould you be open to a quick look?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch7-engineering-connections",
+      "to": "info@engineerconnections.com",
+      "first_name": "Team",
+      "company": "Engineering Connections",
+      "priority": 2,
+      "source_url": "https://elitesearch-staffing3.webnode.page",
+      "subject": "Quick question on software engineering recruiting",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and specialist software engineering search teams.\n\nEngineering Connections' focus on high-end software engineering roles looked relevant because those searches need more than broad resume matching. The recruiter needs credible technical context before deciding who is worth a conversation.\n\nHirelix turns a client JD into a ranked shortlist of real profiles, with fit evidence, risks to verify, and outreach-ready context for each person.\n\nWould you be open to giving blunt feedback on whether this would help with a selective software engineering search?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-25-batch7-talent-growth-partners",
+      "to": "info@talentgrowthpartners.com",
+      "first_name": "Team",
+      "company": "Talent Growth Partners",
+      "priority": 3,
+      "source_url": "https://www.talentgrowthpartners.com/tech-it",
+      "subject": "Quick question on tech talent workflow",
+      "body": "Hi Team,\n\nI am building Hirelix for technical recruiters and boutique talent partners.\n\nTalent Growth Partners' tech and IT practice looked relevant because you cover software developers, data scientists, cybersecurity, product, DevOps, SaaS, and AI/ML startup hiring. Those searches often require a recruiter to understand technical fit before sending a candidate forward.\n\nHirelix takes a client JD and produces an evidence-backed shortlist of real technical profiles, with fit reasons, risks to verify, and outreach context a recruiter can personalize.\n\nWould you be open to a quick look and blunt feedback on whether this would be useful for your technical recruitment work?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
