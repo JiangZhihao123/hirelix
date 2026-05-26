@@ -31,6 +31,7 @@ function usage() {
   console.log(`Usage:
   node scripts/tools/send-growth-email-batch.mjs <batch.json> [--dry-run]
   node scripts/tools/send-growth-email-batch.mjs <batch.json> --send --yes
+  node scripts/tools/send-growth-email-batch.mjs --check-config
 
 Required for --send:
   RESEND_API_KEY
@@ -92,22 +93,52 @@ function renderTrackedBody(email, batch, env) {
   return body;
 }
 
-function validateSendConfig(env) {
-  const missing = [];
-  for (const key of [
+function getSendConfigIssues(env) {
+  const issues = [];
+  const requiredKeys = [
     "RESEND_API_KEY",
     "OUTREACH_FROM_EMAIL",
     "OUTREACH_REPLY_TO",
     "OUTREACH_POSTAL_ADDRESS",
-  ]) {
-    if (!env[key]) missing.push(key);
+  ];
+  for (const key of requiredKeys) {
+    if (!env[key]) issues.push(`Missing required send config: ${key}`);
   }
-  if (missing.length) {
-    throw new Error(`Missing required send config: ${missing.join(", ")}`);
+  if (
+    env.OUTREACH_POSTAL_ADDRESS === ADDRESS_PLACEHOLDER ||
+    /\{\{.*\}\}/.test(env.OUTREACH_POSTAL_ADDRESS || "")
+  ) {
+    issues.push("OUTREACH_POSTAL_ADDRESS must be a real physical postal address or registered mailbox.");
   }
-  if (/notifications@hirelix\.online/i.test(env.OUTREACH_FROM_EMAIL)) {
-    throw new Error("Refusing to send outreach from notifications@hirelix.online.");
+  if (env.OUTREACH_FROM_EMAIL && /notifications@hirelix\.online/i.test(env.OUTREACH_FROM_EMAIL)) {
+    issues.push("Refusing to send outreach from notifications@hirelix.online.");
   }
+  return issues;
+}
+
+function validateSendConfig(env) {
+  const issues = getSendConfigIssues(env);
+  if (issues.length) throw new Error(issues.join(" "));
+}
+
+function printSendConfigCheck(env) {
+  const keys = [
+    "RESEND_API_KEY",
+    "OUTREACH_FROM_EMAIL",
+    "OUTREACH_REPLY_TO",
+    "OUTREACH_POSTAL_ADDRESS",
+  ];
+  console.log("OUTREACH send config:");
+  for (const key of keys) {
+    console.log(`- ${key}: ${env[key] ? "set" : "missing"}`);
+  }
+  const issues = getSendConfigIssues(env);
+  if (issues.length) {
+    console.error("\nBlocked:");
+    for (const issue of issues) console.error(`- ${issue}`);
+    process.exit(1);
+  }
+  console.log("\nReady to send. No config values printed.");
 }
 
 async function sendEmail({ apiKey, from, replyTo, email, body }) {
@@ -146,7 +177,8 @@ if (!args.length || args.includes("--help") || args.includes("-h")) {
   process.exit(args.length ? 0 : 1);
 }
 
-const batchPath = args[0];
+const checkConfig = args.includes("--check-config");
+const batchPath = args.find((arg) => !arg.startsWith("--"));
 const shouldSend = args.includes("--send");
 const confirmed = args.includes("--yes");
 const env = {
@@ -154,6 +186,16 @@ const env = {
   ...loadDotEnv(path.resolve(".env.local")),
   ...process.env,
 };
+
+if (checkConfig) {
+  printSendConfigCheck(env);
+  process.exit(0);
+}
+
+if (!batchPath) {
+  usage();
+  process.exit(1);
+}
 
 if (shouldSend && !confirmed) {
   throw new Error("Use --yes with --send after confirming the recipient list and copy.");

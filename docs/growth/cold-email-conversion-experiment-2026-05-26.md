@@ -203,6 +203,23 @@ Count:
 
 Do not count scanner traffic, malformed tracked URLs, static asset query variants, or smoke-test rows as conversion.
 
+## Send gates
+
+Run these before any real send:
+
+```bash
+OUTREACH_LOG_PATH=docs/growth/cold-email-followup-send-log-2026-05-26.csv node scripts/tools/validate-growth-followup-batch.mjs docs/growth/cold-email-followup-clicked-2026-05-26.json
+node scripts/tools/send-growth-email-batch.mjs --check-config
+OUTREACH_LOG_PATH=docs/growth/cold-email-followup-send-log-2026-05-26.csv node scripts/tools/send-growth-email-batch.mjs docs/growth/cold-email-followup-clicked-2026-05-26.json --dry-run
+```
+
+Do not send unless all are true:
+
+- Every follow-up recipient is eligible.
+- `--check-config` reports all required outreach config as set.
+- The postal address is a real physical address or registered mailbox, not the placeholder.
+- The from address is not `notifications@hirelix.online`.
+
 ## Next batch checklist
 
 - [ ] Pick 18-22 recipients across the two cells.
