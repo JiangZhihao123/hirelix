@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
 import { hirelix_growth_landing_events } from "@/db/schema";
 
 const DEFAULT_PREVIEW_REQUEST_RECIPIENT = "jzh_spring@163.com";
+const DEFAULT_ALERT_TIMEOUT_MS = 1200;
 
 const ALLOWED_EVENTS = new Set([
   "page_view",
@@ -64,6 +65,14 @@ function metadataValue(value: unknown) {
   );
 }
 
+function isValidEmail(value: string | null) {
+  return Boolean(value && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value));
+}
+
+function getMetadataText(metadata: Record<string, unknown>, key: string, maxLength = 500) {
+  return textValue(metadata[key], maxLength);
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -84,6 +93,11 @@ function getAlertFromEmail() {
     process.env.GROWTH_OUTREACH_ALERT_FROM_EMAIL ||
     process.env.SEARCH_NOTIFICATIONS_FROM_EMAIL ||
     "Hirelix <notifications@hirelix.online>";
+}
+
+function getAlertTimeoutMs() {
+  const value = Number.parseInt(process.env.GROWTH_PREVIEW_REQUEST_ALERT_TIMEOUT_MS || "", 10);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_ALERT_TIMEOUT_MS;
 }
 
 async function notifyPreviewRequest(params: {
@@ -124,6 +138,7 @@ async function notifyPreviewRequest(params: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(getAlertTimeoutMs()),
     body: JSON.stringify({
       from,
       to: [to],
@@ -159,6 +174,17 @@ export async function POST(req: NextRequest) {
   const recipient = textValue(body.recipient, 320);
   const company = textValue(body.company, 200);
 
+  if (eventType === "preview_request_submit") {
+    const replyEmail = getMetadataText(metadata, "reply_email", 160);
+    const rolePreview = getMetadataText(metadata, "role_preview", 500);
+    if (!isValidEmail(replyEmail) || !rolePreview || rolePreview.length < 12) {
+      return NextResponse.json({ error: "Invalid preview request" }, { status: 400 });
+    }
+    metadata.reply_email = replyEmail;
+    metadata.role_preview = rolePreview;
+    metadata.role_length = rolePreview.length;
+  }
+
   try {
     await db.insert(hirelix_growth_landing_events).values({
       event_type: eventType,
@@ -183,20 +209,20 @@ export async function POST(req: NextRequest) {
   }
 
   if (eventType === "preview_request_submit") {
-    try {
-      await notifyPreviewRequest({
+    after(() => {
+      return notifyPreviewRequest({
         batch_id: batchId,
         company,
         email_id: emailId,
         metadata,
         recipient,
+      }).catch((error) => {
+        console.error("[growth:preview_request_alert_failed]", {
+          email_id: emailId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
-    } catch (error) {
-      console.error("[growth:preview_request_alert_failed]", {
-        email_id: emailId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    });
   }
 
   return NextResponse.json({ ok: true });

@@ -89,7 +89,16 @@ try {
         company,
         metadata->>'reply_email' AS reply_email,
         metadata->>'role_preview' AS role_preview,
-        metadata->>'role_length' AS role_length
+        metadata->>'role_length' AS role_length,
+        CASE
+          WHEN event_type = 'preview_request_submit'
+            AND metadata->>'reply_email' ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'
+            AND length(coalesce(metadata->>'role_preview', '')) >= 12
+            THEN 'verified_preview_request'
+          WHEN event_type = 'preview_request_submit'
+            THEN 'unverified_preview_request'
+          ELSE event_type
+        END AS conversion_quality
       FROM public.hirelix_growth_landing_events
       WHERE event_type IN (
         'preview_request_submit',

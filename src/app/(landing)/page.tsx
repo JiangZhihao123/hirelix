@@ -55,6 +55,9 @@ export default function Home() {
   const [isColdEmailVisitor, setIsColdEmailVisitor] = useState(false);
   const [previewEmail, setPreviewEmail] = useState("");
   const [previewRole, setPreviewRole] = useState("");
+  const [previewRequestStatus, setPreviewRequestStatus] = useState<
+    "idle" | "submitting" | "submitted" | "error"
+  >("idle");
   const [previewSubmitted, setPreviewSubmitted] = useState(false);
   const hasTrackedInputRef = useRef(false);
   const hasTrackedLandingViewRef = useRef(false);
@@ -136,7 +139,11 @@ export default function Home() {
       },
     };
 
-    function sendGrowthEvent(eventType: string, metadata: Record<string, string | number | boolean | null> = {}) {
+    async function sendGrowthEvent(
+      eventType: string,
+      metadata: Record<string, string | number | boolean | null> = {},
+      options: { awaitResponse?: boolean } = {},
+    ) {
       const payload = JSON.stringify({
         ...common,
         event_type: eventType,
@@ -146,18 +153,23 @@ export default function Home() {
         },
       });
 
-      if (navigator.sendBeacon) {
+      if (!options.awaitResponse && navigator.sendBeacon) {
         const blob = new Blob([payload], { type: "application/json" });
         navigator.sendBeacon("/api/growth/landing-event", blob);
-        return;
+        return true;
       }
 
-      void fetch("/api/growth/landing-event", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-        keepalive: true,
-      });
+      try {
+        const response = await fetch("/api/growth/landing-event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          keepalive: !options.awaitResponse,
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
     }
 
     sendGrowthEvent("page_view");
@@ -383,18 +395,26 @@ export default function Home() {
     });
   }
 
-  function handlePreviewRequestSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handlePreviewRequestSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmitPreviewRequest) return;
+    if (!canSubmitPreviewRequest || previewRequestStatus === "submitting") return;
 
     handlePreviewRequestClick();
-    window.__hirelixGrowthTrack?.("preview_request_submit", {
+    setPreviewRequestStatus("submitting");
+    const recorded = await window.__hirelixGrowthTrack?.("preview_request_submit", {
       surface: "cold_email_conversion_panel",
       reply_email: trimmedPreviewEmail.slice(0, 160),
       role_preview: trimmedPreviewRole.slice(0, 500),
       role_length: trimmedPreviewRole.length,
-    });
-    setPreviewSubmitted(true);
+    }, { awaitResponse: true });
+    if (recorded) {
+      setPreviewSubmitted(true);
+      setPreviewRequestStatus("submitted");
+      return;
+    }
+
+    setPreviewSubmitted(false);
+    setPreviewRequestStatus("error");
   }
 
   function handleBookFeedbackClick() {
@@ -639,6 +659,7 @@ export default function Home() {
                     onChange={(event) => {
                       setPreviewEmail(event.target.value);
                       setPreviewSubmitted(false);
+                      setPreviewRequestStatus("idle");
                     }}
                     placeholder="Your work email"
                     className="min-h-11 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
@@ -650,6 +671,7 @@ export default function Home() {
                     onChange={(event) => {
                       setPreviewRole(event.target.value);
                       setPreviewSubmitted(false);
+                      setPreviewRequestStatus("idle");
                     }}
                     placeholder="Role title or JD snippet"
                     className="min-h-11 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
@@ -658,20 +680,25 @@ export default function Home() {
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs leading-5 text-blue-900/70" aria-live="polite">
-                    {previewSubmitted
-                      ? "Request noted. I will reply with the next step."
-                      : "A short title is enough; a JD snippet is better."}
+                    {previewRequestStatus === "submitting"
+                      ? "Sending request..."
+                      : previewSubmitted
+                        ? "Request noted. I will reply with the next step."
+                        : previewRequestStatus === "error"
+                          ? "Could not record this here. Please use Reply by email instead."
+                          : "A short title is enough; a JD snippet is better."}
                   </p>
                   <button
                     type="submit"
-                    disabled={!canSubmitPreviewRequest}
+                    disabled={!canSubmitPreviewRequest || previewRequestStatus === "submitting"}
+                    aria-busy={previewRequestStatus === "submitting"}
                     className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
-                      canSubmitPreviewRequest
+                      canSubmitPreviewRequest && previewRequestStatus !== "submitting"
                         ? "bg-blue-600 text-white hover:bg-blue-700"
                         : "cursor-not-allowed bg-blue-100 text-blue-400"
                     }`}
                   >
-                    Send a JD for preview
+                    {previewRequestStatus === "submitting" ? "Sending..." : "Send a JD for preview"}
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>

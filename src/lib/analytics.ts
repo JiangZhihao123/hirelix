@@ -90,7 +90,8 @@ declare global {
     __hirelixGrowthTrack?: (
       eventType: string,
       metadata?: Record<string, string | number | boolean | null>,
-    ) => void;
+      options?: { awaitResponse?: boolean },
+    ) => Promise<boolean>;
   }
 }
 
