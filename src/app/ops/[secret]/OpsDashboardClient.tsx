@@ -365,16 +365,26 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                   {data.recentHumanEvents.map((event, index) => (
                     <div
                       key={`${event.time}-${index}`}
-                      className="grid gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm sm:grid-cols-[7rem_1fr_8rem]"
+                      className="grid gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm lg:grid-cols-[5rem_1fr_18rem]"
                     >
                       <span className="text-slate-500">{formatTime(event.time)}</span>
-                      <span className="font-medium text-slate-900">
-                        {event.label}
-                        {event.details ? (
-                          <span className="ml-2 font-normal text-slate-500">{event.details}</span>
-                        ) : null}
-                      </span>
-                      <span className="text-slate-500 sm:text-right">{event.source}</span>
+                      <div>
+                        <div className="font-medium text-slate-900">
+                          {event.label}
+                          {event.details ? (
+                            <span className="ml-2 font-normal text-slate-500">{event.details}</span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">来源：{event.source}</div>
+                      </div>
+                      <div className="space-y-1 text-xs text-slate-600 lg:text-right">
+                        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                          <span className="font-mono">{event.ip.maskedIp}</span>
+                          <NetworkTypeBadge type={event.ip.networkType} />
+                        </div>
+                        <div>{formatLocation(event.ip)}</div>
+                        <div className="truncate">{event.ip.org || event.ip.asn || "未知归属"}</div>
+                      </div>
                     </div>
                   ))}
                 </div>

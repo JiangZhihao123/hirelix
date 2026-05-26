@@ -101,6 +101,15 @@ export type RecentHumanEvent = {
   label: string;
   source: string;
   details: string;
+  ip: {
+    maskedIp: string;
+    country: string;
+    region: string;
+    city: string;
+    networkType: IpNetworkType;
+    org: string;
+    asn: string;
+  };
 };
 
 export type FilteredTrafficSummary = {
@@ -388,7 +397,7 @@ export function buildOpsConversionData(
     }),
     topSections: buildTopSections(humanSessions),
     highIntentSessions: buildHighIntentSessions(humanSessions),
-    recentHumanEvents: buildRecentHumanEvents(humanEvents),
+    recentHumanEvents: buildRecentHumanEvents(humanEvents, ipAttribution),
     filteredTraffic: buildFilteredTraffic(filteredSessions, trafficBySession),
     ipAttribution: buildIpAttributionSummary(sessions, trafficBySession, ipAttribution),
     diagnosis: buildDiagnosis({
@@ -734,17 +743,34 @@ function buildHighIntentSessions(humanSessions: SessionSummary[]): HighIntentSes
     }));
 }
 
-function buildRecentHumanEvents(events: GrowthEventRecord[]): RecentHumanEvent[] {
+function buildRecentHumanEvents(
+  events: GrowthEventRecord[],
+  ipAttribution: Map<string, IpAttribution>,
+): RecentHumanEvent[] {
   return [...events]
     .sort((a, b) => toDate(b.created_at).getTime() - toDate(a.created_at).getTime())
     .filter((event) => event.event_type !== "session_summary")
     .slice(0, 50)
-    .map((event) => ({
-      time: toDate(event.created_at).toISOString(),
-      label: eventLabel(event.event_type),
-      source: sourceLabel(normalizeSource(readString(event.metadata?.traffic_source) || readSourceFromUrl(event.page_url) || event.referrer || "direct")),
-      details: eventDetails(event),
-    }));
+    .map((event) => {
+      const attribution = event.ip_address
+        ? ipAttribution.get(event.ip_address) ?? fallbackIpAttribution(event.ip_address)
+        : fallbackIpAttribution(null);
+      return {
+        time: toDate(event.created_at).toISOString(),
+        label: eventLabel(event.event_type),
+        source: sourceLabel(normalizeSource(readString(event.metadata?.traffic_source) || readSourceFromUrl(event.page_url) || event.referrer || "direct")),
+        details: eventDetails(event),
+        ip: {
+          maskedIp: attribution.maskedIp,
+          country: attribution.country,
+          region: attribution.region,
+          city: attribution.city,
+          networkType: attribution.networkType,
+          org: attribution.org,
+          asn: attribution.asn,
+        },
+      };
+    });
 }
 
 function buildFilteredTraffic(
@@ -796,9 +822,9 @@ function buildIpAttributionSummary(
     });
 }
 
-function fallbackIpAttribution(ipAddress: string): IpAttribution {
+function fallbackIpAttribution(ipAddress: string | null | undefined): IpAttribution {
   return {
-    ipAddress,
+    ipAddress: ipAddress || "unknown",
     maskedIp: maskIp(ipAddress),
     country: "未知",
     region: "",

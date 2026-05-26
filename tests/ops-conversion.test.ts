@@ -372,3 +372,47 @@ test("buildOpsConversionData returns IP attribution and excludes data center tra
   assert.equal(data.ipAttribution[0].humanSessions, 0);
   assert.equal(data.ipAttribution[0].filteredSessions, 1);
 });
+
+test("buildOpsConversionData attaches IP attribution to recent human events", () => {
+  const start = new Date("2026-05-26T00:00:00.000Z");
+  const end = new Date("2026-05-27T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "page_view",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/",
+        referrer: "https://www.google.com/",
+        ip_address: "195.64.124.151",
+        user_agent: "Mozilla/5.0 Chrome/146.0.0.0",
+        metadata: {},
+        created_at: "2026-05-26T09:45:22.000Z",
+      },
+    ],
+    {
+      range: "today",
+      start,
+      end,
+      ipAttribution: {
+        "195.64.124.151": {
+          ipAddress: "195.64.124.151",
+          maskedIp: "195.64.124.*",
+          country: "Norway",
+          region: "Oslo County",
+          city: "Oslo",
+          networkType: "residential",
+          org: "Chiron Software LLC",
+          asn: "AS211826",
+        },
+      },
+    },
+  );
+
+  assert.equal(data.recentHumanEvents.length, 1);
+  assert.equal(data.recentHumanEvents[0].source, "Google");
+  assert.equal(data.recentHumanEvents[0].ip.maskedIp, "195.64.124.*");
+  assert.equal(data.recentHumanEvents[0].ip.country, "Norway");
+  assert.equal(data.recentHumanEvents[0].ip.networkType, "residential");
+  assert.equal(data.recentHumanEvents[0].ip.org, "Chiron Software LLC");
+});
