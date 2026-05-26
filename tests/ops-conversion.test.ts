@@ -41,6 +41,20 @@ test("classifyTraffic treats interaction signals as human", () => {
   );
 });
 
+test("classifyTraffic does not treat passive timing events as human", () => {
+  assert.equal(
+    classifyTraffic({
+      userAgent: "Mozilla/5.0 Safari/605.1.15",
+      eventTypes: ["page_view", "engaged_10s", "session_summary"],
+      pageStaySeconds: 10,
+      activeReadSeconds: 0,
+      interactionCount: 0,
+      maxScrollDepth: 0,
+    }),
+    "low_quality",
+  );
+});
+
 test("classifyTraffic marks 0-3 second no-interaction sessions as low quality", () => {
   assert.equal(
     classifyTraffic({
@@ -51,6 +65,20 @@ test("classifyTraffic marks 0-3 second no-interaction sessions as low quality", 
       maxScrollDepth: 0,
     }),
     "low_quality",
+  );
+});
+
+test("classifyTraffic marks longer passive sessions as suspicious", () => {
+  assert.equal(
+    classifyTraffic({
+      userAgent: "Mozilla/5.0 Safari/605.1.15",
+      eventTypes: ["page_view", "engaged_30s", "session_summary"],
+      pageStaySeconds: 30,
+      activeReadSeconds: 0,
+      interactionCount: 0,
+      maxScrollDepth: 0,
+    }),
+    "suspicious",
   );
 });
 
@@ -201,7 +229,12 @@ test("buildOpsConversionData ignores ops dashboard visits and login noise", () =
         referrer: "",
         ip_address: "198.51.100.9",
         user_agent: "Mozilla/5.0 Safari/605.1.15",
-        metadata: { traffic_source: "cold_email", section_id: "首屏" },
+        metadata: {
+          traffic_source: "cold_email",
+          section_id: "首屏",
+          interaction_count: 1,
+          max_scroll_depth: 12,
+        },
         created_at: "2026-05-26T10:00:12.000Z",
       },
     ],

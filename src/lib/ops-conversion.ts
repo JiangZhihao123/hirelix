@@ -147,13 +147,7 @@ const BOT_UA_PATTERN =
 const PREVIEW_UA_PATTERN =
   /preview|linkedinbot|slackbot|twitterbot|facebookexternalhit|discordbot|telegrambot|whatsapp|skypeuripreview|googleimageproxy|linkexpand/i;
 
-const HUMAN_SIGNAL_EVENTS = new Set([
-  "engaged_10s",
-  "engaged_30s",
-  "engaged_60s",
-  "engaged_180s",
-  "session_summary",
-  "section_view",
+const STRONG_HUMAN_EVENTS = new Set([
   "hero_input_start",
   "hero_submit_attempt",
   "signin_view",
@@ -219,27 +213,26 @@ export function classifyTraffic(params: {
   if (BOT_UA_PATTERN.test(userAgent)) return "bot";
 
   const eventTypes = new Set(params.eventTypes ?? []);
-  const hasHumanSignal = [...eventTypes].some((eventType) => HUMAN_SIGNAL_EVENTS.has(eventType));
+  const hasStrongHumanSignal = [...eventTypes].some((eventType) => STRONG_HUMAN_EVENTS.has(eventType));
   const interactionCount = params.interactionCount ?? 0;
   const maxScrollDepth = params.maxScrollDepth ?? 0;
   const pageStaySeconds = params.pageStaySeconds ?? 0;
   const activeReadSeconds = params.activeReadSeconds ?? 0;
 
-  if ((params.sessionCountForIpUa ?? 0) >= 12 && !hasHumanSignal) {
+  if ((params.sessionCountForIpUa ?? 0) >= 12 && !hasStrongHumanSignal && interactionCount === 0 && maxScrollDepth === 0) {
     return "suspicious";
   }
 
-  if (hasHumanSignal || interactionCount > 0 || maxScrollDepth > 0 || activeReadSeconds > 0) {
+  if (hasStrongHumanSignal || interactionCount > 0 || maxScrollDepth > 0 || activeReadSeconds >= 4) {
     return "human";
   }
 
-  if (pageStaySeconds <= 3) return "low_quality";
+  if (pageStaySeconds <= 10) return "low_quality";
   return "suspicious";
 }
 
 export function getOpsRangeWindow(range: OpsRange, now = new Date()) {
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = getStartOfShanghaiDay(now);
 
   if (range === "yesterday") {
     const start = new Date(todayStart);
@@ -260,6 +253,12 @@ export function getOpsRangeWindow(range: OpsRange, now = new Date()) {
   }
 
   return { start: todayStart, end: now, label: "今天" };
+}
+
+function getStartOfShanghaiDay(now: Date) {
+  const shanghaiOffsetMs = 8 * 60 * 60 * 1000;
+  const dayMs = 24 * 60 * 60 * 1000;
+  return new Date(Math.floor((now.getTime() + shanghaiOffsetMs) / dayMs) * dayMs - shanghaiOffsetMs);
 }
 
 export function normalizeOpsRange(value: string | null | undefined): OpsRange {
