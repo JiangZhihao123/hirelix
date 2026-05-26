@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 import { GoogleAuthButton } from "./auth/GoogleAuthButton";
 import { getLoginFormStyles } from "./auth/loginStyles";
 
@@ -37,6 +38,10 @@ export function LoginForm({
       trackEvent(ANALYTICS_EVENTS.emailOtpRequested, {
         ...getAnalyticsContextFromBrowser(),
         auth_method: "google",
+      });
+      void trackGrowthEvent("google_signin_click", {
+        auth_method: "google",
+        route: window.location.pathname,
       });
       // better-auth handles the OAuth dance: it 302s us to Google, then
       // redirects back to `callbackURL` once the session cookie is set.

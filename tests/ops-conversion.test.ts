@@ -1,0 +1,130 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  bucketPageStaySeconds,
+  buildOpsConversionData,
+  classifyTraffic,
+} from "../src/lib/ops-conversion";
+
+test("classifyTraffic filters obvious bot user agents", () => {
+  assert.equal(
+    classifyTraffic({
+      userAgent: "Mozilla/5.0 compatible; Googlebot/2.1",
+      eventTypes: ["page_view"],
+      pageStaySeconds: 20,
+    }),
+    "bot",
+  );
+});
+
+test("classifyTraffic filters social preview user agents", () => {
+  assert.equal(
+    classifyTraffic({
+      userAgent: "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
+      eventTypes: ["page_view"],
+      pageStaySeconds: 20,
+    }),
+    "preview",
+  );
+});
+
+test("classifyTraffic treats interaction signals as human", () => {
+  assert.equal(
+    classifyTraffic({
+      userAgent: "Mozilla/5.0 Safari/605.1.15",
+      eventTypes: ["section_view"],
+      pageStaySeconds: 2,
+      interactionCount: 1,
+    }),
+    "human",
+  );
+});
+
+test("classifyTraffic marks 0-3 second no-interaction sessions as low quality", () => {
+  assert.equal(
+    classifyTraffic({
+      userAgent: "Mozilla/5.0 Safari/605.1.15",
+      eventTypes: ["page_view"],
+      pageStaySeconds: 3,
+      interactionCount: 0,
+      maxScrollDepth: 0,
+    }),
+    "low_quality",
+  );
+});
+
+test("bucketPageStaySeconds uses the agreed second ranges", () => {
+  assert.equal(bucketPageStaySeconds(3), "0-3秒");
+  assert.equal(bucketPageStaySeconds(10), "4-10秒");
+  assert.equal(bucketPageStaySeconds(30), "11-30秒");
+  assert.equal(bucketPageStaySeconds(60), "31-60秒");
+  assert.equal(bucketPageStaySeconds(180), "1-3分钟");
+  assert.equal(bucketPageStaySeconds(600), "3-10分钟");
+  assert.equal(bucketPageStaySeconds(601), "10分钟以上");
+});
+
+test("buildOpsConversionData keeps filtered traffic out of the main funnel", () => {
+  const start = new Date("2026-05-26T00:00:00.000Z");
+  const end = new Date("2026-05-27T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "page_view",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/?traffic_source=linkedin",
+        referrer: "",
+        ip_address: "203.0.113.10",
+        user_agent: "Mozilla/5.0 Safari/605.1.15",
+        metadata: { traffic_source: "linkedin" },
+        created_at: "2026-05-26T01:00:00.000Z",
+      },
+      {
+        event_type: "session_summary",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/?traffic_source=linkedin",
+        referrer: "",
+        ip_address: "203.0.113.10",
+        user_agent: "Mozilla/5.0 Safari/605.1.15",
+        metadata: {
+          traffic_source: "linkedin",
+          page_stay_seconds: 72,
+          active_read_seconds: 48,
+          interaction_count: 3,
+          max_scroll_depth: 60,
+        },
+        created_at: "2026-05-26T01:01:12.000Z",
+      },
+      {
+        event_type: "hero_submit_attempt",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/?traffic_source=linkedin",
+        referrer: "",
+        ip_address: "203.0.113.10",
+        user_agent: "Mozilla/5.0 Safari/605.1.15",
+        metadata: { traffic_source: "linkedin", jd_length_bucket: "200-499" },
+        created_at: "2026-05-26T01:01:20.000Z",
+      },
+      {
+        event_type: "page_view",
+        visitor_id: "visitor-bot",
+        session_id: "session-bot",
+        page_url: "https://hirelix.online/",
+        referrer: "",
+        ip_address: "198.51.100.8",
+        user_agent: "curl/8.0",
+        metadata: {},
+        created_at: "2026-05-26T02:00:00.000Z",
+      },
+    ],
+    { range: "today", start, end },
+  );
+
+  assert.equal(data.summary.humanVisits, 1);
+  assert.equal(data.summary.filteredVisits, 1);
+  assert.equal(data.summary.effectiveClicks, 1);
+  assert.equal(data.funnel[0].count, 1);
+});

@@ -27,6 +27,7 @@ import {
   trackEvent,
   type IntentPath,
 } from "@/lib/analytics";
+import { getJdLengthBucket } from "@/lib/growth-client";
 import type { BillingPlanCode } from "@/lib/billing";
 import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
@@ -106,10 +107,12 @@ export default function Home() {
     const isColdEmailVisitor =
       trafficSource === "cold_email" || params.get("utm_medium") === "email";
 
-    if (!isColdEmailVisitor) return;
-    const revealColdEmailPanelFrame = window.requestAnimationFrame(() => {
-      setIsColdEmailVisitor(true);
-    });
+    let revealColdEmailPanelFrame: number | null = null;
+    if (isColdEmailVisitor) {
+      revealColdEmailPanelFrame = window.requestAnimationFrame(() => {
+        setIsColdEmailVisitor(true);
+      });
+    }
 
     const visitorKey = "hirelix.growth.visitor_id";
     const existingVisitorId = window.localStorage.getItem(visitorKey);
@@ -118,7 +121,22 @@ export default function Home() {
       window.localStorage.setItem(visitorKey, visitorId);
     }
 
-    const sessionId = crypto.randomUUID();
+    const existingSessionId = window.__hirelixGrowthIdentity?.session_id;
+    const sessionId = existingSessionId || crypto.randomUUID();
+    const previousGrowthTrack = window.__hirelixGrowthTrack;
+    const previousGrowthIdentity = window.__hirelixGrowthIdentity;
+    window.__hirelixGrowthIdentity = {
+      visitor_id: visitorId,
+      session_id: sessionId,
+    };
+
+    const startedAt = Date.now();
+    let activeReadSeconds = 0;
+    let lastTickAt = startedAt;
+    let lastInteractionAt = startedAt;
+    let interactionCount = 0;
+    let maxScrollDepth = 0;
+    const seenSections = new Set<string>();
     const common = {
       visitor_id: visitorId,
       session_id: sessionId,
@@ -132,9 +150,10 @@ export default function Home() {
         utm_source: params.get("utm_source"),
         utm_medium: params.get("utm_medium"),
         utm_campaign: params.get("utm_campaign"),
-        traffic_source: params.get("traffic_source"),
-        page_variant: params.get("page_variant"),
+        traffic_source: params.get("traffic_source") || params.get("utm_source"),
+        page_variant: params.get("page_variant") || experiments.pageVariant,
         intent_path: params.get("intent_path"),
+        device_type: window.innerWidth < 768 ? "mobile" : "desktop",
       },
     };
 
@@ -171,24 +190,113 @@ export default function Home() {
       }
     }
 
-    sendGrowthEvent("page_view");
-    const engagedTimer = window.setTimeout(() => {
-      sendGrowthEvent("engaged_10s", {
-        scroll_y: Math.round(window.scrollY),
-        viewport_height: window.innerHeight,
+    function getMaxScrollDepth() {
+      const scrollable = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      return Math.min(100, Math.max(0, Math.round((window.scrollY / scrollable) * 100)));
+    }
+
+    function getSessionMetadata() {
+      const pageStaySeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+      return {
+        page_stay_seconds: pageStaySeconds,
+        active_read_seconds: activeReadSeconds,
+        max_scroll_depth: Math.max(maxScrollDepth, getMaxScrollDepth()),
+        interaction_count: interactionCount,
+        section_view_count: seenSections.size,
+        visibility_state: document.visibilityState,
+      };
+    }
+
+    function markInteraction() {
+      interactionCount += 1;
+      lastInteractionAt = Date.now();
+      maxScrollDepth = Math.max(maxScrollDepth, getMaxScrollDepth());
+    }
+
+    function sendSessionSummary() {
+      void sendGrowthEvent("session_summary", getSessionMetadata());
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") sendSessionSummary();
+    }
+
+    sendGrowthEvent("page_view", {
+      viewport_width: window.innerWidth,
+      viewport_height: window.innerHeight,
+    });
+
+    const activeTimer = window.setInterval(() => {
+      const now = Date.now();
+      const elapsed = Math.max(0, Math.round((now - lastTickAt) / 1000));
+      if (document.visibilityState === "visible" && now - lastInteractionAt <= 15_000) {
+        activeReadSeconds += elapsed;
+      }
+      lastTickAt = now;
+      maxScrollDepth = Math.max(maxScrollDepth, getMaxScrollDepth());
+    }, 1000);
+
+    const engagedTimers = [10, 30, 60, 180].map((seconds) =>
+      window.setTimeout(() => {
+        void sendGrowthEvent(`engaged_${seconds}s`, getSessionMetadata());
+      }, seconds * 1000),
+    );
+
+    const interactionEvents = ["pointermove", "pointerdown", "keydown", "touchstart", "scroll"] as const;
+    for (const eventName of interactionEvents) {
+      window.addEventListener(eventName, markInteraction, { passive: true });
+    }
+
+    const sectionObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const element = entry.target as HTMLElement;
+          const sectionId = element.dataset.growthSection || element.id;
+          if (!sectionId || seenSections.has(sectionId)) continue;
+          seenSections.add(sectionId);
+          void sendGrowthEvent("section_view", {
+            section_id: sectionId,
+            page_stay_seconds: Math.round((Date.now() - startedAt) / 1000),
+            max_scroll_depth: getMaxScrollDepth(),
+          });
+        }
+      },
+      { threshold: 0.35 },
+    );
+
+    window.requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLElement>("[data-growth-section]").forEach((element) => {
+        sectionObserver.observe(element);
       });
-    }, 10_000);
+    });
+
+    window.addEventListener("pagehide", sendSessionSummary);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     window.__hirelixGrowthTrack = sendGrowthEvent;
 
     return () => {
-      window.cancelAnimationFrame(revealColdEmailPanelFrame);
-      window.clearTimeout(engagedTimer);
+      if (revealColdEmailPanelFrame !== null) {
+        window.cancelAnimationFrame(revealColdEmailPanelFrame);
+      }
+      window.clearInterval(activeTimer);
+      for (const timer of engagedTimers) window.clearTimeout(timer);
+      for (const eventName of interactionEvents) {
+        window.removeEventListener(eventName, markInteraction);
+      }
+      sectionObserver.disconnect();
+      window.removeEventListener("pagehide", sendSessionSummary);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      sendSessionSummary();
       if (window.__hirelixGrowthTrack === sendGrowthEvent) {
-        delete window.__hirelixGrowthTrack;
+        window.__hirelixGrowthTrack = previousGrowthTrack;
+      }
+      if (window.__hirelixGrowthIdentity?.session_id === sessionId) {
+        window.__hirelixGrowthIdentity = previousGrowthIdentity;
       }
     };
-  }, []);
+  }, [experiments.pageVariant]);
 
   useEffect(() => {
     if (!authModalOpen) return;
@@ -311,7 +419,7 @@ export default function Home() {
       jd_word_count: wordCount,
     });
     window.__hirelixGrowthTrack?.("hero_submit_attempt", {
-      jd_word_count: wordCount,
+      jd_length_bucket: getJdLengthBucket(trimmedJd),
       is_authenticated: Boolean(user),
     });
 
@@ -415,7 +523,7 @@ export default function Home() {
     if (!hasTrackedGrowthInputRef.current && value.trim().length > 0) {
       hasTrackedGrowthInputRef.current = true;
       window.__hirelixGrowthTrack?.("hero_input_start", {
-        input_length: value.trim().length,
+        jd_length_bucket: getJdLengthBucket(value),
       });
     }
   }
@@ -456,7 +564,7 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section id="product" className="relative overflow-hidden border-b border-slate-200/80 pt-24 pb-10 sm:pt-28 sm:pb-12">
+      <section id="product" data-growth-section="首屏" className="relative overflow-hidden border-b border-slate-200/80 pt-24 pb-10 sm:pt-28 sm:pb-12">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.035)_1px,transparent_1px)] bg-[size:64px_64px]" />
         <div className="relative mx-auto grid max-w-[96rem] gap-8 px-5 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
           <div>
@@ -652,7 +760,7 @@ export default function Home() {
       </section>
 
       {sampleShortlistOpen && (
-        <section id="sample-shortlist" className="scroll-mt-24 border-b border-slate-200 bg-white py-14">
+        <section id="sample-shortlist" data-growth-section="产品示例" className="scroll-mt-24 border-b border-slate-200 bg-white py-14">
           <div className="mx-auto max-w-[96rem] px-5 sm:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>

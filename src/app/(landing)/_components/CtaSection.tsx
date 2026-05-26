@@ -14,7 +14,7 @@ export function CtaSection({
 }) {
   return (
     <>
-      <section className="relative overflow-hidden border-t border-slate-200 bg-[#fbfaf7] py-24 sm:py-32">
+      <section data-growth-section="底部行动" className="relative overflow-hidden border-t border-slate-200 bg-[#fbfaf7] py-24 sm:py-32">
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
             Ready when you are

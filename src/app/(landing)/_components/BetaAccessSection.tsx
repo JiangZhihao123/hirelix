@@ -8,7 +8,7 @@ export function BetaAccessSection({ onStart }: { onStart: () => void }) {
   ];
 
   return (
-    <section id="beta-access" className="scroll-mt-24 border-t border-slate-200 bg-white py-20 sm:py-28">
+    <section id="beta-access" data-growth-section="行动区" className="scroll-mt-24 border-t border-slate-200 bg-white py-20 sm:py-28">
       <div className="mx-auto max-w-5xl px-6">
         <div className="grid gap-8 rounded-lg border border-blue-100 bg-[linear-gradient(180deg,#eff6ff_0%,#ffffff_58%)] p-6 shadow-[0_18px_50px_rgba(37,99,235,0.1)] sm:p-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div>

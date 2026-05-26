@@ -92,6 +92,10 @@ declare global {
       metadata?: Record<string, string | number | boolean | null>,
       options?: { awaitResponse?: boolean },
     ) => Promise<boolean>;
+    __hirelixGrowthIdentity?: {
+      visitor_id: string;
+      session_id: string;
+    };
   }
 }
 

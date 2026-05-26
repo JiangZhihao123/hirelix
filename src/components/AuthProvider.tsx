@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 
 import { authClient, useSession } from "@/lib/auth-client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 
 /**
  * Subset of the better-auth user shape that the rest of the app reads.
@@ -34,6 +35,7 @@ const AuthContext = createContext<AuthState>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isPending } = useSession();
+  const trackedUserIdRef = useRef<string | null>(null);
 
   const user: AppUser | null = data?.user
     ? {
@@ -46,6 +48,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       }
     : null;
+
+  useEffect(() => {
+    if (isPending || !user?.id || trackedUserIdRef.current === user.id) return;
+    trackedUserIdRef.current = user.id;
+    void trackGrowthEvent("signup_success", {
+      route: window.location.pathname,
+      has_email: Boolean(user.email),
+    });
+  }, [isPending, user?.email, user?.id]);
 
   const signOut = async () => {
     if (typeof window !== "undefined") {

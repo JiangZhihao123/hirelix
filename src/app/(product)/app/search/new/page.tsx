@@ -8,6 +8,7 @@ import {
   getAnalyticsContextFromParams,
   trackEvent,
 } from "@/lib/analytics";
+import { getGrowthIdentity, getJdLengthBucket, trackGrowthEvent } from "@/lib/growth-client";
 import {
   PUBLIC_SEARCH_ANALYZE_ERROR_MESSAGE,
   PUBLIC_SEARCH_CREATE_ERROR_MESSAGE,
@@ -80,6 +81,10 @@ export default function NewSearchPage() {
     trackEvent(ANALYTICS_EVENTS.newSearchView, {
       ...analyticsContext,
       has_prefilled_jd: Boolean(searchParams.get("jd")),
+    });
+    void trackGrowthEvent("new_search_view", {
+      has_prefilled_jd: Boolean(searchParams.get("jd")),
+      route: "/app/search/new",
     });
   }, [analyticsContext, searchParams]);
 
@@ -223,6 +228,7 @@ export default function NewSearchPage() {
         body: JSON.stringify({
           jd_text: jdText.trim(),
           candidate_count: candidateCount,
+          growth_tracking: getGrowthIdentity(),
           parsed_requirements_override: editedParsedRequirements(clarifyData, brief),
           ...(userClarification ? { user_clarification: userClarification } : {}),
         }),
@@ -230,6 +236,10 @@ export default function NewSearchPage() {
 
       if (!res.ok) {
         if (res.status === 403) void refresh();
+        await trackGrowthEvent("search_create_failed", {
+          jd_length_bucket: getJdLengthBucket(jdText),
+          status_code: res.status,
+        }, { awaitResponse: true });
         throw new Error(PUBLIC_SEARCH_CREATE_ERROR_MESSAGE);
       }
 
@@ -241,6 +251,11 @@ export default function NewSearchPage() {
         search_id: id,
         had_clarification: Boolean(userClarification),
       });
+      await trackGrowthEvent("search_create_success", {
+        candidate_count: candidateCount,
+        jd_length_bucket: getJdLengthBucket(jdText),
+        had_clarification: Boolean(userClarification),
+      }, { awaitResponse: true });
       startTransition(() => {
         router.push(`/app/search/${id}`);
       });
@@ -277,6 +292,12 @@ export default function NewSearchPage() {
         <textarea
           value={jdText}
           onChange={(e) => {
+            if (jdText.trim().length === 0 && e.target.value.trim().length > 0) {
+              void trackGrowthEvent("hero_input_start", {
+                route: "/app/search/new",
+                jd_length_bucket: getJdLengthBucket(e.target.value),
+              });
+            }
             setJdText(e.target.value);
             if (stage.type !== "input") setStage({ type: "input" });
           }}

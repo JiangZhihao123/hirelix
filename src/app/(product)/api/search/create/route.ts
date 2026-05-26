@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
+  hirelix_growth_landing_events,
   hirelix_searches,
   hirelix_usage_events,
 } from "@/db/schema";
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   let createdSearchId: string | null = null;
 
   try {
-    const { jd_text, candidate_count, parsed_requirements_override, user_clarification } = await req.json();
+    const { jd_text, candidate_count, parsed_requirements_override, user_clarification, growth_tracking } = await req.json();
     const billing = await getBillingSummaryForUser(user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
@@ -185,6 +186,45 @@ export async function POST(req: NextRequest) {
         },
         "Failed to record search usage event",
       );
+    }
+
+    if (
+      growth_tracking &&
+      typeof growth_tracking === "object" &&
+      typeof growth_tracking.visitor_id === "string" &&
+      typeof growth_tracking.session_id === "string"
+    ) {
+      try {
+        await db.insert(hirelix_growth_landing_events).values({
+          event_type: "search_create_success",
+          visitor_id: growth_tracking.visitor_id.slice(0, 120),
+          session_id: growth_tracking.session_id.slice(0, 120),
+          page_url: req.headers.get("referer"),
+          referrer: req.headers.get("referer"),
+          ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip"),
+          user_agent: req.headers.get("user-agent"),
+          metadata: {
+            candidate_count: maxCandidates,
+            jd_length_bucket:
+              jd_text.trim().length < 50
+                ? "1-49"
+                : jd_text.trim().length < 200
+                  ? "50-199"
+                  : jd_text.trim().length < 500
+                    ? "200-499"
+                    : "500+",
+          },
+        });
+      } catch (growthError) {
+        routeLogger.error(
+          {
+            user_id: user.id,
+            search_id: search.id,
+            ...errorLogFields(growthError),
+          },
+          "Failed to record growth search create event",
+        );
+      }
     }
 
     return NextResponse.json({ id: search.id });
