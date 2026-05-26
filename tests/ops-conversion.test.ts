@@ -110,9 +110,19 @@ test("classifyTraffic marks cloud IP sessions without real interaction as suspic
   );
 });
 
-test("classifyTraffic keeps cloud IP sessions with clear form intent as human", () => {
+test("classifyTraffic filters attributed data center IP sessions even with clear form intent", () => {
   assert.equal(
     classifyTraffic({
+      ipAttribution: {
+        ipAddress: "34.118.23.107",
+        maskedIp: "34.118.23.*",
+        country: "Poland",
+        region: "Mazovia",
+        city: "Warsaw",
+        networkType: "data_center",
+        org: "Google LLC",
+        asn: "AS396982",
+      },
       ipAddress: "34.118.23.107",
       userAgent: "Mozilla/5.0 Chrome/142.0.0.0",
       eventTypes: ["page_view", "hero_input_start", "hero_submit_attempt"],
@@ -121,7 +131,7 @@ test("classifyTraffic keeps cloud IP sessions with clear form intent as human", 
       interactionCount: 4,
       maxScrollDepth: 30,
     }),
-    "human",
+    "suspicious",
   );
 });
 
@@ -357,4 +367,62 @@ test("buildOpsConversionData counts signup success only after a Google sign-in c
   assert.equal(data.summary.loginAttempts, 1);
   assert.equal(data.summary.successfulLogins, 1);
   assert.equal(data.recentHumanEvents.filter((event) => event.label === "登录成功").length, 1);
+});
+
+test("buildOpsConversionData returns IP attribution and excludes data center traffic from humans", () => {
+  const start = new Date("2026-05-26T00:00:00.000Z");
+  const end = new Date("2026-05-27T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "page_view",
+        visitor_id: "cloud-user",
+        session_id: "cloud-session",
+        page_url: "https://hirelix.online/?traffic_source=cold_email",
+        referrer: "",
+        ip_address: "34.118.23.107",
+        user_agent: "Mozilla/5.0 Chrome/142.0.0.0",
+        metadata: { traffic_source: "cold_email" },
+        created_at: "2026-05-26T10:00:00.000Z",
+      },
+      {
+        event_type: "hero_submit_attempt",
+        visitor_id: "cloud-user",
+        session_id: "cloud-session",
+        page_url: "https://hirelix.online/?traffic_source=cold_email",
+        referrer: "",
+        ip_address: "34.118.23.107",
+        user_agent: "Mozilla/5.0 Chrome/142.0.0.0",
+        metadata: { traffic_source: "cold_email", interaction_count: 4, max_scroll_depth: 20 },
+        created_at: "2026-05-26T10:00:20.000Z",
+      },
+    ],
+    {
+      range: "today",
+      start,
+      end,
+      ipAttribution: {
+        "34.118.23.107": {
+          ipAddress: "34.118.23.107",
+          maskedIp: "34.118.23.*",
+          country: "Poland",
+          region: "Mazovia",
+          city: "Warsaw",
+          networkType: "data_center",
+          org: "Google LLC",
+          asn: "AS396982",
+        },
+      },
+    },
+  );
+
+  assert.equal(data.summary.humanVisits, 0);
+  assert.equal(data.summary.filteredVisits, 1);
+  assert.equal(data.summary.suspiciousVisits, 1);
+  assert.equal(data.ipAttribution.length, 1);
+  assert.equal(data.ipAttribution[0].maskedIp, "34.118.23.*");
+  assert.equal(data.ipAttribution[0].networkType, "data_center");
+  assert.equal(data.ipAttribution[0].country, "Poland");
+  assert.equal(data.ipAttribution[0].humanSessions, 0);
+  assert.equal(data.ipAttribution[0].filteredSessions, 1);
 });

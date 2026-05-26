@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
+  Database,
   Eye,
   Filter,
   Flame,
@@ -315,6 +316,47 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
               </Panel>
             </section>
 
+            <Panel title="访问 IP 溯源">
+              {data.ipAttribution.length === 0 ? (
+                <EmptyState text="还没有 IP 数据" />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                        <th className="py-2 pr-3 font-medium">IP</th>
+                        <th className="py-2 pr-3 font-medium">类型</th>
+                        <th className="py-2 pr-3 font-medium">地区</th>
+                        <th className="py-2 pr-3 font-medium">归属</th>
+                        <th className="py-2 pr-3 font-medium">访问</th>
+                        <th className="py-2 pr-3 font-medium">真人</th>
+                        <th className="py-2 pr-3 font-medium">过滤</th>
+                        <th className="py-2 pr-3 font-medium">最后出现</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.ipAttribution.map((item) => (
+                        <tr key={item.ipAddress}>
+                          <td className="py-3 pr-3 font-mono text-xs text-slate-700">{item.maskedIp}</td>
+                          <td className="py-3 pr-3">
+                            <NetworkTypeBadge type={item.networkType} />
+                          </td>
+                          <td className="py-3 pr-3 text-slate-700">{formatLocation(item)}</td>
+                          <td className="max-w-[18rem] truncate py-3 pr-3 text-slate-600">
+                            {item.org || item.asn || "未知"}
+                          </td>
+                          <td className="py-3 pr-3 tabular-nums">{item.sessions}</td>
+                          <td className="py-3 pr-3 tabular-nums">{item.humanSessions}</td>
+                          <td className="py-3 pr-3 tabular-nums">{item.filteredSessions}</td>
+                          <td className="py-3 pr-3 text-slate-500">{formatTime(item.lastSeenAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+
             <Panel title="最近真人行为">
               {data.recentHumanEvents.length === 0 ? (
                 <EmptyState text={`${data.range.label}还没有真人访问`} />
@@ -343,6 +385,26 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
       </div>
     </main>
   );
+}
+
+function NetworkTypeBadge({ type }: { type: "residential" | "business" | "data_center" | "unknown" }) {
+  const config = {
+    residential: { label: "住宅/移动", className: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+    business: { label: "公司网络", className: "bg-sky-50 text-sky-700 ring-sky-200" },
+    data_center: { label: "数据中心", className: "bg-amber-50 text-amber-800 ring-amber-200" },
+    unknown: { label: "未知", className: "bg-slate-100 text-slate-600 ring-slate-200" },
+  }[type];
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ring-1 ${config.className}`}>
+      {type === "data_center" ? <Database className="h-3 w-3" /> : null}
+      {config.label}
+    </span>
+  );
+}
+
+function formatLocation(item: { country: string; region: string; city: string }) {
+  return [item.country, item.region, item.city].filter(Boolean).join(" · ") || "未知";
 }
 
 function Panel({

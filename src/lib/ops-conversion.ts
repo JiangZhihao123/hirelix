@@ -17,6 +17,18 @@ export type GrowthEventRecord = {
 
 export type OpsRange = "today" | "yesterday" | "7d" | "30d";
 export type TrafficKind = "human" | "bot" | "preview" | "suspicious" | "low_quality";
+export type IpNetworkType = "residential" | "business" | "data_center" | "unknown";
+
+export type IpAttribution = {
+  ipAddress: string;
+  maskedIp: string;
+  country: string;
+  region: string;
+  city: string;
+  networkType: IpNetworkType;
+  org: string;
+  asn: string;
+};
 
 export type OpsConversionData = {
   range: {
@@ -54,6 +66,7 @@ export type OpsConversionData = {
   highIntentSessions: HighIntentSession[];
   recentHumanEvents: RecentHumanEvent[];
   filteredTraffic: FilteredTrafficSummary[];
+  ipAttribution: IpAttributionSummary[];
   diagnosis: string;
 };
 
@@ -94,6 +107,13 @@ export type FilteredTrafficSummary = {
   kind: Exclude<TrafficKind, "human">;
   label: string;
   count: number;
+};
+
+export type IpAttributionSummary = IpAttribution & {
+  sessions: number;
+  humanSessions: number;
+  filteredSessions: number;
+  lastSeenAt: string;
 };
 
 export type VisitorSegment = {
@@ -200,6 +220,7 @@ export function bucketActiveReadSeconds(seconds: number): string {
 }
 
 export function classifyTraffic(params: {
+  ipAttribution?: IpAttribution | null;
   ipAddress?: string | null;
   userAgent?: string | null;
   eventTypes?: Iterable<string>;
@@ -220,20 +241,8 @@ export function classifyTraffic(params: {
   const pageStaySeconds = params.pageStaySeconds ?? 0;
   const activeReadSeconds = params.activeReadSeconds ?? 0;
   const hasRealInteraction = interactionCount > 0 || maxScrollDepth > 0 || activeReadSeconds >= 4;
-  const hasDeepAction = hasAnyEventType(eventTypes, new Set([
-    "hero_input_start",
-    "hero_submit_attempt",
-    "google_signin_click",
-    "signup_success",
-    "new_search_view",
-    "search_create_success",
-    "search_create_failed",
-    "preview_request_submit",
-    "book_feedback_click",
-    "reply_email_click",
-  ]));
 
-  if (isCloudOrSecurityIp(params.ipAddress) && !hasRealInteraction && !hasDeepAction) {
+  if (isDataCenterVisit(params.ipAttribution, params.ipAddress)) {
     return "suspicious";
   }
 
@@ -249,11 +258,11 @@ export function classifyTraffic(params: {
   return "suspicious";
 }
 
-function hasAnyEventType(eventTypes: Set<string>, targetEventTypes: Set<string>) {
-  for (const eventType of targetEventTypes) {
-    if (eventTypes.has(eventType)) return true;
-  }
-  return false;
+function isDataCenterVisit(
+  ipAttribution: IpAttribution | null | undefined,
+  ipAddress: string | null | undefined,
+) {
+  return ipAttribution?.networkType === "data_center" || isCloudOrSecurityIp(ipAddress);
 }
 
 function isCloudOrSecurityIp(ipAddress: string | null | undefined) {
@@ -321,17 +330,24 @@ export function normalizeOpsRange(value: string | null | undefined): OpsRange {
 
 export function buildOpsConversionData(
   events: GrowthEventRecord[],
-  options: { range: OpsRange; start: Date; end: Date },
+  options: {
+    range: OpsRange;
+    start: Date;
+    end: Date;
+    ipAttribution?: Map<string, IpAttribution> | Record<string, IpAttribution>;
+  },
 ): OpsConversionData {
   const cleanEvents = removeOrphanSignupEvents(events.filter((event) => !isOpsEvent(event)));
   const sessions = buildSessions(cleanEvents);
   const ipUaCounts = countSessionsByIpUa(sessions);
+  const ipAttribution = normalizeIpAttribution(options.ipAttribution);
   const trafficBySession = new Map<string, TrafficKind>();
 
   for (const session of sessions) {
     trafficBySession.set(
       session.sessionId,
       classifyTraffic({
+        ipAttribution: session.ipAddress ? ipAttribution.get(session.ipAddress) : null,
         ipAddress: session.ipAddress,
         userAgent: session.userAgent,
         eventTypes: session.eventTypes,
@@ -417,6 +433,7 @@ export function buildOpsConversionData(
     highIntentSessions: buildHighIntentSessions(humanSessions),
     recentHumanEvents: buildRecentHumanEvents(humanEvents),
     filteredTraffic: buildFilteredTraffic(filteredSessions, trafficBySession),
+    ipAttribution: buildIpAttributionSummary(sessions, trafficBySession, ipAttribution),
     diagnosis: buildDiagnosis({
       humanVisits: humanSessions.length,
       effectiveClicks,
@@ -428,6 +445,12 @@ export function buildOpsConversionData(
       rangeLabel,
     }),
   };
+}
+
+function normalizeIpAttribution(value: Map<string, IpAttribution> | Record<string, IpAttribution> | undefined) {
+  if (!value) return new Map<string, IpAttribution>();
+  if (value instanceof Map) return value;
+  return new Map(Object.entries(value));
 }
 
 function removeOrphanSignupEvents(events: GrowthEventRecord[]) {
@@ -789,6 +812,60 @@ function buildFilteredTraffic(
     { kind: "low_quality", label: "极短无互动", count: counts.low_quality },
     { kind: "suspicious", label: "可疑访问", count: counts.suspicious },
   ];
+}
+
+function buildIpAttributionSummary(
+  sessions: SessionSummary[],
+  trafficBySession: Map<string, TrafficKind>,
+  ipAttribution: Map<string, IpAttribution>,
+): IpAttributionSummary[] {
+  const byIp = new Map<string, SessionSummary[]>();
+  for (const session of sessions) {
+    const ipAddress = session.ipAddress || "unknown";
+    byIp.set(ipAddress, [...(byIp.get(ipAddress) ?? []), session]);
+  }
+
+  return [...byIp.entries()]
+    .map(([ipAddress, ipSessions]) => {
+      const attribution = ipAttribution.get(ipAddress) ?? fallbackIpAttribution(ipAddress);
+      const humanSessions = ipSessions.filter((session) => trafficBySession.get(session.sessionId) === "human").length;
+      return {
+        ...attribution,
+        sessions: ipSessions.length,
+        humanSessions,
+        filteredSessions: ipSessions.length - humanSessions,
+        lastSeenAt: new Date(Math.max(...ipSessions.map((session) => session.lastEventAt.getTime()))).toISOString(),
+      };
+    })
+    .sort((left, right) => {
+      if (left.networkType !== right.networkType) {
+        return left.networkType === "data_center" ? -1 : right.networkType === "data_center" ? 1 : 0;
+      }
+      return right.sessions - left.sessions;
+    });
+}
+
+function fallbackIpAttribution(ipAddress: string): IpAttribution {
+  return {
+    ipAddress,
+    maskedIp: maskIp(ipAddress),
+    country: "未知",
+    region: "",
+    city: "",
+    networkType: isCloudOrSecurityIp(ipAddress) ? "data_center" : "unknown",
+    org: "",
+    asn: "",
+  };
+}
+
+export function maskIp(ipAddress: string | null | undefined) {
+  if (!ipAddress) return "未知";
+  const ipv4Parts = ipAddress.split(".");
+  if (ipv4Parts.length === 4) return `${ipv4Parts[0]}.${ipv4Parts[1]}.${ipv4Parts[2]}.*`;
+
+  const ipv6Parts = ipAddress.split(":").filter(Boolean);
+  if (ipv6Parts.length > 0) return `${ipv6Parts.slice(0, 3).join(":")}:*`;
+  return "未知";
 }
 
 function buildDiagnosis(params: {

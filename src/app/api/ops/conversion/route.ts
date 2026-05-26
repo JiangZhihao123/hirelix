@@ -6,8 +6,11 @@ import { hirelix_growth_landing_events } from "@/db/schema";
 import {
   buildOpsConversionData,
   getOpsRangeWindow,
+  maskIp,
   normalizeOpsRange,
   type GrowthEventRecord,
+  type IpAttribution,
+  type IpNetworkType,
 } from "@/lib/ops-conversion";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +19,177 @@ function isAuthorized(req: NextRequest) {
   const secret = process.env.OPS_DASHBOARD_SECRET;
   if (!secret) return false;
   return req.nextUrl.searchParams.get("secret") === secret;
+}
+
+type IpWhoResponse = {
+  success?: boolean;
+  ip?: string;
+  continent?: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  connection?: {
+    asn?: number;
+    org?: string;
+    isp?: string;
+  };
+  security?: {
+    proxy?: boolean;
+    vpn?: boolean;
+    tor?: boolean;
+    hosting?: boolean;
+  };
+};
+
+type IpApiResponse = {
+  status?: string;
+  country?: string;
+  regionName?: string;
+  city?: string;
+  isp?: string;
+  org?: string;
+  as?: string;
+  hosting?: boolean;
+  proxy?: boolean;
+  mobile?: boolean;
+};
+
+const DATA_CENTER_ORG_PATTERN =
+  /amazon|aws|google|cloud|microsoft|azure|digitalocean|linode|akamai|ovh|hetzner|vultr|oracle|alibaba|tencent|huawei|cloudflare|fastly|datadog|vercel|netlify|render|fly\.io|github|gitlab|mailgun|sendgrid|mandrill|proofpoint|mimecast|barracuda|palo alto|zscaler|netskope|ipxo|akari|security|hosting|colo|datacenter|data center/i;
+
+function uniqueIpAddresses(rows: GrowthEventRecord[]) {
+  return [...new Set(rows.map((row) => row.ip_address).filter((ip): ip is string => Boolean(ip)))];
+}
+
+function classifyNetworkType(params: { hosting?: boolean; mobile?: boolean; org?: string; isp?: string }): IpNetworkType {
+  const orgText = `${params.org ?? ""} ${params.isp ?? ""}`;
+  if (params.hosting || DATA_CENTER_ORG_PATTERN.test(orgText)) return "data_center";
+  if (!orgText.trim()) return "unknown";
+  if (
+    params.mobile ||
+    /telecom|communications|broadband|fiber|cable|wireless|mobile|residential|verizon|comcast|charter|at&t|t-mobile|vodafone|orange|telefonica|deutsche telekom|bt group/i.test(orgText)
+  ) {
+    return "residential";
+  }
+  return "business";
+}
+
+function fallbackCloudAttribution(ipAddress: string): IpAttribution | null {
+  if (ipAddress.startsWith("72.145.") || ipAddress.startsWith("72.144.") || ipAddress.startsWith("72.146.") || ipAddress.startsWith("72.147.")) {
+    return {
+      ipAddress,
+      maskedIp: maskIp(ipAddress),
+      country: "未知",
+      region: "",
+      city: "",
+      networkType: "data_center",
+      org: "Microsoft",
+      asn: "AS8075",
+    };
+  }
+  if (ipAddress.startsWith("34.") || ipAddress.startsWith("104.197.")) {
+    return {
+      ipAddress,
+      maskedIp: maskIp(ipAddress),
+      country: "未知",
+      region: "",
+      city: "",
+      networkType: "data_center",
+      org: "Google Cloud",
+      asn: "",
+    };
+  }
+  if (ipAddress.startsWith("172.186.") || ipAddress.startsWith("135.232.")) {
+    return {
+      ipAddress,
+      maskedIp: maskIp(ipAddress),
+      country: "未知",
+      region: "",
+      city: "",
+      networkType: "data_center",
+      org: "Microsoft Azure",
+      asn: "",
+    };
+  }
+  return null;
+}
+
+async function lookupIpAttribution(ipAddress: string): Promise<IpAttribution> {
+  try {
+    const response = await fetch(`https://ipwho.is/${encodeURIComponent(ipAddress)}?security=1`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!response.ok) throw new Error(`ip lookup failed: ${response.status}`);
+    const data = (await response.json()) as IpWhoResponse;
+    if (data.success === false) throw new Error("ip lookup unsuccessful");
+
+    return {
+      ipAddress,
+      maskedIp: maskIp(ipAddress),
+      country: data.country || "未知",
+      region: data.region || "",
+      city: data.city || "",
+      networkType: classifyNetworkType({
+        hosting: data.security?.hosting,
+        org: data.connection?.org,
+        isp: data.connection?.isp,
+      }),
+      org: data.connection?.org || data.connection?.isp || "",
+      asn: data.connection?.asn ? `AS${data.connection.asn}` : "",
+    };
+  } catch {
+    try {
+      const response = await fetch(
+        `http://ip-api.com/json/${encodeURIComponent(ipAddress)}?fields=status,country,regionName,city,isp,org,as,hosting,proxy,mobile`,
+        { cache: "no-store", signal: AbortSignal.timeout(2500) },
+      );
+      if (!response.ok) throw new Error(`ip-api failed: ${response.status}`);
+      const data = (await response.json()) as IpApiResponse;
+      if (data.status !== "success") throw new Error("ip-api unsuccessful");
+
+      return {
+        ipAddress,
+        maskedIp: maskIp(ipAddress),
+        country: data.country || "未知",
+        region: data.regionName || "",
+        city: data.city || "",
+        networkType: classifyNetworkType({
+          hosting: data.hosting,
+          mobile: data.mobile,
+          org: data.org,
+          isp: data.isp,
+        }),
+        org: data.org || data.isp || "",
+        asn: data.as?.match(/AS\d+/)?.[0] ?? "",
+      };
+    } catch {
+      return fallbackCloudAttribution(ipAddress) ?? {
+        ipAddress,
+        maskedIp: maskIp(ipAddress),
+        country: "未知",
+        region: "",
+        city: "",
+        networkType: "unknown",
+        org: "",
+        asn: "",
+      };
+    }
+  }
+}
+
+async function lookupIpAttributions(rows: GrowthEventRecord[]) {
+  const entries: Array<readonly [string, IpAttribution]> = [];
+  const ipAddresses = uniqueIpAddresses(rows);
+  for (let index = 0; index < ipAddresses.length; index += 6) {
+    const batch = ipAddresses.slice(index, index + 6);
+    entries.push(
+      ...(await Promise.all(
+        batch.map(async (ipAddress) => [ipAddress, await lookupIpAttribution(ipAddress)] as const),
+      )),
+    );
+  }
+  return new Map(entries);
 }
 
 export async function GET(req: NextRequest) {
@@ -53,10 +227,13 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(hirelix_growth_landing_events.created_at))
     .limit(5000);
 
-  const data = buildOpsConversionData(rows as GrowthEventRecord[], {
+  const records = rows as GrowthEventRecord[];
+  const ipAttribution = await lookupIpAttributions(records);
+  const data = buildOpsConversionData(records, {
     range,
     start,
     end,
+    ipAttribution,
   });
 
   return NextResponse.json(data);
