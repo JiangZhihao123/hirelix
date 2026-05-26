@@ -53,6 +53,9 @@ export default function Home() {
   const [pendingRedirectPath, setPendingRedirectPath] = useState("");
   const [pendingSelectedPlan, setPendingSelectedPlan] = useState<BillingPlanCode | null>(null);
   const [isColdEmailVisitor, setIsColdEmailVisitor] = useState(false);
+  const [previewEmail, setPreviewEmail] = useState("");
+  const [previewRole, setPreviewRole] = useState("");
+  const [previewSubmitted, setPreviewSubmitted] = useState(false);
   const hasTrackedInputRef = useRef(false);
   const hasTrackedLandingViewRef = useRef(false);
   const hasTrackedGrowthInputRef = useRef(false);
@@ -61,8 +64,12 @@ export default function Home() {
   const heroJdTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const trimmedJd = jdText.trim();
+  const trimmedPreviewEmail = previewEmail.trim();
+  const trimmedPreviewRole = previewRole.trim();
   const wordCount = trimmedJd ? trimmedJd.split(/\s+/).filter(Boolean).length : 0;
   const canSubmit = trimmedJd.length >= 50;
+  const canSubmitPreviewRequest =
+    trimmedPreviewEmail.includes("@") && trimmedPreviewRole.length >= 12;
   const heroPrimaryDisabled = !canSubmit || isSubmitting;
   const modalPreviewTitle = useMemo(() => {
     const firstMeaningfulLine = pendingJd
@@ -376,6 +383,20 @@ export default function Home() {
     });
   }
 
+  function handlePreviewRequestSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmitPreviewRequest) return;
+
+    handlePreviewRequestClick();
+    window.__hirelixGrowthTrack?.("preview_request_submit", {
+      surface: "cold_email_conversion_panel",
+      reply_email: trimmedPreviewEmail.slice(0, 160),
+      role_preview: trimmedPreviewRole.slice(0, 500),
+      role_length: trimmedPreviewRole.length,
+    });
+    setPreviewSubmitted(true);
+  }
+
   function handleBookFeedbackClick() {
     window.__hirelixGrowthTrack?.("book_feedback_click", {
       surface: "cold_email_conversion_panel",
@@ -583,40 +604,78 @@ export default function Home() {
 
         {isColdEmailVisitor && (
           <div className="relative mx-auto mt-5 max-w-[96rem] px-5 sm:px-6">
-            <div className="grid gap-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4 shadow-[0_18px_50px_rgba(37,99,235,0.08)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            <div className="grid gap-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4 shadow-[0_18px_50px_rgba(37,99,235,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
               <div>
                 <p className="text-sm font-semibold text-blue-950">
                   Want to test this on one real role?
                 </p>
                 <p className="mt-1 text-sm leading-6 text-blue-900/80">
-                  Reply with a live JD or book a short feedback chat. I can run a small preview
-                  shortlist before you spend time setting anything up.
+                  Send a role title or JD snippet here. I can run a small preview shortlist before
+                  you spend time setting anything up.
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <a
+                    href="mailto:jzh_spring@163.com?subject=Hirelix%2010%20minute%20feedback%20chat&body=Hi%20Noah%2C%0A%0AI%20can%20do%20a%20short%20feedback%20chat%20about%20Hirelix.%0A%0ATimes%20that%20work%3A%0A"
+                    onClick={handleBookFeedbackClick}
+                    className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3.5 py-2 text-sm font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:text-blue-900"
+                  >
+                    Book 10 min feedback
+                  </a>
+                  <a
+                    href="mailto:jzh_spring@163.com?subject=Re%3A%20Hirelix"
+                    onClick={handleReplyEmailClick}
+                    className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold text-blue-700 transition-colors hover:text-blue-900 hover:underline"
+                  >
+                    Reply by email
+                  </a>
+                </div>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row md:justify-end">
-                <a
-                  href="mailto:jzh_spring@163.com?subject=Hirelix%20JD%20preview%20request&body=Hi%20Noah%2C%0A%0AI%20have%20a%20technical%20role%20you%20can%20preview%20with%20Hirelix.%0A%0ARole%20or%20JD%3A%0A"
-                  onClick={handlePreviewRequestClick}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                >
-                  Send a JD for preview
-                  <ArrowRight className="h-4 w-4" />
-                </a>
-                <a
-                  href="mailto:jzh_spring@163.com?subject=Hirelix%2010%20minute%20feedback%20chat&body=Hi%20Noah%2C%0A%0AI%20can%20do%20a%20short%20feedback%20chat%20about%20Hirelix.%0A%0ATimes%20that%20work%3A%0A"
-                  onClick={handleBookFeedbackClick}
-                  className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:text-blue-900"
-                >
-                  Book 10 min feedback
-                </a>
-                <a
-                  href="mailto:jzh_spring@163.com?subject=Re%3A%20Hirelix"
-                  onClick={handleReplyEmailClick}
-                  className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:text-blue-900 hover:underline"
-                >
-                  Reply by email
-                </a>
-              </div>
+
+              <form onSubmit={handlePreviewRequestSubmit} className="grid gap-2">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+                  <input
+                    type="email"
+                    value={previewEmail}
+                    onChange={(event) => {
+                      setPreviewEmail(event.target.value);
+                      setPreviewSubmitted(false);
+                    }}
+                    placeholder="Your work email"
+                    className="min-h-11 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    aria-label="Work email for preview reply"
+                  />
+                  <input
+                    type="text"
+                    value={previewRole}
+                    onChange={(event) => {
+                      setPreviewRole(event.target.value);
+                      setPreviewSubmitted(false);
+                    }}
+                    placeholder="Role title or JD snippet"
+                    className="min-h-11 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    aria-label="Role title or job description snippet"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs leading-5 text-blue-900/70" aria-live="polite">
+                    {previewSubmitted
+                      ? "Request noted. I will reply with the next step."
+                      : "A short title is enough; a JD snippet is better."}
+                  </p>
+                  <button
+                    type="submit"
+                    disabled={!canSubmitPreviewRequest}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+                      canSubmitPreviewRequest
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "cursor-not-allowed bg-blue-100 text-blue-400"
+                    }`}
+                  >
+                    Send a JD for preview
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

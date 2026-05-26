@@ -44,6 +44,8 @@ const includeRaw = args.includes("--raw");
 const showSummary = args.includes("--summary");
 const limitArg = args.find((arg) => arg.startsWith("--limit="));
 const limit = Number.parseInt(limitArg?.split("=")[1] || "50", 10);
+const emailPrefixArg = args.find((arg) => arg.startsWith("--email-prefix="));
+const emailPrefix = emailPrefixArg?.split("=")[1] || "2026-05-25-";
 const env = {
   ...loadDotEnv(".env"),
   ...loadDotEnv(".env.local"),
@@ -74,7 +76,7 @@ try {
             or coalesce(recipient, '') !~ '^[^@]+@[^@]+\\.[^@]+$'
           ) as malformed_context
         from hirelix_growth_outreach_clicks
-        where email_id like '2026-05-25-%'
+        where email_id like ${`${emailPrefix}%`}
       )
       select
         coalesce(batch_id, 'unknown') as batch_id,
@@ -121,7 +123,8 @@ try {
         else 'qualified'
       end as click_quality
     from classified
-    where ${includeRaw} or (not likely_scanner and not malformed_context)
+    where email_id like ${`${emailPrefix}%`}
+      and (${includeRaw} or (not likely_scanner and not malformed_context))
     order by created_at desc
     limit ${Number.isFinite(limit) && limit > 0 ? limit : 50}
   `;

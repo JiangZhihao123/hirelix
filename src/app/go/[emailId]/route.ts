@@ -4,7 +4,8 @@ import { db } from "@/db/client";
 import { hirelix_growth_outreach_clicks } from "@/db/schema";
 
 const DEFAULT_CLICK_ALERT_RECIPIENT = "jzh_spring@163.com";
-const OUTREACH_EMAIL_ID_PATTERN = /^20\d{2}-\d{2}-\d{2}-batch\d+-[a-z0-9-]+$/;
+const OUTREACH_EMAIL_ID_PATTERN =
+  /^20\d{2}-\d{2}-\d{2}-(?:batch\d+|followup)-[a-z0-9-]+$/;
 const STATIC_ASSET_PATTERN = /(?:^|\/)(?:_next\/static|static\/|assets\/|favicon\.|robots\.txt|sitemap\.xml)|\.(?:js|css|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$/i;
 const SCANNER_USER_AGENT_PATTERN = /virustotal|appengine-google|python-requests|go-http-client|urlscan|googleimageproxy|proofpoint|mimecast|barracuda|mandrill|sendgrid|mailchimp|linkexpand|preview|crawler|spider|bot/i;
 

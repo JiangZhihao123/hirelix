@@ -182,6 +182,7 @@ Cold-email visitors should see a concrete next step before the generic product s
 Track each as a growth landing event:
 
 - `preview_request_click`
+- `preview_request_submit`
 - `book_feedback_click`
 - `reply_email_click`
 
@@ -193,13 +194,23 @@ Use these commands after sending:
 node scripts/tools/report-growth-outreach-clicks.mjs --summary
 node scripts/tools/report-growth-outreach-clicks.mjs --limit=50
 set -a; source .env.local; set +a; node scripts/tools/report-growth-landing-events.mjs --summary
+set -a; source .env.local; set +a; node scripts/tools/report-growth-landing-events.mjs --conversions
+```
+
+For the 2026-05-26 clicked-recipient follow-up batch, scope reports to the new email ids:
+
+```bash
+node scripts/tools/report-growth-outreach-clicks.mjs --summary --email-prefix=2026-05-26-followup-
+set -a; source .env.local; set +a; node scripts/tools/report-growth-landing-events.mjs --summary --email-prefix=2026-05-26-followup-
+set -a; source .env.local; set +a; node scripts/tools/report-growth-landing-events.mjs --conversions --email-prefix=2026-05-26-followup-
 ```
 
 Count:
 
 - Qualified clicks, not raw clicks.
 - Unique email ids, not total repeated loads.
-- Replies and JD preview requests manually in the prospect CSV.
+- `preview_request_submit` events as verified JD preview requests when the role snippet is real.
+- Replies and feedback calls manually in the prospect CSV.
 
 Do not count scanner traffic, malformed tracked URLs, static asset query variants, or smoke-test rows as conversion.
 

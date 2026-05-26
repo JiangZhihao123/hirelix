@@ -34,19 +34,33 @@ function shouldRequireSsl(connectionString) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const options = { limit: 50, summary: false };
+  const options = {
+    conversions: false,
+    emailPrefix: "2026-05-25-",
+    limit: 50,
+    summary: false,
+  };
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === "--limit" && args[i + 1]) {
       options.limit = Number(args[i + 1]);
       i += 1;
+    } else if (args[i].startsWith("--limit=")) {
+      options.limit = Number(args[i].split("=")[1]);
+    } else if (args[i] === "--email-prefix" && args[i + 1]) {
+      options.emailPrefix = args[i + 1];
+      i += 1;
+    } else if (args[i].startsWith("--email-prefix=")) {
+      options.emailPrefix = args[i].split("=")[1];
     } else if (args[i] === "--summary") {
       options.summary = true;
+    } else if (args[i] === "--conversions") {
+      options.conversions = true;
     }
   }
   return options;
 }
 
-const { limit, summary } = parseArgs();
+const { conversions, emailPrefix, limit, summary } = parseArgs();
 const env = {
   ...loadDotEnv(".env"),
   ...loadDotEnv(".env.local"),
@@ -64,6 +78,33 @@ const sql = postgres(connectionString, {
 });
 
 try {
+  if (conversions) {
+    const rows = await sql`
+      SELECT
+        created_at,
+        event_type,
+        email_id,
+        batch_id,
+        recipient,
+        company,
+        metadata->>'reply_email' AS reply_email,
+        metadata->>'role_preview' AS role_preview,
+        metadata->>'role_length' AS role_length
+      FROM public.hirelix_growth_landing_events
+      WHERE event_type IN (
+        'preview_request_submit',
+        'book_feedback_click',
+        'reply_email_click',
+        'pricing_plan_select'
+      )
+        AND email_id LIKE ${`${emailPrefix}%`}
+      ORDER BY created_at DESC
+      LIMIT ${Number.isFinite(limit) ? limit : 50}
+    `;
+    console.table(rows);
+    process.exit(0);
+  }
+
   if (summary) {
     const rows = await sql`
         SELECT
@@ -74,7 +115,7 @@ try {
           MIN(created_at) AS first_event,
           MAX(created_at) AS last_event
         FROM public.hirelix_growth_landing_events
-        WHERE email_id LIKE '2026-05-25-%'
+        WHERE email_id LIKE ${`${emailPrefix}%`}
         GROUP BY event_type
         ORDER BY event_type
       `;

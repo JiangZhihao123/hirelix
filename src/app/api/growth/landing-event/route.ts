@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { hirelix_growth_landing_events } from "@/db/schema";
 
+const DEFAULT_PREVIEW_REQUEST_RECIPIENT = "jzh_spring@163.com";
+
 const ALLOWED_EVENTS = new Set([
   "page_view",
   "engaged_10s",
@@ -12,6 +14,7 @@ const ALLOWED_EVENTS = new Set([
   "signin_view",
   "pricing_plan_select",
   "preview_request_click",
+  "preview_request_submit",
   "book_feedback_click",
   "reply_email_click",
 ]);
@@ -61,6 +64,83 @@ function metadataValue(value: unknown) {
   );
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getAlertRecipient() {
+  return process.env.GROWTH_PREVIEW_REQUEST_ALERT_EMAIL ||
+    process.env.GROWTH_OUTREACH_ALERT_EMAIL ||
+    DEFAULT_PREVIEW_REQUEST_RECIPIENT;
+}
+
+function getAlertFromEmail() {
+  return process.env.GROWTH_PREVIEW_REQUEST_ALERT_FROM_EMAIL ||
+    process.env.GROWTH_OUTREACH_ALERT_FROM_EMAIL ||
+    process.env.SEARCH_NOTIFICATIONS_FROM_EMAIL ||
+    "Hirelix <notifications@hirelix.online>";
+}
+
+async function notifyPreviewRequest(params: {
+  batch_id: string | null;
+  company: string | null;
+  email_id: string | null;
+  metadata: Record<string, unknown>;
+  recipient: string | null;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = getAlertFromEmail();
+  const to = getAlertRecipient();
+  if (!apiKey || !from || !to) return;
+
+  const replyEmail =
+    typeof params.metadata.reply_email === "string" ? params.metadata.reply_email : "unknown";
+  const rolePreview =
+    typeof params.metadata.role_preview === "string" ? params.metadata.role_preview : "";
+  const label = params.company || params.recipient || params.email_id || replyEmail;
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
+      <p>A cold-email visitor submitted a Hirelix preview request.</p>
+      <ul>
+        <li><strong>Email ID:</strong> ${escapeHtml(params.email_id || "unknown")}</li>
+        <li><strong>Batch:</strong> ${escapeHtml(params.batch_id || "unknown")}</li>
+        <li><strong>Recipient:</strong> ${escapeHtml(params.recipient || "unknown")}</li>
+        <li><strong>Company:</strong> ${escapeHtml(params.company || "unknown")}</li>
+        <li><strong>Reply email:</strong> ${escapeHtml(replyEmail)}</li>
+      </ul>
+      <p><strong>Role / JD snippet:</strong></p>
+      <p>${escapeHtml(rolePreview || "not provided")}</p>
+    </div>
+  `;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: `Hirelix preview request: ${label}`,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message = typeof data?.message === "string"
+      ? data.message
+      : `Resend failed with status ${response.status}`;
+    throw new Error(message);
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: LandingEventBody;
   try {
@@ -73,21 +153,26 @@ export async function POST(req: NextRequest) {
   if (!eventType || !ALLOWED_EVENTS.has(eventType)) {
     return NextResponse.json({ error: "Invalid event_type" }, { status: 400 });
   }
+  const metadata = metadataValue(body.metadata);
+  const emailId = textValue(body.email_id, 200);
+  const batchId = textValue(body.batch_id, 80);
+  const recipient = textValue(body.recipient, 320);
+  const company = textValue(body.company, 200);
 
   try {
     await db.insert(hirelix_growth_landing_events).values({
       event_type: eventType,
       visitor_id: textValue(body.visitor_id, 120),
       session_id: textValue(body.session_id, 120),
-      email_id: textValue(body.email_id, 200),
-      batch_id: textValue(body.batch_id, 80),
-      recipient: textValue(body.recipient, 320),
-      company: textValue(body.company, 200),
+      email_id: emailId,
+      batch_id: batchId,
+      recipient,
+      company,
       page_url: textValue(body.page_url, 1000),
       referrer: textValue(body.referrer, 1000),
       ip_address: getIpAddress(req),
       user_agent: getHeader(req, "user-agent"),
-      metadata: metadataValue(body.metadata),
+      metadata,
     });
   } catch (error) {
     console.error("[growth:landing_event_failed]", {
@@ -95,6 +180,23 @@ export async function POST(req: NextRequest) {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: "Failed to record event" }, { status: 500 });
+  }
+
+  if (eventType === "preview_request_submit") {
+    try {
+      await notifyPreviewRequest({
+        batch_id: batchId,
+        company,
+        email_id: emailId,
+        metadata,
+        recipient,
+      });
+    } catch (error) {
+      console.error("[growth:preview_request_alert_failed]", {
+        email_id: emailId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });
