@@ -84,6 +84,15 @@ const steps = [
     ],
   ],
   [
+    "Check follow-up delivery status",
+    nodeBin,
+    [
+      "scripts/tools/check-growth-followup-delivery.mjs",
+      `--send-log=${logPath}`,
+      "--dry-run",
+    ],
+  ],
+  [
     "Audit follow-up result gates",
     nodeBin,
     [

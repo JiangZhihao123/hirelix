@@ -241,6 +241,20 @@ Do not send unless all are true:
 - The postal address is a real physical address or registered mailbox, not the placeholder.
 - The from address is not `notifications@hirelix.online`.
 
+After the follow-up is sent, check delivery before deciding whether to continue:
+
+```bash
+node scripts/tools/check-growth-followup-delivery.mjs
+node scripts/tools/audit-growth-followup-results.mjs
+```
+
+The audit must hold or stop if:
+
+- Any send errors are present.
+- Bounce rate on checked sends exceeds 5%.
+- Delivery has not been checked for all sent follow-ups.
+- Checked delivery is complete but there is still no verified preview request, feedback click, or reply-email click.
+
 ## Next batch checklist
 
 - [ ] Pick 18-22 recipients across the two cells.
