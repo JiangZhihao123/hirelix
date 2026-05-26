@@ -83,6 +83,17 @@ const steps = [
       `--email-prefix=${emailPrefix}`,
     ],
   ],
+  [
+    "Audit follow-up result gates",
+    nodeBin,
+    [
+      "scripts/tools/audit-growth-followup-results.mjs",
+      batchPath,
+      `--send-log=${logPath}`,
+      `--email-prefix=${emailPrefix}`,
+      "--allow-pending-send",
+    ],
+  ],
 ];
 
 let firstFailure = 0;
