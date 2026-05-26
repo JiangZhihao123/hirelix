@@ -1,0 +1,92 @@
+{
+  "date": "2026-05-26",
+  "batch": "2026-05-26-followup-clicked",
+  "tracking_batch_id": "2026-05-26-followup-clicked",
+  "tracking_campaign": "founder_outreach_followup_clicked_preview_request",
+  "product": "Hirelix",
+  "product_url": "https://hirelix.online",
+  "sender_name": "Noah Jiang",
+  "default_status": "ready_for_dry_run_only_until_manual_send_confirmation",
+  "notes": [
+    "Follow-up only for delivered recipients with qualified clicks or engaged landing sessions from the 2026-05-25 cold email batch.",
+    "Do not send to bounced addresses or to recipients with mostly scanner-like activity.",
+    "Primary conversion ask is a real JD preview request, not a generic feedback ask.",
+    "Links are tracked through /go/[email_id] and should land on the cold-email conversion panel.",
+    "Reply-to should be jzh_spring@163.com until hirelix.online inbound receiving is enabled.",
+    "Every email includes a clear opt-out line and mailing address."
+  ],
+  "emails": [
+    {
+      "id": "2026-05-26-followup-matt-collingwood",
+      "original_email_id": "2026-05-25-batch5-matt-collingwood",
+      "to": "matt.collingwood@viqu.co.uk",
+      "first_name": "Matt",
+      "company": "VIQU IT",
+      "priority": 1,
+      "signal": "Delivered and clicked once from a non-scanner user agent.",
+      "source_url": "https://viqu.co.uk/it-recruitment-specialists/development-technical-recruitment",
+      "subject": "Could I run one VIQU role through Hirelix?",
+      "body": "Hi Matt,\n\nQuick follow-up from my Hirelix note yesterday.\n\nThe easiest way to test whether this is useful is not a demo. If you have one development, data, AI, IoT, or digital delivery role on your desk, I can run a small preview shortlist and send it back.\n\nYou would be judging the evidence, not the pitch: fit reasons, risks to verify, and outreach context for each profile.\n\nIf that is useful, reply with a JD or even just the role title + must-have skills. I will keep it small.\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-26-followup-opus-resourcing",
+      "original_email_id": "2026-05-25-batch6-opus-resourcing",
+      "to": "info@opusresourcing.com",
+      "first_name": "Team",
+      "company": "Opus Resourcing",
+      "priority": 2,
+      "signal": "Delivered and clicked once from a non-scanner user agent.",
+      "source_url": "https://www.opusresourcing.com/about-us-tech-recruitment-specialists",
+      "subject": "Small preview for one technical mandate?",
+      "body": "Hi Team,\n\nQuick follow-up from my Hirelix note yesterday.\n\nIf someone at Opus owns sourcing workflow for SaaS, AI/ML, software engineering, DevOps, platform, product, or executive hiring, could you forward this to them?\n\nThe easiest test is simple: send one hard role title or JD, and I will run a small evidence-backed shortlist preview.\n\nThey can then judge whether the fit reasons, risks to verify, and outreach context would save review time on a real mandate.\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-26-followup-source-group-international",
+      "original_email_id": "2026-05-25-batch9-source-group-international",
+      "to": "hello@sourcegroupinternational.com",
+      "first_name": "Team",
+      "company": "Source Group International",
+      "priority": 3,
+      "signal": "Delivered, clicked, and produced engaged landing sessions.",
+      "source_url": "https://www.sourcegroupinternational.com",
+      "subject": "One niche tech role as a Hirelix preview?",
+      "body": "Hi Team,\n\nQuick follow-up from my note about Hirelix.\n\nSource Group's work across software development, AI and machine learning, data, cloud, cybersecurity, infrastructure, and ERP is close to the use case I am trying to support.\n\nWould it be useful if I ran one niche technical role as a small preview and sent back the shortlist?\n\nThe output is meant for recruiter review: a few real technical profiles, fit evidence, risks to verify, and outreach context. No setup needed on your side beyond a role title or JD.\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-26-followup-venturi",
+      "original_email_id": "2026-05-25-batch10-venturi",
+      "to": "tom.goulding@venturi-group.com",
+      "first_name": "Tom",
+      "company": "Venturi Group",
+      "priority": 4,
+      "signal": "Delivered and clicked twice from non-scanner user agents.",
+      "source_url": "https://www.venturi-group.com",
+      "subject": "Worth testing on one Venturi tech role?",
+      "body": "Hi Tom,\n\nQuick follow-up from my Hirelix note yesterday.\n\nRather than asking for a generic demo, could I run one real tech role for you and send back a small preview shortlist?\n\nVenturi's mix of software engineering, data and analytics, ERP, and CRM searches seems like the kind of workflow where profile review can get noisy quickly.\n\nIf you send a JD or just the role title + must-have skills, I will keep it small and return the candidate evidence so you can decide whether it is useful.\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-26-followup-understanding-recruitment",
+      "original_email_id": "2026-05-25-batch12-understanding-recruitment",
+      "to": "info@understandingrecruitment.com",
+      "first_name": "Team",
+      "company": "Understanding Recruitment",
+      "priority": 5,
+      "signal": "Delivered, clicked, produced engaged sessions, and selected pricing.",
+      "source_url": "https://www.understandingrecruitment.com/contact-us/",
+      "subject": "Can I preview one technical shortlist?",
+      "body": "Hi Team,\n\nQuick follow-up from my Hirelix note yesterday.\n\nThe most useful test is not a sales call. If one of your Java, JavaScript, DevOps, Cloud, SRE, ML, AI, Python, Rust, Go, or product teams has a difficult role, I can run a small preview shortlist.\n\nYou can judge the evidence: why each profile matches, what to verify before outreach, and what a recruiter could use in the first message.\n\nCould you forward this to whoever owns sourcing workflow or technical recruiting operations?\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "2026-05-26-followup-burtch-works",
+      "original_email_id": "2026-05-25-batch12-burtch-works",
+      "to": "info@burtchworks.com",
+      "first_name": "Team",
+      "company": "Burtch Works",
+      "priority": 6,
+      "signal": "Delivered, clicked, and produced engaged landing sessions.",
+      "source_url": "https://www.burtchworks.com",
+      "subject": "Small preview for one AI or data role?",
+      "body": "Hi Team,\n\nQuick follow-up from my Hirelix note yesterday.\n\nBurtch Works looked relevant because your AI, data, engineering, cyber, MLOps, product, and analytics work depends on more than keyword matching.\n\nWould it be useful if I ran one real role as a small preview and sent back the shortlist evidence?\n\nThe goal is to show whether Hirelix can save review time before anyone changes their workflow: fit reasons, risks to verify, and outreach context for each profile.\n\nBest,\nNoah\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
