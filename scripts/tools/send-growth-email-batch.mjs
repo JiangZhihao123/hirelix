@@ -30,7 +30,7 @@ function loadDotEnv(filePath) {
 function usage() {
   console.log(`Usage:
   node scripts/tools/send-growth-email-batch.mjs <batch.json> [--dry-run]
-  node scripts/tools/send-growth-email-batch.mjs <batch.json> --send --yes
+  node scripts/tools/send-growth-email-batch.mjs <batch.json> --send --yes [--force-resend]
   node scripts/tools/send-growth-email-batch.mjs --check-config
 
 Required for --send:
@@ -70,6 +70,52 @@ function appendLog(logPath, row) {
   fs.appendFileSync(logPath, `${line}\n`);
 }
 
+function parseCsvLine(line) {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (inQuotes) {
+      if (char === '"' && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        current += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      values.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  values.push(current);
+  return values;
+}
+
+function readSentEmailIds(logPath) {
+  if (!logPath || !fs.existsSync(logPath)) return new Set();
+  const lines = fs.readFileSync(logPath, "utf8").trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length <= 1) return new Set();
+  const headers = parseCsvLine(lines[0]);
+  const emailIdIndex = headers.indexOf("email_id");
+  const statusIndex = headers.indexOf("status");
+  if (emailIdIndex < 0 || statusIndex < 0) return new Set();
+  const sent = new Set();
+  for (const line of lines.slice(1)) {
+    const values = parseCsvLine(line);
+    if (values[statusIndex] === "sent" && values[emailIdIndex]) {
+      sent.add(values[emailIdIndex]);
+    }
+  }
+  return sent;
+}
+
 function renderBody(body, postalAddress) {
   return body.replaceAll(ADDRESS_PLACEHOLDER, postalAddress);
 }
@@ -100,10 +146,15 @@ function readLatestResendIdFromLogs(paths) {
   for (const logPath of paths) {
     if (!logPath || !fs.existsSync(logPath)) continue;
     const lines = fs.readFileSync(logPath, "utf8").trim().split(/\r?\n/).filter(Boolean);
+    if (lines.length <= 1) continue;
+    const headers = parseCsvLine(lines[0]);
+    const statusIndex = headers.indexOf("status");
+    const resendIdIndex = headers.indexOf("resend_id");
+    if (statusIndex < 0 || resendIdIndex < 0) continue;
     for (const line of lines.slice(1).reverse()) {
-      const columns = line.split(",");
-      const status = columns[4];
-      const resendId = columns[5];
+      const columns = parseCsvLine(line);
+      const status = columns[statusIndex];
+      const resendId = columns[resendIdIndex];
       if (status === "sent" && resendId) return resendId;
     }
   }
@@ -253,6 +304,7 @@ const checkConfig = args.includes("--check-config");
 const batchPath = args.find((arg) => !arg.startsWith("--"));
 const shouldSend = args.includes("--send");
 const confirmed = args.includes("--yes");
+const forceResend = args.includes("--force-resend");
 const env = {
   ...loadDotEnv(path.resolve(".env")),
   ...loadDotEnv(path.resolve(".env.local")),
@@ -294,7 +346,13 @@ if (!shouldSend) {
 validateSendConfig(sendEnv);
 
 const logPath = sendEnv.OUTREACH_LOG_PATH || "docs/growth/cold-email-send-log-2026-05-25.csv";
+const alreadySent = readSentEmailIds(logPath);
 for (const email of emails) {
+  if (!forceResend && alreadySent.has(email.id)) {
+    console.log(`skip ${email.to}: already sent in ${logPath}`);
+    continue;
+  }
+
   const body = renderTrackedBody(email, batch, sendEnv);
   try {
     const result = await sendEmail({
@@ -311,6 +369,7 @@ for (const email of emails) {
       status: "sent",
       resend_id: result?.id || "",
     });
+    alreadySent.add(email.id);
     console.log(`sent ${email.to} ${result?.id || ""}`);
   } catch (error) {
     appendLog(logPath, {
