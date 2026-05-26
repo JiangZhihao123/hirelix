@@ -83,6 +83,15 @@ function getMetadataText(metadata: Record<string, unknown>, key: string, maxLeng
   return textValue(metadata[key], maxLength);
 }
 
+function isOpsPage(value: string | null) {
+  if (!value) return false;
+  try {
+    return new URL(value).pathname.startsWith("/ops/");
+  } catch {
+    return value.includes("/ops/");
+  }
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -179,6 +188,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid event_type" }, { status: 400 });
   }
   const metadata = metadataValue(body.metadata);
+  const pageUrl = textValue(body.page_url, 1000);
+  if (isOpsPage(pageUrl) || isOpsPage(getMetadataText(metadata, "route", 120))) {
+    return NextResponse.json({ ok: true });
+  }
+
   const emailId = textValue(body.email_id, 200);
   const batchId = textValue(body.batch_id, 80);
   const recipient = textValue(body.recipient, 320);
@@ -204,7 +218,7 @@ export async function POST(req: NextRequest) {
       batch_id: batchId,
       recipient,
       company,
-      page_url: textValue(body.page_url, 1000),
+      page_url: pageUrl,
       referrer: textValue(body.referrer, 1000),
       ip_address: getIpAddress(req),
       user_agent: getHeader(req, "user-agent"),

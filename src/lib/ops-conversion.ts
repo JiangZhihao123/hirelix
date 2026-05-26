@@ -271,7 +271,8 @@ export function buildOpsConversionData(
   events: GrowthEventRecord[],
   options: { range: OpsRange; start: Date; end: Date },
 ): OpsConversionData {
-  const sessions = buildSessions(events);
+  const cleanEvents = removeOrphanSignupEvents(events.filter((event) => !isOpsEvent(event)));
+  const sessions = buildSessions(cleanEvents);
   const ipUaCounts = countSessionsByIpUa(sessions);
   const trafficBySession = new Map<string, TrafficKind>();
 
@@ -293,7 +294,7 @@ export function buildOpsConversionData(
   const humanSessions = sessions.filter((session) => trafficBySession.get(session.sessionId) === "human");
   const filteredSessions = sessions.filter((session) => trafficBySession.get(session.sessionId) !== "human");
   const humanSessionIds = new Set(humanSessions.map((session) => session.sessionId));
-  const humanEvents = events.filter((event) => humanSessionIds.has(getSessionId(event)));
+  const humanEvents = cleanEvents.filter((event) => humanSessionIds.has(getSessionId(event)));
   const rangeLabel = getOpsRangeWindow(options.range, options.end).label;
 
   const effectiveClicks = countSessionsWithEvents(humanSessions, EFFECTIVE_CLICK_EVENTS);
@@ -374,6 +375,33 @@ export function buildOpsConversionData(
       rangeLabel,
     }),
   };
+}
+
+function removeOrphanSignupEvents(events: GrowthEventRecord[]) {
+  const eventsBySession = new Map<string, GrowthEventRecord[]>();
+  for (const event of events) {
+    const sessionId = getSessionId(event);
+    const list = eventsBySession.get(sessionId) ?? [];
+    list.push(event);
+    eventsBySession.set(sessionId, list);
+  }
+
+  return events.filter((event) => {
+    if (event.event_type !== "signup_success") return true;
+    const sessionEvents = eventsBySession.get(getSessionId(event)) ?? [];
+    return sessionEvents.some((sessionEvent) => sessionEvent.event_type === "google_signin_click");
+  });
+}
+
+function isOpsEvent(event: GrowthEventRecord) {
+  const route = readString(event.metadata?.route);
+  if (route?.startsWith("/ops/")) return true;
+  if (!event.page_url) return false;
+  try {
+    return new URL(event.page_url).pathname.startsWith("/ops/");
+  } catch {
+    return event.page_url.includes("/ops/");
+  }
 }
 
 function buildSessions(events: GrowthEventRecord[]): SessionSummary[] {

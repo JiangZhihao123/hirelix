@@ -165,3 +165,120 @@ test("buildOpsConversionData uses selected range labels in operator copy", () =>
   assert.equal(data.actionItems.every((item) => !item.title.includes("今天")), true);
   assert.equal(data.actionItems.every((item) => !item.detail.includes("今天")), true);
 });
+
+test("buildOpsConversionData ignores ops dashboard visits and login noise", () => {
+  const start = new Date("2026-05-26T00:00:00.000Z");
+  const end = new Date("2026-05-27T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "signup_success",
+        visitor_id: "operator",
+        session_id: "operator-session",
+        page_url: "https://hirelix.online/ops/123",
+        referrer: "",
+        ip_address: "203.0.113.10",
+        user_agent: "Mozilla/5.0 Chrome/125.0",
+        metadata: { route: "/ops/123", has_email: true },
+        created_at: "2026-05-26T09:43:00.000Z",
+      },
+      {
+        event_type: "page_view",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/?traffic_source=cold_email",
+        referrer: "",
+        ip_address: "198.51.100.9",
+        user_agent: "Mozilla/5.0 Safari/605.1.15",
+        metadata: { traffic_source: "cold_email" },
+        created_at: "2026-05-26T10:00:00.000Z",
+      },
+      {
+        event_type: "section_view",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/?traffic_source=cold_email",
+        referrer: "",
+        ip_address: "198.51.100.9",
+        user_agent: "Mozilla/5.0 Safari/605.1.15",
+        metadata: { traffic_source: "cold_email", section_id: "首屏" },
+        created_at: "2026-05-26T10:00:12.000Z",
+      },
+    ],
+    { range: "today", start, end },
+  );
+
+  assert.equal(data.summary.humanVisits, 1);
+  assert.equal(data.summary.successfulLogins, 0);
+  assert.equal(data.recentHumanEvents.some((event) => event.label === "登录成功"), false);
+});
+
+test("buildOpsConversionData counts signup success only after a Google sign-in click in the same session", () => {
+  const start = new Date("2026-05-26T00:00:00.000Z");
+  const end = new Date("2026-05-27T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "page_view",
+        visitor_id: "existing-user",
+        session_id: "existing-session",
+        page_url: "https://hirelix.online/",
+        referrer: "",
+        ip_address: "203.0.113.20",
+        user_agent: "Mozilla/5.0 Chrome/125.0",
+        metadata: {},
+        created_at: "2026-05-26T09:00:00.000Z",
+      },
+      {
+        event_type: "signup_success",
+        visitor_id: "existing-user",
+        session_id: "existing-session",
+        page_url: "https://hirelix.online/",
+        referrer: "",
+        ip_address: "203.0.113.20",
+        user_agent: "Mozilla/5.0 Chrome/125.0",
+        metadata: { route: "/", has_email: true },
+        created_at: "2026-05-26T09:00:02.000Z",
+      },
+      {
+        event_type: "page_view",
+        visitor_id: "new-user",
+        session_id: "new-session",
+        page_url: "https://hirelix.online/",
+        referrer: "",
+        ip_address: "203.0.113.21",
+        user_agent: "Mozilla/5.0 Chrome/125.0",
+        metadata: {},
+        created_at: "2026-05-26T10:00:00.000Z",
+      },
+      {
+        event_type: "google_signin_click",
+        visitor_id: "new-user",
+        session_id: "new-session",
+        page_url: "https://hirelix.online/",
+        referrer: "",
+        ip_address: "203.0.113.21",
+        user_agent: "Mozilla/5.0 Chrome/125.0",
+        metadata: { route: "/" },
+        created_at: "2026-05-26T10:00:10.000Z",
+      },
+      {
+        event_type: "signup_success",
+        visitor_id: "new-user",
+        session_id: "new-session",
+        page_url: "https://hirelix.online/app",
+        referrer: "https://hirelix.online/",
+        ip_address: "203.0.113.21",
+        user_agent: "Mozilla/5.0 Chrome/125.0",
+        metadata: { route: "/app", auth_result: "google_oauth_callback" },
+        created_at: "2026-05-26T10:00:25.000Z",
+      },
+    ],
+    { range: "today", start, end },
+  );
+
+  assert.equal(data.summary.humanVisits, 1);
+  assert.equal(data.summary.loginAttempts, 1);
+  assert.equal(data.summary.successfulLogins, 1);
+  assert.equal(data.recentHumanEvents.filter((event) => event.label === "登录成功").length, 1);
+});

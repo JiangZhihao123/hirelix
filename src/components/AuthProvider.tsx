@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 
 import { authClient, useSession } from "@/lib/auth-client";
-import { trackGrowthEvent } from "@/lib/growth-client";
+import { consumeRecentGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/growth-client";
 
 /**
  * Subset of the better-auth user shape that the rest of the app reads.
@@ -51,10 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isPending || !user?.id || trackedUserIdRef.current === user.id) return;
+    if (!consumeRecentGrowthGoogleSignInStarted()) return;
     trackedUserIdRef.current = user.id;
     void trackGrowthEvent("signup_success", {
       route: window.location.pathname,
       has_email: Boolean(user.email),
+      auth_result: "google_oauth_callback",
     });
   }, [isPending, user?.email, user?.id]);
 
