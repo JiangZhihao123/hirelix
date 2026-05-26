@@ -16,7 +16,7 @@ export type GrowthEventRecord = {
 };
 
 export type OpsRange = "today" | "yesterday" | "7d" | "30d";
-export type TrafficKind = "human" | "bot" | "preview" | "suspicious" | "low_quality";
+export type TrafficKind = "human" | "data_center";
 export type IpNetworkType = "residential" | "business" | "data_center" | "unknown";
 
 export type IpAttribution = {
@@ -162,27 +162,6 @@ type SessionSummary = {
   sectionViewCount: number;
 };
 
-const BOT_UA_PATTERN =
-  /bot|crawler|spider|monitor|headless|curl|python|wget|go-http-client|httpclient|urlscan|virustotal|appengine-google|proofpoint|mimecast|barracuda|mandrill|sendgrid|mailchimp/i;
-const PREVIEW_UA_PATTERN =
-  /preview|linkedinbot|slackbot|twitterbot|facebookexternalhit|discordbot|telegrambot|whatsapp|skypeuripreview|googleimageproxy|linkexpand/i;
-
-const STRONG_HUMAN_EVENTS = new Set([
-  "hero_input_start",
-  "hero_submit_attempt",
-  "signin_view",
-  "google_signin_click",
-  "signup_success",
-  "new_search_view",
-  "search_create_success",
-  "search_create_failed",
-  "sample_view",
-  "preview_request_click",
-  "preview_request_submit",
-  "book_feedback_click",
-  "reply_email_click",
-]);
-
 const EFFECTIVE_CLICK_EVENTS = new Set([
   "hero_submit_attempt",
   "google_signin_click",
@@ -230,32 +209,10 @@ export function classifyTraffic(params: {
   maxScrollDepth?: number;
   sessionCountForIpUa?: number;
 }): TrafficKind {
-  const userAgent = params.userAgent ?? "";
-  if (PREVIEW_UA_PATTERN.test(userAgent)) return "preview";
-  if (BOT_UA_PATTERN.test(userAgent)) return "bot";
-
-  const eventTypes = new Set(params.eventTypes ?? []);
-  const hasStrongHumanSignal = [...eventTypes].some((eventType) => STRONG_HUMAN_EVENTS.has(eventType));
-  const interactionCount = params.interactionCount ?? 0;
-  const maxScrollDepth = params.maxScrollDepth ?? 0;
-  const pageStaySeconds = params.pageStaySeconds ?? 0;
-  const activeReadSeconds = params.activeReadSeconds ?? 0;
-  const hasRealInteraction = interactionCount > 0 || maxScrollDepth > 0 || activeReadSeconds >= 4;
-
   if (isDataCenterVisit(params.ipAttribution, params.ipAddress)) {
-    return "suspicious";
+    return "data_center";
   }
-
-  if ((params.sessionCountForIpUa ?? 0) >= 12 && !hasStrongHumanSignal && interactionCount === 0 && maxScrollDepth === 0) {
-    return "suspicious";
-  }
-
-  if (hasStrongHumanSignal || hasRealInteraction) {
-    return "human";
-  }
-
-  if (pageStaySeconds <= 10) return "low_quality";
-  return "suspicious";
+  return "human";
 }
 
 function isDataCenterVisit(
@@ -396,7 +353,7 @@ export function buildOpsConversionData(
     summary: {
       humanVisits: humanSessions.length,
       filteredVisits: filteredSessions.length,
-      suspiciousVisits: filteredSessions.filter((session) => trafficBySession.get(session.sessionId) === "suspicious").length,
+      suspiciousVisits: filteredSessions.filter((session) => trafficBySession.get(session.sessionId) === "data_center").length,
       humanRatio: ratio(humanSessions.length, sessions.length),
       effectiveClicks,
       loginAttempts,
@@ -795,10 +752,7 @@ function buildFilteredTraffic(
   trafficBySession: Map<string, TrafficKind>,
 ): FilteredTrafficSummary[] {
   const counts: Record<Exclude<TrafficKind, "human">, number> = {
-    bot: 0,
-    preview: 0,
-    suspicious: 0,
-    low_quality: 0,
+    data_center: 0,
   };
 
   for (const session of filteredSessions) {
@@ -807,10 +761,7 @@ function buildFilteredTraffic(
   }
 
   return [
-    { kind: "preview", label: "社交预览", count: counts.preview },
-    { kind: "bot", label: "爬虫/监控", count: counts.bot },
-    { kind: "low_quality", label: "极短无互动", count: counts.low_quality },
-    { kind: "suspicious", label: "可疑访问", count: counts.suspicious },
+    { kind: "data_center", label: "数据中心访问", count: counts.data_center },
   ];
 }
 

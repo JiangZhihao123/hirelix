@@ -7,82 +7,39 @@ import {
   classifyTraffic,
 } from "../src/lib/ops-conversion";
 
-test("classifyTraffic filters obvious bot user agents", () => {
+test("classifyTraffic treats non-data-center IP traffic as human", () => {
   assert.equal(
     classifyTraffic({
+      ipAttribution: {
+        ipAddress: "203.0.113.10",
+        maskedIp: "203.0.113.*",
+        country: "United States",
+        region: "California",
+        city: "San Francisco",
+        networkType: "business",
+        org: "Example Company Network",
+        asn: "AS64500",
+      },
       userAgent: "Mozilla/5.0 compatible; Googlebot/2.1",
       eventTypes: ["page_view"],
-      pageStaySeconds: 20,
-    }),
-    "bot",
-  );
-});
-
-test("classifyTraffic filters social preview user agents", () => {
-  assert.equal(
-    classifyTraffic({
-      userAgent: "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
-      eventTypes: ["page_view"],
-      pageStaySeconds: 20,
-    }),
-    "preview",
-  );
-});
-
-test("classifyTraffic treats interaction signals as human", () => {
-  assert.equal(
-    classifyTraffic({
-      userAgent: "Mozilla/5.0 Safari/605.1.15",
-      eventTypes: ["section_view"],
-      pageStaySeconds: 2,
-      interactionCount: 1,
+      pageStaySeconds: 1,
     }),
     "human",
   );
 });
 
-test("classifyTraffic does not treat passive timing events as human", () => {
+test("classifyTraffic treats unknown IP type as human", () => {
   assert.equal(
     classifyTraffic({
-      userAgent: "Mozilla/5.0 Safari/605.1.15",
-      eventTypes: ["page_view", "engaged_10s", "session_summary"],
-      pageStaySeconds: 10,
-      activeReadSeconds: 0,
-      interactionCount: 0,
-      maxScrollDepth: 0,
-    }),
-    "low_quality",
-  );
-});
-
-test("classifyTraffic marks 0-3 second no-interaction sessions as low quality", () => {
-  assert.equal(
-    classifyTraffic({
-      userAgent: "Mozilla/5.0 Safari/605.1.15",
+      userAgent: "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
       eventTypes: ["page_view"],
-      pageStaySeconds: 3,
-      interactionCount: 0,
-      maxScrollDepth: 0,
+      pageStaySeconds: 0,
     }),
-    "low_quality",
+    "human",
   );
 });
 
-test("classifyTraffic marks longer passive sessions as suspicious", () => {
-  assert.equal(
-    classifyTraffic({
-      userAgent: "Mozilla/5.0 Safari/605.1.15",
-      eventTypes: ["page_view", "engaged_30s", "session_summary"],
-      pageStaySeconds: 30,
-      activeReadSeconds: 0,
-      interactionCount: 0,
-      maxScrollDepth: 0,
-    }),
-    "suspicious",
-  );
-});
-
-test("classifyTraffic marks cloud IP sessions without real interaction as suspicious", () => {
+test("classifyTraffic treats data center IP traffic as non-human", () => {
   assert.equal(
     classifyTraffic({
       ipAddress: "72.145.152.67",
@@ -93,7 +50,7 @@ test("classifyTraffic marks cloud IP sessions without real interaction as suspic
       interactionCount: 0,
       maxScrollDepth: 0,
     }),
-    "suspicious",
+    "data_center",
   );
 
   assert.equal(
@@ -106,7 +63,7 @@ test("classifyTraffic marks cloud IP sessions without real interaction as suspic
       interactionCount: 0,
       maxScrollDepth: 0,
     }),
-    "suspicious",
+    "data_center",
   );
 });
 
@@ -131,7 +88,7 @@ test("classifyTraffic filters attributed data center IP sessions even with clear
       interactionCount: 4,
       maxScrollDepth: 30,
     }),
-    "suspicious",
+    "data_center",
   );
 });
 
@@ -189,23 +146,12 @@ test("buildOpsConversionData keeps filtered traffic out of the main funnel", () 
         metadata: { traffic_source: "linkedin", jd_length_bucket: "200-499" },
         created_at: "2026-05-26T01:01:20.000Z",
       },
-      {
-        event_type: "page_view",
-        visitor_id: "visitor-bot",
-        session_id: "session-bot",
-        page_url: "https://hirelix.online/",
-        referrer: "",
-        ip_address: "198.51.100.8",
-        user_agent: "curl/8.0",
-        metadata: {},
-        created_at: "2026-05-26T02:00:00.000Z",
-      },
     ],
     { range: "today", start, end },
   );
 
   assert.equal(data.summary.humanVisits, 1);
-  assert.equal(data.summary.filteredVisits, 1);
+  assert.equal(data.summary.filteredVisits, 0);
   assert.equal(data.summary.effectiveClicks, 1);
   assert.equal(data.funnel[0].count, 1);
 });
@@ -363,7 +309,7 @@ test("buildOpsConversionData counts signup success only after a Google sign-in c
     { range: "today", start, end },
   );
 
-  assert.equal(data.summary.humanVisits, 1);
+  assert.equal(data.summary.humanVisits, 2);
   assert.equal(data.summary.loginAttempts, 1);
   assert.equal(data.summary.successfulLogins, 1);
   assert.equal(data.recentHumanEvents.filter((event) => event.label === "登录成功").length, 1);

@@ -302,7 +302,7 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                   {data.filteredTraffic.map((item) => (
                     <div key={item.kind} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                       <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-                        {item.kind === "suspicious" ? (
+                        {item.kind === "data_center" ? (
                           <AlertTriangle className="h-4 w-4 text-amber-600" />
                         ) : (
                           <Filter className="h-4 w-4 text-slate-500" />
