@@ -1,27 +1,14 @@
 import {
-  CANDIDATE_SUITABILITY_PROMPT,
-  JD_SEARCH_INTENT_PROMPT,
-} from "@/lib/prompts";
-import {
-  brightDataProfileToRichText,
-  adaptDatasetRecordToBrightDataProfile,
   BrightDataRequestTimeoutError,
   BrightDataSnapshotNotReadyError,
-  triggerDatasetFilter,
-  getDatasetSnapshotMetadata,
-  downloadDatasetSnapshot,
-  computeFilterHash,
   type BrightDataFilterRule,
-  type BrightDataDatasetFilterRequest,
   type BrightDataSnapshotMetadata,
-  type BrightDataProfile,
 } from "@/lib/brightdata";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
   buildRecruiterOutreachPrompt,
   buildRecruiterOutreachEvidence,
 } from "@/lib/recruiter-outreach";
-import { getBillingSummaryForUser } from "@/lib/billing-server";
 import {
   generateLlmJson,
   getDefaultLlmModel,
@@ -29,44 +16,20 @@ import {
   resolveDeepSeekThinkingMode,
 } from "@/lib/llm-client";
 import {
-  ARBITER_SCORE_JSON_SCHEMA,
-  buildJudgeScoreJsonSchema,
   buildOutreachDraftJsonSchema,
-  JD_SEARCH_INTENT_JSON_SCHEMA,
 } from "@/lib/llm-schemas";
 import {
-  getInitialSearchExecutionProfile,
-  getSearchExecutionProfile,
-  normalizeSearchExecutionProfileName,
   normalizeSearchPlanCode,
   type SearchExecutionProfile,
   type SearchPlanCode,
 } from "@/lib/search-execution";
 import { queueOrSendSearchNotification } from "@/lib/search-notifications";
 import {
-  ARBITER_SCORING_TIMEOUT_MS,
-  BRIGHTDATA_COMPANY_TARGET_LIMIT,
-  BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
-  BRIGHTDATA_FILTER_TIMEOUT_MS,
-  BRIGHTDATA_HIDDEN_GEM_LIMIT,
   BRIGHTDATA_STANDARD_LIMIT,
-  DEEP_REVIEW_CONCURRENCY,
-  DEEP_REVIEW_DEBUG_LOGS,
   DEEP_SCORING_BATCH_SIZE,
-  DEEP_SCORING_CONCURRENCY,
   ESTIMATED_DEEP_REVIEW_CONFLICT_RATE,
   ESTIMATED_SECOND_REVIEW_RATE,
-  GITHUB_ENRICH_LIMIT,
-  getExecutionRuntime,
-  HIGHLIGHT_CANDIDATE_COUNT,
-  JUDGE_SCORING_TIMEOUT_MS,
-  OUTREACH_POOL_TARGET,
-  PARSE_MAX_OUTPUT_TOKENS,
-  PARSE_MAX_ATTEMPTS,
   roundCurrency,
-  resolveStageConcurrency,
-  REVIEWABLE_SEARCH_STATUSES,
-  SEARCH_JOB_MAX_ATTEMPTS,
   SHORTLIST_CAPABILITY_MIN,
   SHORTLIST_JOIN_LIKELIHOOD_MIN,
   SHORTLIST_MATCH_SCORE_MIN,
@@ -77,8 +40,6 @@ import {
   estimateTokensFromText,
 } from "@/lib/search/config";
 import {
-  runWithConcurrency,
-  sleep,
   withTimeout,
 } from "@/lib/search/concurrency";
 import {
@@ -100,7 +61,6 @@ import {
   normalizeExperienceYears,
   normalizeNullableString,
   normalizeScore,
-  normalizeScrapedDescription,
   normalizeStringArray,
   normalizeSummaryTerms,
   normalizeText,
@@ -108,44 +68,14 @@ import {
   truncateForPrompt,
 } from "@/lib/search/normalize";
 import {
-  cacheSnapshotEntry,
   countCandidatesForSearch,
-  lookupCachedSnapshot,
-  persistSnapshotProfiles,
-  retagSearchCandidatePoolTypes,
   setSearchStatus,
-  updateCachedSnapshotMetadata,
   updateSearchParsedRequirements,
-  updateSearchUsageEventMetadata,
-  upsertCandidatesForSearch,
-  upsertSingleCandidate,
 } from "@/lib/search/persistence";
 import {
-  buildBrightDataCandidateRows,
-  buildBrightDataRecallFilter,
-  buildBrightDataRecallFilters,
-  enrichRowsWithGithubSignals,
   sanitizeRecallSignalTerms,
   type RecallFilterMode,
-  trimBrightDataProfileForMetadata,
 } from "@/lib/search/recall";
-import {
-  buildArbiterPrompt,
-  buildJudgeScorePrompt,
-  hasJudgeConflict,
-  mergeJudgeResults,
-  parseJudgeScoreResults,
-  parseScoredAssessments,
-  selectShortlistedAssessments,
-  tagPoolRows,
-} from "@/lib/search/scoring";
-import {
-  arbitrateCandidateScore,
-  deepScoreSelectedProfiles,
-  judgeScoreBatch,
-  scoreCandidateBatch,
-} from "@/lib/search/scoring-runtime";
-import { completeSearch } from "@/lib/search/finalize";
 import {
   DatasetRecallPendingError,
   runSearchPipeline,
@@ -163,7 +93,6 @@ import type {
   ExcludedReason,
   ExcludedReasonCount,
   HiringBrief,
-  JudgeScoreResult,
   PipelineContext,
   RecallMetadata,
   RecallProvider,
@@ -172,12 +101,9 @@ import type {
   SearchCostEstimate,
   SearchDisplayStats,
   SearchExecutionRuntime,
-  SearchJobRow,
-  SearchPipelineResult,
   SearchRow,
   ShortlistDecision,
   AdditionalRecallSnapshot,
-  ScoringBreakdown,
 } from "@/lib/search/types";
 export {
   enqueueSearchJob,
@@ -2497,15 +2423,6 @@ function buildExcludedReasonCounts(
     .sort((left, right) => right.count - left.count);
 }
 
-function getAIModel() {
-  return (
-    process.env.AI_MODEL ||
-    process.env.SEARCH_JUDGE_MODEL ||
-    process.env.DEEPSEEK_MODEL ||
-    getDefaultLlmModel()
-  );
-}
-
 function getJudgeModel() {
   return (
     process.env.SEARCH_JUDGE_MODEL ||
@@ -2732,321 +2649,6 @@ async function markSearchReviewable(
 }
 
 
-
-async function scoreBrightDataProfiles(
-  context: PipelineContext,
-  parsed: Record<string, unknown>,
-  brightProfiles: BrightDataProfile[],
-  retrievalCount: number,
-  executionProfile: SearchExecutionProfile,
-  options?: {
-    progressOffset?: number;
-    onFirstVisibleCandidate?: (statsPatch: Partial<SearchDisplayStats>) => Promise<void>;
-  },
-): Promise<SearchPipelineResult> {
-  const scoringStartMs = Date.now();
-  const runtime = getExecutionRuntime(executionProfile);
-  const renderProfileEntries = brightProfiles.map((profile, index) =>
-    brightDataProfileToRichText(profile, index),
-  );
-  const selectedIndexes = brightProfiles.map((_, index) => index);
-  const progressOffset = Math.max(0, options?.progressOffset ?? 0);
-  let firstVisibleSignalled = false;
-
-  const deepAssessments = await deepScoreSelectedProfiles(
-    runtime,
-    parsed,
-    context.jdText,
-    renderProfileEntries,
-    selectedIndexes,
-    brightProfiles.length,
-    {
-      scoreCandidateBatch,
-      sortCandidateAssessments,
-      scoringHelpers: {
-        judgeScoreBatch,
-        arbitrateCandidateScore,
-        logSearchEvent,
-        computeQualityScore,
-        computeAdvanceScore,
-        deriveAdvanceRecommendation,
-        sanitizeCandidateSuitability,
-        normalizeNullableString,
-        deriveFitDecisionFromScore,
-        judgeHelpers: {
-          truncateForPrompt,
-          buildPromptSearchContext,
-          getJudgeModel,
-          logSearchEvent,
-          sanitizeCandidateSuitability,
-          normalizeScore,
-          stripSpeculativeRelocation,
-          normalizeStringArray,
-          normalizeBlockingConstraints,
-          normalizeBlockingSeverity,
-          normalizeAdvanceRecommendation,
-          normalizeEnumValue,
-          deriveShortlistDecision,
-          normalizeNullableString,
-          sanitizeConstraintVerdicts,
-          normalizeExperienceYears,
-        },
-        arbiterHelpers: {
-          truncateForPrompt,
-          buildPromptSearchContext,
-          buildCompanyProfileContext,
-          getArbiterModel,
-          logSearchEvent,
-          sanitizeCandidateSuitability,
-          normalizeStringArray,
-          normalizeExperienceYears,
-          normalizeNullableString,
-          sortCandidateAssessments,
-        },
-      },
-    },
-    {
-      onCandidateScored: async (assessment, completedCount) => {
-        const completedTotal = progressOffset + completedCount;
-        const displayTier = getDisplayTierForAssessment(assessment);
-        if (!displayTier || !shouldDisplayCandidate(assessment)) {
-          if (completedTotal % 5 === 0) {
-            await updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
-          }
-          return;
-        }
-        const rows = buildBrightDataCandidateRows(
-          brightProfiles,
-          [assessment],
-          1,
-          "outreach_pool",
-          { getDisplayTierForAssessment },
-        );
-        if (rows.length > 0) {
-          await upsertSingleCandidate(context.searchId, rows[0]);
-          await retagSearchCandidatePoolTypes(context.searchId);
-          if (!firstVisibleSignalled) {
-            firstVisibleSignalled = true;
-            await options?.onFirstVisibleCandidate?.({
-              visible_candidate_count: 1,
-              shortlist_count: 1,
-              priority_outreach_count: displayTier === "priority_outreach" ? 1 : 0,
-              worth_reviewing_count: displayTier === "worth_reviewing" ? 1 : 0,
-              shortlist_yes_count: shouldDisplayCandidate(assessment) ? 1 : 0,
-              shortlist_no_count: shouldDisplayCandidate(assessment) ? 0 : 1,
-            });
-          }
-        }
-        // Update progress every 5 candidates
-        if (completedTotal % 5 === 0) {
-          await updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
-        }
-      },
-      searchId: context.searchId,
-      jobId: context.jobId,
-      userId: context.userId,
-    },
-  );
-
-  logSearchEvent("search_timing", {
-    search_id: context.searchId,
-    phase: "scoring_complete",
-    scoring_elapsed_ms: Date.now() - scoringStartMs,
-    recall_profile_count: brightProfiles.length,
-    deep_review_input: selectedIndexes.length,
-    deep_review_output: deepAssessments.length,
-    job_id: context.jobId,
-  });
-
-  if (DEEP_REVIEW_DEBUG_LOGS) {
-    logSearchEvent("deep_review_distribution", {
-      search_id: context.searchId,
-      requested_count: selectedIndexes.length,
-      completed_count: deepAssessments.length,
-      selected_indexes: selectedIndexes,
-      scores: deepAssessments.map((assessment) => ({
-        index: assessment.index,
-        match_score: assessment.suitability.match_score,
-        quality_score: assessment.suitability.quality_score,
-        advance_score: assessment.suitability.advance_score,
-        capability_score: assessment.suitability.scoring_breakdown.capability_score,
-        relevance_score: assessment.suitability.scoring_breakdown.relevance_score,
-        join_likelihood_score: assessment.suitability.scoring_breakdown.join_likelihood_score,
-        fit_decision: assessment.suitability.fit_decision,
-        actionability: assessment.suitability.actionability,
-        advance_recommendation: assessment.suitability.advance_recommendation,
-        blocking_severity: assessment.suitability.blocking_severity,
-        blocking_constraints: assessment.suitability.blocking_constraints,
-      })),
-    });
-  }
-  const fullDetailIncomplete = deepAssessments.length < selectedIndexes.length;
-  const hardBlockedCount = deepAssessments.filter(
-    (assessment) => assessment.suitability.blocking_severity === "hard",
-  ).length;
-  const softBlockedCount = deepAssessments.filter(
-    (assessment) => assessment.suitability.blocking_severity === "soft",
-  ).length;
-  const advanceableCount = deepAssessments.filter(
-    (assessment) => assessment.suitability.advance_recommendation === "advance",
-  ).length;
-  const deepSelection = selectShortlistedAssessments(deepAssessments, {
-    shouldDisplayCandidate,
-    sortCandidateAssessments,
-  });
-  // Use deepSelection.selected (filtered by shouldDisplayCandidate) as the source for visible
-  // candidates so that score thresholds and location gates are actually enforced.
-  const priorityAssessments = deepSelection.selected
-    .filter((assessment) => getDisplayTierForAssessment(assessment) === "priority_outreach");
-  const worthReviewingAssessments = deepSelection.selected
-    .filter((assessment) => getDisplayTierForAssessment(assessment) === "worth_reviewing");
-  const ruledOutAssessments = deepAssessments
-    .filter((assessment) => assessment.suitability.bucket === "do_not_show");
-  const visibleAssessments = [...priorityAssessments, ...worthReviewingAssessments];
-  const excludedReasonCounts = buildExcludedReasonCounts(ruledOutAssessments);
-  logSearchEvent("search_shortlist_decisions", {
-    search_id: context.searchId,
-    shortlist_yes_count: deepSelection.shortlistYesCount,
-    shortlist_no_count: deepSelection.shortlistNoCount,
-    hard_blocked_count: hardBlockedCount,
-    job_id: context.jobId,
-  });
-  const deepRows = buildBrightDataCandidateRows(
-    brightProfiles,
-    visibleAssessments,
-    visibleAssessments.length,
-    "main",
-    { getDisplayTierForAssessment },
-  );
-
-  const taggedRows = tagPoolRows(
-    deepRows,
-    [],
-    deepRows.length,
-  );
-  const finalRows = enrichRowsWithGithubSignals(taggedRows, {
-    requiredSkills: sanitizeHiringBrief(parsed.hiring_brief, parsed).role_core.required_skills,
-    displayCount: Number(parsed.display_count) || taggedRows.length,
-    githubEnrichLimit: GITHUB_ENRICH_LIMIT,
-  });
-  const topQualityScore = deepAssessments.reduce(
-    (best, assessment) => Math.max(best, assessment.suitability.quality_score),
-    0,
-  );
-  const top50QualityCutoff =
-    finalRows.length > 0
-      ? finalRows[finalRows.length - 1]?.match_score ?? 0
-      : 0;
-
-  if (finalRows.length === 0) {
-    throw new Error("No candidates were ranked into the visible result set.");
-  }
-  if (fullDetailIncomplete) {
-    throw new Error(
-      `Deep scoring incomplete: reviewed ${deepAssessments.length}/${selectedIndexes.length} recalled profiles.`,
-    );
-  }
-  const estimatedCosts = estimateBrightPipelineLlmCost({
-    context,
-    parsed,
-    renderProfileEntries,
-    selectedCount: selectedIndexes.length,
-    finalRows,
-    runtime,
-  });
-  const contactUnlockCandidates = finalRows.filter((row) => {
-    const metadata =
-      row.metadata && typeof row.metadata === "object"
-        ? (row.metadata as Record<string, unknown>)
-        : null;
-    const suitability = sanitizeCandidateSuitability(metadata?.suitability);
-    return (
-      suitability?.blocking_severity !== "hard" &&
-      suitability?.advance_recommendation !== "reject"
-    );
-  }).length;
-  const shortlistYesCount = deepSelection.shortlistYesCount;
-  const shortlistNoCount = deepSelection.shortlistNoCount;
-  const clearLocationFitCount = finalRows.filter((row) => {
-    const metadata =
-      row.metadata && typeof row.metadata === "object"
-        ? (row.metadata as Record<string, unknown>)
-        : null;
-    const verdicts =
-      metadata?.constraint_verdicts &&
-      typeof metadata.constraint_verdicts === "object"
-        ? (metadata.constraint_verdicts as ConstraintVerdict)
-        : null;
-    return verdicts?.location_fit === "local" || verdicts?.location_fit === "nearby";
-  }).length;
-  const mustHaveStrongCount = finalRows.filter((row) => {
-    const metadata =
-      row.metadata && typeof row.metadata === "object"
-        ? (row.metadata as Record<string, unknown>)
-        : null;
-    const verdicts =
-      metadata?.constraint_verdicts &&
-      typeof metadata.constraint_verdicts === "object"
-        ? (metadata.constraint_verdicts as ConstraintVerdict)
-        : null;
-    return verdicts?.must_have_coverage === "strong";
-  }).length;
-  const firstContactConfidenceCount = finalRows.filter((row) => {
-    const metadata =
-      row.metadata && typeof row.metadata === "object"
-        ? (row.metadata as Record<string, unknown>)
-        : null;
-    return metadata?.first_contact_confidence === "high";
-  }).length;
-
-  return {
-    finalRows,
-    assessments: deepAssessments,
-    displayStats: buildSearchDisplayStats({
-      retrieval_count: retrievalCount,
-      recall_profile_count: brightProfiles.length,
-      deep_review_requested_count: selectedIndexes.length,
-      deep_review_completed_count: deepAssessments.length,
-      qualified_count: finalRows.length,
-      outreach_pool_count: finalRows.length,
-      shortlist_count: finalRows.length,
-      brightdata_scrape_count: brightProfiles.length,
-      bright_profile_budget: executionProfile.filterLimit,
-      bright_profiles_requested: executionProfile.filterLimit,
-      bright_profiles_returned: brightProfiles.length,
-      estimated_llm_cost: estimatedCosts.estimatedLlmCost,
-      estimated_search_total_cost: estimatedCosts.estimatedSearchTotalCost,
-      judge_mode: runtime.judgeMode,
-      activation_run: isActivationRun(parsed),
-      quality_floor_applied: false,
-      visible_candidate_count: finalRows.length,
-      pre_gate_blocked_count: 0,
-      prescreen_blocked_count: 0,
-      contact_unlock_candidates: contactUnlockCandidates,
-      shortlist_yes_count: shortlistYesCount,
-      shortlist_no_count: shortlistNoCount,
-      priority_outreach_count: priorityAssessments.length,
-      worth_reviewing_count: worthReviewingAssessments.length,
-      ruled_out_count: ruledOutAssessments.length,
-      clear_location_fit_count: clearLocationFitCount,
-      must_have_strong_count: mustHaveStrongCount,
-      first_contact_confidence_count: firstContactConfidenceCount,
-      deep_qualified_rate:
-        deepAssessments.length > 0
-          ? visibleAssessments.length / deepAssessments.length
-          : 0,
-      hard_blocked_count: hardBlockedCount,
-      soft_blocked_count: softBlockedCount,
-      advanceable_count: advanceableCount,
-      top_quality_score: topQualityScore,
-      top50_quality_cutoff: top50QualityCutoff,
-      strong_now_count: priorityAssessments.length,
-      consider_next_count: worthReviewingAssessments.length,
-      do_not_show_count: ruledOutAssessments.length,
-      excluded_reason_counts: excludedReasonCounts,
-    }),
-  };
-}
 
 async function failSearch(searchId: string) {
   await setSearchStatus(searchId, "error", {
