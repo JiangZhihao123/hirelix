@@ -48,6 +48,10 @@ export type OpsConversionData = {
   };
   funnel: FunnelStep[];
   sources: SourceSummary[];
+  visitorSegments: VisitorSegment[];
+  actionItems: ActionItem[];
+  topSections: SectionSummary[];
+  highIntentSessions: HighIntentSession[];
   recentHumanEvents: RecentHumanEvent[];
   filteredTraffic: FilteredTrafficSummary[];
   diagnosis: string;
@@ -69,6 +73,10 @@ export type FunnelStep = {
 export type SourceSummary = {
   source: string;
   humanVisits: number;
+  medianStaySeconds: number;
+  averageActiveSeconds: number;
+  seriousReaders: number;
+  highIntentNoAction: number;
   effectiveClicks: number;
   successfulLogins: number;
   createdSearches: number;
@@ -88,6 +96,34 @@ export type FilteredTrafficSummary = {
   count: number;
 };
 
+export type VisitorSegment = {
+  key: string;
+  label: string;
+  count: number;
+  note: string;
+};
+
+export type ActionItem = {
+  priority: "high" | "medium" | "low";
+  title: string;
+  detail: string;
+};
+
+export type SectionSummary = {
+  section: string;
+  views: number;
+};
+
+export type HighIntentSession = {
+  source: string;
+  staySeconds: number;
+  activeReadSeconds: number;
+  maxScrollDepth: number;
+  lastEventAt: string;
+  lastAction: string;
+  reason: string;
+};
+
 type SessionSummary = {
   sessionId: string;
   visitorId: string | null;
@@ -98,6 +134,7 @@ type SessionSummary = {
   lastEventAt: Date;
   eventTypes: Set<string>;
   metadata: Record<string, unknown>;
+  sectionViews: Map<string, number>;
   pageStaySeconds: number;
   activeReadSeconds: number;
   maxScrollDepth: number;
@@ -308,6 +345,20 @@ export function buildOpsConversionData(
     },
     funnel: buildFunnel(humanSessions),
     sources: buildSources(humanSessions),
+    visitorSegments: buildVisitorSegments(humanSessions),
+    actionItems: buildActionItems({
+      humanSessions,
+      filteredSessions,
+      effectiveClicks,
+      loginAttempts,
+      successfulLogins,
+      createdSearches,
+      stayed30Seconds,
+      highInterestNoAction,
+      leftWithin10Seconds,
+    }),
+    topSections: buildTopSections(humanSessions),
+    highIntentSessions: buildHighIntentSessions(humanSessions),
     recentHumanEvents: buildRecentHumanEvents(humanEvents),
     filteredTraffic: buildFilteredTraffic(filteredSessions, trafficBySession),
     diagnosis: buildDiagnosis({
@@ -344,6 +395,7 @@ function buildSessions(events: GrowthEventRecord[]): SessionSummary[] {
         lastEventAt: eventAt,
         eventTypes: new Set<string>(),
         metadata: {},
+        sectionViews: new Map<string, number>(),
         pageStaySeconds: 0,
         activeReadSeconds: 0,
         maxScrollDepth: 0,
@@ -362,7 +414,13 @@ function buildSessions(events: GrowthEventRecord[]): SessionSummary[] {
     session.activeReadSeconds = Math.max(session.activeReadSeconds, readNumber(metadata.active_read_seconds));
     session.maxScrollDepth = Math.max(session.maxScrollDepth, readNumber(metadata.max_scroll_depth));
     session.interactionCount = Math.max(session.interactionCount, readNumber(metadata.interaction_count));
-    if (event.event_type === "section_view") session.sectionViewCount += 1;
+    if (event.event_type === "section_view") {
+      session.sectionViewCount += 1;
+      const sectionId = readString(metadata.section_id);
+      if (sectionId) {
+        session.sectionViews.set(sectionId, (session.sectionViews.get(sectionId) ?? 0) + 1);
+      }
+    }
 
     sessions.set(sessionId, session);
   }
@@ -403,6 +461,10 @@ function buildSources(humanSessions: SessionSummary[]): SourceSummary[] {
     .map(([source, sessions]) => ({
       source: sourceLabel(source),
       humanVisits: sessions.length,
+      medianStaySeconds: median(sessions.map((session) => session.pageStaySeconds)),
+      averageActiveSeconds: average(sessions.map((session) => session.activeReadSeconds)),
+      seriousReaders: sessions.filter(isSeriousReader).length,
+      highIntentNoAction: sessions.filter(isHighIntentNoAction).length,
       effectiveClicks: countSessionsWithEvents(sessions, EFFECTIVE_CLICK_EVENTS),
       successfulLogins: countSessionsWithEvents(sessions, new Set(["signup_success"])),
       createdSearches: countSessionsWithEvents(sessions, new Set(["search_create_success"])),
@@ -410,6 +472,201 @@ function buildSources(humanSessions: SessionSummary[]): SourceSummary[] {
     }))
     .sort((a, b) => b.humanVisits - a.humanVisits)
     .slice(0, 12);
+}
+
+function buildVisitorSegments(humanSessions: SessionSummary[]): VisitorSegment[] {
+  const quickLeave = humanSessions.filter(
+    (session) =>
+      session.pageStaySeconds <= 10 &&
+      session.interactionCount === 0 &&
+      session.maxScrollDepth === 0 &&
+      !hasAnyEvent(session, EFFECTIVE_CLICK_EVENTS),
+  ).length;
+  const skimmed = humanSessions.filter(
+    (session) =>
+      session.pageStaySeconds > 10 &&
+      session.pageStaySeconds < 30 &&
+      !hasAnyEvent(session, EFFECTIVE_CLICK_EVENTS),
+  ).length;
+  const seriousNoAction = humanSessions.filter(isHighIntentNoAction).length;
+  const clickedNoLogin = humanSessions.filter(
+    (session) =>
+      hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click"])) &&
+      !session.eventTypes.has("signup_success"),
+  ).length;
+  const productNoSearch = humanSessions.filter(
+    (session) =>
+      session.eventTypes.has("signup_success") &&
+      !session.eventTypes.has("search_create_success"),
+  ).length;
+  const createdSearch = humanSessions.filter((session) => session.eventTypes.has("search_create_success")).length;
+
+  return [
+    {
+      key: "quick_leave",
+      label: "很快离开",
+      count: quickLeave,
+      note: "10 秒内离开，且没有滚动或点击",
+    },
+    {
+      key: "skimmed",
+      label: "浅看未行动",
+      count: skimmed,
+      note: "看了 11-29 秒，但没有点击",
+    },
+    {
+      key: "serious_no_action",
+      label: "认真看但没点",
+      count: seriousNoAction,
+      note: "停留 60 秒以上，但没有点击开始或登录",
+    },
+    {
+      key: "clicked_no_login",
+      label: "点了但没登录",
+      count: clickedNoLogin,
+      note: "点击开始或登录，但没有成功登录",
+    },
+    {
+      key: "product_no_search",
+      label: "登录后没搜索",
+      count: productNoSearch,
+      note: "登录成功，但没有创建第一次搜索",
+    },
+    {
+      key: "created_search",
+      label: "创建搜索",
+      count: createdSearch,
+      note: "已经走到第一次搜索",
+    },
+  ];
+}
+
+function buildActionItems(params: {
+  humanSessions: SessionSummary[];
+  filteredSessions: SessionSummary[];
+  effectiveClicks: number;
+  loginAttempts: number;
+  successfulLogins: number;
+  createdSearches: number;
+  stayed30Seconds: number;
+  highInterestNoAction: number;
+  leftWithin10Seconds: number;
+}): ActionItem[] {
+  const items: ActionItem[] = [];
+  const humanVisits = params.humanSessions.length;
+  const filteredVisits = params.filteredSessions.length;
+  const clickedNoLogin = params.humanSessions.filter(
+    (session) =>
+      hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click"])) &&
+      !session.eventTypes.has("signup_success"),
+  ).length;
+  const productNoSearch = params.humanSessions.filter(
+    (session) =>
+      session.eventTypes.has("signup_success") &&
+      !session.eventTypes.has("search_create_success"),
+  ).length;
+
+  if (humanVisits === 0) {
+    items.push({
+      priority: "high",
+      title: "先看流量入口",
+      detail: "当前时间段没有真人访问。优先检查今天发出去的链接、LinkedIn 私信或邮件是否真的带了站点链接。",
+    });
+  }
+
+  if (humanVisits > 0 && params.leftWithin10Seconds / humanVisits >= 0.5) {
+    items.push({
+      priority: "high",
+      title: "首屏可能没抓住人",
+      detail: `${params.leftWithin10Seconds}/${humanVisits} 个真人 10 秒内离开。优先检查首屏标题、按钮和移动端首屏。`,
+    });
+  }
+
+  if (params.highInterestNoAction > 0) {
+    items.push({
+      priority: "medium",
+      title: "有人认真看了但没行动",
+      detail: `${params.highInterestNoAction} 个访客停留超过 60 秒但没有点击。优先加强按钮文案、示例可信度或降低登录前摩擦。`,
+    });
+  }
+
+  if (clickedNoLogin > 0) {
+    items.push({
+      priority: "high",
+      title: "登录是当前阻力",
+      detail: `${clickedNoLogin} 个访客点击开始/登录但没有成功登录。优先检查 Google 登录、弹窗文案和跳转。`,
+    });
+  }
+
+  if (productNoSearch > 0) {
+    items.push({
+      priority: "high",
+      title: "第一次搜索没有发生",
+      detail: `${productNoSearch} 个访客登录后没有创建搜索。优先检查新搜索页首屏、JD 输入门槛和创建失败。`,
+    });
+  }
+
+  if (params.successfulLogins > 0 && params.createdSearches === 0) {
+    items.push({
+      priority: "high",
+      title: "产品内激活卡住",
+      detail: "已经有人登录成功，但没有人创建搜索。今天最值得看新搜索页和真实创建链路。",
+    });
+  }
+
+  if (filteredVisits > humanVisits * 3 && filteredVisits >= 10) {
+    items.push({
+      priority: "low",
+      title: "机器流量偏多",
+      detail: `过滤流量 ${filteredVisits} 次，真人 ${humanVisits} 次。主漏斗仍只看真人，但来源判断要谨慎。`,
+    });
+  }
+
+  if (items.length === 0) {
+    items.push({
+      priority: "low",
+      title: "今天暂时没有明显异常",
+      detail: "继续看来源质量、停留秒数和是否有人走到第一次搜索。",
+    });
+  }
+
+  return items.slice(0, 5);
+}
+
+function buildTopSections(humanSessions: SessionSummary[]): SectionSummary[] {
+  const counts = new Map<string, number>();
+  for (const session of humanSessions) {
+    for (const section of session.sectionViews.keys()) {
+      counts.set(section, (counts.get(section) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([section, views]) => ({ section, views }))
+    .sort((left, right) => right.views - left.views)
+    .slice(0, 8);
+}
+
+function buildHighIntentSessions(humanSessions: SessionSummary[]): HighIntentSession[] {
+  return humanSessions
+    .filter(
+      (session) =>
+        isHighIntentNoAction(session) ||
+        session.eventTypes.has("hero_input_start") ||
+        session.eventTypes.has("hero_submit_attempt") ||
+        session.eventTypes.has("google_signin_click") ||
+        session.eventTypes.has("search_create_success"),
+    )
+    .sort((left, right) => right.lastEventAt.getTime() - left.lastEventAt.getTime())
+    .slice(0, 8)
+    .map((session) => ({
+      source: sourceLabel(normalizeSource(session.source)),
+      staySeconds: session.pageStaySeconds,
+      activeReadSeconds: session.activeReadSeconds,
+      maxScrollDepth: session.maxScrollDepth,
+      lastEventAt: session.lastEventAt.toISOString(),
+      lastAction: lastMeaningfulAction(session),
+      reason: highIntentReason(session),
+    }));
 }
 
 function buildRecentHumanEvents(events: GrowthEventRecord[]): RecentHumanEvent[] {
@@ -505,6 +762,47 @@ function hasAnyEvent(session: SessionSummary, eventTypes: Set<string>) {
     if (session.eventTypes.has(eventType)) return true;
   }
   return false;
+}
+
+function isSeriousReader(session: SessionSummary) {
+  return session.pageStaySeconds >= 30 && (session.maxScrollDepth > 0 || session.sectionViewCount > 0);
+}
+
+function isHighIntentNoAction(session: SessionSummary) {
+  return (
+    session.pageStaySeconds >= 60 &&
+    !hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click", "search_create_success"]))
+  );
+}
+
+function lastMeaningfulAction(session: SessionSummary) {
+  const priority = [
+    "search_create_success",
+    "search_create_failed",
+    "signup_success",
+    "google_signin_click",
+    "signin_view",
+    "hero_submit_attempt",
+    "hero_input_start",
+    "sample_view",
+    "section_view",
+    "engaged_180s",
+    "engaged_60s",
+    "engaged_30s",
+    "engaged_10s",
+    "page_view",
+  ];
+  return eventLabel(priority.find((eventType) => session.eventTypes.has(eventType)) ?? "page_view");
+}
+
+function highIntentReason(session: SessionSummary) {
+  if (session.eventTypes.has("search_create_success")) return "已创建搜索";
+  if (session.eventTypes.has("search_create_failed")) return "创建搜索失败";
+  if (session.eventTypes.has("google_signin_click") && !session.eventTypes.has("signup_success")) return "点了登录但没成功";
+  if (session.eventTypes.has("hero_submit_attempt")) return "点击开始";
+  if (session.eventTypes.has("hero_input_start")) return "输入了 JD";
+  if (isHighIntentNoAction(session)) return "停留超过 60 秒但没行动";
+  return "有明显兴趣";
 }
 
 function countSessionsByIpUa(sessions: SessionSummary[]) {

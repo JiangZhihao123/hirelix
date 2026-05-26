@@ -7,6 +7,7 @@ import {
   Clock3,
   Eye,
   Filter,
+  Flame,
   Loader2,
   MousePointerClick,
   RefreshCw,
@@ -121,33 +122,48 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
         {data ? (
           <div className="mt-6 space-y-6">
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="grid gap-5 lg:grid-cols-[1fr_28rem] lg:items-start">
                 <div>
-                  <p className="text-sm font-semibold text-slate-500">{data.range.label}</p>
+                  <p className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    {data.range.label}
+                  </p>
                   <p className="mt-2 text-xl font-bold leading-8 text-slate-950">
                     {data.diagnosis}
                   </p>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <MetricCard icon={UserCheck} label="真人访问" value={data.summary.humanVisits} tone="blue" />
+                    <MetricCard icon={MousePointerClick} label="有效点击" value={data.summary.effectiveClicks} tone="slate" />
+                    <MetricCard icon={CheckCircle2} label="成功登录" value={data.summary.successfulLogins} tone="green" />
+                    <MetricCard icon={Search} label="创建搜索" value={data.summary.createdSearches} tone="amber" />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <MetricCard icon={UserCheck} label="真人访问" value={data.summary.humanVisits} />
-                  <MetricCard icon={MousePointerClick} label="有效点击" value={data.summary.effectiveClicks} />
-                  <MetricCard icon={CheckCircle2} label="成功登录" value={data.summary.successfulLogins} />
-                  <MetricCard icon={Search} label="创建搜索" value={data.summary.createdSearches} />
+
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-950">
+                    <Flame className="h-4 w-4 text-amber-700" />
+                    今天最该看
+                  </div>
+                  <div className="space-y-2">
+                    {data.actionItems.slice(0, 3).map((item) => (
+                      <ActionItemRow key={item.title} item={item} />
+                    ))}
+                  </div>
                 </div>
               </div>
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-3">
-              <Panel title="今天怎么样" className="lg:col-span-2">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <PlainStat label="真人访问" value={data.summary.humanVisits} />
-                  <PlainStat label="机器/预览" value={data.summary.filteredVisits} />
-                  <PlainStat label="真人占比" value={`${data.summary.humanRatio}%`} />
-                  <PlainStat label="可疑访问" value={data.summary.suspiciousVisits} />
-                  <PlainStat label="登录尝试" value={data.summary.loginAttempts} />
-                  <PlainStat label="成功登录" value={data.summary.successfulLogins} />
-                  <PlainStat label="创建搜索" value={data.summary.createdSearches} />
-                  <PlainStat label="高兴趣未行动" value={data.summary.highInterestNoAction} />
+            <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              <Panel title="人群分层">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {data.visitorSegments.map((segment) => (
+                    <div key={segment.key} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-800">{segment.label}</p>
+                        <p className="text-xl font-bold tabular-nums">{formatNumber(segment.count)}</p>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">{segment.note}</p>
+                    </div>
+                  ))}
                 </div>
               </Panel>
 
@@ -160,6 +176,50 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                   <PlainStat label="60秒以上" value={data.summary.stayed60Seconds} />
                   <PlainStat label="180秒以上" value={data.summary.stayed180Seconds} />
                 </div>
+              </Panel>
+            </section>
+
+            <section className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+              <Panel title="高意向访客">
+                {data.highIntentSessions.length === 0 ? (
+                  <EmptyState text="还没有高意向访客" />
+                ) : (
+                  <div className="space-y-2">
+                    {data.highIntentSessions.map((session, index) => (
+                      <div key={`${session.lastEventAt}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{session.reason}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {session.source} · 最后动作：{session.lastAction}
+                            </p>
+                          </div>
+                          <span className="text-xs text-slate-500">{formatTime(session.lastEventAt)}</span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                          <MiniStat label="停留" value={`${session.staySeconds}秒`} />
+                          <MiniStat label="有效阅读" value={`${session.activeReadSeconds}秒`} />
+                          <MiniStat label="滚动" value={`${session.maxScrollDepth}%`} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+
+              <Panel title="看到了哪里">
+                {data.topSections.length === 0 ? (
+                  <EmptyState text="还没有模块曝光数据" />
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {data.topSections.map((section) => (
+                      <div key={section.section} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                        <span className="text-sm font-medium text-slate-800">{section.section}</span>
+                        <span className="text-sm font-bold tabular-nums">{formatNumber(section.views)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Panel>
             </section>
 
@@ -209,6 +269,8 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                         <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
                           <th className="py-2 pr-3 font-medium">来源</th>
                           <th className="py-2 pr-3 font-medium">真人访问</th>
+                          <th className="py-2 pr-3 font-medium">中位停留</th>
+                          <th className="py-2 pr-3 font-medium">认真看</th>
                           <th className="py-2 pr-3 font-medium">点击</th>
                           <th className="py-2 pr-3 font-medium">登录</th>
                           <th className="py-2 pr-3 font-medium">创建搜索</th>
@@ -220,6 +282,8 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                           <tr key={source.source}>
                             <td className="py-3 pr-3 font-medium text-slate-900">{source.source}</td>
                             <td className="py-3 pr-3 tabular-nums">{source.humanVisits}</td>
+                            <td className="py-3 pr-3 tabular-nums">{source.medianStaySeconds}秒</td>
+                            <td className="py-3 pr-3 tabular-nums">{source.seriousReaders}</td>
                             <td className="py-3 pr-3 tabular-nums">{source.effectiveClicks}</td>
                             <td className="py-3 pr-3 tabular-nums">{source.successfulLogins}</td>
                             <td className="py-3 pr-3 tabular-nums">{source.createdSearches}</td>
@@ -302,18 +366,63 @@ function MetricCard({
   icon: Icon,
   label,
   value,
+  tone = "slate",
 }: {
   icon: typeof Eye;
   label: string;
   value: number;
+  tone?: "slate" | "blue" | "green" | "amber";
 }) {
+  const toneClass = {
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    blue: "border-sky-200 bg-sky-50 text-sky-800",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+  }[tone];
+
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="flex items-center gap-2 text-xs text-slate-500">
+    <div className={`rounded-lg border p-3 ${toneClass}`}>
+      <div className="flex items-center gap-2 text-xs opacity-75">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
       <p className="mt-2 text-2xl font-bold tabular-nums">{formatNumber(value)}</p>
+    </div>
+  );
+}
+
+function ActionItemRow({
+  item,
+}: {
+  item: {
+    priority: "high" | "medium" | "low";
+    title: string;
+    detail: string;
+  };
+}) {
+  const tone = {
+    high: "bg-red-100 text-red-700",
+    medium: "bg-amber-100 text-amber-700",
+    low: "bg-slate-100 text-slate-600",
+  }[item.priority];
+  return (
+    <div className="rounded-lg bg-white/75 px-3 py-2 ring-1 ring-amber-200/70">
+      <div className="flex items-center gap-2">
+        <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${tone}`}>
+          {item.priority === "high" ? "高" : item.priority === "medium" ? "中" : "低"}
+        </span>
+        <p className="text-sm font-semibold text-slate-950">{item.title}</p>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-slate-600">{item.detail}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
+      <p className="text-[11px] text-slate-500">{label}</p>
+      <p className="mt-0.5 font-semibold tabular-nums text-slate-900">{value}</p>
     </div>
   );
 }
