@@ -82,6 +82,49 @@ test("classifyTraffic marks longer passive sessions as suspicious", () => {
   );
 });
 
+test("classifyTraffic marks cloud IP sessions without real interaction as suspicious", () => {
+  assert.equal(
+    classifyTraffic({
+      ipAddress: "72.145.152.67",
+      userAgent: "Mozilla/5.0 Chrome/142.0.0.0",
+      eventTypes: ["page_view", "engaged_10s", "signin_view"],
+      pageStaySeconds: 0,
+      activeReadSeconds: 0,
+      interactionCount: 0,
+      maxScrollDepth: 0,
+    }),
+    "suspicious",
+  );
+
+  assert.equal(
+    classifyTraffic({
+      ipAddress: "34.118.23.107",
+      userAgent: "Mozilla/5.0 Mobile Safari/602.1",
+      eventTypes: ["page_view", "engaged_10s", "sample_view"],
+      pageStaySeconds: 0,
+      activeReadSeconds: 0,
+      interactionCount: 0,
+      maxScrollDepth: 0,
+    }),
+    "suspicious",
+  );
+});
+
+test("classifyTraffic keeps cloud IP sessions with clear form intent as human", () => {
+  assert.equal(
+    classifyTraffic({
+      ipAddress: "34.118.23.107",
+      userAgent: "Mozilla/5.0 Chrome/142.0.0.0",
+      eventTypes: ["page_view", "hero_input_start", "hero_submit_attempt"],
+      pageStaySeconds: 35,
+      activeReadSeconds: 12,
+      interactionCount: 4,
+      maxScrollDepth: 30,
+    }),
+    "human",
+  );
+});
+
 test("bucketPageStaySeconds uses the agreed second ranges", () => {
   assert.equal(bucketPageStaySeconds(3), "0-3秒");
   assert.equal(bucketPageStaySeconds(10), "4-10秒");

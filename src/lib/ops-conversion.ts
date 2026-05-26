@@ -200,6 +200,7 @@ export function bucketActiveReadSeconds(seconds: number): string {
 }
 
 export function classifyTraffic(params: {
+  ipAddress?: string | null;
   userAgent?: string | null;
   eventTypes?: Iterable<string>;
   pageStaySeconds?: number;
@@ -218,17 +219,69 @@ export function classifyTraffic(params: {
   const maxScrollDepth = params.maxScrollDepth ?? 0;
   const pageStaySeconds = params.pageStaySeconds ?? 0;
   const activeReadSeconds = params.activeReadSeconds ?? 0;
+  const hasRealInteraction = interactionCount > 0 || maxScrollDepth > 0 || activeReadSeconds >= 4;
+  const hasDeepAction = hasAnyEventType(eventTypes, new Set([
+    "hero_input_start",
+    "hero_submit_attempt",
+    "google_signin_click",
+    "signup_success",
+    "new_search_view",
+    "search_create_success",
+    "search_create_failed",
+    "preview_request_submit",
+    "book_feedback_click",
+    "reply_email_click",
+  ]));
+
+  if (isCloudOrSecurityIp(params.ipAddress) && !hasRealInteraction && !hasDeepAction) {
+    return "suspicious";
+  }
 
   if ((params.sessionCountForIpUa ?? 0) >= 12 && !hasStrongHumanSignal && interactionCount === 0 && maxScrollDepth === 0) {
     return "suspicious";
   }
 
-  if (hasStrongHumanSignal || interactionCount > 0 || maxScrollDepth > 0 || activeReadSeconds >= 4) {
+  if (hasStrongHumanSignal || hasRealInteraction) {
     return "human";
   }
 
   if (pageStaySeconds <= 10) return "low_quality";
   return "suspicious";
+}
+
+function hasAnyEventType(eventTypes: Set<string>, targetEventTypes: Set<string>) {
+  for (const eventType of targetEventTypes) {
+    if (eventTypes.has(eventType)) return true;
+  }
+  return false;
+}
+
+function isCloudOrSecurityIp(ipAddress: string | null | undefined) {
+  if (!ipAddress) return false;
+  return (
+    isIpv4InCidr(ipAddress, "34.64.0.0", 10) ||
+    isIpv4InCidr(ipAddress, "72.144.0.0", 14)
+  );
+}
+
+function isIpv4InCidr(ipAddress: string, cidrBase: string, prefixLength: number) {
+  const ip = ipv4ToNumber(ipAddress);
+  const base = ipv4ToNumber(cidrBase);
+  if (ip === null || base === null) return false;
+  const mask = prefixLength === 0 ? 0 : (0xffffffff << (32 - prefixLength)) >>> 0;
+  return (ip & mask) === (base & mask);
+}
+
+function ipv4ToNumber(ipAddress: string) {
+  const parts = ipAddress.split(".");
+  if (parts.length !== 4) return null;
+  let result = 0;
+  for (const part of parts) {
+    const value = Number.parseInt(part, 10);
+    if (!Number.isInteger(value) || value < 0 || value > 255) return null;
+    result = ((result << 8) + value) >>> 0;
+  }
+  return result;
 }
 
 export function getOpsRangeWindow(range: OpsRange, now = new Date()) {
@@ -279,6 +332,7 @@ export function buildOpsConversionData(
     trafficBySession.set(
       session.sessionId,
       classifyTraffic({
+        ipAddress: session.ipAddress,
         userAgent: session.userAgent,
         eventTypes: session.eventTypes,
         pageStaySeconds: session.pageStaySeconds,
