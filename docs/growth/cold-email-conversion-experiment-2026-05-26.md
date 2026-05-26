@@ -216,6 +216,12 @@ Do not count scanner traffic, malformed tracked URLs, static asset query variant
 
 ## Send gates
 
+One-command preflight for the clicked-recipient follow-up batch:
+
+```bash
+node scripts/tools/preflight-growth-followup.mjs
+```
+
 Run these before any real send:
 
 ```bash
