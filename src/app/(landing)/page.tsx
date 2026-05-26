@@ -30,14 +30,13 @@ import {
 import type { BillingPlanCode } from "@/lib/billing";
 import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
-import { BillingFaqSection } from "./_components/BillingFaqSection";
+import { BetaAccessSection } from "./_components/BetaAccessSection";
 import { ComparisonSection } from "./_components/ComparisonSection";
 import { CtaSection } from "./_components/CtaSection";
 import { FeaturesSection } from "./_components/FeaturesSection";
 import { HeroPreview } from "./_components/HeroPreview";
 import { HowItWorksSection } from "./_components/HowItWorksSection";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
-import { PricingSection } from "./_components/PricingSection";
 
 export default function Home() {
   const router = useRouter();
@@ -292,34 +291,6 @@ export default function Home() {
     });
   }
 
-  function handlePlanSignIn(planCode: BillingPlanCode) {
-    trackEvent(ANALYTICS_EVENTS.pricingPlanSelect, {
-      ...getAnalyticsContextFromBrowser({
-        entry_mode: "landing",
-        page_variant: experiments.pageVariant,
-        intent_path: "signin",
-      }),
-      selected_plan: planCode,
-      pricing_surface: "landing_pricing",
-    });
-    window.__hirelixGrowthTrack?.("pricing_plan_select", {
-      selected_plan: planCode,
-      pricing_surface: "landing_pricing",
-    });
-
-    const selectedPlanQuery = { selected_plan: planCode, billing_intent: "plan" };
-    const redirectPath =
-      planCode === "free"
-        ? buildTrackedHref("/app/search/new", "signin", selectedPlanQuery, "landing")
-        : `${buildTrackedHref("/app/settings", "signin", selectedPlanQuery, "landing")}#billing`;
-
-    openAuthModal("signin", {
-      authIntent: "signin",
-      redirectPath,
-      selectedPlan: planCode,
-    });
-  }
-
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit || isSubmitting) return;
@@ -461,7 +432,7 @@ export default function Home() {
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
             <a href="#product" className="transition-colors hover:text-slate-950">Product</a>
             <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
-            <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>
+            <a href="#beta-access" className="transition-colors hover:text-slate-950">Beta access</a>
             <a href="#faq" className="transition-colors hover:text-slate-950">FAQ</a>
           </div>
           <div className="flex items-center gap-2.5">
@@ -494,14 +465,14 @@ export default function Home() {
               For independent technical headhunters
             </div>
 
-            <h1 className="mt-5 max-w-[13.5ch] text-5xl font-extrabold leading-[0.96] tracking-tight text-slate-950 sm:text-[3.75rem] lg:text-[4.05rem]">
-              Turn a client JD into an{" "}
-              <span className="text-blue-600">evidence-backed shortlist.</span>
+            <h1 className="mt-5 max-w-[16ch] text-5xl font-extrabold leading-[0.96] tracking-tight text-slate-950 sm:text-[3.5rem] lg:text-[3.9rem]">
+              Turn a client JD into an evidence-backed{" "}
+              <span className="text-blue-600">technical shortlist.</span>
             </h1>
 
             <p className="mt-5 max-w-[34rem] text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
-              Save hours of technical profile review. Hirelix screens candidates, explains fit
-              and risks, and prepares outreach-ready shortlists.
+              Paste the role, get ranked candidates, review fit and risk evidence, then start
+              from an outreach draft instead of a blank page.
             </p>
 
             <form id="hero-form" onSubmit={handleSubmit} className="mt-6 max-w-[35rem]">
@@ -594,44 +565,16 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="relative mx-auto mt-7 max-w-[96rem] px-5 sm:px-6">
-          <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.07)] sm:grid-cols-4">
-            {[
-              {
-                title: "Reach out first",
-                desc: "Start with the profiles most worth a first message.",
-              },
-              {
-                title: "Worth reviewing",
-                desc: "Keep credible backups without reading every profile.",
-              },
-              {
-                title: "Risks to verify",
-                desc: "Protect your reputation before a client submission.",
-              },
-              {
-                title: "Outreach + export",
-                desc: "Unlock contact actions and client-ready handoff when useful.",
-              },
-            ].map((item) => (
-              <div key={item.title} className="border-slate-200 py-2 sm:border-l sm:first:border-l-0 sm:px-5">
-                <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {isColdEmailVisitor && (
           <div className="relative mx-auto mt-5 max-w-[96rem] px-5 sm:px-6">
             <div className="grid gap-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4 shadow-[0_18px_50px_rgba(37,99,235,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
               <div>
                 <p className="text-sm font-semibold text-blue-950">
-                  Want to test this on one real role?
+                  Want me to run this on one real client role?
                 </p>
                 <p className="mt-1 text-sm leading-6 text-blue-900/80">
-                  Send a role title or JD snippet here. I can run a small preview shortlist before
-                  you spend time setting anything up.
+                  Send a role title or JD snippet. I can run a small beta preview before you spend
+                  time setting anything up.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a
@@ -782,9 +725,8 @@ export default function Home() {
       <FeaturesSection />
       <HowItWorksSection />
       <ComparisonSection />
-      <PricingSection user={user} onSignIn={handlePlanSignIn} />
+      <BetaAccessSection onStart={focusHeroJd} />
       <ObjectionsSection />
-      <BillingFaqSection />
       <CtaSection
         onTrySample={handleTrySample}
         onSignIn={handleGenericSignIn}

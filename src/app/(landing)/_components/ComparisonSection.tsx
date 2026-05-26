@@ -9,10 +9,10 @@ export function ComparisonSection() {
             Before vs after
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Why teams switch from manual sourcing
+            Why solo headhunters stop reviewing every profile manually
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            The same JD, two completely different days.
+            The same client JD, two completely different sourcing sessions.
           </p>
         </div>
 
@@ -104,7 +104,7 @@ export function ComparisonSection() {
         </div>
 
         <p className="mx-auto mt-8 max-w-xl text-center text-sm text-slate-500">
-          Same role. Same data sources. Hirelix turns the JD into a shortlist your team can review and act on.
+          Same role. Same data sources. Hirelix turns the JD into a shortlist you can explain before you send it to a client.
         </p>
       </div>
     </section>

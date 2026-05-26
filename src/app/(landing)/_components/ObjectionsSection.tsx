@@ -1,4 +1,4 @@
-import { Database, Mail, Search, ShieldCheck } from "lucide-react";
+import { Database, LockKeyhole, Search, ShieldCheck } from "lucide-react";
 
 export function ObjectionsSection() {
   const items = [
@@ -18,24 +18,24 @@ export function ObjectionsSection() {
       desc: "Independent technical headhunters who need a credible shortlist faster than manual profile review.",
     },
     {
-      icon: Mail,
-      title: "Will I still need to write outreach manually?",
-      desc: "You can edit the draft, but you do not need to start from a blank email after reviewing candidates.",
+      icon: LockKeyhole,
+      title: "What happens after my beta preview?",
+      desc: "You can keep reviewing the shortlist, then unlock contact actions, export, or client-ready handoff only when the output is useful.",
     },
   ];
 
   return (
-    <section className="border-t border-slate-200 bg-slate-50 py-20 sm:py-28">
+    <section id="faq" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-20 sm:py-28">
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-            Quick answers
+            FAQ
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Objections answered up front
+            The first questions before you paste a client role
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            The questions every recruiter asks in the first 60 seconds.
+            Short answers for the trust checks that matter before a beta preview.
           </p>
         </div>
 

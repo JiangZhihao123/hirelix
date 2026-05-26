@@ -2,18 +2,18 @@ export function HowItWorksSection() {
   const steps = [
     {
       step: "1",
-      title: "Paste the real job description",
-      desc: "Hirelix turns the client JD into a search brief with role level, must-have skills, target signals, and constraints.",
+      title: "Paste the real client JD",
+      desc: "Hirelix turns the role into a concise search brief with level, must-have skills, target signals, and constraints.",
     },
     {
       step: "2",
-      title: "Search and rank technical profiles",
-      desc: "The system finds LinkedIn profiles, scores fit, and adds public engineering evidence when it is available.",
+      title: "Review a ranked technical shortlist",
+      desc: "You see who is worth a first look, why they fit, and which risks to verify before a client submission.",
     },
     {
       step: "3",
-      title: "Review evidence and edit outreach",
-      desc: "Independent headhunters get a ranked shortlist, concise fit reasons, and drafts they can personalize before sending.",
+      title: "Turn the best profiles into outreach",
+      desc: "Once a candidate is worth working, start from a personalized draft and a client-ready rationale.",
     },
   ];
 
@@ -25,10 +25,10 @@ export function HowItWorksSection() {
             How it works
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            From client JD to first outreach in one flow
+            From client JD to client-ready shortlist
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Paste the role, review ranked matches, and send edited outreach from one workflow.
+            Keep the first run focused: understand the role, inspect ranked profiles, and only then move into outreach.
           </p>
         </div>
 

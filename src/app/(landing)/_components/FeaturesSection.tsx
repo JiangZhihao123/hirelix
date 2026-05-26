@@ -2,7 +2,7 @@ import { Github, ListChecks, Mail, Search } from "lucide-react";
 
 export function FeaturesSection() {
   return (
-    <section className="bg-white py-20 sm:py-28">
+    <section id="what-you-get" className="scroll-mt-24 bg-white py-20 sm:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <div className="mb-12 text-center sm:mb-16">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
@@ -36,8 +36,8 @@ export function FeaturesSection() {
             },
             {
               icon: Mail,
-              title: "Outreach ready",
-              desc: "Move from fit review to editable LinkedIn or email drafts without opening a blank page.",
+              title: "Draft after review",
+              desc: "Move from fit review to an editable LinkedIn or email draft after you decide the profile is worth a first message.",
             },
           ].map((item) => (
             <div

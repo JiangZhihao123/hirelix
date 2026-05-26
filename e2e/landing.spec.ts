@@ -13,16 +13,17 @@ test.describe("Landing Page", () => {
   test("should display the core landing sections and CTAs", async ({ page }) => {
     await expect(page.getByAltText("Hirelix").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Sign in/i }).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Turn a client JD into an evidence-backed shortlist/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Turn a client JD into an evidence-backed technical shortlist/i })).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build shortlist/i);
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
     await expect(page.getByText("James Liu")).toBeVisible();
     await expect(page.getByText("Anika Nair")).toBeVisible();
     await expect(page.getByRole("heading", { name: "A shortlist a solo headhunter can act on" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Why teams switch from manual sourcing" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Objections answered up front" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Why solo headhunters stop reviewing every profile manually" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Try one client role before comparing plans." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Start with the role already on your desk." })).toBeVisible();
-    await expect(page.getByText("Save hours of technical profile review.")).toBeVisible();
+    await expect(page.getByText("Paste the role, get ranked candidates")).toBeVisible();
   });
 
   test("hero CTA should clearly communicate the disabled state", async ({ page }) => {
@@ -89,26 +90,23 @@ test.describe("Landing Page", () => {
     expect(String(payload.callbackURL)).toContain("/app/search/new");
   });
 
-  test("pricing CTAs should preserve plan intent before sign in", async ({ page }) => {
-    await page.getByRole("button", { name: "Start free" }).click();
-    await expect(page.getByTestId("landing-auth-modal")).toHaveAttribute("data-selected-plan", "free");
-    await page.keyboard.press("Escape");
+  test("beta access CTA should return focus to the JD form instead of opening pricing", async ({ page }) => {
+    await page.getByRole("heading", { name: "Try one client role before comparing plans." }).scrollIntoViewIfNeeded();
+    const betaAccess = page.locator("#beta-access");
+    await expect(page.getByText("Invite-only beta")).toBeVisible();
+    await expect(page.getByText("1 real shortlist preview included")).toBeVisible();
+    await expect(page.getByText("Limited monthly beta seats")).toBeVisible();
 
-    await page.getByRole("button", { name: "Start annual Pro" }).click();
-    await expect(page.getByTestId("landing-auth-modal")).toHaveAttribute("data-selected-plan", "pro_annual");
-    await page.keyboard.press("Escape");
+    await betaAccess.getByRole("button", { name: "Build shortlist" }).click();
 
-    await page.getByRole("button", { name: "Start Solo" }).click();
-    await expect(page.getByTestId("landing-auth-modal")).toHaveAttribute("data-selected-plan", "starter_monthly");
+    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
+    await expect(page.getByPlaceholder("Paste the full client job description here...")).toBeFocused();
   });
 
-  test("Team volume contact should remain a mailto link instead of opening auth", async ({ page }) => {
-    const teamVolumeContact = page.getByRole("link", { name: /Contact us/i }).first();
-
-    await expect(teamVolumeContact).toHaveAttribute(
-      "href",
-      "mailto:support@hirelix.online?subject=Team%20Volume%20Inquiry",
-    );
+  test("public landing should not ask visitors to compare pricing plans", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Start annual Pro" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Start Solo" })).toHaveCount(0);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
   });
 });
@@ -131,13 +129,13 @@ test.describe("Landing Page mobile responsiveness", () => {
     await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
   });
 
-  test("should keep mobile pricing focused on primary plans", async ({ page }) => {
-    await page.getByRole("heading", { name: "Start with one real shortlist. Upgrade when it saves sourcing time." }).scrollIntoViewIfNeeded();
+  test("should keep mobile beta access focused on the preview offer", async ({ page }) => {
+    await page.getByRole("heading", { name: "Try one client role before comparing plans." }).scrollIntoViewIfNeeded();
 
-    await expect(page.getByRole("button", { name: "Start free" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Start annual Pro" })).toBeVisible();
-    await expect(page.getByText("Team volume and add-ons")).toBeVisible();
-    await expect(page.getByText("Need more in a heavy month?")).toBeHidden();
+    await expect(page.getByText("Invite-only beta")).toBeVisible();
+    await expect(page.getByText("1 real shortlist preview included")).toBeVisible();
+    await expect(page.getByText("Limited monthly beta seats")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
   });
 });
 
