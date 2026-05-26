@@ -11,6 +11,9 @@ const ALLOWED_EVENTS = new Set([
   "sample_view",
   "signin_view",
   "pricing_plan_select",
+  "preview_request_click",
+  "book_feedback_click",
+  "reply_email_click",
 ]);
 
 type LandingEventBody = {

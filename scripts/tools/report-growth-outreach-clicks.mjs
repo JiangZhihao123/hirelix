@@ -40,6 +40,8 @@ function csvEscape(value) {
 
 const args = process.argv.slice(2);
 const format = args.includes("--csv") ? "csv" : "table";
+const includeRaw = args.includes("--raw");
+const showSummary = args.includes("--summary");
 const limitArg = args.find((arg) => arg.startsWith("--limit="));
 const limit = Number.parseInt(limitArg?.split("=")[1] || "50", 10);
 const env = {
@@ -59,7 +61,49 @@ const sql = postgres(env.DATABASE_URL, {
 });
 
 try {
+  if (showSummary) {
+    const rows = await sql`
+      with classified as (
+        select
+          *,
+          (
+            coalesce(user_agent, '') ~* '(virustotal|appengine-google|python-requests|go-http-client|urlscan|googleimageproxy|proofpoint|mimecast|barracuda|mandrill|sendgrid|mailchimp|linkexpand|preview|crawler|spider|bot)'
+          ) as likely_scanner,
+          (
+            coalesce(company, '') ~* '(^|/)(_next/static|static/|assets/|favicon\\.|robots\\.txt|sitemap\\.xml)|\\.(js|css|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$'
+            or coalesce(recipient, '') !~ '^[^@]+@[^@]+\\.[^@]+$'
+          ) as malformed_context
+        from hirelix_growth_outreach_clicks
+        where email_id like '2026-05-25-%'
+      )
+      select
+        coalesce(batch_id, 'unknown') as batch_id,
+        count(*)::int as raw_clicks,
+        count(distinct email_id)::int as raw_clicked_emails,
+        count(*) filter (where not likely_scanner and not malformed_context)::int as qualified_clicks,
+        count(distinct email_id) filter (where not likely_scanner and not malformed_context)::int as qualified_clicked_emails,
+        count(*) filter (where likely_scanner or malformed_context)::int as noisy_clicks
+      from classified
+      group by coalesce(batch_id, 'unknown')
+      order by coalesce(batch_id, 'unknown')
+    `;
+    console.table(rows);
+    process.exit(0);
+  }
+
   const rows = await sql`
+    with classified as (
+      select
+        *,
+        (
+          coalesce(user_agent, '') ~* '(virustotal|appengine-google|python-requests|go-http-client|urlscan|googleimageproxy|proofpoint|mimecast|barracuda|mandrill|sendgrid|mailchimp|linkexpand|preview|crawler|spider|bot)'
+        ) as likely_scanner,
+        (
+          coalesce(company, '') ~* '(^|/)(_next/static|static/|assets/|favicon\\.|robots\\.txt|sitemap\\.xml)|\\.(js|css|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$'
+          or coalesce(recipient, '') !~ '^[^@]+@[^@]+\\.[^@]+$'
+        ) as malformed_context
+      from hirelix_growth_outreach_clicks
+    )
     select
       created_at,
       email_id,
@@ -68,8 +112,16 @@ try {
       company,
       ip_address,
       user_agent,
-      destination_url
-    from hirelix_growth_outreach_clicks
+      destination_url,
+      likely_scanner,
+      malformed_context,
+      case
+        when likely_scanner then 'scanner'
+        when malformed_context then 'malformed_context'
+        else 'qualified'
+      end as click_quality
+    from classified
+    where ${includeRaw} or (not likely_scanner and not malformed_context)
     order by created_at desc
     limit ${Number.isFinite(limit) && limit > 0 ? limit : 50}
   `;
@@ -84,6 +136,7 @@ try {
       "ip_address",
       "user_agent",
       "destination_url",
+      "click_quality",
     ].join(","));
     for (const row of rows) {
       console.log([
@@ -95,6 +148,7 @@ try {
         row.ip_address,
         row.user_agent,
         row.destination_url,
+        row.click_quality,
       ].map(csvEscape).join(","));
     }
   } else {
@@ -106,6 +160,7 @@ try {
       company: row.company,
       ip_address: row.ip_address,
       user_agent: row.user_agent,
+      click_quality: row.click_quality,
     })));
   }
 } finally {

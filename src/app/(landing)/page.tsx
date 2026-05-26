@@ -52,6 +52,7 @@ export default function Home() {
   const [pendingIntentPath, setPendingIntentPath] = useState<IntentPath>("direct_jd");
   const [pendingRedirectPath, setPendingRedirectPath] = useState("");
   const [pendingSelectedPlan, setPendingSelectedPlan] = useState<BillingPlanCode | null>(null);
+  const [isColdEmailVisitor, setIsColdEmailVisitor] = useState(false);
   const hasTrackedInputRef = useRef(false);
   const hasTrackedLandingViewRef = useRef(false);
   const hasTrackedGrowthInputRef = useRef(false);
@@ -97,6 +98,9 @@ export default function Home() {
       trafficSource === "cold_email" || params.get("utm_medium") === "email";
 
     if (!isColdEmailVisitor) return;
+    const revealColdEmailPanelFrame = window.requestAnimationFrame(() => {
+      setIsColdEmailVisitor(true);
+    });
 
     const visitorKey = "hirelix.growth.visitor_id";
     const existingVisitorId = window.localStorage.getItem(visitorKey);
@@ -160,6 +164,7 @@ export default function Home() {
     window.__hirelixGrowthTrack = sendGrowthEvent;
 
     return () => {
+      window.cancelAnimationFrame(revealColdEmailPanelFrame);
       window.clearTimeout(engagedTimer);
       if (window.__hirelixGrowthTrack === sendGrowthEvent) {
         delete window.__hirelixGrowthTrack;
@@ -365,6 +370,24 @@ export default function Home() {
     window.requestAnimationFrame(() => heroJdTextareaRef.current?.focus());
   }
 
+  function handlePreviewRequestClick() {
+    window.__hirelixGrowthTrack?.("preview_request_click", {
+      surface: "cold_email_conversion_panel",
+    });
+  }
+
+  function handleBookFeedbackClick() {
+    window.__hirelixGrowthTrack?.("book_feedback_click", {
+      surface: "cold_email_conversion_panel",
+    });
+  }
+
+  function handleReplyEmailClick() {
+    window.__hirelixGrowthTrack?.("reply_email_click", {
+      surface: "cold_email_conversion_panel",
+    });
+  }
+
   function handleJdInput(value: string) {
     setJdText(value);
     if (!hasTrackedInputRef.current && value.trim().length > 0) {
@@ -557,6 +580,46 @@ export default function Home() {
             ))}
           </div>
         </div>
+
+        {isColdEmailVisitor && (
+          <div className="relative mx-auto mt-5 max-w-[96rem] px-5 sm:px-6">
+            <div className="grid gap-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4 shadow-[0_18px_50px_rgba(37,99,235,0.08)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div>
+                <p className="text-sm font-semibold text-blue-950">
+                  Want to test this on one real role?
+                </p>
+                <p className="mt-1 text-sm leading-6 text-blue-900/80">
+                  Reply with a live JD or book a short feedback chat. I can run a small preview
+                  shortlist before you spend time setting anything up.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row md:justify-end">
+                <a
+                  href="mailto:jzh_spring@163.com?subject=Hirelix%20JD%20preview%20request&body=Hi%20Noah%2C%0A%0AI%20have%20a%20technical%20role%20you%20can%20preview%20with%20Hirelix.%0A%0ARole%20or%20JD%3A%0A"
+                  onClick={handlePreviewRequestClick}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                >
+                  Send a JD for preview
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+                <a
+                  href="mailto:jzh_spring@163.com?subject=Hirelix%2010%20minute%20feedback%20chat&body=Hi%20Noah%2C%0A%0AI%20can%20do%20a%20short%20feedback%20chat%20about%20Hirelix.%0A%0ATimes%20that%20work%3A%0A"
+                  onClick={handleBookFeedbackClick}
+                  className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:text-blue-900"
+                >
+                  Book 10 min feedback
+                </a>
+                <a
+                  href="mailto:jzh_spring@163.com?subject=Re%3A%20Hirelix"
+                  onClick={handleReplyEmailClick}
+                  className="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:text-blue-900 hover:underline"
+                >
+                  Reply by email
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {sampleShortlistOpen && (
