@@ -42,6 +42,9 @@ Required for --send:
 Optional:
   OUTREACH_LOG_PATH        defaults to docs/growth/cold-email-send-log-2026-05-25.csv
   OUTREACH_TRACKING_BASE   defaults to https://hirelix.online
+  OUTREACH_INFER_SENDER_FROM_LOG=true
+                            infer OUTREACH_FROM_EMAIL and OUTREACH_REPLY_TO from the latest
+                            successful Resend message in the send logs
 `);
 }
 
@@ -93,6 +96,72 @@ function renderTrackedBody(email, batch, env) {
   return body;
 }
 
+function readLatestResendIdFromLogs(paths) {
+  for (const logPath of paths) {
+    if (!logPath || !fs.existsSync(logPath)) continue;
+    const lines = fs.readFileSync(logPath, "utf8").trim().split(/\r?\n/).filter(Boolean);
+    for (const line of lines.slice(1).reverse()) {
+      const columns = line.split(",");
+      const status = columns[4];
+      const resendId = columns[5];
+      if (status === "sent" && resendId) return resendId;
+    }
+  }
+  return null;
+}
+
+async function fetchResendEmail(apiKey, resendId) {
+  const response = await fetch(`${RESEND_ENDPOINT}/${encodeURIComponent(resendId)}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+  const text = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = { raw: text };
+  }
+  if (!response.ok) {
+    const message = payload?.message || payload?.error || payload?.raw || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+async function inferSenderConfig(env) {
+  if (env.OUTREACH_FROM_EMAIL && env.OUTREACH_REPLY_TO) {
+    return { env, inferred: false };
+  }
+  if (env.OUTREACH_INFER_SENDER_FROM_LOG !== "true") {
+    return { env, inferred: false };
+  }
+  if (!env.RESEND_API_KEY) {
+    return { env, inferred: false };
+  }
+
+  const resendId = readLatestResendIdFromLogs([
+    env.OUTREACH_LOG_PATH,
+    "docs/growth/cold-email-send-log-2026-05-25.csv",
+    "docs/growth/cold-email-send-log-batch12-2026-05-25.csv",
+  ]);
+  if (!resendId) return { env, inferred: false };
+
+  const email = await fetchResendEmail(env.RESEND_API_KEY, resendId);
+  const replyTo = Array.isArray(email.reply_to) ? email.reply_to[0] : email.reply_to;
+  return {
+    env: {
+      ...env,
+      OUTREACH_FROM_EMAIL: env.OUTREACH_FROM_EMAIL || email.from,
+      OUTREACH_REPLY_TO: env.OUTREACH_REPLY_TO || replyTo,
+    },
+    inferred: Boolean(email.from || replyTo),
+    resendId,
+  };
+}
+
 function getSendConfigIssues(env) {
   const issues = [];
   const requiredKeys = [
@@ -121,7 +190,7 @@ function validateSendConfig(env) {
   if (issues.length) throw new Error(issues.join(" "));
 }
 
-function printSendConfigCheck(env) {
+function printSendConfigCheck(env, options = {}) {
   const keys = [
     "RESEND_API_KEY",
     "OUTREACH_FROM_EMAIL",
@@ -129,6 +198,9 @@ function printSendConfigCheck(env) {
     "OUTREACH_POSTAL_ADDRESS",
   ];
   console.log("OUTREACH send config:");
+  if (options.inferred) {
+    console.log(`- inferred sender from Resend log: ${options.resendId || "yes"}`);
+  }
   for (const key of keys) {
     console.log(`- ${key}: ${env[key] ? "set" : "missing"}`);
   }
@@ -186,9 +258,11 @@ const env = {
   ...loadDotEnv(path.resolve(".env.local")),
   ...process.env,
 };
+const senderConfig = await inferSenderConfig(env);
+const sendEnv = senderConfig.env;
 
 if (checkConfig) {
-  printSendConfigCheck(env);
+  printSendConfigCheck(sendEnv, senderConfig);
   process.exit(0);
 }
 
@@ -211,22 +285,22 @@ if (!shouldSend) {
     console.log("\n---");
     console.log(`To: ${email.to}`);
     console.log(`Subject: ${email.subject}`);
-    console.log(renderTrackedBody(email, batch, env));
+    console.log(renderTrackedBody(email, batch, sendEnv));
   }
   console.log("\nNo emails sent. Add --send --yes to send after final approval.");
   process.exit(0);
 }
 
-validateSendConfig(env);
+validateSendConfig(sendEnv);
 
-const logPath = env.OUTREACH_LOG_PATH || "docs/growth/cold-email-send-log-2026-05-25.csv";
+const logPath = sendEnv.OUTREACH_LOG_PATH || "docs/growth/cold-email-send-log-2026-05-25.csv";
 for (const email of emails) {
-  const body = renderTrackedBody(email, batch, env);
+  const body = renderTrackedBody(email, batch, sendEnv);
   try {
     const result = await sendEmail({
-      apiKey: env.RESEND_API_KEY,
-      from: env.OUTREACH_FROM_EMAIL,
-      replyTo: env.OUTREACH_REPLY_TO,
+      apiKey: sendEnv.RESEND_API_KEY,
+      from: sendEnv.OUTREACH_FROM_EMAIL,
+      replyTo: sendEnv.OUTREACH_REPLY_TO,
       email,
       body,
     });

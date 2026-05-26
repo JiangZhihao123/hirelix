@@ -222,11 +222,15 @@ One-command preflight for the clicked-recipient follow-up batch:
 node scripts/tools/preflight-growth-followup.mjs
 ```
 
+The preflight may infer `OUTREACH_FROM_EMAIL` and `OUTREACH_REPLY_TO` from the latest
+successful Resend send log. It must not infer `OUTREACH_POSTAL_ADDRESS`; provide that
+explicitly from a real physical address or registered mailbox before sending.
+
 Run these before any real send:
 
 ```bash
 OUTREACH_LOG_PATH=docs/growth/cold-email-followup-send-log-2026-05-26.csv node scripts/tools/validate-growth-followup-batch.mjs docs/growth/cold-email-followup-clicked-2026-05-26.json
-node scripts/tools/send-growth-email-batch.mjs --check-config
+OUTREACH_INFER_SENDER_FROM_LOG=true node scripts/tools/send-growth-email-batch.mjs --check-config
 OUTREACH_LOG_PATH=docs/growth/cold-email-followup-send-log-2026-05-26.csv node scripts/tools/send-growth-email-batch.mjs docs/growth/cold-email-followup-clicked-2026-05-26.json --dry-run
 ```
 

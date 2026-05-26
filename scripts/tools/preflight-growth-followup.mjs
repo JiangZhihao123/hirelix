@@ -41,7 +41,10 @@ const batchPath = args.find((arg) => !arg.startsWith("--")) || DEFAULT_BATCH_PAT
 const logPath = process.env.OUTREACH_LOG_PATH || DEFAULT_LOG_PATH;
 const emailPrefix = process.env.GROWTH_EMAIL_PREFIX || DEFAULT_EMAIL_PREFIX;
 const nodeBin = process.execPath;
-const commonEnv = { OUTREACH_LOG_PATH: logPath };
+const commonEnv = {
+  OUTREACH_INFER_SENDER_FROM_LOG: process.env.OUTREACH_INFER_SENDER_FROM_LOG || "true",
+  OUTREACH_LOG_PATH: logPath,
+};
 
 const steps = [
   [
