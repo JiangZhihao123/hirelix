@@ -141,7 +141,7 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                   <div className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-950">
                     <Flame className="h-4 w-4 text-amber-700" />
-                    今天最该看
+                    {data.range.label}最该看
                   </div>
                   <div className="space-y-2">
                     {data.actionItems.slice(0, 3).map((item) => (
@@ -317,7 +317,7 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
 
             <Panel title="最近真人行为">
               {data.recentHumanEvents.length === 0 ? (
-                <EmptyState text="今天还没有真人访问" />
+                <EmptyState text={`${data.range.label}还没有真人访问`} />
               ) : (
                 <div className="grid gap-2">
                   {data.recentHumanEvents.map((event, index) => (

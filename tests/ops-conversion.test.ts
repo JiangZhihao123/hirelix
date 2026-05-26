@@ -128,3 +128,40 @@ test("buildOpsConversionData keeps filtered traffic out of the main funnel", () 
   assert.equal(data.summary.effectiveClicks, 1);
   assert.equal(data.funnel[0].count, 1);
 });
+
+test("buildOpsConversionData uses selected range labels in operator copy", () => {
+  const end = new Date("2026-05-26T12:00:00.000Z");
+  const start = new Date("2026-05-20T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "page_view",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/?traffic_source=linkedin",
+        referrer: "",
+        ip_address: "203.0.113.10",
+        user_agent: "Mozilla/5.0 Safari/605.1.15",
+        metadata: { traffic_source: "linkedin" },
+        created_at: "2026-05-26T01:00:00.000Z",
+      },
+      {
+        event_type: "section_view",
+        visitor_id: "visitor-human",
+        session_id: "session-human",
+        page_url: "https://hirelix.online/?traffic_source=linkedin",
+        referrer: "",
+        ip_address: "203.0.113.10",
+        user_agent: "Mozilla/5.0 Safari/605.1.15",
+        metadata: { traffic_source: "linkedin", section_id: "首屏" },
+        created_at: "2026-05-26T01:00:10.000Z",
+      },
+    ],
+    { range: "7d", start, end },
+  );
+
+  assert.equal(data.range.label, "最近7天");
+  assert.match(data.diagnosis, /^最近7天/);
+  assert.equal(data.actionItems.every((item) => !item.title.includes("今天")), true);
+  assert.equal(data.actionItems.every((item) => !item.detail.includes("今天")), true);
+});

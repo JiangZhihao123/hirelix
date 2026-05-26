@@ -294,6 +294,7 @@ export function buildOpsConversionData(
   const filteredSessions = sessions.filter((session) => trafficBySession.get(session.sessionId) !== "human");
   const humanSessionIds = new Set(humanSessions.map((session) => session.sessionId));
   const humanEvents = events.filter((event) => humanSessionIds.has(getSessionId(event)));
+  const rangeLabel = getOpsRangeWindow(options.range, options.end).label;
 
   const effectiveClicks = countSessionsWithEvents(humanSessions, EFFECTIVE_CLICK_EVENTS);
   const loginAttempts = countSessionsWithEvents(humanSessions, new Set(["signin_view", "google_signin_click"]));
@@ -318,7 +319,7 @@ export function buildOpsConversionData(
   return {
     range: {
       key: options.range,
-      label: getOpsRangeWindow(options.range, options.end).label,
+      label: rangeLabel,
       start: options.start.toISOString(),
       end: options.end.toISOString(),
     },
@@ -356,6 +357,7 @@ export function buildOpsConversionData(
       stayed30Seconds,
       highInterestNoAction,
       leftWithin10Seconds,
+      rangeLabel,
     }),
     topSections: buildTopSections(humanSessions),
     highIntentSessions: buildHighIntentSessions(humanSessions),
@@ -369,6 +371,7 @@ export function buildOpsConversionData(
       createdSearches,
       stayed30Seconds,
       highInterestNoAction,
+      rangeLabel,
     }),
   };
 }
@@ -551,6 +554,7 @@ function buildActionItems(params: {
   stayed30Seconds: number;
   highInterestNoAction: number;
   leftWithin10Seconds: number;
+  rangeLabel: string;
 }): ActionItem[] {
   const items: ActionItem[] = [];
   const humanVisits = params.humanSessions.length;
@@ -570,7 +574,7 @@ function buildActionItems(params: {
     items.push({
       priority: "high",
       title: "先看流量入口",
-      detail: "当前时间段没有真人访问。优先检查今天发出去的链接、LinkedIn 私信或邮件是否真的带了站点链接。",
+      detail: `${params.rangeLabel}没有真人访问。优先检查这段时间发出去的链接、LinkedIn 私信或邮件是否真的带了站点链接。`,
     });
   }
 
@@ -610,7 +614,7 @@ function buildActionItems(params: {
     items.push({
       priority: "high",
       title: "产品内激活卡住",
-      detail: "已经有人登录成功，但没有人创建搜索。今天最值得看新搜索页和真实创建链路。",
+      detail: "已经有人登录成功，但没有人创建搜索。最值得看新搜索页和真实创建链路。",
     });
   }
 
@@ -625,7 +629,7 @@ function buildActionItems(params: {
   if (items.length === 0) {
     items.push({
       priority: "low",
-      title: "今天暂时没有明显异常",
+      title: `${params.rangeLabel}暂时没有明显异常`,
       detail: "继续看来源质量、停留秒数和是否有人走到第一次搜索。",
     });
   }
@@ -714,24 +718,25 @@ function buildDiagnosis(params: {
   createdSearches: number;
   stayed30Seconds: number;
   highInterestNoAction: number;
+  rangeLabel: string;
 }) {
-  if (params.humanVisits === 0) return "今天还没有真人访问。";
+  if (params.humanVisits === 0) return `${params.rangeLabel}还没有真人访问。`;
   if (params.effectiveClicks === 0 && params.stayed30Seconds === 0) {
-    return `今天有 ${params.humanVisits} 个真人访问，但大多很快离开，优先看首屏表达。`;
+    return `${params.rangeLabel}有 ${params.humanVisits} 个真人访问，但大多很快离开，优先看首屏表达。`;
   }
   if (params.effectiveClicks === 0) {
-    return `今天有 ${params.humanVisits} 个真人访问，${params.stayed30Seconds} 人认真浏览，但还没人点击开始。`;
+    return `${params.rangeLabel}有 ${params.humanVisits} 个真人访问，${params.stayed30Seconds} 人认真浏览，但还没人点击开始。`;
   }
   if (params.loginAttempts > 0 && params.successfulLogins === 0) {
-    return `今天有 ${params.humanVisits} 个真人访问，${params.effectiveClicks} 人点击，主要卡在登录。`;
+    return `${params.rangeLabel}有 ${params.humanVisits} 个真人访问，${params.effectiveClicks} 人点击，主要卡在登录。`;
   }
   if (params.successfulLogins > 0 && params.createdSearches === 0) {
-    return `今天有 ${params.successfulLogins} 人登录成功，但还没人创建搜索，主要卡在第一次搜索。`;
+    return `${params.rangeLabel}有 ${params.successfulLogins} 人登录成功，但还没人创建搜索，主要卡在第一次搜索。`;
   }
   if (params.highInterestNoAction > 0) {
-    return `今天有 ${params.humanVisits} 个真人访问，${params.highInterestNoAction} 人停留超过 60 秒但没有行动。`;
+    return `${params.rangeLabel}有 ${params.humanVisits} 个真人访问，${params.highInterestNoAction} 人停留超过 60 秒但没有行动。`;
   }
-  return `今天有 ${params.humanVisits} 个真人访问，${params.effectiveClicks} 人点击开始，${params.createdSearches} 人创建搜索。`;
+  return `${params.rangeLabel}有 ${params.humanVisits} 个真人访问，${params.effectiveClicks} 人点击开始，${params.createdSearches} 人创建搜索。`;
 }
 
 function countBuckets(
