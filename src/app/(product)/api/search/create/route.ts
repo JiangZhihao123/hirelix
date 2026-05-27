@@ -14,6 +14,7 @@ import {
   resolveSearchJobRunnerBaseUrl,
 } from "@/lib/search";
 import {
+  FINAL_SHORTLIST_TARGET,
   getInitialSearchTargets,
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
@@ -29,7 +30,7 @@ import { getLogger, errorLogFields } from "@/lib/logger";
 import { PUBLIC_SEARCH_CREATE_ERROR_MESSAGE, PUBLIC_SEARCH_FAILURE_MESSAGE } from "@/lib/public-errors";
 
 export const maxDuration = 30;
-const DEFAULT_OUTREACH_POOL_TARGET = 20;
+const DEFAULT_OUTREACH_POOL_TARGET = FINAL_SHORTLIST_TARGET;
 const routeLogger = getLogger({ component: "api_search_create" });
 
 export async function POST(req: NextRequest) {
@@ -46,11 +47,11 @@ export async function POST(req: NextRequest) {
     const billing = await getBillingSummaryForUser(user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
+    const maxCandidates = FINAL_SHORTLIST_TARGET;
     const requestedCandidates = Math.min(
-      Math.max(Number(candidate_count) || searchTargets.highlightCount, 1),
-      searchTargets.candidateCount,
+      Math.max(Number(candidate_count) || maxCandidates, 1),
+      maxCandidates,
     );
-    const maxCandidates = searchTargets.candidateCount;
 
     if (billing.usage.searchesRemaining <= 0) {
       return NextResponse.json(

@@ -55,14 +55,15 @@ function resolveSearchExecutionMode(): SearchExecutionMode {
 }
 
 const DEFAULT_SHORTLIST_CAP = 25;
+export const FINAL_SHORTLIST_TARGET = DEFAULT_SHORTLIST_CAP;
 const PLAN_SHORTLIST_CAPS: Record<SearchPlanCode, number> = {
   free: 25,
   starter_monthly: 25,
   starter_annual: 25,
-  pro_monthly: 50,
-  pro_annual: 50,
-  business_monthly: 50,
-  agency_monthly: 100,
+  pro_monthly: 25,
+  pro_annual: 25,
+  business_monthly: 25,
+  agency_monthly: 25,
 };
 
 const SEARCH_EXECUTION_PROFILES: Record<
@@ -85,10 +86,10 @@ const SEARCH_EXECUTION_PROFILES: Record<
   bright_free_preview: {
     name: "bright_free_preview",
     mode: "production",
-    filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", 20),
+    filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", 120),
     hiddenGemLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT", 0),
     companyTargetLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_COMPANY_TARGET_LIMIT", 0),
-    finalResultCap: 5,
+    finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 3,
     minVisibleQualityScore: 0,
     strongNowQualityScore: 72,
@@ -168,7 +169,7 @@ export function getInitialSearchTargets(
 ) {
   const profile = getInitialSearchExecutionProfile(planCode);
   const planCap = PLAN_SHORTLIST_CAPS[normalizeSearchPlanCode(planCode)];
-  const candidateCount = Math.max(profile.finalResultCap, planCap);
+  const candidateCount = Math.min(DEFAULT_SHORTLIST_CAP, Math.max(profile.finalResultCap, planCap));
   return {
     candidateCount,
     displayCount: candidateCount,

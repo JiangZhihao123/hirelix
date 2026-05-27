@@ -157,7 +157,7 @@ export const billingFaqs = [
   },
   {
     title: "Do I need a card to start?",
-    body: "No. The Free plan gives you one real shortlist preview per month before you upgrade.",
+    body: "No. The Free plan gives you one complete 25-person shortlist before you upgrade.",
   },
 ];
 

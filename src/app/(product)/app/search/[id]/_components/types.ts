@@ -237,6 +237,9 @@ export type SearchDisplayStats = {
   activation_run?: boolean;
   quality_floor_applied?: boolean;
   visible_candidate_count?: number;
+  promised_candidate_count?: number;
+  delivered_candidate_count?: number;
+  shortlist_underfilled?: boolean;
   pre_gate_blocked_count?: number;
   prescreen_blocked_count?: number;
   contact_unlock_candidates?: number;

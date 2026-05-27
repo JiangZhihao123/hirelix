@@ -7,6 +7,7 @@ import type {
 } from "@/lib/search/types";
 import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
 import { enqueuePublicEvidenceJobsForSearch } from "@/lib/public-evidence-jobs";
+import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
 
 export async function completeSearch(
   context: PipelineContext,
@@ -49,23 +50,72 @@ export async function completeSearch(
   options?: { generateOutreachDrafts?: boolean; runtime?: SearchExecutionRuntime },
 ) {
   const doneAt = helpers.nowIso();
+  const sortedRows = [...finalRows].sort((left, right) => right.match_score - left.match_score);
+  const promisedCandidateCount = Math.min(
+    FINAL_SHORTLIST_TARGET,
+    Math.max(1, Number(parsed.candidate_count) || context.candidateCount || FINAL_SHORTLIST_TARGET),
+  );
+  const deliveredRows = sortedRows.slice(0, promisedCandidateCount);
+  const priorityOutreachCount = deliveredRows.filter(
+    (row) => row.metadata?.display_tier === "priority_outreach",
+  ).length;
+  const worthReviewingCount = deliveredRows.filter(
+    (row) => row.metadata?.display_tier === "worth_reviewing" || row.metadata?.bucket === "consider_next",
+  ).length;
+  const clearLocationFitCount = deliveredRows.filter((row) => {
+    const verdicts =
+      row.metadata?.constraint_verdicts && typeof row.metadata.constraint_verdicts === "object"
+        ? (row.metadata.constraint_verdicts as Record<string, unknown>)
+        : null;
+    return verdicts?.location_fit === "local" || verdicts?.location_fit === "nearby";
+  }).length;
+  const mustHaveStrongCount = deliveredRows.filter((row) => {
+    const verdicts =
+      row.metadata?.constraint_verdicts && typeof row.metadata.constraint_verdicts === "object"
+        ? (row.metadata.constraint_verdicts as Record<string, unknown>)
+        : null;
+    return verdicts?.must_have_coverage === "strong";
+  }).length;
+  const firstContactConfidenceCount = deliveredRows.filter(
+    (row) =>
+      row.metadata?.first_contact_confidence === "high" ||
+      (row.metadata?.suitability &&
+        typeof row.metadata.suitability === "object" &&
+        (row.metadata.suitability as Record<string, unknown>).first_contact_confidence === "high"),
+  ).length;
   const startedAt = helpers.getSearchStartedAt(parsed, context);
   const finalDisplayStats = helpers.buildSearchDisplayStats({
     ...displayStats,
+    promised_candidate_count: promisedCandidateCount,
+    delivered_candidate_count: deliveredRows.length,
+    shortlist_underfilled: deliveredRows.length < promisedCandidateCount,
+    shortlist_count: deliveredRows.length,
+    qualified_count: deliveredRows.length,
+    outreach_pool_count: deliveredRows.length,
+    visible_candidate_count: deliveredRows.length,
+    contact_unlock_candidates: Math.min(
+      displayStats.contact_unlock_candidates ?? deliveredRows.length,
+      deliveredRows.length,
+    ),
+    priority_outreach_count: priorityOutreachCount,
+    worth_reviewing_count: worthReviewingCount,
+    clear_location_fit_count: clearLocationFitCount,
+    must_have_strong_count: mustHaveStrongCount,
+    first_contact_confidence_count: firstContactConfidenceCount,
     time_to_done_ms:
       displayStats.time_to_done_ms ?? helpers.elapsedSince(startedAt, doneAt),
   });
   const draftedRows =
-    finalRows.length > 0 && options?.generateOutreachDrafts !== false
+    deliveredRows.length > 0 && options?.generateOutreachDrafts !== false
       ? await helpers.generateOutreachDraftsForRows(
         context,
         options?.runtime ?? helpers.getExecutionRuntime(
           helpers.getSearchExecutionProfile("bright_production_full"),
         ),
         parsed,
-        finalRows,
+        deliveredRows,
       )
-      : finalRows;
+      : deliveredRows;
 
   await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
     replaceMissing: true,
@@ -108,6 +158,9 @@ export async function completeSearch(
     activation_run: finalDisplayStats.activation_run ?? finalParsed.activation_run ?? null,
     quality_floor_applied: finalDisplayStats.quality_floor_applied ?? null,
     visible_candidate_count: finalDisplayStats.visible_candidate_count ?? draftedRows.length,
+    promised_candidate_count: finalDisplayStats.promised_candidate_count ?? promisedCandidateCount,
+    delivered_candidate_count: finalDisplayStats.delivered_candidate_count ?? draftedRows.length,
+    shortlist_underfilled: finalDisplayStats.shortlist_underfilled ?? false,
     pre_gate_blocked_count: finalDisplayStats.pre_gate_blocked_count ?? null,
     prescreen_blocked_count: finalDisplayStats.prescreen_blocked_count ?? null,
     contact_unlock_candidates: finalDisplayStats.contact_unlock_candidates ?? draftedRows.length,
@@ -136,6 +189,9 @@ export async function completeSearch(
   helpers.logSearchEvent("search_done", {
     search_id: context.searchId,
     candidate_count: draftedRows.length,
+    promised_candidate_count: promisedCandidateCount,
+    delivered_candidate_count: draftedRows.length,
+    shortlist_underfilled: draftedRows.length < promisedCandidateCount,
     final_ready_latency_ms: finalReadyLatencyMs,
     bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
     estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,

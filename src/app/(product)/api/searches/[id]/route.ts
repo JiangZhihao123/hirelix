@@ -4,6 +4,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_candidates, hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
 
 /**
  * GET /api/searches/[id]
@@ -36,7 +37,8 @@ export async function GET(
     .select()
     .from(hirelix_candidates)
     .where(eq(hirelix_candidates.search_id, id))
-    .orderBy(desc(hirelix_candidates.match_score), asc(hirelix_candidates.created_at));
+    .orderBy(desc(hirelix_candidates.match_score), asc(hirelix_candidates.created_at))
+    .limit(FINAL_SHORTLIST_TARGET);
 
   // Normalize Date columns to ISO strings to keep the API response stable for
   // the existing client components that expect strings.

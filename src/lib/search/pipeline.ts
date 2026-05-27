@@ -83,6 +83,7 @@ import type {
   SearchRow,
 } from "@/lib/search/types";
 import {
+  FINAL_SHORTLIST_TARGET,
   getInitialSearchExecutionProfile,
   getSearchExecutionProfile,
   normalizeSearchExecutionProfileName,
@@ -2133,7 +2134,14 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
         ? (search as SearchRow & { created_at?: string | null }).created_at ?? null
         : null,
     planCode,
-    candidateCount: job.candidate_count || Number((search as SearchRow).parsed_requirements?.candidate_count) || 5,
+    candidateCount: Math.min(
+      FINAL_SHORTLIST_TARGET,
+      Math.max(
+        1,
+        Number(job.candidate_count || (search as SearchRow).parsed_requirements?.candidate_count) ||
+          FINAL_SHORTLIST_TARGET,
+      ),
+    ),
     highlightCount:
       Number((search as SearchRow).parsed_requirements?.highlight_count) ||
       HIGHLIGHT_CANDIDATE_COUNT,
@@ -2146,9 +2154,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
     ? {
       ...((search as SearchRow).parsed_requirements || {}),
       candidate_count: context.candidateCount,
-      display_count:
-        Number((search as SearchRow).parsed_requirements?.display_count) ||
-        initialExecutionProfile.finalResultCap,
+      display_count: context.candidateCount,
       highlight_count:
         Number((search as SearchRow).parsed_requirements?.highlight_count) ||
         context.highlightCount,
@@ -2175,7 +2181,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
   });
   const phase1Parsed = helpers.withExecutionState(parsed, initialExecutionProfile, {
     planCode,
-    displayCount: initialExecutionProfile.finalResultCap,
+    displayCount: context.candidateCount,
   });
 
   const phase1Result = await buildBrightDataDatasetCandidates(

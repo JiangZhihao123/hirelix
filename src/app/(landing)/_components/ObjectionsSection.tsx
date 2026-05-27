@@ -10,7 +10,7 @@ export function ObjectionsSection() {
     {
       icon: ShieldCheck,
       title: "Do I need to pay before seeing value?",
-      desc: "No credit card is required to build the first real shortlist preview. Upgrade when contact actions or export save you time.",
+      desc: "No credit card is required to build the first complete 25-person shortlist. Upgrade when email lookup or export saves you time.",
     },
     {
       icon: Search,
@@ -20,7 +20,7 @@ export function ObjectionsSection() {
     {
       icon: LockKeyhole,
       title: "What happens after my beta preview?",
-      desc: "You can keep reviewing the shortlist, then unlock contact actions, export, or client-ready handoff only when the output is useful.",
+      desc: "You can keep reviewing the shortlist. Subscribe only if the 25-person result is useful enough to work.",
     },
   ];
 

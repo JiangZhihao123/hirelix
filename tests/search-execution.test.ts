@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  FINAL_SHORTLIST_TARGET,
   getInitialSearchExecutionProfile,
   getInitialSearchTargets,
   getSearchExecutionProfile,
@@ -27,13 +28,13 @@ test("free searches use a constrained real-production preview profile", () => {
 
   assert.equal(profile.name, "bright_free_preview");
   assert.equal(profile.mode, "production");
-  assert.equal(profile.filterLimit, 20);
+  assert.ok(profile.filterLimit >= FINAL_SHORTLIST_TARGET);
   assert.equal(profile.hiddenGemLimit, 0);
   assert.equal(profile.companyTargetLimit, 0);
 
   const targets = getInitialSearchTargets("free");
   assert.equal(targets.executionProfile, "bright_free_preview");
-  assert.equal(targets.candidateCount, 25);
+  assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
   assert.equal(targets.highlightCount, 3);
 });
 
@@ -46,10 +47,28 @@ test("paid searches keep the full production profile in production mode", () => 
 
   const targets = withProductionEnv(() => getInitialSearchTargets("agency_monthly"));
   assert.equal(targets.executionProfile, "bright_production_full");
-  assert.equal(targets.candidateCount, 100);
+  assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
+});
+
+test("every plan resolves to the same final 25-person shortlist target", () => {
+  const planCodes = [
+    "free",
+    "starter_monthly",
+    "starter_annual",
+    "pro_monthly",
+    "pro_annual",
+    "business_monthly",
+    "agency_monthly",
+  ] as const;
+
+  for (const planCode of planCodes) {
+    const targets = getInitialSearchTargets(planCode);
+    assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
+    assert.equal(targets.displayCount, FINAL_SHORTLIST_TARGET);
+  }
 });
 
 test("stored profile normalization accepts the free preview profile", () => {
   assert.equal(normalizeSearchExecutionProfileName("bright_free_preview"), "bright_free_preview");
-  assert.equal(getSearchExecutionProfile("bright_free_preview").filterLimit, 20);
+  assert.ok(getSearchExecutionProfile("bright_free_preview").filterLimit >= FINAL_SHORTLIST_TARGET);
 });

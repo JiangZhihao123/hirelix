@@ -984,6 +984,15 @@ function buildSearchDisplayStats(
     ...(typeof overrides.visible_candidate_count === "number"
       ? { visible_candidate_count: Math.max(0, Math.round(overrides.visible_candidate_count)) }
       : {}),
+    ...(typeof overrides.promised_candidate_count === "number"
+      ? { promised_candidate_count: Math.max(0, Math.round(overrides.promised_candidate_count)) }
+      : {}),
+    ...(typeof overrides.delivered_candidate_count === "number"
+      ? { delivered_candidate_count: Math.max(0, Math.round(overrides.delivered_candidate_count)) }
+      : {}),
+    ...(typeof overrides.shortlist_underfilled === "boolean"
+      ? { shortlist_underfilled: overrides.shortlist_underfilled }
+      : {}),
     ...(typeof overrides.pre_gate_blocked_count === "number"
       ? { pre_gate_blocked_count: Math.max(0, Math.round(overrides.pre_gate_blocked_count)) }
       : {}),
@@ -2463,6 +2472,43 @@ async function generateOutreachDraftsForRows(
 ) {
   if (rows.length === 0) return rows;
 
+  function fallbackDraftFor(row: ReturnType<typeof normalizeCandidateRowInput>) {
+    const githubSignals =
+      row.metadata.github_signals && typeof row.metadata.github_signals === "object"
+        ? row.metadata.github_signals
+        : null;
+    const publicEvidence =
+      row.metadata.public_evidence && typeof row.metadata.public_evidence === "object"
+        ? row.metadata.public_evidence
+        : null;
+    const sellingKit =
+      row.metadata.selling_kit && typeof row.metadata.selling_kit === "object"
+        ? row.metadata.selling_kit
+        : null;
+    const evidence = buildRecruiterOutreachEvidence({
+      name: row.name,
+      headline: row.headline,
+      location: row.location,
+      skills: row.skills,
+      matchReasons: row.match_reasons,
+      githubSignals,
+      publicEvidence,
+      sellingKit,
+    });
+    const firstName = row.name.split(/\s+/).filter(Boolean)[0] || "there";
+    return {
+      ...row,
+      outreach_draft: JSON.stringify(
+        buildDeterministicWeakEvidenceOutreachDraft({
+          firstName,
+          roleTitle: normalizeNullableString(parsed.title) || "open role",
+          evidence,
+          hasEmail: true,
+        }),
+      ),
+    };
+  }
+
   const draftedRows = await Promise.all(
     rows.map(async (row) => {
       const normalizedRow = normalizeCandidateRowInput(row);
@@ -2505,58 +2551,74 @@ async function generateOutreachDraftsForRows(
         };
       }
 
-      const { data: parsedDraft } = await withTimeout(
-        (signal) => generateLlmJson<{
-          subject?: string;
-          linkedin?: string;
-          email?: string;
-        }>({
-          model: getLightModel(),
-          prompt: buildRecruiterOutreachPrompt({
-            roleTitle: normalizeNullableString(parsed.title) || "this role",
-            jdText: context.jdText,
-            candidate: {
-              name: normalizedRow.name,
-              headline: normalizedRow.headline,
-              location: normalizedRow.location,
-              skills: normalizedRow.skills,
-              matchReasons: normalizedRow.match_reasons,
-              githubSignals,
-              publicEvidence,
-              sellingKit,
+      try {
+        const { data: parsedDraft } = await withTimeout(
+          (signal) => generateLlmJson<{
+            subject?: string;
+            linkedin?: string;
+            email?: string;
+          }>({
+            model: getLightModel(),
+            prompt: buildRecruiterOutreachPrompt({
+              roleTitle: normalizeNullableString(parsed.title) || "this role",
+              jdText: context.jdText,
+              candidate: {
+                name: normalizedRow.name,
+                headline: normalizedRow.headline,
+                location: normalizedRow.location,
+                skills: normalizedRow.skills,
+                matchReasons: normalizedRow.match_reasons,
+                githubSignals,
+                publicEvidence,
+                sellingKit,
+              },
+            }),
+            maxOutputTokens: runtime.outreachMaxOutputTokens,
+            abortSignal: signal,
+            timeoutMs: 60000,
+            temperature: 0,
+            jsonSchema: buildOutreachDraftJsonSchema(),
+            deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
+            usageEvent: {
+              searchId: context.searchId,
+              jobId: context.jobId,
+              userId: context.userId,
+              stage: "outreach",
+              batchSize: 1,
+              candidateIndexes:
+                typeof normalizedRow.metadata?.source_index === "number"
+                  ? [normalizedRow.metadata.source_index]
+                  : null,
             },
           }),
-          maxOutputTokens: runtime.outreachMaxOutputTokens,
-          abortSignal: signal,
-          timeoutMs: 60000,
-          temperature: 0,
-          jsonSchema: buildOutreachDraftJsonSchema(),
-          deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
-          usageEvent: {
-            searchId: context.searchId,
-            jobId: context.jobId,
-            userId: context.userId,
-            stage: "outreach",
-            batchSize: 1,
-            candidateIndexes:
-              typeof normalizedRow.metadata?.source_index === "number"
-                ? [normalizedRow.metadata.source_index]
-                : null,
-          },
-        }),
-        60000,
-        `Outreach draft for ${normalizedRow.name}`,
-      );
-      const subject = normalizeNullableString(parsedDraft.subject);
-      const linkedin = normalizeNullableString(parsedDraft.linkedin);
-      const email = normalizeNullableString(parsedDraft.email);
-      if (!subject || !linkedin || !email) {
-        throw new Error(`Outreach draft LLM returned incomplete content for ${normalizedRow.name}`);
+          60000,
+          `Outreach draft for ${normalizedRow.name}`,
+        );
+        const subject = normalizeNullableString(parsedDraft.subject);
+        const linkedin = normalizeNullableString(parsedDraft.linkedin);
+        const email = normalizeNullableString(parsedDraft.email);
+        if (!subject || !linkedin || !email) {
+          logSearchEvent("outreach_draft_fallback", {
+            search_id: context.searchId,
+            candidate_name: normalizedRow.name,
+            reason: "incomplete_llm_output",
+            job_id: context.jobId,
+          });
+          return fallbackDraftFor(normalizedRow);
+        }
+        return {
+          ...normalizedRow,
+          outreach_draft: JSON.stringify({ subject, linkedin, email }),
+        };
+      } catch (error) {
+        logSearchEvent("outreach_draft_fallback", {
+          search_id: context.searchId,
+          candidate_name: normalizedRow.name,
+          reason: error instanceof Error ? error.message : String(error),
+          job_id: context.jobId,
+        });
+        return fallbackDraftFor(normalizedRow);
       }
-      return {
-        ...normalizedRow,
-        outreach_draft: JSON.stringify({ subject, linkedin, email }),
-      };
     }),
   );
 

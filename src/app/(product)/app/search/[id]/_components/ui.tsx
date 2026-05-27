@@ -129,10 +129,10 @@ export function ContactActionStrip({
           </div>
           <p className={`${hintClass} text-amber-700`}>
             {enrichesRemaining > 0
-              ? "Find contact details when you're ready to reach out."
+              ? "Find this candidate's email when you're ready to reach out."
               : billingPlanCode === "free"
-                ? "Start a subscription for contact details and outreach drafts."
-                : "Your monthly contact lookup limit has been used."}
+                ? "Start a subscription for more email lookups after this trial."
+                : "Your monthly email lookup limit has been used."}
           </p>
         </div>
 

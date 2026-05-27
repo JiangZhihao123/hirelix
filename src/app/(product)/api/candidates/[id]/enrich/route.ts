@@ -29,7 +29,7 @@ const routeLogger = getLogger({ component: "api_candidate_enrich" });
 /**
  * POST /api/candidates/[id]/enrich
  *
- * On-demand: find email/contact details for a single candidate.
+ * On-demand: find email for a single candidate.
  * Draft generation normally happens in the main search pipeline; this route
  * only backfills a draft when one is unexpectedly missing.
  */
@@ -138,8 +138,8 @@ export async function POST(
         {
           error:
             billing.plan.code === "free"
-              ? "You have used your free contact lookups. Start a subscription for contact details and outreach drafts."
-              : "You have reached this month's contact lookup limit. Your next cycle will reset automatically.",
+              ? "You have used your free email lookups. Start a subscription for more email lookups, export, and outreach."
+              : "You have reached this month's email lookup limit. Your next cycle will reset automatically.",
         },
         { status: 403 },
       );

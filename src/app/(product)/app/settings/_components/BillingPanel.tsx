@@ -105,8 +105,8 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               </p>
               <p className="mt-2 text-sm text-slate-600">
                 {billing.plan.code === "free"
-                  ? "One complete 25-candidate shortlist is included."
-                  : "Candidate lists, contact details, export, outreach, and briefs are included."}
+                  ? "One complete 25-candidate shortlist is included, with email lookup available when needed."
+                  : "25-candidate shortlists, email lookup, export, outreach, and briefs are included."}
               </p>
             </div>
 
@@ -170,8 +170,8 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     {[
                       `${plan.searchesPerMonth} shortlist builds per month`,
-                      `${plan.candidateLimitPerSearch} candidates per shortlist`,
-                      "Contact details, export, outreach, and client-ready briefs included",
+                      `Final ${plan.candidateLimitPerSearch}-candidate shortlist every time`,
+                      "Email lookup, export, outreach, and client-ready briefs included",
                       "Same product access as every paid plan",
                     ].map((item) => (
                       <p key={item} className="inline-flex items-start gap-1.5">

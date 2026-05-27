@@ -152,7 +152,7 @@ export async function enqueuePublicEvidenceJobsForSearch(input: {
     .from(hirelix_candidates)
     .where(eq(hirelix_candidates.search_id, input.searchId))
     .orderBy(desc(hirelix_candidates.match_score))
-    .limit(Math.max(1, input.limit || 20));
+    .limit(Math.max(1, input.limit || 25));
 
   let scanned = 0;
   let enqueued = 0;

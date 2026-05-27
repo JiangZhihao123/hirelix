@@ -1249,9 +1249,9 @@ export function CandidateWorkbenchDetail({
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {billingPlanCode === "free"
                     ? enrichesRemaining > 0
-                      ? "Use a contact unlock when you want contact details and personalized outreach."
-                      : "Start a subscription when you need contact details and personalized outreach."
-                    : "Generate the email and contact details when you're ready to act on this candidate."}
+                      ? "You still have email lookups for this 25-person trial. Find the email when you are ready to act."
+                      : "Start a subscription when you need more email lookups and export."
+                    : "Generate the outreach draft and find the email when you're ready to act on this candidate."}
                 </p>
                 {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                   <PaddleCheckoutButton

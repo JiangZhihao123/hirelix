@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
 
 export const maxDuration = 30;
 
@@ -55,8 +56,7 @@ export async function POST(
     );
   }
 
-  const candidateCount =
-    ((search.parsed_requirements as Record<string, unknown>)?.candidate_count as number) || 5;
+  const candidateCount = FINAL_SHORTLIST_TARGET;
 
   await enqueueSearchJob({
     searchId: id,

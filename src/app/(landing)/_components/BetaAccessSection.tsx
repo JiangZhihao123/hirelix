@@ -2,9 +2,9 @@ import { ArrowRight, CheckCircle2, LockKeyhole, Sparkles } from "lucide-react";
 
 export function BetaAccessSection({ onStart }: { onStart: () => void }) {
   const included = [
-    "1 real shortlist preview included",
+    "1 complete 25-person shortlist included",
     "Limited monthly beta seats",
-    "Contact unlocks and exports available after value is visible",
+    "Email lookup and export available after value is visible",
   ];
 
   return (
@@ -20,7 +20,7 @@ export function BetaAccessSection({ onStart }: { onStart: () => void }) {
               Try one client role before comparing plans.
             </h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-              This beta is built for independent technical headhunters who want to prove one real
+              This beta is built for independent technical headhunters who want to prove one complete
               shortlist first. Start with the JD already on your desk; upgrade only after the output
               is useful.
             </p>
@@ -57,8 +57,8 @@ export function BetaAccessSection({ onStart }: { onStart: () => void }) {
             </div>
 
             <p className="mt-5 text-xs leading-5 text-slate-500">
-              Subscriptions and extra credits remain available after sign in; the public homepage no
-              longer asks new visitors to choose a plan before seeing value.
+              Subscriptions stay simple: monthly or annual. The first run is there to judge whether
+              the 25-person output is worth paying for.
             </p>
           </div>
         </div>

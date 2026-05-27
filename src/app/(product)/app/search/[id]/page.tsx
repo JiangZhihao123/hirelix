@@ -750,6 +750,14 @@ export default function SearchResultPage() {
     Math.max(allCandidates.length, 0);
   const shortlistReadyCount =
     positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
+  const promisedCandidateCount =
+    positiveInt(rawDisplayStats?.promised_candidate_count) ??
+    (typeof reqs?.candidate_count === "number" ? Math.max(1, Math.round(reqs.candidate_count)) : 25);
+  const deliveredCandidateCount =
+    positiveInt(rawDisplayStats?.delivered_candidate_count) ?? allCandidates.length;
+  const shortlistUnderfilled =
+    rawDisplayStats?.shortlist_underfilled === true ||
+    (isReviewable && deliveredCandidateCount < promisedCandidateCount);
   const priorityOutreachCount = actualPriorityOutreachCount;
   const worthReviewingCount = actualWorthReviewingCount;
   const ruledOutCount =
@@ -845,6 +853,14 @@ export default function SearchResultPage() {
     const audit = getCandidateDecisionAudit(candidate);
     return audit.riskLines.length > 0;
   }).length;
+  const topExcludedReason = excludedReasonCounts[0] as
+    | { reason: ExcludedReason; count: number }
+    | undefined;
+  const underfilledReason = topExcludedReason
+    ? `${formatExcludedReasonLabel(topExcludedReason.reason).toLowerCase()} filtered out ${topExcludedReason.count} reviewed profile${topExcludedReason.count === 1 ? "" : "s"}.`
+    : deepReviewCompletedCount > deliveredCandidateCount
+      ? `${Math.max(deepReviewCompletedCount - deliveredCandidateCount, 0)} reviewed profile${deepReviewCompletedCount - deliveredCandidateCount === 1 ? "" : "s"} did not clear the recruiter-quality bar.`
+      : "The available source pool did not contain enough reviewable profiles for this role.";
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation();
@@ -1164,7 +1180,9 @@ export default function SearchResultPage() {
                     ? "Hirelix searched a broader recall pool and kept the candidates that already look credible enough to work now."
                     : isImprovingInBackground
                       ? "Hirelix is still refining the remaining scores in the background."
-                      : `Hirelix turned this search into a workable pool: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
+                      : shortlistUnderfilled
+                        ? `Hirelix promised ${promisedCandidateCount} candidates and found ${deliveredCandidateCount} worth showing after ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed. ${underfilledReason}`
+                        : `Hirelix delivered the promised ${promisedCandidateCount}-candidate shortlist: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
               </p>
               {isImprovingInBackground && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -1176,6 +1194,10 @@ export default function SearchResultPage() {
               )}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
+              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Delivered</span>
+                <span className="text-sm font-semibold text-slate-950">{deliveredCandidateCount}/{promisedCandidateCount}</span>
+              </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reach first</span>
                 <span className="text-sm font-semibold text-slate-950">{priorityOutreachCount}</span>
@@ -1206,15 +1228,23 @@ export default function SearchResultPage() {
                   Search outcome
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  {priorityOutreachCount > 0
+                  {shortlistUnderfilled
+                    ? `${deliveredCandidateCount} of ${promisedCandidateCount} promised candidates are ready.`
+                    : priorityOutreachCount > 0
                     ? `${priorityOutreachCount} candidates are ready for first outreach.`
                     : `${allCandidates.length} candidates are ready for review.`}
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  Start with reach-first profiles, verify the amber risks, then move the best people into the outreach queue.
+                  {shortlistUnderfilled
+                    ? `${underfilledReason} Start with these profiles, then refine the JD if you need a wider pool.`
+                    : "Start with reach-first profiles, verify the amber risks, then move the best people into the outreach queue."}
                 </p>
               </div>
-              <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:w-auto">
+              <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto xl:grid-cols-5">
+                <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Delivered</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-950">{deliveredCandidateCount}/{promisedCandidateCount}</p>
+                </div>
                 <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
                   <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Reach first</p>
                   <p className="mt-1 text-xl font-semibold text-slate-950">{priorityOutreachCount}</p>
@@ -1494,8 +1524,15 @@ export default function SearchResultPage() {
                   Shortlist outcome
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  Start with the people most worth a first message.
+                  {shortlistUnderfilled
+                    ? `Delivered ${deliveredCandidateCount} of ${promisedCandidateCount} promised candidates.`
+                    : `Delivered the promised ${promisedCandidateCount}-candidate shortlist.`}
                 </h2>
+                {shortlistUnderfilled && (
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                    {underfilledReason}
+                  </p>
+                )}
               </div>
               <p className="text-xs text-slate-500">
                 Workflow: {validationCounts.contacted} contacted · {validationCounts.submitted} submitted · {validationCounts.interview} interview · {validationCounts.placed} placed
@@ -1503,11 +1540,12 @@ export default function SearchResultPage() {
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
               {[
+                { label: "Delivered", value: `${deliveredCandidateCount}/${promisedCandidateCount}` },
                 { label: "Reviewed", value: deepReviewCompletedCount },
                 { label: "Reach out first", value: priorityOutreachCount },
                 { label: "Worth reviewing", value: worthReviewingCount },
                 { label: "Screened out", value: shortlistNoCount || ruledOutCount },
-                { label: "Contact-ready", value: contactUnlockCandidates },
+                { label: "Email-ready", value: contactUnlockCandidates },
                 { label: "Risks found", value: risksFoundCount },
               ].map((item) => (
                 <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -1525,10 +1563,10 @@ export default function SearchResultPage() {
                 Action unlock
               </p>
               <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                Unlock outreach for the strongest matches.
+                Unlock email lookup for the strongest matches.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Start a subscription for contact details, CSV export, and outreach when you&apos;re ready to work this candidate pool.
+                Start a subscription for email lookup, CSV export, and outreach when you&apos;re ready to work this candidate pool.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} {priorityTierLabel.toLowerCase()}</span>
@@ -1537,7 +1575,7 @@ export default function SearchResultPage() {
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{firstContactConfidenceCount} high-confidence first contacts</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} ready for contact unlock</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} ready for email unlock</span>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
@@ -1557,7 +1595,7 @@ export default function SearchResultPage() {
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted">
                 {showOnlyWithEmail
-                  ? `${visibleCandidates.length} candidates with contact info`
+                  ? `${visibleCandidates.length} candidates with email available`
                   : hasTieredPool
                     ? `${visibleCandidates.length} in ${selectedTierLabel.toLowerCase()}`
                     : `${allCandidates.length} candidates ready to review`}
@@ -1570,14 +1608,17 @@ export default function SearchResultPage() {
                   </>
                 )}
                 {contactUnlockCandidates > 0 && (
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} contact unlocks</span>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} email unlocks</span>
                 )}
                 {visibleCandidates.length > 0 && (
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{githubBackedVisibleCount}/{visibleCandidates.length} GitHub evidence</span>
                 )}
+                <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
+                  {deliveredCandidateCount}/{promisedCandidateCount} delivered
+                </span>
                 {billing?.usage.exportEnabled ? (
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
-                      {`${allCandidates.filter((candidate) => candidate.email).length}/${allCandidates.length} with contact info`}
+                      {`${allCandidates.filter((candidate) => candidate.email).length}/${allCandidates.length} with email`}
                   </span>
                 ) : (
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Real LinkedIn profiles</span>
@@ -1630,7 +1671,7 @@ export default function SearchResultPage() {
                       onClick={() => setShowOnlyWithEmail(!showOnlyWithEmail)}
                       className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
                     >
-                      {showOnlyWithEmail ? "Show all" : "Only with contact info"}
+                      {showOnlyWithEmail ? "Show all" : "Only with email"}
                     </button>
                     <span className="text-muted-light">·</span>
                   </>

@@ -5,6 +5,7 @@ import {
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
 } from "@/lib/search";
+import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
@@ -120,10 +121,7 @@ export async function POST(
     );
   }
 
-  const candidateCount =
-    typeof parsedRequirements?.candidate_count === "number"
-      ? parsedRequirements.candidate_count
-      : 5;
+  const candidateCount = FINAL_SHORTLIST_TARGET;
   const timestamp = new Date().toISOString();
   const nextParsedRequirements = toJsonbSafeRecord({
     ...(parsedRequirements ?? {}),

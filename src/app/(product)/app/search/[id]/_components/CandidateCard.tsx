@@ -690,13 +690,13 @@ export function CandidateCard({
                 // Fallback if the main pipeline did not persist outreach copy
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
                   <Mail className="mb-3 h-8 w-8 text-muted-light" />
-                  <p className="mb-1 text-sm font-medium text-foreground">Ready to unlock contact details for this candidate?</p>
+                  <p className="mb-1 text-sm font-medium text-foreground">Outreach draft is being completed</p>
                   <p className="mb-4 text-xs text-muted">
                     {billingPlanCode === "free"
                       ? enrichesRemaining > 0
-                        ? "Use one of your free contact unlocks when you decide this candidate is worth reaching out to."
-                        : "You already have the ranked candidate list and draft copy. Start a subscription when you need contact details."
-                      : "The outreach copy is ready. Find contact details when you are ready to act on this candidate."}
+                        ? "You still have email lookups for this 25-person trial. Find the email when you are ready to act."
+                        : "You already have the ranked candidate list. Start a subscription when you need more email lookups."
+                      : "Find the email when you are ready to act on this candidate."}
                   </p>
                   {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                     <PaddleCheckoutButton
@@ -719,7 +719,7 @@ export function CandidateCard({
                       {enriching ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Finding contact info...
+                          Finding email...
                         </>
                       ) : (
                         <>
