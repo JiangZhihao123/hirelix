@@ -311,11 +311,11 @@ export default function NewSearchPage() {
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-amber-900">
-                You&apos;ve used all shortlist builds for this billing cycle. Start Solo to keep sourcing.
+                You&apos;ve used your free shortlist. Start a subscription to keep sourcing.
               </p>
               <PaddleCheckoutButton
                 checkout={{ type: "plan", planCode: "starter_monthly" }}
-                label="Start Solo"
+                label="Start monthly"
                 onError={(message) =>
                   setStage({ type: "error", message })
                 }

@@ -3,11 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   BILLING_PLANS,
-  CONTACT_PACK,
+  CUSTOMER_BILLING_PLAN_CODES,
   formatCountLabel,
   getCheckoutConfig,
   getPlanStatusCopy,
-  SEARCH_PACK,
   type BillingSummary,
 } from "../src/lib/billing";
 
@@ -53,45 +52,53 @@ function makeBillingSummary(
       starterAnnualPriceIdConfigured: false,
       businessPriceIdConfigured: false,
       agencyPriceIdConfigured: false,
-      searchPackPriceIdConfigured: false,
-      contactPackPriceIdConfigured: false,
     },
   };
 }
 
-test("MVP billing plans match solo headhunter packaging", () => {
+test("MVP billing plans expose one free trial and two paid choices", () => {
   assert.equal(BILLING_PLANS.free.searchesPerMonth, 1);
   assert.equal(BILLING_PLANS.free.clientBriefEnabled, false);
-  assert.equal(BILLING_PLANS.starter_monthly.name, "Solo");
+  assert.deepEqual([...CUSTOMER_BILLING_PLAN_CODES], ["starter_monthly", "starter_annual"]);
+  assert.equal(BILLING_PLANS.starter_monthly.name, "Monthly");
   assert.equal(BILLING_PLANS.starter_monthly.priceLabel, "$149");
   assert.equal(BILLING_PLANS.starter_monthly.exportEnabled, true);
-  assert.equal(BILLING_PLANS.starter_monthly.clientBriefEnabled, false);
-  assert.equal(BILLING_PLANS.pro_monthly.priceLabel, "$249");
-  assert.equal(BILLING_PLANS.pro_monthly.searchesPerMonth, 25);
-  assert.equal(BILLING_PLANS.pro_monthly.clientBriefEnabled, true);
-  assert.equal(BILLING_PLANS.pro_annual.priceLabel, "$199");
-  assert.equal(SEARCH_PACK.credits, 3);
-  assert.equal(SEARCH_PACK.priceLabel, "$49");
-  assert.equal(CONTACT_PACK.credits, 50);
-  assert.equal(CONTACT_PACK.priceLabel, "$49");
+  assert.equal(BILLING_PLANS.starter_monthly.clientBriefEnabled, true);
+  assert.equal(BILLING_PLANS.starter_annual.name, "Annual");
+  assert.equal(BILLING_PLANS.starter_annual.priceLabel, "$99");
+  assert.equal(BILLING_PLANS.starter_annual.priceCents, 118800);
+  assert.equal(
+    BILLING_PLANS.starter_annual.searchesPerMonth,
+    BILLING_PLANS.starter_monthly.searchesPerMonth,
+  );
+  assert.equal(
+    BILLING_PLANS.starter_annual.candidateLimitPerSearch,
+    BILLING_PLANS.starter_monthly.candidateLimitPerSearch,
+  );
+  assert.equal(
+    BILLING_PLANS.starter_annual.enrichesPerMonth,
+    BILLING_PLANS.starter_monthly.enrichesPerMonth,
+  );
+  assert.equal(BILLING_PLANS.starter_annual.exportEnabled, true);
+  assert.equal(BILLING_PLANS.starter_annual.clientBriefEnabled, true);
 });
 
-test("plan status copy describes shortlist actions for free and solo plans", () => {
+test("plan status copy describes shortlist actions for free and paid plans", () => {
   const freeCopy = getPlanStatusCopy(makeBillingSummary("free"));
   assert.equal(freeCopy.title, "Free plan");
   assert.match(freeCopy.usageLabel, /shortlist builds left/);
-  assert.match(freeCopy.capabilityLabel, /real shortlist preview/);
+  assert.match(freeCopy.capabilityLabel, /complete 25-candidate shortlist/);
 
-  const soloCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
-  assert.equal(soloCopy.title, "Solo");
-  assert.match(soloCopy.capabilityLabel, /export/);
-  assert.doesNotMatch(soloCopy.capabilityLabel, /client-ready briefs/);
+  const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
+  assert.equal(monthlyCopy.title, "Monthly");
+  assert.match(monthlyCopy.capabilityLabel, /Everything is unlocked/);
+  assert.match(monthlyCopy.capabilityLabel, /client-ready briefs/);
 });
 
-test("plan status copy marks exhausted pro plan and includes client briefs", () => {
+test("plan status copy marks exhausted paid plan", () => {
   const copy = getPlanStatusCopy(
-    makeBillingSummary("pro_monthly", {
-      searchesUsed: 25,
+    makeBillingSummary("starter_monthly", {
+      searchesUsed: 10,
       searchesRemaining: 0,
     }),
   );
@@ -108,22 +115,32 @@ test("count labels use singular copy for one remaining unit", () => {
 test("getCheckoutConfig trims configured Paddle values", () => {
   const originalEnv = {
     NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN,
+    NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID,
     NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID: process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID,
     NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID: process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID,
   };
 
   process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = " token \n";
-  process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = " monthly \n";
-  process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = " annual \t";
+  process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID = " starter_monthly \n";
+  process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID = " starter_annual \t";
+  delete process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID;
+  delete process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
 
   try {
     const config = getCheckoutConfig();
     assert.equal(config.clientToken, "token");
-    assert.equal(config.monthlyPriceId, "monthly");
-    assert.equal(config.annualPriceId, "annual");
+    assert.equal(config.starterMonthlyPriceId, "starter_monthly");
+    assert.equal(config.starterAnnualPriceId, "starter_annual");
     assert.equal(config.enabled, true);
   } finally {
     process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = originalEnv.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
+    process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID;
     process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = originalEnv.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID;
     process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = originalEnv.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
   }

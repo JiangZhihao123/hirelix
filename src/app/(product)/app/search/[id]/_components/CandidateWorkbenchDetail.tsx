@@ -462,8 +462,8 @@ export function CandidateWorkbenchDetail({
                     )}
                     {clientBriefText && !canCopyClientBrief && (
                       <PaddleCheckoutButton
-                        checkout={{ type: "plan", planCode: "pro_monthly" }}
-                        label="Go Pro for client brief"
+                        checkout={{ type: "plan", planCode: "starter_monthly" }}
+                        label="Start monthly for client brief"
                         onClick={() => onUpgradeClick("workbench_client_brief_button")}
                         onError={(message) => setEnrichError(message)}
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
@@ -771,8 +771,8 @@ export function CandidateWorkbenchDetail({
                   )}
                   {clientBriefText && !canCopyClientBrief && (
                     <PaddleCheckoutButton
-                      checkout={{ type: "plan", planCode: "pro_monthly" }}
-                      label="Go Pro for brief"
+                      checkout={{ type: "plan", planCode: "starter_monthly" }}
+                      label="Start monthly for brief"
                       onClick={() => onUpgradeClick("workbench_client_brief_button_compact")}
                       onError={(message) => setEnrichError(message)}
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -895,7 +895,7 @@ export function CandidateWorkbenchDetail({
                   })}
                   {!clientBriefEnabled && (
                     <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-                      Upgrade to Pro when you need the full client-ready brief.
+                      Start a subscription when you need the full client-ready brief.
                     </p>
                   )}
                 </div>
@@ -1250,25 +1250,21 @@ export function CandidateWorkbenchDetail({
                   {billingPlanCode === "free"
                     ? enrichesRemaining > 0
                       ? "Use a contact unlock when you want contact details and personalized outreach."
-                      : "Upgrade when you need more contact unlocks and personalized outreach."
+                      : "Start a subscription when you need contact details and personalized outreach."
                     : "Generate the email and contact details when you're ready to act on this candidate."}
                 </p>
                 {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
                   <PaddleCheckoutButton
                     checkout={{ type: "plan", planCode: "starter_monthly" }}
-                    label="Start Solo for outreach"
+                    label="Start monthly"
                     onClick={() => onUpgradeClick("workbench_outreach_drawer")}
                     onError={(message) => setEnrichError(message)}
                     className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
                   />
                 ) : enrichesRemaining <= 0 ? (
-                  <PaddleCheckoutButton
-                    checkout={{ type: "add_on", addOn: "contact_pack" }}
-                    label="Buy Contact Pack"
-                    onClick={() => onUpgradeClick("workbench_contact_pack")}
-                    onError={(message) => setEnrichError(message)}
-                    className="mt-4 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  />
+                  <span className="mt-4 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600">
+                    Limit reached
+                  </span>
                 ) : (
                   <button
                     onClick={() => handleEnrich()}

@@ -11,9 +11,7 @@ import {
 import { getCheckoutConfig, type BillingPlanCode } from "@/lib/billing";
 import { loadPaddle } from "@/lib/paddle";
 
-type CheckoutKind =
-  | { type: "plan"; planCode: Exclude<BillingPlanCode, "free"> }
-  | { type: "add_on"; addOn: "search_pack" | "contact_pack" };
+type CheckoutKind = { type: "plan"; planCode: Exclude<BillingPlanCode, "free"> };
 
 type PaddleCheckoutButtonProps = {
   checkout: CheckoutKind;
@@ -39,9 +37,9 @@ export function PaddleCheckoutButton({
   const priceId =
     checkout.type === "plan"
       ? checkout.planCode === "starter_monthly"
-        ? config.starterMonthlyPriceId
+        ? config.starterMonthlyPriceId || config.monthlyPriceId
         : checkout.planCode === "starter_annual"
-          ? config.starterAnnualPriceId
+          ? config.starterAnnualPriceId || config.annualPriceId
           : checkout.planCode === "pro_monthly"
             ? config.monthlyPriceId
             : checkout.planCode === "pro_annual"
@@ -49,18 +47,11 @@ export function PaddleCheckoutButton({
               : checkout.planCode === "business_monthly"
                 ? config.businessPriceId
                 : config.agencyPriceId
-      : checkout.type === "add_on"
-        ? checkout.addOn === "search_pack"
-          ? config.searchPackPriceId
-          : config.contactPackPriceId
       : "";
 
   async function handleCheckout() {
     onClick?.();
-    const purchaseType =
-      checkout.type === "plan"
-        ? checkout.planCode
-        : checkout.addOn;
+    const purchaseType = checkout.planCode;
     trackEvent(ANALYTICS_EVENTS.checkoutStart, {
       ...getAnalyticsContextFromBrowser(),
       purchase_type: purchaseType,

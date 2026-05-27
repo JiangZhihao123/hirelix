@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_billing_events, hirelix_user_settings, user } from "@/db/schema";
-import { CONTACT_PACK, SEARCH_PACK, getCheckoutConfig } from "@/lib/billing";
+import { getCheckoutConfig } from "@/lib/billing";
 
 function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
   console.log(`[billing:${eventName}] ${JSON.stringify(payload)}`);
@@ -87,10 +87,12 @@ export function getPaddlePriceIds(data: Record<string, unknown>) {
 
 export function resolvePaddlePlanCode(priceIds: string[]) {
   const config = getCheckoutConfig();
-  if (priceIds.includes(config.starterMonthlyPriceId)) return "starter_monthly";
-  if (priceIds.includes(config.starterAnnualPriceId)) return "starter_annual";
-  if (priceIds.includes(config.monthlyPriceId)) return "pro_monthly";
-  if (priceIds.includes(config.annualPriceId)) return "pro_annual";
+  if (priceIds.includes(config.starterMonthlyPriceId || config.monthlyPriceId)) {
+    return "starter_monthly";
+  }
+  if (priceIds.includes(config.starterAnnualPriceId || config.annualPriceId)) {
+    return "starter_annual";
+  }
   if (priceIds.includes(config.businessPriceId)) return "business_monthly";
   if (priceIds.includes(config.agencyPriceId)) return "agency_monthly";
   return null;
@@ -325,8 +327,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
   const startedAt =
     typeof data.started_at === "string" ? new Date(data.started_at) : new Date();
   const renewsAtDate = renewsAt ? new Date(renewsAt) : null;
-  const billingCycle =
-    planCode === "pro_annual" || planCode === "starter_annual" ? "year" : "month";
+  const billingCycle = planCode === "starter_annual" ? "year" : "month";
   const values = {
     user_id: userId,
     subscription_plan: planCode,
@@ -355,47 +356,6 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
       },
     });
   return planCode;
-}
-
-async function applyAddOns(data: Record<string, unknown>, userId: string) {
-  const config = getCheckoutConfig();
-  const priceIds = getPaddlePriceIds(data);
-  const addSearchCredits = priceIds.includes(config.searchPackPriceId)
-    ? SEARCH_PACK.credits
-    : 0;
-  const addEnrichCredits = priceIds.includes(config.contactPackPriceId)
-    ? CONTACT_PACK.credits
-    : 0;
-
-  if (!addSearchCredits && !addEnrichCredits) return;
-
-  const settingsRows = await db
-    .select({
-      extra_search_credits: hirelix_user_settings.extra_search_credits,
-      extra_enrich_credits: hirelix_user_settings.extra_enrich_credits,
-    })
-    .from(hirelix_user_settings)
-    .where(eq(hirelix_user_settings.user_id, userId))
-    .limit(1);
-  const settings = settingsRows[0] ?? null;
-
-  const values = {
-    user_id: userId,
-    extra_search_credits: (settings?.extra_search_credits ?? 0) + addSearchCredits,
-    extra_enrich_credits: (settings?.extra_enrich_credits ?? 0) + addEnrichCredits,
-    updated_at: new Date(),
-  };
-  await db
-    .insert(hirelix_user_settings)
-    .values(values)
-    .onConflictDoUpdate({
-      target: hirelix_user_settings.user_id,
-      set: {
-        extra_search_credits: values.extra_search_credits,
-        extra_enrich_credits: values.extra_enrich_credits,
-        updated_at: values.updated_at,
-      },
-    });
 }
 
 export async function POST(req: NextRequest) {
@@ -456,16 +416,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (userId && eventType === "transaction.completed") {
-      if (isTestPayment(data)) {
-        logBillingEvent("webhook_test_payment_recorded", {
-          event_id: eventId,
-          event_type: eventType,
-          user_id: userId,
-        });
-      } else {
-        await applyAddOns(data, userId);
-      }
+    if (userId && eventType === "transaction.completed" && isTestPayment(data)) {
+      logBillingEvent("webhook_test_payment_recorded", {
+        event_id: eventId,
+        event_type: eventType,
+        user_id: userId,
+      });
     }
 
     logBillingEvent("webhook_processed", {

@@ -138,8 +138,8 @@ export async function POST(
         {
           error:
             billing.plan.code === "free"
-              ? "You have used this month's free contact unlocks. Upgrade for more contact unlocks and outreach drafts."
-              : "You have reached this month's contact unlock limit. Add a Contact Pack or wait for your next billing cycle.",
+              ? "You have used your free contact lookups. Start a subscription for contact details and outreach drafts."
+              : "You have reached this month's contact lookup limit. Your next cycle will reset automatically.",
         },
         { status: 403 },
       );

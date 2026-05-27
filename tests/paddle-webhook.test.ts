@@ -56,9 +56,9 @@ test("isTestPayment identifies legacy test-payment webhook metadata", () => {
   assert.equal(
     isTestPayment({
       custom_data: {
-        purchase_type: "search_pack",
+        purchase_type: "starter_monthly",
       },
-      items: [{ price: { id: "pri_search_pack" } }],
+      items: [{ price: { id: "pri_starter_monthly" } }],
     }),
     false,
   );
@@ -68,31 +68,71 @@ test("Paddle webhook maps nested and flat price ids to paid entitlements", () =>
   const originalEnv = {
     NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID:
       process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID,
     NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID:
       process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID,
   };
 
   process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID = "pri_starter_monthly";
-  process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = "pri_pro_annual";
+  process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID = "pri_starter_annual";
 
   try {
     assert.deepEqual(
       getPaddlePriceIds({
         items: [
           { price: { id: "pri_starter_monthly" } },
-          { price_id: "pri_search_pack" },
+          { price_id: "pri_starter_annual" },
           { price: {} },
           null,
         ],
       }),
-      ["pri_starter_monthly", "pri_search_pack"],
+      ["pri_starter_monthly", "pri_starter_annual"],
     );
     assert.equal(resolvePaddlePlanCode(["pri_starter_monthly"]), "starter_monthly");
-    assert.equal(resolvePaddlePlanCode(["pri_pro_annual"]), "pro_annual");
+    assert.equal(resolvePaddlePlanCode(["pri_starter_annual"]), "starter_annual");
     assert.equal(resolvePaddlePlanCode(["pri_unknown"]), null);
   } finally {
     process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID =
       originalEnv.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
+  }
+});
+
+test("Paddle webhook treats legacy subscription price ids as the two public plans", () => {
+  const originalEnv = {
+    NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID,
+    NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID:
+      process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID,
+  };
+
+  delete process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID;
+  delete process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID;
+  process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = "pri_legacy_monthly";
+  process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = "pri_legacy_annual";
+
+  try {
+    assert.equal(resolvePaddlePlanCode(["pri_legacy_monthly"]), "starter_monthly");
+    assert.equal(resolvePaddlePlanCode(["pri_legacy_annual"]), "starter_annual");
+  } finally {
+    process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID;
+    process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID =
+      originalEnv.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID;
     process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID =
       originalEnv.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
   }

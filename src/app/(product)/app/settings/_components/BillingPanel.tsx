@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Mail, Search } from "lucide-react";
+import { CheckCircle2, Search } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   BILLING_PLANS,
-  CONTACT_PACK,
-  SEARCH_PACK,
-  formatCountLabel,
+  CUSTOMER_BILLING_PLAN_CODES,
   type BillingSummary,
 } from "@/lib/billing";
 import {
@@ -27,7 +25,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
       id="billing"
       eyebrow="Billing"
       title="Billing and usage"
-      description="Manage shortlist builds, contact unlocks, export, and client-ready brief access."
+      description="Your first complete shortlist is free. Continue with a monthly or annual subscription."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -74,13 +72,13 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
 
         <SettingsFieldGroup
           title="Usage"
-          description="Track the limits that matter for the current billing cycle."
+          description="Track this billing cycle and whether the full product is unlocked."
         >
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-                <Search className="h-4 w-4 text-slate-400" />
+                  <Search className="h-4 w-4 text-slate-400" />
                   Shortlist builds
                 </span>
                 <span className="text-slate-500">
@@ -101,45 +99,32 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-                  <Mail className="h-4 w-4 text-slate-400" />
-                  Contact unlocks
-                </span>
-                <span className="text-slate-500">
-                  {billing.usage.enrichesUsed}/{billing.usage.enrichesLimit}
-                </span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-slate-700"
-                  style={{
-                    width: getUsageWidth(billing.usage.enrichesUsed, billing.usage.enrichesLimit),
-                  }}
-                />
-              </div>
-              <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.enrichesRemaining} contact unlocks left this cycle
+              <p className="text-sm font-medium text-slate-800">Product access</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">
+                {billing.plan.code === "free" ? "Trial" : "Unlocked"}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                {billing.plan.code === "free"
+                  ? "One complete 25-candidate shortlist is included."
+                  : "Candidate lists, contact details, export, outreach, and briefs are included."}
               </p>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
-              <p className="text-sm font-medium text-slate-800">Client handoff</p>
+              <p className="text-sm font-medium text-slate-800">Candidate package</p>
               <p className="mt-3 text-2xl font-semibold text-slate-950">
-                {billing.usage.clientBriefEnabled ? "Briefs" : "Locked"}
+                {billing.usage.candidateLimitPerSearch}
               </p>
               <p className="mt-2 text-sm text-slate-600">
-                {billing.usage.clientBriefEnabled
-                  ? "Client-ready shortlist briefs are included"
-                  : "Upgrade to Pro for client-ready briefs"}
+                candidates per completed shortlist.
               </p>
             </div>
           </div>
         </SettingsFieldGroup>
 
         <SettingsFieldGroup
-          title="Plans and add-ons"
-          description="Upgrade the base plan or add one-off credits when you need extra capacity."
+          title="Subscription"
+          description="Two choices, same benefits. Annual just gives you the lower rate."
         >
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Hirelix is built for independent technical headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
@@ -151,15 +136,10 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             </a>
             .
           </div>
-          <div className="mb-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Plans
-            </p>
-          </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            {Object.values(BILLING_PLANS).map((plan) => {
+            {CUSTOMER_BILLING_PLAN_CODES.map((planCode) => {
+              const plan = BILLING_PLANS[planCode];
               const isCurrent = billing.subscription.planCode === plan.code;
-              const isPaidPlan = plan.code !== "free";
 
               return (
                 <div
@@ -188,42 +168,21 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   </div>
 
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
-                    <p>
-                      {plan.searchesPerMonth}{" "}
-                      {formatCountLabel(
-                        plan.searchesPerMonth,
-                        "shortlist build / month",
-                        "shortlist builds / month",
-                      )}
-                    </p>
-                    <p>Evidence-backed technical shortlists by role fit</p>
-                    <p>
-                      {plan.enrichesPerMonth}{" "}
-                      {formatCountLabel(
-                        plan.enrichesPerMonth,
-                        "contact unlock / month",
-                        "contact unlocks / month",
-                      )}
-                    </p>
-                    <p className="inline-flex items-center gap-1.5">
-                      <Download className="h-3.5 w-3.5" />
-                      {plan.exportEnabled ? "CSV export included" : "CSV export locked"}
-                    </p>
-                    <p>
-                      {plan.clientBriefEnabled ? "Client-ready brief included" : "Client-ready brief locked"}
-                    </p>
+                    {[
+                      `${plan.searchesPerMonth} shortlist builds per month`,
+                      `${plan.candidateLimitPerSearch} candidates per shortlist`,
+                      "Contact details, export, outreach, and client-ready briefs included",
+                      "Same product access as every paid plan",
+                    ].map((item) => (
+                      <p key={item} className="inline-flex items-start gap-1.5">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        <span>{item}</span>
+                      </p>
+                    ))}
                   </div>
 
                   <div className="mt-5">
-                    {!isPaidPlan ? (
-                      <button
-                        type="button"
-                        disabled
-                        className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
-                      >
-                        {isCurrent ? "Current plan" : "Free plan"}
-                      </button>
-                    ) : isCurrent ? (
+                    {isCurrent ? (
                       <button
                         type="button"
                         disabled
@@ -249,62 +208,6 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               );
             })}
           </div>
-
-          <div className="mt-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-              Add-ons
-            </p>
-          </div>
-          <div className="mt-3 grid gap-4 md:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-950">{SEARCH_PACK.name}</p>
-              <p className="mt-1 text-sm text-slate-600">{SEARCH_PACK.description}</p>
-              <p className="mt-4 text-2xl font-semibold text-slate-950">
-                {SEARCH_PACK.priceLabel}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Adds {SEARCH_PACK.credits} shortlist builds to this billing period.
-              </p>
-              <div className="mt-5">
-                <PaddleCheckoutButton
-                  checkout={{ type: "add_on", addOn: "search_pack" }}
-                  label={
-                    billing.plan.code === "free"
-                      ? "Upgrade plan to buy search pack"
-                      : "Buy search pack"
-                  }
-                  disabled={billing.plan.code === "free"}
-                  onError={(message) => setBillingMessage({ type: "error", text: message })}
-                  className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-950">{CONTACT_PACK.name}</p>
-              <p className="mt-1 text-sm text-slate-600">{CONTACT_PACK.description}</p>
-              <p className="mt-4 text-2xl font-semibold text-slate-950">
-                {CONTACT_PACK.priceLabel}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Adds {CONTACT_PACK.credits} contact unlocks to this billing period.
-              </p>
-              <div className="mt-5">
-                <PaddleCheckoutButton
-                  checkout={{ type: "add_on", addOn: "contact_pack" }}
-                  label={
-                    billing.plan.code === "free"
-                      ? "Upgrade plan to buy contact pack"
-                      : "Buy contact pack"
-                  }
-                  disabled={billing.plan.code === "free"}
-                  onError={(message) => setBillingMessage({ type: "error", text: message })}
-                  className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-            </div>
-          </div>
-
         </SettingsFieldGroup>
 
         <MessageBanner message={billingMessage} />

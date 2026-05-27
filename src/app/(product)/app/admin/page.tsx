@@ -63,10 +63,10 @@ function planBadge(plan: string, status: string) {
     (plan === "starter_monthly" || plan === "starter_annual" || plan === "pro_monthly" || plan === "pro_annual" || plan === "business_monthly" || plan === "agency_monthly") && status === "active";
   const planLabel =
     plan === "pro_annual" ? "Pro Annual" :
-    plan === "starter_annual" ? "Solo Annual" :
+    plan === "starter_annual" ? "Annual" :
     plan === "business_monthly" ? "Business" :
     plan === "agency_monthly" ? "Agency" :
-    plan === "starter_monthly" ? "Solo" :
+    plan === "starter_monthly" ? "Monthly" :
     plan === "pro_monthly" ? "Pro" : "Free";
   const badgeColor =
     plan === "agency_monthly" ? "bg-purple-100 text-purple-800" :

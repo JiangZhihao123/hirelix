@@ -60,8 +60,6 @@ export type BillingSummary = {
     starterAnnualPriceIdConfigured: boolean;
     businessPriceIdConfigured: boolean;
     agencyPriceIdConfigured: boolean;
-    searchPackPriceIdConfigured: boolean;
-    contactPackPriceIdConfigured: boolean;
   };
 };
 
@@ -74,6 +72,8 @@ export type PlanStatusCopy = {
   state: "default" | "warning" | "unavailable";
 };
 
+export const CUSTOMER_BILLING_PLAN_CODES = ["starter_monthly", "starter_annual"] as const;
+
 export function formatCountLabel(count: number, singular: string, plural: string) {
   return count === 1 ? singular : plural;
 }
@@ -82,9 +82,9 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Run one real client-role shortlist and see the evidence before you pay.",
+    description: "Run one complete 25-candidate shortlist before you pay.",
     priceLabel: "$0",
-    cadenceLabel: "free forever",
+    cadenceLabel: "one complete trial",
     billingCycle: null,
     searchesPerMonth: 1,
     candidateLimitPerSearch: 25,
@@ -96,64 +96,64 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   },
   starter_monthly: {
     code: "starter_monthly",
-    name: "Solo",
-    description: "For independent technical headhunters working a few active client roles.",
+    name: "Monthly",
+    description: "Everything unlocked, paid month to month.",
     priceLabel: "$149",
-    cadenceLabel: "per seat / month",
+    cadenceLabel: "per month",
     billingCycle: "month",
     searchesPerMonth: 10,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 100,
     exportEnabled: true,
-    clientBriefEnabled: false,
+    clientBriefEnabled: true,
     priceCents: 14900,
-    ctaLabel: "Start Solo",
+    ctaLabel: "Start monthly",
   },
   starter_annual: {
     code: "starter_annual",
-    name: "Solo Annual",
-    description: "For solo technical recruiters who want a lower annual rate.",
-    priceLabel: "$119",
-    cadenceLabel: "per seat / month, billed annually",
+    name: "Annual",
+    description: "Everything unlocked at the best monthly rate.",
+    priceLabel: "$99",
+    cadenceLabel: "per month, billed annually",
     billingCycle: "year",
     searchesPerMonth: 10,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 100,
     exportEnabled: true,
-    clientBriefEnabled: false,
-    priceCents: 142800,
-    ctaLabel: "Start annual Solo",
+    clientBriefEnabled: true,
+    priceCents: 118800,
+    ctaLabel: "Start annual",
+    featured: true,
   },
   pro_monthly: {
     code: "pro_monthly",
-    name: "Pro",
-    description: "For steady solo headhunters who need client-ready briefs and deeper capacity.",
-    priceLabel: "$249",
-    cadenceLabel: "per seat / month",
+    name: "Monthly",
+    description: "Legacy monthly subscription.",
+    priceLabel: "$149",
+    cadenceLabel: "per month",
     billingCycle: "month",
     searchesPerMonth: 25,
     candidateLimitPerSearch: 50,
     enrichesPerMonth: 300,
     exportEnabled: true,
     clientBriefEnabled: true,
-    priceCents: 24900,
-    ctaLabel: "Start Pro",
+    priceCents: 14900,
+    ctaLabel: "Start monthly",
   },
   pro_annual: {
     code: "pro_annual",
-    name: "Pro Annual",
-    description: "For steady solo headhunters who want the lower annual Pro rate.",
-    priceLabel: "$199",
-    cadenceLabel: "per seat / month, billed annually",
+    name: "Annual",
+    description: "Legacy annual subscription.",
+    priceLabel: "$99",
+    cadenceLabel: "per month, billed annually",
     billingCycle: "year",
     searchesPerMonth: 25,
     candidateLimitPerSearch: 50,
     enrichesPerMonth: 300,
     exportEnabled: true,
     clientBriefEnabled: true,
-    priceCents: 238800,
-    ctaLabel: "Start annual Pro",
-    featured: true,
+    priceCents: 118800,
+    ctaLabel: "Start annual",
   },
   business_monthly: {
     code: "business_monthly",
@@ -185,20 +185,6 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceCents: 199900,
     ctaLabel: "Contact us",
   },
-};
-
-export const SEARCH_PACK = {
-  name: "Search Pack",
-  description: "3 extra searches when a client role needs more sourcing capacity.",
-  priceLabel: "$49",
-  credits: 3,
-};
-
-export const CONTACT_PACK = {
-  name: "Contact Pack",
-  description: "50 extra contact unlocks with outreach-ready context.",
-  priceLabel: "$49",
-  credits: 50,
 };
 
 const ACTIVE_BILLING_STATUSES = new Set<BillingStatus>(["active", "trialing"]);
@@ -288,10 +274,8 @@ export function getPlanStatusCopy(
       ? "No shortlist builds left this cycle"
       : `${searchesRemaining} / ${searchesLimit} shortlist builds left`,
     capabilityLabel: isFreePlan
-      ? "Includes a real shortlist preview and limited contact unlocks"
-      : billing.usage.clientBriefEnabled
-        ? "Includes contact unlocks, export, outreach, and client-ready briefs"
-        : "Includes contact unlocks, export, and outreach-ready shortlists",
+      ? "Includes one complete 25-candidate shortlist"
+      : "Everything is unlocked: candidate lists, contact details, export, outreach, and client-ready briefs",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",
     state: isExhausted ? "warning" : "default",
@@ -308,8 +292,6 @@ export function getCheckoutConfig(): {
   starterAnnualPriceId: string;
   businessPriceId: string;
   agencyPriceId: string;
-  searchPackPriceId: string;
-  contactPackPriceId: string;
 } {
   const clientToken = (process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "").trim();
   const monthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "").trim();
@@ -318,11 +300,13 @@ export function getCheckoutConfig(): {
   const starterAnnualPriceId = (process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID || "").trim();
   const businessPriceId = (process.env.NEXT_PUBLIC_PADDLE_BUSINESS_PRICE_ID || "").trim();
   const agencyPriceId = (process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "").trim();
-  const searchPackPriceId = (process.env.NEXT_PUBLIC_PADDLE_SEARCH_PACK_PRICE_ID || "").trim();
-  const contactPackPriceId = (process.env.NEXT_PUBLIC_PADDLE_CONTACT_PACK_PRICE_ID || "").trim();
 
   return {
-    enabled: Boolean(clientToken && monthlyPriceId && annualPriceId),
+    enabled: Boolean(
+      clientToken &&
+        (starterMonthlyPriceId || monthlyPriceId) &&
+        (starterAnnualPriceId || annualPriceId),
+    ),
     environment:
       process.env.NEXT_PUBLIC_PADDLE_ENV === "production" ? "production" : "sandbox",
     clientToken,
@@ -332,7 +316,5 @@ export function getCheckoutConfig(): {
     starterAnnualPriceId,
     businessPriceId,
     agencyPriceId,
-    searchPackPriceId,
-    contactPackPriceId,
   };
 }

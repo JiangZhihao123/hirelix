@@ -1294,8 +1294,8 @@ export default function SearchResultPage() {
                 </button>
               ) : (
                 <PaddleCheckoutButton
-                  checkout={{ type: "plan", planCode: "pro_monthly" }}
-                  label="Need client briefs? Go Pro"
+                  checkout={{ type: "plan", planCode: "starter_monthly" }}
+                  label="Start monthly for client briefs"
                   onClick={() => handleUpgradeClick("results_client_brief_gate")}
                   onError={(message) => setUpgradeError(message)}
                   className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
@@ -1528,7 +1528,7 @@ export default function SearchResultPage() {
                 Unlock outreach for the strongest matches.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Start Solo for contact unlocks, CSV export, and outreach when you&apos;re ready to work this candidate pool.
+                Start a subscription for contact details, CSV export, and outreach when you&apos;re ready to work this candidate pool.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} {priorityTierLabel.toLowerCase()}</span>
@@ -1542,7 +1542,7 @@ export default function SearchResultPage() {
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
                   checkout={{ type: "plan", planCode: "starter_monthly" }}
-                  label="Start Solo - $149/mo"
+                  label="Start monthly - $149/mo"
                   onClick={() => handleUpgradeClick("results_first_use_strip")}
                   onError={(message) => setUpgradeError(message)}
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"

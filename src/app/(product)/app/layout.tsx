@@ -44,7 +44,7 @@ function ProductLayoutShell({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminAccess, setAdminAccess] = useState<{ userId: string; isAdmin: boolean } | null>(null);
   const hasTrackedSigninViewRef = useRef(false);
   const pendingJd = useSyncExternalStore(
     () => () => {},
@@ -72,6 +72,7 @@ function ProductLayoutShell({
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
   const isAdminRoute = pathname.startsWith("/app/admin");
+  const isAdmin = Boolean(user && adminAccess?.userId === user.id && adminAccess.isAdmin);
 
   const getNavClassName = (isActive: boolean) =>
     `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -102,19 +103,17 @@ function ProductLayoutShell({
   }, [router, user]);
 
   useEffect(() => {
-    if (!user) {
-      setIsAdmin(false);
-      return;
-    }
+    if (!user) return;
 
     let isCurrent = true;
+    const userId = user.id;
 
     fetch("/api/admin", { method: "HEAD", credentials: "include" })
       .then((res) => {
-        if (isCurrent) setIsAdmin(res.ok);
+        if (isCurrent) setAdminAccess({ userId, isAdmin: res.ok });
       })
       .catch(() => {
-        if (isCurrent) setIsAdmin(false);
+        if (isCurrent) setAdminAccess({ userId, isAdmin: false });
       });
 
     return () => {

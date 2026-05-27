@@ -131,27 +131,23 @@ export function ContactActionStrip({
             {enrichesRemaining > 0
               ? "Find contact details when you're ready to reach out."
               : billingPlanCode === "free"
-                ? "Upgrade for more contact unlocks and outreach drafts."
-                : "Buy a contact pack to continue email lookups."}
+                ? "Start a subscription for contact details and outreach drafts."
+                : "Your monthly contact lookup limit has been used."}
           </p>
         </div>
 
         {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
           <PaddleCheckoutButton
             checkout={{ type: "plan", planCode: "starter_monthly" }}
-            label="Start Solo"
+            label="Start monthly"
             onClick={() => onUpgradeClick(compact ? "candidate_email_strip_compact" : "candidate_email_strip")}
             onError={onError}
             className="inline-flex shrink-0 cursor-pointer items-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
           />
         ) : enrichesRemaining <= 0 ? (
-          <PaddleCheckoutButton
-            checkout={{ type: "add_on", addOn: "contact_pack" }}
-            label="Buy Contact Pack"
-            onClick={() => onUpgradeClick(compact ? "candidate_contact_pack_compact" : "candidate_contact_pack")}
-            onError={onError}
-            className="inline-flex shrink-0 cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-          />
+          <span className="inline-flex shrink-0 items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+            Limit reached
+          </span>
         ) : (
           <button
             onClick={onEnrich}
