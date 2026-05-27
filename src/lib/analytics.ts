@@ -95,6 +95,7 @@ declare global {
     __hirelixGrowthIdentity?: {
       visitor_id: string;
       session_id: string;
+      invite_code?: string | null;
     };
   }
 }

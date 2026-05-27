@@ -5,6 +5,13 @@ import { useEffect } from "react";
 const VISITOR_KEY = "hirelix.growth.visitor_id";
 const SESSION_KEY = "hirelix.growth.session_id";
 
+function readCookie(name: string) {
+  const entry = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(`${name}=`));
+  return entry ? decodeURIComponent(entry.slice(name.length + 1)) : null;
+}
+
 function getOrCreateStorageValue(storage: Storage, key: string) {
   const existing = storage.getItem(key);
   if (existing) return existing;
@@ -22,6 +29,7 @@ export function GrowthTracker() {
     window.__hirelixGrowthIdentity = {
       visitor_id: visitorId,
       session_id: sessionId,
+      invite_code: readCookie("hirelix_invite_code"),
     };
 
     if (!window.__hirelixGrowthTrack) {
@@ -48,6 +56,7 @@ export function GrowthTracker() {
             traffic_source: params.get("traffic_source") || params.get("utm_source"),
             page_variant: params.get("page_variant"),
             intent_path: params.get("intent_path"),
+            invite_code: readCookie("hirelix_invite_code"),
             device_type: window.innerWidth < 768 ? "mobile" : "desktop",
             ...metadata,
           },

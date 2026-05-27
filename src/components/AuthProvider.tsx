@@ -57,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       route: window.location.pathname,
       has_email: Boolean(user.email),
       auth_result: "google_oauth_callback",
+      invite_code: window.__hirelixGrowthIdentity?.invite_code ?? null,
     });
   }, [isPending, user?.email, user?.id]);
 

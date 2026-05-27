@@ -13,6 +13,7 @@ import {
   MousePointerClick,
   RefreshCw,
   Search,
+  Ticket,
   UserCheck,
 } from "lucide-react";
 
@@ -316,6 +317,18 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
               </Panel>
             </section>
 
+            <Panel title="内测邀请">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+                <InviteStat label="发出邀请" value={data.betaInvites.sent} tone="slate" />
+                <InviteStat label="被打开" value={data.betaInvites.opened} tone="blue" />
+                <InviteStat label="可疑扫描" value={data.betaInvites.scans} tone="amber" />
+                <InviteStat label="已激活" value={data.betaInvites.activated} tone="green" />
+                <InviteStat label="已创建搜索" value={data.betaInvites.searchCreated} tone="green" />
+                <InviteStat label="转介绍发出" value={data.betaInvites.referralSent} tone="slate" />
+                <InviteStat label="转介绍激活" value={data.betaInvites.referralActivated} tone="blue" />
+              </div>
+            </Panel>
+
             <Panel title="访问 IP 溯源">
               {data.ipAttribution.length === 0 ? (
                 <EmptyState text="还没有 IP 数据" />
@@ -495,6 +508,33 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
       <p className="text-[11px] text-slate-500">{label}</p>
       <p className="mt-0.5 font-semibold tabular-nums text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function InviteStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "slate" | "blue" | "green" | "amber";
+}) {
+  const toneClass = {
+    slate: "border-slate-200 bg-slate-50 text-slate-800",
+    blue: "border-sky-200 bg-sky-50 text-sky-800",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+  }[tone];
+
+  return (
+    <div className={`rounded-lg border px-3 py-3 ${toneClass}`}>
+      <div className="flex items-center gap-2 text-xs font-medium opacity-80">
+        <Ticket className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <p className="mt-2 text-2xl font-bold tabular-nums">{formatNumber(value)}</p>
     </div>
   );
 }

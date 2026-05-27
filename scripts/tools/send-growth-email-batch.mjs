@@ -131,13 +131,27 @@ function buildTrackingUrl(email, batch, trackingBase) {
   return `${base}/go/${encodeURIComponent(email.id)}?${params.toString()}`;
 }
 
+function buildInviteUrl(email, batch, trackingBase) {
+  const inviteCode = email.invite_code || email.inviteCode;
+  if (!inviteCode) return null;
+  const base = (trackingBase || DEFAULT_PRODUCT_URL).replace(/\/+$/, "");
+  return `${base}/invite/${encodeURIComponent(inviteCode)}`;
+}
+
 function renderTrackedBody(email, batch, env) {
   const postalAddress = env.OUTREACH_POSTAL_ADDRESS || ADDRESS_PLACEHOLDER;
   const trackingUrl = buildTrackingUrl(email, batch, env.OUTREACH_TRACKING_BASE);
+  const inviteUrl = buildInviteUrl(email, batch, env.OUTREACH_TRACKING_BASE);
+  const primaryUrl = inviteUrl || trackingUrl;
   const productUrls = new Set([batch.product_url || DEFAULT_PRODUCT_URL, DEFAULT_PRODUCT_URL]);
   let body = renderBody(email.body, postalAddress);
+  if (inviteUrl) {
+    body = body
+      .replaceAll("{{invite_link}}", inviteUrl)
+      .replaceAll("{{INVITE_LINK}}", inviteUrl);
+  }
   for (const productUrl of productUrls) {
-    body = body.replaceAll(productUrl, trackingUrl);
+    body = body.replaceAll(productUrl, primaryUrl);
   }
   return body;
 }

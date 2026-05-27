@@ -28,6 +28,9 @@ const ALLOWED_EVENTS = new Set([
   "preview_request_submit",
   "book_feedback_click",
   "reply_email_click",
+  "invite_activate_click",
+  "email_otp_requested",
+  "email_otp_verified",
 ]);
 
 type LandingEventBody = {

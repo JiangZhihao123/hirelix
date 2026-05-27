@@ -39,6 +39,14 @@ import { HeroPreview } from "./_components/HeroPreview";
 import { HowItWorksSection } from "./_components/HowItWorksSection";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
 
+function getCookieValue(name: string) {
+  if (typeof document === "undefined") return null;
+  const entry = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(`${name}=`));
+  return entry ? decodeURIComponent(entry.slice(name.length + 1)) : null;
+}
+
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
@@ -128,6 +136,7 @@ export default function Home() {
     window.__hirelixGrowthIdentity = {
       visitor_id: visitorId,
       session_id: sessionId,
+      invite_code: getCookieValue("hirelix_invite_code"),
     };
 
     const startedAt = Date.now();
@@ -153,6 +162,7 @@ export default function Home() {
         traffic_source: params.get("traffic_source") || params.get("utm_source"),
         page_variant: params.get("page_variant") || experiments.pageVariant,
         intent_path: params.get("intent_path"),
+        invite_code: getCookieValue("hirelix_invite_code"),
         device_type: window.innerWidth < 768 ? "mobile" : "desktop",
       },
     };

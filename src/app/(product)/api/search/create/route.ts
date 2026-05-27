@@ -18,6 +18,11 @@ import {
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import {
+  getInviteCodeFromRequest,
+  getRequestMeta,
+  markInviteSearchCreated,
+} from "@/lib/beta-invites";
 import { buildParsedRequirementsForLaunch } from "@/lib/jd-parse";
 import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 import { getLogger, errorLogFields } from "@/lib/logger";
@@ -37,6 +42,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { jd_text, candidate_count, parsed_requirements_override, user_clarification, growth_tracking } = await req.json();
+    const inviteCode = getInviteCodeFromRequest(req, growth_tracking);
     const billing = await getBillingSummaryForUser(user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
@@ -159,6 +165,23 @@ export async function POST(req: NextRequest) {
       searchId: search.id,
     });
 
+    const invite = await markInviteSearchCreated({
+      inviteCode,
+      userId: user.id,
+      searchId: search.id,
+      request: getRequestMeta(req),
+    }).catch((inviteError) => {
+      routeLogger.error(
+        {
+          user_id: user.id,
+          search_id: search.id,
+          ...errorLogFields(inviteError),
+        },
+        "Failed to mark invite search created",
+      );
+      return null;
+    });
+
     try {
       await db.insert(hirelix_usage_events).values({
         user_id: user.id,
@@ -175,6 +198,9 @@ export async function POST(req: NextRequest) {
           launch_scope: "linkedin_plus_github",
           execution_profile: searchTargets.executionProfile,
           activation_run: false,
+          invite_code: invite?.invite_code ?? inviteCode ?? null,
+          invite_source: invite?.source ?? null,
+          invite_batch_id: invite?.batch_id ?? null,
         },
       });
     } catch (usageError) {
@@ -205,6 +231,9 @@ export async function POST(req: NextRequest) {
           user_agent: req.headers.get("user-agent"),
           metadata: {
             candidate_count: maxCandidates,
+            invite_code: invite?.invite_code ?? inviteCode ?? null,
+            invite_source: invite?.source ?? null,
+            invite_batch_id: invite?.batch_id ?? null,
             jd_length_bucket:
               jd_text.trim().length < 50
                 ? "1-49"

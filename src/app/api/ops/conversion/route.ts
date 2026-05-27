@@ -1,13 +1,19 @@
-import { and, desc, gte, lt } from "drizzle-orm";
+import { and, desc, gte, lt, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import { hirelix_growth_landing_events } from "@/db/schema";
+import {
+  hirelix_beta_invite_events,
+  hirelix_beta_invites,
+  hirelix_growth_landing_events,
+} from "@/db/schema";
 import {
   buildOpsConversionData,
+  emptyBetaInviteOpsSummary,
   getOpsRangeWindow,
   maskIp,
   normalizeOpsRange,
+  type BetaInviteOpsSummary,
   type GrowthEventRecord,
   type IpAttribution,
   type IpNetworkType,
@@ -192,6 +198,67 @@ async function lookupIpAttributions(rows: GrowthEventRecord[]) {
   return new Map(entries);
 }
 
+async function getBetaInviteSummary(start: Date, end: Date): Promise<BetaInviteOpsSummary> {
+  const summary = emptyBetaInviteOpsSummary();
+  const [createdRows, activatedRows, eventRows] = await Promise.all([
+    db
+      .select({
+        source: hirelix_beta_invites.source,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(hirelix_beta_invites)
+      .where(
+        and(
+          gte(hirelix_beta_invites.created_at, start),
+          lt(hirelix_beta_invites.created_at, end),
+        ),
+      )
+      .groupBy(hirelix_beta_invites.source),
+    db
+      .select({
+        source: hirelix_beta_invites.source,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(hirelix_beta_invites)
+      .where(
+        and(
+          gte(hirelix_beta_invites.activated_at, start),
+          lt(hirelix_beta_invites.activated_at, end),
+        ),
+      )
+      .groupBy(hirelix_beta_invites.source),
+    db
+      .select({
+        event_type: hirelix_beta_invite_events.event_type,
+        count: sql<number>`count(DISTINCT ${hirelix_beta_invite_events.invite_code})::int`,
+      })
+      .from(hirelix_beta_invite_events)
+      .where(
+        and(
+          gte(hirelix_beta_invite_events.created_at, start),
+          lt(hirelix_beta_invite_events.created_at, end),
+        ),
+      )
+      .groupBy(hirelix_beta_invite_events.event_type),
+  ]);
+
+  for (const row of createdRows) {
+    summary.sent += row.count;
+    if (row.source === "referral") summary.referralSent += row.count;
+  }
+  for (const row of activatedRows) {
+    summary.activated += row.count;
+    if (row.source === "referral") summary.referralActivated += row.count;
+  }
+  for (const row of eventRows) {
+    if (row.event_type === "invite_opened") summary.opened = row.count;
+    if (row.event_type === "invite_scan_detected") summary.scans = row.count;
+    if (row.event_type === "invite_search_created") summary.searchCreated = row.count;
+  }
+
+  return summary;
+}
+
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -228,12 +295,16 @@ export async function GET(req: NextRequest) {
     .limit(5000);
 
   const records = rows as GrowthEventRecord[];
-  const ipAttribution = await lookupIpAttributions(records);
+  const [ipAttribution, betaInvites] = await Promise.all([
+    lookupIpAttributions(records),
+    getBetaInviteSummary(start, end),
+  ]);
   const data = buildOpsConversionData(records, {
     range,
     start,
     end,
     ipAttribution,
+    betaInvites,
   });
 
   return NextResponse.json(data);

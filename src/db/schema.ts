@@ -301,6 +301,76 @@ export const hirelix_growth_landing_events = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Private beta invites
+// ---------------------------------------------------------------------------
+export const hirelix_beta_invites = pgTable(
+  "hirelix_beta_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invite_code: text("invite_code").notNull().unique(),
+    recipient_email: text("recipient_email"),
+    first_name: text("first_name"),
+    company: text("company"),
+    source: text("source").notNull().default("manual"),
+    invited_by_user_id: uuid("invited_by_user_id"),
+    batch_id: text("batch_id"),
+    campaign: text("campaign"),
+    status: text("status").notNull().default("reserved"),
+    seat_number: integer("seat_number"),
+    free_search_limit: integer("free_search_limit").notNull().default(1),
+    referral_limit: integer("referral_limit").notNull().default(3),
+    activated_user_id: uuid("activated_user_id"),
+    clicked_at: timestamp("clicked_at", { withTimezone: true }),
+    activated_at: timestamp("activated_at", { withTimezone: true }),
+    used_at: timestamp("used_at", { withTimezone: true }),
+    expires_at: timestamp("expires_at", { withTimezone: true }),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    status_created_idx: index("idx_hirelix_beta_invites_status_created").on(
+      t.status,
+      t.created_at,
+    ),
+    activated_user_idx: index("idx_hirelix_beta_invites_activated_user").on(
+      t.activated_user_id,
+    ),
+    invited_by_idx: index("idx_hirelix_beta_invites_invited_by").on(
+      t.invited_by_user_id,
+    ),
+    source_created_idx: index("idx_hirelix_beta_invites_source_created").on(
+      t.source,
+      t.created_at,
+    ),
+  }),
+);
+
+export const hirelix_beta_invite_events = pgTable(
+  "hirelix_beta_invite_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invite_code: text("invite_code").notNull(),
+    event_type: text("event_type").notNull(),
+    ip_address: text("ip_address"),
+    user_agent: text("user_agent"),
+    referer: text("referer"),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    invite_created_idx: index("idx_hirelix_beta_invite_events_invite_created").on(
+      t.invite_code,
+      t.created_at,
+    ),
+    event_created_idx: index("idx_hirelix_beta_invite_events_event_created").on(
+      t.event_type,
+      t.created_at,
+    ),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // LLM usage events
 // ---------------------------------------------------------------------------
 export const hirelix_llm_usage_events = pgTable(
@@ -603,6 +673,8 @@ export const schema = {
   hirelix_billing_events,
   hirelix_growth_outreach_clicks,
   hirelix_growth_landing_events,
+  hirelix_beta_invites,
+  hirelix_beta_invite_events,
   hirelix_llm_usage_events,
   hirelix_github_identity_cache,
   hirelix_github_profile_cache,
