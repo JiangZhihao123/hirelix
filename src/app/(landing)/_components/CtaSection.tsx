@@ -14,9 +14,9 @@ export function CtaSection({
 }) {
   return (
     <>
-      <section data-growth-section="底部行动" className="relative overflow-hidden border-t border-slate-200 bg-[#fbfaf7] py-24 sm:py-32">
+      <section data-growth-section="底部行动" className="relative overflow-hidden border-t border-slate-200 bg-white py-20 sm:py-28">
         <div className="relative mx-auto max-w-3xl px-6 text-center">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
             Ready when you are
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
@@ -30,14 +30,14 @@ export function CtaSection({
           <div className="mt-10 flex flex-col items-center gap-4">
             <a
               href="#hero-form"
-              className="hidden items-center gap-2 rounded-lg bg-blue-600 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(37,99,235,0.24)] transition-all hover:-translate-y-0.5 hover:bg-blue-700 sm:inline-flex"
+              className="hidden items-center gap-2 rounded-lg bg-indigo-700 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(67,56,202,0.24)] transition-all hover:-translate-y-0.5 hover:bg-indigo-800 sm:inline-flex"
             >
               {desktopFooterCtaLabel} <ArrowRight className="h-4 w-4" />
             </a>
             <button
               type="button"
               onClick={onTrySample}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(37,99,235,0.24)] transition-all hover:-translate-y-0.5 hover:bg-blue-700 sm:hidden"
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(67,56,202,0.24)] transition-all hover:-translate-y-0.5 hover:bg-indigo-800 sm:hidden"
             >
               View sample shortlist <ArrowRight className="h-4 w-4" />
             </button>
@@ -46,7 +46,7 @@ export function CtaSection({
               <button
                 type="button"
                 onClick={onSignIn}
-                className="font-medium text-sky-700 hover:underline"
+                className="font-medium text-indigo-700 hover:underline"
               >
                 Sign in
               </button>
@@ -60,11 +60,11 @@ export function CtaSection({
               No credit card to start
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-700" />
               Real LinkedIn profiles
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               Drafts ready in minutes
             </span>
           </div>
@@ -79,8 +79,8 @@ export function CtaSection({
               <span className="font-semibold text-slate-950">Hirelix</span>
             </div>
             <p>Evidence-backed technical shortlists from real LinkedIn profiles.</p>
-            <p>Built first for independent technical headhunters.</p>
-            <p>Support: <a className="text-sky-700 hover:text-sky-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
+            <p>Built for technical headhunters.</p>
+            <p>Support: <a className="text-indigo-700 hover:text-indigo-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>
             <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
           </div>

@@ -11,7 +11,7 @@ const billingSummary = {
   plan: {
     code: "pro_monthly",
     name: "Pro",
-    description: "For independent technical headhunters sourcing active roles.",
+    description: "For technical headhunters sourcing active roles.",
     priceLabel: "$299",
     cadenceLabel: "per seat / month",
     billingCycle: "month",

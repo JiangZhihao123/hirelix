@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   FileText,
   LockKeyhole,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
@@ -32,11 +31,8 @@ import type { BillingPlanCode } from "@/lib/billing";
 import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
 import { BetaAccessSection } from "./_components/BetaAccessSection";
-import { ComparisonSection } from "./_components/ComparisonSection";
 import { CtaSection } from "./_components/CtaSection";
 import { FeaturesSection } from "./_components/FeaturesSection";
-import { HeroPreview } from "./_components/HeroPreview";
-import { HowItWorksSection } from "./_components/HowItWorksSection";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
 
 function getCookieValue(name: string) {
@@ -539,9 +535,9 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbfaf7] text-slate-950">
+    <div className="min-h-screen bg-slate-50 text-slate-950">
       {/* Nav */}
-      <nav className="fixed top-0 z-50 w-full border-b border-slate-200/80 bg-[#fbfaf7]/92 backdrop-blur-xl">
+      <nav className="fixed top-0 z-50 w-full border-b border-slate-200/80 bg-white/92 backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-[96rem] items-center justify-between px-5 sm:px-6">
           <div className="flex items-center gap-2.5">
             <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
@@ -549,7 +545,7 @@ export default function Home() {
           </div>
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
             <a href="#product" className="transition-colors hover:text-slate-950">Product</a>
-            <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
+            <a href="#workflow" className="transition-colors hover:text-slate-950">Workflow</a>
             <a href="#beta-access" className="transition-colors hover:text-slate-950">Beta access</a>
             <a href="#faq" className="transition-colors hover:text-slate-950">FAQ</a>
           </div>
@@ -565,7 +561,7 @@ export default function Home() {
               type="button"
               onClick={focusHeroJd}
               data-testid="nav-primary-cta"
-              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(37,99,235,0.22)] transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+              className="inline-flex items-center justify-center rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(67,56,202,0.22)] transition-all hover:-translate-y-0.5 hover:bg-indigo-800"
             >
               Paste client role
             </button>
@@ -574,30 +570,30 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section id="product" data-growth-section="首屏" className="relative overflow-hidden border-b border-slate-200/80 pt-24 pb-10 sm:pt-28 sm:pb-12">
+      <section id="product" data-growth-section="首屏" className="relative overflow-hidden border-b border-slate-200/80 bg-white pt-28 pb-14 sm:pt-34 sm:pb-20">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.035)_1px,transparent_1px)] bg-[size:64px_64px]" />
-        <div className="relative mx-auto grid max-w-[96rem] gap-8 px-5 sm:px-6 lg:grid-cols-[0.78fr_1.22fr] lg:items-center">
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-5 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
               <Sparkles className="h-3.5 w-3.5" />
-              For independent technical headhunters
+              For technical headhunters
             </div>
 
-            <h1 className="mt-5 max-w-[16ch] text-5xl font-extrabold leading-[0.96] tracking-tight text-slate-950 sm:text-[3.5rem] lg:text-[3.9rem]">
-              Turn a client JD into an evidence-backed{" "}
-              <span className="text-blue-600">technical shortlist.</span>
+            <h1 className="mt-6 max-w-[13ch] text-4xl font-extrabold leading-[1.06] tracking-tight text-slate-950 sm:text-[3rem] lg:text-[3.25rem]">
+              Explainable shortlists from real client JDs.
             </h1>
 
-            <p className="mt-5 max-w-[34rem] text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
-              Paste the role, get ranked candidates, review fit and risk evidence, then start
-              from an outreach draft instead of a blank page.
+            <p className="mt-5 max-w-[30rem] text-base leading-7 text-slate-600">
+              Paste the role. Hirelix ranks real profiles, shows fit evidence and risks, then drafts a first message.
             </p>
+          </div>
 
-            <form id="hero-form" onSubmit={handleSubmit} className="mt-6 max-w-[35rem]">
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.11)]">
+          <div>
+            <form id="hero-form" onSubmit={handleSubmit} className="mx-auto max-w-[40rem] text-left lg:mx-0">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.1)]">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <FileText className="h-4 w-4 text-blue-600" />
+                    <FileText className="h-4 w-4 text-indigo-700" />
                     Paste a job description
                   </div>
                   <span className="hidden text-xs font-medium text-emerald-700 sm:inline">
@@ -610,7 +606,7 @@ export default function Home() {
                   onChange={(e) => handleJdInput(e.target.value)}
                   placeholder="Paste the full client job description here..."
                   rows={3}
-                  className="min-h-28 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-sm leading-6 text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100"
+                  className="min-h-28 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-sm leading-6 text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100"
                 />
                 <div className="mt-3 flex flex-col gap-3 text-xs text-slate-600 sm:flex-row sm:items-start sm:justify-between">
                   <span>
@@ -624,7 +620,7 @@ export default function Home() {
                     type="button"
                     onClick={handleTrySample}
                     data-testid="hero-sample-link"
-                    className="self-start font-semibold text-blue-700 underline-offset-4 transition-colors hover:text-blue-900 hover:underline sm:self-auto"
+                    className="self-start font-semibold text-indigo-700 underline-offset-4 transition-colors hover:text-indigo-900 hover:underline sm:self-auto"
                   >
                     View sample shortlist
                   </button>
@@ -637,7 +633,7 @@ export default function Home() {
                   className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3.5 text-base font-semibold transition-all ${
                     heroPrimaryDisabled
                       ? "!cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
-                      : "bg-blue-600 text-white shadow-[0_18px_42px_rgba(37,99,235,0.26)] hover:-translate-y-0.5 hover:bg-blue-700"
+                      : "bg-indigo-700 text-white shadow-[0_18px_42px_rgba(67,56,202,0.26)] hover:-translate-y-0.5 hover:bg-indigo-800"
                   }`}
                 >
                   {isSubmitting ? "Opening your shortlist..." : "Build shortlist"}{" "}
@@ -649,8 +645,8 @@ export default function Home() {
             <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600">
               {[
                 { icon: CheckCircle2, label: "No credit card" },
+                { icon: CheckCircle2, label: "Real profiles" },
                 { icon: LockKeyhole, label: "Private JD handoff" },
-                { icon: ShieldCheck, label: "Evidence-backed decisions" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
                   <item.icon className="h-4 w-4 text-emerald-600" />
@@ -659,38 +655,16 @@ export default function Home() {
               ))}
             </div>
           </div>
-
-          <HeroPreview onSignInClick={handleGenericSignIn} />
-        </div>
-
-        <div className="relative mx-auto mt-8 max-w-[96rem] px-5 sm:px-6">
-          <div className="border-y border-slate-200 py-5">
-            <div className="grid gap-3 text-sm text-slate-500 sm:grid-cols-[1.05fr_1fr_1fr_1fr] sm:items-center">
-              <p className="font-semibold uppercase tracking-[0.16em] text-slate-400">
-                Built for independent technical headhunters
-              </p>
-              {[
-                "Fewer profiles to review",
-                "Faster first outreach",
-                "Client-ready shortlist",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-2 sm:justify-end">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <span className="font-medium text-slate-700">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {isColdEmailVisitor && (
           <div className="relative mx-auto mt-5 max-w-[96rem] px-5 sm:px-6">
-            <div className="grid gap-4 rounded-lg border border-blue-100 bg-blue-50/70 p-4 shadow-[0_18px_50px_rgba(37,99,235,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
+            <div className="grid gap-4 rounded-lg border border-indigo-100 bg-indigo-50/70 p-4 shadow-[0_18px_50px_rgba(67,56,202,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
               <div>
-                <p className="text-sm font-semibold text-blue-950">
+                <p className="text-sm font-semibold text-indigo-950">
                   Want me to run this on one real client role?
                 </p>
-                <p className="mt-1 text-sm leading-6 text-blue-900/80">
+                <p className="mt-1 text-sm leading-6 text-indigo-900/80">
                   Send a role title or JD snippet. I can run a small beta preview before you spend
                   time setting anything up.
                 </p>
@@ -698,14 +672,14 @@ export default function Home() {
                   <a
                     href="mailto:jzh_spring@163.com?subject=Hirelix%2010%20minute%20feedback%20chat&body=Hi%20Noah%2C%0A%0AI%20can%20do%20a%20short%20feedback%20chat%20about%20Hirelix.%0A%0ATimes%20that%20work%3A%0A"
                     onClick={handleBookFeedbackClick}
-                    className="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-3.5 py-2 text-sm font-semibold text-blue-700 transition-colors hover:border-blue-300 hover:text-blue-900"
+                    className="inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:border-indigo-300 hover:text-indigo-900"
                   >
                     Book 10 min feedback
                   </a>
                   <a
                     href="mailto:jzh_spring@163.com?subject=Re%3A%20Hirelix"
                     onClick={handleReplyEmailClick}
-                    className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold text-blue-700 transition-colors hover:text-blue-900 hover:underline"
+                    className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:text-indigo-900 hover:underline"
                   >
                     Reply by email
                   </a>
@@ -723,7 +697,7 @@ export default function Home() {
                       setPreviewRequestStatus("idle");
                     }}
                     placeholder="Your work email"
-                    className="min-h-11 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    className="min-h-11 rounded-lg border border-indigo-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100"
                     aria-label="Work email for preview reply"
                   />
                   <input
@@ -735,12 +709,12 @@ export default function Home() {
                       setPreviewRequestStatus("idle");
                     }}
                     placeholder="Role title or JD snippet"
-                    className="min-h-11 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-400 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                    className="min-h-11 rounded-lg border border-indigo-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100"
                     aria-label="Role title or job description snippet"
                   />
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs leading-5 text-blue-900/70" aria-live="polite">
+                  <p className="text-xs leading-5 text-indigo-900/70" aria-live="polite">
                     {previewRequestStatus === "submitting"
                       ? "Sending request..."
                       : previewSubmitted
@@ -755,8 +729,8 @@ export default function Home() {
                     aria-busy={previewRequestStatus === "submitting"}
                     className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
                       canSubmitPreviewRequest && previewRequestStatus !== "submitting"
-                        ? "bg-blue-600 text-white hover:bg-blue-700"
-                        : "cursor-not-allowed bg-blue-100 text-blue-400"
+                        ? "bg-indigo-700 text-white hover:bg-indigo-800"
+                        : "cursor-not-allowed bg-indigo-100 text-indigo-400"
                     }`}
                   >
                     {previewRequestStatus === "submitting" ? "Sending..." : "Send a JD for preview"}
@@ -770,15 +744,15 @@ export default function Home() {
       </section>
 
       {sampleShortlistOpen && (
-        <section id="sample-shortlist" data-growth-section="产品示例" className="scroll-mt-24 border-b border-slate-200 bg-white py-14">
-          <div className="mx-auto max-w-[96rem] px-5 sm:px-6">
+        <section id="sample-shortlist" data-growth-section="产品示例" className="scroll-mt-24 border-b border-slate-200 bg-white py-12">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
                   Sample shortlist
                 </p>
                 <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
-                  What a solo headhunter reviews after a client JD.
+                  What a technical headhunter reviews after a client JD.
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                   This is a static example. Run your own role when you want Hirelix to build the real shortlist.
@@ -787,7 +761,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={focusHeroJd}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-800"
               >
                 Paste a real client role
                 <ArrowRight className="h-4 w-4" />
@@ -807,7 +781,7 @@ export default function Home() {
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-600 text-xs font-bold text-white">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-950 text-xs font-bold text-white">
                         {index + 1}
                       </span>
                       <p className="truncate text-sm font-semibold text-slate-950">{candidate.name}</p>
@@ -819,7 +793,7 @@ export default function Home() {
                     index === 0
                       ? "bg-emerald-50 text-emerald-700"
                       : index === 1
-                        ? "bg-blue-50 text-blue-700"
+                        ? "bg-indigo-50 text-indigo-700"
                         : "bg-amber-50 text-amber-700"
                   }`}>
                     {index === 0 ? "Reach out first" : index === 1 ? "Worth reviewing" : "Risk to verify"}
@@ -841,8 +815,6 @@ export default function Home() {
       )}
 
       <FeaturesSection />
-      <HowItWorksSection />
-      <ComparisonSection />
       <BetaAccessSection onStart={focusHeroJd} />
       <ObjectionsSection />
       <CtaSection

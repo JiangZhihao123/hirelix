@@ -5,18 +5,17 @@ test.describe("Responsive - Landing Page", () => {
 
   test("should show the mobile landing hero and primary action", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Turn a client JD into an evidence-backed technical shortlist/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Explainable shortlists from real client JDs/i })).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toBeVisible();
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
     await expect(page.getByTestId("nav-primary-cta")).toBeVisible();
   });
 
-  test("should keep the JD form and shortlist preview usable on mobile", async ({ page }) => {
+  test("should keep the JD form and beta section usable on mobile", async ({ page }) => {
     await page.goto("/");
     await expect(
       page.getByPlaceholder("Paste the full client job description here..."),
     ).toBeVisible();
-    await expect(page.getByText("James Liu")).toBeVisible();
     await expect(page.getByText("Invite-only beta")).toBeVisible();
   });
 
@@ -29,9 +28,9 @@ test.describe("Responsive - Landing Page", () => {
 
   test("should still render the major conversion sections on mobile", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Turn a client JD into an evidence-backed technical shortlist/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "From client JD to client-ready shortlist" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Why solo headhunters stop reviewing every profile manually" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Explainable shortlists from real client JDs/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Spend the first pass on judgment, not sorting." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Try one client role before comparing plans." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
   });
 });

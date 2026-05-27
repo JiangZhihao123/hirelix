@@ -127,7 +127,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           description="Two choices, same benefits. Annual just gives you the lower rate."
         >
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Hirelix is built for independent technical headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
+            Hirelix is built for technical headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
             <a
               className="font-medium underline decoration-amber-400 underline-offset-2"
               href="mailto:support@hirelix.online"

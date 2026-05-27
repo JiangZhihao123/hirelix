@@ -15,7 +15,7 @@ export function ObjectionsSection() {
     {
       icon: Search,
       title: "Who is this built for first?",
-      desc: "Independent technical headhunters who need a credible shortlist faster than manual profile review.",
+      desc: "Technical headhunters who need a credible shortlist faster than manual profile review.",
     },
     {
       icon: LockKeyhole,
@@ -25,10 +25,10 @@ export function ObjectionsSection() {
   ];
 
   return (
-    <section id="faq" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-20 sm:py-28">
+    <section id="faq" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-16 sm:py-24">
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
             FAQ
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
@@ -43,14 +43,14 @@ export function ObjectionsSection() {
           {items.map((item) => (
             <div
               key={item.title}
-              className="group flex items-start gap-4 rounded-2xl border border-slate-200 bg-white p-6 transition-all hover:border-sky-200 hover:shadow-[0_14px_36px_rgba(14,165,233,0.1)]"
+              className="group flex items-start gap-4 rounded-lg border border-slate-200 bg-white p-6 transition-all hover:border-indigo-200 hover:shadow-[0_14px_36px_rgba(67,56,202,0.08)]"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">
                 <item.icon className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="text-base font-semibold text-slate-950">
-                  <span className="mr-1.5 text-sky-600">Q.</span>
+                  <span className="mr-1.5 text-indigo-700">Q.</span>
                   {item.title}
                 </h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-600">

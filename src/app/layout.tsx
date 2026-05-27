@@ -16,9 +16,9 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hirelix.online"),
-  title: "Hirelix — Evidence-Backed Technical Shortlists",
+  title: "Hirelix — Explainable Technical Shortlists",
   description:
-    "Turn a client JD into an evidence-backed technical shortlist with fit reasons, risks to verify, and outreach-ready candidates.",
+    "Paste a real client JD and get an explainable technical shortlist with fit reasons, risks to verify, and outreach starting points.",
   alternates: {
     canonical: "/",
   },
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Hirelix — Evidence-Backed Technical Shortlists",
+    title: "Hirelix — Explainable Technical Shortlists",
     description:
-      "Turn a client JD into an evidence-backed technical shortlist with fit reasons, risks to verify, and outreach-ready candidates.",
+      "Paste a real client JD and get an explainable technical shortlist with fit reasons, risks to verify, and outreach starting points.",
     type: "website",
     url: "https://hirelix.online",
     siteName: "Hirelix",
@@ -47,9 +47,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Hirelix — Evidence-Backed Technical Shortlists",
+    title: "Hirelix — Explainable Technical Shortlists",
     description:
-      "Turn a client JD into an evidence-backed technical shortlist with fit reasons, risks to verify, and outreach-ready candidates.",
+      "Paste a real client JD and get an explainable technical shortlist with fit reasons, risks to verify, and outreach starting points.",
     images: ["https://hirelix.online/og-image.png"],
   },
 };
