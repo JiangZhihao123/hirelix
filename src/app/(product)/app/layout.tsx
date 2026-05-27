@@ -9,7 +9,6 @@ import { PlanStatusCard } from "@/components/PlanStatusCard";
 import { LoginForm } from "@/components/LoginForm";
 import { ProductShellSkeleton } from "@/components/ProductSkeletons";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
-import { isAdminEmail } from "@/lib/admin";
 import { BillingProvider, useBilling } from "@/lib/use-billing";
 import {
   Search,
@@ -45,6 +44,7 @@ function ProductLayoutShell({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const hasTrackedSigninViewRef = useRef(false);
   const pendingJd = useSyncExternalStore(
     () => () => {},
@@ -72,7 +72,6 @@ function ProductLayoutShell({
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
   const isAdminRoute = pathname.startsWith("/app/admin");
-  const isAdmin = isAdminEmail(user?.email, process.env.NEXT_PUBLIC_ADMIN_EMAIL);
 
   const getNavClassName = (isActive: boolean) =>
     `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -101,6 +100,27 @@ function ProductLayoutShell({
     router.prefetch("/app/search/new");
     router.prefetch("/app/settings");
   }, [router, user]);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    let isCurrent = true;
+
+    fetch("/api/admin", { method: "HEAD", credentials: "include" })
+      .then((res) => {
+        if (isCurrent) setIsAdmin(res.ok);
+      })
+      .catch(() => {
+        if (isCurrent) setIsAdmin(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!sidebarOpen) return;

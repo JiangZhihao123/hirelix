@@ -25,6 +25,12 @@ export async function requireAdmin(
   return { user: { id: user.id, email: user.email! } };
 }
 
+export async function HEAD(req: NextRequest) {
+  const authResult = await requireAdmin(req);
+  if (authResult instanceof NextResponse) return authResult;
+  return new NextResponse(null, { status: 204 });
+}
+
 // GET /api/admin — 全量统计数据
 export async function GET(req: NextRequest) {
   const authResult = await requireAdmin(req);
