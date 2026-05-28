@@ -138,7 +138,7 @@ export async function POST(
         {
           error:
             billing.plan.code === "free"
-              ? "You have used your free email lookups. Start a subscription for more email lookups, export, and outreach."
+              ? "Start a subscription to unlock email lookup, export, and client-ready briefs."
               : "You have reached this month's email lookup limit. Your next cycle will reset automatically.",
         },
         { status: 403 },

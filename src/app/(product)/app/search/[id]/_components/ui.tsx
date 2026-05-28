@@ -116,6 +116,7 @@ export function ContactActionStrip({
     : "rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4";
   const textClass = compact ? "text-xs" : "text-sm";
   const hintClass = compact ? "mt-1 text-[11px]" : "mt-1 text-xs";
+  const requiresUpgrade = billingPlanCode === "free" || enrichesRemaining <= 0;
 
   return (
     <div className={wrapperClass}>
@@ -128,15 +129,15 @@ export function ContactActionStrip({
             </p>
           </div>
           <p className={`${hintClass} text-amber-700`}>
-            {enrichesRemaining > 0
-              ? "Find this candidate's email when you're ready to reach out."
-              : billingPlanCode === "free"
-                ? "Start a subscription for more email lookups after this trial."
+            {billingPlanCode === "free"
+              ? "Upgrade when you are ready to contact candidates from this shortlist."
+              : enrichesRemaining > 0
+                ? "Find this candidate's email when you're ready to reach out."
                 : "Your monthly email lookup limit has been used."}
           </p>
         </div>
 
-        {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
+        {requiresUpgrade && billingPlanCode === "free" ? (
           <PaddleCheckoutButton
             checkout={{ type: "plan", planCode: "starter_monthly" }}
             label="Start monthly"
@@ -144,7 +145,7 @@ export function ContactActionStrip({
             onError={onError}
             className="inline-flex shrink-0 cursor-pointer items-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
           />
-        ) : enrichesRemaining <= 0 ? (
+        ) : requiresUpgrade ? (
           <span className="inline-flex shrink-0 items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
             Limit reached
           </span>

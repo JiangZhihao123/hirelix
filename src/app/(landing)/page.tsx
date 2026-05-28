@@ -13,10 +13,10 @@ import Image from "next/image";
 import {
   ArrowRight,
   FileText,
-  ListChecks,
   MailCheck,
   Search,
   Sparkles,
+  UserSearch,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -31,10 +31,10 @@ import { getJdLengthBucket } from "@/lib/growth-client";
 import type { BillingPlanCode } from "@/lib/billing";
 import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
-import { BetaAccessSection } from "./_components/BetaAccessSection";
 import { CtaSection } from "./_components/CtaSection";
-import { FeaturesSection } from "./_components/FeaturesSection";
+import { FeaturesSection, HowItWorksSection, ResourcesSection } from "./_components/FeaturesSection";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
+import { PricingSection } from "./_components/PricingSection";
 
 function getCookieValue(name: string) {
   if (typeof document === "undefined") return null;
@@ -545,10 +545,10 @@ export default function Home() {
             <span className="text-xl font-bold tracking-tight text-slate-950">Hirelix</span>
           </div>
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
-            <a href="#product" className="transition-colors hover:text-slate-950">Product</a>
-            <a href="#workflow" className="transition-colors hover:text-slate-950">Workflow</a>
-            <a href="#beta-access" className="transition-colors hover:text-slate-950">Beta access</a>
-            <a href="#faq" className="transition-colors hover:text-slate-950">FAQ</a>
+            <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
+            <a href="#features" className="transition-colors hover:text-slate-950">Features</a>
+            <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>
+            <a href="#resources" className="transition-colors hover:text-slate-950">Resources</a>
           </div>
           <div className="flex items-center gap-2.5">
             <button
@@ -648,8 +648,8 @@ export default function Home() {
 
             <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600">
               {[
-                { icon: Search, label: "Parallel profile research" },
-                { icon: ListChecks, label: "Fit + risk evidence" },
+                { icon: UserSearch, label: "Real profiles" },
+                { icon: Search, label: "Public evidence research" },
                 { icon: MailCheck, label: "Outreach drafts included" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
@@ -818,8 +818,10 @@ export default function Home() {
         </section>
       )}
 
+      <HowItWorksSection />
       <FeaturesSection />
-      <BetaAccessSection onStart={focusHeroJd} />
+      <PricingSection onStart={focusHeroJd} />
+      <ResourcesSection onStart={focusHeroJd} />
       <ObjectionsSection />
       <CtaSection
         onTrySample={handleTrySample}

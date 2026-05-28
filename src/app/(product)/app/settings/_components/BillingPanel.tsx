@@ -105,7 +105,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               </p>
               <p className="mt-2 text-sm text-slate-600">
                 {billing.plan.code === "free"
-                  ? "One complete 25-candidate shortlist is included, with email lookup available when needed."
+                  ? "One complete 25-candidate shortlist is included, with fit evidence, risks, and outreach drafts."
                   : "25-candidate shortlists, email lookup, export, outreach, and briefs are included."}
               </p>
             </div>

@@ -82,6 +82,7 @@ export function CandidateCard({
   const [editedLinkedin, setEditedLinkedin] = useState(outreach.linkedin);
   const [editedEmail, setEditedEmail] = useState(outreach.email);
   const { user } = useAuth();
+  const requiresEmailUpgrade = billingPlanCode === "free";
 
   // Sync when candidate prop changes
   useEffect(() => {
@@ -100,6 +101,11 @@ export function CandidateCard({
 
   async function handleEnrich() {
     if (enriching || !user) return;
+    if (requiresEmailUpgrade) {
+      onUpgradeClick("candidate_email_lookup");
+      setEnrichError("Start a subscription to unlock email lookup.");
+      return;
+    }
     setEnrichError(null);
     setEnriching(true);
     try {
@@ -693,12 +699,10 @@ export function CandidateCard({
                   <p className="mb-1 text-sm font-medium text-foreground">Outreach draft is being completed</p>
                   <p className="mb-4 text-xs text-muted">
                     {billingPlanCode === "free"
-                      ? enrichesRemaining > 0
-                        ? "You still have email lookups for this 25-person trial. Find the email when you are ready to act."
-                        : "You already have the ranked candidate list. Start a subscription when you need more email lookups."
+                      ? "You already have the ranked candidate list. Start a subscription when you are ready to contact candidates."
                       : "Find the email when you are ready to act on this candidate."}
                   </p>
-                  {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
+                  {requiresEmailUpgrade ? (
                     <PaddleCheckoutButton
                       checkout={{ type: "plan", planCode: "starter_monthly" }}
                       label="Start monthly"

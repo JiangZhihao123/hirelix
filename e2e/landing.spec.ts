@@ -18,15 +18,26 @@ test.describe("Landing Page", () => {
     await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build shortlist/i);
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
     await expect(page.getByText("No setup required")).toHaveCount(0);
+    await expect(page.getByText("Beta access")).toHaveCount(0);
+    await expect(page.getByText("Invite-only beta")).toHaveCount(0);
     const hero = page.locator("#product");
-    await expect(hero.getByText("Parallel profile research")).toBeVisible();
-    await expect(hero.getByText("Fit + risk evidence")).toBeVisible();
-    await expect(hero.getByText("Outreach drafts included")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Spend the first pass on judgment, not sorting." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Try one client role before comparing plans." })).toBeVisible();
+    await expect(hero.getByText("Real profiles", { exact: true })).toBeVisible();
+    await expect(hero.getByText("Public evidence research", { exact: true })).toBeVisible();
+    await expect(hero.getByText("Outreach drafts included", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#how-it-works");
+    await expect(page.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
+    await expect(page.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "#pricing");
+    await expect(page.getByRole("link", { name: "Resources" })).toHaveAttribute("href", "#resources");
+    await expect(page.getByRole("heading", { name: "From client role to ranked shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start with one complete shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Start with the role already on your desk." })).toBeVisible();
     await expect(page.getByText("Hirelix's AI agents search, score, and research real profiles")).toBeVisible();
+    await expect(page.locator("#features").getByText("GitHub, papers, technical blogs")).toBeVisible();
+    await expect(page.getByText("patent")).toHaveCount(0);
+    await expect(page.getByText("news reporting")).toHaveCount(0);
   });
 
   test("hero CTA should clearly communicate the disabled state", async ({ page }) => {
@@ -93,14 +104,16 @@ test.describe("Landing Page", () => {
     expect(String(payload.callbackURL)).toContain("/app/search/new");
   });
 
-  test("beta access CTA should return focus to the JD form instead of opening pricing", async ({ page }) => {
-    await page.getByRole("heading", { name: "Try one client role before comparing plans." }).scrollIntoViewIfNeeded();
-    const betaAccess = page.locator("#beta-access");
-    await expect(page.getByText("Invite-only beta")).toBeVisible();
-    await expect(page.getByText("1 complete 25-person shortlist included")).toBeVisible();
-    await expect(page.getByText("Limited monthly beta seats")).toBeVisible();
+  test("pricing CTA should return focus to the JD form", async ({ page }) => {
+    await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
+    const pricing = page.locator("#pricing");
+    await expect(pricing.getByText("Free first run")).toBeVisible();
+    await expect(pricing.getByText("Run one complete 25-profile shortlist before you pay.")).toBeVisible();
+    await expect(pricing.getByText("No candidate email lookup")).toHaveCount(0);
+    await expect(pricing.getByText("email lookups per month")).toHaveCount(2);
+    await expect(pricing.getByText("Export and client-ready briefs included")).toHaveCount(2);
 
-    await betaAccess.getByRole("button", { name: "Build shortlist" }).click();
+    await pricing.getByRole("button", { name: "Try for free" }).click();
 
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
     await expect(page.getByPlaceholder("Paste the full client job description here...")).toBeFocused();
@@ -132,12 +145,13 @@ test.describe("Landing Page mobile responsiveness", () => {
     await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
   });
 
-  test("should keep mobile beta access focused on the preview offer", async ({ page }) => {
-    await page.getByRole("heading", { name: "Try one client role before comparing plans." }).scrollIntoViewIfNeeded();
+  test("should keep mobile pricing focused on the first run", async ({ page }) => {
+    await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
+    const pricing = page.locator("#pricing");
 
-    await expect(page.getByText("Invite-only beta")).toBeVisible();
-    await expect(page.getByText("1 complete 25-person shortlist included")).toBeVisible();
-    await expect(page.getByText("Limited monthly beta seats")).toBeVisible();
+    await expect(pricing.getByText("Free first run")).toBeVisible();
+    await expect(pricing.getByText("Ranked 25-profile shortlist")).toBeVisible();
+    await expect(pricing.getByText("Fit evidence and risks")).toBeVisible();
     await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
   });
 });

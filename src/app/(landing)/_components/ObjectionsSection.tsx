@@ -1,4 +1,4 @@
-import { Database, LockKeyhole, Search, ShieldCheck } from "lucide-react";
+import { Database, Mail, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 export function ObjectionsSection() {
   const items = [
@@ -9,18 +9,23 @@ export function ObjectionsSection() {
     },
     {
       icon: ShieldCheck,
-      title: "Do I need to pay before seeing value?",
-      desc: "No credit card is required to build the first complete 25-person shortlist. Upgrade when email lookup or export saves you time.",
+      title: "What public evidence does Hirelix research?",
+      desc: "Hirelix checks sources like GitHub, papers, technical blogs, company engineering blogs, open-source packages, Stack Overflow, talks, personal sites, and portfolios.",
     },
     {
       icon: Search,
-      title: "Who is this built for first?",
-      desc: "Technical headhunters who need a credible shortlist faster than manual profile review.",
+      title: "What do I get from the first run?",
+      desc: "A ranked 25-profile shortlist with fit evidence, risks to verify, and personalized outreach starting points.",
     },
     {
-      icon: LockKeyhole,
-      title: "What happens after my beta preview?",
-      desc: "You can keep reviewing the shortlist. Subscribe only if the 25-person result is useful enough to work.",
+      icon: Mail,
+      title: "Do you send outreach automatically?",
+      desc: "No. Hirelix drafts outreach so you can review, edit, and decide when to contact a candidate.",
+    },
+    {
+      icon: Sparkles,
+      title: "What happens when I am ready to contact candidates?",
+      desc: "Continue from the ranked shortlist, unlock the workflow capabilities you need, and work the candidate pool inside the product.",
     },
   ];
 
@@ -29,13 +34,13 @@ export function ObjectionsSection() {
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-            FAQ
+            Questions
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
             The first questions before you paste a client role
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Short answers for the trust checks that matter before a beta preview.
+            Short answers for the trust checks that matter before the first shortlist.
           </p>
         </div>
 

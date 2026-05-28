@@ -88,7 +88,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     billingCycle: null,
     searchesPerMonth: 1,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 25,
+    enrichesPerMonth: 0,
     exportEnabled: false,
     clientBriefEnabled: false,
     priceCents: 0,
@@ -274,7 +274,7 @@ export function getPlanStatusCopy(
       ? "No shortlist builds left this cycle"
       : `${searchesRemaining} / ${searchesLimit} shortlist builds left`,
     capabilityLabel: isFreePlan
-      ? "Includes one complete 25-candidate shortlist, with email lookup available when you need it"
+      ? "Includes one complete 25-candidate shortlist with fit evidence, risks, and outreach drafts"
       : "Everything is unlocked: 25-candidate shortlists, email lookup, export, outreach, and client-ready briefs",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",

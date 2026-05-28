@@ -60,7 +60,7 @@ test("MVP billing plans expose one free trial and two paid choices", () => {
   assert.equal(BILLING_PLANS.free.searchesPerMonth, 1);
   assert.equal(BILLING_PLANS.free.clientBriefEnabled, false);
   assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 25);
-  assert.equal(BILLING_PLANS.free.enrichesPerMonth, 25);
+  assert.equal(BILLING_PLANS.free.enrichesPerMonth, 0);
   assert.deepEqual([...CUSTOMER_BILLING_PLAN_CODES], ["starter_monthly", "starter_annual"]);
   assert.equal(BILLING_PLANS.starter_monthly.name, "Monthly");
   assert.equal(BILLING_PLANS.starter_monthly.priceLabel, "$149");

@@ -109,6 +109,7 @@ export function CandidateWorkbenchDetail({
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [localCandidate, setLocalCandidate] = useState(candidate);
   const { user } = useAuth();
+  const requiresEmailUpgrade = billingPlanCode === "free";
 
   useEffect(() => {
     setLocalCandidate(candidate);
@@ -280,6 +281,11 @@ export function CandidateWorkbenchDetail({
 
   async function handleEnrich(options: { regenerateOutreach?: boolean } = {}) {
     if (enriching || !user) return;
+    if (!options.regenerateOutreach && requiresEmailUpgrade) {
+      onUpgradeClick("workbench_email_lookup");
+      setEnrichError("Start a subscription to unlock email lookup.");
+      return;
+    }
     setEnrichError(null);
     setEnriching(true);
     try {
@@ -1248,12 +1254,10 @@ export function CandidateWorkbenchDetail({
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   {billingPlanCode === "free"
-                    ? enrichesRemaining > 0
-                      ? "You still have email lookups for this 25-person trial. Find the email when you are ready to act."
-                      : "Start a subscription when you need more email lookups and export."
+                    ? "You already have the ranked candidate list. Start a subscription when you are ready to contact candidates."
                     : "Generate the outreach draft and find the email when you're ready to act on this candidate."}
                 </p>
-                {enrichesRemaining <= 0 && billingPlanCode === "free" ? (
+                {requiresEmailUpgrade ? (
                   <PaddleCheckoutButton
                     checkout={{ type: "plan", planCode: "starter_monthly" }}
                     label="Start monthly"
