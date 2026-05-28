@@ -59,7 +59,7 @@ export type AnalyticsEventName =
 
 export type DeviceType = "desktop" | "mobile";
 export type IntentPath = "sample" | "direct_jd" | "signin" | "unknown";
-export type EntryMode = "landing" | "signin" | "workspace";
+export type EntryMode = "landing" | "signin" | "free_trial" | "workspace";
 
 export type LandingHeadlineVariant = "speed" | "results";
 export type LandingCtaVariant = "paste_jd" | "find_candidates";
@@ -158,7 +158,7 @@ function normalizeIntentPath(value: string | null): IntentPath {
 }
 
 function normalizeEntryMode(value: string | null): EntryMode {
-  if (value === "landing" || value === "signin") {
+  if (value === "landing" || value === "signin" || value === "free_trial") {
     return value;
   }
 

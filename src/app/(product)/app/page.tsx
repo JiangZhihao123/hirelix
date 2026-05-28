@@ -263,10 +263,14 @@ export default function DashboardPage() {
   }, [activeSearches.length, fetchData]);
 
   useEffect(() => {
-    if (loading || searches.length > 0 || analyticsContext.entry_mode !== "signin") return;
+    if (
+      loading ||
+      searches.length > 0 ||
+      (analyticsContext.entry_mode !== "signin" && analyticsContext.entry_mode !== "free_trial")
+    ) return;
 
     startTransition(() => {
-      router.replace("/app/search/new?entry=signin");
+      router.replace(`/app/search/new?entry=${analyticsContext.entry_mode}`);
     });
   }, [analyticsContext.entry_mode, loading, router, searches.length]);
 

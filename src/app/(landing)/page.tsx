@@ -320,7 +320,7 @@ export default function Home() {
     pathname: string,
     intentPath: IntentPath,
     extra?: Record<string, string | number>,
-    entryMode: "landing" | "signin" | "workspace" = "landing",
+    entryMode: "landing" | "signin" | "free_trial" | "workspace" = "landing",
   ) {
     const context = getAnalyticsContextFromBrowser({
       entry_mode: entryMode,
@@ -398,7 +398,7 @@ export default function Home() {
   }
 
   function handleGenericSignIn() {
-    router.push(buildTrackedHref("/app/search/new", "signin", undefined, "signin"));
+    router.push(buildTrackedHref("/app", "signin", undefined, "signin"));
   }
 
   function handleHomeReload(event: MouseEvent<HTMLAnchorElement>) {
@@ -407,10 +407,10 @@ export default function Home() {
   }
 
   function handleTryForFree() {
-    const href = buildTrackedHref("/app/search/new", "signin", undefined, "signin");
+    const href = buildTrackedHref("/app/search/new", "signin", undefined, "free_trial");
     trackEvent(ANALYTICS_EVENTS.heroPrimaryCtaClick, {
       ...getAnalyticsContextFromBrowser({
-        entry_mode: "signin",
+        entry_mode: "free_trial",
         page_variant: experiments.pageVariant,
         intent_path: "signin",
       }),
@@ -424,10 +424,10 @@ export default function Home() {
   }
 
   function handlePricingStart() {
-    const href = buildTrackedHref("/app/search/new", "signin", undefined, "signin");
+    const href = buildTrackedHref("/app/search/new", "signin", undefined, "free_trial");
     trackEvent(ANALYTICS_EVENTS.pricingPlanSelect, {
       ...getAnalyticsContextFromBrowser({
-        entry_mode: "signin",
+        entry_mode: "free_trial",
         page_variant: experiments.pageVariant,
         intent_path: "signin",
       }),

@@ -39,6 +39,15 @@ test.describe("Authentication Page", () => {
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeEnabled();
   });
 
+  test("should frame the free-trial entry as a first shortlist", async ({ page }) => {
+    await page.goto("/app/search/new?entry=free_trial");
+
+    await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
+    await expect(page.getByText("Run one complete 25-profile shortlist before you pay.")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
+    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
+  });
+
   test("should send and verify an email sign-in code", async ({ page }) => {
     const sendOtpPayloads: Array<Record<string, unknown>> = [];
     const signInPayloads: Array<Record<string, unknown>> = [];

@@ -163,7 +163,9 @@ export default function SearchResultPage() {
       ? "landing"
       : searchParams.get("entry") === "signin"
         ? "signin"
-        : "workspace",
+        : searchParams.get("entry") === "free_trial"
+          ? "free_trial"
+          : "workspace",
   });
 
   const hasPriorityCandidates = candidates.some(

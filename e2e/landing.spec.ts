@@ -97,7 +97,7 @@ test.describe("Landing Page", () => {
     });
 
     await page.getByRole("button", { name: /Sign in/i }).first().click();
-    await expect(page).toHaveURL(/\/app\/search\/new/);
+    await expect(page).toHaveURL(/\/app\?.*entry=signin/);
     await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
     await page.getByRole("button", { name: /Continue with Google/i }).click();
 
@@ -106,15 +106,17 @@ test.describe("Landing Page", () => {
     expect(payload).toMatchObject({
       provider: "google",
     });
-    expect(String(payload.callbackURL)).toContain("/app/search/new");
+    expect(String(payload.callbackURL)).toContain("/app");
+    expect(String(payload.callbackURL)).toContain("entry=signin");
   });
 
-  test("nav Try for free should enter the product sign-up flow", async ({ page }) => {
+  test("nav Try for free should enter the free-trial flow", async ({ page }) => {
     await page.getByTestId("nav-primary-cta").click();
 
-    await expect(page).toHaveURL(/\/app\/search\/new/);
+    await expect(page).toHaveURL(/\/app\/search\/new\?.*entry=free_trial/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
+    await expect(page.getByText("Run one complete 25-profile shortlist before you pay.")).toBeVisible();
   });
 
   test("pricing CTAs should enter product sign-up and billing flows", async ({ page }) => {
@@ -128,9 +130,9 @@ test.describe("Landing Page", () => {
 
     await pricing.getByRole("button", { name: "Try for free" }).click();
 
-    await expect(page).toHaveURL(/\/app\/search\/new/);
+    await expect(page).toHaveURL(/\/app\/search\/new\?.*entry=free_trial/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
 
     await page.goto("/");
     await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();

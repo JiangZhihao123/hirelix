@@ -8,7 +8,12 @@ import { useAuth } from "@/components/AuthProvider";
 import { PlanStatusCard } from "@/components/PlanStatusCard";
 import { LoginForm } from "@/components/LoginForm";
 import { ProductShellSkeleton } from "@/components/ProductSkeletons";
-import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
+import {
+  ANALYTICS_EVENTS,
+  getAnalyticsContextFromBrowser,
+  trackEvent,
+  type EntryMode,
+} from "@/lib/analytics";
 import { BillingProvider, useBilling } from "@/lib/use-billing";
 import {
   Search,
@@ -47,6 +52,12 @@ function ProductLayoutShell({
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const [adminAccess, setAdminAccess] = useState<{ userId: string; isAdmin: boolean } | null>(null);
   const hasTrackedSigninViewRef = useRef(false);
+  const normalizeEntryMode = (value: string | null): EntryMode => {
+    if (value === "landing" || value === "signin" || value === "free_trial") {
+      return value;
+    }
+    return "workspace";
+  };
   const pendingJd = useSyncExternalStore(
     () => () => {},
     () => {
@@ -56,12 +67,12 @@ function ProductLayoutShell({
     },
     () => "",
   );
-  const entryMode = useSyncExternalStore(
+  const entryMode = useSyncExternalStore<EntryMode>(
     () => () => {},
     () => {
       if (typeof window === "undefined") return "workspace";
       const params = new URLSearchParams(window.location.search);
-      return params.get("entry") || "workspace";
+      return normalizeEntryMode(params.get("entry"));
     },
     () => "workspace",
   );
@@ -69,6 +80,7 @@ function ProductLayoutShell({
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
   const isNewSearchRoute = pathname === "/app/search/new";
   const isSearchDetailRoute = pathname.startsWith("/app/search/") && !isNewSearchRoute;
+  const isFreeTrialEntry = entryMode === "free_trial";
   const isDashboardRoute =
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
@@ -89,7 +101,7 @@ function ProductLayoutShell({
     hasTrackedSigninViewRef.current = true;
     trackEvent(ANALYTICS_EVENTS.signinView, {
       ...getAnalyticsContextFromBrowser({
-        entry_mode: isSearchIntent ? "landing" : entryMode === "signin" ? "signin" : "workspace",
+        entry_mode: entryMode,
       }),
       route: pathname,
       has_prefilled_jd: isSearchIntent,
@@ -153,8 +165,17 @@ function ProductLayoutShell({
           <span className="text-2xl font-bold tracking-tight">Hirelix</span>
         </div>
         <h1 className="text-center text-xl font-semibold">
-          {isSearchIntent ? "Sign in to open your shortlist" : "Sign in to Hirelix"}
+          {isSearchIntent
+            ? "Sign in to open your shortlist"
+            : isFreeTrialEntry
+              ? "Start your free shortlist"
+              : "Sign in to Hirelix"}
         </h1>
+        {isFreeTrialEntry && !isSearchIntent ? (
+          <p className="-mt-5 max-w-sm text-center text-sm leading-6 text-muted">
+            Run one complete 25-profile shortlist before you pay.
+          </p>
+        ) : null}
         {isSearchIntent && (
           <div className="w-full max-w-xl rounded-xl border border-border bg-surface p-4 text-left">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-light">
