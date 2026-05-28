@@ -175,7 +175,6 @@ export default function SettingsPage() {
 
     return (
       <AccountSection
-        user={user}
         signInMethods={signInMethods}
         onPasswordSet={() => {
           setSignInMethods((prev) =>

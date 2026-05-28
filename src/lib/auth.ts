@@ -29,6 +29,24 @@ function getOtpFromEmail() {
     "Hirelix <notifications@hirelix.online>";
 }
 
+function getTrustedOrigins() {
+  const configuredOrigins = [
+    process.env.BETTER_AUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXT_PUBLIC_SITE_URL,
+  ];
+
+  return Array.from(
+    new Set(
+      [
+        ...configuredOrigins,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+      ].filter((origin): origin is string => Boolean(origin)),
+    ),
+  );
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -91,6 +109,7 @@ export const auth = betterAuth({
     }),
     secret: readEnv("BETTER_AUTH_SECRET"),
     baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
+    trustedOrigins: getTrustedOrigins(),
     socialProviders: {
       google: {
         clientId: readEnv("GOOGLE_CLIENT_ID"),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Check, KeyRound, Loader2, Mail } from "lucide-react";
+import { Check, KeyRound, Loader2 } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 import { fetchWithUserSession } from "@/lib/client-auth";
@@ -11,10 +11,6 @@ import {
   SettingsFieldGroup,
   SettingsSection,
 } from "./shared";
-
-type AccountUser = {
-  email?: string;
-} | null;
 
 function getPasswordError(error: unknown) {
   const message =
@@ -38,11 +34,9 @@ function getPasswordError(error: unknown) {
 }
 
 export function AccountSection({
-  user,
   signInMethods,
   onPasswordSet,
 }: {
-  user: AccountUser;
   signInMethods: string[];
   onPasswordSet: () => void;
 }) {
@@ -119,30 +113,9 @@ export function AccountSection({
       id="account"
       eyebrow="Account"
       title="Account"
-      description="Manage the email identity and password used to sign in to Hirelix."
+      description="Manage password sign-in for this account."
     >
       <div className="space-y-5">
-        <SettingsFieldGroup
-          title="Login email"
-          description="Google, email code, and password sign-in all use this same account email."
-        >
-          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 ring-1 ring-slate-200">
-                <Mail className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="text-sm font-medium text-slate-950">
-                  {user?.email || "Unknown email"}
-                </p>
-                <p className="mt-0.5 text-sm text-slate-600">
-                  Use this email with Google, a one-time code, or a password.
-                </p>
-              </div>
-            </div>
-          </div>
-        </SettingsFieldGroup>
-
         <SettingsFieldGroup
           title={hasPassword ? "Change password" : "Set password"}
           description={
