@@ -12,10 +12,15 @@ import {
   trackEvent,
 } from "@/lib/analytics";
 import { useBilling } from "@/lib/use-billing";
-import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
 import { RecruiterProfileSection } from "./_components/RecruiterProfileSection";
 import { EMPTY_PROFILE, type HeadhunterProfile, type SettingsSectionId } from "./_components/shared";
+
+const SETTINGS_SECTION_IDS = ["billing", "profile"] as const satisfies readonly SettingsSectionId[];
+
+function isSettingsSectionId(value: string): value is SettingsSectionId {
+  return SETTINGS_SECTION_IDS.includes(value as SettingsSectionId);
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -35,14 +40,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [headhunterProfile, setHeadhunterProfile] = useState<HeadhunterProfile>(EMPTY_PROFILE);
   const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
-  const [authMethods, setAuthMethods] = useState<string[]>([]);
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("billing");
   const sectionNav = [
-    {
-      id: "account" as const,
-      label: "Account",
-      detail: "Sign-in methods",
-    },
     {
       id: "billing" as const,
       label: "Billing",
@@ -66,11 +65,6 @@ export default function SettingsPage() {
         }
         if (data.billing) {
           setBilling(data.billing as BillingSummary);
-        }
-        if (Array.isArray(data.auth_methods)) {
-          setAuthMethods(
-            data.auth_methods.filter((method: unknown): method is string => typeof method === "string"),
-          );
         }
       }
     } catch {
@@ -122,7 +116,16 @@ export default function SettingsPage() {
   useEffect(() => {
     const sectionParam = searchParams.get("section");
     const requestedSection = settingsHash || sectionParam || "";
-    if (requestedSection !== "account" && requestedSection !== "billing" && requestedSection !== "profile") {
+    if (requestedSection === "account") {
+      setActiveSection("billing");
+      window.history.replaceState(null, "", "#billing");
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+      });
+      return;
+    }
+
+    if (!isSettingsSectionId(requestedSection)) {
       return;
     }
 
@@ -167,7 +170,11 @@ export default function SettingsPage() {
       );
     }
 
-    return <AccountSection user={user} authMethods={authMethods} />;
+    return billing ? (
+      <BillingPanel billing={billing} />
+    ) : (
+      <SettingsPageSkeleton />
+    );
   })();
 
   if (loading) {
@@ -185,7 +192,7 @@ export default function SettingsPage() {
             Settings
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-            Manage account access, billing capacity, and the outreach identity used in candidate messages.
+            Manage your plan, usage, and outreach identity.
           </p>
         </div>
         {billing ? (
