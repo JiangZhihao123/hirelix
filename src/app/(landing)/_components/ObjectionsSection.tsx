@@ -30,7 +30,7 @@ export function ObjectionsSection() {
   ];
 
   return (
-    <section id="faq" className="scroll-mt-24 border-t border-slate-200 bg-slate-50 py-16 sm:py-24">
+    <section id="faq" className="scroll-mt-[4.5rem] border-t border-slate-200 bg-slate-50 pt-8 pb-16 sm:pt-8 sm:pb-20">
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">

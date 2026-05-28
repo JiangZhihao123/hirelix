@@ -127,6 +127,25 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("button", { name: "Start Solo" })).toHaveCount(0);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
   });
+
+  test("section anchors should not leave a large blank gap below the fixed nav", async ({ page }) => {
+    await page.getByRole("link", { name: "Features" }).click();
+    await expect(page).toHaveURL(/#features$/);
+
+    await expect
+      .poll(async () => {
+        const navBox = await page.locator("nav").boundingBox();
+        const sectionBox = await page.locator("#features").boundingBox();
+        const eyebrowBox = await page.locator("#features").getByText("Features", { exact: true }).boundingBox();
+
+        if (!navBox || !sectionBox || !eyebrowBox) {
+          return Number.POSITIVE_INFINITY;
+        }
+
+        return Math.max(sectionBox.y - navBox.height, eyebrowBox.y - navBox.height);
+      })
+      .toBeLessThanOrEqual(64);
+  });
 });
 
 test.describe("Landing Page mobile responsiveness", () => {

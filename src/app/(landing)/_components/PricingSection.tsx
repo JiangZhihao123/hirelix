@@ -51,7 +51,7 @@ export function PricingSection({ onStart }: { onStart: () => void }) {
   ];
 
   return (
-    <section id="pricing" data-growth-section="定价" className="scroll-mt-24 border-t border-slate-200 bg-white py-16 sm:py-24">
+    <section id="pricing" data-growth-section="定价" className="scroll-mt-[4.5rem] border-t border-slate-200 bg-white pt-8 pb-16 sm:pt-8 sm:pb-20">
       <div className="mx-auto max-w-6xl px-6">
         <div className="mx-auto max-w-3xl text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
