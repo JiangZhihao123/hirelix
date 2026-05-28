@@ -165,6 +165,27 @@ test.describe("Landing Page", () => {
       .toBeLessThanOrEqual(64);
   });
 
+  test("nav sections should fill the viewport below the fixed nav", async ({ page }) => {
+    await page.getByRole("link", { name: "How it works" }).click();
+    await expect(page).toHaveURL(/#how-it-works$/);
+
+    await expect
+      .poll(async () => {
+        const navBox = await page.locator("nav").boundingBox();
+        const sectionBox = await page.locator("#how-it-works").boundingBox();
+        const nextSectionBox = await page.locator("#features").boundingBox();
+
+        if (!navBox || !sectionBox || !nextSectionBox) {
+          return Number.NEGATIVE_INFINITY;
+        }
+
+        const viewportHeight = page.viewportSize()?.height ?? 0;
+        const sectionBottom = sectionBox.y + sectionBox.height;
+        return Math.min(sectionBottom - viewportHeight, nextSectionBox.y - viewportHeight);
+      })
+      .toBeGreaterThanOrEqual(0);
+  });
+
   test("Home and logo links should reload the landing root", async ({ page }) => {
     await page.getByRole("link", { name: "Features" }).click();
     await expect(page).toHaveURL(/#features$/);

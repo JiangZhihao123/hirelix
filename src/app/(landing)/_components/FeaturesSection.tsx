@@ -28,7 +28,7 @@ export function HowItWorksSection() {
   ];
 
   return (
-    <section id="how-it-works" data-growth-section="工作方式" className="scroll-mt-[4.5rem] border-t border-slate-200 bg-slate-50 pt-8 pb-16 sm:pt-8 sm:pb-20">
+    <section id="how-it-works" data-growth-section="工作方式" className="min-h-[calc(100vh-4.5rem)] scroll-mt-[4.5rem] border-t border-slate-200 bg-slate-50 pt-8 pb-16 sm:pt-8 sm:pb-20">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
           <div>
@@ -105,7 +105,7 @@ export function FeaturesSection() {
   ];
 
   return (
-    <section id="features" data-growth-section="功能" className="scroll-mt-[4.5rem] border-t border-slate-200 bg-white pt-8 pb-16 sm:pt-8 sm:pb-20">
+    <section id="features" data-growth-section="功能" className="min-h-[calc(100vh-4.5rem)] scroll-mt-[4.5rem] border-t border-slate-200 bg-white pt-8 pb-16 sm:pt-8 sm:pb-20">
       <div className="mx-auto max-w-6xl px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -180,7 +180,7 @@ export function ResourcesSection({ onStart }: { onStart: () => void }) {
   ];
 
   return (
-    <section id="resources" data-growth-section="资源" className="scroll-mt-[4.5rem] border-t border-slate-200 bg-slate-50 pt-8 pb-16 sm:pt-8 sm:pb-20">
+    <section id="resources" data-growth-section="资源" className="min-h-[calc(100vh-4.5rem)] scroll-mt-[4.5rem] border-t border-slate-200 bg-slate-50 pt-8 pb-16 sm:pt-8 sm:pb-20">
       <div className="mx-auto max-w-6xl px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
