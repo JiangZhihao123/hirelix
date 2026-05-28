@@ -74,7 +74,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           title="Usage"
           description="Track this billing cycle and whether the full product is unlocked."
         >
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
@@ -99,24 +99,24 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
-              <p className="text-sm font-medium text-slate-800">Product access</p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">
-                {billing.plan.code === "free" ? "Trial" : "Unlocked"}
-              </p>
-              <p className="mt-2 text-sm text-slate-600">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Product access</p>
+                  <p className="mt-3 text-2xl font-semibold text-slate-950">
+                    {billing.plan.code === "free" ? "Trial" : "Unlocked"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white px-3 py-2 sm:text-right">
+                  <p className="text-lg font-semibold text-slate-950">
+                    {billing.usage.candidateLimitPerSearch}
+                  </p>
+                  <p className="text-xs text-slate-500">candidates / shortlist</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm text-slate-600">
                 {billing.plan.code === "free"
-                  ? "One complete 25-candidate shortlist is included, with fit evidence, risks, and outreach drafts."
-                  : "25-candidate shortlists, email lookup, export, outreach, and briefs are included."}
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
-              <p className="text-sm font-medium text-slate-800">Candidate package</p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">
-                {billing.usage.candidateLimitPerSearch}
-              </p>
-              <p className="mt-2 text-sm text-slate-600">
-                candidates per completed shortlist.
+                  ? "One complete shortlist is included, with fit evidence, risks, and outreach drafts."
+                  : "Shortlists include email lookup, export, outreach, and client-ready briefs."}
               </p>
             </div>
           </div>
