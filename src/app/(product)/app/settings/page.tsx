@@ -114,15 +114,17 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (settingsHash !== "account" && settingsHash !== "billing" && settingsHash !== "profile") {
+    const sectionParam = searchParams.get("section");
+    const requestedSection = settingsHash || sectionParam || "";
+    if (requestedSection !== "account" && requestedSection !== "billing" && requestedSection !== "profile") {
       return;
     }
 
-    setActiveSection(settingsHash);
+    setActiveSection(requestedSection);
     requestAnimationFrame(() => {
       window.scrollTo({ top: 0, behavior: "auto" });
     });
-  }, [settingsHash]);
+  }, [searchParams, settingsHash]);
 
   useEffect(() => {
     if (loading) return;

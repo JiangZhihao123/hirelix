@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
@@ -42,6 +42,7 @@ function ProductLayoutShell({
   const { billing, loading: billingLoading } = useBilling();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const [adminAccess, setAdminAccess] = useState<{ userId: string; isAdmin: boolean } | null>(null);
@@ -73,6 +74,7 @@ function ProductLayoutShell({
   const isSettingsRoute = pathname === "/app/settings";
   const isAdminRoute = pathname.startsWith("/app/admin");
   const isAdmin = Boolean(user && adminAccess?.userId === user.id && adminAccess.isAdmin);
+  const authRedirectPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
   const getNavClassName = (isActive: boolean) =>
     `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
@@ -171,6 +173,7 @@ function ProductLayoutShell({
           </div>
         )}
         <LoginForm
+          redirectPath={authRedirectPath}
           contextTitle={isSearchIntent ? "Continue to your shortlist" : "Continue to Hirelix"}
           contextBody={
             isSearchIntent

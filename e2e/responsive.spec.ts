@@ -20,11 +20,12 @@ test.describe("Responsive - Landing Page", () => {
     await expect(page.getByText("Free first run")).toBeVisible();
   });
 
-  test("should focus the JD form from the mobile primary action", async ({ page }) => {
+  test("should enter the product sign-up flow from the mobile primary action", async ({ page }) => {
     await page.goto("/");
     await page.getByTestId("nav-primary-cta").click();
+    await expect(page).toHaveURL(/\/app\/search\/new/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByPlaceholder("Paste the full client job description here...")).toBeFocused();
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
   });
 
   test("should still render the major conversion sections on mobile", async ({ page }) => {

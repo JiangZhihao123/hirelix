@@ -1,7 +1,13 @@
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { BILLING_PLANS } from "@/lib/billing";
+import { BILLING_PLANS, type BillingPlanCode } from "@/lib/billing";
 
-export function PricingSection({ onStart }: { onStart: () => void }) {
+export function PricingSection({
+  onStart,
+  onSelectPlan,
+}: {
+  onStart: () => void;
+  onSelectPlan: (planCode: Exclude<BillingPlanCode, "free">) => void;
+}) {
   const freePlan = BILLING_PLANS.free;
   const annualPlan = BILLING_PLANS.starter_annual;
   const monthlyPlan = BILLING_PLANS.starter_monthly;
@@ -14,6 +20,7 @@ export function PricingSection({ onStart }: { onStart: () => void }) {
       description: "Run one complete 25-profile shortlist before you pay.",
       cta: "Try for free",
       featured: false,
+      planCode: null,
       bullets: [
         "Ranked 25-profile shortlist",
         "Fit evidence and risks",
@@ -28,6 +35,7 @@ export function PricingSection({ onStart }: { onStart: () => void }) {
       description: "Everything unlocked at the best monthly rate.",
       cta: annualPlan.ctaLabel,
       featured: true,
+      planCode: annualPlan.code,
       bullets: [
         `${annualPlan.searchesPerMonth} shortlist builds per month`,
         `${annualPlan.enrichesPerMonth} email lookups per month`,
@@ -42,6 +50,7 @@ export function PricingSection({ onStart }: { onStart: () => void }) {
       description: "Everything unlocked, paid month to month.",
       cta: monthlyPlan.ctaLabel,
       featured: false,
+      planCode: monthlyPlan.code,
       bullets: [
         `${monthlyPlan.searchesPerMonth} shortlist builds per month`,
         `${monthlyPlan.enrichesPerMonth} email lookups per month`,
@@ -100,7 +109,13 @@ export function PricingSection({ onStart }: { onStart: () => void }) {
               </div>
               <button
                 type="button"
-                onClick={onStart}
+                onClick={() => {
+                  if (plan.planCode && plan.planCode !== "free") {
+                    onSelectPlan(plan.planCode);
+                    return;
+                  }
+                  onStart();
+                }}
                 className={`mt-7 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5 ${
                   plan.featured
                     ? "bg-white text-slate-950 hover:bg-indigo-50"

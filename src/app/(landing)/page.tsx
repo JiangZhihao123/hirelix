@@ -3,6 +3,7 @@
 import {
   startTransition,
   type FormEvent,
+  type MouseEvent,
   useEffect,
   useMemo,
   useRef,
@@ -10,6 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowRight,
   FileText,
@@ -396,14 +398,70 @@ export default function Home() {
   }
 
   function handleGenericSignIn() {
-    if (user) {
-      router.push(buildTrackedHref("/app/search/new", "signin", undefined, "signin"));
-      return;
-    }
-    openAuthModal("signin", {
-      authIntent: "signin",
-      redirectPath: buildTrackedHref("/app/search/new", "signin", undefined, "signin"),
+    router.push(buildTrackedHref("/app/search/new", "signin", undefined, "signin"));
+  }
+
+  function handleHomeReload(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    window.location.assign("/");
+  }
+
+  function handleTryForFree() {
+    const href = buildTrackedHref("/app/search/new", "signin", undefined, "signin");
+    trackEvent(ANALYTICS_EVENTS.heroPrimaryCtaClick, {
+      ...getAnalyticsContextFromBrowser({
+        entry_mode: "signin",
+        page_variant: experiments.pageVariant,
+        intent_path: "signin",
+      }),
+      cta_surface: "nav_try_for_free",
     });
+    window.__hirelixGrowthTrack?.("try_for_free_click", {
+      surface: "nav",
+      intent_path: "signin",
+    });
+    router.push(href);
+  }
+
+  function handlePricingStart() {
+    const href = buildTrackedHref("/app/search/new", "signin", undefined, "signin");
+    trackEvent(ANALYTICS_EVENTS.pricingPlanSelect, {
+      ...getAnalyticsContextFromBrowser({
+        entry_mode: "signin",
+        page_variant: experiments.pageVariant,
+        intent_path: "signin",
+      }),
+      plan_code: "free",
+      pricing_surface: "landing",
+    });
+    window.__hirelixGrowthTrack?.("pricing_plan_select", {
+      plan_code: "free",
+      surface: "landing_pricing",
+    });
+    router.push(href);
+  }
+
+  function handlePricingPlanSelect(planCode: Exclude<BillingPlanCode, "free">) {
+    const href = buildTrackedHref(
+      "/app/settings",
+      "signin",
+      { plan: planCode, section: "billing" },
+      "signin",
+    );
+    trackEvent(ANALYTICS_EVENTS.pricingPlanSelect, {
+      ...getAnalyticsContextFromBrowser({
+        entry_mode: "signin",
+        page_variant: experiments.pageVariant,
+        intent_path: "signin",
+      }),
+      plan_code: planCode,
+      pricing_surface: "landing",
+    });
+    window.__hirelixGrowthTrack?.("pricing_plan_select", {
+      plan_code: planCode,
+      surface: "landing_pricing",
+    });
+    router.push(`${href}#billing`);
   }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -540,12 +598,12 @@ export default function Home() {
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-slate-200/80 bg-white/92 backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-[96rem] items-center justify-between px-5 sm:px-6">
-          <a href="#product" className="flex items-center gap-2.5 transition-opacity hover:opacity-80" aria-label="Hirelix home">
+          <Link href="/" onClick={handleHomeReload} className="flex items-center gap-2.5 transition-opacity hover:opacity-80" aria-label="Hirelix home">
             <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
             <span className="text-xl font-bold tracking-tight text-slate-950">Hirelix</span>
-          </a>
+          </Link>
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
-            <a href="#product" className="transition-colors hover:text-slate-950">Home</a>
+            <Link href="/" onClick={handleHomeReload} className="transition-colors hover:text-slate-950">Home</Link>
             <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
             <a href="#features" className="transition-colors hover:text-slate-950">Features</a>
             <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>
@@ -561,7 +619,7 @@ export default function Home() {
             </button>
             <button
               type="button"
-              onClick={focusHeroJd}
+              onClick={handleTryForFree}
               data-testid="nav-primary-cta"
               className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
@@ -821,7 +879,7 @@ export default function Home() {
 
       <HowItWorksSection />
       <FeaturesSection />
-      <PricingSection onStart={focusHeroJd} />
+      <PricingSection onStart={handlePricingStart} onSelectPlan={handlePricingPlanSelect} />
       <ResourcesSection onStart={focusHeroJd} />
       <ObjectionsSection />
       <CtaSection

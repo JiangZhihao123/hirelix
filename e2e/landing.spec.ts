@@ -17,7 +17,7 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build shortlist/i);
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Hirelix home" })).toHaveAttribute("href", "#product");
+    await expect(page.getByRole("link", { name: "Hirelix home" })).toHaveAttribute("href", "/");
     await expect(page.getByText("No setup required")).toHaveCount(0);
     await expect(page.getByText("Beta access")).toHaveCount(0);
     await expect(page.getByText("Invite-only beta")).toHaveCount(0);
@@ -25,7 +25,7 @@ test.describe("Landing Page", () => {
     await expect(hero.getByText("Real profiles", { exact: true })).toBeVisible();
     await expect(hero.getByText("Public evidence research", { exact: true })).toBeVisible();
     await expect(hero.getByText("Outreach drafts included", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "#product");
+    await expect(page.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "/");
     await expect(page.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#how-it-works");
     await expect(page.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
     await expect(page.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "#pricing");
@@ -96,6 +96,8 @@ test.describe("Landing Page", () => {
     });
 
     await page.getByRole("button", { name: /Sign in/i }).first().click();
+    await expect(page).toHaveURL(/\/app\/search\/new/);
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
     await page.getByRole("button", { name: /Continue with Google/i }).click();
 
     await expect.poll(() => signInPayloads.length).toBe(1);
@@ -106,7 +108,15 @@ test.describe("Landing Page", () => {
     expect(String(payload.callbackURL)).toContain("/app/search/new");
   });
 
-  test("pricing CTA should return focus to the JD form", async ({ page }) => {
+  test("nav Try for free should enter the product sign-up flow", async ({ page }) => {
+    await page.getByTestId("nav-primary-cta").click();
+
+    await expect(page).toHaveURL(/\/app\/search\/new/);
+    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+  });
+
+  test("pricing CTAs should enter product sign-up and billing flows", async ({ page }) => {
     await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
     const pricing = page.locator("#pricing");
     await expect(pricing.getByText("Free first run")).toBeVisible();
@@ -117,8 +127,16 @@ test.describe("Landing Page", () => {
 
     await pricing.getByRole("button", { name: "Try for free" }).click();
 
+    await expect(page).toHaveURL(/\/app\/search\/new/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByPlaceholder("Paste the full client job description here...")).toBeFocused();
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+
+    await page.goto("/");
+    await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
+    await page.locator("#pricing").getByRole("button", { name: "Start annual" }).click();
+
+    await expect(page).toHaveURL(/\/app\/settings\?.*plan=starter_annual.*section=billing/);
+    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
   });
 
   test("public landing should not ask visitors to compare pricing plans", async ({ page }) => {
@@ -145,6 +163,20 @@ test.describe("Landing Page", () => {
         return Math.max(sectionBox.y - navBox.height, eyebrowBox.y - navBox.height);
       })
       .toBeLessThanOrEqual(64);
+  });
+
+  test("Home and logo links should reload the landing root", async ({ page }) => {
+    await page.getByRole("link", { name: "Features" }).click();
+    await expect(page).toHaveURL(/#features$/);
+
+    await page.getByRole("link", { name: "Home", exact: true }).click();
+    await expect(page).toHaveURL("/");
+
+    await page.getByRole("link", { name: "Features" }).click();
+    await expect(page).toHaveURL(/#features$/);
+
+    await page.getByRole("link", { name: "Hirelix home" }).click();
+    await expect(page).toHaveURL("/");
   });
 });
 
