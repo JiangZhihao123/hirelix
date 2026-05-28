@@ -540,11 +540,12 @@ export default function Home() {
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-slate-200/80 bg-white/92 backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-[96rem] items-center justify-between px-5 sm:px-6">
-          <div className="flex items-center gap-2.5">
+          <a href="#product" className="flex items-center gap-2.5 transition-opacity hover:opacity-80" aria-label="Hirelix home">
             <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
             <span className="text-xl font-bold tracking-tight text-slate-950">Hirelix</span>
-          </div>
+          </a>
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
+            <a href="#product" className="transition-colors hover:text-slate-950">Home</a>
             <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
             <a href="#features" className="transition-colors hover:text-slate-950">Features</a>
             <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>

@@ -17,6 +17,7 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build shortlist/i);
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Hirelix home" })).toHaveAttribute("href", "#product");
     await expect(page.getByText("No setup required")).toHaveCount(0);
     await expect(page.getByText("Beta access")).toHaveCount(0);
     await expect(page.getByText("Invite-only beta")).toHaveCount(0);
@@ -24,6 +25,7 @@ test.describe("Landing Page", () => {
     await expect(hero.getByText("Real profiles", { exact: true })).toBeVisible();
     await expect(hero.getByText("Public evidence research", { exact: true })).toBeVisible();
     await expect(hero.getByText("Outreach drafts included", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "#product");
     await expect(page.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#how-it-works");
     await expect(page.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
     await expect(page.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "#pricing");
