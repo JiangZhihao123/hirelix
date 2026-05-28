@@ -12,9 +12,10 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   ArrowRight,
-  CheckCircle2,
   FileText,
-  LockKeyhole,
+  ListChecks,
+  MailCheck,
+  Search,
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
@@ -561,16 +562,16 @@ export default function Home() {
               type="button"
               onClick={focusHeroJd}
               data-testid="nav-primary-cta"
-              className="inline-flex items-center justify-center rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(67,56,202,0.22)] transition-all hover:-translate-y-0.5 hover:bg-indigo-800"
+              className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              Paste client role
+              Try for free
             </button>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section id="product" data-growth-section="首屏" className="relative overflow-hidden border-b border-slate-200/80 bg-white pt-28 pb-14 sm:pt-34 sm:pb-20">
+      <section id="product" data-growth-section="首屏" className="relative flex min-h-screen items-center overflow-hidden border-b border-slate-200/80 bg-white pt-28 pb-16">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.035)_1px,transparent_1px)] bg-[size:64px_64px]" />
         <div className="relative mx-auto grid max-w-6xl gap-12 px-5 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <div>
@@ -579,12 +580,13 @@ export default function Home() {
               For technical headhunters
             </div>
 
-            <h1 className="mt-6 max-w-[13ch] text-4xl font-extrabold leading-[1.06] tracking-tight text-slate-950 sm:text-[3rem] lg:text-[3.25rem]">
-              Explainable shortlists from real client JDs.
+            <h1 className="mt-6 max-w-[15ch] text-4xl font-extrabold leading-[1.06] tracking-tight text-slate-950 sm:text-[3rem] lg:text-[3.25rem]">
+              A day of technical candidate research, done in{" "}
+              <span className="text-indigo-600">15 minutes.</span>
             </h1>
 
-            <p className="mt-5 max-w-[30rem] text-base leading-7 text-slate-600">
-              Paste the role. Hirelix ranks real profiles, shows fit evidence and risks, then drafts a first message.
+            <p className="mt-5 max-w-[34rem] text-base leading-7 text-slate-600">
+              Paste the client JD. Hirelix&apos;s AI agents search, score, and research real profiles in parallel, then deliver a ranked shortlist with evidence and personalized outreach drafts.
             </p>
           </div>
 
@@ -596,9 +598,11 @@ export default function Home() {
                     <FileText className="h-4 w-4 text-indigo-700" />
                     Paste a job description
                   </div>
-                  <span className="hidden text-xs font-medium text-emerald-700 sm:inline">
-                    {wordCount > 0 ? `${wordCount} words ready` : "No setup required"}
-                  </span>
+                  {wordCount > 0 ? (
+                    <span className="hidden text-xs font-medium text-emerald-700 sm:inline">
+                      {wordCount} words ready
+                    </span>
+                  ) : null}
                 </div>
                 <textarea
                   ref={heroJdTextareaRef}
@@ -633,7 +637,7 @@ export default function Home() {
                   className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3.5 text-base font-semibold transition-all ${
                     heroPrimaryDisabled
                       ? "!cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
-                      : "bg-indigo-700 text-white shadow-[0_18px_42px_rgba(67,56,202,0.26)] hover:-translate-y-0.5 hover:bg-indigo-800"
+                      : "bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] hover:-translate-y-0.5 hover:bg-slate-800"
                   }`}
                 >
                   {isSubmitting ? "Opening your shortlist..." : "Build shortlist"}{" "}
@@ -644,12 +648,12 @@ export default function Home() {
 
             <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600">
               {[
-                { icon: CheckCircle2, label: "No credit card" },
-                { icon: CheckCircle2, label: "Real profiles" },
-                { icon: LockKeyhole, label: "Private JD handoff" },
+                { icon: Search, label: "Parallel profile research" },
+                { icon: ListChecks, label: "Fit + risk evidence" },
+                { icon: MailCheck, label: "Outreach drafts included" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
-                  <item.icon className="h-4 w-4 text-emerald-600" />
+                  <item.icon className="h-4 w-4 text-indigo-600" />
                   <span>{item.label}</span>
                 </div>
               ))}
@@ -729,7 +733,7 @@ export default function Home() {
                     aria-busy={previewRequestStatus === "submitting"}
                     className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
                       canSubmitPreviewRequest && previewRequestStatus !== "submitting"
-                        ? "bg-indigo-700 text-white hover:bg-indigo-800"
+                        ? "bg-slate-950 text-white hover:bg-slate-800"
                         : "cursor-not-allowed bg-indigo-100 text-indigo-400"
                     }`}
                   >
@@ -761,9 +765,9 @@ export default function Home() {
               <button
                 type="button"
                 onClick={focusHeroJd}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-800"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
               >
-                Paste a real client role
+                Build shortlist
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>

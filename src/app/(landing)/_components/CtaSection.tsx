@@ -23,21 +23,20 @@ export function CtaSection({
             Start with the role already on your desk.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            Paste a client JD, review the shortlist, and edit the outreach before anything gets sent.
-            No credit card required to start.
+            Paste a client JD, review the evidence-backed shortlist, and edit outreach drafts before anything gets sent.
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-4">
             <a
               href="#hero-form"
-              className="hidden items-center gap-2 rounded-lg bg-indigo-700 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(67,56,202,0.24)] transition-all hover:-translate-y-0.5 hover:bg-indigo-800 sm:inline-flex"
+              className="hidden items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:inline-flex"
             >
               {desktopFooterCtaLabel} <ArrowRight className="h-4 w-4" />
             </a>
             <button
               type="button"
               onClick={onTrySample}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_42px_rgba(67,56,202,0.24)] transition-all hover:-translate-y-0.5 hover:bg-indigo-800 sm:hidden"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:hidden"
             >
               View sample shortlist <ArrowRight className="h-4 w-4" />
             </button>
@@ -53,19 +52,18 @@ export function CtaSection({
             </p>
           </div>
 
-          {/* Reassurance row */}
           <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-600">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              No credit card to start
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-700" />
+              Parallel profile research
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-indigo-700" />
-              Real LinkedIn profiles
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+              Fit and risk evidence
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              Drafts ready in minutes
+              Outreach drafts included
             </span>
           </div>
         </div>

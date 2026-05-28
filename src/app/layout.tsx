@@ -16,9 +16,9 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hirelix.online"),
-  title: "Hirelix — Explainable Technical Shortlists",
+  title: "Hirelix — Technical Candidate Research in 15 Minutes",
   description:
-    "Paste a real client JD and get an explainable technical shortlist with fit reasons, risks to verify, and outreach starting points.",
+    "Paste the client JD. Hirelix's AI agents research real profiles in parallel and deliver a ranked shortlist with evidence and personalized outreach drafts.",
   alternates: {
     canonical: "/",
   },
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Hirelix — Explainable Technical Shortlists",
+    title: "Hirelix — Technical Candidate Research in 15 Minutes",
     description:
-      "Paste a real client JD and get an explainable technical shortlist with fit reasons, risks to verify, and outreach starting points.",
+      "Paste the client JD. Hirelix's AI agents research real profiles in parallel and deliver a ranked shortlist with evidence and personalized outreach drafts.",
     type: "website",
     url: "https://hirelix.online",
     siteName: "Hirelix",
@@ -41,15 +41,15 @@ export const metadata: Metadata = {
         url: "https://hirelix.online/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Hirelix — Evidence-backed technical shortlist workbench",
+        alt: "Hirelix — Technical candidate research in 15 minutes",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Hirelix — Explainable Technical Shortlists",
+    title: "Hirelix — Technical Candidate Research in 15 Minutes",
     description:
-      "Paste a real client JD and get an explainable technical shortlist with fit reasons, risks to verify, and outreach starting points.",
+      "Paste the client JD. Hirelix's AI agents research real profiles in parallel and deliver a ranked shortlist with evidence and personalized outreach drafts.",
     images: ["https://hirelix.online/og-image.png"],
   },
 };

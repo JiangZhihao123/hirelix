@@ -13,14 +13,20 @@ test.describe("Landing Page", () => {
   test("should display the core landing sections and CTAs", async ({ page }) => {
     await expect(page.getByAltText("Hirelix").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Sign in/i }).first()).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Explainable shortlists from real client JDs/i })).toBeVisible();
+    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Try for free/i);
+    await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build shortlist/i);
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
+    await expect(page.getByText("No setup required")).toHaveCount(0);
+    const hero = page.locator("#product");
+    await expect(hero.getByText("Parallel profile research")).toBeVisible();
+    await expect(hero.getByText("Fit + risk evidence")).toBeVisible();
+    await expect(hero.getByText("Outreach drafts included")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Spend the first pass on judgment, not sorting." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Try one client role before comparing plans." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Start with the role already on your desk." })).toBeVisible();
-    await expect(page.getByText("Hirelix ranks real profiles, shows fit evidence")).toBeVisible();
+    await expect(page.getByText("Hirelix's AI agents search, score, and research real profiles")).toBeVisible();
   });
 
   test("hero CTA should clearly communicate the disabled state", async ({ page }) => {
