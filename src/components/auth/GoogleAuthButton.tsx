@@ -2,15 +2,17 @@ import { Loader2 } from "lucide-react";
 
 export function GoogleAuthButton({
   loading,
+  disabled = false,
   onClick,
   className,
 }: {
   loading: boolean;
+  disabled?: boolean;
   onClick: () => void;
   className: string;
 }) {
   return (
-    <button onClick={onClick} disabled={loading} className={className}>
+    <button onClick={onClick} disabled={loading || disabled} className={className}>
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : (

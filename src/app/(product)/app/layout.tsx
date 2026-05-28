@@ -159,7 +159,7 @@ function ProductLayoutShell({
           <p className="mt-2 text-sm text-muted">
             {isSearchIntent
               ? "Your JD is saved below. Sign in and we will take you straight into the real search."
-              : "Use Google to continue into the next shortlist flow."}
+              : "Use Google or email to continue into the next shortlist flow."}
           </p>
         </div>
         {isSearchIntent && (
@@ -177,8 +177,8 @@ function ProductLayoutShell({
           contextTitle={isSearchIntent ? "Continue to your shortlist" : "Continue to Hirelix"}
           contextBody={
             isSearchIntent
-              ? "No card required. Use Google to keep this shortlist flow moving."
-              : "Use Google to continue without starting over."
+              ? "No card required. Use Google or email to keep this shortlist flow moving."
+              : "Use Google or email to continue without starting over."
           }
         />
         <Link href="/" className="text-sm text-muted hover:text-foreground">

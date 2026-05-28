@@ -46,8 +46,8 @@ test.describe("Responsive - Auth Page", () => {
     await page.goto("/app");
     await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByPlaceholder("you@company.com")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
+    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Use password instead" })).toHaveCount(0);
     await expect(page.getByText(/No account\?/i)).toHaveCount(0);
   });

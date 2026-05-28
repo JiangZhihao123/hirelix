@@ -40,7 +40,7 @@ export default function SettingsPage() {
     {
       id: "account" as const,
       label: "Account",
-      detail: "Sign-in with Google",
+      detail: "Sign-in methods",
     },
     {
       id: "billing" as const,

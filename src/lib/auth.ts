@@ -57,7 +57,7 @@ async function sendEmailOtp({ email, otp }: { email: string; otp: string }) {
       subject: "Your Hirelix sign-in code",
       html: `
         <div style="font-family:Arial,sans-serif;line-height:1.5;color:#0f172a">
-          <p>Use this code to activate your Hirelix private beta seat:</p>
+          <p>Use this code to sign in to Hirelix:</p>
           <p style="font-size:28px;font-weight:700;letter-spacing:0.18em">${escapeHtml(otp)}</p>
           <p style="color:#475569;font-size:14px">This code expires in 5 minutes. If you did not request it, you can ignore this email.</p>
         </div>

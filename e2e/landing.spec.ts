@@ -68,7 +68,8 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("heading", { name: "One more step to build your shortlist." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
+    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Use password instead" })).toHaveCount(0);
     await expect(modal.getByRole("button", { name: "Close sign in dialog" })).toBeFocused();
 
@@ -216,7 +217,8 @@ test.describe("Landing Page mobile responsiveness", () => {
     await expect(page.getByTestId("landing-auth-modal").getByText("Your JD is saved", { exact: true })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toHaveCount(0);
+    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
   });
 
   test("should keep mobile pricing focused on the first run", async ({ page }) => {
