@@ -61,7 +61,7 @@ export function PricingSection({ onStart }: { onStart: () => void }) {
             Start with one complete shortlist.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            Upgrade when you are ready to work the candidate pool across active client roles.
+            Try one complete shortlist first. If the output is useful, upgrade to keep building shortlists for more client roles.
           </p>
         </div>
 
@@ -115,7 +115,7 @@ export function PricingSection({ onStart }: { onStart: () => void }) {
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Start with one complete shortlist. Upgrade when you are ready to work the candidate pool.
+          Judge the first 25-profile result before choosing a paid plan.
         </p>
       </div>
     </section>
