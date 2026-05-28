@@ -70,7 +70,7 @@ export function PricingSection({
             Start with one complete shortlist.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            Try one complete shortlist first. If the output is useful, upgrade to keep building shortlists for more client roles.
+            Try one complete shortlist, then upgrade if it proves useful.
           </p>
         </div>
 
