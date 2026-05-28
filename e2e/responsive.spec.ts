@@ -25,7 +25,7 @@ test.describe("Responsive - Landing Page", () => {
     await page.getByTestId("nav-primary-cta").click();
     await expect(page).toHaveURL(/\/app\/search\/new/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
   });
 
   test("should still render the major conversion sections on mobile", async ({ page }) => {
@@ -44,7 +44,7 @@ test.describe("Responsive - Auth Page", () => {
 
   test("should display login form correctly on mobile", async ({ page }) => {
     await page.goto("/app");
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();

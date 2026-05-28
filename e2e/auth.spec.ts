@@ -7,8 +7,10 @@ test.describe("Authentication Page", () => {
 
   test("should show login form when not authenticated", async ({ page }) => {
     // Should show sign-in page with logo
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
-    await expect(page.getByText("Use Google or email to continue into the next shortlist flow.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
+    await expect(page.getByText("Use Google or email to continue into the next shortlist flow.")).toHaveCount(0);
+    await expect(page.getByText("Continue to Hirelix")).toHaveCount(0);
+    await expect(page.getByText("Use Google or email to continue without starting over.")).toHaveCount(0);
   });
 
   test("should display Google and email sign-in channels", async ({ page }) => {
@@ -33,7 +35,7 @@ test.describe("Authentication Page", () => {
   });
 
   test("should stay on the auth gate until Google sign in starts", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeEnabled();
   });
 

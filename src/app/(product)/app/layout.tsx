@@ -152,16 +152,9 @@ function ProductLayoutShell({
           <Image src="/logo.svg" alt="Hirelix" width={32} height={32} />
           <span className="text-2xl font-bold tracking-tight">Hirelix</span>
         </div>
-        <div className="text-center">
-          <h1 className="text-xl font-semibold">
-            {isSearchIntent ? "One more step to open your shortlist" : "Sign in to keep moving"}
-          </h1>
-          <p className="mt-2 text-sm text-muted">
-            {isSearchIntent
-              ? "Your JD is saved below. Sign in and we will take you straight into the real search."
-              : "Use Google or email to continue into the next shortlist flow."}
-          </p>
-        </div>
+        <h1 className="text-center text-xl font-semibold">
+          {isSearchIntent ? "Sign in to open your shortlist" : "Sign in to Hirelix"}
+        </h1>
         {isSearchIntent && (
           <div className="w-full max-w-xl rounded-xl border border-border bg-surface p-4 text-left">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-light">
@@ -174,12 +167,6 @@ function ProductLayoutShell({
         )}
         <LoginForm
           redirectPath={authRedirectPath}
-          contextTitle={isSearchIntent ? "Continue to your shortlist" : "Continue to Hirelix"}
-          contextBody={
-            isSearchIntent
-              ? "No card required. Use Google or email to keep this shortlist flow moving."
-              : "Use Google or email to continue without starting over."
-          }
         />
         <Link href="/" className="text-sm text-muted hover:text-foreground">
           &larr; Back to homepage

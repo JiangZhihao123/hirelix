@@ -98,7 +98,7 @@ test.describe("Landing Page", () => {
 
     await page.getByRole("button", { name: /Sign in/i }).first().click();
     await expect(page).toHaveURL(/\/app\/search\/new/);
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
     await page.getByRole("button", { name: /Continue with Google/i }).click();
 
     await expect.poll(() => signInPayloads.length).toBe(1);
@@ -114,7 +114,7 @@ test.describe("Landing Page", () => {
 
     await expect(page).toHaveURL(/\/app\/search\/new/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
   });
 
   test("pricing CTAs should enter product sign-up and billing flows", async ({ page }) => {
@@ -130,14 +130,14 @@ test.describe("Landing Page", () => {
 
     await expect(page).toHaveURL(/\/app\/search\/new/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
 
     await page.goto("/");
     await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
     await page.locator("#pricing").getByRole("button", { name: "Start annual" }).click();
 
     await expect(page).toHaveURL(/\/app\/settings\?.*plan=starter_annual.*section=billing/);
-    await expect(page.getByRole("heading", { name: "Sign in to keep moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
   });
 
   test("public landing should not ask visitors to compare pricing plans", async ({ page }) => {
