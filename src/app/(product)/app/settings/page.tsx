@@ -36,6 +36,7 @@ export default function SettingsPage() {
   const [headhunterProfile, setHeadhunterProfile] = useState<HeadhunterProfile>(EMPTY_PROFILE);
   const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
+  const [authMethods, setAuthMethods] = useState<string[]>([]);
   const sectionNav = [
     {
       id: "account" as const,
@@ -65,6 +66,11 @@ export default function SettingsPage() {
         }
         if (data.billing) {
           setBilling(data.billing as BillingSummary);
+        }
+        if (Array.isArray(data.auth_methods)) {
+          setAuthMethods(
+            data.auth_methods.filter((method: unknown): method is string => typeof method === "string"),
+          );
         }
       }
     } catch {
@@ -161,7 +167,7 @@ export default function SettingsPage() {
       );
     }
 
-    return <AccountSection user={user} />;
+    return <AccountSection user={user} authMethods={authMethods} />;
   })();
 
   if (loading) {

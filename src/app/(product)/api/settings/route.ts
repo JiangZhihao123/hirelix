@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { hirelix_user_settings } from "@/db/schema";
+import { account, hirelix_user_settings } from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { getLogger, errorLogFields } from "@/lib/logger";
@@ -14,18 +14,30 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [settingsRows, billing] = await Promise.all([
+  const [settingsRows, accountRows, billing] = await Promise.all([
     db
       .select({ company_profile: hirelix_user_settings.company_profile })
       .from(hirelix_user_settings)
       .where(eq(hirelix_user_settings.user_id, user.id))
       .limit(1),
+    db
+      .select({ provider_id: account.providerId })
+      .from(account)
+      .where(eq(account.userId, user.id)),
     getBillingSummaryForUser(user.id),
   ]);
   const data = settingsRows[0];
+  const authMethods = Array.from(
+    new Set(
+      accountRows
+        .map((row) => row.provider_id)
+        .filter((providerId): providerId is string => Boolean(providerId)),
+    ),
+  );
 
   return NextResponse.json({
     company_profile: data?.company_profile || null,
+    auth_methods: authMethods,
     billing,
   });
 }
