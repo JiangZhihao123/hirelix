@@ -17,11 +17,11 @@ test.describe("Authentication Page", () => {
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Use password instead" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use password instead" })).toBeVisible();
     await expect(page.getByPlaceholder("Password")).toHaveCount(0);
   });
 
-  test("should not expose sign up UI", async ({ page }) => {
+  test("should not expose email-password sign up UI", async ({ page }) => {
     await expect(page.getByText("No account?")).toHaveCount(0);
     await expect(page.getByText("Already have an account?")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Create Account" })).toHaveCount(0);
@@ -92,6 +92,44 @@ test.describe("Authentication Page", () => {
       email: "recruiter@example.com",
       otp: "123456",
       name: "recruiter",
+    });
+    await expect(page).toHaveURL(/\/app$/);
+  });
+
+  test("should sign in with email and password when selected", async ({ page }) => {
+    const passwordPayloads: Array<Record<string, unknown>> = [];
+
+    await page.route("**/api/auth/sign-in/email", async (route) => {
+      passwordPayloads.push(JSON.parse(route.request().postData() || "{}") as Record<string, unknown>);
+      await route.fulfill({
+        json: {
+          redirect: false,
+          token: "test-token",
+          url: null,
+          user: {
+            id: "user_123",
+            email: "recruiter@example.com",
+            emailVerified: true,
+            name: "recruiter",
+            image: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      });
+    });
+
+    await page.getByRole("button", { name: "Use password instead" }).click();
+    await expect(page.getByPlaceholder("Password")).toBeVisible();
+
+    await page.getByPlaceholder("you@company.com").fill("Recruiter@Example.com ");
+    await page.getByPlaceholder("Password").fill("password123");
+    await page.getByRole("button", { name: "Sign in with password" }).click();
+
+    await expect.poll(() => passwordPayloads.length).toBe(1);
+    expect(passwordPayloads[0]).toMatchObject({
+      email: "recruiter@example.com",
+      password: "password123",
     });
     await expect(page).toHaveURL(/\/app$/);
   });

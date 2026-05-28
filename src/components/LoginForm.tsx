@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Loader2, Mail, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowRight, KeyRound, Loader2, Mail, RotateCcw, ShieldCheck } from "lucide-react";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { markGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/growth-client";
@@ -27,6 +27,8 @@ export function LoginForm({
 }: LoginFormProps) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"code" | "password">("code");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -42,6 +44,7 @@ export function LoginForm({
   const normalizedEmail = email.trim().toLowerCase();
   const canSendOtp = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail);
   const canVerifyOtp = canSendOtp && otp.trim().length >= 6;
+  const canPasswordSignIn = canSendOtp && password.length >= 8;
   const authBusy = googleLoading || sendingOtp || emailSigningIn;
 
   function redirectAfterEmailSignIn() {
@@ -169,6 +172,42 @@ export function LoginForm({
     }
   }
 
+  async function handlePasswordSignIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPasswordSignIn) {
+      setErrorMessage("Enter your email and password.");
+      return;
+    }
+
+    setEmailSigningIn(true);
+    setErrorMessage(null);
+    try {
+      onSuccessStart?.();
+      const result = await authClient.signIn.email({
+        email: normalizedEmail,
+        password,
+        callbackURL: nextPath,
+      });
+      if (result?.error) {
+        throw new Error("Invalid password.");
+      }
+      void trackGrowthEvent("password_signin", {
+        auth_method: "password",
+        route: window.location.pathname,
+      });
+      trackEvent(ANALYTICS_EVENTS.passwordSignin, {
+        ...getAnalyticsContextFromBrowser(),
+        auth_method: "password",
+      });
+      redirectAfterEmailSignIn();
+    } catch {
+      setErrorMessage("Email or password is not correct.");
+      onFailure?.();
+    } finally {
+      setEmailSigningIn(false);
+    }
+  }
+
   return (
     <div className={styles.container}>
       {contextTitle && (
@@ -212,7 +251,57 @@ export function LoginForm({
         </div>
       </div>
 
-      {!otpSent ? (
+      {authMode === "password" ? (
+        <form className="space-y-3" onSubmit={handlePasswordSignIn}>
+          <label className="block text-sm font-medium">
+            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>Email</span>
+            <span className="relative mt-1 block">
+              <Mail className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${styles.icon}`} />
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@company.com"
+                className={styles.input}
+              />
+            </span>
+          </label>
+          <label className="block text-sm font-medium">
+            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>Password</span>
+            <span className="relative mt-1 block">
+              <KeyRound className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${styles.icon}`} />
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Password"
+                className={styles.input}
+              />
+            </span>
+          </label>
+          <button
+            type="submit"
+            disabled={!canPasswordSignIn || authBusy}
+            className={styles.submitButton}
+          >
+            {emailSigningIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+            Sign in with password
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode("code");
+              setErrorMessage(null);
+            }}
+            disabled={authBusy}
+            className={styles.secondaryButton}
+          >
+            Use email code instead
+          </button>
+        </form>
+      ) : !otpSent ? (
         <form className="space-y-3" onSubmit={handleSendOtp}>
           <label className="block text-sm font-medium">
             <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>Work email</span>
@@ -235,6 +324,20 @@ export function LoginForm({
           >
             {sendingOtp ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             Continue with email
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode("password");
+              setOtp("");
+              setOtpSent(false);
+              setErrorMessage(null);
+            }}
+            disabled={authBusy}
+            className={styles.secondaryButton}
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            Use password instead
           </button>
         </form>
       ) : (

@@ -97,6 +97,12 @@ export const auth = betterAuth({
         clientSecret: readEnv("GOOGLE_CLIENT_SECRET"),
       },
     },
+    emailAndPassword: {
+      enabled: true,
+      disableSignUp: true,
+      minPasswordLength: 8,
+      maxPasswordLength: 128,
+    },
     plugins: [
       emailOTP({
         expiresIn: 60 * 5,

@@ -12,11 +12,12 @@ import {
   trackEvent,
 } from "@/lib/analytics";
 import { useBilling } from "@/lib/use-billing";
+import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
 import { RecruiterProfileSection } from "./_components/RecruiterProfileSection";
 import { EMPTY_PROFILE, type HeadhunterProfile, type SettingsSectionId } from "./_components/shared";
 
-const SETTINGS_SECTION_IDS = ["billing", "profile"] as const satisfies readonly SettingsSectionId[];
+const SETTINGS_SECTION_IDS = ["account", "billing", "profile"] as const satisfies readonly SettingsSectionId[];
 
 function isSettingsSectionId(value: string): value is SettingsSectionId {
   return SETTINGS_SECTION_IDS.includes(value as SettingsSectionId);
@@ -40,8 +41,14 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [headhunterProfile, setHeadhunterProfile] = useState<HeadhunterProfile>(EMPTY_PROFILE);
   const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>("billing");
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
+  const [signInMethods, setSignInMethods] = useState<string[]>([]);
   const sectionNav = [
+    {
+      id: "account" as const,
+      label: "Account",
+      detail: signInMethods.includes("credential") ? "Password enabled" : "Set password",
+    },
     {
       id: "billing" as const,
       label: "Billing",
@@ -65,6 +72,11 @@ export default function SettingsPage() {
         }
         if (data.billing) {
           setBilling(data.billing as BillingSummary);
+        }
+        if (Array.isArray(data.sign_in_methods)) {
+          setSignInMethods(
+            data.sign_in_methods.filter((method: unknown): method is string => typeof method === "string"),
+          );
         }
       }
     } catch {
@@ -116,15 +128,6 @@ export default function SettingsPage() {
   useEffect(() => {
     const sectionParam = searchParams.get("section");
     const requestedSection = settingsHash || sectionParam || "";
-    if (requestedSection === "account") {
-      setActiveSection("billing");
-      window.history.replaceState(null, "", "#billing");
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: "auto" });
-      });
-      return;
-    }
-
     if (!isSettingsSectionId(requestedSection)) {
       return;
     }
@@ -170,10 +173,17 @@ export default function SettingsPage() {
       );
     }
 
-    return billing ? (
-      <BillingPanel billing={billing} />
-    ) : (
-      <SettingsPageSkeleton />
+    return (
+      <AccountSection
+        user={user}
+        signInMethods={signInMethods}
+        onPasswordSet={() => {
+          setSignInMethods((prev) =>
+            prev.includes("credential") ? prev : [...prev, "credential"],
+          );
+          void fetchSettings();
+        }}
+      />
     );
   })();
 
@@ -192,7 +202,7 @@ export default function SettingsPage() {
             Settings
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-            Manage your plan, usage, and outreach identity.
+            Manage your login, plan, usage, and outreach identity.
           </p>
         </div>
         {billing ? (

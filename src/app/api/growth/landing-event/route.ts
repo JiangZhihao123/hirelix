@@ -19,6 +19,7 @@ const ALLOWED_EVENTS = new Set([
   "sample_view",
   "signin_view",
   "google_signin_click",
+  "password_signin",
   "signup_success",
   "new_search_view",
   "search_create_success",

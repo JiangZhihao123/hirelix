@@ -15,7 +15,7 @@ export const EMPTY_PROFILE: HeadhunterProfile = {
 };
 
 export type MessageState = { type: "success" | "error"; text: string } | null;
-export type SettingsSectionId = "billing" | "profile";
+export type SettingsSectionId = "account" | "billing" | "profile";
 
 export function SettingsSection({
   id,

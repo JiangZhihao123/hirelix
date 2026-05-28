@@ -15,6 +15,7 @@ export const ANALYTICS_EVENTS = {
   sampleShortlistView: "sample_shortlist_view",
   signinView: "signin_view",
   signupSuccess: "signup_success",
+  passwordSignin: "password_signin",
   emailOtpRequested: "email_otp_requested",
   emailOtpVerified: "email_otp_verified",
   emailOtpFailed: "email_otp_failed",
