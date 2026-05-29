@@ -73,7 +73,7 @@ export function PricingSection({
         `${starterAnnualPlan.searchesPerMonth} client roles per month`,
         `${formatCount(getPlanProfileScansPerMonth(starterAnnualPlan))} targeted profile scans included`,
         "Start each role with 500 scans",
-        "Use remaining scans on more client roles",
+        "Expand the same role with remaining scans",
         `${formatCount(getPlanEmailLookupsPerMonth(starterAnnualPlan))} contact lookups`,
         `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(starterAnnualPlan))} public evidence deep dives`,
         "CSV export and client-ready briefs",
@@ -94,7 +94,7 @@ export function PricingSection({
         `${proAnnualPlan.searchesPerMonth} client roles per month`,
         `${formatCount(getPlanProfileScansPerMonth(proAnnualPlan))} targeted profile scans included`,
         "Start each role with 500 scans",
-        "Use remaining scans on more client roles",
+        "Expand the same role with remaining scans",
         `${formatCount(getPlanEmailLookupsPerMonth(proAnnualPlan))} contact lookups`,
         `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(proAnnualPlan))} public evidence deep dives`,
         "CSV export and client-ready briefs",
@@ -190,7 +190,7 @@ export function PricingSection({
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Targeted profile scans are sourced profiles returned by JD-based filters, not random resume browsing. Each client role starts with 500 scans; remaining monthly scans can be used on additional client roles.
+          Targeted profile scans are sourced profiles returned by JD-based filters, not random resume browsing. Each client role starts with 500 scans; remaining monthly scans can expand the same role or start another one.
         </p>
       </div>
     </section>

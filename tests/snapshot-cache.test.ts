@@ -65,3 +65,15 @@ test("retry keeps existing snapshot profile cache even when recall metadata drif
     false,
   );
 });
+
+test("explicit pool expansion does not reuse a smaller cached snapshot", () => {
+  assert.equal(
+    shouldReuseProfileCacheDespiteSnapshotDrift({
+      hasSnapshotDrift: true,
+      existingSnapshotId: "snap_existing",
+      standardProfileRowCount: 50,
+      allowReuse: false,
+    }),
+    false,
+  );
+});

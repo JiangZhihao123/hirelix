@@ -59,6 +59,7 @@ const FREE_PROFILE_SCAN_LIMIT = 150;
 const PAID_PROFILE_SCAN_BATCH_LIMIT = 500;
 export const FINAL_SHORTLIST_TARGET = DEFAULT_SHORTLIST_CAP;
 export const DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT = PAID_PROFILE_SCAN_BATCH_LIMIT;
+export const DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT = PAID_PROFILE_SCAN_BATCH_LIMIT;
 const PLAN_SHORTLIST_CAPS: Record<SearchPlanCode, number> = {
   free: DEFAULT_SHORTLIST_CAP,
   starter_monthly: 25,
@@ -180,5 +181,44 @@ export function getInitialSearchTargets(
     executionProfile: profile.name,
     profileScanBudget:
       profile.filterLimit + profile.hiddenGemLimit + profile.companyTargetLimit,
+  };
+}
+
+export function resolveExpandedProfileScanBudget({
+  currentBudget,
+  remainingScans,
+  returnedProfiles,
+  increment = DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT,
+}: {
+  currentBudget: number;
+  remainingScans: number;
+  returnedProfiles?: number | null;
+  increment?: number;
+}) {
+  const normalizedCurrentBudget = Number.isFinite(currentBudget)
+    ? Math.max(0, Math.round(currentBudget))
+    : 0;
+  const normalizedReturnedProfiles =
+    typeof returnedProfiles === "number" && Number.isFinite(returnedProfiles)
+      ? Math.max(0, Math.round(returnedProfiles))
+      : null;
+  const normalizedRemainingScans = Number.isFinite(remainingScans)
+    ? Math.max(0, Math.round(remainingScans))
+    : 0;
+  const normalizedIncrement = Number.isFinite(increment)
+    ? Math.max(1, Math.round(increment))
+    : DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT;
+  const additionalBudget = Math.min(normalizedRemainingScans, normalizedIncrement);
+  const maxBillableReturnedProfiles =
+    (normalizedReturnedProfiles ?? normalizedCurrentBudget) + normalizedRemainingScans;
+  const nextBudget = Math.min(
+    normalizedCurrentBudget + additionalBudget,
+    Math.max(normalizedCurrentBudget, maxBillableReturnedProfiles),
+  );
+
+  return {
+    currentBudget: normalizedCurrentBudget,
+    additionalBudget: Math.max(0, nextBudget - normalizedCurrentBudget),
+    nextBudget,
   };
 }

@@ -263,7 +263,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                       `${plan.searchesPerMonth} client roles per month`,
                       `${profileScans} targeted profile scans per month`,
                       "500 scans in each default discovery pass",
-                      "Use remaining scans on more client roles",
+                      "Expand the same role with remaining scans",
                       `${emailLookups} contact lookups per month`,
                       `${evidenceDeepDives} public evidence deep dives per month`,
                       "CSV export and client-ready briefs",

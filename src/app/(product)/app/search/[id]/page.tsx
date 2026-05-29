@@ -48,6 +48,7 @@ import {
   Mail,
   MapPin,
   RotateCcw,
+  ScanSearch,
   Search,
   Send,
 } from "lucide-react";
@@ -149,6 +150,8 @@ export default function SearchResultPage() {
   const [, setUpgradeError] = useState<string | null>(null);
   const [rescoreError, setRescoreError] = useState<string | null>(null);
   const [rescoreSubmitting, setRescoreSubmitting] = useState(false);
+  const [expandError, setExpandError] = useState<string | null>(null);
+  const [expandSubmitting, setExpandSubmitting] = useState(false);
   const hasTrackedTaskViewRef = useRef(false);
   const hasTrackedBriefReadyViewRef = useRef(false);
   const hasTrackedProcessingViewRef = useRef(false);
@@ -269,6 +272,27 @@ export default function SearchResultPage() {
       setRescoreError(error instanceof Error ? error.message : PUBLIC_RESCORE_ERROR_MESSAGE);
     } finally {
       setRescoreSubmitting(false);
+    }
+  }
+
+  async function expandCandidatePool() {
+    if (!id || expandSubmitting) return;
+    setExpandError(null);
+    setExpandSubmitting(true);
+    try {
+      const response = await fetchWithUserSession(`/api/search/${id}/expand`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || "Could not expand this candidate pool.");
+      }
+      window.sessionStorage.removeItem(getSearchPageCacheKey(id));
+      await Promise.all([fetchData(), refreshBilling()]);
+    } catch (error) {
+      setExpandError(error instanceof Error ? error.message : "Could not expand this candidate pool.");
+    } finally {
+      setExpandSubmitting(false);
     }
   }
 
@@ -756,6 +780,16 @@ export default function SearchResultPage() {
       ? (reqs.recall_metadata as RecallMetadataView)
       : null;
   const canRerunScoringFromCache = isReviewable && Boolean(recallMetadata?.snapshot_id);
+  const currentProfileScanBudget =
+    positiveInt(reqs?.profile_scan_budget) ??
+    positiveInt(rawDisplayStats?.bright_profiles_requested) ??
+    positiveInt(recallMetadata?.bright_profiles_requested) ??
+    null;
+  const canExpandCandidatePool =
+    isReviewable &&
+    !isRunningSearchStatus(search.status) &&
+    billing?.plan.code !== "free" &&
+    (billing?.usage.profileScansRemaining ?? 0) > 0;
   const searchStartedAt =
     reqs && typeof reqs.search_started_at === "string"
       ? reqs.search_started_at
@@ -938,6 +972,28 @@ export default function SearchResultPage() {
                   <span className="sm:hidden">Rescore</span>
                 </button>
               )}
+              {canExpandCandidatePool ? (
+                <button
+                  onClick={expandCandidatePool}
+                  disabled={expandSubmitting}
+                  className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition-colors hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <ScanSearch className={`h-3 w-3 ${expandSubmitting ? "animate-pulse" : ""}`} />
+                  <span className="hidden sm:inline">
+                    {expandSubmitting ? "Expanding pool" : "Expand pool"}
+                  </span>
+                  <span className="sm:hidden">Expand</span>
+                </button>
+              ) : billing?.plan.code === "free" && isReviewable ? (
+                <Link
+                  href="/app/settings#billing"
+                  onClick={() => handleUpgradeClick("results_expand_pool_gate")}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition-colors hover:border-indigo-300 hover:bg-indigo-100"
+                >
+                  <ScanSearch className="h-3 w-3" />
+                  Expand pool
+                </Link>
+              ) : null}
               {allCandidates.length > 0 &&
                 (billing?.usage.exportEnabled ? (
                   <button
@@ -1212,6 +1268,13 @@ export default function SearchResultPage() {
                       ? "Hirelix is still refining the remaining scores in the background."
                       : `Hirelix found ${deliveredCandidateCount} qualified candidates after ${formatDisplayCount(deepReviewCompletedCount)} reviewed profiles: ${priorityOutreachCount} candidates to reach out to first, and ${worthReviewingCount} more to keep reviewing.`}
               </p>
+              {billing?.plan.code !== "free" && (
+                <p className="mt-2 text-xs text-slate-500">
+                  {currentProfileScanBudget
+                    ? `${currentProfileScanBudget.toLocaleString("en-US")} targeted profiles in this role budget. ${billing?.usage.profileScansRemaining ?? 0} scans left this cycle.`
+                    : `${billing?.usage.profileScansRemaining ?? 0} targeted scans left this cycle.`}
+                </p>
+              )}
               {isImprovingInBackground && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
@@ -1507,6 +1570,12 @@ export default function SearchResultPage() {
       {rescoreError && (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {rescoreError}
+        </div>
+      )}
+
+      {expandError && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {expandError}
         </div>
       )}
 

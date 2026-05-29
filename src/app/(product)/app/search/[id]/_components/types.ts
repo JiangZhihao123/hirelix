@@ -274,6 +274,8 @@ export type RecallMetadataView = {
   snapshot_id?: string | null;
   requested_at?: string | null;
   completed_at?: string | null;
+  bright_profiles_requested?: number | null;
+  bright_profiles_returned?: number | null;
   standard_recall_requested_at?: string | null;
   standard_recall_completed_at?: string | null;
   all_recall_completed_at?: string | null;

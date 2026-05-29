@@ -26,6 +26,7 @@ function secondsAgoDate(seconds: number) {
 }
 
 const SNAPSHOT_PROFILE_CACHE_RERUN_MODE = "snapshot_profile_cache";
+const FRESH_RECALL_EXPAND_MODE = "fresh_snapshot";
 
 type SearchStartupState = {
   status: string | null;
@@ -44,9 +45,15 @@ function isSnapshotProfileCacheRerun(parsedRequirements: unknown) {
   );
 }
 
+function isSearchStartupRerun(parsedRequirements: unknown) {
+  if (isSnapshotProfileCacheRerun(parsedRequirements)) return true;
+  if (!parsedRequirements || typeof parsedRequirements !== "object") return false;
+  const parsed = parsedRequirements as Record<string, unknown>;
+  return parsed.expand_recall_mode === FRESH_RECALL_EXPAND_MODE;
+}
+
 export function hasSearchJobStartedPipeline(search: SearchStartupState) {
-  const isCacheOnlyRerun = isSnapshotProfileCacheRerun(search.parsed_requirements);
-  if (isCacheOnlyRerun) {
+  if (isSearchStartupRerun(search.parsed_requirements)) {
     return (
       search.status !== "queued" ||
       search.pipeline_step !== "queued" ||

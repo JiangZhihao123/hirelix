@@ -340,8 +340,10 @@ export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
   hasSnapshotDrift: boolean;
   existingSnapshotId?: string | null;
   standardProfileRowCount?: number | null;
+  allowReuse?: boolean;
 }) {
   return Boolean(
+    params.allowReuse !== false &&
     params.hasSnapshotDrift &&
     params.existingSnapshotId &&
     (params.standardProfileRowCount ?? 0) > 0,
@@ -1118,6 +1120,7 @@ async function buildBrightDataDatasetCandidates(
     hasSnapshotDrift,
     existingSnapshotId: existingRecallMetadata?.snapshot_id,
     standardProfileRowCount: existingStandardSnapshotRows?.length,
+    allowReuse: parsed.expand_recall_mode !== "fresh_snapshot",
   });
 
   if (shouldKeepSnapshotProfileCache) {
@@ -2133,7 +2136,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
       ? initialExecutionProfile
       : {
         ...initialExecutionProfile,
-        filterLimit: Math.min(initialExecutionProfile.filterLimit, storedProfileScanBudget),
+        filterLimit: storedProfileScanBudget,
         hiddenGemLimit: 0,
         companyTargetLimit: 0,
       };
@@ -2212,6 +2215,11 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
     phase1Parsed.last_rerun_mode = SNAPSHOT_PROFILE_CACHE_RERUN_MODE;
     phase1Parsed.last_rerun_completed_at = helpers.nowIso();
     delete phase1Parsed.rerun_mode;
+  }
+  if (phase1Parsed.expand_recall_mode === "fresh_snapshot") {
+    phase1Parsed.last_expand_completed_at = helpers.nowIso();
+    phase1Parsed.last_expanded_profile_scan_budget = storedProfileScanBudget;
+    delete phase1Parsed.expand_recall_mode;
   }
 
   await completeSearch(

@@ -3,10 +3,12 @@ import test from "node:test";
 
 import {
   FINAL_SHORTLIST_TARGET,
+  DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT,
   getInitialSearchExecutionProfile,
   getInitialSearchTargets,
   getSearchExecutionProfile,
   normalizeSearchExecutionProfileName,
+  resolveExpandedProfileScanBudget,
 } from "@/lib/search-execution";
 
 function withProductionEnv<T>(fn: () => T): T {
@@ -76,4 +78,42 @@ test("free plans use the same candidate quality target while constraining target
 test("stored profile normalization accepts the free preview profile", () => {
   assert.equal(normalizeSearchExecutionProfileName("bright_free_preview"), "bright_free_preview");
   assert.ok(getSearchExecutionProfile("bright_free_preview").filterLimit >= FINAL_SHORTLIST_TARGET);
+});
+
+test("expanded profile scan budgets use one paid batch or remaining scans", () => {
+  assert.equal(DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT, 500);
+  assert.deepEqual(
+    resolveExpandedProfileScanBudget({
+      currentBudget: 500,
+      remainingScans: 3500,
+    }),
+    {
+      currentBudget: 500,
+      additionalBudget: 500,
+      nextBudget: 1000,
+    },
+  );
+  assert.deepEqual(
+    resolveExpandedProfileScanBudget({
+      currentBudget: 3800,
+      remainingScans: 200,
+    }),
+    {
+      currentBudget: 3800,
+      additionalBudget: 200,
+      nextBudget: 4000,
+    },
+  );
+  assert.deepEqual(
+    resolveExpandedProfileScanBudget({
+      currentBudget: 4000,
+      remainingScans: 200,
+      returnedProfiles: 2000,
+    }),
+    {
+      currentBudget: 4000,
+      additionalBudget: 0,
+      nextBudget: 4000,
+    },
+  );
 });
