@@ -67,8 +67,8 @@ function makeBillingSummary(
     },
     checkout: {
       paddleEnabled: false,
-      monthlyPriceIdConfigured: false,
-      annualPriceIdConfigured: false,
+      proMonthlyPriceIdConfigured: false,
+      proAnnualPriceIdConfigured: false,
       starterMonthlyPriceIdConfigured: false,
       starterAnnualPriceIdConfigured: false,
       businessPriceIdConfigured: false,
@@ -77,25 +77,30 @@ function makeBillingSummary(
   };
 }
 
-test("MVP billing plans expose a free preview and two paid choices", () => {
+test("billing plans expose free, starter, and pro client-role tiers", () => {
   assert.equal(BILLING_PLANS.free.profileScansPerMonth, 150);
   assert.equal(BILLING_PLANS.free.clientBriefEnabled, false);
   assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 25);
   assert.equal(BILLING_PLANS.free.emailLookupsPerMonth, 0);
-  assert.deepEqual([...CUSTOMER_BILLING_PLAN_CODES], ["starter_monthly", "starter_annual"]);
-  assert.equal(BILLING_PLANS.starter_monthly.name, "Monthly");
+  assert.equal(BILLING_PLANS.free.searchesPerMonth, 1);
+  assert.deepEqual(
+    [...CUSTOMER_BILLING_PLAN_CODES],
+    ["starter_annual", "starter_monthly", "pro_annual", "pro_monthly"],
+  );
+  assert.equal(BILLING_PLANS.starter_monthly.name, "Starter");
   assert.equal(BILLING_PLANS.starter_monthly.priceLabel, "$149");
+  assert.equal(BILLING_PLANS.starter_monthly.searchesPerMonth, 3);
   assert.equal(BILLING_PLANS.starter_monthly.candidateLimitPerSearch, 25);
   assert.equal(BILLING_PLANS.starter_monthly.profileScansPerMonth, 4000);
-  assert.equal(BILLING_PLANS.starter_monthly.emailLookupsPerMonth, 50);
-  assert.equal(BILLING_PLANS.starter_monthly.publicEvidenceDeepDivesPerMonth, 25);
+  assert.equal(BILLING_PLANS.starter_monthly.emailLookupsPerMonth, 100);
+  assert.equal(BILLING_PLANS.starter_monthly.publicEvidenceDeepDivesPerMonth, 50);
   assert.equal(BILLING_PLANS.starter_monthly.exportEnabled, true);
   assert.equal(BILLING_PLANS.starter_monthly.clientBriefEnabled, true);
-  assert.equal(BILLING_PLANS.starter_annual.name, "Annual");
+  assert.equal(BILLING_PLANS.starter_annual.name, "Starter");
   assert.equal(BILLING_PLANS.starter_annual.priceLabel, "$99");
   assert.equal(BILLING_PLANS.starter_annual.priceCents, 118800);
   assert.equal(BILLING_PLANS.starter_annual.candidateLimitPerSearch, 25);
-  assert.equal(BILLING_PLANS.starter_annual.emailLookupsPerMonth, 50);
+  assert.equal(BILLING_PLANS.starter_annual.emailLookupsPerMonth, 100);
   assert.equal(
     BILLING_PLANS.starter_annual.profileScansPerMonth,
     BILLING_PLANS.starter_monthly.profileScansPerMonth,
@@ -110,6 +115,16 @@ test("MVP billing plans expose a free preview and two paid choices", () => {
   );
   assert.equal(BILLING_PLANS.starter_annual.exportEnabled, true);
   assert.equal(BILLING_PLANS.starter_annual.clientBriefEnabled, true);
+  assert.equal(BILLING_PLANS.pro_monthly.name, "Pro");
+  assert.equal(BILLING_PLANS.pro_monthly.priceLabel, "$399");
+  assert.equal(BILLING_PLANS.pro_monthly.searchesPerMonth, 10);
+  assert.equal(BILLING_PLANS.pro_monthly.profileScansPerMonth, 15000);
+  assert.equal(BILLING_PLANS.pro_monthly.emailLookupsPerMonth, 500);
+  assert.equal(BILLING_PLANS.pro_monthly.publicEvidenceDeepDivesPerMonth, 250);
+  assert.equal(BILLING_PLANS.pro_annual.priceLabel, "$299");
+  assert.equal(BILLING_PLANS.pro_annual.priceCents, 358800);
+  assert.equal(BILLING_PLANS.pro_annual.profileScansPerMonth, 15000);
+  assert.equal(BILLING_PLANS.pro_annual.emailLookupsPerMonth, 500);
 });
 
 test("plan status copy describes shortlist actions for free and paid plans", () => {
@@ -119,9 +134,10 @@ test("plan status copy describes shortlist actions for free and paid plans", () 
   assert.match(freeCopy.capabilityLabel, /150 targeted profile scans/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
-  assert.equal(monthlyCopy.title, "Monthly");
+  assert.equal(monthlyCopy.title, "Starter");
   assert.match(monthlyCopy.capabilityLabel, /targeted profile scans/);
   assert.match(monthlyCopy.capabilityLabel, /client-ready briefs/);
+  assert.match(monthlyCopy.capabilityLabel, /3 client roles/);
 });
 
 test("plan status copy marks exhausted paid plan", () => {
@@ -155,14 +171,16 @@ test("getCheckoutConfig trims configured Paddle values", () => {
   process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = " token \n";
   process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID = " starter_monthly \n";
   process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID = " starter_annual \t";
-  delete process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID;
-  delete process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID;
+  process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = " pro_monthly \n";
+  process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = " pro_annual \t";
 
   try {
     const config = getCheckoutConfig();
     assert.equal(config.clientToken, "token");
     assert.equal(config.starterMonthlyPriceId, "starter_monthly");
     assert.equal(config.starterAnnualPriceId, "starter_annual");
+    assert.equal(config.proMonthlyPriceId, "pro_monthly");
+    assert.equal(config.proAnnualPriceId, "pro_annual");
     assert.equal(config.enabled, true);
   } finally {
     process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = originalEnv.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;

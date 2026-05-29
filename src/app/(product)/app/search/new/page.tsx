@@ -97,7 +97,7 @@ export default function NewSearchPage() {
     }
   }, [shouldFocusClarification]);
 
-  const isOutOfSearches = billing?.usage.profileScansRemaining === 0 && billing.plan.code === "free";
+  const isOutOfDiscoveryScans = billing?.usage.profileScansRemaining === 0 && billing.plan.code === "free";
   const candidateCount = billing?.usage.candidateLimitPerSearch ?? 25;
 
   const buildEditableBrief = (response: ClarifyResponse): EditableBrief => ({
@@ -166,7 +166,7 @@ export default function NewSearchPage() {
 
   async function handleStart() {
     if (jdText.trim().length < 50) return;
-    if (isOutOfSearches) return;
+    if (isOutOfDiscoveryScans) return;
 
     setStage({ type: "analyzing" });
 
@@ -267,7 +267,7 @@ export default function NewSearchPage() {
     }
   }
 
-  const canStart = jdText.trim().length >= 50 && !isOutOfSearches;
+  const canStart = jdText.trim().length >= 50 && !isOutOfDiscoveryScans;
   const wordCount = useMemo(
     () => jdText.trim().split(/\s+/).filter(Boolean).length,
     [jdText],
@@ -283,7 +283,7 @@ export default function NewSearchPage() {
           Paste the client role and confirm the brief.
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Hirelix reads the JD, shows the search brief, then builds an evidence-backed technical shortlist.
+          Hirelix reads the JD, shows the sourcing brief, then builds an evidence-backed technical shortlist.
         </p>
       </div>
 
@@ -307,15 +307,15 @@ export default function NewSearchPage() {
           className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white disabled:opacity-60"
         />
 
-        {isOutOfSearches && (
+        {isOutOfDiscoveryScans && (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-amber-900">
-                You&apos;ve used your free targeted profile scan preview. Start a subscription to keep sourcing.
+                You&apos;ve used your free candidate discovery preview. Start a subscription to keep sourcing.
               </p>
               <PaddleCheckoutButton
                 checkout={{ type: "plan", planCode: "starter_monthly" }}
-                label="Start monthly"
+                label="Start Starter"
                 onError={(message) =>
                   setStage({ type: "error", message })
                 }
@@ -370,7 +370,7 @@ export default function NewSearchPage() {
               ) : (
                 <span className="flex items-center gap-2 text-sm text-slate-500">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {isNavigating ? "Opening workbench..." : "Launching search..."}
+                  {isNavigating ? "Opening workbench..." : "Building candidate pool..."}
                 </span>
               )}
             </div>
@@ -382,7 +382,7 @@ export default function NewSearchPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                      Confirm search brief
+                      Confirm sourcing brief
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
                       Edit the constraints that would change who you contact first.

@@ -109,7 +109,7 @@ export function getSearchTaskSummary(stage: SearchTaskStage) {
     case "accepted":
       return "Your search has started. You can leave this page while Hirelix prepares the search.";
     case "brief_ready":
-      return "Hirelix has turned the JD into a search brief and is preparing the LinkedIn search. You can leave this page.";
+      return "Hirelix has turned the JD into a sourcing brief and is preparing the LinkedIn search. You can leave this page.";
     case "linkedin_scan":
       return "We're scanning LinkedIn at scale. This usually takes a few minutes — you can leave this page.";
     case "reviewing_profiles":

@@ -14,12 +14,12 @@ export function HowItWorksSection() {
       desc: "Start from the real role on your desk. No Boolean rebuild or long setup flow.",
     },
     {
-      title: "Hirelix builds the search brief",
+      title: "Hirelix builds the sourcing brief",
       desc: "The agents extract must-have skills, constraints, target signals, and comparable backgrounds.",
     },
     {
-      title: "Agents search and research candidates",
-      desc: "Real profiles are searched, scored, and checked for public technical evidence in parallel.",
+      title: "Agents source and research candidates",
+      desc: "Real profiles are sourced, scored, and checked for public technical evidence in parallel.",
     },
     {
       title: "Review the ranked shortlist",
@@ -74,13 +74,13 @@ export function FeaturesSection() {
   const features = [
     {
       icon: FileText,
-      title: "JD-to-search brief",
+      title: "JD-to-sourcing brief",
       desc: "Turns the client JD into role requirements, constraints, target company signals, and adjacent background patterns.",
     },
     {
       icon: Search,
       title: "Real profile discovery",
-      desc: "Searches around real candidate profiles instead of generating synthetic records or generic persona matches.",
+      desc: "Sources around real candidate profiles instead of generating synthetic records or generic persona matches.",
     },
     {
       icon: Github,
@@ -160,7 +160,7 @@ export function ResourcesSection({ onStart }: { onStart: () => void }) {
     {
       category: "JD examples",
       title: "Backend Engineer JD Template",
-      desc: "A clear role brief with the signals Hirelix can turn into a technical search.",
+      desc: "A clear role brief with the signals Hirelix can turn into technical sourcing.",
     },
     {
       category: "Sourcing guides",

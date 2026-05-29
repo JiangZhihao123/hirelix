@@ -101,8 +101,8 @@ export function LinkedInScanAnimation({
     {
       label: "Brief parsed",
       detail: briefReadyAt
-        ? "Role requirements are locked and the search brief is ready."
-        : "Turning the JD into a structured search brief.",
+        ? "Role requirements are locked and the sourcing brief is ready."
+        : "Turning the JD into a structured sourcing brief.",
       state: briefReadyAt ? "done" : "active",
     },
     {

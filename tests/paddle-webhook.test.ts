@@ -78,6 +78,8 @@ test("Paddle webhook maps nested and flat price ids to paid entitlements", () =>
 
   process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID = "pri_starter_monthly";
   process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID = "pri_starter_annual";
+  process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID = "pri_pro_monthly";
+  process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = "pri_pro_annual";
 
   try {
     assert.deepEqual(
@@ -85,14 +87,18 @@ test("Paddle webhook maps nested and flat price ids to paid entitlements", () =>
         items: [
           { price: { id: "pri_starter_monthly" } },
           { price_id: "pri_starter_annual" },
+          { price: { id: "pri_pro_monthly" } },
+          { price_id: "pri_pro_annual" },
           { price: {} },
           null,
         ],
       }),
-      ["pri_starter_monthly", "pri_starter_annual"],
+      ["pri_starter_monthly", "pri_starter_annual", "pri_pro_monthly", "pri_pro_annual"],
     );
     assert.equal(resolvePaddlePlanCode(["pri_starter_monthly"]), "starter_monthly");
     assert.equal(resolvePaddlePlanCode(["pri_starter_annual"]), "starter_annual");
+    assert.equal(resolvePaddlePlanCode(["pri_pro_monthly"]), "pro_monthly");
+    assert.equal(resolvePaddlePlanCode(["pri_pro_annual"]), "pro_annual");
     assert.equal(resolvePaddlePlanCode(["pri_unknown"]), null);
   } finally {
     process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID =
@@ -106,7 +112,7 @@ test("Paddle webhook maps nested and flat price ids to paid entitlements", () =>
   }
 });
 
-test("Paddle webhook treats legacy subscription price ids as the two public plans", () => {
+test("Paddle webhook does not remap pro price ids to starter plans", () => {
   const originalEnv = {
     NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID:
       process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID,
@@ -124,8 +130,8 @@ test("Paddle webhook treats legacy subscription price ids as the two public plan
   process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID = "pri_legacy_annual";
 
   try {
-    assert.equal(resolvePaddlePlanCode(["pri_legacy_monthly"]), "starter_monthly");
-    assert.equal(resolvePaddlePlanCode(["pri_legacy_annual"]), "starter_annual");
+    assert.equal(resolvePaddlePlanCode(["pri_legacy_monthly"]), "pro_monthly");
+    assert.equal(resolvePaddlePlanCode(["pri_legacy_annual"]), "pro_annual");
   } finally {
     process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID =
       originalEnv.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID;

@@ -5,10 +5,10 @@ import { CheckCircle2, Mail, ScanSearch, Sparkles } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   BILLING_PLANS,
-  CUSTOMER_BILLING_PLAN_CODES,
   getPlanEmailLookupsPerMonth,
   getPlanProfileScansPerMonth,
   getPlanPublicEvidenceDeepDivesPerMonth,
+  type BillingPlanCode,
   type BillingSummary,
 } from "@/lib/billing";
 import {
@@ -20,8 +20,37 @@ import {
   SettingsSection,
 } from "./shared";
 
+type PaidBillingPlanCode = Exclude<BillingPlanCode, "free">;
+
 export function BillingPanel({ billing }: { billing: BillingSummary }) {
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
+  const subscriptionTiers = [
+    {
+      key: "starter",
+      annualPlanCode: "starter_annual",
+      monthlyPlanCode: "starter_monthly",
+      note: "For a few active client roles.",
+    },
+    {
+      key: "pro",
+      annualPlanCode: "pro_annual",
+      monthlyPlanCode: "pro_monthly",
+      note: "For a larger client-role desk.",
+    },
+  ] satisfies Array<{
+    key: string;
+    annualPlanCode: PaidBillingPlanCode;
+    monthlyPlanCode: PaidBillingPlanCode;
+    note: string;
+  }>;
+
+  function isCurrentPlan(planCode: PaidBillingPlanCode) {
+    return billing.subscription.planCode === planCode;
+  }
+
+  function isCurrentTier(annualPlanCode: PaidBillingPlanCode, monthlyPlanCode: PaidBillingPlanCode) {
+    return isCurrentPlan(annualPlanCode) || isCurrentPlan(monthlyPlanCode);
+  }
 
   return (
     <SettingsSection
@@ -154,7 +183,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
 
         <SettingsFieldGroup
           title="Subscription"
-          description="Two choices, same benefits. Annual just gives you the lower rate."
+          description="Choose a client-role tier. Annual gives you the lower monthly rate."
         >
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Hirelix is built for technical headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
@@ -167,16 +196,19 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             .
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            {CUSTOMER_BILLING_PLAN_CODES.map((planCode) => {
-              const plan = BILLING_PLANS[planCode];
-              const isCurrent = billing.subscription.planCode === plan.code;
+            {subscriptionTiers.map((tier) => {
+              const plan = BILLING_PLANS[tier.annualPlanCode];
+              const monthlyPlan = BILLING_PLANS[tier.monthlyPlanCode];
+              const annualPlanCode = tier.annualPlanCode;
+              const monthlyPlanCode = tier.monthlyPlanCode;
+              const tierIsCurrent = isCurrentTier(annualPlanCode, monthlyPlanCode);
               const profileScans = getPlanProfileScansPerMonth(plan).toLocaleString("en-US");
               const emailLookups = getPlanEmailLookupsPerMonth(plan).toLocaleString("en-US");
               const evidenceDeepDives = getPlanPublicEvidenceDeepDivesPerMonth(plan).toLocaleString("en-US");
 
               return (
                 <div
-                  key={plan.code}
+                  key={tier.key}
                   className={`rounded-lg border p-4 ${
                     plan.featured
                       ? "border-primary/25 bg-primary/5"
@@ -186,7 +218,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-semibold text-slate-950">{plan.name}</h3>
-                      <p className="mt-1 text-xs text-slate-600">{plan.description}</p>
+                      <p className="mt-1 text-xs text-slate-600">{tier.note}</p>
                     </div>
                     {plan.featured ? (
                       <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
@@ -198,13 +230,18 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="mt-4">
                     <p className="text-xl font-bold text-slate-950">{plan.priceLabel}</p>
                     <p className="text-xs text-slate-500">{plan.cadenceLabel}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Or {monthlyPlan.priceLabel} month to month
+                    </p>
                   </div>
 
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     {[
+                      `${plan.searchesPerMonth} client roles per month`,
                       `${profileScans} targeted profile scans per month`,
-                      "Ranked qualified candidates from each discovery pass",
-                      `${emailLookups} email lookups per month`,
+                      "500 scans in each default discovery pass",
+                      "Expand any candidate pool with remaining scans",
+                      `${emailLookups} contact lookups per month`,
                       `${evidenceDeepDives} public evidence deep dives per month`,
                       "CSV export and client-ready briefs",
                     ].map((item) => (
@@ -215,28 +252,21 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                     ))}
                   </div>
 
-                  <div className="mt-5">
-                    {isCurrent ? (
-                      <button
-                        type="button"
-                        disabled
-                        className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
-                      >
-                        Current plan
-                      </button>
-                    ) : (
-                      <PaddleCheckoutButton
-                        checkout={{
-                          type: "plan",
-                          planCode: plan.code as Exclude<import("@/lib/billing").BillingPlanCode, "free">,
-                        }}
-                        label={plan.ctaLabel}
-                        onError={(message) =>
-                          setBillingMessage({ type: "error", text: message })
-                        }
-                        className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                    )}
+                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                    <PlanCheckoutAction
+                      planCode={annualPlanCode}
+                      label={isCurrentPlan(annualPlanCode) ? "Current annual" : plan.ctaLabel}
+                      isCurrent={isCurrentPlan(annualPlanCode)}
+                      onError={(message) => setBillingMessage({ type: "error", text: message })}
+                      primary={!tierIsCurrent || isCurrentPlan(annualPlanCode)}
+                    />
+                    <PlanCheckoutAction
+                      planCode={monthlyPlanCode}
+                      label={isCurrentPlan(monthlyPlanCode) ? "Current monthly" : monthlyPlan.ctaLabel}
+                      isCurrent={isCurrentPlan(monthlyPlanCode)}
+                      onError={(message) => setBillingMessage({ type: "error", text: message })}
+                      primary={isCurrentPlan(monthlyPlanCode)}
+                    />
                   </div>
                 </div>
               );
@@ -247,5 +277,47 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
         <MessageBanner message={billingMessage} />
       </div>
     </SettingsSection>
+  );
+}
+
+function PlanCheckoutAction({
+  planCode,
+  label,
+  isCurrent,
+  onError,
+  primary,
+}: {
+  planCode: Exclude<BillingPlanCode, "free">;
+  label: string;
+  isCurrent: boolean;
+  onError: (message: string) => void;
+  primary: boolean;
+}) {
+  if (isCurrent) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="inline-flex w-full items-center justify-center rounded-md border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <PaddleCheckoutButton
+      checkout={{
+        type: "plan",
+        planCode,
+      }}
+      label={label}
+      onError={onError}
+      className={`inline-flex w-full items-center justify-center rounded-md px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+        primary
+          ? "bg-primary text-white hover:bg-primary-hover"
+          : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    />
   );
 }

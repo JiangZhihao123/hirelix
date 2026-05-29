@@ -96,8 +96,8 @@ export type BillingSummary = {
   usage: UsageSummary;
   checkout: {
     paddleEnabled: boolean;
-    monthlyPriceIdConfigured: boolean;
-    annualPriceIdConfigured: boolean;
+    proMonthlyPriceIdConfigured: boolean;
+    proAnnualPriceIdConfigured: boolean;
     starterMonthlyPriceIdConfigured: boolean;
     starterAnnualPriceIdConfigured: boolean;
     businessPriceIdConfigured: boolean;
@@ -114,7 +114,12 @@ export type PlanStatusCopy = {
   state: "default" | "warning" | "unavailable";
 };
 
-export const CUSTOMER_BILLING_PLAN_CODES = ["starter_monthly", "starter_annual"] as const;
+export const CUSTOMER_BILLING_PLAN_CODES = [
+  "starter_annual",
+  "starter_monthly",
+  "pro_annual",
+  "pro_monthly",
+] as const;
 
 export function formatCountLabel(count: number, singular: string, plural: string) {
   return count === 1 ? singular : plural;
@@ -124,14 +129,14 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Try one client role with targeted profile scans.",
+    description: "Preview one client role before you pay.",
     priceLabel: "$0",
-    cadenceLabel: "one role preview",
+    cadenceLabel: "1 preview client role",
     billingCycle: null,
     profileScansPerMonth: 150,
     emailLookupsPerMonth: 0,
     publicEvidenceDeepDivesPerMonth: 0,
-    searchesPerMonth: 150,
+    searchesPerMonth: 1,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 0,
     exportEnabled: false,
@@ -141,76 +146,76 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   },
   starter_monthly: {
     code: "starter_monthly",
-    name: "Monthly",
-    description: "Everything unlocked, paid month to month.",
+    name: "Starter",
+    description: "For technical headhunters covering a few active client roles.",
     priceLabel: "$149",
     cadenceLabel: "per month",
     billingCycle: "month",
     profileScansPerMonth: 4000,
-    emailLookupsPerMonth: 50,
-    publicEvidenceDeepDivesPerMonth: 25,
-    searchesPerMonth: 4000,
+    emailLookupsPerMonth: 100,
+    publicEvidenceDeepDivesPerMonth: 50,
+    searchesPerMonth: 3,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 50,
+    enrichesPerMonth: 100,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 14900,
-    ctaLabel: "Start monthly",
+    ctaLabel: "Start Starter monthly",
   },
   starter_annual: {
     code: "starter_annual",
-    name: "Annual",
-    description: "Everything unlocked at the best monthly rate.",
+    name: "Starter",
+    description: "For technical headhunters covering a few active client roles.",
     priceLabel: "$99",
     cadenceLabel: "per month, billed annually",
     billingCycle: "year",
     profileScansPerMonth: 4000,
-    emailLookupsPerMonth: 50,
-    publicEvidenceDeepDivesPerMonth: 25,
-    searchesPerMonth: 4000,
+    emailLookupsPerMonth: 100,
+    publicEvidenceDeepDivesPerMonth: 50,
+    searchesPerMonth: 3,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 50,
+    enrichesPerMonth: 100,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 118800,
-    ctaLabel: "Start annual",
+    ctaLabel: "Start Starter",
     featured: true,
   },
   pro_monthly: {
     code: "pro_monthly",
-    name: "Monthly",
-    description: "Legacy monthly subscription.",
-    priceLabel: "$149",
+    name: "Pro",
+    description: "For recruiters running a larger active client-role desk.",
+    priceLabel: "$399",
     cadenceLabel: "per month",
     billingCycle: "month",
-    profileScansPerMonth: 4000,
-    emailLookupsPerMonth: 50,
-    publicEvidenceDeepDivesPerMonth: 25,
-    searchesPerMonth: 4000,
+    profileScansPerMonth: 15000,
+    emailLookupsPerMonth: 500,
+    publicEvidenceDeepDivesPerMonth: 250,
+    searchesPerMonth: 10,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 50,
+    enrichesPerMonth: 500,
     exportEnabled: true,
     clientBriefEnabled: true,
-    priceCents: 14900,
-    ctaLabel: "Start monthly",
+    priceCents: 39900,
+    ctaLabel: "Start Pro monthly",
   },
   pro_annual: {
     code: "pro_annual",
-    name: "Annual",
-    description: "Legacy annual subscription.",
-    priceLabel: "$99",
+    name: "Pro",
+    description: "For recruiters running a larger active client-role desk.",
+    priceLabel: "$299",
     cadenceLabel: "per month, billed annually",
     billingCycle: "year",
-    profileScansPerMonth: 4000,
-    emailLookupsPerMonth: 50,
-    publicEvidenceDeepDivesPerMonth: 25,
-    searchesPerMonth: 4000,
+    profileScansPerMonth: 15000,
+    emailLookupsPerMonth: 500,
+    publicEvidenceDeepDivesPerMonth: 250,
+    searchesPerMonth: 10,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 50,
+    enrichesPerMonth: 500,
     exportEnabled: true,
     clientBriefEnabled: true,
-    priceCents: 118800,
-    ctaLabel: "Start annual",
+    priceCents: 358800,
+    ctaLabel: "Start Pro",
   },
   business_monthly: {
     code: "business_monthly",
@@ -222,7 +227,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     profileScansPerMonth: 20000,
     emailLookupsPerMonth: 250,
     publicEvidenceDeepDivesPerMonth: 150,
-    searchesPerMonth: 20000,
+    searchesPerMonth: 25,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 250,
     exportEnabled: true,
@@ -240,7 +245,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     profileScansPerMonth: 60000,
     emailLookupsPerMonth: 1000,
     publicEvidenceDeepDivesPerMonth: 600,
-    searchesPerMonth: 60000,
+    searchesPerMonth: 75,
     candidateLimitPerSearch: 25,
     enrichesPerMonth: 1000,
     exportEnabled: true,
@@ -337,8 +342,8 @@ export function getPlanStatusCopy(
       ? "No targeted profile scans left this cycle"
       : `${profileScansRemaining} / ${profileScansLimit} targeted profile scans left`,
     capabilityLabel: isFreePlan
-      ? "Includes one role preview from 150 targeted profile scans"
-      : "Includes targeted profile scans, email lookup, public evidence deep dives, export, and client-ready briefs",
+      ? "Includes one client-role preview from 150 targeted profile scans"
+      : `Includes ${billing.plan.searchesPerMonth} client roles, targeted profile scans, contact lookup, evidence deep dives, export, and client-ready briefs`,
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",
     state: isExhausted ? "warning" : "default",
@@ -349,32 +354,28 @@ export function getCheckoutConfig(): {
   enabled: boolean;
   environment: "sandbox" | "production";
   clientToken: string;
-  monthlyPriceId: string;
-  annualPriceId: string;
+  proMonthlyPriceId: string;
+  proAnnualPriceId: string;
   starterMonthlyPriceId: string;
   starterAnnualPriceId: string;
   businessPriceId: string;
   agencyPriceId: string;
 } {
   const clientToken = (process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "").trim();
-  const monthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "").trim();
-  const annualPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID || "").trim();
+  const proMonthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "").trim();
+  const proAnnualPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID || "").trim();
   const starterMonthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID || "").trim();
   const starterAnnualPriceId = (process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID || "").trim();
   const businessPriceId = (process.env.NEXT_PUBLIC_PADDLE_BUSINESS_PRICE_ID || "").trim();
   const agencyPriceId = (process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "").trim();
 
   return {
-    enabled: Boolean(
-      clientToken &&
-        (starterMonthlyPriceId || monthlyPriceId) &&
-        (starterAnnualPriceId || annualPriceId),
-    ),
+    enabled: Boolean(clientToken),
     environment:
       process.env.NEXT_PUBLIC_PADDLE_ENV === "production" ? "production" : "sandbox",
     clientToken,
-    monthlyPriceId,
-    annualPriceId,
+    proMonthlyPriceId,
+    proAnnualPriceId,
     starterMonthlyPriceId,
     starterAnnualPriceId,
     businessPriceId,

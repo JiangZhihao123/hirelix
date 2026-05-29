@@ -17,7 +17,9 @@ test.describe("Responsive - Landing Page", () => {
     await expect(
       page.getByPlaceholder("Paste the full client job description here..."),
     ).toBeVisible();
-    await expect(page.getByText("Free first run")).toBeVisible();
+    await expect(page.getByText("Free", { exact: true })).toBeVisible();
+    await expect(page.getByText("Starter", { exact: true })).toBeVisible();
+    await expect(page.getByText("Pro", { exact: true })).toBeVisible();
   });
 
   test("should enter the free-trial flow from the mobile primary action", async ({ page }) => {
@@ -33,7 +35,7 @@ test.describe("Responsive - Landing Page", () => {
     await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: "From client role to ranked shortlist." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Start with one role preview." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pick the client-role volume you need." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
   });

@@ -173,7 +173,7 @@ function ProductLayoutShell({
         </h1>
         {isFreeTrialEntry && !isSearchIntent ? (
           <p className="-mt-5 max-w-sm text-center text-sm leading-6 text-muted">
-            Try one role with targeted profile scans before you pay.
+            Preview one client role before you pay.
           </p>
         ) : null}
         {isSearchIntent && (

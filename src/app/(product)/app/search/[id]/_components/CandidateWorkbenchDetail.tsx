@@ -476,7 +476,7 @@ export function CandidateWorkbenchDetail({
                     {clientBriefText && !canCopyClientBrief && (
                       <PaddleCheckoutButton
                         checkout={{ type: "plan", planCode: "starter_monthly" }}
-                        label="Start monthly for client brief"
+                        label="Upgrade to Starter for client brief"
                         onClick={() => onUpgradeClick("workbench_client_brief_button")}
                         onError={(message) => setEnrichError(message)}
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
@@ -628,7 +628,7 @@ export function CandidateWorkbenchDetail({
                       {billingPlanCode === "free" ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
-                          label="Start monthly"
+                          label="Upgrade to Starter"
                           onClick={() => onUpgradeClick("workbench_public_evidence_gate")}
                           onError={(message) => setEnrichError(message)}
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
@@ -817,7 +817,7 @@ export function CandidateWorkbenchDetail({
                   {clientBriefText && !canCopyClientBrief && (
                     <PaddleCheckoutButton
                       checkout={{ type: "plan", planCode: "starter_monthly" }}
-                      label="Start monthly for brief"
+                      label="Upgrade to Starter for brief"
                       onClick={() => onUpgradeClick("workbench_client_brief_button_compact")}
                       onError={(message) => setEnrichError(message)}
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -1121,7 +1121,7 @@ export function CandidateWorkbenchDetail({
                       {billingPlanCode === "free" ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
-                          label="Start monthly"
+                          label="Upgrade to Starter"
                           onClick={() => onUpgradeClick("workbench_evidence_empty_gate")}
                           onError={(message) => setEnrichError(message)}
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
@@ -1328,7 +1328,7 @@ export function CandidateWorkbenchDetail({
                 {requiresEmailUpgrade ? (
                   <PaddleCheckoutButton
                     checkout={{ type: "plan", planCode: "starter_monthly" }}
-                    label="Start monthly"
+                    label="Upgrade to Starter"
                     onClick={() => onUpgradeClick("workbench_outreach_drawer")}
                     onError={(message) => setEnrichError(message)}
                     className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"

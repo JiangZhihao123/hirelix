@@ -97,8 +97,10 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   );
   const checkout = getCheckoutConfig();
   const missingConfiguredPrices = [
-    ["monthly", checkout.starterMonthlyPriceId || checkout.monthlyPriceId],
-    ["annual", checkout.starterAnnualPriceId || checkout.annualPriceId],
+    ["starter_monthly", checkout.starterMonthlyPriceId],
+    ["starter_annual", checkout.starterAnnualPriceId],
+    ["pro_monthly", checkout.proMonthlyPriceId],
+    ["pro_annual", checkout.proAnnualPriceId],
     ["business_monthly", checkout.businessPriceId],
     ["agency_monthly", checkout.agencyPriceId],
   ]
@@ -162,8 +164,8 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     },
     checkout: {
       paddleEnabled: checkout.enabled,
-      monthlyPriceIdConfigured: Boolean(checkout.monthlyPriceId),
-      annualPriceIdConfigured: Boolean(checkout.annualPriceId),
+      proMonthlyPriceIdConfigured: Boolean(checkout.proMonthlyPriceId),
+      proAnnualPriceIdConfigured: Boolean(checkout.proAnnualPriceId),
       starterMonthlyPriceIdConfigured: Boolean(checkout.starterMonthlyPriceId),
       starterAnnualPriceIdConfigured: Boolean(checkout.starterAnnualPriceId),
       businessPriceIdConfigured: Boolean(checkout.businessPriceId),

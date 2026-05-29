@@ -87,12 +87,14 @@ export function getPaddlePriceIds(data: Record<string, unknown>) {
 
 export function resolvePaddlePlanCode(priceIds: string[]) {
   const config = getCheckoutConfig();
-  if (priceIds.includes(config.starterMonthlyPriceId || config.monthlyPriceId)) {
+  if (priceIds.includes(config.starterMonthlyPriceId)) {
     return "starter_monthly";
   }
-  if (priceIds.includes(config.starterAnnualPriceId || config.annualPriceId)) {
+  if (priceIds.includes(config.starterAnnualPriceId)) {
     return "starter_annual";
   }
+  if (priceIds.includes(config.proMonthlyPriceId)) return "pro_monthly";
+  if (priceIds.includes(config.proAnnualPriceId)) return "pro_annual";
   if (priceIds.includes(config.businessPriceId)) return "business_monthly";
   if (priceIds.includes(config.agencyPriceId)) return "agency_monthly";
   return null;
@@ -327,7 +329,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
   const startedAt =
     typeof data.started_at === "string" ? new Date(data.started_at) : new Date();
   const renewsAtDate = renewsAt ? new Date(renewsAt) : null;
-  const billingCycle = planCode === "starter_annual" ? "year" : "month";
+  const billingCycle = planCode.endsWith("_annual") ? "year" : "month";
   const values = {
     user_id: userId,
     subscription_plan: planCode,

@@ -1101,7 +1101,7 @@ export default function SearchResultPage() {
           <div className="mb-6 grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Search brief
+                Sourcing brief
               </p>
               {briefReadyAt ? (
                 <>
@@ -1160,7 +1160,7 @@ export default function SearchResultPage() {
                 </>
               ) : (
                 <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-                  Hirelix is still building the search brief from the JD. This section will fill in as soon as parsing finishes.
+                  Hirelix is still building the sourcing brief from the JD. This section will fill in as soon as parsing finishes.
                 </div>
               )}
             </div>
@@ -1349,7 +1349,7 @@ export default function SearchResultPage() {
               ) : (
                 <PaddleCheckoutButton
                   checkout={{ type: "plan", planCode: "starter_monthly" }}
-                  label="Start monthly for client briefs"
+                  label="Upgrade to Starter for client briefs"
                   onClick={() => handleUpgradeClick("results_client_brief_gate")}
                   onError={(message) => setUpgradeError(message)}
                   className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
@@ -1597,7 +1597,7 @@ export default function SearchResultPage() {
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
                   checkout={{ type: "plan", planCode: "starter_monthly" }}
-                  label="Start monthly - $149/mo"
+                  label="Upgrade to Starter"
                   onClick={() => handleUpgradeClick("results_first_use_strip")}
                   onError={(message) => setUpgradeError(message)}
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
