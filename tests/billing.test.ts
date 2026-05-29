@@ -15,8 +15,15 @@ function makeBillingSummary(
   overrides: Partial<BillingSummary["usage"]> = {},
 ): BillingSummary {
   const plan = BILLING_PLANS[planCode];
-  const searchesUsed = overrides.searchesUsed ?? 0;
-  const enrichesUsed = overrides.enrichesUsed ?? 0;
+  const profileScansUsed = overrides.profileScansUsed ?? overrides.searchesUsed ?? 0;
+  const emailLookupsUsed = overrides.emailLookupsUsed ?? overrides.enrichesUsed ?? 0;
+  const publicEvidenceDeepDivesUsed = overrides.publicEvidenceDeepDivesUsed ?? 0;
+  const profileScansLimit =
+    overrides.profileScansLimit ?? overrides.searchesLimit ?? plan.profileScansPerMonth;
+  const emailLookupsLimit =
+    overrides.emailLookupsLimit ?? overrides.enrichesLimit ?? plan.emailLookupsPerMonth;
+  const publicEvidenceDeepDivesLimit =
+    overrides.publicEvidenceDeepDivesLimit ?? plan.publicEvidenceDeepDivesPerMonth;
   return {
     plan,
     subscription: {
@@ -29,20 +36,34 @@ function makeBillingSummary(
     usage: {
       periodStart: "2026-05-01T00:00:00.000Z",
       periodEnd: "2026-06-01T00:00:00.000Z",
-      searchesUsed,
-      searchesLimit: overrides.searchesLimit ?? plan.searchesPerMonth,
+      profileScansUsed,
+      profileScansLimit,
+      profileScansRemaining:
+        overrides.profileScansRemaining ?? overrides.searchesRemaining ?? Math.max(profileScansLimit - profileScansUsed, 0),
+      emailLookupsUsed,
+      emailLookupsLimit,
+      emailLookupsRemaining:
+        overrides.emailLookupsRemaining ?? overrides.enrichesRemaining ?? Math.max(emailLookupsLimit - emailLookupsUsed, 0),
+      publicEvidenceDeepDivesUsed,
+      publicEvidenceDeepDivesLimit,
+      publicEvidenceDeepDivesRemaining:
+        overrides.publicEvidenceDeepDivesRemaining ?? Math.max(publicEvidenceDeepDivesLimit - publicEvidenceDeepDivesUsed, 0),
+      searchesUsed: profileScansUsed,
+      searchesLimit: profileScansLimit,
       searchesRemaining:
-        overrides.searchesRemaining ?? Math.max(plan.searchesPerMonth - searchesUsed, 0),
-      enrichesUsed,
-      enrichesLimit: overrides.enrichesLimit ?? plan.enrichesPerMonth,
+        overrides.searchesRemaining ?? overrides.profileScansRemaining ?? Math.max(profileScansLimit - profileScansUsed, 0),
+      enrichesUsed: emailLookupsUsed,
+      enrichesLimit: emailLookupsLimit,
       enrichesRemaining:
-        overrides.enrichesRemaining ?? Math.max(plan.enrichesPerMonth - enrichesUsed, 0),
+        overrides.enrichesRemaining ?? overrides.emailLookupsRemaining ?? Math.max(emailLookupsLimit - emailLookupsUsed, 0),
       candidateLimitPerSearch:
         overrides.candidateLimitPerSearch ?? plan.candidateLimitPerSearch,
       exportEnabled: overrides.exportEnabled ?? plan.exportEnabled,
       clientBriefEnabled: overrides.clientBriefEnabled ?? plan.clientBriefEnabled,
       extraSearchCredits: overrides.extraSearchCredits ?? 0,
       extraEnrichCredits: overrides.extraEnrichCredits ?? 0,
+      extraProfileScans: overrides.extraProfileScans ?? overrides.extraSearchCredits ?? 0,
+      extraEmailLookups: overrides.extraEmailLookups ?? overrides.extraEnrichCredits ?? 0,
     },
     checkout: {
       paddleEnabled: false,
@@ -56,34 +77,36 @@ function makeBillingSummary(
   };
 }
 
-test("MVP billing plans expose one free trial and two paid choices", () => {
-  assert.equal(BILLING_PLANS.free.searchesPerMonth, 1);
+test("MVP billing plans expose a free preview and two paid choices", () => {
+  assert.equal(BILLING_PLANS.free.profileScansPerMonth, 150);
   assert.equal(BILLING_PLANS.free.clientBriefEnabled, false);
-  assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 25);
-  assert.equal(BILLING_PLANS.free.enrichesPerMonth, 0);
+  assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 5);
+  assert.equal(BILLING_PLANS.free.emailLookupsPerMonth, 0);
   assert.deepEqual([...CUSTOMER_BILLING_PLAN_CODES], ["starter_monthly", "starter_annual"]);
   assert.equal(BILLING_PLANS.starter_monthly.name, "Monthly");
   assert.equal(BILLING_PLANS.starter_monthly.priceLabel, "$149");
   assert.equal(BILLING_PLANS.starter_monthly.candidateLimitPerSearch, 25);
-  assert.equal(BILLING_PLANS.starter_monthly.enrichesPerMonth, 250);
+  assert.equal(BILLING_PLANS.starter_monthly.profileScansPerMonth, 4000);
+  assert.equal(BILLING_PLANS.starter_monthly.emailLookupsPerMonth, 50);
+  assert.equal(BILLING_PLANS.starter_monthly.publicEvidenceDeepDivesPerMonth, 25);
   assert.equal(BILLING_PLANS.starter_monthly.exportEnabled, true);
   assert.equal(BILLING_PLANS.starter_monthly.clientBriefEnabled, true);
   assert.equal(BILLING_PLANS.starter_annual.name, "Annual");
   assert.equal(BILLING_PLANS.starter_annual.priceLabel, "$99");
   assert.equal(BILLING_PLANS.starter_annual.priceCents, 118800);
   assert.equal(BILLING_PLANS.starter_annual.candidateLimitPerSearch, 25);
-  assert.equal(BILLING_PLANS.starter_annual.enrichesPerMonth, 250);
+  assert.equal(BILLING_PLANS.starter_annual.emailLookupsPerMonth, 50);
   assert.equal(
-    BILLING_PLANS.starter_annual.searchesPerMonth,
-    BILLING_PLANS.starter_monthly.searchesPerMonth,
+    BILLING_PLANS.starter_annual.profileScansPerMonth,
+    BILLING_PLANS.starter_monthly.profileScansPerMonth,
   );
   assert.equal(
     BILLING_PLANS.starter_annual.candidateLimitPerSearch,
     BILLING_PLANS.starter_monthly.candidateLimitPerSearch,
   );
   assert.equal(
-    BILLING_PLANS.starter_annual.enrichesPerMonth,
-    BILLING_PLANS.starter_monthly.enrichesPerMonth,
+    BILLING_PLANS.starter_annual.emailLookupsPerMonth,
+    BILLING_PLANS.starter_monthly.emailLookupsPerMonth,
   );
   assert.equal(BILLING_PLANS.starter_annual.exportEnabled, true);
   assert.equal(BILLING_PLANS.starter_annual.clientBriefEnabled, true);
@@ -92,24 +115,24 @@ test("MVP billing plans expose one free trial and two paid choices", () => {
 test("plan status copy describes shortlist actions for free and paid plans", () => {
   const freeCopy = getPlanStatusCopy(makeBillingSummary("free"));
   assert.equal(freeCopy.title, "Free plan");
-  assert.match(freeCopy.usageLabel, /shortlist builds left/);
-  assert.match(freeCopy.capabilityLabel, /complete 25-candidate shortlist/);
+  assert.match(freeCopy.usageLabel, /profile scans left/);
+  assert.match(freeCopy.capabilityLabel, /up to 5 ranked candidates/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
   assert.equal(monthlyCopy.title, "Monthly");
-  assert.match(monthlyCopy.capabilityLabel, /Everything is unlocked/);
+  assert.match(monthlyCopy.capabilityLabel, /profile scans/);
   assert.match(monthlyCopy.capabilityLabel, /client-ready briefs/);
 });
 
 test("plan status copy marks exhausted paid plan", () => {
   const copy = getPlanStatusCopy(
     makeBillingSummary("starter_monthly", {
-      searchesUsed: 10,
-      searchesRemaining: 0,
+      profileScansUsed: 4000,
+      profileScansRemaining: 0,
     }),
   );
   assert.equal(copy.state, "warning");
-  assert.equal(copy.usageLabel, "No shortlist builds left this cycle");
+  assert.equal(copy.usageLabel, "No profile scans left this cycle");
   assert.match(copy.capabilityLabel, /client-ready briefs/);
 });
 

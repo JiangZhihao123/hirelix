@@ -23,7 +23,7 @@ export function HowItWorksSection() {
     },
     {
       title: "Review the ranked shortlist",
-      desc: "Open the 25-profile shortlist with fit reasons, risks, evidence, and outreach starting points.",
+      desc: "Open the qualified shortlist with fit reasons, risks, evidence, and outreach starting points.",
     },
   ];
 
@@ -89,8 +89,8 @@ export function FeaturesSection() {
     },
     {
       icon: ListChecks,
-      title: "Ranked 25-profile shortlist",
-      desc: "Delivers a compact shortlist ordered for review, so the first pass starts with the candidates most likely to deserve attention.",
+      title: "Ranked qualified shortlist",
+      desc: "Each scan reviews real profiles and returns only candidates that pass the quality bar.",
     },
     {
       icon: ListChecks,

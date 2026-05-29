@@ -12,6 +12,7 @@ import {
   Loader2,
   Mail,
   Send,
+  Sparkles,
   X,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
@@ -89,6 +90,9 @@ export function CandidateWorkbenchDetail({
   billingPlanCode,
   clientBriefEnabled,
   enrichesRemaining,
+  publicEvidenceDeepDivesRemaining,
+  publicEvidenceQueueing,
+  onPublicEvidenceDeepDive,
   refreshBilling,
   onUpgradeClick,
   onStatusChange,
@@ -98,6 +102,9 @@ export function CandidateWorkbenchDetail({
   billingPlanCode: import("@/lib/billing").BillingPlanCode;
   clientBriefEnabled: boolean;
   enrichesRemaining: number;
+  publicEvidenceDeepDivesRemaining: number;
+  publicEvidenceQueueing: boolean;
+  onPublicEvidenceDeepDive: () => void;
   refreshBilling: () => Promise<void>;
   onUpgradeClick: (surface: string) => void;
   onStatusChange: (id: string, status: string) => void;
@@ -612,6 +619,38 @@ export function CandidateWorkbenchDetail({
                     No verified public engineering evidence found yet.
                   </p>
                 )}
+                {publicEvidenceItems.length === 0 && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="flex-1 text-sm text-slate-600">
+                        Run a public evidence deep dive when this candidate is worth a closer look.
+                      </p>
+                      {billingPlanCode === "free" ? (
+                        <PaddleCheckoutButton
+                          checkout={{ type: "plan", planCode: "starter_monthly" }}
+                          label="Start monthly"
+                          onClick={() => onUpgradeClick("workbench_public_evidence_gate")}
+                          onError={(message) => setEnrichError(message)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                        />
+                      ) : publicEvidenceDeepDivesRemaining <= 0 ? (
+                        <span className="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                          Limit reached
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={onPublicEvidenceDeepDive}
+                          disabled={publicEvidenceQueueing}
+                          className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {publicEvidenceQueueing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          {publicEvidenceQueueing ? "Queued" : "Deep dive"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1071,11 +1110,40 @@ export function CandidateWorkbenchDetail({
                 ))}
               </div>
               {publicEvidenceItems.length === 0 && (
-                <p className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
-                  {publicEvidence?.status === "queued" || publicEvidence?.status === "running"
-                    ? "Public evidence review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
-                    : "No verified public engineering evidence found yet. Current ranking stays based on LinkedIn evidence only."}
-                </p>
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3">
+                  <p className="text-sm text-slate-500">
+                    {publicEvidence?.status === "queued" || publicEvidence?.status === "running"
+                      ? "Public evidence review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
+                      : "No verified public engineering evidence found yet. Current ranking stays based on LinkedIn evidence only."}
+                  </p>
+                  {publicEvidence?.status !== "queued" && publicEvidence?.status !== "running" && (
+                    <div className="mt-3">
+                      {billingPlanCode === "free" ? (
+                        <PaddleCheckoutButton
+                          checkout={{ type: "plan", planCode: "starter_monthly" }}
+                          label="Start monthly"
+                          onClick={() => onUpgradeClick("workbench_evidence_empty_gate")}
+                          onError={(message) => setEnrichError(message)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                        />
+                      ) : publicEvidenceDeepDivesRemaining <= 0 ? (
+                        <span className="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                          Limit reached
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={onPublicEvidenceDeepDive}
+                          disabled={publicEvidenceQueueing}
+                          className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {publicEvidenceQueueing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          {publicEvidenceQueueing ? "Queued" : "Run deep dive"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

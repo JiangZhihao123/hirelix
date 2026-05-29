@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
@@ -7,6 +7,9 @@ import {
   getBillingPeriodBounds,
   getCheckoutConfig,
   getEffectivePlanCode,
+  getPlanEmailLookupsPerMonth,
+  getPlanProfileScansPerMonth,
+  getPlanPublicEvidenceDeepDivesPerMonth,
   getPlan,
   normalizeBillingStatus,
   type BillingSummary,
@@ -21,7 +24,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   const startDate = new Date(startIso);
   const endDate = new Date(endIso);
 
-  const [settingsRows, searchesUsedRows, enrichesUsedRows] = await Promise.all([
+  const [settingsRows, usageEventRows] = await Promise.all([
     db
       .select({
         subscription_plan: hirelix_user_settings.subscription_plan,
@@ -36,23 +39,14 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       .where(eq(hirelix_user_settings.user_id, userId))
       .limit(1),
     db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({
+        event_type: hirelix_usage_events.event_type,
+        metadata: hirelix_usage_events.metadata,
+      })
       .from(hirelix_usage_events)
       .where(
         and(
           eq(hirelix_usage_events.user_id, userId),
-          eq(hirelix_usage_events.event_type, "search_created"),
-          gte(hirelix_usage_events.created_at, startDate),
-          lt(hirelix_usage_events.created_at, endDate),
-        ),
-      ),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(hirelix_usage_events)
-      .where(
-        and(
-          eq(hirelix_usage_events.user_id, userId),
-          eq(hirelix_usage_events.event_type, "candidate_enriched"),
           gte(hirelix_usage_events.created_at, startDate),
           lt(hirelix_usage_events.created_at, endDate),
         ),
@@ -60,18 +54,44 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   ]);
 
   const settings = settingsRows[0] ?? null;
-  const searchesUsed = searchesUsedRows[0]?.count ?? 0;
-  const enrichesUsed = enrichesUsedRows[0]?.count ?? 0;
+  let profileScansUsed = 0;
+  let emailLookupsUsed = 0;
+  let publicEvidenceDeepDivesUsed = 0;
+
+  for (const row of usageEventRows) {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : {};
+    const profileScans = getMetadataCount(metadata.profile_scans_used);
+    const reservedProfileScans = getMetadataCount(metadata.profile_scans_reserved);
+    const emailLookupCount = getMetadataCount(metadata.email_lookup_count);
+    const publicEvidenceCount = getMetadataCount(metadata.public_evidence_deep_dive_count);
+
+    if (row.event_type === "search_created") {
+      const profileScanCount = Math.max(profileScans ?? 0, reservedProfileScans ?? 0);
+      profileScansUsed += profileScanCount;
+    } else if (row.event_type === "candidate_enriched") {
+      emailLookupsUsed += emailLookupCount ?? 1;
+    } else if (row.event_type === "public_evidence_deep_dive") {
+      publicEvidenceDeepDivesUsed += publicEvidenceCount ?? 1;
+    }
+  }
 
   const planCode = getEffectivePlanCode(
     settings?.subscription_plan,
     settings?.subscription_status,
   );
   const plan = getPlan(planCode);
-  const extraSearchCredits = settings?.extra_search_credits ?? 0;
-  const extraEnrichCredits = settings?.extra_enrich_credits ?? 0;
-  const searchLimit = plan.searchesPerMonth + extraSearchCredits;
-  const enrichLimit = plan.enrichesPerMonth + extraEnrichCredits;
+  const extraProfileScans = settings?.extra_search_credits ?? 0;
+  const extraEmailLookups = settings?.extra_enrich_credits ?? 0;
+  const baseProfileScansLimit = getPlanProfileScansPerMonth(plan);
+  const emailLookupsLimit = getPlanEmailLookupsPerMonth(plan) + extraEmailLookups;
+  const publicEvidenceDeepDivesLimit = getPlanPublicEvidenceDeepDivesPerMonth(plan);
+  const freePreviewUsed = plan.code === "free" && profileScansUsed > 0;
+  const profileScansLimit = freePreviewUsed
+    ? Math.min(profileScansUsed, baseProfileScansLimit + extraProfileScans)
+    : baseProfileScansLimit + extraProfileScans;
   const normalizedStatus: BillingStatus = normalizeBillingStatus(
     settings?.subscription_status,
   );
@@ -114,17 +134,31 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     usage: {
       periodStart: startIso,
       periodEnd: endIso,
-      searchesUsed,
-      searchesLimit: searchLimit,
-      searchesRemaining: clampRemaining(searchLimit, searchesUsed),
-      enrichesUsed,
-      enrichesLimit: enrichLimit,
-      enrichesRemaining: clampRemaining(enrichLimit, enrichesUsed),
+      profileScansUsed,
+      profileScansLimit,
+      profileScansRemaining: clampRemaining(profileScansLimit, profileScansUsed),
+      emailLookupsUsed,
+      emailLookupsLimit,
+      emailLookupsRemaining: clampRemaining(emailLookupsLimit, emailLookupsUsed),
+      publicEvidenceDeepDivesUsed,
+      publicEvidenceDeepDivesLimit,
+      publicEvidenceDeepDivesRemaining: clampRemaining(
+        publicEvidenceDeepDivesLimit,
+        publicEvidenceDeepDivesUsed,
+      ),
+      searchesUsed: profileScansUsed,
+      searchesLimit: profileScansLimit,
+      searchesRemaining: clampRemaining(profileScansLimit, profileScansUsed),
+      enrichesUsed: emailLookupsUsed,
+      enrichesLimit: emailLookupsLimit,
+      enrichesRemaining: clampRemaining(emailLookupsLimit, emailLookupsUsed),
       candidateLimitPerSearch: plan.candidateLimitPerSearch,
       exportEnabled: plan.exportEnabled,
       clientBriefEnabled: plan.clientBriefEnabled,
-      extraSearchCredits,
-      extraEnrichCredits,
+      extraSearchCredits: extraProfileScans,
+      extraEnrichCredits: extraEmailLookups,
+      extraProfileScans,
+      extraEmailLookups,
     },
     checkout: {
       paddleEnabled: checkout.enabled,
@@ -138,4 +172,9 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   };
 
   return summary;
+}
+
+function getMetadataCount(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.round(value));
 }

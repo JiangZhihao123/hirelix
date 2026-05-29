@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS public.hirelix_user_settings (
 CREATE TABLE IF NOT EXISTS public.hirelix_usage_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
-  event_type TEXT NOT NULL CHECK (event_type IN ('search_created', 'candidate_enriched')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('search_created', 'candidate_enriched', 'public_evidence_deep_dive')),
   related_id UUID,
   metadata JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -277,6 +277,7 @@ CREATE TABLE IF NOT EXISTS public.hirelix_public_evidence_jobs (
   candidate_id UUID NOT NULL REFERENCES public.hirelix_candidates(id) ON DELETE CASCADE,
   search_id UUID NOT NULL REFERENCES public.hirelix_searches(id) ON DELETE CASCADE,
   user_id UUID,
+  usage_event_id UUID,
   status TEXT NOT NULL DEFAULT 'queued',
   attempt_count INTEGER NOT NULL DEFAULT 0,
   last_error TEXT,

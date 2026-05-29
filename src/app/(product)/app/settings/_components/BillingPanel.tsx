@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Search } from "lucide-react";
+import { CheckCircle2, Mail, ScanSearch, Sparkles } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   BILLING_PLANS,
   CUSTOMER_BILLING_PLAN_CODES,
+  getPlanEmailLookupsPerMonth,
+  getPlanProfileScansPerMonth,
+  getPlanPublicEvidenceDeepDivesPerMonth,
   type BillingSummary,
 } from "@/lib/billing";
 import {
@@ -25,7 +28,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
       id="billing"
       eyebrow="Billing"
       title="Billing and usage"
-      description="Your first complete shortlist is free. Continue with a monthly or annual subscription."
+      description="Usage is based on real profiles scanned, then email lookup and public evidence when you need them."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -72,51 +75,78 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
 
         <SettingsFieldGroup
           title="Usage"
-          description="Track this billing cycle and whether the full product is unlocked."
+          description="Track this billing cycle across the work that creates real product cost."
         >
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-                  <Search className="h-4 w-4 text-slate-400" />
-                  Shortlist builds
+                  <ScanSearch className="h-4 w-4 text-slate-400" />
+                  Profile scans
                 </span>
                 <span className="text-slate-500">
-                  {billing.usage.searchesUsed}/{billing.usage.searchesLimit}
+                  {billing.usage.profileScansUsed}/{billing.usage.profileScansLimit}
                 </span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
                 <div
                   className="h-full rounded-full bg-slate-900"
                   style={{
-                    width: getUsageWidth(billing.usage.searchesUsed, billing.usage.searchesLimit),
+                    width: getUsageWidth(billing.usage.profileScansUsed, billing.usage.profileScansLimit),
                   }}
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.searchesRemaining} shortlist builds left this cycle
+                {billing.usage.profileScansRemaining} scans left this cycle
               </p>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Product access</p>
-                  <p className="mt-3 text-2xl font-semibold text-slate-950">
-                    {billing.plan.code === "free" ? "Trial" : "Unlocked"}
-                  </p>
-                </div>
-                <div className="rounded-md border border-slate-200 bg-white px-3 py-2 sm:text-right">
-                  <p className="text-lg font-semibold text-slate-950">
-                    {billing.usage.candidateLimitPerSearch}
-                  </p>
-                  <p className="text-xs text-slate-500">candidates / shortlist</p>
-                </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="inline-flex items-center gap-2 font-medium text-slate-800">
+                  <Mail className="h-4 w-4 text-slate-400" />
+                  Email lookups
+                </span>
+                <span className="text-slate-500">
+                  {billing.usage.emailLookupsUsed}/{billing.usage.emailLookupsLimit}
+                </span>
               </div>
-              <p className="mt-4 text-sm text-slate-600">
-                {billing.plan.code === "free"
-                  ? "One complete shortlist is included, with fit evidence, risks, and outreach drafts."
-                  : "Shortlists include email lookup, export, outreach, and client-ready briefs."}
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-slate-900"
+                  style={{
+                    width: getUsageWidth(billing.usage.emailLookupsUsed, billing.usage.emailLookupsLimit),
+                  }}
+                />
+              </div>
+              <p className="mt-3 text-sm text-slate-600">
+                {billing.usage.emailLookupsRemaining} lookups left this cycle
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="inline-flex items-center gap-2 font-medium text-slate-800">
+                  <Sparkles className="h-4 w-4 text-slate-400" />
+                  Evidence deep dives
+                </span>
+                <span className="text-slate-500">
+                  {billing.usage.publicEvidenceDeepDivesUsed}/{billing.usage.publicEvidenceDeepDivesLimit}
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-slate-900"
+                  style={{
+                    width: getUsageWidth(
+                      billing.usage.publicEvidenceDeepDivesUsed,
+                      billing.usage.publicEvidenceDeepDivesLimit,
+                    ),
+                  }}
+                />
+              </div>
+              <p className="mt-3 text-sm text-slate-600">
+                {billing.usage.publicEvidenceDeepDivesRemaining} deep dives left this cycle
               </p>
             </div>
           </div>
@@ -140,6 +170,9 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             {CUSTOMER_BILLING_PLAN_CODES.map((planCode) => {
               const plan = BILLING_PLANS[planCode];
               const isCurrent = billing.subscription.planCode === plan.code;
+              const profileScans = getPlanProfileScansPerMonth(plan).toLocaleString("en-US");
+              const emailLookups = getPlanEmailLookupsPerMonth(plan).toLocaleString("en-US");
+              const evidenceDeepDives = getPlanPublicEvidenceDeepDivesPerMonth(plan).toLocaleString("en-US");
 
               return (
                 <div
@@ -169,10 +202,11 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
 
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     {[
-                      `${plan.searchesPerMonth} shortlist builds per month`,
-                      `Final ${plan.candidateLimitPerSearch}-candidate shortlist every time`,
-                      "Email lookup, export, outreach, and client-ready briefs included",
-                      "Same product access as every paid plan",
+                      `${profileScans} profile scans per month`,
+                      `Up to ${plan.candidateLimitPerSearch} qualified candidates per discovery pass`,
+                      `${emailLookups} email lookups per month`,
+                      `${evidenceDeepDives} public evidence deep dives per month`,
+                      "CSV export and client-ready briefs",
                     ].map((item) => (
                       <p key={item} className="inline-flex items-start gap-1.5">
                         <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />

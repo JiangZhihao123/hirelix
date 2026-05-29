@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.hirelix_public_evidence_jobs (
   candidate_id UUID NOT NULL REFERENCES public.hirelix_candidates(id) ON DELETE CASCADE,
   search_id UUID NOT NULL REFERENCES public.hirelix_searches(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  usage_event_id UUID,
   status TEXT NOT NULL DEFAULT 'queued',
   attempt_count INTEGER NOT NULL DEFAULT 0,
   last_error TEXT,

@@ -92,14 +92,14 @@ export default async function InvitePage({
               Private beta seat {invite.seat_number ? `#${invite.seat_number}` : ""} / {DEFAULT_BETA_SEAT_LIMIT}
             </p>
             <h2 className="mt-5 max-w-3xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-              Your invite to build a 25-candidate shortlist from one hard tech role.
+              Your invite to preview qualified candidates from one hard tech role.
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">
               Paste a client JD, wait about 10 minutes, and get candidate profiles with fit reasons, risks to verify before submitting, and editable outreach context.
             </p>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
-              <BenefitCard title="1 free preview" body="One 25-candidate shortlist during the beta." />
+              <BenefitCard title="1 free preview" body="One small ranked candidate preview during the beta." />
               <BenefitCard title="Technical headhunter beta" body="Built for independent and agency tech recruiters." />
               <BenefitCard title="3 invite passes" body="After activation, invite other technical headhunters." />
             </div>

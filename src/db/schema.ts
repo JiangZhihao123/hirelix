@@ -472,6 +472,7 @@ export const hirelix_public_evidence_jobs = pgTable(
     candidate_id: uuid("candidate_id").notNull().unique(),
     search_id: uuid("search_id").notNull(),
     user_id: uuid("user_id"),
+    usage_event_id: uuid("usage_event_id"),
     status: text("status").notNull().default("queued"),
     attempt_count: integer("attempt_count").notNull().default(0),
     last_error: text("last_error"),

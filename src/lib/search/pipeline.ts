@@ -2123,6 +2123,20 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
   const initialExecutionProfile = storedInitialProfileName
     ? getSearchExecutionProfile(storedInitialProfileName)
     : getInitialSearchExecutionProfile(planCode);
+  const storedProfileScanBudget =
+    typeof existingParsed?.profile_scan_budget === "number" &&
+    Number.isFinite(existingParsed.profile_scan_budget)
+      ? Math.max(1, Math.round(existingParsed.profile_scan_budget))
+      : null;
+  const initialExecutionProfileWithBudget =
+    storedProfileScanBudget === null
+      ? initialExecutionProfile
+      : {
+        ...initialExecutionProfile,
+        filterLimit: Math.min(initialExecutionProfile.filterLimit, storedProfileScanBudget),
+        hiddenGemLimit: 0,
+        companyTargetLimit: 0,
+      };
 
   const context: PipelineContext = {
     searchId: job.search_id,
@@ -2136,10 +2150,11 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
     planCode,
     candidateCount: Math.min(
       FINAL_SHORTLIST_TARGET,
+      initialExecutionProfileWithBudget.finalResultCap,
       Math.max(
         1,
         Number(job.candidate_count || (search as SearchRow).parsed_requirements?.candidate_count) ||
-          FINAL_SHORTLIST_TARGET,
+          initialExecutionProfileWithBudget.finalResultCap,
       ),
     ),
     highlightCount:
@@ -2177,9 +2192,9 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
 
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_spec = helpers.normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
-    recordLimitOverride: initialExecutionProfile.filterLimit,
+    recordLimitOverride: initialExecutionProfileWithBudget.filterLimit,
   });
-  const phase1Parsed = helpers.withExecutionState(parsed, initialExecutionProfile, {
+  const phase1Parsed = helpers.withExecutionState(parsed, initialExecutionProfileWithBudget, {
     planCode,
     displayCount: context.candidateCount,
   });
@@ -2187,7 +2202,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
   const phase1Result = await buildBrightDataDatasetCandidates(
     context,
     phase1Parsed,
-    initialExecutionProfile,
+    initialExecutionProfileWithBudget,
     helpers,
   );
   if (!phase1Result) {
@@ -2220,6 +2235,6 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
       updateSearchUsageEventMetadata,
       logSearchEvent: helpers.logSearchEvent,
     },
-    { runtime: getExecutionRuntime(initialExecutionProfile) },
+    { runtime: getExecutionRuntime(initialExecutionProfileWithBudget) },
   );
 }

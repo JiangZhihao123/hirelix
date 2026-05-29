@@ -34,8 +34,9 @@ test("free searches use a constrained real-production preview profile", () => {
 
   const targets = getInitialSearchTargets("free");
   assert.equal(targets.executionProfile, "bright_free_preview");
-  assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
+  assert.equal(targets.candidateCount, 5);
   assert.equal(targets.highlightCount, 3);
+  assert.equal(targets.profileScanBudget, profile.filterLimit);
 });
 
 test("paid searches keep the full production profile in production mode", () => {
@@ -48,11 +49,15 @@ test("paid searches keep the full production profile in production mode", () => 
   const targets = withProductionEnv(() => getInitialSearchTargets("agency_monthly"));
   assert.equal(targets.executionProfile, "bright_production_full");
   assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
+  assert.equal(targets.profileScanBudget, profile.filterLimit);
 });
 
-test("every plan resolves to the same final 25-person shortlist target", () => {
-  const planCodes = [
-    "free",
+test("free plans preview fewer candidates while paid plans keep the full target", () => {
+  const freeTargets = getInitialSearchTargets("free");
+  assert.equal(freeTargets.candidateCount, 5);
+  assert.equal(freeTargets.displayCount, 5);
+
+  const paidPlanCodes = [
     "starter_monthly",
     "starter_annual",
     "pro_monthly",
@@ -61,7 +66,7 @@ test("every plan resolves to the same final 25-person shortlist target", () => {
     "agency_monthly",
   ] as const;
 
-  for (const planCode of planCodes) {
+  for (const planCode of paidPlanCodes) {
     const targets = getInitialSearchTargets(planCode);
     assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
     assert.equal(targets.displayCount, FINAL_SHORTLIST_TARGET);

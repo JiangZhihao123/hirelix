@@ -33,7 +33,7 @@ test.describe("Responsive - Landing Page", () => {
     await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: "From client role to ranked shortlist." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Start with one complete shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start with one role preview." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
   });

@@ -14,10 +14,12 @@ import {
   resolveSearchJobRunnerBaseUrl,
 } from "@/lib/search";
 import {
+  DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
   FINAL_SHORTLIST_TARGET,
   getInitialSearchTargets,
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
+import { getPlanSearchBatchProfileScanLimit } from "@/lib/billing";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
   getInviteCodeFromRequest,
@@ -47,19 +49,26 @@ export async function POST(req: NextRequest) {
     const billing = await getBillingSummaryForUser(user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
-    const maxCandidates = FINAL_SHORTLIST_TARGET;
+    const maxCandidates = searchTargets.candidateCount;
     const requestedCandidates = Math.min(
       Math.max(Number(candidate_count) || maxCandidates, 1),
       maxCandidates,
     );
+    const profileScanBudget = Math.min(
+      billing.usage.profileScansRemaining,
+      getPlanSearchBatchProfileScanLimit(
+        billing.plan,
+        DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
+      ),
+    );
 
-    if (billing.usage.searchesRemaining <= 0) {
+    if (billing.usage.profileScansRemaining <= 0 || profileScanBudget <= 0) {
       return NextResponse.json(
         {
           error:
             billing.plan.code === "free"
-              ? "You have used your free shortlist. Start a subscription to keep sourcing."
-              : "You have reached this month's shortlist limit. Your next cycle will reset automatically.",
+              ? "You have used your free profile scan preview. Start a subscription to keep sourcing."
+              : "You have reached this month's profile scan allowance. Your next cycle will reset automatically.",
         },
         { status: 403 },
       );
@@ -95,6 +104,7 @@ export async function POST(req: NextRequest) {
             outreachPoolTarget: DEFAULT_OUTREACH_POOL_TARGET,
             planCode,
             executionProfile: searchTargets.executionProfile,
+            profileScanBudget,
           },
         )
         : {
@@ -104,6 +114,7 @@ export async function POST(req: NextRequest) {
           highlight_count: searchTargets.highlightCount,
           requested_candidate_count: requestedCandidates,
           outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+          profile_scan_budget: profileScanBudget,
           plan_code: planCode,
           launch_mode: "tech_recruiter_mvp",
           launch_scope: "linkedin_plus_github",
@@ -195,6 +206,10 @@ export async function POST(req: NextRequest) {
           highlight_count: searchTargets.highlightCount,
           requested_candidate_count: requestedCandidates,
           outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+          profile_scan_budget: profileScanBudget,
+          profile_scans_reserved: profileScanBudget,
+          profile_scans_used: 0,
+          profile_scans_billing_status: "reserved",
           launch_mode: "tech_recruiter_mvp",
           launch_scope: "linkedin_plus_github",
           execution_profile: searchTargets.executionProfile,
@@ -232,6 +247,7 @@ export async function POST(req: NextRequest) {
           user_agent: req.headers.get("user-agent"),
           metadata: {
             candidate_count: maxCandidates,
+            profile_scan_budget: profileScanBudget,
             invite_code: invite?.invite_code ?? inviteCode ?? null,
             invite_source: invite?.source ?? null,
             invite_batch_id: invite?.batch_id ?? null,

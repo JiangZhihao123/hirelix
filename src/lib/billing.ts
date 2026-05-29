@@ -16,6 +16,9 @@ export type BillingPlan = {
   priceLabel: string;
   cadenceLabel: string;
   billingCycle: BillingCycle;
+  profileScansPerMonth: number;
+  emailLookupsPerMonth: number;
+  publicEvidenceDeepDivesPerMonth: number;
   searchesPerMonth: number;
   candidateLimitPerSearch: number;
   enrichesPerMonth: number;
@@ -26,9 +29,46 @@ export type BillingPlan = {
   featured?: boolean;
 };
 
+export function getPlanProfileScansPerMonth(plan: Pick<BillingPlan, "profileScansPerMonth" | "searchesPerMonth">) {
+  return Number.isFinite(plan.profileScansPerMonth)
+    ? plan.profileScansPerMonth
+    : plan.searchesPerMonth;
+}
+
+export function getPlanEmailLookupsPerMonth(plan: Pick<BillingPlan, "emailLookupsPerMonth" | "enrichesPerMonth">) {
+  return Number.isFinite(plan.emailLookupsPerMonth)
+    ? plan.emailLookupsPerMonth
+    : plan.enrichesPerMonth;
+}
+
+export function getPlanPublicEvidenceDeepDivesPerMonth(
+  plan: Pick<BillingPlan, "publicEvidenceDeepDivesPerMonth">,
+) {
+  return Number.isFinite(plan.publicEvidenceDeepDivesPerMonth)
+    ? plan.publicEvidenceDeepDivesPerMonth
+    : 0;
+}
+
+export function getPlanSearchBatchProfileScanLimit(
+  plan: Pick<BillingPlan, "code" | "profileScansPerMonth" | "searchesPerMonth">,
+  fallbackLimit: number,
+) {
+  if (plan.code === "free") return getPlanProfileScansPerMonth(plan);
+  return fallbackLimit;
+}
+
 export type UsageSummary = {
   periodStart: string;
   periodEnd: string;
+  profileScansUsed: number;
+  profileScansLimit: number;
+  profileScansRemaining: number;
+  emailLookupsUsed: number;
+  emailLookupsLimit: number;
+  emailLookupsRemaining: number;
+  publicEvidenceDeepDivesUsed: number;
+  publicEvidenceDeepDivesLimit: number;
+  publicEvidenceDeepDivesRemaining: number;
   searchesUsed: number;
   searchesLimit: number;
   searchesRemaining: number;
@@ -40,6 +80,8 @@ export type UsageSummary = {
   clientBriefEnabled: boolean;
   extraSearchCredits: number;
   extraEnrichCredits: number;
+  extraProfileScans: number;
+  extraEmailLookups: number;
 };
 
 export type BillingSummary = {
@@ -82,12 +124,15 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Run one complete 25-candidate shortlist before you pay.",
+    description: "Try one client role with a small ranked preview.",
     priceLabel: "$0",
-    cadenceLabel: "one complete trial",
+    cadenceLabel: "one role preview",
     billingCycle: null,
-    searchesPerMonth: 1,
-    candidateLimitPerSearch: 25,
+    profileScansPerMonth: 150,
+    emailLookupsPerMonth: 0,
+    publicEvidenceDeepDivesPerMonth: 0,
+    searchesPerMonth: 150,
+    candidateLimitPerSearch: 5,
     enrichesPerMonth: 0,
     exportEnabled: false,
     clientBriefEnabled: false,
@@ -101,9 +146,12 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceLabel: "$149",
     cadenceLabel: "per month",
     billingCycle: "month",
-    searchesPerMonth: 10,
+    profileScansPerMonth: 4000,
+    emailLookupsPerMonth: 50,
+    publicEvidenceDeepDivesPerMonth: 25,
+    searchesPerMonth: 4000,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 250,
+    enrichesPerMonth: 50,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 14900,
@@ -116,9 +164,12 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceLabel: "$99",
     cadenceLabel: "per month, billed annually",
     billingCycle: "year",
-    searchesPerMonth: 10,
+    profileScansPerMonth: 4000,
+    emailLookupsPerMonth: 50,
+    publicEvidenceDeepDivesPerMonth: 25,
+    searchesPerMonth: 4000,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 250,
+    enrichesPerMonth: 50,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 118800,
@@ -132,9 +183,12 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceLabel: "$149",
     cadenceLabel: "per month",
     billingCycle: "month",
-    searchesPerMonth: 25,
+    profileScansPerMonth: 4000,
+    emailLookupsPerMonth: 50,
+    publicEvidenceDeepDivesPerMonth: 25,
+    searchesPerMonth: 4000,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 625,
+    enrichesPerMonth: 50,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 14900,
@@ -147,9 +201,12 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceLabel: "$99",
     cadenceLabel: "per month, billed annually",
     billingCycle: "year",
-    searchesPerMonth: 25,
+    profileScansPerMonth: 4000,
+    emailLookupsPerMonth: 50,
+    publicEvidenceDeepDivesPerMonth: 25,
+    searchesPerMonth: 4000,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 625,
+    enrichesPerMonth: 50,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 118800,
@@ -162,9 +219,12 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceLabel: "$799",
     cadenceLabel: "up to 3 seats / month",
     billingCycle: "month",
-    searchesPerMonth: 100,
+    profileScansPerMonth: 20000,
+    emailLookupsPerMonth: 250,
+    publicEvidenceDeepDivesPerMonth: 150,
+    searchesPerMonth: 20000,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 2500,
+    enrichesPerMonth: 250,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 79900,
@@ -177,9 +237,12 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceLabel: "$1,999",
     cadenceLabel: "up to 10 seats / month",
     billingCycle: "month",
-    searchesPerMonth: 300,
+    profileScansPerMonth: 60000,
+    emailLookupsPerMonth: 1000,
+    publicEvidenceDeepDivesPerMonth: 600,
+    searchesPerMonth: 60000,
     candidateLimitPerSearch: 25,
-    enrichesPerMonth: 7500,
+    enrichesPerMonth: 1000,
     exportEnabled: true,
     clientBriefEnabled: true,
     priceCents: 199900,
@@ -263,19 +326,19 @@ export function getPlanStatusCopy(
   }
 
   const isFreePlan = billing.subscription.planCode === "free";
-  const searchesRemaining = billing.usage.searchesRemaining;
-  const searchesLimit = billing.usage.searchesLimit;
+  const profileScansRemaining = billing.usage.profileScansRemaining;
+  const profileScansLimit = billing.usage.profileScansLimit;
   const renewalDate = formatMonthDay(billing.subscription.renewsAt);
-  const isExhausted = searchesRemaining === 0;
+  const isExhausted = profileScansRemaining === 0;
 
   return {
     title: isFreePlan ? "Free plan" : billing.plan.name,
     usageLabel: isExhausted
-      ? "No shortlist builds left this cycle"
-      : `${searchesRemaining} / ${searchesLimit} shortlist builds left`,
+      ? "No profile scans left this cycle"
+      : `${profileScansRemaining} / ${profileScansLimit} profile scans left`,
     capabilityLabel: isFreePlan
-      ? "Includes one complete 25-candidate shortlist with fit evidence, risks, and outreach drafts"
-      : "Everything is unlocked: 25-candidate shortlists, email lookup, export, outreach, and client-ready briefs",
+      ? "Includes one role preview with up to 5 ranked candidates"
+      : "Includes profile scans, email lookup, public evidence deep dives, export, and client-ready briefs",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",
     state: isExhausted ? "warning" : "default",

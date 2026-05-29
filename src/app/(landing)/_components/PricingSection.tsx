@@ -1,5 +1,15 @@
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { BILLING_PLANS, type BillingPlanCode } from "@/lib/billing";
+import {
+  BILLING_PLANS,
+  getPlanEmailLookupsPerMonth,
+  getPlanProfileScansPerMonth,
+  getPlanPublicEvidenceDeepDivesPerMonth,
+  type BillingPlanCode,
+} from "@/lib/billing";
+
+function formatCount(value: number) {
+  return value.toLocaleString("en-US");
+}
 
 export function PricingSection({
   onStart,
@@ -11,20 +21,28 @@ export function PricingSection({
   const freePlan = BILLING_PLANS.free;
   const annualPlan = BILLING_PLANS.starter_annual;
   const monthlyPlan = BILLING_PLANS.starter_monthly;
+  const freeProfileScans = getPlanProfileScansPerMonth(freePlan);
+  const annualProfileScans = getPlanProfileScansPerMonth(annualPlan);
+  const monthlyProfileScans = getPlanProfileScansPerMonth(monthlyPlan);
+  const annualEmailLookups = getPlanEmailLookupsPerMonth(annualPlan);
+  const monthlyEmailLookups = getPlanEmailLookupsPerMonth(monthlyPlan);
+  const annualEvidenceDeepDives = getPlanPublicEvidenceDeepDivesPerMonth(annualPlan);
+  const monthlyEvidenceDeepDives = getPlanPublicEvidenceDeepDivesPerMonth(monthlyPlan);
   const plans = [
     {
       key: "free",
       name: "Free first run",
       price: freePlan.priceLabel,
-      cadence: "one complete shortlist",
-      description: "Run one complete 25-profile shortlist before you pay.",
+      cadence: "one role preview",
+      description: "Try one role with up to 5 ranked candidates before you pay.",
       cta: "Try for free",
       featured: false,
       planCode: null,
       bullets: [
-        "Ranked 25-profile shortlist",
+        `Scans up to ${formatCount(freeProfileScans)} real profiles`,
+        `Up to ${freePlan.candidateLimitPerSearch} ranked candidates`,
         "Fit evidence and risks",
-        "Personalized outreach drafts",
+        "Outreach drafts",
       ],
     },
     {
@@ -37,9 +55,10 @@ export function PricingSection({
       featured: true,
       planCode: annualPlan.code,
       bullets: [
-        `${annualPlan.searchesPerMonth} shortlist builds per month`,
-        `${annualPlan.enrichesPerMonth} email lookups per month`,
-        "Export and client-ready briefs included",
+        `${formatCount(annualProfileScans)} profile scans per month`,
+        `${formatCount(annualEmailLookups)} email lookups per month`,
+        `${formatCount(annualEvidenceDeepDives)} public evidence deep dives per month`,
+        "CSV export and client-ready briefs",
       ],
     },
     {
@@ -52,9 +71,10 @@ export function PricingSection({
       featured: false,
       planCode: monthlyPlan.code,
       bullets: [
-        `${monthlyPlan.searchesPerMonth} shortlist builds per month`,
-        `${monthlyPlan.enrichesPerMonth} email lookups per month`,
-        "Export and client-ready briefs included",
+        `${formatCount(monthlyProfileScans)} profile scans per month`,
+        `${formatCount(monthlyEmailLookups)} email lookups per month`,
+        `${formatCount(monthlyEvidenceDeepDives)} public evidence deep dives per month`,
+        "CSV export and client-ready briefs",
       ],
     },
   ];
@@ -67,10 +87,10 @@ export function PricingSection({
             Pricing
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Start with one complete shortlist.
+            Start with one role preview.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            Try one complete shortlist, then upgrade if it proves useful.
+            Try one role. Upgrade if it proves useful.
           </p>
         </div>
 
@@ -130,7 +150,7 @@ export function PricingSection({
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Judge the first 25-profile result before choosing a paid plan.
+          Profile scans are based on real profiles reviewed. Qualified candidates are never padded to hit a fixed count.
         </p>
       </div>
     </section>

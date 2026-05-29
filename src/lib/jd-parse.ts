@@ -71,6 +71,7 @@ type LaunchOptions = {
   planCode: string;
   executionProfile: string;
   requestedCandidateCount?: number;
+  profileScanBudget?: number;
 };
 
 type ParseJobDescriptionOptions = {
@@ -545,6 +546,9 @@ export function buildParsedRequirementsForLaunch(
     requested_candidate_count:
       options.requestedCandidateCount ?? options.candidateCount,
     outreach_pool_target: options.outreachPoolTarget,
+    ...(typeof options.profileScanBudget === "number"
+      ? { profile_scan_budget: Math.max(1, Math.round(options.profileScanBudget)) }
+      : {}),
     plan_code: options.planCode,
     launch_mode: "tech_recruiter_mvp",
     launch_scope: "linkedin_plus_github",

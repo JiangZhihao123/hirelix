@@ -728,7 +728,7 @@ export default function Home() {
                   Want me to run this on one real client role?
                 </p>
                 <p className="mt-1 text-sm leading-6 text-indigo-900/80">
-                  Send a role title or JD snippet. I can run a small beta preview before you spend
+                  Send a role title or JD snippet. I can run a small role preview before you spend
                   time setting anything up.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">

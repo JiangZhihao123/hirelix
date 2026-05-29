@@ -6,7 +6,6 @@ import type {
   SearchExecutionRuntime,
 } from "@/lib/search/types";
 import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
-import { enqueuePublicEvidenceJobsForSearch } from "@/lib/public-evidence-jobs";
 import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
 
 export async function completeSearch(
@@ -120,14 +119,9 @@ export async function completeSearch(
   await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
     replaceMissing: true,
   });
-  const publicEvidenceQueueResult = await enqueuePublicEvidenceJobsForSearch({
-    searchId: context.searchId,
-    userId: context.userId,
-    limit: draftedRows.length,
-  });
-  helpers.logSearchEvent("public_evidence_jobs_enqueued", {
+  helpers.logSearchEvent("public_evidence_jobs_on_demand", {
     search_id: context.searchId,
-    ...publicEvidenceQueueResult,
+    eligible_candidates: draftedRows.length,
   });
 
   const githubQueueResult = await enqueueGithubEnrichmentJobsForSearch({
@@ -179,6 +173,14 @@ export async function completeSearch(
     bright_profile_budget: finalDisplayStats.bright_profile_budget ?? null,
     bright_profiles_requested: finalDisplayStats.bright_profiles_requested ?? null,
     bright_profiles_returned: finalDisplayStats.bright_profiles_returned ?? null,
+    profile_scans_reserved: 0,
+    profile_scans_used: finalDisplayStats.bright_profiles_returned ?? 0,
+    profile_scans_returned: finalDisplayStats.bright_profiles_returned ?? 0,
+    profile_scans_requested: finalDisplayStats.bright_profiles_requested ?? null,
+    profile_scans_billing_status:
+      (finalDisplayStats.bright_profiles_returned ?? 0) > 0
+        ? "charged"
+        : "no_matching_profiles",
     bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
     estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,
     estimated_search_total_cost: finalDisplayStats.estimated_search_total_cost ?? null,

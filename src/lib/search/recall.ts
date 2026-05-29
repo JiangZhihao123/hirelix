@@ -655,7 +655,7 @@ export function buildBrightDataRecallFilters(
     hiddenGemFilters.push(hiddenSignalFilter);
     if (locationFilter) hiddenGemFilters.push(locationFilter);
     hiddenGemFilters.push(...qualityFilters);
-    const recordsLimit = executionProfile.hiddenGemLimit ?? options.hiddenGemLimit;
+    const recordsLimit = executionProfile.hiddenGemLimit;
     if (recordsLimit <= 0) return rounds;
 
     rounds.push({
@@ -696,7 +696,7 @@ export function buildBrightDataRecallFilters(
     const companyTitleFilter = buildTitleFilter(companyTitleTerms);
     if (companyTitleFilter) companyFilters.push(companyTitleFilter);
     companyFilters.push(...qualityFilters);
-    const recordsLimit = executionProfile.companyTargetLimit ?? options.companyTargetLimit;
+    const recordsLimit = executionProfile.companyTargetLimit;
     if (recordsLimit <= 0) return rounds;
 
     rounds.push({

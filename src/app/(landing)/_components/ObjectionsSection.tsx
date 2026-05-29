@@ -15,7 +15,7 @@ export function ObjectionsSection() {
     {
       icon: Search,
       title: "What do I get from the first run?",
-      desc: "A ranked 25-profile shortlist with fit evidence, risks to verify, and personalized outreach starting points.",
+      desc: "A ranked preview of qualified candidates with fit evidence, risks to verify, and personalized outreach starting points.",
     },
     {
       icon: Mail,

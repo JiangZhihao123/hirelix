@@ -144,6 +144,8 @@ export default function SearchResultPage() {
   const [candidateTier, setCandidateTier] = useState<CandidateDisplayTier>("priority_outreach");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
   const [copiedWorkflowAction, setCopiedWorkflowAction] = useState<string | null>(null);
+  const [publicEvidenceQueueingId, setPublicEvidenceQueueingId] = useState<string | null>(null);
+  const [publicEvidenceError, setPublicEvidenceError] = useState<string | null>(null);
   const [, setUpgradeError] = useState<string | null>(null);
   const [rescoreError, setRescoreError] = useState<string | null>(null);
   const [rescoreSubmitting, setRescoreSubmitting] = useState(false);
@@ -604,6 +606,46 @@ export default function SearchResultPage() {
       plan_code: billing?.subscription.planCode ?? billing?.plan.code ?? "unknown",
       upgrade_surface: surface,
     });
+  }
+
+  async function handlePublicEvidenceDeepDive(candidate: CandidateRow) {
+    if (publicEvidenceQueueingId) return;
+    if (
+      billing?.plan.code === "free" ||
+      (billing?.usage.publicEvidenceDeepDivesRemaining ?? 0) <= 0
+    ) {
+      handleUpgradeClick("candidate_public_evidence_deep_dive");
+      setPublicEvidenceError("Start a subscription to unlock public evidence deep dives.");
+      return;
+    }
+
+    setPublicEvidenceError(null);
+    setPublicEvidenceQueueingId(candidate.id);
+    try {
+      const res = await fetchWithUserSession(`/api/candidates/${candidate.id}/enrich`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public_evidence: true }),
+      });
+      if (!res.ok) {
+        throw new Error("Could not start public evidence deep dive.");
+      }
+      const data = await res.json();
+      if (data.metadata) {
+        setCandidates((current) =>
+          current.map((row) =>
+            row.id === candidate.id
+              ? { ...row, metadata: data.metadata }
+              : row,
+          ),
+        );
+      }
+      await refreshBilling();
+    } catch (error) {
+      setPublicEvidenceError(error instanceof Error ? error.message : "Could not start public evidence deep dive.");
+    } finally {
+      setPublicEvidenceQueueingId(null);
+    }
   }
 
   if (loading) {
@@ -1183,8 +1225,8 @@ export default function SearchResultPage() {
                     : isImprovingInBackground
                       ? "Hirelix is still refining the remaining scores in the background."
                       : shortlistUnderfilled
-                        ? `Hirelix promised ${promisedCandidateCount} candidates and found ${deliveredCandidateCount} worth showing after ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed. ${underfilledReason}`
-                        : `Hirelix delivered the promised ${promisedCandidateCount}-candidate shortlist: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
+                        ? `Hirelix found ${deliveredCandidateCount} qualified candidates out of an up-to-${promisedCandidateCount} target after ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed. ${underfilledReason}`
+                        : `Hirelix delivered ${deliveredCandidateCount} qualified candidates: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
               </p>
               {isImprovingInBackground && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -1231,7 +1273,7 @@ export default function SearchResultPage() {
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
                   {shortlistUnderfilled
-                    ? `${deliveredCandidateCount} of ${promisedCandidateCount} promised candidates are ready.`
+                    ? `${deliveredCandidateCount} of up to ${promisedCandidateCount} qualified candidates are ready.`
                     : priorityOutreachCount > 0
                     ? `${priorityOutreachCount} candidates are ready for first outreach.`
                     : `${allCandidates.length} candidates are ready for review.`}
@@ -1527,8 +1569,8 @@ export default function SearchResultPage() {
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
                   {shortlistUnderfilled
-                    ? `Delivered ${deliveredCandidateCount} of ${promisedCandidateCount} promised candidates.`
-                    : `Delivered the promised ${promisedCandidateCount}-candidate shortlist.`}
+                    ? `Delivered ${deliveredCandidateCount} of up to ${promisedCandidateCount} qualified candidates.`
+                    : `Delivered ${deliveredCandidateCount} qualified candidates.`}
                 </h2>
                 {shortlistUnderfilled && (
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
@@ -1591,6 +1633,11 @@ export default function SearchResultPage() {
                   You can already review fit evidence now. Upgrade when you&apos;re ready to reach out.
                 </p>
               </div>
+            </div>
+          )}
+          {publicEvidenceError && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {publicEvidenceError}
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1740,6 +1787,9 @@ export default function SearchResultPage() {
                     billingPlanCode={billing?.subscription.planCode || "free"}
                     clientBriefEnabled={billing?.usage.clientBriefEnabled ?? false}
                     enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
+                    publicEvidenceDeepDivesRemaining={billing?.usage.publicEvidenceDeepDivesRemaining ?? 0}
+                    publicEvidenceQueueing={publicEvidenceQueueingId === activeCandidate.id}
+                    onPublicEvidenceDeepDive={() => handlePublicEvidenceDeepDive(activeCandidate)}
                     refreshBilling={refreshBilling}
                     onUpgradeClick={handleUpgradeClick}
                     onStatusChange={handleStatusChange}
@@ -1771,6 +1821,9 @@ export default function SearchResultPage() {
                       onToggleSelect={() => toggleSelect(c.id)}
                       billingPlanCode={billing?.subscription.planCode || "free"}
                       enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
+                      publicEvidenceDeepDivesRemaining={billing?.usage.publicEvidenceDeepDivesRemaining ?? 0}
+                      publicEvidenceQueueing={publicEvidenceQueueingId === c.id}
+                      onPublicEvidenceDeepDive={() => handlePublicEvidenceDeepDive(c)}
                       refreshBilling={refreshBilling}
                       onUpgradeClick={handleUpgradeClick}
                       isNew={isImprovingInBackground && newCandidateIds.has(c.id)}

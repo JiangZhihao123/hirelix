@@ -19,6 +19,7 @@ import {
 } from "@/lib/llm-client";
 import { buildOutreachDraftJsonSchema } from "@/lib/llm-schemas";
 import { enqueueGithubEnrichmentJob } from "@/lib/github-enrichment-jobs";
+import { enqueuePublicEvidenceJobForCandidate } from "@/lib/public-evidence-jobs";
 import { buildRecruiterOutreachEvidence } from "@/lib/recruiter-outreach";
 import { sanitizeDisplayName } from "@/lib/display-name";
 import { getLogger, errorLogFields } from "@/lib/logger";
@@ -41,6 +42,8 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const regenerateOutreach =
     body && typeof body === "object" && (body as Record<string, unknown>).regenerate_outreach === true;
+  const requestPublicEvidence =
+    body && typeof body === "object" && (body as Record<string, unknown>).public_evidence === true;
 
   try {
     const user = await getUserFromApiRequest(req);
@@ -126,14 +129,14 @@ export async function POST(
     };
 
     const updates: Record<string, unknown> = {};
-    const needsContactLookup = !candidate.email && !regenerateOutreach;
+    const needsContactLookup = !candidate.email && !regenerateOutreach && !requestPublicEvidence;
     const needsDraftBackfill = !candidate.outreach_draft || regenerateOutreach;
     const sanitizedCandidateName = sanitizeDisplayName(candidate.name);
     if (sanitizedCandidateName !== candidate.name) {
       updates.name = sanitizedCandidateName;
       candidate.name = sanitizedCandidateName;
     }
-    if (needsContactLookup && billing.usage.enrichesRemaining <= 0) {
+    if (needsContactLookup && billing.usage.emailLookupsRemaining <= 0) {
       return NextResponse.json(
         {
           error:
@@ -143,6 +146,33 @@ export async function POST(
         },
         { status: 403 },
       );
+    }
+    if (requestPublicEvidence) {
+      if (
+        billing.plan.code === "free" ||
+        billing.usage.publicEvidenceDeepDivesRemaining <= 0
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              billing.plan.code === "free"
+                ? "Start a subscription to unlock public evidence deep dives."
+                : "You have reached this month's public evidence deep dive limit. Your next cycle will reset automatically.",
+          },
+          { status: 403 },
+        );
+      }
+
+      const result = await enqueuePublicEvidenceJobForCandidate({
+        candidateId: candidate.id,
+        searchId: candidate.search_id,
+        userId: user.id,
+      });
+      return NextResponse.json({
+        ok: true,
+        public_evidence_queued: result.queued,
+        metadata: result.metadata || candidate.metadata || null,
+      });
     }
 
     // Get company profile from user settings
@@ -392,6 +422,7 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
         related_id: candidate.id,
         metadata: {
           plan_code: billing.plan.code,
+          email_lookup_count: 1,
         },
       });
     }

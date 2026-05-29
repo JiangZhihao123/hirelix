@@ -55,9 +55,13 @@ function resolveSearchExecutionMode(): SearchExecutionMode {
 }
 
 const DEFAULT_SHORTLIST_CAP = 25;
+const FREE_SHORTLIST_CAP = 5;
+const FREE_PROFILE_SCAN_LIMIT = 150;
+const PAID_PROFILE_SCAN_BATCH_LIMIT = 500;
 export const FINAL_SHORTLIST_TARGET = DEFAULT_SHORTLIST_CAP;
+export const DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT = PAID_PROFILE_SCAN_BATCH_LIMIT;
 const PLAN_SHORTLIST_CAPS: Record<SearchPlanCode, number> = {
-  free: 25,
+  free: FREE_SHORTLIST_CAP,
   starter_monthly: 25,
   starter_annual: 25,
   pro_monthly: 25,
@@ -74,8 +78,8 @@ const SEARCH_EXECUTION_PROFILES: Record<
     name: "bright_test_full",
     mode: "test",
     filterLimit: getConfiguredModeLimit("test", "STANDARD", 50),
-    hiddenGemLimit: getConfiguredModeLimit("test", "HIDDEN_GEM", 25),
-    companyTargetLimit: getConfiguredModeLimit("test", "COMPANY_TARGET", 25),
+    hiddenGemLimit: getConfiguredModeLimit("test", "HIDDEN_GEM", 0),
+    companyTargetLimit: getConfiguredModeLimit("test", "COMPANY_TARGET", 0),
     finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 5,
     minVisibleQualityScore: 0,
@@ -86,10 +90,10 @@ const SEARCH_EXECUTION_PROFILES: Record<
   bright_free_preview: {
     name: "bright_free_preview",
     mode: "production",
-    filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", 120),
+    filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", FREE_PROFILE_SCAN_LIMIT),
     hiddenGemLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT", 0),
     companyTargetLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_COMPANY_TARGET_LIMIT", 0),
-    finalResultCap: DEFAULT_SHORTLIST_CAP,
+    finalResultCap: FREE_SHORTLIST_CAP,
     highlightCount: 3,
     minVisibleQualityScore: 0,
     strongNowQualityScore: 72,
@@ -99,9 +103,9 @@ const SEARCH_EXECUTION_PROFILES: Record<
   bright_production_full: {
     name: "bright_production_full",
     mode: "production",
-    filterLimit: getConfiguredModeLimit("production", "STANDARD", 200),
-    hiddenGemLimit: getConfiguredModeLimit("production", "HIDDEN_GEM", 100),
-    companyTargetLimit: getConfiguredModeLimit("production", "COMPANY_TARGET", 100),
+    filterLimit: getConfiguredModeLimit("production", "STANDARD", PAID_PROFILE_SCAN_BATCH_LIMIT),
+    hiddenGemLimit: getConfiguredModeLimit("production", "HIDDEN_GEM", 0),
+    companyTargetLimit: getConfiguredModeLimit("production", "COMPANY_TARGET", 0),
     finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 5,
     minVisibleQualityScore: 0,
@@ -169,11 +173,13 @@ export function getInitialSearchTargets(
 ) {
   const profile = getInitialSearchExecutionProfile(planCode);
   const planCap = PLAN_SHORTLIST_CAPS[normalizeSearchPlanCode(planCode)];
-  const candidateCount = Math.min(DEFAULT_SHORTLIST_CAP, Math.max(profile.finalResultCap, planCap));
+  const candidateCount = Math.min(DEFAULT_SHORTLIST_CAP, profile.finalResultCap, planCap);
   return {
     candidateCount,
     displayCount: candidateCount,
     highlightCount: Math.min(profile.highlightCount, candidateCount),
     executionProfile: profile.name,
+    profileScanBudget:
+      profile.filterLimit + profile.hiddenGemLimit + profile.companyTargetLimit,
   };
 }

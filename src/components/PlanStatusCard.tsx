@@ -37,8 +37,8 @@ export function PlanStatusCard({
       route: pathname,
       plan_code: billing?.subscription.planCode ?? "unknown",
       subscription_status: billing?.subscription.status ?? "unknown",
-      searches_remaining: billing?.usage.searchesRemaining ?? null,
-      enriches_remaining: billing?.usage.enrichesRemaining ?? null,
+      profile_scans_remaining: billing?.usage.profileScansRemaining ?? null,
+      email_lookups_remaining: billing?.usage.emailLookupsRemaining ?? null,
     });
   }, [billing, loading, pathname]);
 
@@ -73,8 +73,8 @@ export function PlanStatusCard({
               route: pathname,
               plan_code: billing?.subscription.planCode ?? "unknown",
               subscription_status: billing?.subscription.status ?? "unknown",
-              searches_remaining: billing?.usage.searchesRemaining ?? null,
-              enriches_remaining: billing?.usage.enrichesRemaining ?? null,
+              profile_scans_remaining: billing?.usage.profileScansRemaining ?? null,
+              email_lookups_remaining: billing?.usage.emailLookupsRemaining ?? null,
             });
           }}
           className={`shrink-0 text-xs font-medium transition-colors ${

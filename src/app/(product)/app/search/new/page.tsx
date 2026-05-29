@@ -97,7 +97,7 @@ export default function NewSearchPage() {
     }
   }, [shouldFocusClarification]);
 
-  const isOutOfSearches = billing?.usage.searchesRemaining === 0 && billing.plan.code === "free";
+  const isOutOfSearches = billing?.usage.profileScansRemaining === 0 && billing.plan.code === "free";
   const candidateCount = billing?.usage.candidateLimitPerSearch ?? 25;
 
   const buildEditableBrief = (response: ClarifyResponse): EditableBrief => ({
@@ -311,7 +311,7 @@ export default function NewSearchPage() {
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-amber-900">
-                You&apos;ve used your free shortlist. Start a subscription to keep sourcing.
+                You&apos;ve used your free profile scan preview. Start a subscription to keep sourcing.
               </p>
               <PaddleCheckoutButton
                 checkout={{ type: "plan", planCode: "starter_monthly" }}
@@ -390,7 +390,7 @@ export default function NewSearchPage() {
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Final {candidateCount}-candidate shortlist
+                    Up to {candidateCount} qualified candidates
                   </span>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">

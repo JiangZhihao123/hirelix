@@ -6,6 +6,7 @@ import {
   hirelix_public_evidence_items,
   hirelix_public_evidence_jobs,
   hirelix_searches,
+  hirelix_usage_events,
 } from "@/db/schema";
 import { extractRequiredSkillsForGithub } from "@/lib/github-enrichment-jobs";
 import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
@@ -100,12 +101,14 @@ async function upsertPublicEvidenceJob(input: {
   candidateId: string;
   searchId: string;
   userId: string;
+  usageEventId: string | null;
 }) {
   const ts = nowDate();
   const values = {
     candidate_id: input.candidateId,
     search_id: input.searchId,
     user_id: input.userId,
+    usage_event_id: input.usageEventId,
     status: "queued",
     attempt_count: 0,
     available_at: ts,
@@ -123,6 +126,7 @@ async function upsertPublicEvidenceJob(input: {
       set: {
         search_id: values.search_id,
         user_id: values.user_id,
+        usage_event_id: values.usage_event_id,
         status: values.status,
         attempt_count: values.attempt_count,
         available_at: values.available_at,
@@ -136,7 +140,7 @@ async function upsertPublicEvidenceJob(input: {
     .returning({ id: hirelix_public_evidence_jobs.id });
   const id = inserted[0]?.id;
   if (!id) throw new Error("Failed to enqueue public evidence job");
-  return id;
+  return { id };
 }
 
 export async function enqueuePublicEvidenceJobsForSearch(input: {
@@ -163,19 +167,78 @@ export async function enqueuePublicEvidenceJobsForSearch(input: {
       skipped += 1;
       continue;
     }
-    const metadata = buildQueuedMetadata(candidate.metadata);
-    await upsertPublicEvidenceJob({
+    const result = await enqueuePublicEvidenceJobForCandidate({
       candidateId: candidate.id,
       searchId: input.searchId,
       userId: input.userId,
     });
-    await db
-      .update(hirelix_candidates)
-      .set({ metadata: toJsonbSafeRecord(metadata) })
-      .where(eq(hirelix_candidates.id, candidate.id));
-    enqueued += 1;
+    if (result.queued) enqueued += 1;
   }
   return { scanned, enqueued, skipped };
+}
+
+export async function enqueuePublicEvidenceJobForCandidate(input: {
+  candidateId: string;
+  searchId: string;
+  userId: string;
+}) {
+  const candidates = await db
+    .select({
+      id: hirelix_candidates.id,
+      metadata: hirelix_candidates.metadata,
+    })
+    .from(hirelix_candidates)
+    .where(
+      and(
+        eq(hirelix_candidates.id, input.candidateId),
+        eq(hirelix_candidates.search_id, input.searchId),
+      ),
+    )
+    .limit(1);
+  const candidate = candidates[0];
+  if (!candidate) {
+    throw new Error("Candidate not found");
+  }
+  if (!shouldQueuePublicEvidence(candidate.metadata)) {
+    return { queued: false, skipped: true };
+  }
+
+  const metadata = buildQueuedMetadata(candidate.metadata);
+  const reservedUsageMetadata = {
+    search_id: input.searchId,
+    public_evidence_deep_dive_count: 1,
+    public_evidence_billing_status: "reserved",
+  };
+  const usageRows = await db
+    .insert(hirelix_usage_events)
+    .values({
+      user_id: input.userId,
+      event_type: "public_evidence_deep_dive",
+      related_id: candidate.id,
+      metadata: reservedUsageMetadata,
+    })
+    .onConflictDoUpdate({
+      target: [hirelix_usage_events.event_type, hirelix_usage_events.related_id],
+      set: {
+        user_id: input.userId,
+        metadata: reservedUsageMetadata,
+      },
+    })
+    .returning({ id: hirelix_usage_events.id });
+  const usageEventId = usageRows[0]?.id;
+  if (!usageEventId) {
+    throw new Error("Failed to reserve public evidence usage");
+  }
+  await upsertPublicEvidenceJob({
+    ...input,
+    usageEventId,
+  });
+  await db
+    .update(hirelix_candidates)
+    .set({ metadata: toJsonbSafeRecord(metadata) })
+    .where(eq(hirelix_candidates.id, candidate.id));
+
+  return { queued: true, skipped: false, metadata };
 }
 
 async function claimPublicEvidenceJob(preferredCandidateId?: string | null) {
@@ -412,6 +475,34 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
         metadata: toJsonbSafeRecord(blended.metadata),
       })
       .where(eq(hirelix_candidates.id, candidate.id));
+    if (job.user_id) {
+      const usageMetadata = {
+        search_id: job.search_id,
+        public_evidence_deep_dive_count: 1,
+        public_evidence_billing_status: "charged",
+        evidence_status: enrichment.result.status,
+        evidence_count: enrichment.result.items.length,
+      };
+      if (job.usage_event_id) {
+        await db
+          .update(hirelix_usage_events)
+          .set({ metadata: usageMetadata })
+          .where(eq(hirelix_usage_events.id, job.usage_event_id));
+      } else {
+        await db
+          .insert(hirelix_usage_events)
+          .values({
+            user_id: job.user_id,
+            event_type: "public_evidence_deep_dive",
+            related_id: candidate.id,
+            metadata: usageMetadata,
+          })
+          .onConflictDoUpdate({
+            target: [hirelix_usage_events.event_type, hirelix_usage_events.related_id],
+            set: { metadata: usageMetadata },
+          });
+      }
+    }
     await updateJobStatus(job.id, "done", { last_error: null });
     console.log("[public_evidence] Job done", {
       job_id: job.id,

@@ -32,7 +32,7 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("link", { name: "Resources" })).toHaveAttribute("href", "#resources");
     await expect(page.getByRole("heading", { name: "From client role to ranked shortlist." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Start with one complete shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start with one role preview." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Start with the role already on your desk." })).toBeVisible();
@@ -116,17 +116,17 @@ test.describe("Landing Page", () => {
     await expect(page).toHaveURL(/\/app\/search\/new\?.*entry=free_trial/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
-    await expect(page.getByText("Run one complete 25-profile shortlist before you pay.")).toBeVisible();
+    await expect(page.getByText("Try one role with a small ranked preview before you pay.")).toBeVisible();
   });
 
   test("pricing CTAs should enter product sign-up and billing flows", async ({ page }) => {
-    await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
+    await page.getByRole("heading", { name: "Start with one role preview." }).scrollIntoViewIfNeeded();
     const pricing = page.locator("#pricing");
     await expect(pricing.getByText("Free first run")).toBeVisible();
-    await expect(pricing.getByText("Run one complete 25-profile shortlist before you pay.")).toBeVisible();
+    await expect(pricing.getByText("Try one role with up to 5 ranked candidates before you pay.")).toBeVisible();
     await expect(pricing.getByText("No candidate email lookup")).toHaveCount(0);
     await expect(pricing.getByText("email lookups per month")).toHaveCount(2);
-    await expect(pricing.getByText("Export and client-ready briefs included")).toHaveCount(2);
+    await expect(pricing.getByText("CSV export and client-ready briefs")).toHaveCount(2);
 
     await pricing.getByRole("button", { name: "Try for free" }).click();
 
@@ -135,7 +135,7 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
 
     await page.goto("/");
-    await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
+    await page.getByRole("heading", { name: "Start with one role preview." }).scrollIntoViewIfNeeded();
     await page.locator("#pricing").getByRole("button", { name: "Start annual" }).click();
 
     await expect(page).toHaveURL(/\/app\/settings\?.*plan=starter_annual.*section=billing/);
@@ -224,11 +224,11 @@ test.describe("Landing Page mobile responsiveness", () => {
   });
 
   test("should keep mobile pricing focused on the first run", async ({ page }) => {
-    await page.getByRole("heading", { name: "Start with one complete shortlist." }).scrollIntoViewIfNeeded();
+    await page.getByRole("heading", { name: "Start with one role preview." }).scrollIntoViewIfNeeded();
     const pricing = page.locator("#pricing");
 
     await expect(pricing.getByText("Free first run")).toBeVisible();
-    await expect(pricing.getByText("Ranked 25-profile shortlist")).toBeVisible();
+    await expect(pricing.getByText("Scans up to 150 real profiles")).toBeVisible();
     await expect(pricing.getByText("Fit evidence and risks")).toBeVisible();
     await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
   });

@@ -173,7 +173,7 @@ function ProductLayoutShell({
         </h1>
         {isFreeTrialEntry && !isSearchIntent ? (
           <p className="-mt-5 max-w-sm text-center text-sm leading-6 text-muted">
-            Run one complete 25-profile shortlist before you pay.
+            Try one role with a small ranked preview before you pay.
           </p>
         ) : null}
         {isSearchIntent && (

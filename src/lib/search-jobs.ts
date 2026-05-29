@@ -4,6 +4,9 @@ import {
   type BrightDataFilterRule,
   type BrightDataSnapshotMetadata,
 } from "@/lib/brightdata";
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { hirelix_searches } from "@/db/schema";
 import {
   buildDeterministicWeakEvidenceOutreachDraft,
   buildRecruiterOutreachPrompt,
@@ -71,6 +74,7 @@ import {
   countCandidatesForSearch,
   setSearchStatus,
   updateSearchParsedRequirements,
+  updateSearchUsageEventMetadata,
 } from "@/lib/search/persistence";
 import {
   sanitizeRecallSignalTerms,
@@ -2713,6 +2717,28 @@ async function markSearchReviewable(
 
 
 async function failSearch(searchId: string) {
+  const rows = await getSearchRowsForFailureBilling(searchId);
+  const parsed = rows[0]?.parsed_requirements;
+  const displayStats =
+    parsed && typeof parsed === "object"
+      ? normalizeSearchDisplayStats((parsed as Record<string, unknown>).display_stats)
+      : null;
+  const recallMetadata =
+    parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).recall_metadata &&
+    typeof (parsed as Record<string, unknown>).recall_metadata === "object"
+      ? ((parsed as Record<string, unknown>).recall_metadata as Record<string, unknown>)
+      : null;
+  const returnedProfiles =
+    displayStats?.bright_profiles_returned ??
+    getPositiveInt(recallMetadata?.bright_profiles_returned) ??
+    0;
+  await updateSearchUsageEventMetadata(searchId, {
+    profile_scans_reserved: 0,
+    profile_scans_used: returnedProfiles,
+    profile_scans_returned: returnedProfiles,
+    profile_scans_billing_status:
+      returnedProfiles > 0 ? "charged_after_pipeline_failure" : "released_after_failure",
+  });
   await setSearchStatus(searchId, "error", {
     error_message: PUBLIC_SEARCH_FAILURE_MESSAGE,
   });
@@ -2729,6 +2755,22 @@ async function failSearch(searchId: string) {
       );
     });
   }
+}
+
+async function getSearchRowsForFailureBilling(searchId: string) {
+  return db
+    .select({
+      parsed_requirements: hirelix_searches.parsed_requirements,
+    })
+    .from(hirelix_searches)
+    .where(eq(hirelix_searches.id, searchId))
+    .limit(1);
+}
+
+function getPositiveInt(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.round(value))
+    : null;
 }
 
 export async function processNextSearchJob(preferredSearchId?: string | null) {
