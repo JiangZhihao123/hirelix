@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Mail, ScanSearch, Sparkles } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, Mail, ScanSearch, Sparkles } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   BILLING_PLANS,
@@ -106,7 +106,30 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           title="Usage"
           description="Track this billing cycle across the work that creates real product cost."
         >
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="inline-flex items-center gap-2 font-medium text-slate-800">
+                  <BriefcaseBusiness className="h-4 w-4 text-slate-400" />
+                  Client roles
+                </span>
+                <span className="text-slate-500">
+                  {billing.usage.clientRolesUsed}/{billing.usage.clientRolesLimit}
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-slate-900"
+                  style={{
+                    width: getUsageWidth(billing.usage.clientRolesUsed, billing.usage.clientRolesLimit),
+                  }}
+                />
+              </div>
+              <p className="mt-3 text-sm text-slate-600">
+                {billing.usage.clientRolesRemaining} client roles left this cycle
+              </p>
+            </div>
+
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
@@ -240,7 +263,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                       `${plan.searchesPerMonth} client roles per month`,
                       `${profileScans} targeted profile scans per month`,
                       "500 scans in each default discovery pass",
-                      "Expand any candidate pool with remaining scans",
+                      "Use remaining scans on more client roles",
                       `${emailLookups} contact lookups per month`,
                       `${evidenceDeepDives} public evidence deep dives per month`,
                       "CSV export and client-ready briefs",

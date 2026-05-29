@@ -24,6 +24,8 @@ function makeBillingSummary(
     overrides.emailLookupsLimit ?? overrides.enrichesLimit ?? plan.emailLookupsPerMonth;
   const publicEvidenceDeepDivesLimit =
     overrides.publicEvidenceDeepDivesLimit ?? plan.publicEvidenceDeepDivesPerMonth;
+  const clientRolesUsed = overrides.clientRolesUsed ?? overrides.searchesUsed ?? 0;
+  const clientRolesLimit = overrides.clientRolesLimit ?? overrides.searchesLimit ?? plan.searchesPerMonth;
   return {
     plan,
     subscription: {
@@ -48,10 +50,14 @@ function makeBillingSummary(
       publicEvidenceDeepDivesLimit,
       publicEvidenceDeepDivesRemaining:
         overrides.publicEvidenceDeepDivesRemaining ?? Math.max(publicEvidenceDeepDivesLimit - publicEvidenceDeepDivesUsed, 0),
-      searchesUsed: profileScansUsed,
-      searchesLimit: profileScansLimit,
+      clientRolesUsed,
+      clientRolesLimit,
+      clientRolesRemaining:
+        overrides.clientRolesRemaining ?? overrides.searchesRemaining ?? Math.max(clientRolesLimit - clientRolesUsed, 0),
+      searchesUsed: clientRolesUsed,
+      searchesLimit: clientRolesLimit,
       searchesRemaining:
-        overrides.searchesRemaining ?? overrides.profileScansRemaining ?? Math.max(profileScansLimit - profileScansUsed, 0),
+        overrides.searchesRemaining ?? overrides.clientRolesRemaining ?? Math.max(clientRolesLimit - clientRolesUsed, 0),
       enrichesUsed: emailLookupsUsed,
       enrichesLimit: emailLookupsLimit,
       enrichesRemaining:
@@ -130,7 +136,8 @@ test("billing plans expose free, starter, and pro client-role tiers", () => {
 test("plan status copy describes shortlist actions for free and paid plans", () => {
   const freeCopy = getPlanStatusCopy(makeBillingSummary("free"));
   assert.equal(freeCopy.title, "Free plan");
-  assert.match(freeCopy.usageLabel, /targeted profile scans left/);
+  assert.match(freeCopy.usageLabel, /targeted scans left/);
+  assert.match(freeCopy.usageLabel, /client roles/);
   assert.match(freeCopy.capabilityLabel, /150 targeted profile scans/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
@@ -150,6 +157,19 @@ test("plan status copy marks exhausted paid plan", () => {
   assert.equal(copy.state, "warning");
   assert.equal(copy.usageLabel, "No targeted profile scans left this cycle");
   assert.match(copy.capabilityLabel, /client-ready briefs/);
+});
+
+test("plan status copy marks exhausted client roles separately from scan pool", () => {
+  const copy = getPlanStatusCopy(
+    makeBillingSummary("starter_monthly", {
+      clientRolesUsed: 3,
+      clientRolesRemaining: 0,
+      profileScansUsed: 500,
+      profileScansRemaining: 3500,
+    }),
+  );
+  assert.equal(copy.state, "warning");
+  assert.equal(copy.usageLabel, "No client roles left this cycle");
 });
 
 test("count labels use singular copy for one remaining unit", () => {

@@ -37,6 +37,7 @@ export function PlanStatusCard({
       route: pathname,
       plan_code: billing?.subscription.planCode ?? "unknown",
       subscription_status: billing?.subscription.status ?? "unknown",
+      client_roles_remaining: billing?.usage.clientRolesRemaining ?? null,
       profile_scans_remaining: billing?.usage.profileScansRemaining ?? null,
       email_lookups_remaining: billing?.usage.emailLookupsRemaining ?? null,
     });
@@ -73,6 +74,7 @@ export function PlanStatusCard({
               route: pathname,
               plan_code: billing?.subscription.planCode ?? "unknown",
               subscription_status: billing?.subscription.status ?? "unknown",
+              client_roles_remaining: billing?.usage.clientRolesRemaining ?? null,
               profile_scans_remaining: billing?.usage.profileScansRemaining ?? null,
               email_lookups_remaining: billing?.usage.emailLookupsRemaining ?? null,
             });

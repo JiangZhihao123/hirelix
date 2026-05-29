@@ -97,7 +97,11 @@ export default function NewSearchPage() {
     }
   }, [shouldFocusClarification]);
 
-  const isOutOfDiscoveryScans = billing?.usage.profileScansRemaining === 0 && billing.plan.code === "free";
+  const isOutOfClientRoles = billing?.usage.clientRolesRemaining === 0;
+  const isOutOfDiscoveryScans = billing?.usage.profileScansRemaining === 0;
+  const isOutOfFreePreview =
+    billing?.plan.code === "free" && (isOutOfClientRoles || isOutOfDiscoveryScans);
+  const cannotStart = Boolean(isOutOfClientRoles || isOutOfDiscoveryScans);
   const candidateCount = billing?.usage.candidateLimitPerSearch ?? 25;
 
   const buildEditableBrief = (response: ClarifyResponse): EditableBrief => ({
@@ -267,7 +271,7 @@ export default function NewSearchPage() {
     }
   }
 
-  const canStart = jdText.trim().length >= 50 && !isOutOfDiscoveryScans;
+  const canStart = jdText.trim().length >= 50 && !cannotStart;
   const wordCount = useMemo(
     () => jdText.trim().split(/\s+/).filter(Boolean).length,
     [jdText],
@@ -307,20 +311,26 @@ export default function NewSearchPage() {
           className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white disabled:opacity-60"
         />
 
-        {isOutOfDiscoveryScans && (
+        {cannotStart && (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-amber-900">
-                You&apos;ve used your free candidate discovery preview. Start a subscription to keep sourcing.
+                {isOutOfFreePreview
+                  ? "You've used your free client-role preview. Start a subscription to keep sourcing."
+                  : isOutOfClientRoles
+                    ? "You've reached this month's client role allowance. Your next cycle will reset automatically."
+                    : "You've reached this month's targeted profile scan allowance. Your next cycle will reset automatically."}
               </p>
-              <PaddleCheckoutButton
-                checkout={{ type: "plan", planCode: "starter_monthly" }}
-                label="Start Starter"
-                onError={(message) =>
-                  setStage({ type: "error", message })
-                }
-                className="inline-flex w-full items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-50 sm:w-auto"
-              />
+              {billing?.plan.code === "free" ? (
+                <PaddleCheckoutButton
+                  checkout={{ type: "plan", planCode: "starter_monthly" }}
+                  label="Start Starter"
+                  onError={(message) =>
+                    setStage({ type: "error", message })
+                  }
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:opacity-50 sm:w-auto"
+                />
+              ) : null}
             </div>
           </div>
         )}

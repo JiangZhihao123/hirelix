@@ -69,6 +69,9 @@ export type UsageSummary = {
   publicEvidenceDeepDivesUsed: number;
   publicEvidenceDeepDivesLimit: number;
   publicEvidenceDeepDivesRemaining: number;
+  clientRolesUsed: number;
+  clientRolesLimit: number;
+  clientRolesRemaining: number;
   searchesUsed: number;
   searchesLimit: number;
   searchesRemaining: number;
@@ -333,14 +336,18 @@ export function getPlanStatusCopy(
   const isFreePlan = billing.subscription.planCode === "free";
   const profileScansRemaining = billing.usage.profileScansRemaining;
   const profileScansLimit = billing.usage.profileScansLimit;
+  const clientRolesRemaining = billing.usage.clientRolesRemaining;
+  const clientRolesLimit = billing.usage.clientRolesLimit;
   const renewalDate = formatMonthDay(billing.subscription.renewsAt);
-  const isExhausted = profileScansRemaining === 0;
+  const isExhausted = profileScansRemaining === 0 || clientRolesRemaining === 0;
 
   return {
     title: isFreePlan ? "Free plan" : billing.plan.name,
-    usageLabel: isExhausted
+    usageLabel: clientRolesRemaining === 0
+      ? "No client roles left this cycle"
+      : profileScansRemaining === 0
       ? "No targeted profile scans left this cycle"
-      : `${profileScansRemaining} / ${profileScansLimit} targeted profile scans left`,
+      : `${clientRolesRemaining} / ${clientRolesLimit} client roles and ${profileScansRemaining} / ${profileScansLimit} targeted scans left`,
     capabilityLabel: isFreePlan
       ? "Includes one client-role preview from 150 targeted profile scans"
       : `Includes ${billing.plan.searchesPerMonth} client roles, targeted profile scans, contact lookup, evidence deep dives, export, and client-ready briefs`,

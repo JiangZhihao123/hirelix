@@ -1,7 +1,7 @@
-import { and, eq, gte, lt } from "drizzle-orm";
+import { and, eq, gte, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
+import { hirelix_searches, hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
 import {
   clampRemaining,
   getBillingPeriodBounds,
@@ -24,7 +24,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   const startDate = new Date(startIso);
   const endDate = new Date(endIso);
 
-  const [settingsRows, usageEventRows] = await Promise.all([
+  const [settingsRows, usageEventRows, searchCountRows] = await Promise.all([
     db
       .select({
         subscription_plan: hirelix_user_settings.subscription_plan,
@@ -49,6 +49,16 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
           eq(hirelix_usage_events.user_id, userId),
           gte(hirelix_usage_events.created_at, startDate),
           lt(hirelix_usage_events.created_at, endDate),
+        ),
+      ),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(hirelix_searches)
+      .where(
+        and(
+          eq(hirelix_searches.user_id, userId),
+          gte(hirelix_searches.created_at, startDate),
+          lt(hirelix_searches.created_at, endDate),
         ),
       ),
   ]);
@@ -88,6 +98,8 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   const baseProfileScansLimit = getPlanProfileScansPerMonth(plan);
   const emailLookupsLimit = getPlanEmailLookupsPerMonth(plan) + extraEmailLookups;
   const publicEvidenceDeepDivesLimit = getPlanPublicEvidenceDeepDivesPerMonth(plan);
+  const clientRolesUsed = Math.max(0, searchCountRows[0]?.count ?? 0);
+  const clientRolesLimit = plan.searchesPerMonth;
   const freePreviewUsed = plan.code === "free" && profileScansUsed > 0;
   const profileScansLimit = freePreviewUsed
     ? Math.min(profileScansUsed, baseProfileScansLimit + extraProfileScans)
@@ -148,9 +160,12 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
         publicEvidenceDeepDivesLimit,
         publicEvidenceDeepDivesUsed,
       ),
-      searchesUsed: profileScansUsed,
-      searchesLimit: profileScansLimit,
-      searchesRemaining: clampRemaining(profileScansLimit, profileScansUsed),
+      clientRolesUsed,
+      clientRolesLimit,
+      clientRolesRemaining: clampRemaining(clientRolesLimit, clientRolesUsed),
+      searchesUsed: clientRolesUsed,
+      searchesLimit: clientRolesLimit,
+      searchesRemaining: clampRemaining(clientRolesLimit, clientRolesUsed),
       enrichesUsed: emailLookupsUsed,
       enrichesLimit: emailLookupsLimit,
       enrichesRemaining: clampRemaining(emailLookupsLimit, emailLookupsUsed),

@@ -62,6 +62,18 @@ export async function POST(req: NextRequest) {
       ),
     );
 
+    if (billing.usage.clientRolesRemaining <= 0) {
+      return NextResponse.json(
+        {
+          error:
+            billing.plan.code === "free"
+              ? "You have used your free client-role preview. Start a subscription to keep sourcing."
+              : "You have reached this month's client role allowance. Your next cycle will reset automatically.",
+        },
+        { status: 403 },
+      );
+    }
+
     if (billing.usage.profileScansRemaining <= 0 || profileScanBudget <= 0) {
       return NextResponse.json(
         {
