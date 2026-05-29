@@ -390,7 +390,7 @@ export default function NewSearchPage() {
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Up to {candidateCount} qualified candidates
+                    Ranked qualified candidates
                   </span>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">

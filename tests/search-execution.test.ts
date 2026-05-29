@@ -34,7 +34,7 @@ test("free searches use a constrained real-production preview profile", () => {
 
   const targets = getInitialSearchTargets("free");
   assert.equal(targets.executionProfile, "bright_free_preview");
-  assert.equal(targets.candidateCount, 5);
+  assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
   assert.equal(targets.highlightCount, 3);
   assert.equal(targets.profileScanBudget, profile.filterLimit);
 });
@@ -52,10 +52,10 @@ test("paid searches keep the full production profile in production mode", () => 
   assert.equal(targets.profileScanBudget, profile.filterLimit);
 });
 
-test("free plans preview fewer candidates while paid plans keep the full target", () => {
+test("free plans use the same candidate quality target while constraining profile scans", () => {
   const freeTargets = getInitialSearchTargets("free");
-  assert.equal(freeTargets.candidateCount, 5);
-  assert.equal(freeTargets.displayCount, 5);
+  assert.equal(freeTargets.candidateCount, FINAL_SHORTLIST_TARGET);
+  assert.equal(freeTargets.displayCount, FINAL_SHORTLIST_TARGET);
 
   const paidPlanCodes = [
     "starter_monthly",

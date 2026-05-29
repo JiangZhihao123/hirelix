@@ -203,7 +203,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     {[
                       `${profileScans} profile scans per month`,
-                      `Up to ${plan.candidateLimitPerSearch} qualified candidates per discovery pass`,
+                      "Ranked qualified candidates from each discovery pass",
                       `${emailLookups} email lookups per month`,
                       `${evidenceDeepDives} public evidence deep dives per month`,
                       "CSV export and client-ready briefs",

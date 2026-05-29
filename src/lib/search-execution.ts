@@ -55,13 +55,12 @@ function resolveSearchExecutionMode(): SearchExecutionMode {
 }
 
 const DEFAULT_SHORTLIST_CAP = 25;
-const FREE_SHORTLIST_CAP = 5;
 const FREE_PROFILE_SCAN_LIMIT = 150;
 const PAID_PROFILE_SCAN_BATCH_LIMIT = 500;
 export const FINAL_SHORTLIST_TARGET = DEFAULT_SHORTLIST_CAP;
 export const DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT = PAID_PROFILE_SCAN_BATCH_LIMIT;
 const PLAN_SHORTLIST_CAPS: Record<SearchPlanCode, number> = {
-  free: FREE_SHORTLIST_CAP,
+  free: DEFAULT_SHORTLIST_CAP,
   starter_monthly: 25,
   starter_annual: 25,
   pro_monthly: 25,
@@ -93,7 +92,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", FREE_PROFILE_SCAN_LIMIT),
     hiddenGemLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT", 0),
     companyTargetLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_COMPANY_TARGET_LIMIT", 0),
-    finalResultCap: FREE_SHORTLIST_CAP,
+    finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 3,
     minVisibleQualityScore: 0,
     strongNowQualityScore: 72,

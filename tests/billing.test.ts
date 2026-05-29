@@ -80,7 +80,7 @@ function makeBillingSummary(
 test("MVP billing plans expose a free preview and two paid choices", () => {
   assert.equal(BILLING_PLANS.free.profileScansPerMonth, 150);
   assert.equal(BILLING_PLANS.free.clientBriefEnabled, false);
-  assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 5);
+  assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 25);
   assert.equal(BILLING_PLANS.free.emailLookupsPerMonth, 0);
   assert.deepEqual([...CUSTOMER_BILLING_PLAN_CODES], ["starter_monthly", "starter_annual"]);
   assert.equal(BILLING_PLANS.starter_monthly.name, "Monthly");
@@ -116,7 +116,7 @@ test("plan status copy describes shortlist actions for free and paid plans", () 
   const freeCopy = getPlanStatusCopy(makeBillingSummary("free"));
   assert.equal(freeCopy.title, "Free plan");
   assert.match(freeCopy.usageLabel, /profile scans left/);
-  assert.match(freeCopy.capabilityLabel, /up to 5 ranked candidates/);
+  assert.match(freeCopy.capabilityLabel, /150 real profile scans/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
   assert.equal(monthlyCopy.title, "Monthly");

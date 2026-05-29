@@ -34,13 +34,13 @@ export function PricingSection({
       name: "Free first run",
       price: freePlan.priceLabel,
       cadence: "one role preview",
-      description: "Try one role with up to 5 ranked candidates before you pay.",
+      description: "Try one role with real profile scans before you pay.",
       cta: "Try for free",
       featured: false,
       planCode: null,
       bullets: [
-        `Scans up to ${formatCount(freeProfileScans)} real profiles`,
-        `Up to ${freePlan.candidateLimitPerSearch} ranked candidates`,
+        `${formatCount(freeProfileScans)} real profile scans`,
+        "Ranked qualified candidates",
         "Fit evidence and risks",
         "Outreach drafts",
       ],
@@ -150,7 +150,7 @@ export function PricingSection({
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Profile scans are based on real profiles reviewed. Qualified candidates are never padded to hit a fixed count.
+          Profile scans are based on real profiles reviewed. The final shortlist shows every candidate that clears the quality bar.
         </p>
       </div>
     </section>

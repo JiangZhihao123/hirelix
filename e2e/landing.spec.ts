@@ -116,14 +116,14 @@ test.describe("Landing Page", () => {
     await expect(page).toHaveURL(/\/app\/search\/new\?.*entry=free_trial/);
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
-    await expect(page.getByText("Try one role with a small ranked preview before you pay.")).toBeVisible();
+    await expect(page.getByText("Try one role with real profile scans before you pay.")).toBeVisible();
   });
 
   test("pricing CTAs should enter product sign-up and billing flows", async ({ page }) => {
     await page.getByRole("heading", { name: "Start with one role preview." }).scrollIntoViewIfNeeded();
     const pricing = page.locator("#pricing");
     await expect(pricing.getByText("Free first run")).toBeVisible();
-    await expect(pricing.getByText("Try one role with up to 5 ranked candidates before you pay.")).toBeVisible();
+    await expect(pricing.getByText("Try one role with real profile scans before you pay.")).toBeVisible();
     await expect(pricing.getByText("No candidate email lookup")).toHaveCount(0);
     await expect(pricing.getByText("email lookups per month")).toHaveCount(2);
     await expect(pricing.getByText("CSV export and client-ready briefs")).toHaveCount(2);
@@ -228,7 +228,7 @@ test.describe("Landing Page mobile responsiveness", () => {
     const pricing = page.locator("#pricing");
 
     await expect(pricing.getByText("Free first run")).toBeVisible();
-    await expect(pricing.getByText("Scans up to 150 real profiles")).toBeVisible();
+    await expect(pricing.getByText("150 real profile scans")).toBeVisible();
     await expect(pricing.getByText("Fit evidence and risks")).toBeVisible();
     await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
   });

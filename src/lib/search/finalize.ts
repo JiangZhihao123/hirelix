@@ -6,7 +6,6 @@ import type {
   SearchExecutionRuntime,
 } from "@/lib/search/types";
 import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
-import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
 
 export async function completeSearch(
   context: PipelineContext,
@@ -50,11 +49,8 @@ export async function completeSearch(
 ) {
   const doneAt = helpers.nowIso();
   const sortedRows = [...finalRows].sort((left, right) => right.match_score - left.match_score);
-  const promisedCandidateCount = Math.min(
-    FINAL_SHORTLIST_TARGET,
-    Math.max(1, Number(parsed.candidate_count) || context.candidateCount || FINAL_SHORTLIST_TARGET),
-  );
-  const deliveredRows = sortedRows.slice(0, promisedCandidateCount);
+  const deliveredRows = sortedRows;
+  const candidateCountReference = deliveredRows.length;
   const priorityOutreachCount = deliveredRows.filter(
     (row) => row.metadata?.display_tier === "priority_outreach",
   ).length;
@@ -85,9 +81,9 @@ export async function completeSearch(
   const startedAt = helpers.getSearchStartedAt(parsed, context);
   const finalDisplayStats = helpers.buildSearchDisplayStats({
     ...displayStats,
-    promised_candidate_count: promisedCandidateCount,
+    promised_candidate_count: candidateCountReference,
     delivered_candidate_count: deliveredRows.length,
-    shortlist_underfilled: deliveredRows.length < promisedCandidateCount,
+    shortlist_underfilled: false,
     shortlist_count: deliveredRows.length,
     qualified_count: deliveredRows.length,
     outreach_pool_count: deliveredRows.length,
@@ -152,7 +148,7 @@ export async function completeSearch(
     activation_run: finalDisplayStats.activation_run ?? finalParsed.activation_run ?? null,
     quality_floor_applied: finalDisplayStats.quality_floor_applied ?? null,
     visible_candidate_count: finalDisplayStats.visible_candidate_count ?? draftedRows.length,
-    promised_candidate_count: finalDisplayStats.promised_candidate_count ?? promisedCandidateCount,
+    promised_candidate_count: finalDisplayStats.promised_candidate_count ?? candidateCountReference,
     delivered_candidate_count: finalDisplayStats.delivered_candidate_count ?? draftedRows.length,
     shortlist_underfilled: finalDisplayStats.shortlist_underfilled ?? false,
     pre_gate_blocked_count: finalDisplayStats.pre_gate_blocked_count ?? null,
@@ -191,9 +187,9 @@ export async function completeSearch(
   helpers.logSearchEvent("search_done", {
     search_id: context.searchId,
     candidate_count: draftedRows.length,
-    promised_candidate_count: promisedCandidateCount,
+    promised_candidate_count: candidateCountReference,
     delivered_candidate_count: draftedRows.length,
-    shortlist_underfilled: draftedRows.length < promisedCandidateCount,
+    shortlist_underfilled: false,
     final_ready_latency_ms: finalReadyLatencyMs,
     bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
     estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,

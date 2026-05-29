@@ -43,7 +43,7 @@ test.describe("Authentication Page", () => {
     await page.goto("/app/search/new?entry=free_trial");
 
     await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
-    await expect(page.getByText("Try one role with a small ranked preview before you pay.")).toBeVisible();
+    await expect(page.getByText("Try one role with real profile scans before you pay.")).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
   });

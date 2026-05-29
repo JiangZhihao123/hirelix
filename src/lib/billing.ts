@@ -124,7 +124,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Try one client role with a small ranked preview.",
+    description: "Try one client role with real profile scans.",
     priceLabel: "$0",
     cadenceLabel: "one role preview",
     billingCycle: null,
@@ -132,7 +132,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     emailLookupsPerMonth: 0,
     publicEvidenceDeepDivesPerMonth: 0,
     searchesPerMonth: 150,
-    candidateLimitPerSearch: 5,
+    candidateLimitPerSearch: 25,
     enrichesPerMonth: 0,
     exportEnabled: false,
     clientBriefEnabled: false,
@@ -337,7 +337,7 @@ export function getPlanStatusCopy(
       ? "No profile scans left this cycle"
       : `${profileScansRemaining} / ${profileScansLimit} profile scans left`,
     capabilityLabel: isFreePlan
-      ? "Includes one role preview with up to 5 ranked candidates"
+      ? "Includes one role preview from 150 real profile scans"
       : "Includes profile scans, email lookup, public evidence deep dives, export, and client-ready briefs",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",

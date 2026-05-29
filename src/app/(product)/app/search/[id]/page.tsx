@@ -794,14 +794,8 @@ export default function SearchResultPage() {
     Math.max(allCandidates.length, 0);
   const shortlistReadyCount =
     positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
-  const promisedCandidateCount =
-    positiveInt(rawDisplayStats?.promised_candidate_count) ??
-    (typeof reqs?.candidate_count === "number" ? Math.max(1, Math.round(reqs.candidate_count)) : 25);
   const deliveredCandidateCount =
     positiveInt(rawDisplayStats?.delivered_candidate_count) ?? allCandidates.length;
-  const shortlistUnderfilled =
-    rawDisplayStats?.shortlist_underfilled === true ||
-    (isReviewable && deliveredCandidateCount < promisedCandidateCount);
   const priorityOutreachCount = actualPriorityOutreachCount;
   const worthReviewingCount = actualWorthReviewingCount;
   const ruledOutCount =
@@ -897,14 +891,6 @@ export default function SearchResultPage() {
     const audit = getCandidateDecisionAudit(candidate);
     return audit.riskLines.length > 0;
   }).length;
-  const topExcludedReason = excludedReasonCounts[0] as
-    | { reason: ExcludedReason; count: number }
-    | undefined;
-  const underfilledReason = topExcludedReason
-    ? `${formatExcludedReasonLabel(topExcludedReason.reason).toLowerCase()} filtered out ${topExcludedReason.count} reviewed profile${topExcludedReason.count === 1 ? "" : "s"}.`
-    : deepReviewCompletedCount > deliveredCandidateCount
-      ? `${Math.max(deepReviewCompletedCount - deliveredCandidateCount, 0)} reviewed profile${deepReviewCompletedCount - deliveredCandidateCount === 1 ? "" : "s"} did not clear the recruiter-quality bar.`
-      : "The available source pool did not contain enough reviewable profiles for this role.";
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation();
@@ -1224,9 +1210,7 @@ export default function SearchResultPage() {
                     ? "Hirelix searched a broader recall pool and kept the candidates that already look credible enough to work now."
                     : isImprovingInBackground
                       ? "Hirelix is still refining the remaining scores in the background."
-                      : shortlistUnderfilled
-                        ? `Hirelix found ${deliveredCandidateCount} qualified candidates out of an up-to-${promisedCandidateCount} target after ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed. ${underfilledReason}`
-                        : `Hirelix delivered ${deliveredCandidateCount} qualified candidates: ${priorityOutreachCount} candidates to reach out to first, ${worthReviewingCount} more to keep reviewing, and ${formatDisplayCount(deepReviewCompletedCount)} deeply reviewed.`}
+                      : `Hirelix found ${deliveredCandidateCount} qualified candidates after ${formatDisplayCount(deepReviewCompletedCount)} reviewed profiles: ${priorityOutreachCount} candidates to reach out to first, and ${worthReviewingCount} more to keep reviewing.`}
               </p>
               {isImprovingInBackground && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
@@ -1239,8 +1223,8 @@ export default function SearchResultPage() {
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Delivered</span>
-                <span className="text-sm font-semibold text-slate-950">{deliveredCandidateCount}/{promisedCandidateCount}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Qualified</span>
+                <span className="text-sm font-semibold text-slate-950">{deliveredCandidateCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reach first</span>
@@ -1272,22 +1256,18 @@ export default function SearchResultPage() {
                   Search outcome
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  {shortlistUnderfilled
-                    ? `${deliveredCandidateCount} of up to ${promisedCandidateCount} qualified candidates are ready.`
-                    : priorityOutreachCount > 0
+                  {priorityOutreachCount > 0
                     ? `${priorityOutreachCount} candidates are ready for first outreach.`
                     : `${allCandidates.length} candidates are ready for review.`}
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  {shortlistUnderfilled
-                    ? `${underfilledReason} Start with these profiles, then refine the JD if you need a wider pool.`
-                    : "Start with reach-first profiles, verify the amber risks, then move the best people into the outreach queue."}
+                  Start with reach-first profiles, verify the amber risks, then move the best people into the outreach queue.
                 </p>
               </div>
               <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto xl:grid-cols-5">
                 <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Delivered</p>
-                  <p className="mt-1 text-xl font-semibold text-slate-950">{deliveredCandidateCount}/{promisedCandidateCount}</p>
+                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Qualified</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-950">{deliveredCandidateCount}</p>
                 </div>
                 <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
                   <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Reach first</p>
@@ -1568,15 +1548,8 @@ export default function SearchResultPage() {
                   Shortlist outcome
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  {shortlistUnderfilled
-                    ? `Delivered ${deliveredCandidateCount} of up to ${promisedCandidateCount} qualified candidates.`
-                    : `Delivered ${deliveredCandidateCount} qualified candidates.`}
+                  Found {deliveredCandidateCount} qualified candidates.
                 </h2>
-                {shortlistUnderfilled && (
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                    {underfilledReason}
-                  </p>
-                )}
               </div>
               <p className="text-xs text-slate-500">
                 Workflow: {validationCounts.contacted} contacted · {validationCounts.submitted} submitted · {validationCounts.interview} interview · {validationCounts.placed} placed
@@ -1584,7 +1557,7 @@ export default function SearchResultPage() {
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
               {[
-                { label: "Delivered", value: `${deliveredCandidateCount}/${promisedCandidateCount}` },
+                { label: "Qualified", value: deliveredCandidateCount },
                 { label: "Reviewed", value: deepReviewCompletedCount },
                 { label: "Reach out first", value: priorityOutreachCount },
                 { label: "Worth reviewing", value: worthReviewingCount },
@@ -1663,7 +1636,7 @@ export default function SearchResultPage() {
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{githubBackedVisibleCount}/{visibleCandidates.length} GitHub evidence</span>
                 )}
                 <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
-                  {deliveredCandidateCount}/{promisedCandidateCount} delivered
+                  {deliveredCandidateCount} qualified
                 </span>
                 {billing?.usage.exportEnabled ? (
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
