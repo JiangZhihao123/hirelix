@@ -9,7 +9,7 @@ test.describe("New Search Page (unauthenticated)", () => {
   test("should show free-trial copy when the first-run CTA opens /app/search/new", async ({ page }) => {
     await page.goto("/app/search/new?entry=free_trial");
     await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
-    await expect(page.getByText("Try one role with real profile scans before you pay.")).toBeVisible();
+    await expect(page.getByText("Try one role with targeted profile scans before you pay.")).toBeVisible();
   });
 
   test("should preserve a prefilled JD at the auth gate", async ({ page }) => {

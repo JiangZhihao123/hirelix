@@ -34,12 +34,12 @@ export function PricingSection({
       name: "Free first run",
       price: freePlan.priceLabel,
       cadence: "one role preview",
-      description: "Try one role with real profile scans before you pay.",
+      description: "Try one role with targeted profile scans before you pay.",
       cta: "Try for free",
       featured: false,
       planCode: null,
       bullets: [
-        `${formatCount(freeProfileScans)} real profile scans`,
+        `${formatCount(freeProfileScans)} targeted profile scans`,
         "Ranked qualified candidates",
         "Fit evidence and risks",
         "Outreach drafts",
@@ -55,7 +55,7 @@ export function PricingSection({
       featured: true,
       planCode: annualPlan.code,
       bullets: [
-        `${formatCount(annualProfileScans)} profile scans per month`,
+        `${formatCount(annualProfileScans)} targeted profile scans per month`,
         `${formatCount(annualEmailLookups)} email lookups per month`,
         `${formatCount(annualEvidenceDeepDives)} public evidence deep dives per month`,
         "CSV export and client-ready briefs",
@@ -71,7 +71,7 @@ export function PricingSection({
       featured: false,
       planCode: monthlyPlan.code,
       bullets: [
-        `${formatCount(monthlyProfileScans)} profile scans per month`,
+        `${formatCount(monthlyProfileScans)} targeted profile scans per month`,
         `${formatCount(monthlyEmailLookups)} email lookups per month`,
         `${formatCount(monthlyEvidenceDeepDives)} public evidence deep dives per month`,
         "CSV export and client-ready briefs",
@@ -150,7 +150,7 @@ export function PricingSection({
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Profile scans are based on real profiles reviewed. The final shortlist shows every candidate that clears the quality bar.
+          Targeted profile scans are profiles returned by JD-based sourcing filters before AI ranking. The final shortlist shows every candidate that clears the quality bar.
         </p>
       </div>
     </section>

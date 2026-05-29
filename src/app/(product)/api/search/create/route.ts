@@ -67,8 +67,8 @@ export async function POST(req: NextRequest) {
         {
           error:
             billing.plan.code === "free"
-              ? "You have used your free profile scan preview. Start a subscription to keep sourcing."
-              : "You have reached this month's profile scan allowance. Your next cycle will reset automatically.",
+              ? "You have used your free targeted profile scan preview. Start a subscription to keep sourcing."
+              : "You have reached this month's targeted profile scan allowance. Your next cycle will reset automatically.",
         },
         { status: 403 },
       );

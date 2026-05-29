@@ -52,7 +52,7 @@ test("paid searches keep the full production profile in production mode", () => 
   assert.equal(targets.profileScanBudget, profile.filterLimit);
 });
 
-test("free plans use the same candidate quality target while constraining profile scans", () => {
+test("free plans use the same candidate quality target while constraining targeted profile scans", () => {
   const freeTargets = getInitialSearchTargets("free");
   assert.equal(freeTargets.candidateCount, FINAL_SHORTLIST_TARGET);
   assert.equal(freeTargets.displayCount, FINAL_SHORTLIST_TARGET);

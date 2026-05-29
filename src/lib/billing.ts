@@ -124,7 +124,7 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Try one client role with real profile scans.",
+    description: "Try one client role with targeted profile scans.",
     priceLabel: "$0",
     cadenceLabel: "one role preview",
     billingCycle: null,
@@ -334,11 +334,11 @@ export function getPlanStatusCopy(
   return {
     title: isFreePlan ? "Free plan" : billing.plan.name,
     usageLabel: isExhausted
-      ? "No profile scans left this cycle"
-      : `${profileScansRemaining} / ${profileScansLimit} profile scans left`,
+      ? "No targeted profile scans left this cycle"
+      : `${profileScansRemaining} / ${profileScansLimit} targeted profile scans left`,
     capabilityLabel: isFreePlan
-      ? "Includes one role preview from 150 real profile scans"
-      : "Includes profile scans, email lookup, public evidence deep dives, export, and client-ready briefs",
+      ? "Includes one role preview from 150 targeted profile scans"
+      : "Includes targeted profile scans, email lookup, public evidence deep dives, export, and client-ready briefs",
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",
     state: isExhausted ? "warning" : "default",

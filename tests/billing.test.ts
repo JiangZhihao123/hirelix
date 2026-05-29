@@ -115,12 +115,12 @@ test("MVP billing plans expose a free preview and two paid choices", () => {
 test("plan status copy describes shortlist actions for free and paid plans", () => {
   const freeCopy = getPlanStatusCopy(makeBillingSummary("free"));
   assert.equal(freeCopy.title, "Free plan");
-  assert.match(freeCopy.usageLabel, /profile scans left/);
-  assert.match(freeCopy.capabilityLabel, /150 real profile scans/);
+  assert.match(freeCopy.usageLabel, /targeted profile scans left/);
+  assert.match(freeCopy.capabilityLabel, /150 targeted profile scans/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
   assert.equal(monthlyCopy.title, "Monthly");
-  assert.match(monthlyCopy.capabilityLabel, /profile scans/);
+  assert.match(monthlyCopy.capabilityLabel, /targeted profile scans/);
   assert.match(monthlyCopy.capabilityLabel, /client-ready briefs/);
 });
 
@@ -132,7 +132,7 @@ test("plan status copy marks exhausted paid plan", () => {
     }),
   );
   assert.equal(copy.state, "warning");
-  assert.equal(copy.usageLabel, "No profile scans left this cycle");
+  assert.equal(copy.usageLabel, "No targeted profile scans left this cycle");
   assert.match(copy.capabilityLabel, /client-ready briefs/);
 });
 

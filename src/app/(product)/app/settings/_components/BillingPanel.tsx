@@ -28,7 +28,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
       id="billing"
       eyebrow="Billing"
       title="Billing and usage"
-      description="Usage is based on real profiles scanned, then email lookup and public evidence when you need them."
+      description="Usage is based on targeted profiles sourced for each role, then email lookup and public evidence when you need them."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -82,7 +82,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <ScanSearch className="h-4 w-4 text-slate-400" />
-                  Profile scans
+                  Targeted profile scans
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.profileScansUsed}/{billing.usage.profileScansLimit}
@@ -97,7 +97,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.profileScansRemaining} scans left this cycle
+                {billing.usage.profileScansRemaining} targeted scans left this cycle
               </p>
             </div>
 
@@ -202,7 +202,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
 
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     {[
-                      `${profileScans} profile scans per month`,
+                      `${profileScans} targeted profile scans per month`,
                       "Ranked qualified candidates from each discovery pass",
                       `${emailLookups} email lookups per month`,
                       `${evidenceDeepDives} public evidence deep dives per month`,

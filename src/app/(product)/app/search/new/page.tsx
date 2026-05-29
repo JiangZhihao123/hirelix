@@ -311,7 +311,7 @@ export default function NewSearchPage() {
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-amber-900">
-                You&apos;ve used your free profile scan preview. Start a subscription to keep sourcing.
+                You&apos;ve used your free targeted profile scan preview. Start a subscription to keep sourcing.
               </p>
               <PaddleCheckoutButton
                 checkout={{ type: "plan", planCode: "starter_monthly" }}
