@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -33,7 +33,9 @@ export default function ProductLayout({
 }) {
   return (
     <BillingProvider>
-      <ProductLayoutShell>{children}</ProductLayoutShell>
+      <Suspense fallback={<ProductShellSkeleton />}>
+        <ProductLayoutShell>{children}</ProductLayoutShell>
+      </Suspense>
     </BillingProvider>
   );
 }
