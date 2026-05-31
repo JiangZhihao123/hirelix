@@ -261,7 +261,7 @@ test("buildGithubHighlight includes project context for merged PR evidence", () 
   assert.match(highlight, /21,200 stars/);
 });
 
-test("buildRecruiterFacingGithubReadout falls back to LinkedIn narrative when github is missing", () => {
+test("buildRecruiterFacingGithubReadout falls back to profile narrative when public evidence is not verified", () => {
   const readout = buildRecruiterFacingGithubReadout({
     status: "missing_public_data",
     candidateName: "A Candidate",
@@ -281,8 +281,9 @@ test("buildRecruiterFacingGithubReadout falls back to LinkedIn narrative when gi
   });
 
   assert.equal(readout.evidenceStrength, "none");
-  assert.match(readout.recruiterSummary, /LinkedIn/i);
-  assert.ok(readout.verificationRisks.some((item) => /GitHub/i.test(item)));
+  assert.match(readout.recruiterSummary, /profile fit/i);
+  assert.match(readout.recruiterSummary, /public evidence deep dive/i);
+  assert.ok(readout.verificationRisks.some((item) => /Public engineering evidence has not been researched/i.test(item)));
 });
 
 test("enrichGithubSignalsForCandidate cools down after GitHub rate limiting", async (t) => {
