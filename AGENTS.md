@@ -189,8 +189,6 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | `candidates/[id]/enrich` | 手动 GitHub 富化 |
 | `settings/ai-company` | AI 公司描述 |
 | `billing/*` | 计费相关 |
-| `admin/users` | 用户管理 |
-| `admin/route` | 管理面板数据 |
 
 ### 4.7 内部 API 路由 (调度器触发)
 

@@ -22,7 +22,6 @@ import {
   Loader2,
   Menu,
   X,
-  ShieldCheck,
   Settings,
 } from "lucide-react";
 
@@ -52,7 +51,6 @@ function ProductLayoutShell({
   const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
-  const [adminAccess, setAdminAccess] = useState<{ userId: string; isAdmin: boolean } | null>(null);
   const hasTrackedSigninViewRef = useRef(false);
   const normalizeEntryMode = (value: string | null): EntryMode => {
     if (value === "landing" || value === "signin" || value === "free_trial") {
@@ -86,8 +84,6 @@ function ProductLayoutShell({
   const isDashboardRoute =
     pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
-  const isAdminRoute = pathname.startsWith("/app/admin");
-  const isAdmin = Boolean(user && adminAccess?.userId === user.id && adminAccess.isAdmin);
   const authRedirectPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
   const getNavClassName = (isActive: boolean) =>
@@ -117,25 +113,6 @@ function ProductLayoutShell({
     router.prefetch("/app/search/new");
     router.prefetch("/app/settings");
   }, [router, user]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    let isCurrent = true;
-    const userId = user.id;
-
-    fetch("/api/admin", { method: "HEAD", credentials: "include" })
-      .then((res) => {
-        if (isCurrent) setAdminAccess({ userId, isAdmin: res.ok });
-      })
-      .catch(() => {
-        if (isCurrent) setAdminAccess({ userId, isAdmin: false });
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [user]);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -244,19 +221,6 @@ function ProductLayoutShell({
             {effectivePendingPath === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             New search
           </Link>
-          {isAdmin && (
-            <Link
-              href="/app/admin"
-              onClick={() => {
-                setSidebarOpen(false);
-                setPendingPath("/app/admin");
-              }}
-              className={getNavClassName(isAdminRoute)}
-            >
-              {effectivePendingPath === "/app/admin" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              Admin
-            </Link>
-          )}
         </div>
       </nav>
 
