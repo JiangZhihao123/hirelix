@@ -15,7 +15,7 @@ export function ObjectionsSection() {
     {
       icon: Search,
       title: "What do I get from the first run?",
-      desc: "A ranked preview of qualified candidates with fit evidence, risks to verify, and personalized outreach starting points.",
+      desc: "A ranked candidate pool with recommended profiles, fit evidence, risks to verify, and personalized outreach starting points.",
     },
     {
       icon: Mail,
@@ -25,7 +25,7 @@ export function ObjectionsSection() {
     {
       icon: Sparkles,
       title: "What happens when I am ready to contact candidates?",
-      desc: "Continue from the ranked shortlist, unlock the workflow capabilities you need, and work the candidate pool inside the product.",
+      desc: "Continue from the recommended shortlist inside the ranked pool, unlock the workflow capabilities you need, and work the candidates inside the product.",
     },
   ];
 
@@ -40,7 +40,7 @@ export function ObjectionsSection() {
             The first questions before you paste a client role
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Short answers for the trust checks that matter before the first shortlist.
+            Short answers for the trust checks that matter before the first candidate pool.
           </p>
         </div>
 

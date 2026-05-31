@@ -23,7 +23,7 @@ export function CtaSection({
             Start with the role already on your desk.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            Paste a client JD, review the evidence-backed shortlist, and edit outreach drafts before anything gets sent.
+            Paste a client JD, review the ranked candidate pool, and edit outreach drafts before anything gets sent.
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-4">
@@ -38,7 +38,7 @@ export function CtaSection({
               onClick={onTrySample}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:hidden"
             >
-              View sample shortlist <ArrowRight className="h-4 w-4" />
+              View sample pool <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-sm text-slate-600">
               Already have an account?{" "}
@@ -76,7 +76,7 @@ export function CtaSection({
               <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
               <span className="font-semibold text-slate-950">Hirelix</span>
             </div>
-            <p>Evidence-backed technical shortlists from real LinkedIn profiles.</p>
+            <p>Evidence-backed technical candidate pools from real LinkedIn profiles.</p>
             <p>Built for technical headhunters.</p>
             <p>Support: <a className="text-indigo-700 hover:text-indigo-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>

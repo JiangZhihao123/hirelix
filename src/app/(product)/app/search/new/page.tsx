@@ -281,13 +281,13 @@ export default function NewSearchPage() {
     <div className="mx-auto max-w-2xl">
       <div className="mb-8">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">
-          New shortlist build
+          New candidate pool
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
           Paste the client role and confirm the brief.
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Hirelix reads the JD, shows the sourcing brief, then builds an evidence-backed technical shortlist.
+          Hirelix reads the JD, shows the sourcing brief, then builds a ranked candidate pool with a recommended shortlist inside it.
         </p>
       </div>
 
@@ -339,7 +339,7 @@ export default function NewSearchPage() {
           <p className="text-xs text-slate-400">
             {jdText.trim().length > 0
               ? `${wordCount} words`
-              : "Tip: the fuller the client role, the better the shortlist."}
+              : "Tip: the fuller the client role, the better the ranked pool."}
           </p>
           {stage.type === "input" || stage.type === "error" ? (
             <button
@@ -400,7 +400,7 @@ export default function NewSearchPage() {
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Ranked qualified candidates
+                    Ranked candidate pool
                   </span>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -483,7 +483,7 @@ export default function NewSearchPage() {
               )}
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <p className="text-xs text-slate-400">
-                  You can leave the task page after launch; Hirelix keeps running the shortlist.
+                  You can leave the task page after launch; Hirelix keeps building the candidate pool.
                 </p>
                 <button
                   type="button"
@@ -491,7 +491,7 @@ export default function NewSearchPage() {
                   className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   {stage.reply.trim() ? <Send className="h-4 w-4" /> : null}
-                  Launch shortlist
+                  Launch search
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>

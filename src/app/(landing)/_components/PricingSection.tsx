@@ -54,8 +54,8 @@ export function PricingSection({
       bullets: [
         "1 client role preview",
         `${formatCount(freeProfileScans)} targeted profile scans`,
-        "Ranked qualified candidates",
-        "Outreach drafts",
+        "Ranked candidate pool",
+        "Recommended shortlist with outreach drafts",
       ],
     },
     {
@@ -190,7 +190,7 @@ export function PricingSection({
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Targeted profile scans are sourced profiles returned by JD-based filters, not random resume browsing. Each client role starts with 500 scans; remaining monthly scans can expand the same role or start another one.
+          Targeted profile scans are sourced profiles returned by JD-based filters, not random resume browsing. Hirelix delivers the full ranked candidate pool and marks the recommended shortlist inside it.
         </p>
       </div>
     </section>

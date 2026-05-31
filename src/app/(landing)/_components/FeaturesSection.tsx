@@ -22,8 +22,8 @@ export function HowItWorksSection() {
       desc: "Real profiles are sourced, scored, and checked for public technical evidence in parallel.",
     },
     {
-      title: "Review the ranked shortlist",
-      desc: "Open the qualified shortlist with fit reasons, risks, evidence, and outreach starting points.",
+      title: "Review the ranked candidate pool",
+      desc: "Open the full ranked pool with a recommended shortlist, fit reasons, risks, evidence, and outreach starting points.",
     },
   ];
 
@@ -36,7 +36,7 @@ export function HowItWorksSection() {
               How it works
             </p>
             <h2 className="max-w-[12ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-              From client role to ranked shortlist.
+              From client role to ranked candidate pool.
             </h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
               Hirelix keeps the first pass focused: understand the role, research real people,
@@ -89,8 +89,8 @@ export function FeaturesSection() {
     },
     {
       icon: ListChecks,
-      title: "Ranked qualified shortlist",
-      desc: "Each scan reviews real profiles and returns only candidates that pass the quality bar.",
+      title: "Ranked candidate pool",
+      desc: "Each scan reviews targeted profiles and preserves the full ranked pool, with recommended candidates marked inside it.",
     },
     {
       icon: ListChecks,

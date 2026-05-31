@@ -32,6 +32,8 @@ import {
   fixSentenceSpacing,
   formatConstraintValue,
   formatDimensionLabel,
+  formatDeliveryBucketLabel,
+  getCandidateDeliveryBucket,
   formatEvidenceStrength,
   getCandidateDecisionAudit,
   getCandidateGithubSignals,
@@ -216,24 +218,14 @@ export function CandidateCard({
   });
   const sellingBadges = sellingKit?.evidence_badges || [];
   const sellingRisks = sellingKit?.risk_flags || [];
-  const recommendationLabel =
-    sellingKit?.evidence_basis === "linkedin_based"
-      ? "LinkedIn-based"
-      : sellingKit?.recommendation === "reach_out_first"
-        ? "Reach out first"
-        : sellingKit?.recommendation === "backup"
-          ? "Backup"
-          : sellingKit?.recommendation === "do_not_pitch"
-            ? "Do not pitch"
-            : null;
+  const deliveryBucket = getCandidateDeliveryBucket(candidate);
+  const recommendationLabel = formatDeliveryBucketLabel(candidate);
   const recommendationClass =
-    sellingKit?.evidence_basis === "linkedin_based"
-      ? "bg-slate-100 text-slate-600"
-      : sellingKit?.recommendation === "reach_out_first"
-        ? "bg-emerald-50 text-emerald-700"
-        : sellingKit?.recommendation === "backup"
-          ? "bg-amber-50 text-amber-700"
-          : "bg-slate-100 text-slate-600";
+    deliveryBucket === "reach_first"
+      ? "bg-emerald-50 text-emerald-700"
+      : deliveryBucket === "review_next"
+        ? "bg-amber-50 text-amber-700"
+        : "bg-slate-100 text-slate-600";
 
   const statusColors: Record<string, string> = {
     new: "text-muted-light",
@@ -575,16 +567,16 @@ export function CandidateCard({
               </div>
 
                 <div>
-                  <div className="mb-2 flex items-center gap-2">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
-                      Why contact this person
-                    </p>
-                  {candidate.metadata?.preliminary && (
-                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
-                      Preliminary
-                    </span>
-                  )}
-                </div>
+	                  <div className="mb-2 flex items-center gap-2">
+	                    <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
+	                      Pool note
+	                    </p>
+	                    {candidate.metadata?.preliminary && (
+	                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+	                        Preliminary
+	                      </span>
+	                    )}
+	                </div>
                 {shortlistReason && (
                   <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                     {shortlistReason}

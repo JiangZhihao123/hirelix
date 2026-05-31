@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   computeAdvanceScore,
   deriveExcludedReason,
+  getDisplayTierForAssessment,
   shouldDisplayCandidate,
 } from "@/lib/search-jobs";
 import { mergeJudgeResults } from "@/lib/search/scoring";
@@ -108,6 +109,24 @@ test("shouldDisplayCandidate: technically strong + low Reachability still passes
     bucket: "consider_next",
   });
   assert.equal(shouldDisplayCandidate(a), true);
+});
+
+test("getDisplayTierForAssessment: low Reachability strong fits are not reach-first", () => {
+  const a = assessment({
+    capability: 88,
+    relevance: 88,
+    joinLikelihood: 35,
+    quality: 88,
+    advance: 82,
+    mustHaveCoverage: "strong",
+    bucket: "strong_now",
+  });
+  a.suitability.advance_recommendation = "advance";
+  a.suitability.first_contact_confidence = "high";
+  a.suitability.evidence_quality = "high";
+
+  assert.equal(shouldDisplayCandidate(a), true);
+  assert.equal(getDisplayTierForAssessment(a), "worth_reviewing");
 });
 
 test("shouldDisplayCandidate: technicalWatchlistFit escape hatch requires clear strong evidence", () => {

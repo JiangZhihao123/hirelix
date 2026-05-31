@@ -133,16 +133,17 @@ test("billing plans expose free, starter, and pro client-role tiers", () => {
   assert.equal(BILLING_PLANS.pro_annual.emailLookupsPerMonth, 500);
 });
 
-test("plan status copy describes shortlist actions for free and paid plans", () => {
+test("plan status copy describes candidate pool actions for free and paid plans", () => {
   const freeCopy = getPlanStatusCopy(makeBillingSummary("free"));
   assert.equal(freeCopy.title, "Free plan");
   assert.match(freeCopy.usageLabel, /targeted scans left/);
   assert.match(freeCopy.usageLabel, /client roles/);
   assert.match(freeCopy.capabilityLabel, /150 targeted profile scans/);
+  assert.match(freeCopy.capabilityLabel, /ranked candidate pool/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
   assert.equal(monthlyCopy.title, "Starter");
-  assert.match(monthlyCopy.capabilityLabel, /targeted profile scans/);
+  assert.match(monthlyCopy.capabilityLabel, /ranked candidate pools/);
   assert.match(monthlyCopy.capabilityLabel, /client-ready briefs/);
   assert.match(monthlyCopy.capabilityLabel, /3 client roles/);
 });
@@ -173,8 +174,8 @@ test("plan status copy marks exhausted client roles separately from scan pool", 
 });
 
 test("count labels use singular copy for one remaining unit", () => {
-  assert.equal(formatCountLabel(1, "shortlist build", "shortlist builds"), "shortlist build");
-  assert.equal(formatCountLabel(10, "shortlist build", "shortlist builds"), "shortlist builds");
+  assert.equal(formatCountLabel(1, "candidate pool", "candidate pools"), "candidate pool");
+  assert.equal(formatCountLabel(10, "candidate pool", "candidate pools"), "candidate pools");
 });
 
 test("getCheckoutConfig trims configured Paddle values", () => {

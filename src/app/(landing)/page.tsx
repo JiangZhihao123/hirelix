@@ -518,7 +518,7 @@ export default function Home() {
 
     setSampleShortlistOpen(true);
     window.requestAnimationFrame(() => {
-      document.getElementById("sample-shortlist")?.scrollIntoView({
+      document.getElementById("sample-pool")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -685,7 +685,7 @@ export default function Home() {
                     data-testid="hero-sample-link"
                     className="self-start font-semibold text-indigo-700 underline-offset-4 transition-colors hover:text-indigo-900 hover:underline sm:self-auto"
                   >
-                    View sample shortlist
+                    View sample pool
                   </button>
                 </div>
                 <button
@@ -699,7 +699,7 @@ export default function Home() {
                       : "bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] hover:-translate-y-0.5 hover:bg-slate-800"
                   }`}
                 >
-                  {isSubmitting ? "Opening your shortlist..." : "Build shortlist"}{" "}
+                  {isSubmitting ? "Opening your candidate pool..." : "Build candidate pool"}{" "}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -807,18 +807,18 @@ export default function Home() {
       </section>
 
       {sampleShortlistOpen && (
-        <section id="sample-shortlist" data-growth-section="产品示例" className="scroll-mt-24 border-b border-slate-200 bg-white py-12">
+        <section id="sample-pool" data-growth-section="产品示例" className="scroll-mt-24 border-b border-slate-200 bg-white py-12">
           <div className="mx-auto max-w-6xl px-5 sm:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
-                  Sample shortlist
+                  Sample candidate pool
                 </p>
                 <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
                   What a technical headhunter reviews after a client JD.
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  This is a static example. Run your own role when you want Hirelix to build the real shortlist.
+                  This is a static example. Run your own role when you want Hirelix to build the real ranked candidate pool.
                 </p>
               </div>
               <button
@@ -826,7 +826,7 @@ export default function Home() {
                 onClick={focusHeroJd}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
               >
-                Build shortlist
+                Build candidate pool
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -885,7 +885,7 @@ export default function Home() {
       <CtaSection
         onTrySample={handleTrySample}
         onSignIn={handleGenericSignIn}
-        desktopFooterCtaLabel="Build shortlist"
+        desktopFooterCtaLabel="Build candidate pool"
       />
 
       <AuthModal

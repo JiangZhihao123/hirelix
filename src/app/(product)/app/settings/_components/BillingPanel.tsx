@@ -209,7 +209,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
           description="Choose a client-role tier. Annual gives you the lower monthly rate."
         >
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Hirelix is built for technical headhunters. For billing issues, missing credits, or shortlist problems, email{" "}
+            Hirelix is built for technical headhunters. For billing issues, missing credits, or candidate pool problems, email{" "}
             <a
               className="font-medium underline decoration-amber-400 underline-offset-2"
               href="mailto:support@hirelix.online"
@@ -262,6 +262,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                     {[
                       `${plan.searchesPerMonth} client roles per month`,
                       `${profileScans} targeted profile scans per month`,
+                      "Full ranked candidate pool for every discovery pass",
                       "500 scans in each default discovery pass",
                       "Expand the same role with remaining scans",
                       `${emailLookups} contact lookups per month`,

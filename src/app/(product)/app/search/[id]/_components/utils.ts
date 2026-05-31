@@ -11,6 +11,7 @@ import type {
 } from "./types";
 
 export const PRIORITY_OUTREACH_MIN_SCORE = 70;
+const REACH_FIRST_MIN_REACHABILITY = 55;
 
 export function getSearchPageCacheKey(id: string) {
   return `hirelix:search-page:${id}`;
@@ -81,19 +82,77 @@ export function formatDisplayCount(value: number) {
 
 export function getCandidateDisplayTier(candidate: CandidateRow): CandidateDisplayTier | null {
   const safeScore = typeof candidate.match_score === "number" ? candidate.match_score : 0;
+  const deliveryBucket = candidate.metadata?.delivery_bucket;
+  const reachabilityScore = getCandidateJoinLikelihoodScoreValue(candidate);
+  const hasLowReachability =
+    typeof reachabilityScore === "number" && reachabilityScore < REACH_FIRST_MIN_REACHABILITY;
+
+  if (deliveryBucket === "reach_first") {
+    return hasLowReachability ? "worth_reviewing" : "priority_outreach";
+  }
+  if (deliveryBucket === "review_next") return "worth_reviewing";
   const explicitTier = candidate.metadata?.display_tier;
   if (explicitTier === "priority_outreach") {
-    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE ? "priority_outreach" : "worth_reviewing";
+    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE && !hasLowReachability
+      ? "priority_outreach"
+      : "worth_reviewing";
   }
   if (explicitTier === "worth_reviewing") {
     return "worth_reviewing";
   }
   const bucket = candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket;
   if (bucket === "strong_now") {
-    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE ? "priority_outreach" : "worth_reviewing";
+    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE && !hasLowReachability
+      ? "priority_outreach"
+      : "worth_reviewing";
   }
   if (bucket === "consider_next") return "worth_reviewing";
   return null;
+}
+
+export function getCandidateDeliveryBucket(candidate: CandidateRow) {
+  const explicit = candidate.metadata?.delivery_bucket;
+  if (explicit === "reach_first") {
+    return getCandidateDisplayTier(candidate) === "priority_outreach"
+      ? "reach_first"
+      : "review_next";
+  }
+  if (
+    explicit === "review_next" ||
+    explicit === "lower_priority" ||
+    explicit === "not_recommended"
+  ) {
+    return explicit;
+  }
+  const tier = getCandidateDisplayTier(candidate);
+  if (tier === "priority_outreach") return "reach_first";
+  if (tier === "worth_reviewing") return "review_next";
+  const suitability = candidate.metadata?.suitability;
+  if (
+    candidate.metadata?.blocking_severity === "hard" ||
+    suitability?.blocking_severity === "hard" ||
+    candidate.metadata?.advance_recommendation === "reject" ||
+    suitability?.advance_recommendation === "reject" ||
+    candidate.metadata?.bucket === "do_not_show" ||
+    suitability?.bucket === "do_not_show"
+  ) {
+    return "not_recommended";
+  }
+  return "lower_priority";
+}
+
+export function formatDeliveryBucketLabel(candidate: CandidateRow) {
+  switch (getCandidateDeliveryBucket(candidate)) {
+    case "reach_first":
+      return "Reach first";
+    case "review_next":
+      return "Review next";
+    case "not_recommended":
+      return "Not recommended";
+    case "lower_priority":
+    default:
+      return "Lower priority";
+  }
 }
 
 export function formatTierLabel(value: CandidateDisplayTier) {
@@ -324,8 +383,13 @@ export function getCandidateRelevanceScore(candidate: CandidateRow) {
   return getCandidateScoringBreakdown(candidate)?.relevance_score ?? 0;
 }
 
+function getCandidateJoinLikelihoodScoreValue(candidate: CandidateRow) {
+  const value = getCandidateScoringBreakdown(candidate)?.join_likelihood_score;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export function getCandidateJoinLikelihoodScore(candidate: CandidateRow) {
-  return getCandidateScoringBreakdown(candidate)?.join_likelihood_score ?? 0;
+  return getCandidateJoinLikelihoodScoreValue(candidate) ?? 0;
 }
 
 export function getCandidateScoreMetrics(candidate: CandidateRow) {
@@ -693,6 +757,7 @@ export function getCandidateDecisionAudit(
   const publicEvidence = options.hidePublicEvidence ? null : getCandidatePublicEvidence(candidate);
   const githubSignals = options.hidePublicEvidence ? null : getCandidateGithubSignals(candidate);
   const trust = getCandidateTrustLabel(candidate, options);
+  const deliveryBucket = getCandidateDeliveryBucket(candidate);
   const currentRole = deriveCurrentRole(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const score = getCandidateOverallScore(candidate);
@@ -730,14 +795,18 @@ export function getCandidateDecisionAudit(
   const hasStrongEvidence = trust.tone === "strong" && hasCitableProof;
   const hasMediumEvidence = trust.tone === "medium" && hasCitableProof;
   const nextAction =
-    sellingKit?.recommendation === "do_not_pitch" ||
+    deliveryBucket === "not_recommended"
+      ? "Use as market coverage. Do not pitch unless the recruiter overrides the risks."
+      : deliveryBucket === "lower_priority"
+        ? "Keep as longlist context. Review only after stronger candidates are exhausted."
+        : sellingKit?.recommendation === "do_not_pitch" ||
     candidate.metadata?.suitability?.advance_recommendation === "reject"
-      ? "Hold. Review the risk before outreach."
-      : hasStrongEvidence && score >= 80
-        ? "Contact first. Use the strongest proof line in the opener."
-        : hasStrongEvidence || hasMediumEvidence
-          ? "Review then contact. Confirm fit before sending."
-          : "Review fit and risks before outreach.";
+          ? "Hold. Review the risk before outreach."
+          : hasStrongEvidence && score >= 80
+            ? "Contact first. Use the strongest proof line in the opener."
+            : hasStrongEvidence || hasMediumEvidence
+              ? "Review then contact. Confirm fit before sending."
+              : "Review fit and risks before outreach.";
   const rankPrefix = typeof rank === "number" ? `#${rank}: ` : "";
   const rankingReason =
     `${rankPrefix}${currentRole}${currentCompany ? ` at ${currentCompany}` : ""} ranks here because overall ${score}, technical ${capability || "unknown"}, role fit ${relevance || "unknown"}, reachability ${reachability || "unknown"}.`;

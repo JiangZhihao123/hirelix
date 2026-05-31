@@ -75,12 +75,12 @@ export function AuthModal({
   const benefits = isSearchAuthIntent
     ? [
         "Keep this role attached after sign in",
-        "Build a real technical shortlist",
+        "Build a real ranked candidate pool",
         "Review fit evidence, risks, and outreach",
       ]
     : [
         "Return to your sourcing workspace",
-        "Review saved shortlists and drafts",
+        "Review saved candidate pools and drafts",
         "Start a new ranked candidate search",
       ];
 
@@ -129,13 +129,13 @@ export function AuthModal({
                 </p>
                 <h2 id={titleId} className="mt-4 max-w-[14ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
                   {isSearchAuthIntent
-                    ? "One more step to build your shortlist."
+                    ? "One more step to build your candidate pool."
                     : "Sign in and keep moving."}
                 </h2>
                 <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
                   {isSearchAuthIntent
                     ? "Your JD is saved. Sign in to continue into the workspace with this role still attached."
-                    : "Use your account to continue into the next shortlist flow without losing context."}
+                    : "Use your account to continue into the next candidate pool flow without losing context."}
                 </p>
               </div>
 
@@ -223,12 +223,12 @@ export function AuthModal({
                 redirectPath={pendingRedirectPath}
                 contextTitle={
                   isSearchAuthIntent
-                    ? "Continue to your shortlist"
-                    : "Continue to your next shortlist"
+                    ? "Continue to your candidate pool"
+                    : "Continue to your next candidate pool"
                 }
                 contextBody={
                   isSearchAuthIntent
-                    ? "Use Google or email to keep this exact role attached and move straight into the shortlist workflow."
+                    ? "Use Google or email to keep this exact role attached and move straight into the candidate pool workflow."
                     : "Use Google or email to sign in without breaking the flow."
                 }
                 onSuccessStart={onSuccessStart}

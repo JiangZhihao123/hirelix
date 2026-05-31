@@ -1036,6 +1036,12 @@ function buildSearchDisplayStats(
     ...(typeof overrides.first_contact_confidence_count === "number"
       ? { first_contact_confidence_count: Math.max(0, Math.round(overrides.first_contact_confidence_count)) }
       : {}),
+    ...(typeof overrides.lower_priority_count === "number"
+      ? { lower_priority_count: Math.max(0, Math.round(overrides.lower_priority_count)) }
+      : {}),
+    ...(typeof overrides.recommended_count === "number"
+      ? { recommended_count: Math.max(0, Math.round(overrides.recommended_count)) }
+      : {}),
     ...(typeof overrides.brief_ready_at === "string" &&
       overrides.brief_ready_at.length > 0
       ? { brief_ready_at: overrides.brief_ready_at }
@@ -2316,7 +2322,7 @@ export function shouldDisplayCandidate(assessment: ScoredCandidateAssessment) {
   );
 }
 
-function getDisplayTierForAssessment(
+export function getDisplayTierForAssessment(
   assessment: ScoredCandidateAssessment,
 ): CandidateDisplayTier | null {
   if (!hasRecruiterVisibleEvidence(assessment.suitability)) {
@@ -2332,6 +2338,7 @@ function getDisplayTierForAssessment(
         assessment.suitability.evidence_quality !== "low" &&
         assessment.suitability.constraint_verdicts.must_have_coverage === "strong" &&
         assessment.suitability.constraint_verdicts.work_model_fit === "yes" &&
+        breakdown.join_likelihood_score >= 55 &&
         assessment.suitability.quality_score >= 82 &&
         assessment.suitability.advance_score >= 78 &&
         breakdown.relevance_score >= 78 &&

@@ -32,7 +32,7 @@ export const candidateRows = [
     matchReasons: [
       "Built merchant-facing APIs and backend platform systems at Shopify, directly matching the JD's API and production-systems requirement.",
       "Shows real distributed-systems ownership in a fast-moving product org, which maps well to the role's end-to-end shipping expectation.",
-      "AWS and reliability-heavy platform work make him unusually credible for a shortlist-first outbound pass.",
+      "AWS and reliability-heavy platform work make him unusually credible for the recommended shortlist inside the pool.",
     ],
     riskReasons: [
       "No public signal yet on willingness to move into a smaller team environment.",

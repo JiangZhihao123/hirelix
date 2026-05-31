@@ -25,7 +25,9 @@ import {
   deriveCurrentCompany,
   deriveCurrentRole,
   fixSentenceSpacing,
+  formatDeliveryBucketLabel,
   formatDimensionLabel,
+  getCandidateDeliveryBucket,
   getCandidateDecisionAudit,
   getCandidateGithubSignals,
   getCandidateOverallScore,
@@ -174,6 +176,10 @@ export function CandidateWorkbenchDetail({
   const riskFlags = Array.isArray(localCandidate.metadata?.risk_flags)
     ? localCandidate.metadata.risk_flags
     : [];
+  const blockingConstraints =
+    localCandidate.metadata?.blocking_constraints ??
+    suitability?.blocking_constraints ??
+    [];
   const hasVerifiedGithub = githubSignals?.status === "verified";
   const evidenceSourceLabel = getEvidenceSourceLabel(githubSignals);
   const publicEvidenceItems: PublicEvidenceItem[] =
@@ -363,10 +369,24 @@ export function CandidateWorkbenchDetail({
       .filter((item) => item.citation_label && item.source_url)
       .map((item) => [item.citation_label as string, item.source_url as string]),
   );
-  const linkedInBased = sellingKit?.evidence_basis === "linkedin_based";
   const canCopyClientBrief = clientBriefEnabled && Boolean(clientBriefText);
   const canRegenerateWithPublicEvidence =
     Boolean(localCandidate.outreach_draft && sellingKit?.evidence_basis === "public_evidence");
+  const deliveryBucket = getCandidateDeliveryBucket(localCandidate);
+  const isRecommendedCandidate = deliveryBucket === "reach_first" || deliveryBucket === "review_next";
+  const deliveryBucketLabel = formatDeliveryBucketLabel(localCandidate);
+  const deliveryBucketTone =
+    deliveryBucket === "reach_first"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : deliveryBucket === "review_next"
+        ? "border-sky-200 bg-sky-50 text-sky-800"
+        : "border-slate-200 bg-slate-50 text-slate-700";
+  const lowerPriorityReason =
+    whyNotHigher[0] ||
+    blockingConstraints[0] ||
+    riskFlags[0] ||
+    safeShortlistReason ||
+    "This profile ranked lower after fit, risk, and reachability review.";
 
   return (
     <>
@@ -374,13 +394,16 @@ export function CandidateWorkbenchDetail({
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
             <InitialsAvatar name={localDisplayName} />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                  {localDisplayName}
-                </h2>
-                <ActionabilityBadge candidate={localCandidate} />
-                <ScoreBadge score={overallScore} />
+	            <div>
+	              <div className="flex flex-wrap items-center gap-2">
+	                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+	                  {localDisplayName}
+	                </h2>
+	                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deliveryBucketTone}`}>
+	                  {deliveryBucketLabel}
+	                </span>
+	                <ActionabilityBadge candidate={localCandidate} />
+	                <ScoreBadge score={overallScore} />
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 {currentRole}
@@ -421,7 +444,7 @@ export function CandidateWorkbenchDetail({
         <div className="mt-4 border-b border-slate-200">
           <div className="flex flex-wrap gap-1">
             {[
-              ["sell", "Sell"],
+              ["sell", isRecommendedCandidate ? "Sell" : "Review"],
               ["evidence", "Evidence"],
               ["outreach", "Outreach"],
               ["profile", "Profile"],
@@ -448,21 +471,13 @@ export function CandidateWorkbenchDetail({
             <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
               <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                      Candidate Selling Kit
-                    </p>
-                    <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                      {linkedInBased
-                        ? "LinkedIn-based pitch"
-                        : sellingKit?.recommendation === "reach_out_first"
-                          ? "Reach out first"
-                          : sellingKit?.recommendation === "backup"
-                            ? "Backup candidate"
-                            : sellingKit?.recommendation === "do_not_pitch"
-                              ? "Do not pitch yet"
-                              : "LinkedIn-based pitch"}
-                    </p>
+	                  <div>
+	                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                      {isRecommendedCandidate ? "Candidate Selling Kit" : "Pool Review"}
+	                    </p>
+	                    <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+	                      {deliveryBucketLabel}
+	                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {sellingKit?.outreach_opener && (
@@ -495,9 +510,9 @@ export function CandidateWorkbenchDetail({
                   </div>
                 </div>
                 <p className="mt-4 text-xl font-semibold leading-7 text-slate-950">
-                  {recruiterHeadline || whyContactSummary}
+                  {isRecommendedCandidate ? recruiterHeadline || whyContactSummary : lowerPriorityReason}
                 </p>
-                {sellingKit?.outreach_opener && (
+                {isRecommendedCandidate && sellingKit?.outreach_opener && (
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Copy-ready opener
@@ -505,7 +520,7 @@ export function CandidateWorkbenchDetail({
                     <p className="mt-2">{sellingKit.outreach_opener}</p>
                   </div>
                 )}
-                {sellingKit?.client_brief && (
+                {isRecommendedCandidate && sellingKit?.client_brief && (
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Client brief preview
@@ -549,9 +564,20 @@ export function CandidateWorkbenchDetail({
                 </div>
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                    Best usable proof
+                    {isRecommendedCandidate ? "Best usable proof" : "Why this is not higher"}
                   </p>
-                  {sellingEvidenceItems.length > 0 ? (
+                  {!isRecommendedCandidate ? (
+                    <ul className="mt-2 space-y-2">
+                      {[lowerPriorityReason, ...whyNotHigher, ...blockingConstraints]
+                        .filter(Boolean)
+                        .slice(0, 4)
+                        .map((reason) => (
+                          <li key={reason} className="text-sm leading-6 text-slate-700">
+                            {reason}
+                          </li>
+                        ))}
+                    </ul>
+                  ) : sellingEvidenceItems.length > 0 ? (
                     <ul className="mt-2 space-y-2">
                       {sellingEvidenceItems.slice(0, 3).map((item, index) => (
                         <li key={`${item.source_url}-${item.evidence_summary}`} className="text-sm leading-6 text-slate-700">
@@ -574,7 +600,7 @@ export function CandidateWorkbenchDetail({
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-                    Verify before pitching
+                    {isRecommendedCandidate ? "Verify before pitching" : "Manual review notes"}
                   </p>
                   {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || verificationChecklist).length > 0 ? (
                     <ul className="mt-2 space-y-1">
@@ -584,7 +610,9 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-amber-900">
-                      Confirm current interest, compensation range, and role scope before submitting.
+                      {isRecommendedCandidate
+                        ? "Confirm current interest, compensation range, and role scope before submitting."
+                        : "Keep this profile as market coverage unless a recruiter manually promotes it."}
                     </p>
                   )}
                 </div>
@@ -672,19 +700,27 @@ export function CandidateWorkbenchDetail({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Personalized outreach
+                    {isRecommendedCandidate ? "Personalized outreach" : "Outreach not prepared by default"}
                   </p>
                   <p className="mt-2 text-sm text-slate-600">
-                    Current source: {publicEvidenceSourceLabel}
+                    {isRecommendedCandidate
+                      ? `Current source: ${publicEvidenceSourceLabel}`
+                      : "Lower-priority profiles stay available for review, but Hirelix does not treat them as ready-to-contact recommendations."}
                   </p>
                 </div>
-                <button
-                  onClick={() => setDrawerOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  <Send className="h-4 w-4" />
-                  Open outreach editor
-                </button>
+                {isRecommendedCandidate ? (
+                  <button
+                    onClick={() => setDrawerOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    <Send className="h-4 w-4" />
+                    Open outreach editor
+                  </button>
+                ) : (
+                  <span className="inline-flex rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                    Review first
+                  </span>
+                )}
               </div>
               {!hasRealEmail && (
                 <div className="mt-4">
@@ -782,20 +818,12 @@ export function CandidateWorkbenchDetail({
             <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                    Candidate Selling Kit
-                  </p>
-                  <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                    {linkedInBased
-                      ? "LinkedIn-based pitch"
-                      : sellingKit?.recommendation === "reach_out_first"
-                        ? "Reach out first"
-                        : sellingKit?.recommendation === "backup"
-                          ? "Backup candidate"
-                          : sellingKit?.recommendation === "do_not_pitch"
-                            ? "Do not pitch yet"
-                            : "LinkedIn-based pitch"}
-                  </p>
+	                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+	                    Candidate Selling Kit
+	                  </p>
+	                  <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+	                    {deliveryBucketLabel}
+	                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {canRegenerateWithPublicEvidence && (
@@ -965,9 +993,9 @@ export function CandidateWorkbenchDetail({
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Scorecard
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Overall ranks the shortlist; the three dimensions explain why.
-                  </p>
+	                  <p className="mt-1 text-sm text-slate-600">
+	                    Overall ranks the candidate pool; the three dimensions explain why.
+	                  </p>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
                   {evidenceSourceLabel}

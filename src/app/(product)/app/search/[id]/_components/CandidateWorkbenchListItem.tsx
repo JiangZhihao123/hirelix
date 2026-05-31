@@ -11,6 +11,8 @@ import {
   deriveCurrentCompany,
   deriveCurrentRole,
   formatEvidenceStrength,
+  formatDeliveryBucketLabel,
+  getCandidateDeliveryBucket,
   getCandidateGithubSignals,
   getCandidateDecisionAudit,
   getCandidateOverallScore,
@@ -51,18 +53,12 @@ export function CandidateWorkbenchListItem({
   const audit = getCandidateDecisionAudit(candidate, undefined, {
     hidePublicEvidence,
   });
-  const recommendationLabel =
-    sellingKit?.recommendation === "reach_out_first"
-      ? "Reach out first"
-      : sellingKit?.recommendation === "backup"
-        ? "Backup"
-        : sellingKit?.recommendation === "do_not_pitch"
-          ? "Do not pitch"
-          : null;
+  const deliveryBucket = getCandidateDeliveryBucket(candidate);
+  const recommendationLabel = formatDeliveryBucketLabel(candidate);
   const recommendationClass =
-    sellingKit?.recommendation === "reach_out_first"
+    deliveryBucket === "reach_first"
       ? "bg-emerald-50 text-emerald-700"
-      : sellingKit?.recommendation === "backup"
+      : deliveryBucket === "review_next"
         ? "bg-amber-50 text-amber-700"
         : "bg-slate-100 text-slate-600";
 

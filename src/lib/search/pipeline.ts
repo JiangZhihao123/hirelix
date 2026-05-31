@@ -68,6 +68,7 @@ import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring"
 import type {
   CandidateRowInput,
   AdditionalRecallSnapshot,
+  CandidateDeliveryBucket,
   ConstraintVerdict,
   ExcludedReasonCount,
   HiringBrief,
@@ -251,6 +252,43 @@ type SearchPipelineHelpers = {
     rows: CandidateRowInput[],
   ) => Promise<CandidateRowInput[]>;
 };
+
+export function getDeliveryBucketForAssessment(
+  assessment: ScoredCandidateAssessment,
+  displayTier: "priority_outreach" | "worth_reviewing" | null,
+  shouldRecommendCandidate: (assessment: ScoredCandidateAssessment) => boolean = () => Boolean(displayTier),
+): CandidateDeliveryBucket {
+  const isRecommended = Boolean(displayTier) && shouldRecommendCandidate(assessment);
+  if (isRecommended && displayTier === "priority_outreach") return "reach_first";
+  if (isRecommended && displayTier === "worth_reviewing") return "review_next";
+  if (
+    assessment.suitability.blocking_severity === "hard" ||
+    assessment.suitability.advance_recommendation === "reject" ||
+    assessment.suitability.bucket === "do_not_show"
+  ) {
+    return "not_recommended";
+  }
+  return "lower_priority";
+}
+
+function countDeliveryBuckets(rows: CandidateRowInput[]) {
+  return rows.reduce(
+    (counts, row) => {
+      const bucket = row.metadata?.delivery_bucket;
+      if (bucket === "reach_first") counts.reachFirst += 1;
+      else if (bucket === "review_next") counts.reviewNext += 1;
+      else if (bucket === "not_recommended") counts.notRecommended += 1;
+      else counts.lowerPriority += 1;
+      return counts;
+    },
+    {
+      reachFirst: 0,
+      reviewNext: 0,
+      lowerPriority: 0,
+      notRecommended: 0,
+    },
+  );
+}
 
 type RecallSnapshotRef = {
   round: string;
@@ -671,23 +709,25 @@ async function scoreBrightDataProfiles(
       onCandidateScored: async (assessment, completedCount) => {
         const completedTotal = progressOffset + completedCount;
         const displayTier = helpers.getDisplayTierForAssessment(assessment);
-        if (!displayTier || !helpers.shouldDisplayCandidate(assessment)) {
-          if (completedTotal % 5 === 0) {
-            await helpers.updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
-          }
-          return;
-        }
         const rows = buildBrightDataCandidateRows(
           brightProfiles,
           [assessment],
           1,
           "outreach_pool",
-          { getDisplayTierForAssessment: helpers.getDisplayTierForAssessment },
+          {
+            getDisplayTierForAssessment: helpers.getDisplayTierForAssessment,
+            getDeliveryBucketForAssessment: (candidateAssessment, candidateDisplayTier) =>
+              getDeliveryBucketForAssessment(
+                candidateAssessment,
+                candidateDisplayTier,
+                helpers.shouldDisplayCandidate,
+              ),
+          },
         );
         if (rows.length > 0) {
           await upsertSingleCandidate(context.searchId, rows[0]);
           await retagSearchCandidatePoolTypes(context.searchId);
-          if (!firstVisibleSignalled) {
+          if (displayTier && helpers.shouldDisplayCandidate(assessment) && !firstVisibleSignalled) {
             firstVisibleSignalled = true;
             await options?.onFirstVisibleCandidate?.({
               visible_candidate_count: 1,
@@ -784,6 +824,7 @@ async function scoreBrightDataProfiles(
   const ruledOutAssessments = deepAssessments
     .filter((assessment) => assessment.suitability.bucket === "do_not_show");
   const visibleAssessments = [...priorityAssessments, ...worthReviewingAssessments];
+  const rankedAssessments = [...deepAssessments].sort(helpers.sortCandidateAssessments);
   const excludedReasonCounts = helpers.buildExcludedReasonCounts(ruledOutAssessments);
   helpers.logSearchEvent("search_shortlist_decisions", {
     search_id: context.searchId,
@@ -795,12 +836,21 @@ async function scoreBrightDataProfiles(
 
   const deepRows = buildBrightDataCandidateRows(
     brightProfiles,
-    visibleAssessments,
-    visibleAssessments.length,
+    rankedAssessments,
+    rankedAssessments.length,
     "main",
-    { getDisplayTierForAssessment: helpers.getDisplayTierForAssessment },
+    {
+      getDisplayTierForAssessment: helpers.getDisplayTierForAssessment,
+      getDeliveryBucketForAssessment: (assessment, displayTier) =>
+        getDeliveryBucketForAssessment(
+          assessment,
+          displayTier,
+          helpers.shouldDisplayCandidate,
+        ),
+    },
   );
   const taggedRows = tagPoolRows(deepRows, [], deepRows.length);
+  const deliveryCounts = countDeliveryBuckets(taggedRows);
   const finalRows = enrichRowsWithGithubSignals(taggedRows, {
     requiredSkills: helpers.sanitizeHiringBrief(parsed.hiring_brief, parsed).role_core.required_skills,
     displayCount: Number(parsed.display_count) || taggedRows.length,
@@ -813,7 +863,7 @@ async function scoreBrightDataProfiles(
   const top50QualityCutoff = finalRows.length > 0 ? finalRows[finalRows.length - 1]?.match_score ?? 0 : 0;
 
   if (finalRows.length === 0) {
-    throw new Error("No candidates were ranked into the visible result set.");
+    throw new Error("No candidates were ranked into the delivered candidate pool.");
   }
   if (fullDetailIncomplete) {
     throw new Error(
@@ -890,8 +940,10 @@ async function scoreBrightDataProfiles(
       contact_unlock_candidates: contactUnlockCandidates,
       shortlist_yes_count: shortlistYesCount,
       shortlist_no_count: shortlistNoCount,
-      priority_outreach_count: priorityAssessments.length,
-      worth_reviewing_count: worthReviewingAssessments.length,
+      priority_outreach_count: deliveryCounts.reachFirst,
+      worth_reviewing_count: deliveryCounts.reviewNext,
+      recommended_count: deliveryCounts.reachFirst + deliveryCounts.reviewNext,
+      lower_priority_count: deliveryCounts.lowerPriority + deliveryCounts.notRecommended,
       ruled_out_count: ruledOutAssessments.length,
       clear_location_fit_count: clearLocationFitCount,
       must_have_strong_count: mustHaveStrongCount,
@@ -902,9 +954,9 @@ async function scoreBrightDataProfiles(
       advanceable_count: advanceableCount,
       top_quality_score: topQualityScore,
       top50_quality_cutoff: top50QualityCutoff,
-      strong_now_count: priorityAssessments.length,
-      consider_next_count: worthReviewingAssessments.length,
-      do_not_show_count: ruledOutAssessments.length,
+      strong_now_count: deliveryCounts.reachFirst,
+      consider_next_count: deliveryCounts.reviewNext,
+      do_not_show_count: deliveryCounts.notRecommended,
       excluded_reason_counts: excludedReasonCounts,
     }),
   };
@@ -2202,6 +2254,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
     displayCount: context.candidateCount,
   });
 
+  const isFreshExpandRun = phase1Parsed.expand_recall_mode === "fresh_snapshot";
   const phase1Result = await buildBrightDataDatasetCandidates(
     context,
     phase1Parsed,
@@ -2216,7 +2269,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
     phase1Parsed.last_rerun_completed_at = helpers.nowIso();
     delete phase1Parsed.rerun_mode;
   }
-  if (phase1Parsed.expand_recall_mode === "fresh_snapshot") {
+  if (isFreshExpandRun) {
     phase1Parsed.last_expand_completed_at = helpers.nowIso();
     phase1Parsed.last_expanded_profile_scan_budget = storedProfileScanBudget;
     delete phase1Parsed.expand_recall_mode;
@@ -2243,6 +2296,9 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
       updateSearchUsageEventMetadata,
       logSearchEvent: helpers.logSearchEvent,
     },
-    { runtime: getExecutionRuntime(initialExecutionProfileWithBudget) },
+    {
+      replaceMissingCandidates: !isFreshExpandRun,
+      runtime: getExecutionRuntime(initialExecutionProfileWithBudget),
+    },
   );
 }

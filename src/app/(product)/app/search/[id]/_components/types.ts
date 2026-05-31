@@ -94,6 +94,9 @@ export type CandidateRow = {
     preliminary?: boolean;
     pool_type?: "top_pick" | "outreach_pool" | "main" | "extended";
     display_tier?: "priority_outreach" | "worth_reviewing";
+    delivery_bucket?: "reach_first" | "review_next" | "lower_priority" | "not_recommended";
+    is_recommended?: boolean;
+    scored_rank?: number;
     quality_score?: number;
     overall_score?: number;
     advance_score?: number;
@@ -255,6 +258,8 @@ export type SearchDisplayStats = {
   clear_location_fit_count?: number;
   must_have_strong_count?: number;
   first_contact_confidence_count?: number;
+  lower_priority_count?: number;
+  recommended_count?: number;
   brief_ready_at?: string;
   first_shortlist_candidate_at?: string;
   reviewable_at?: string;

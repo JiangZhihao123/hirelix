@@ -281,6 +281,8 @@ export type SearchDisplayStats = {
   clear_location_fit_count?: number;
   must_have_strong_count?: number;
   first_contact_confidence_count?: number;
+  lower_priority_count?: number;
+  recommended_count?: number;
   brief_ready_at?: string;
   first_shortlist_candidate_at?: string;
   reviewable_at?: string;
@@ -300,6 +302,12 @@ export type SearchPipelineResult = {
 };
 
 export type CandidateDisplayTier = "priority_outreach" | "worth_reviewing";
+
+export type CandidateDeliveryBucket =
+  | "reach_first"
+  | "review_next"
+  | "lower_priority"
+  | "not_recommended";
 
 export type ExcludedReason =
   | "stack_gap"

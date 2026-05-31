@@ -754,25 +754,27 @@ export async function upsertCandidatesForSearch(
 export async function upsertSingleCandidate(searchId: string, row: CandidateRowInput) {
   const payload = buildCandidatePayload(searchId, row);
 
-  if (row.profile_url) {
-    const existingRows = await db
-      .select({ id: hirelix_candidates.id })
-      .from(hirelix_candidates)
-      .where(
-        and(
-          eq(hirelix_candidates.search_id, searchId),
-          eq(hirelix_candidates.profile_url, row.profile_url),
-        ),
-      )
-      .limit(1);
-    const existing = existingRows[0];
-    if (existing) {
-      await db
-        .update(hirelix_candidates)
-        .set(payload)
-        .where(eq(hirelix_candidates.id, existing.id));
-      return;
+  const existingRows = await db
+    .select({
+      id: hirelix_candidates.id,
+      name: hirelix_candidates.name,
+      profile_url: hirelix_candidates.profile_url,
+    })
+    .from(hirelix_candidates)
+    .where(eq(hirelix_candidates.search_id, searchId));
+  const existing = existingRows.find((candidate) => {
+    if (row.profile_url && candidate.profile_url) {
+      return candidate.profile_url === row.profile_url;
     }
+    return candidate.name.toLowerCase() === row.name.toLowerCase();
+  });
+
+  if (existing) {
+    await db
+      .update(hirelix_candidates)
+      .set(payload)
+      .where(eq(hirelix_candidates.id, existing.id));
+    return;
   }
 
   await db.insert(hirelix_candidates).values(payload);

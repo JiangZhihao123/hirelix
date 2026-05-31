@@ -44,17 +44,28 @@ export async function completeSearch(
     ) => Promise<void>;
     logSearchEvent: (eventName: string, payload: Record<string, unknown>) => void;
   },
-  options?: { generateOutreachDrafts?: boolean; runtime?: SearchExecutionRuntime },
+  options?: {
+    generateOutreachDrafts?: boolean;
+    replaceMissingCandidates?: boolean;
+    runtime?: SearchExecutionRuntime;
+  },
 ) {
   const doneAt = helpers.nowIso();
   const sortedRows = [...finalRows].sort((left, right) => right.match_score - left.match_score);
   const deliveredRows = sortedRows;
   const candidateCountReference = deliveredRows.length;
+  const recommendedRows = deliveredRows.filter(
+    (row) =>
+      row.metadata?.delivery_bucket === "reach_first" ||
+      row.metadata?.delivery_bucket === "review_next" ||
+      row.metadata?.display_tier === "priority_outreach" ||
+      row.metadata?.display_tier === "worth_reviewing",
+  );
   const priorityOutreachCount = deliveredRows.filter(
-    (row) => row.metadata?.display_tier === "priority_outreach",
+    (row) => row.metadata?.delivery_bucket === "reach_first" || row.metadata?.display_tier === "priority_outreach",
   ).length;
   const worthReviewingCount = deliveredRows.filter(
-    (row) => row.metadata?.display_tier === "worth_reviewing" || row.metadata?.bucket === "consider_next",
+    (row) => row.metadata?.delivery_bucket === "review_next" || row.metadata?.display_tier === "worth_reviewing",
   ).length;
   const clearLocationFitCount = deliveredRows.filter((row) => {
     const verdicts =
@@ -83,9 +94,9 @@ export async function completeSearch(
     promised_candidate_count: candidateCountReference,
     delivered_candidate_count: deliveredRows.length,
     shortlist_underfilled: false,
-    shortlist_count: deliveredRows.length,
-    qualified_count: deliveredRows.length,
-    outreach_pool_count: deliveredRows.length,
+    shortlist_count: recommendedRows.length,
+    qualified_count: recommendedRows.length,
+    outreach_pool_count: recommendedRows.length,
     visible_candidate_count: deliveredRows.length,
     contact_unlock_candidates: Math.min(
       displayStats.contact_unlock_candidates ?? deliveredRows.length,
@@ -93,30 +104,39 @@ export async function completeSearch(
     ),
     priority_outreach_count: priorityOutreachCount,
     worth_reviewing_count: worthReviewingCount,
+    recommended_count: recommendedRows.length,
+    lower_priority_count: Math.max(0, deliveredRows.length - recommendedRows.length),
     clear_location_fit_count: clearLocationFitCount,
     must_have_strong_count: mustHaveStrongCount,
     first_contact_confidence_count: firstContactConfidenceCount,
     time_to_done_ms:
       displayStats.time_to_done_ms ?? helpers.elapsedSince(startedAt, doneAt),
   });
-  const draftedRows =
-    deliveredRows.length > 0 && options?.generateOutreachDrafts !== false
+  const draftedRecommendedRows =
+    recommendedRows.length > 0 && options?.generateOutreachDrafts !== false
       ? await helpers.generateOutreachDraftsForRows(
         context,
         options?.runtime ?? helpers.getExecutionRuntime(
           helpers.getSearchExecutionProfile("bright_production_full"),
         ),
         parsed,
-        deliveredRows,
+        recommendedRows,
       )
-      : deliveredRows;
+      : recommendedRows;
+  const draftedByKey = new Map(
+    draftedRecommendedRows.map((row) => [(row.profile_url || row.name).toLowerCase(), row]),
+  );
+  const draftedRows = deliveredRows.map((row) => {
+    const key = (row.profile_url || row.name).toLowerCase();
+    return draftedByKey.get(key) ?? row;
+  });
 
   await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
-    replaceMissing: true,
+    replaceMissing: options?.replaceMissingCandidates ?? true,
   });
   helpers.logSearchEvent("public_evidence_jobs_on_demand", {
     search_id: context.searchId,
-    eligible_candidates: draftedRows.length,
+    eligible_candidates: recommendedRows.length,
   });
 
   const finalParsed = helpers.withDisplayStats(parsed, finalDisplayStats);
@@ -146,6 +166,8 @@ export async function completeSearch(
     recall_profile_count: finalDisplayStats.recall_profile_count ?? null,
     priority_outreach_count: finalDisplayStats.priority_outreach_count ?? null,
     worth_reviewing_count: finalDisplayStats.worth_reviewing_count ?? null,
+    recommended_count: finalDisplayStats.recommended_count ?? null,
+    lower_priority_count: finalDisplayStats.lower_priority_count ?? null,
     ruled_out_count: finalDisplayStats.ruled_out_count ?? null,
     strong_now_count: finalDisplayStats.strong_now_count ?? null,
     consider_next_count: finalDisplayStats.consider_next_count ?? null,

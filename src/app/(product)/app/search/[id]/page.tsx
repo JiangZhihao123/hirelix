@@ -53,7 +53,6 @@ import {
   Send,
 } from "lucide-react";
 import type {
-  CandidateDisplayTier,
   CandidateRow,
   CandidateSortMode,
   ExcludedReason,
@@ -64,15 +63,16 @@ import type {
 import {
   buildWidenPoolSuggestions,
   formatDisplayCount,
+  formatDeliveryBucketLabel,
   formatElapsedMinutes,
   formatExcludedReasonLabel,
   formatLocationFlexibilityTag,
   formatRelocationTag,
   formatStartedAgo,
-  formatTierLabel,
   deriveCurrentCompany,
   deriveCurrentRole,
   getCandidateCapabilityScore,
+  getCandidateDeliveryBucket,
   getCandidateDisplayTier,
   getCandidateJoinLikelihoodScore,
   getCandidateOverallScore,
@@ -92,6 +92,8 @@ import { CandidateCard } from "./_components/CandidateCard";
 import { CandidateWorkbenchDetail } from "./_components/CandidateWorkbenchDetail";
 import { CandidateWorkbenchListItem } from "./_components/CandidateWorkbenchListItem";
 import { TaskTimelinePanel } from "./_components/TaskTimelinePanel";
+
+type CandidatePoolView = "recommended" | "full_pool";
 
 function buildCandidateClientBrief(candidate: CandidateRow, index: number, hidePublicEvidence = false) {
   const sellingKit = getCandidateSellingKit(candidate);
@@ -143,7 +145,7 @@ export default function SearchResultPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
-  const [candidateTier, setCandidateTier] = useState<CandidateDisplayTier>("priority_outreach");
+  const [poolView, setPoolView] = useState<CandidatePoolView>("recommended");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
   const [copiedWorkflowAction, setCopiedWorkflowAction] = useState<string | null>(null);
   const [publicEvidenceQueueingId, setPublicEvidenceQueueingId] = useState<string | null>(null);
@@ -173,19 +175,6 @@ export default function SearchResultPage() {
           ? "free_trial"
           : "workspace",
   });
-
-  const hasPriorityCandidates = candidates.some(
-    (candidate) => getCandidateDisplayTier(candidate) === "priority_outreach",
-  );
-  const hasWorthReviewingCandidates = candidates.some(
-    (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
-  );
-  const activeCandidateTier =
-    candidateTier === "priority_outreach" && !hasPriorityCandidates && hasWorthReviewingCandidates
-      ? "worth_reviewing"
-      : candidateTier === "worth_reviewing" && !hasWorthReviewingCandidates && hasPriorityCandidates
-        ? "priority_outreach"
-        : candidateTier;
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -359,6 +348,9 @@ export default function SearchResultPage() {
       }
       // Sort: candidates with email first, then by match score
       const sorted = candidatesData.sort((a, b) => {
+        const aRank = typeof a.metadata?.scored_rank === "number" ? a.metadata.scored_rank : Number.POSITIVE_INFINITY;
+        const bRank = typeof b.metadata?.scored_rank === "number" ? b.metadata.scored_rank : Number.POSITIVE_INFINITY;
+        if (aRank !== bRank) return aRank - bRank;
         const aHasEmail = !!a.email;
         const bHasEmail = !!b.email;
         if (aHasEmail !== bHasEmail) return bHasEmail ? 1 : -1;
@@ -680,7 +672,7 @@ export default function SearchResultPage() {
   if (!search) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-muted">Shortlist not found</p>
+        <p className="text-muted">Candidate pool not found</p>
         <Link
           href="/app"
           className="mt-4 text-sm text-primary hover:underline"
@@ -742,7 +734,9 @@ export default function SearchResultPage() {
       left.metadata?.subscription_trigger_score ??
       left.metadata?.suitability?.subscription_trigger_score ??
       getCandidateOverallScore(left);
-    return rightPrimary - leftPrimary || rightSecondary - leftSecondary;
+    const leftRank = typeof left.metadata?.scored_rank === "number" ? left.metadata.scored_rank : Number.POSITIVE_INFINITY;
+    const rightRank = typeof right.metadata?.scored_rank === "number" ? right.metadata.scored_rank : Number.POSITIVE_INFINITY;
+    return rightPrimary - leftPrimary || rightSecondary - leftSecondary || leftRank - rightRank;
   });
   const rawDisplayStats =
     reqs && typeof reqs.display_stats === "object" && reqs.display_stats
@@ -754,14 +748,21 @@ export default function SearchResultPage() {
   const worthReviewingCandidates = allCandidates.filter(
     (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
   );
+  const recommendedCandidates = allCandidates.filter((candidate) => {
+    const bucket = getCandidateDeliveryBucket(candidate);
+    return bucket === "reach_first" || bucket === "review_next";
+  });
+  const lowerPriorityCandidates = allCandidates.filter((candidate) => {
+    const bucket = getCandidateDeliveryBucket(candidate);
+    return bucket === "lower_priority" || bucket === "not_recommended";
+  });
   const actualPriorityOutreachCount = priorityCandidates.length;
   const actualWorthReviewingCount = worthReviewingCandidates.length;
-  const hasTieredPool = priorityCandidates.length > 0 || worthReviewingCandidates.length > 0;
-  const tierBaseCandidates = hasTieredPool
-    ? activeCandidateTier === "worth_reviewing"
-      ? worthReviewingCandidates
-      : priorityCandidates
-    : allCandidates;
+  const tierBaseCandidates = poolView === "full_pool"
+    ? allCandidates
+    : recommendedCandidates.length > 0
+      ? recommendedCandidates
+      : allCandidates;
   const visibleCandidates = showOnlyWithEmail
     ? tierBaseCandidates.filter((candidate) => candidate.email)
     : tierBaseCandidates;
@@ -827,10 +828,7 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.deep_review_completed_count) ??
     positiveInt(rawDisplayStats?.deep_review_count) ??
     Math.max(allCandidates.length, 0);
-  const shortlistReadyCount =
-    positiveInt(rawDisplayStats?.shortlist_count) ?? allCandidates.length;
-  const deliveredCandidateCount =
-    positiveInt(rawDisplayStats?.delivered_candidate_count) ?? allCandidates.length;
+  const deliveredCandidateCount = allCandidates.length;
   const priorityOutreachCount = actualPriorityOutreachCount;
   const worthReviewingCount = actualWorthReviewingCount;
   const isFreePlan = billing?.plan.code === "free";
@@ -838,10 +836,7 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.ruled_out_count) ??
     positiveInt(rawDisplayStats?.do_not_show_count) ??
     0;
-  const visibleCandidateCount =
-    hasTieredPool ? priorityOutreachCount + worthReviewingCount : shortlistReadyCount;
-  const qualityFloorApplied =
-    rawDisplayStats?.quality_floor_applied === true;
+  const visibleCandidateCount = recommendedCandidates.length;
   const contactUnlockCandidates =
     positiveInt(rawDisplayStats?.contact_unlock_candidates) ??
     allCandidates.filter(
@@ -857,8 +852,6 @@ export default function SearchResultPage() {
     const coverage = candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage;
     return coverage === "strong";
   }).length;
-  const shortlistNoCount =
-    positiveInt(rawDisplayStats?.shortlist_no_count) ?? 0;
   const excludedReasonCounts =
     Array.isArray(rawDisplayStats?.excluded_reason_counts)
       ? rawDisplayStats.excluded_reason_counts
@@ -877,9 +870,15 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
-  const selectedTierLabel = hasTieredPool ? formatTierLabel(activeCandidateTier) : "Candidate pool";
-  const priorityTierLabel = formatTierLabel("priority_outreach");
-  const worthReviewingTierLabel = formatTierLabel("worth_reviewing");
+  const recommendedCount = recommendedCandidates.length;
+  const lowerPriorityCount = lowerPriorityCandidates.length;
+  const hasCompleteRankedPool =
+    deepReviewCompletedCount <= allCandidates.length ||
+    Math.abs(deepReviewCompletedCount - allCandidates.length) <= 1;
+  const poolCoverageCopy = hasCompleteRankedPool
+    ? `${recommendedCount} are recommended for client review; the rest stay available as lower-priority market coverage.`
+    : `${recommendedCount} are recommended for client review. This older run shows the saved ranked pool; run or expand the role to build the full pool.`;
+  const selectedPoolLabel = poolView === "full_pool" ? "Full pool" : "Recommended";
   const taskStage = getSearchTaskStage({
     ...search,
     standard_recall_completed_at: standardRecallCompletedAt,
@@ -895,10 +894,10 @@ export default function SearchResultPage() {
   const displayTitle = getSearchDisplayTitle({
     title: search.title,
     parsedRequirements: search.parsed_requirements,
-    fallback: "New shortlist",
+    fallback: "New candidate pool",
   });
-  const clientReadyCandidates = (priorityCandidates.length > 0 ? priorityCandidates : allCandidates).slice(0, 5);
-  const actionPlanCandidates = (priorityCandidates.length > 0 ? priorityCandidates : allCandidates)
+  const clientReadyCandidates = (recommendedCandidates.length > 0 ? recommendedCandidates : allCandidates).slice(0, 5);
+  const actionPlanCandidates = (recommendedCandidates.length > 0 ? recommendedCandidates : allCandidates)
     .slice(0, 3)
     .map((candidate, index) => ({
       candidate,
@@ -907,13 +906,13 @@ export default function SearchResultPage() {
       }),
     }));
   const clientReadyBriefText = [
-    `Client-ready shortlist: ${displayTitle}`,
+    `Client-ready recommended pool: ${displayTitle}`,
     locationScope ? `Location/work model: ${[locationScope, workModel].filter(Boolean).join(" | ")}` : null,
     requiredSkills.length > 0 ? `Must-haves: ${requiredSkills.slice(0, 8).join(", ")}` : null,
     "",
     ...clientReadyCandidates.map((candidate, index) => buildCandidateClientBrief(candidate, index, isFreePlan)),
   ].filter((line): line is string => typeof line === "string").join("\n\n");
-  const outreachQueueCandidates = (priorityCandidates.length > 0 ? priorityCandidates : visibleCandidates)
+  const outreachQueueCandidates = (priorityCandidates.length > 0 ? priorityCandidates : recommendedCandidates)
     .filter((candidate) => candidate.status !== "rejected" && candidate.status !== "placed")
     .slice(0, 8);
   const validationCounts = {
@@ -947,7 +946,7 @@ export default function SearchResultPage() {
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to shortlists
+          Back to candidate pools
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
@@ -1015,7 +1014,7 @@ export default function SearchResultPage() {
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-muted-light hover:text-foreground"
                   >
                     <Download className="h-3 w-3" />
-                    Export this shortlist
+                    Export this pool
                   </Link>
                 ))}
               <Link
@@ -1023,7 +1022,7 @@ export default function SearchResultPage() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
               >
                 <Search className="h-3 w-3" />
-                New shortlist
+                New search
               </Link>
             </div>
           )}
@@ -1255,21 +1254,19 @@ export default function SearchResultPage() {
       {isReviewable && allCandidates.length > 0 && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                {isImprovingInBackground ? "Shortlist ready" : "Shortlist complete"}
-              </p>
+	              <div className="min-w-0">
+	              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+	                {isImprovingInBackground ? "Candidate pool ready" : "Candidate pool complete"}
+	              </p>
               <h2 className="mt-1 text-lg font-semibold text-slate-950">
                 {isImprovingInBackground
                   ? "Your candidate pool is ready to review"
                   : "Your candidate pool is ready"}
               </h2>
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
-                {qualityFloorApplied
-                    ? "Hirelix searched a broader recall pool and kept the candidates that already look credible enough to work now."
-                    : isImprovingInBackground
-                      ? "Hirelix is still refining the remaining scores in the background."
-                      : `Hirelix found ${deliveredCandidateCount} qualified candidates after ${formatDisplayCount(deepReviewCompletedCount)} reviewed profiles: ${priorityOutreachCount} candidates to reach out to first, and ${worthReviewingCount} more to keep reviewing.`}
+	                {isImprovingInBackground
+	                  ? "Hirelix is still refining the remaining scores in the background."
+	                  : `Hirelix reviewed ${formatDisplayCount(deepReviewCompletedCount)} sourced profiles. ${poolCoverageCopy}`}
               </p>
               {billing?.plan.code !== "free" && (
                 <p className="mt-2 text-xs text-slate-500">
@@ -1281,28 +1278,28 @@ export default function SearchResultPage() {
               {isImprovingInBackground && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                   <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
-                  {candidates.length > 0
-                    ? `Found ${candidates.length} visible candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
-                    : "The visible candidate pool is still growing as more recalled profiles are reviewed..."}
+	                  {candidates.length > 0
+	                    ? `Scored ${candidates.length} candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
+	                    : "The ranked candidate pool is still growing as more recalled profiles are reviewed..."}
                 </div>
               )}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Qualified</span>
-                <span className="text-sm font-semibold text-slate-950">{deliveredCandidateCount}</span>
+	                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Sourced</span>
+	                <span className="text-sm font-semibold text-slate-950">{recallProfileCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reach first</span>
                 <span className="text-sm font-semibold text-slate-950">{priorityOutreachCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Backup</span>
-                <span className="text-sm font-semibold text-slate-950">{worthReviewingCount}</span>
+	                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Review next</span>
+	                <span className="text-sm font-semibold text-slate-950">{worthReviewingCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reviewed</span>
-                <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(recallProfileCount)}</span>
+	                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Lower priority</span>
+	                <span className="text-sm font-semibold text-slate-950">{lowerPriorityCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Risks found</span>
@@ -1319,33 +1316,33 @@ export default function SearchResultPage() {
             <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Search outcome
-                </p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  {priorityOutreachCount > 0
-                    ? `${priorityOutreachCount} candidates are ready for first outreach.`
-                    : `${allCandidates.length} candidates are ready for review.`}
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                  Start with reach-first profiles, verify the amber risks, then move the best people into the outreach queue.
-                </p>
+	                  Search outcome
+	                </p>
+	                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+	                  {recommendedCount > 0
+	                    ? `${recommendedCount} recommended candidates, backed by a ${allCandidates.length}-profile ranked pool.`
+	                    : `${allCandidates.length} sourced profiles are ready for market review.`}
+	                </h2>
+	                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+	                  Start with recommended profiles, then use the full pool to understand the market and recover edge cases.
+	                </p>
               </div>
               <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto xl:grid-cols-5">
                 <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Qualified</p>
-                  <p className="mt-1 text-xl font-semibold text-slate-950">{deliveredCandidateCount}</p>
+	                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Sourced</p>
+	                  <p className="mt-1 text-xl font-semibold text-slate-950">{recallProfileCount}</p>
                 </div>
                 <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
                   <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Reach first</p>
                   <p className="mt-1 text-xl font-semibold text-slate-950">{priorityOutreachCount}</p>
                 </div>
                 <div className="min-w-0 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
-                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">Backup</p>
-                  <p className="mt-1 text-xl font-semibold text-slate-950">{worthReviewingCount}</p>
-                </div>
-                <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Ruled out</p>
-                  <p className="mt-1 text-xl font-semibold text-slate-950">{shortlistNoCount || ruledOutCount}</p>
+	                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">Review next</p>
+	                  <p className="mt-1 text-xl font-semibold text-slate-950">{worthReviewingCount}</p>
+	                </div>
+	                <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+	                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Lower priority</p>
+	                  <p className="mt-1 text-xl font-semibold text-slate-950">{lowerPriorityCount}</p>
                 </div>
                 <div className="min-w-0 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
                   <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">Risks found</p>
@@ -1386,14 +1383,14 @@ export default function SearchResultPage() {
               ))}
             </div>
           </section>
-          <section
-            data-testid="client-ready-shortlist"
+	          <section
+	            data-testid="client-ready-recommended-pool"
             className="min-w-0 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                  Client-ready shortlist
+	                  Client-ready recommended pool
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
                   Copy a client brief before you start outreach.
@@ -1469,7 +1466,7 @@ export default function SearchResultPage() {
                   Review, copy, then mark progress.
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  This keeps the workflow human-in-the-loop while still moving candidates from shortlist to contacted, replied, submitted, interview, and placed.
+	                  This keeps the workflow human-in-the-loop while still moving recommended candidates to contacted, replied, submitted, interview, and placed.
                 </p>
               </div>
               <div className="grid grid-cols-5 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
@@ -1616,30 +1613,28 @@ export default function SearchResultPage() {
       {/* Results */}
       {allCandidates.length > 0 && (
         <div className="space-y-3">
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Shortlist outcome
-                </p>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  Found {deliveredCandidateCount} qualified candidates.
-                </h2>
-              </div>
+	          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+	            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+	              <div>
+	                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+	                  Candidate pool
+	                </p>
+	                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
+	                  Reviewed {recallProfileCount} sourced profiles. {recommendedCount} recommended for client review.
+	                </h2>
+	              </div>
               <p className="text-xs text-slate-500">
                 Workflow: {validationCounts.contacted} contacted · {validationCounts.submitted} submitted · {validationCounts.interview} interview · {validationCounts.placed} placed
               </p>
             </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-              {[
-                { label: "Qualified", value: deliveredCandidateCount },
-                { label: "Reviewed", value: deepReviewCompletedCount },
-                { label: "Reach out first", value: priorityOutreachCount },
-                { label: "Worth reviewing", value: worthReviewingCount },
-                { label: "Screened out", value: shortlistNoCount || ruledOutCount },
-                { label: "Contact lookup", value: contactUnlockCandidates },
-                { label: "Risks found", value: risksFoundCount },
-              ].map((item) => (
+	            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+	              {[
+	                { label: "Sourced profiles", value: recallProfileCount },
+	                { label: "Full pool", value: deliveredCandidateCount },
+	                { label: "Recommended", value: recommendedCount },
+	                { label: "Reach first", value: priorityOutreachCount },
+	                { label: "Review next", value: worthReviewingCount },
+	              ].map((item) => (
                 <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                     {item.label}
@@ -1660,14 +1655,13 @@ export default function SearchResultPage() {
               <p className="mt-2 text-sm text-slate-700">
                 Upgrade for email lookup, public evidence deep dives, CSV export, and client-ready briefs on the candidates you choose.
               </p>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} {priorityTierLabel.toLowerCase()}</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{worthReviewingCount} {worthReviewingTierLabel.toLowerCase()}</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{shortlistNoCount} screened out</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{firstContactConfidenceCount} high-confidence first contacts</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} contact lookups available</span>
+	              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+	                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{recommendedCount} recommended profiles</span>
+	                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{lowerPriorityCount} lower-priority profiles</span>
+	                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
+	                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
+	                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{firstContactConfidenceCount} high contact-confidence profiles</span>
+	                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} contact lookups available</span>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
@@ -1678,7 +1672,7 @@ export default function SearchResultPage() {
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 />
                 <p className="text-xs text-slate-600">
-                  You can review fit reasons, risks, and outreach drafts now.
+	                  You can review the ranked pool, fit reasons, risks, and recommended outreach drafts now.
                 </p>
               </div>
             </div>
@@ -1690,13 +1684,11 @@ export default function SearchResultPage() {
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              <p className="text-sm text-muted">
-                {showOnlyWithEmail
-                  ? `${visibleCandidates.length} candidates with email available`
-                  : hasTieredPool
-                    ? `${visibleCandidates.length} in ${selectedTierLabel.toLowerCase()}`
-                    : `${allCandidates.length} candidates ready to review`}
-              </p>
+	              <p className="text-sm text-muted">
+	                {showOnlyWithEmail
+	                  ? `${visibleCandidates.length} candidates with email available`
+	                  : `${visibleCandidates.length} in ${selectedPoolLabel.toLowerCase()}`}
+	              </p>
               <div className="hidden flex-wrap items-center gap-1.5 text-xs text-muted-light sm:flex">
                 {visibleCandidates.length > 0 && (
                   <>
@@ -1708,9 +1700,9 @@ export default function SearchResultPage() {
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} contact lookups</span>
                 )}
                 <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{risksFoundCount} risks flagged</span>
-                <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
-                  {deliveredCandidateCount} qualified
-                </span>
+	                <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
+	                  {recommendedCount} recommended
+	                </span>
                 {billing?.usage.exportEnabled ? (
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
                       {`${allCandidates.filter((candidate) => candidate.email).length}/${allCandidates.length} with email`}
@@ -1721,32 +1713,30 @@ export default function SearchResultPage() {
                 <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Recruiter sorted</span>
               </div>
             </div>
-            {isReviewable && (
-              <div className="flex flex-wrap items-center gap-2">
-                {hasTieredPool && (
-                  <div className="inline-flex rounded-full border border-border bg-background p-1">
-                    <button
-                      onClick={() => setCandidateTier("priority_outreach")}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        activeCandidateTier === "priority_outreach"
-                          ? "bg-slate-950 text-white"
-                          : "text-muted hover:text-foreground"
-                      }`}
-                    >
-                      {priorityTierLabel} ({priorityOutreachCount})
-                    </button>
-                    <button
-                      onClick={() => setCandidateTier("worth_reviewing")}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        activeCandidateTier === "worth_reviewing"
-                          ? "bg-slate-950 text-white"
-                          : "text-muted hover:text-foreground"
-                      }`}
-                    >
-                      {worthReviewingTierLabel} ({worthReviewingCount})
-                    </button>
-                  </div>
-                )}
+	            {isReviewable && (
+	              <div className="flex flex-wrap items-center gap-2">
+	                <div className="inline-flex rounded-full border border-border bg-background p-1">
+	                  <button
+	                    onClick={() => setPoolView("recommended")}
+	                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+	                      poolView === "recommended"
+	                        ? "bg-slate-950 text-white"
+	                        : "text-muted hover:text-foreground"
+	                    }`}
+	                  >
+	                    Recommended ({recommendedCount})
+	                  </button>
+	                  <button
+	                    onClick={() => setPoolView("full_pool")}
+	                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+	                      poolView === "full_pool"
+	                        ? "bg-slate-950 text-white"
+	                        : "text-muted hover:text-foreground"
+	                    }`}
+	                  >
+	                    Full pool ({allCandidates.length})
+	                  </button>
+	                </div>
                 <label className="flex items-center gap-2 text-xs text-muted">
                   <span>Sort by</span>
                   <select
@@ -1796,20 +1786,75 @@ export default function SearchResultPage() {
               </div>
             )}
           </div>
-          {visibleCandidates.length > 0 && (
-            <>
-              {activeCandidate && (
-                <div className="hidden gap-4 lg:grid lg:grid-cols-[360px_minmax(0,1fr)]">
+	          {visibleCandidates.length > 0 && (
+	            <>
+	              {poolView === "full_pool" && (
+	                <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
+	                  <div className="grid grid-cols-[minmax(220px,1.8fr)_minmax(140px,1fr)_72px_72px_72px_92px_minmax(120px,0.9fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+	                    <span>Profile</span>
+	                    <span>Location</span>
+	                    <span>Overall</span>
+	                    <span>Tech</span>
+	                    <span>Role fit</span>
+	                    <span>Reachability</span>
+	                    <span>Bucket</span>
+	                    <span>Main risk</span>
+	                  </div>
+	                  <div className="max-h-[560px] overflow-y-auto">
+	                    {visibleCandidates.map((candidate) => {
+	                      const currentRole = deriveCurrentRole(candidate);
+	                      const currentCompany = deriveCurrentCompany(candidate);
+	                      const risk =
+	                        candidate.metadata?.primary_risk ||
+	                        candidate.metadata?.suitability?.primary_risk ||
+	                        candidate.metadata?.why_not_higher?.[0] ||
+	                        candidate.metadata?.risk_flags?.[0] ||
+	                        "Verify fit before outreach";
+	                      return (
+	                        <button
+	                          key={candidate.id}
+	                          type="button"
+	                          onClick={() => {
+	                            setActiveCandidateId(candidate.id);
+	                            handleCandidateExpand(candidate);
+	                          }}
+	                          className={`grid w-full grid-cols-[minmax(220px,1.8fr)_minmax(140px,1fr)_72px_72px_72px_92px_minmax(120px,0.9fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+	                            candidate.id === activeCandidate?.id ? "bg-sky-50" : "bg-white"
+	                          }`}
+	                        >
+	                          <span className="min-w-0">
+	                            <span className="block truncate font-semibold text-slate-950">{candidate.name}</span>
+	                            <span className="block truncate text-xs text-slate-500">
+	                              {[currentRole, currentCompany].filter(Boolean).join(" at ") || candidate.headline || "LinkedIn profile"}
+	                            </span>
+	                          </span>
+	                          <span className="truncate text-slate-600">{candidate.location || "Unknown"}</span>
+	                          <span className="font-semibold text-slate-950">{getCandidateOverallScore(candidate)}</span>
+	                          <span className="text-slate-700">{getCandidateCapabilityScore(candidate) || "—"}</span>
+	                          <span className="text-slate-700">{getCandidateRelevanceScore(candidate) || "—"}</span>
+	                          <span className="text-slate-700">{getCandidateJoinLikelihoodScore(candidate) || "—"}</span>
+	                          <span className="truncate text-slate-700">{formatDeliveryBucketLabel(candidate)}</span>
+	                          <span className="line-clamp-2 text-xs leading-5 text-slate-500">{risk}</span>
+	                        </button>
+	                      );
+	                    })}
+	                  </div>
+	                </div>
+	              )}
+	              {activeCandidate && (
+	                <div className={`hidden gap-4 lg:grid lg:grid-cols-[360px_minmax(0,1fr)] ${poolView === "full_pool" ? "mt-4" : ""}`}>
                   <aside className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="mb-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Candidate queue
                       </p>
-                      <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                        {selectedTierLabel} ({visibleCandidates.length})
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-600">
-                        Work from the highest-signal people first. The right panel defaults to the copy-ready selling kit.
+	                      <h3 className="mt-2 text-lg font-semibold text-slate-950">
+	                        {selectedPoolLabel} ({visibleCandidates.length})
+	                      </h3>
+	                      <p className="mt-1 text-sm text-slate-600">
+	                        {poolView === "full_pool"
+	                          ? "Scan the full ranked pool with lower-priority context preserved."
+	                          : "Work from the recommended profiles first. The right panel defaults to the copy-ready selling kit."}
                       </p>
                     </div>
                     <div className="space-y-3">
@@ -1846,11 +1891,13 @@ export default function SearchResultPage() {
 
               <div className="space-y-3 lg:hidden">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                    {selectedTierLabel}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-700">
-                    Start with the strongest sellable profiles, then open each card for proof and outreach copy.
+	                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+	                    {selectedPoolLabel}
+	                  </p>
+	                  <p className="mt-1 text-sm text-slate-700">
+	                    {poolView === "full_pool"
+	                      ? "Use the full ranked pool to compare the market and recover edge cases."
+	                      : "Start with the strongest sellable profiles, then open each card for proof and outreach copy."}
                   </p>
                 </div>
                 {visibleCandidates.map((c, idx) => (
@@ -1886,14 +1933,14 @@ export default function SearchResultPage() {
                 Pool diagnostics and widening levers
               </summary>
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Why more candidates didn&apos;t make the shortlist
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    {ruledOutCount > 0
-                      ? `${ruledOutCount} deeply reviewed profiles were ruled out from the visible pool.`
-                      : "No ruled-out breakdown is available for this search yet."}
+	                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+	                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+	                    Why profiles landed lower
+	                  </p>
+	                  <p className="mt-2 text-sm text-slate-600">
+	                    {ruledOutCount > 0
+	                      ? `${ruledOutCount} deeply reviewed profiles were marked not recommended. They remain in the full pool for market coverage and manual review.`
+	                      : "No lower-priority breakdown is available for this search yet."}
                   </p>
                   <div className="mt-4 space-y-3">
                     {(excludedReasonCounts as Array<{ reason: ExcludedReason; count: number }>).map((item) => (
@@ -1938,11 +1985,11 @@ export default function SearchResultPage() {
 
       {isReviewable && allCandidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-          <p className="text-muted">No candidates entered the visible pool yet.</p>
-          <p className="mt-2 max-w-md text-center text-sm text-muted">
-            {excludedReasonCounts[0]
-              ? `Hirelix deeply reviewed ${formatDisplayCount(deepReviewCompletedCount)} profiles, but ${formatExcludedReasonLabel((excludedReasonCounts[0] as { reason: ExcludedReason; count: number }).reason).toLowerCase()} was the biggest blocker.`
-              : "Hirelix did not find enough candidates the recruiter model felt confident adding to this visible pool yet."}
+	          <p className="text-muted">No candidates entered the ranked pool yet.</p>
+	          <p className="mt-2 max-w-md text-center text-sm text-muted">
+	            {excludedReasonCounts[0]
+	              ? `Hirelix deeply reviewed ${formatDisplayCount(deepReviewCompletedCount)} profiles, but ${formatExcludedReasonLabel((excludedReasonCounts[0] as { reason: ExcludedReason; count: number }).reason).toLowerCase()} was the biggest blocker.`
+	              : "Hirelix did not find enough sourced profiles to build a ranked pool yet."}
           </p>
           {widenPoolSuggestions.length > 0 && (
             <div className="mt-4 max-w-2xl space-y-2 px-4">
@@ -1965,7 +2012,7 @@ export default function SearchResultPage() {
 
       {isReviewable && (
         <p className="mt-8 text-center text-xs text-slate-500">
-          Built for technical recruiters and headhunters. If your shortlist misses the mark or your billing looks wrong, email{" "}
+	          Built for technical recruiters and headhunters. If your candidate pool misses the mark or your billing looks wrong, email{" "}
           <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
             support@hirelix.online
           </a>

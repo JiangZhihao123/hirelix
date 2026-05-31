@@ -33,7 +33,7 @@ test.describe("Responsive - Landing Page", () => {
   test("should still render the major conversion sections on mobile", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "From client role to ranked shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "From client role to ranked candidate pool." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Pick the client-role volume you need." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();

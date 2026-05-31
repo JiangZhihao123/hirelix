@@ -14,6 +14,7 @@ import {
 } from "@/lib/search/normalize";
 import type { SearchExecutionProfile } from "@/lib/search-execution";
 import type {
+  CandidateDeliveryBucket,
   CandidateDisplayTier,
   CandidateRowInput,
   HiringBrief,
@@ -281,11 +282,15 @@ export function buildBrightDataCandidateRows(
     getDisplayTierForAssessment: (
       assessment: ScoredCandidateAssessment,
     ) => CandidateDisplayTier | null;
+    getDeliveryBucketForAssessment?: (
+      assessment: ScoredCandidateAssessment,
+      displayTier: CandidateDisplayTier | null,
+    ) => CandidateDeliveryBucket;
   },
 ) {
   const rows: CandidateRowInput[] = [];
 
-  for (const item of selected.slice(0, limit)) {
+  for (const [rankIndex, item] of selected.slice(0, limit).entries()) {
     const rawIndex = item.index;
     if (!Number.isFinite(rawIndex) || rawIndex < 0 || rawIndex >= profiles.length) continue;
 
@@ -296,6 +301,18 @@ export function buildBrightDataCandidateRows(
     );
     const primaryGithubUrl = publicLinks.github_urls[0] || null;
     const displayTier = options.getDisplayTierForAssessment(item);
+    const deliveryBucket =
+      options.getDeliveryBucketForAssessment?.(item, displayTier) ??
+      (displayTier === "priority_outreach"
+        ? "reach_first"
+        : displayTier === "worth_reviewing"
+          ? "review_next"
+          : item.suitability.advance_recommendation === "reject" ||
+              item.suitability.blocking_severity === "hard" ||
+              item.suitability.bucket === "do_not_show"
+            ? "not_recommended"
+            : "lower_priority");
+    const isRecommended = deliveryBucket === "reach_first" || deliveryBucket === "review_next";
     const derivedCompanyHeadline = profile.current_company
       ? `${profile.current_company.title || ""} at ${profile.current_company.name || ""}`.trim() || null
       : null;
@@ -323,9 +340,12 @@ export function buildBrightDataCandidateRows(
       metadata: {
         source: "brightdata",
         source_index: rawIndex,
+        scored_rank: rankIndex + 1,
         analysis_stage: "final",
         preliminary: false,
         pool_type: poolType,
+        delivery_bucket: deliveryBucket,
+        is_recommended: isRecommended,
         scoring_method: item.scoring_method || "selective_dual_review",
         judge_delta: item.judge_delta ?? 0,
         judge_conflict: item.judge_conflict ?? false,
