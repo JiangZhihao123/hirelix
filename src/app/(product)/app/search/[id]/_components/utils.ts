@@ -193,18 +193,25 @@ export function deriveCurrentRole(candidate: CandidateRow) {
 export function formatEvidenceStrength(value: GithubSignals["evidence_strength"]) {
   switch (value) {
     case "strong":
-      return "Strong evidence";
+      return "Strong public evidence";
     case "medium":
-      return "Medium evidence";
+      return "Medium public evidence";
     case "weak":
-      return "Weak evidence";
+      return "Light public evidence";
     default:
-      return "LinkedIn-only";
+      return "Profile fit reviewed";
   }
 }
 
-export function formatRecruiterSellingHeadline(candidate: CandidateRow) {
-  const pitch = getCandidateSellingKit(candidate)?.one_line_pitch?.trim();
+export function formatRecruiterSellingHeadline(
+  candidate: CandidateRow,
+  options: { hidePublicEvidence?: boolean } = {},
+) {
+  const sellingKit = getCandidateSellingKit(candidate);
+  if (options.hidePublicEvidence && sellingKit?.evidence_basis === "public_evidence") {
+    return null;
+  }
+  const pitch = sellingKit?.one_line_pitch?.trim();
   if (!pitch) return null;
 
   const normalized = pitch
@@ -212,24 +219,26 @@ export function formatRecruiterSellingHeadline(candidate: CandidateRow) {
     .replace(/^Based on LinkedIn,\s*/i, "")
     .replace(/\s+/g, " ")
     .replace(/[.!?]\s*$/, "");
+  const safeNormalized = hidePublicEvidenceLine(normalized);
+  if (!safeNormalized) return null;
 
-  if (normalized.length <= 92) return normalized;
+  if (safeNormalized.length <= 92) return safeNormalized;
 
   const breakpoint = Math.max(
-    normalized.lastIndexOf(" + ", 92),
-    normalized.lastIndexOf(" with ", 92),
-    normalized.lastIndexOf(", ", 92),
-    normalized.lastIndexOf(" and ", 92),
+    safeNormalized.lastIndexOf(" + ", 92),
+    safeNormalized.lastIndexOf(" with ", 92),
+    safeNormalized.lastIndexOf(", ", 92),
+    safeNormalized.lastIndexOf(" and ", 92),
   );
   const end = breakpoint >= 52 ? breakpoint : 89;
-  return `${normalized.slice(0, end).trim()}...`;
+  return `${safeNormalized.slice(0, end).trim()}...`;
 }
 
 export function getEvidenceSourceLabel(signals: GithubSignals | null) {
   if (signals?.status === "verified") return "GitHub evidence";
   if (signals?.status === "ambiguous_match") return "Possible GitHub match";
   if (signals?.status === "queued" || signals?.status === "running") return "GitHub review pending";
-  return "LinkedIn-only evidence";
+  return "Profile fit evidence";
 }
 
 export function getGithubBadge(signals: GithubSignals | null) {
@@ -246,12 +255,12 @@ export function getGithubBadge(signals: GithubSignals | null) {
     return { text: "Possible GitHub", className: "bg-violet-50 text-violet-700" };
   }
   if (signals?.status === "missing_public_data") {
-    return { text: "No GitHub found", className: "bg-slate-100 text-slate-600" };
+    return { text: "Profile fit reviewed", className: "bg-slate-100 text-slate-600" };
   }
   if (signals?.status === "api_error") {
-    return { text: "GitHub check failed", className: "bg-rose-50 text-rose-700" };
+    return { text: "Public check unavailable", className: "bg-rose-50 text-rose-700" };
   }
-  return { text: "LinkedIn only", className: "bg-blue-50 text-blue-700" };
+  return { text: "Profile fit reviewed", className: "bg-blue-50 text-blue-700" };
 }
 
 export function formatElapsedMinutes(ms: number | null) {
@@ -331,10 +340,10 @@ export function getCandidateScoreMetrics(candidate: CandidateRow) {
     },
     {
       key: "capability",
-      label: "Technical Evidence",
+      label: "Technical Fit",
       shortLabel: "Tech",
       score: getCandidateCapabilityScore(candidate),
-      description: "Engineering depth from LinkedIn plus verified public GitHub evidence when available.",
+      description: "Engineering depth from the profile, strengthened by public evidence when you run a deep dive.",
     },
     {
       key: "role_fit",
@@ -594,9 +603,12 @@ export function hasVerifiedPublicEvidence(candidate: CandidateRow) {
   );
 }
 
-export function getCandidateTrustLabel(candidate: CandidateRow) {
-  const publicEvidence = getCandidatePublicEvidence(candidate);
-  const githubSignals = getCandidateGithubSignals(candidate);
+export function getCandidateTrustLabel(
+  candidate: CandidateRow,
+  options: { hidePublicEvidence?: boolean } = {},
+) {
+  const publicEvidence = options.hidePublicEvidence ? null : getCandidatePublicEvidence(candidate);
+  const githubSignals = options.hidePublicEvidence ? null : getCandidateGithubSignals(candidate);
   const sellingKit = getCandidateSellingKit(candidate);
   const safePublicEvidenceCount = publicEvidence?.items?.filter(
     (item) =>
@@ -608,7 +620,7 @@ export function getCandidateTrustLabel(candidate: CandidateRow) {
 
   if (safePublicEvidenceCount > 0) {
     return {
-      label: "Public evidence verified",
+      label: "Public evidence ready",
       tone: "strong" as const,
       description: "Safe public proof is available for the client brief or outreach.",
     };
@@ -618,22 +630,22 @@ export function getCandidateTrustLabel(candidate: CandidateRow) {
     return {
       label: "GitHub verified",
       tone: "medium" as const,
-      description: "GitHub identity was found, but use the specific proof lines before pitching.",
+      description: "GitHub identity was found. Run a deep dive before using public proof in a pitch.",
     };
   }
 
   if (sellingKit?.evidence_basis === "linkedin_based") {
     return {
-      label: "LinkedIn-only, verify first",
-      tone: "caution" as const,
-      description: "Ranking is based on LinkedIn profile facts. Verify before outreach or client submission.",
+      label: "Profile fit reviewed",
+      tone: "medium" as const,
+      description: "Ranking is based on profile facts. Run public evidence research when this person is worth deeper review.",
     };
   }
 
   return {
-    label: "Evidence needs review",
-    tone: "caution" as const,
-    description: "Public proof is missing or not strong enough to lead with yet.",
+    label: "Fit reviewed",
+    tone: "medium" as const,
+    description: "Hirelix scored the profile fit and risks. Public evidence can be added on demand.",
   };
 }
 
@@ -649,15 +661,38 @@ function isUsefulProofLine(value: string | null | undefined) {
     "not available",
     "missing",
     "failed",
+    "still looks worth reviewing",
+    "profile fit worth reviewing",
+    "run a public evidence deep dive before citing",
+    "public engineering evidence has not been researched",
   ];
   return !weakPhrases.some((phrase) => normalized.includes(phrase));
 }
 
-export function getCandidateDecisionAudit(candidate: CandidateRow, rank?: number) {
+export function hidePublicEvidenceLine(value: string | null | undefined) {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+  const publicEvidenceFallbackPhrases = [
+    "no public github evidence was verified",
+    "still looks worth reviewing from linkedin",
+    "run a public evidence deep dive before citing",
+    "public engineering evidence has not been researched",
+  ];
+  if (publicEvidenceFallbackPhrases.some((phrase) => normalized.includes(phrase))) {
+    return null;
+  }
+  return value;
+}
+
+export function getCandidateDecisionAudit(
+  candidate: CandidateRow,
+  rank?: number,
+  options: { hidePublicEvidence?: boolean } = {},
+) {
   const sellingKit = getCandidateSellingKit(candidate);
-  const publicEvidence = getCandidatePublicEvidence(candidate);
-  const githubSignals = getCandidateGithubSignals(candidate);
-  const trust = getCandidateTrustLabel(candidate);
+  const publicEvidence = options.hidePublicEvidence ? null : getCandidatePublicEvidence(candidate);
+  const githubSignals = options.hidePublicEvidence ? null : getCandidateGithubSignals(candidate);
+  const trust = getCandidateTrustLabel(candidate, options);
   const currentRole = deriveCurrentRole(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const score = getCandidateOverallScore(candidate);
@@ -679,7 +714,9 @@ export function getCandidateDecisionAudit(candidate: CandidateRow, rank?: number
     ...(githubSignals?.evidence_summary || []),
     ...(sellingKit?.client_brief?.why_match || []),
     ...candidate.match_reasons,
-  ].filter((line): line is string => typeof line === "string" && isUsefulProofLine(line));
+  ]
+    .map((line) => (options.hidePublicEvidence ? hidePublicEvidenceLine(line) : line))
+    .filter((line): line is string => typeof line === "string" && isUsefulProofLine(line));
   const riskLines = [
     ...(sellingKit?.client_brief?.risks_to_verify || []),
     ...(sellingKit?.risk_flags || []),
@@ -700,14 +737,14 @@ export function getCandidateDecisionAudit(candidate: CandidateRow, rank?: number
         ? "Contact first. Use the strongest proof line in the opener."
         : hasStrongEvidence || hasMediumEvidence
           ? "Review then contact. Confirm fit before sending."
-          : "Verify first. Treat as LinkedIn-only until proof is checked.";
+          : "Review fit and risks before outreach.";
   const rankPrefix = typeof rank === "number" ? `#${rank}: ` : "";
   const rankingReason =
     `${rankPrefix}${currentRole}${currentCompany ? ` at ${currentCompany}` : ""} ranks here because overall ${score}, technical ${capability || "unknown"}, role fit ${relevance || "unknown"}, reachability ${reachability || "unknown"}.`;
 
   return {
     trust,
-    proofLines: uniqueProof.length > 0 ? uniqueProof : ["LinkedIn profile facts support initial review, but no public proof is ready to cite."],
+    proofLines: uniqueProof.length > 0 ? uniqueProof : ["Profile facts support initial review; run a public evidence deep dive when you need citable proof."],
     riskLines: uniqueRisks.length > 0 ? uniqueRisks : ["Verify current interest, compensation range, and role scope before pitching."],
     nextAction,
     rankingReason,

@@ -25,23 +25,32 @@ export function CandidateWorkbenchListItem({
   candidate,
   selected,
   onSelect,
+  billingPlanCode,
   isNew,
 }: {
   candidate: CandidateRow;
   selected: boolean;
   onSelect: () => void;
+  billingPlanCode: import("@/lib/billing").BillingPlanCode;
   isNew?: boolean;
 }) {
+  const hidePublicEvidence = billingPlanCode === "free";
   const overallScore = getCandidateOverallScore(candidate);
-  const githubSignals = getCandidateGithubSignals(candidate);
-  const githubBadge = getGithubBadge(githubSignals);
+  const githubSignals = hidePublicEvidence ? null : getCandidateGithubSignals(candidate);
+  const githubBadge = hidePublicEvidence
+    ? { text: "Profile fit reviewed", className: "bg-blue-50 text-blue-700" }
+    : getGithubBadge(githubSignals);
   const scoreMetrics = getCandidateScoreMetrics(candidate).filter((metric) => metric.key !== "overall");
   const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
   const displayName = sanitizeDisplayName(candidate.name);
-  const recruiterHeadline = formatRecruiterSellingHeadline(candidate);
-  const audit = getCandidateDecisionAudit(candidate);
+  const recruiterHeadline = formatRecruiterSellingHeadline(candidate, {
+    hidePublicEvidence,
+  });
+  const audit = getCandidateDecisionAudit(candidate, undefined, {
+    hidePublicEvidence,
+  });
   const recommendationLabel =
     sellingKit?.recommendation === "reach_out_first"
       ? "Reach out first"
@@ -136,7 +145,7 @@ export function CandidateWorkbenchListItem({
             <span className={`rounded-full px-2.5 py-1 text-[11px] ${githubBadge.className}`}>
               {githubBadge.text}
             </span>
-            {(sellingKit?.evidence_badges || []).slice(0, 3).map((badge, index) => (
+            {!hidePublicEvidence && (sellingKit?.evidence_badges || []).slice(0, 3).map((badge, index) => (
               <span
                 key={`${badge.label}-${badge.citation_label}-${index}`}
                 className={`rounded-full border px-2.5 py-1 text-[11px] ${
@@ -150,7 +159,7 @@ export function CandidateWorkbenchListItem({
                 {[badge.label, badge.citation_label].filter(Boolean).join(" ")}
               </span>
             ))}
-            {(!sellingKit?.evidence_badges || sellingKit.evidence_badges.length === 0) && (
+            {(hidePublicEvidence || !sellingKit?.evidence_badges || sellingKit.evidence_badges.length === 0) && (
               <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
                 {formatEvidenceStrength(githubSignals?.evidence_strength)}
               </span>

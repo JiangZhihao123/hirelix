@@ -136,8 +136,11 @@ function reasonIsBoilerplate(reason: string) {
   if (!normalized) return true;
   return [
     "still looks worth reviewing",
+    "profile fit worth reviewing",
+    "run a public evidence deep dive",
     "looks worth contacting",
     "no public github evidence was verified",
+    "public engineering evidence has not been researched",
     "github supports the linkedin story",
     "location fits",
     "location in ",

@@ -127,15 +127,16 @@ export function buildRecruiterFacingGithubReadout(params: {
     const company = params.currentCompany || extractCurrentCompanyFromHeadline(params.headline);
     const role = extractPrimaryRoleFromHeadline(params.headline) || "engineering work";
     const skillHint = compactStringArray(params.requiredSkills, 2).join(" and ");
+    const roleLine = `${params.candidateName} has profile fit worth reviewing as ${role}${company ? ` at ${company}` : ""}.`;
     return {
       evidenceStrength: "none" as GithubEvidenceStrength,
-      recruiterSummary: `${params.candidateName} still looks worth reviewing from LinkedIn as a ${role}${company ? ` at ${company}` : ""}, but no public GitHub evidence was verified.`,
+      recruiterSummary: `${roleLine} Run a public evidence deep dive before citing off-profile proof.`,
       outreachAngle: skillHint
-        ? `Lead with the LinkedIn background and connect it to the role's ${skillHint} needs.`
-        : "Lead with one concrete LinkedIn career detail instead of code evidence.",
+        ? `Lead with the profile background and connect it to the role's ${skillHint} needs.`
+        : "Lead with one concrete profile detail instead of public code evidence.",
       verificationRisks: compactStringArray(
         [
-          "No public GitHub footprint was verified, so technical depth should be checked manually.",
+          "Public engineering evidence has not been researched yet; verify technical depth before client submission.",
           params.discoveryConfidence > 0 ? "A possible GitHub match existed, but identity confidence stayed too low." : null,
         ],
         3,

@@ -5,7 +5,6 @@ import type {
   SearchDisplayStats,
   SearchExecutionRuntime,
 } from "@/lib/search/types";
-import { enqueueGithubEnrichmentJobsForSearch } from "@/lib/github-enrichment-jobs";
 
 export async function completeSearch(
   context: PipelineContext,
@@ -118,16 +117,6 @@ export async function completeSearch(
   helpers.logSearchEvent("public_evidence_jobs_on_demand", {
     search_id: context.searchId,
     eligible_candidates: draftedRows.length,
-  });
-
-  const githubQueueResult = await enqueueGithubEnrichmentJobsForSearch({
-    searchId: context.searchId,
-    userId: context.userId,
-    limit: draftedRows.length,
-  });
-  helpers.logSearchEvent("github_enrichment_jobs_enqueued", {
-    search_id: context.searchId,
-    ...githubQueueResult,
   });
 
   const finalParsed = helpers.withDisplayStats(parsed, finalDisplayStats);

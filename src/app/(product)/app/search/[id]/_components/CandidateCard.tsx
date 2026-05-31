@@ -182,6 +182,7 @@ export function CandidateCard({
     billingPlanCode === "free" &&
     advanceRecommendation !== "reject" &&
     blockingSeverity !== "hard";
+  const requiresPublicEvidenceUpgrade = billingPlanCode === "free";
   const blockingConstraints =
     candidate.metadata?.blocking_constraints ??
     suitability?.blocking_constraints ??
@@ -200,13 +201,19 @@ export function CandidateCard({
     null;
   const githubSignals = getCandidateGithubSignals(candidate);
   const publicEvidence = getCandidatePublicEvidence(localCandidate);
-  const publicEvidenceItems = publicEvidence?.items || [];
-  const githubBadge = getGithubBadge(githubSignals);
+  const publicEvidenceItems = requiresPublicEvidenceUpgrade ? [] : publicEvidence?.items || [];
+  const githubBadge = requiresPublicEvidenceUpgrade
+    ? { text: "Profile fit reviewed", className: "bg-blue-50 text-blue-700" }
+    : getGithubBadge(githubSignals);
   const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
-  const recruiterHeadline = formatRecruiterSellingHeadline(candidate);
-  const audit = getCandidateDecisionAudit(candidate);
+  const recruiterHeadline = formatRecruiterSellingHeadline(candidate, {
+    hidePublicEvidence: requiresPublicEvidenceUpgrade,
+  });
+  const audit = getCandidateDecisionAudit(candidate, undefined, {
+    hidePublicEvidence: requiresPublicEvidenceUpgrade,
+  });
   const sellingBadges = sellingKit?.evidence_badges || [];
   const sellingRisks = sellingKit?.risk_flags || [];
   const recommendationLabel =
@@ -486,12 +493,12 @@ export function CandidateCard({
                   </div>
                   <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
                     <span className="font-semibold">{githubBadge.text}</span>
-                    <span> · {formatEvidenceStrength(githubSignals?.evidence_strength)}. Verified GitHub can strengthen Technical Evidence; possible matches are not used in scoring.</span>
+                    <span> · {formatEvidenceStrength(requiresPublicEvidenceUpgrade ? undefined : githubSignals?.evidence_strength)}. Public evidence deep dives can strengthen the pitch when you choose to run them.</span>
                   </div>
                   {publicEvidenceItems.length === 0 && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      <span className="flex-1">Run public evidence research when this profile is worth deeper review.</span>
-                      {billingPlanCode === "free" ? (
+                      <span className="flex-1">Run a public evidence deep dive when this profile is worth deeper review.</span>
+                      {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
                           label="Upgrade to Starter"

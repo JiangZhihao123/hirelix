@@ -34,6 +34,7 @@ import {
   getCandidateScoreMetrics,
   getEvidenceSourceLabel,
   formatRecruiterSellingHeadline,
+  hidePublicEvidenceLine,
   parseOutreach,
 } from "./utils";
 import { ActionabilityBadge, ContactActionStrip, InitialsAvatar, ScoreBadge } from "./ui";
@@ -117,6 +118,7 @@ export function CandidateWorkbenchDetail({
   const [localCandidate, setLocalCandidate] = useState(candidate);
   const { user } = useAuth();
   const requiresEmailUpgrade = billingPlanCode === "free";
+  const requiresPublicEvidenceUpgrade = billingPlanCode === "free";
 
   useEffect(() => {
     setLocalCandidate(candidate);
@@ -132,11 +134,17 @@ export function CandidateWorkbenchDetail({
   const currentRole = deriveCurrentRole(localCandidate);
   const localDisplayName = sanitizeDisplayName(localCandidate.name);
   const suitability = localCandidate.metadata?.suitability;
-  const githubSignals = getCandidateGithubSignals(localCandidate);
-  const publicEvidence = getCandidatePublicEvidence(localCandidate);
+  const rawGithubSignals = getCandidateGithubSignals(localCandidate);
+  const rawPublicEvidence = getCandidatePublicEvidence(localCandidate);
+  const githubSignals = requiresPublicEvidenceUpgrade ? null : rawGithubSignals;
+  const publicEvidence = requiresPublicEvidenceUpgrade ? null : rawPublicEvidence;
   const sellingKit = getCandidateSellingKit(localCandidate);
-  const audit = getCandidateDecisionAudit(localCandidate);
-  const recruiterHeadline = formatRecruiterSellingHeadline(localCandidate);
+  const audit = getCandidateDecisionAudit(localCandidate, undefined, {
+    hidePublicEvidence: requiresPublicEvidenceUpgrade,
+  });
+  const recruiterHeadline = formatRecruiterSellingHeadline(localCandidate, {
+    hidePublicEvidence: requiresPublicEvidenceUpgrade,
+  });
   const outreach = parseOutreach(localCandidate.outreach_draft);
   const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
   const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
@@ -205,14 +213,14 @@ export function CandidateWorkbenchDetail({
       label: "Activity trend",
       value: hasVerifiedGithub
         ? githubSignals?.activity_trend || "No activity trend computed"
-        : "No public GitHub data",
+        : "Not researched yet",
     },
     {
       label: "Real stack",
       value:
         hasVerifiedGithub && githubSignals?.top_languages && githubSignals.top_languages.length > 0
           ? githubSignals.top_languages.slice(0, 3).join(", ")
-          : "Only LinkedIn evidence available",
+          : "Profile-based fit only",
     },
     {
       label: "Merged PRs",
@@ -259,17 +267,19 @@ export function CandidateWorkbenchDetail({
           },
         ]
       : githubSignalCards;
+  const safeShortlistReason = hidePublicEvidenceLine(shortlistReason);
+  const safeFirstMatchReason = hidePublicEvidenceLine(localCandidate.match_reasons[0]);
   const whyContactSummary =
     publicEvidence?.summary ||
     githubSignals?.recruiter_summary ||
-    shortlistReason ||
-    localCandidate.match_reasons[0] ||
-    `${localDisplayName} looks relevant based on current LinkedIn evidence.`;
+    safeShortlistReason ||
+    safeFirstMatchReason ||
+    `${localDisplayName} looks relevant based on profile fit and risk signals.`;
   const proofToReference =
     primaryEvidenceItem?.evidence_summary ||
     githubSignals?.highlight ||
     githubSignals?.evidence_summary?.[0] ||
-    localCandidate.match_reasons[0] ||
+    safeFirstMatchReason ||
     "No specific proof line is ready yet.";
   const verificationChecklist = [
     ...(githubSignals?.verification_risks || []),
@@ -284,7 +294,7 @@ export function CandidateWorkbenchDetail({
     githubSignals?.outreach_angle ||
     (publicEvidenceItems.length > 0
       ? "Lead with the strongest verified public engineering evidence."
-      : "No verified public engineering evidence found yet — reference their most relevant LinkedIn experience directly in the opening line.");
+      : "Use the most relevant profile experience in the opening line, or run a deep dive before citing public proof.");
 
   async function handleEnrich(options: { regenerateOutreach?: boolean } = {}) {
     if (enriching || !user) return;
@@ -558,7 +568,7 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-slate-700">
-                      No public engineering proof is safe enough to lead with yet. Use LinkedIn facts conservatively.
+                      Public proof has not been prepared for this candidate yet. Use the profile fit notes, or run a deep dive before citing public sources.
                     </p>
                   )}
                 </div>
@@ -616,16 +626,18 @@ export function CandidateWorkbenchDetail({
                   </div>
                 )) : (
                   <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                    No verified public engineering evidence found yet.
+                    Public evidence has not been researched for this candidate yet.
                   </p>
                 )}
                 {publicEvidenceItems.length === 0 && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <p className="flex-1 text-sm text-slate-600">
-                        Run a public evidence deep dive when this candidate is worth a closer look.
+                        {requiresPublicEvidenceUpgrade
+                          ? "Upgrade to run public evidence deep dives on the candidates you choose."
+                          : "Run a public evidence deep dive when this candidate is worth a closer look."}
                       </p>
-                      {billingPlanCode === "free" ? (
+                      {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
                           label="Upgrade to Starter"
@@ -857,7 +869,7 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-slate-700">
-                      No public engineering proof is safe enough to lead with yet. Use LinkedIn facts conservatively.
+                      Public proof has not been prepared for this candidate yet. Use the profile fit notes, or run a deep dive before citing public sources.
                     </p>
                   )}
                 </div>
@@ -975,7 +987,7 @@ export function CandidateWorkbenchDetail({
                 ))}
               </div>
               <p className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-                Verified public evidence can strengthen Technical Evidence and outreach confidence. Missing public evidence does not lower the score.
+                Public evidence deep dives can strengthen technical fit and outreach confidence when you choose to run them.
               </p>
             </div>
 
@@ -1113,12 +1125,14 @@ export function CandidateWorkbenchDetail({
                 <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3">
                   <p className="text-sm text-slate-500">
                     {publicEvidence?.status === "queued" || publicEvidence?.status === "running"
-                      ? "Public evidence review is pending. Current ranking stays based on LinkedIn evidence until the background check finishes."
-                      : "No verified public engineering evidence found yet. Current ranking stays based on LinkedIn evidence only."}
+                      ? "Public evidence review is pending. Current ranking stays based on profile fit and risk signals until the background check finishes."
+                      : requiresPublicEvidenceUpgrade
+                        ? "Upgrade to run public evidence deep dives on selected candidates. The current ranking is based on profile fit and risk signals."
+                        : "Public evidence has not been researched yet. Current ranking stays based on profile fit and risk signals."}
                   </p>
                   {publicEvidence?.status !== "queued" && publicEvidence?.status !== "running" && (
                     <div className="mt-3">
-                      {billingPlanCode === "free" ? (
+                      {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
                           label="Upgrade to Starter"
@@ -1300,7 +1314,7 @@ export function CandidateWorkbenchDetail({
                 </p>
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">{localDisplayName}</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Leads with verified public engineering evidence when available; falls back to LinkedIn highlights when public evidence is missing.
+                  Lead with verified public engineering evidence when available; otherwise use the strongest profile-based fit signal.
                 </p>
                 <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
                   Current source: {publicEvidenceSourceLabel}

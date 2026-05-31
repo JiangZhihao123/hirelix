@@ -8,7 +8,6 @@ type TimelineMetrics = {
   recalledCount?: number | null;
   reviewedCount?: number | null;
   visibleCandidateCount?: number | null;
-  evidenceCount?: number | null;
 };
 
 export function TaskTimelinePanel({
@@ -38,9 +37,8 @@ export function TaskTimelinePanel({
     }
     if (label === "Shortlist ready") {
       const visible = metrics?.visibleCandidateCount ?? 0;
-      const evidence = metrics?.evidenceCount ?? 0;
       return visible > 0
-        ? `${visible} visible candidates, ${evidence} with public evidence`
+        ? `${visible} candidates ready to review`
         : "Candidate pool appears here when ready";
     }
     return null;

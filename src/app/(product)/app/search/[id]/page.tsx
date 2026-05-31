@@ -82,7 +82,7 @@ import {
   getSearchErrorPresentation,
   getCandidateDecisionAudit,
   getSearchPageCacheKey,
-  hasVerifiedPublicEvidence,
+  hidePublicEvidenceLine,
   parseOutreach,
   positiveInt,
   readSearchPageCache,
@@ -93,9 +93,9 @@ import { CandidateWorkbenchDetail } from "./_components/CandidateWorkbenchDetail
 import { CandidateWorkbenchListItem } from "./_components/CandidateWorkbenchListItem";
 import { TaskTimelinePanel } from "./_components/TaskTimelinePanel";
 
-function buildCandidateClientBrief(candidate: CandidateRow, index: number) {
+function buildCandidateClientBrief(candidate: CandidateRow, index: number, hidePublicEvidence = false) {
   const sellingKit = getCandidateSellingKit(candidate);
-  const headline = formatRecruiterSellingHeadline(candidate);
+  const headline = formatRecruiterSellingHeadline(candidate, { hidePublicEvidence });
   const currentRole = deriveCurrentRole(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const titleLine = [
@@ -105,10 +105,11 @@ function buildCandidateClientBrief(candidate: CandidateRow, index: number) {
     candidate.location,
   ].filter(Boolean).join(" | ");
   const clientBrief = sellingKit?.client_brief;
-  const whyMatch = clientBrief?.why_match?.length
+  const whyMatchSource = clientBrief?.why_match?.length
     ? clientBrief.why_match
     : candidate.match_reasons.slice(0, 3);
-  const evidence = clientBrief?.evidence_refs?.length
+  const whyMatch = whyMatchSource.map(hidePublicEvidenceLine).filter((item): item is string => Boolean(item));
+  const evidence = hidePublicEvidence ? [] : clientBrief?.evidence_refs?.length
     ? clientBrief.evidence_refs
     : (sellingKit?.evidence_badges || [])
         .map((badge) => [badge.label, badge.citation_label].filter(Boolean).join(" "))
@@ -119,7 +120,7 @@ function buildCandidateClientBrief(candidate: CandidateRow, index: number) {
 
   return [
     titleLine,
-    headline || clientBrief?.positioning || candidate.headline || "",
+    headline || hidePublicEvidenceLine(clientBrief?.positioning) || candidate.headline || "",
     whyMatch.length ? "Why match:" : "",
     ...whyMatch.map((item) => `- ${item}`),
     evidence.length ? "Evidence:" : "",
@@ -832,6 +833,7 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.delivered_candidate_count) ?? allCandidates.length;
   const priorityOutreachCount = actualPriorityOutreachCount;
   const worthReviewingCount = actualWorthReviewingCount;
+  const isFreePlan = billing?.plan.code === "free";
   const ruledOutCount =
     positiveInt(rawDisplayStats?.ruled_out_count) ??
     positiveInt(rawDisplayStats?.do_not_show_count) ??
@@ -875,8 +877,6 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
-  const githubBackedCandidateCount = allCandidates.filter(hasVerifiedPublicEvidence).length;
-  const githubBackedVisibleCount = visibleCandidates.filter(hasVerifiedPublicEvidence).length;
   const selectedTierLabel = hasTieredPool ? formatTierLabel(activeCandidateTier) : "Candidate pool";
   const priorityTierLabel = formatTierLabel("priority_outreach");
   const worthReviewingTierLabel = formatTierLabel("worth_reviewing");
@@ -902,14 +902,16 @@ export default function SearchResultPage() {
     .slice(0, 3)
     .map((candidate, index) => ({
       candidate,
-      audit: getCandidateDecisionAudit(candidate, index + 1),
+      audit: getCandidateDecisionAudit(candidate, index + 1, {
+        hidePublicEvidence: isFreePlan,
+      }),
     }));
   const clientReadyBriefText = [
     `Client-ready shortlist: ${displayTitle}`,
     locationScope ? `Location/work model: ${[locationScope, workModel].filter(Boolean).join(" | ")}` : null,
     requiredSkills.length > 0 ? `Must-haves: ${requiredSkills.slice(0, 8).join(", ")}` : null,
     "",
-    ...clientReadyCandidates.map((candidate, index) => buildCandidateClientBrief(candidate, index)),
+    ...clientReadyCandidates.map((candidate, index) => buildCandidateClientBrief(candidate, index, isFreePlan)),
   ].filter((line): line is string => typeof line === "string").join("\n\n");
   const outreachQueueCandidates = (priorityCandidates.length > 0 ? priorityCandidates : visibleCandidates)
     .filter((candidate) => candidate.status !== "rejected" && candidate.status !== "placed")
@@ -922,7 +924,9 @@ export default function SearchResultPage() {
     placed: allCandidates.filter((candidate) => candidate.status === "placed").length,
   };
   const risksFoundCount = allCandidates.filter((candidate) => {
-    const audit = getCandidateDecisionAudit(candidate);
+    const audit = getCandidateDecisionAudit(candidate, undefined, {
+      hidePublicEvidence: isFreePlan,
+    });
     return audit.riskLines.length > 0;
   }).length;
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
@@ -1063,7 +1067,7 @@ export default function SearchResultPage() {
               )}
               {launchScope === "linkedin_plus_github" && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  LinkedIn search + GitHub evidence when available
+                  Public evidence available as a deep dive
                 </span>
               )}
             </div>
@@ -1137,7 +1141,6 @@ export default function SearchResultPage() {
                 recalledCount: recallProfileCount,
                 reviewedCount: deepReviewCompletedCount,
                 visibleCandidateCount,
-                evidenceCount: githubBackedCandidateCount,
               }}
             />
           </div>
@@ -1302,8 +1305,8 @@ export default function SearchResultPage() {
                 <span className="text-sm font-semibold text-slate-950">{formatDisplayCount(recallProfileCount)}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Evidence</span>
-                <span className="text-sm font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Risks found</span>
+                <span className="text-sm font-semibold text-slate-950">{risksFoundCount}</span>
               </div>
             </div>
           </div>
@@ -1345,8 +1348,8 @@ export default function SearchResultPage() {
                   <p className="mt-1 text-xl font-semibold text-slate-950">{shortlistNoCount || ruledOutCount}</p>
                 </div>
                 <div className="min-w-0 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
-                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">Evidence</p>
-                  <p className="mt-1 text-xl font-semibold text-slate-950">{githubBackedCandidateCount}/{allCandidates.length}</p>
+                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">Risks found</p>
+                  <p className="mt-1 text-xl font-semibold text-slate-950">{risksFoundCount}</p>
                 </div>
               </div>
             </div>
@@ -1422,7 +1425,7 @@ export default function SearchResultPage() {
             <div className="mt-4 space-y-3">
               {clientReadyCandidates.map((candidate, index) => {
                 const sellingKit = getCandidateSellingKit(candidate);
-                const headline = formatRecruiterSellingHeadline(candidate);
+                const headline = formatRecruiterSellingHeadline(candidate, { hidePublicEvidence: isFreePlan });
                 const currentCompany = deriveCurrentCompany(candidate);
                 const currentRole = deriveCurrentRole(candidate);
                 return (
@@ -1437,7 +1440,10 @@ export default function SearchResultPage() {
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-700">
-                      {headline || sellingKit?.client_brief?.positioning || candidate.match_reasons[0] || "Relevant based on the current search evidence."}
+                      {headline ||
+                        hidePublicEvidenceLine(sellingKit?.client_brief?.positioning) ||
+                        hidePublicEvidenceLine(candidate.match_reasons[0]) ||
+                        "Relevant based on the current profile fit and risk signals."}
                     </p>
                     {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).length > 0 && (
                       <p className="mt-2 text-xs text-amber-700">
@@ -1631,7 +1637,7 @@ export default function SearchResultPage() {
                 { label: "Reach out first", value: priorityOutreachCount },
                 { label: "Worth reviewing", value: worthReviewingCount },
                 { label: "Screened out", value: shortlistNoCount || ruledOutCount },
-                { label: "Email-ready", value: contactUnlockCandidates },
+                { label: "Contact lookup", value: contactUnlockCandidates },
                 { label: "Risks found", value: risksFoundCount },
               ].map((item) => (
                 <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
@@ -1643,16 +1649,16 @@ export default function SearchResultPage() {
               ))}
             </div>
           </section>
-          {billing?.plan.code === "free" && (billing?.usage.enrichesRemaining ?? 0) <= 0 && allCandidates.length > 0 && (
+          {isFreePlan && (billing?.usage.enrichesRemaining ?? 0) <= 0 && allCandidates.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
                 Action unlock
               </p>
               <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                Unlock email lookup for the strongest matches.
+                Unlock contact lookup and deep evidence when you are ready.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Start a subscription for email lookup, CSV export, and outreach when you&apos;re ready to work this candidate pool.
+                Upgrade for email lookup, public evidence deep dives, CSV export, and client-ready briefs on the candidates you choose.
               </p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{priorityOutreachCount} {priorityTierLabel.toLowerCase()}</span>
@@ -1661,7 +1667,7 @@ export default function SearchResultPage() {
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
                 <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{firstContactConfidenceCount} high-confidence first contacts</span>
-                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} ready for email unlock</span>
+                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} contact lookups available</span>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
@@ -1672,7 +1678,7 @@ export default function SearchResultPage() {
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 />
                 <p className="text-xs text-slate-600">
-                  You can already review fit evidence now. Upgrade when you&apos;re ready to reach out.
+                  You can review fit reasons, risks, and outreach drafts now.
                 </p>
               </div>
             </div>
@@ -1699,11 +1705,9 @@ export default function SearchResultPage() {
                   </>
                 )}
                 {contactUnlockCandidates > 0 && (
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} email unlocks</span>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} contact lookups</span>
                 )}
-                {visibleCandidates.length > 0 && (
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{githubBackedVisibleCount}/{visibleCandidates.length} GitHub evidence</span>
-                )}
+                <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{risksFoundCount} risks flagged</span>
                 <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
                   {deliveredCandidateCount} qualified
                 </span>
@@ -1818,6 +1822,7 @@ export default function SearchResultPage() {
                             setActiveCandidateId(candidate.id);
                             handleCandidateExpand(candidate);
                           }}
+                          billingPlanCode={billing?.subscription.planCode || "free"}
                           isNew={isImprovingInBackground && newCandidateIds.has(candidate.id)}
                         />
                       ))}
