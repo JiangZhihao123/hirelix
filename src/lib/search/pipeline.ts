@@ -1525,11 +1525,24 @@ async function buildBrightDataDatasetCandidates(
     );
   }
 
-  if (metadata?.status === "failed" && metadata.warning_code === "no_records_found") {
+  const deferredAdditionalRounds = additionalSnapshotStates.filter(
+    (round) => round.metadata.status === "scheduled" || round.metadata.status === "building",
+  );
+  const waitingOnAdditional = deferredAdditionalRounds.length > 0;
+  const standardNoRecords =
+    metadata?.status === "failed" && metadata.warning_code === "no_records_found";
+  const hasAdditionalFallback = additionalSnapshotStates.some(
+    (round) =>
+      round.metadata.status === "ready" ||
+      round.metadata.status === "scheduled" ||
+      round.metadata.status === "building",
+  );
+
+  if (standardNoRecords && !hasAdditionalFallback) {
     throw new Error(
       `Bright Data dataset recall returned no records for snapshot ${activeSnapshotId}; fix recall filters instead of relaxing them automatically.`,
     );
-  } else if (metadata?.status === "failed") {
+  } else if (metadata?.status === "failed" && !standardNoRecords) {
     if (standardCacheEntry) {
       await expireCachedSnapshot(activeSnapshotId);
       helpers.logSearchEvent("search_snapshot_cache_expired", {
@@ -1544,11 +1557,7 @@ async function buildBrightDataDatasetCandidates(
     throw new Error(formatBrightDataSnapshotFailure(activeSnapshotId, metadata));
   }
 
-  const waitingOnStandard = metadata?.status !== "ready";
-  const deferredAdditionalRounds = additionalSnapshotStates.filter(
-    (round) => round.metadata.status === "scheduled" || round.metadata.status === "building",
-  );
-  const waitingOnAdditional = deferredAdditionalRounds.length > 0;
+  const waitingOnStandard = metadata?.status !== "ready" && (!standardNoRecords || waitingOnAdditional);
 
   if (waitingOnStandard) {
     helpers.logSearchEvent("search_snapshot_poll_status", {
@@ -1730,7 +1739,7 @@ async function buildBrightDataDatasetCandidates(
     }
   }
 
-  if (!profiles.length) {
+  if (!profiles.length && !standardNoRecords) {
     helpers.logSearchEvent("search_provider_failed", {
       search_id: context.searchId,
       provider: "brightdata_dataset",
