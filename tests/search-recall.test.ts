@@ -297,8 +297,13 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(companyRound);
   assert.ok(companyRound.diagnostics.title_terms.includes("staff data platform engineer"));
   assert.ok(companyRound.diagnostics.title_terms.includes("data infrastructure engineer"));
+  assert.ok(companyRound.diagnostics.title_terms.includes("senior software engineer"));
+  assert.ok(companyRound.diagnostics.title_terms.includes("staff software engineer"));
+  assert.ok(companyRound.diagnostics.title_terms.includes("senior backend engineer"));
   assert.ok(!companyRound.diagnostics.title_terms.includes("web platform engineer"));
+  assert.ok(leafValues(companyRound.request.filter).includes("big data compute"));
+  assert.ok(leafValues(companyRound.request.filter).includes("apache druid"));
+  assert.ok(leafValues(companyRound.request.filter).includes("spark"));
   assert.ok(leafValues(companyRound.request.filter).includes("kafka"));
-  assert.ok(leafValues(companyRound.request.filter).includes("kubernetes"));
   assert.ok(maxGroupDepth(chunkBrightDataFilter(companyRound.request.filter)) <= 3);
 });

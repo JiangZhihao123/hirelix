@@ -160,6 +160,19 @@ const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Backend Data Infrastructure Engineer",
 ];
 
+const DATA_PLATFORM_COMPANY_TARGET_TITLES = [
+  "Senior Software Engineer",
+  "Staff Software Engineer",
+  "Principal Software Engineer",
+  "Lead Software Engineer",
+  "Senior Backend Engineer",
+  "Staff Backend Engineer",
+  "Senior Infrastructure Engineer",
+  "Staff Infrastructure Engineer",
+  "Senior Platform Engineer",
+  "Staff Platform Engineer",
+];
+
 const DATA_PLATFORM_KEYWORDS = [
   "data platform",
   "data infrastructure",
@@ -176,6 +189,26 @@ const DATA_PLATFORM_KEYWORDS = [
   "iceberg",
   "lakehouse",
   "query engine",
+];
+
+const DATA_PLATFORM_HIGH_SIGNAL_TERMS = [
+  "big data compute",
+  "data systems",
+  "distributed data systems",
+  "streaming platform",
+  "data platform",
+  "data infrastructure",
+  "query platform",
+  "metadata platform",
+  "workflow platform",
+  "kafka",
+  "pulsar",
+  "spark",
+  "flink",
+  "druid",
+  "airflow",
+  "databricks",
+  "iceberg",
 ];
 
 const DATA_PLATFORM_CORE_KEYWORDS = [
@@ -392,8 +425,22 @@ function buildDataPlatformSkillFilter(recallSpec: RecallSpec): BrightDataFilterR
 function buildShallowCompanySkillFilter(
   recallSpec: RecallSpec,
   signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
+  options: { dataPlatformRole?: boolean } = {},
 ) {
+  const prioritizedTerms = options.dataPlatformRole
+    ? compactTerms([
+      ...sanitizeRecallSignalTerms([
+        ...recallSpec.differentiating_skill_terms,
+        ...recallSpec.domain_terms,
+        ...recallSpec.core_skill_terms,
+        ...recallSpec.must_have_signals,
+      ], 32).filter((term) => includesAnyKeyword(term, DATA_PLATFORM_HIGH_SIGNAL_TERMS)),
+      ...DATA_PLATFORM_HIGH_SIGNAL_TERMS,
+    ], 12)
+    : [];
+
   return buildProfileSignalFilter([
+    ...prioritizedTerms,
     ...sanitizeRecallSignalTerms([
       ...recallSpec.differentiating_skill_terms,
       ...recallSpec.must_have_signals,
@@ -409,8 +456,8 @@ function buildShallowCompanySkillFilter(
   ], 8);
 }
 
-function buildTitleFilter(titleTerms: string[]): BrightDataFilterRule | null {
-  const terms = compactTerms(titleTerms, 12);
+function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRule | null {
+  const terms = compactTerms(titleTerms, limit);
   if (terms.length === 0) return null;
   return {
     operator: "or",
@@ -914,16 +961,19 @@ export function buildBrightDataRecallFilters(
 
     const companyTitleTerms = isDataPlatformRole
       ? compactTerms([
+        ...DATA_PLATFORM_COMPANY_TARGET_TITLES,
         ...standardTitleTerms,
         ...lateralTitles,
-      ], 12)
+      ], 18)
       : compactTerms([
         ...standardTitleTerms,
         ...DEFAULT_HIDDEN_GEM_TITLES,
       ], 10);
-    const companyTitleFilter = buildTitleFilter(companyTitleTerms);
+    const companyTitleFilter = buildTitleFilter(companyTitleTerms, isDataPlatformRole ? 18 : 12);
     if (companyTitleFilter) companyFilters.push(companyTitleFilter);
-    const companySkillFilter = buildShallowCompanySkillFilter(recallSpec, signalGroups);
+    const companySkillFilter = buildShallowCompanySkillFilter(recallSpec, signalGroups, {
+      dataPlatformRole: isDataPlatformRole,
+    });
     if (companySkillFilter) companyFilters.push(companySkillFilter);
     companyFilters.push(...qualityFilters);
     const recordsLimit = executionProfile.companyTargetLimit;
