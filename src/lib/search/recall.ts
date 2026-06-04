@@ -143,11 +143,16 @@ const DEFAULT_HIDDEN_GEM_TITLES = [
 
 const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Data Platform Engineer",
+  "Staff Data Platform Engineer",
+  "Principal Data Platform Engineer",
+  "Lead Data Platform Engineer",
   "Data Infrastructure Engineer",
-  "Staff Data Engineer",
-  "Principal Data Engineer",
-  "Senior Data Engineer",
-  "Lead Data Engineer",
+  "Staff Data Infrastructure Engineer",
+  "Principal Data Infrastructure Engineer",
+  "Lead Data Infrastructure Engineer",
+  "Streaming Platform Engineer",
+  "Staff Streaming Platform Engineer",
+  "Principal Streaming Platform Engineer",
 ];
 
 const DATA_PLATFORM_KEYWORDS = [
