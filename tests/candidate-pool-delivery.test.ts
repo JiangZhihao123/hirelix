@@ -97,7 +97,10 @@ function assessment(index: number, bucket: ScoredCandidateAssessment["suitabilit
 }
 
 test("candidate row builder delivers every scored profile with delivery buckets", () => {
-  const profiles = Array.from({ length: 4 }, (_, index) => profile(index));
+  const profiles = Array.from({ length: 4 }, (_, index) => ({
+    ...profile(index),
+    ...(index === 0 ? { __recall_source: "data_platform" } : {}),
+  })) as Array<BrightDataProfile & { __recall_source?: string }>;
   const selected = [
     assessment(0, "strong_now"),
     assessment(1, "consider_next"),
@@ -126,6 +129,8 @@ test("candidate row builder delivers every scored profile with delivery buckets"
     rows.map((row) => row.metadata.scored_rank),
     [1, 2, 3, 4],
   );
+  assert.equal(rows[0].metadata.recall_source, "data_platform");
+  assert.equal(rows[1].metadata.recall_source, undefined);
 });
 
 test("delivery buckets do not recommend profiles that fail the shortlist gate", () => {

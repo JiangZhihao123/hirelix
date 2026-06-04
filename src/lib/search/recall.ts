@@ -147,7 +147,7 @@ const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Staff Data Engineer",
   "Principal Data Engineer",
   "Senior Data Engineer",
-  "Data Engineer",
+  "Lead Data Engineer",
 ];
 
 const DATA_PLATFORM_KEYWORDS = [
@@ -174,6 +174,19 @@ const DATA_PLATFORM_CORE_KEYWORDS = [
   "lakehouse",
   "warehouse",
   "query engine",
+];
+
+const DATA_PLATFORM_AVOID_TITLE_TERMS = [
+  "data analyst",
+  "business intelligence",
+  "bi developer",
+  "power bi",
+  "tableau",
+  "etl developer",
+  "data scientist",
+  "machine learning researcher",
+  "product manager",
+  "program manager",
 ];
 
 function includesAnyKeyword(term: string, keywords: string[]) {
@@ -457,6 +470,10 @@ export function buildBrightDataCandidateRows(
     );
     const primaryGithubUrl = publicLinks.github_urls[0] || null;
     const displayTier = options.getDisplayTierForAssessment(item);
+    const recallSource =
+      typeof (profile as BrightDataProfile & { __recall_source?: unknown }).__recall_source === "string"
+        ? (profile as BrightDataProfile & { __recall_source?: string }).__recall_source
+        : null;
     const deliveryBucket =
       options.getDeliveryBucketForAssessment?.(item, displayTier) ??
       (displayTier === "priority_outreach"
@@ -495,6 +512,7 @@ export function buildBrightDataCandidateRows(
       outreach_draft: null,
       metadata: {
         source: "brightdata",
+        ...(recallSource ? { recall_source: recallSource } : {}),
         source_index: rawIndex,
         scored_rank: rankIndex + 1,
         analysis_stage: "final",
@@ -831,6 +849,13 @@ export function buildBrightDataRecallFilters(
     ];
     if (countryFilter) hiddenGemFilters.push(countryFilter);
     hiddenGemFilters.push(hiddenSignalFilter);
+    if (isDataPlatformRole) {
+      hiddenGemFilters.push(...DATA_PLATFORM_AVOID_TITLE_TERMS.map((term) => ({
+        name: "position" as const,
+        operator: "not includes" as const,
+        value: term,
+      })));
+    }
     if (locationFilter) hiddenGemFilters.push(locationFilter);
     hiddenGemFilters.push(...qualityFilters);
     const recordsLimit = executionProfile.hiddenGemLimit;

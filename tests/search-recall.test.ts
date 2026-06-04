@@ -274,7 +274,21 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("data platform engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("data infrastructure engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data engineer"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("data engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("lead data engineer"));
+  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data engineer"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("kafka"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("kubernetes"));
+  const dataPlatformRules = flattenRules(dataPlatformRound.request.filter);
+  assert.ok(dataPlatformRules.some((rule) =>
+    "name" in rule &&
+    rule.name === "position" &&
+    rule.operator === "not includes" &&
+    rule.value === "etl developer",
+  ));
+  assert.ok(dataPlatformRules.some((rule) =>
+    "name" in rule &&
+    rule.name === "position" &&
+    rule.operator === "not includes" &&
+    rule.value === "power bi",
+  ));
 });
