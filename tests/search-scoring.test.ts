@@ -154,6 +154,43 @@ test("judge prompt marks IC versus management profiles as mismatches", () => {
   assert.match(prompt, /Mark shortlist_decision=no/);
 });
 
+test("judge prompt accepts equivalent core data platform evidence without Kafka literalism", () => {
+  const prompt = buildJudgeScorePrompt(
+    {},
+    "Staff Data Infrastructure Engineer, Streaming Platform",
+    "[4] Candidate A\nBig Data Compute team at Netflix; Apache Druid core engine; Apache Spark; Apache Druid PMC",
+    1,
+    "Judge A",
+    {
+      truncateForPrompt: (text) => text,
+      buildPromptSearchContext: () => "Must-Have Signals: Kafka | Spark | Flink | streaming infrastructure | data platform",
+      expectedIndexes: [4],
+    },
+  );
+
+  assert.match(prompt, /Apache Druid\/Spark core engine work/);
+  assert.match(prompt, /recognized open-source committer\/PMC work/);
+  assert.match(prompt, /Do not reject or mark do_not_show merely because one named tool such as Kafka is absent/);
+});
+
+test("judge prompt still rejects analytics delivery as core platform evidence", () => {
+  const prompt = buildJudgeScorePrompt(
+    {},
+    "Staff Data Infrastructure Engineer, Streaming Platform",
+    "[5] Candidate B\nSnowflake dashboards and ETL migrations",
+    1,
+    "Judge B",
+    {
+      truncateForPrompt: (text) => text,
+      buildPromptSearchContext: () => "Must-Have Signals: Kafka | Spark | Flink | streaming infrastructure | data platform",
+      expectedIndexes: [5],
+    },
+  );
+
+  assert.match(prompt, /Snowflake\/warehouse\/BI\/dashboard\/ETL\/pipeline migration evidence alone/);
+  assert.match(prompt, /not comparable core platform evidence/);
+});
+
 test("parseJudgeScoreResults maps batch-relative indexes to expected global indexes", () => {
   const parsed = parseJudgeScoreResults(
     [baseJudgeItem(0), baseJudgeItem(1)],
