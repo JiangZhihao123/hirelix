@@ -214,6 +214,25 @@ test("shouldDisplayCandidate: high-confidence partial platform owners can enter 
   assert.equal(getDisplayTierForAssessment(platformOwner), "worth_reviewing");
 });
 
+test("shouldDisplayCandidate: strong partial Confluent/Kafka platform engineers enter review-next", () => {
+  const confluentPlatformEngineer = assessment({
+    capability: 88,
+    relevance: 70,
+    joinLikelihood: 45,
+    quality: 79,
+    advance: 59,
+    mustHaveCoverage: "partial",
+    bucket: "consider_next",
+    evidenceQuality: "medium",
+    whyThisCandidate: ["Confluent Kafka platform owner"],
+  });
+  confluentPlatformEngineer.suitability.first_contact_confidence = "medium";
+  confluentPlatformEngineer.suitability.why_not_higher = ["Missing Spark/Flink/Airflow"];
+
+  assert.equal(shouldDisplayCandidate(confluentPlatformEngineer), true);
+  assert.equal(getDisplayTierForAssessment(confluentPlatformEngineer), "worth_reviewing");
+});
+
 test("shouldDisplayCandidate: explicitly unreachable candidate (join < ~15) is still filtered", () => {
   // Sanity check: we did not accidentally let "will not respond" candidates
   // through. An LLM rating join_likelihood=10 signals explicit disinterest,

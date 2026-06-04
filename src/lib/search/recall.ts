@@ -192,41 +192,44 @@ const DATA_PLATFORM_KEYWORDS = [
 ];
 
 const DATA_PLATFORM_HIGH_SIGNAL_TERMS = [
+  "confluent",
+  "hudi",
+  "datalake",
+  "data lake",
+  "kafka",
+  "spark",
+  "flink",
+  "druid",
+  "pulsar",
   "big data compute",
-  "data systems",
   "distributed data systems",
   "streaming platform",
-  "data platform",
-  "data infrastructure",
+  "data ingestion",
   "query platform",
   "metadata platform",
   "workflow platform",
-  "kafka",
-  "pulsar",
-  "spark",
-  "flink",
-  "druid",
   "airflow",
   "databricks",
   "iceberg",
+  "hadoop",
+  "hdfs",
 ];
 
-const DATA_PLATFORM_CORE_KEYWORDS = [
+const DATA_PLATFORM_OWNERSHIP_TERMS = [
+  "platform owned by other engineers",
   "data platform",
   "data infrastructure",
-  "streaming",
-  "big data compute",
   "data systems",
-  "kafka",
-  "spark",
-  "flink",
-  "druid",
-  "pulsar",
-  "airflow",
-  "databricks",
-  "iceberg",
-  "lakehouse",
-  "query engine",
+  "distributed systems",
+  "distributed data systems",
+  "streaming platform",
+  "big data compute",
+  "query platform",
+  "metadata platform",
+  "workflow platform",
+  "data ingestion",
+  "data lake",
+  "datalake",
 ];
 
 function includesAnyKeyword(term: string, keywords: string[]) {
@@ -404,22 +407,23 @@ function buildDataPlatformSkillFilter(recallSpec: RecallSpec): BrightDataFilterR
     ...recallSpec.must_have_signals,
     ...recallSpec.core_skill_terms,
   ], 28);
-  const dataSystemTerms = compactTerms(
-    searchableSignals.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_CORE_KEYWORDS)),
-    10,
-  );
-  const depthTerms = compactTerms([
+  const strongEvidenceTerms = compactTerms([
+    ...searchableSignals.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_HIGH_SIGNAL_TERMS)),
+    ...DATA_PLATFORM_HIGH_SIGNAL_TERMS,
+  ], 12);
+  const ownershipTerms = compactTerms([
+    ...searchableSignals.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_OWNERSHIP_TERMS)),
     ...searchableSignals.filter((term) => includesAnyKeyword(term, PLATFORM_ENGINEERING_KEYWORDS)),
-    ...searchableSignals.filter((term) => includesAnyKeyword(term, DATABASE_BACKEND_KEYWORDS)),
     ...searchableSignals.filter((term) => includesAnyKeyword(term, PRODUCTION_OWNERSHIP_KEYWORDS)),
-  ], 10);
-  const dataSystemFilter = buildProfileSignalFilter(dataSystemTerms, 8);
-  const depthFilter = buildProfileSignalFilter(depthTerms, 8);
+    ...DATA_PLATFORM_OWNERSHIP_TERMS,
+  ], 12);
+  const strongEvidenceFilter = buildProfileSignalFilter(strongEvidenceTerms, 10);
+  const ownershipFilter = buildProfileSignalFilter(ownershipTerms, 8);
 
-  if (dataSystemFilter && depthFilter) {
-    return { operator: "and", filters: [dataSystemFilter, depthFilter] };
+  if (strongEvidenceFilter && ownershipFilter) {
+    return { operator: "and", filters: [strongEvidenceFilter, ownershipFilter] };
   }
-  return dataSystemFilter ?? depthFilter;
+  return strongEvidenceFilter ?? ownershipFilter;
 }
 
 function buildShallowCompanySkillFilter(
@@ -436,6 +440,7 @@ function buildShallowCompanySkillFilter(
         ...recallSpec.must_have_signals,
       ], 32).filter((term) => includesAnyKeyword(term, DATA_PLATFORM_HIGH_SIGNAL_TERMS)),
       ...DATA_PLATFORM_HIGH_SIGNAL_TERMS,
+      ...DATA_PLATFORM_OWNERSHIP_TERMS,
     ], 12)
     : [];
 
@@ -453,7 +458,7 @@ function buildShallowCompanySkillFilter(
       ...recallSpec.baseline_skill_terms,
       ...recallSpec.core_skill_terms,
     ], 12),
-  ], 8);
+  ], options.dataPlatformRole ? 10 : 8);
 }
 
 function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRule | null {

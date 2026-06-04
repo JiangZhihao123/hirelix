@@ -2302,10 +2302,20 @@ function hasRecruiterVisibleEvidence(suitability: CandidateSuitability) {
 
   if (
     suitability.bucket === "consider_next" &&
-    suitability.first_contact_confidence === "high" &&
     suitability.quality_score >= 76 &&
     breakdown.capability_score >= 75 &&
-    breakdown.relevance_score >= SHORTLIST_RELEVANCE_MIN
+    (
+      (
+        suitability.first_contact_confidence === "high" &&
+        breakdown.relevance_score >= SHORTLIST_RELEVANCE_MIN
+      ) ||
+      (
+        breakdown.capability_score >= 85 &&
+        suitability.quality_score >= 78 &&
+        breakdown.relevance_score >= Math.min(SHORTLIST_RELEVANCE_MIN, 70) &&
+        breakdown.join_likelihood_score >= 40
+      )
+    )
   ) {
     return true;
   }
