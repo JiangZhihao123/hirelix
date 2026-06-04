@@ -32,13 +32,16 @@ test("free searches use a constrained real-production preview profile", () => {
   assert.equal(profile.mode, "production");
   assert.ok(profile.filterLimit >= FINAL_SHORTLIST_TARGET);
   assert.ok(profile.hiddenGemLimit > 0);
-  assert.equal(profile.companyTargetLimit, 0);
+  assert.ok(profile.companyTargetLimit > 0);
 
   const targets = getInitialSearchTargets("free");
   assert.equal(targets.executionProfile, "bright_free_preview");
   assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
   assert.equal(targets.highlightCount, 3);
-  assert.equal(targets.profileScanBudget, profile.filterLimit + profile.hiddenGemLimit);
+  assert.equal(
+    targets.profileScanBudget,
+    profile.filterLimit + profile.hiddenGemLimit + profile.companyTargetLimit,
+  );
 });
 
 test("paid searches keep the full production profile in production mode", () => {
@@ -48,11 +51,15 @@ test("paid searches keep the full production profile in production mode", () => 
   assert.equal(profile.mode, "production");
   assert.ok(profile.filterLimit >= 100);
   assert.ok(profile.hiddenGemLimit > 0);
+  assert.ok(profile.companyTargetLimit > 0);
 
   const targets = withProductionEnv(() => getInitialSearchTargets("agency_monthly"));
   assert.equal(targets.executionProfile, "bright_production_full");
   assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
-  assert.equal(targets.profileScanBudget, profile.filterLimit + profile.hiddenGemLimit);
+  assert.equal(
+    targets.profileScanBudget,
+    profile.filterLimit + profile.hiddenGemLimit + profile.companyTargetLimit,
+  );
 });
 
 test("free plans use the same candidate quality target while constraining targeted profile scans", () => {
