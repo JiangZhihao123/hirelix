@@ -56,6 +56,8 @@ function resolveSearchExecutionMode(): SearchExecutionMode {
 
 const DEFAULT_SHORTLIST_CAP = 25;
 const FREE_PROFILE_SCAN_LIMIT = 150;
+const FREE_HIDDEN_GEM_SCAN_LIMIT = 50;
+const PAID_HIDDEN_GEM_SCAN_LIMIT = 75;
 const PAID_PROFILE_SCAN_BATCH_LIMIT = 500;
 export const FINAL_SHORTLIST_TARGET = DEFAULT_SHORTLIST_CAP;
 export const DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT = PAID_PROFILE_SCAN_BATCH_LIMIT;
@@ -91,7 +93,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     name: "bright_free_preview",
     mode: "production",
     filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", FREE_PROFILE_SCAN_LIMIT),
-    hiddenGemLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT", 0),
+    hiddenGemLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT", FREE_HIDDEN_GEM_SCAN_LIMIT),
     companyTargetLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_COMPANY_TARGET_LIMIT", 0),
     finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 3,
@@ -104,7 +106,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     name: "bright_production_full",
     mode: "production",
     filterLimit: getConfiguredModeLimit("production", "STANDARD", PAID_PROFILE_SCAN_BATCH_LIMIT),
-    hiddenGemLimit: getConfiguredModeLimit("production", "HIDDEN_GEM", 0),
+    hiddenGemLimit: getConfiguredModeLimit("production", "HIDDEN_GEM", PAID_HIDDEN_GEM_SCAN_LIMIT),
     companyTargetLimit: getConfiguredModeLimit("production", "COMPANY_TARGET", 0),
     finalResultCap: DEFAULT_SHORTLIST_CAP,
     highlightCount: 5,

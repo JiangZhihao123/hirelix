@@ -112,7 +112,7 @@ export function buildJudgeScorePrompt(
 - ${indexRule}
 - capability_score measures how strong the person is overall in seniority, depth, and execution track record. Profiles with only bootcamp credentials and no professional engineering tenure beyond internships should receive capability_score <= 40.
 - relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain. Domain experience in the hiring company's industry (stated in hiring_brief) should boost relevance_score.
-- join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity. Boost for job-seeking, recent end-date, employment gap, open-to-work, startup affinity, or natural domain alignment.
+- join_likelihood_score measures how realistic it is that they would seriously consider this specific opportunity. Availability signals such as job-seeking, recent end-date, employment gap, or open-to-work can increase response likelihood, but active job-search language is not quality evidence and should not by itself create advance_recommendation=advance or first_contact_confidence=high in this passive-candidate workflow.
 - blocking_severity should be hard only for explicit incompatibilities unrelated to location. Location is pre-assessed separately; do not hard-block on current city alone.
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world.
 - shortlist_decision should answer whether this person deserves to appear in a recruiter-curated shortlist.

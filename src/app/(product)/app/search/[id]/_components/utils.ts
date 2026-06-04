@@ -86,14 +86,15 @@ export function getCandidateDisplayTier(candidate: CandidateRow): CandidateDispl
   const reachabilityScore = getCandidateJoinLikelihoodScoreValue(candidate);
   const hasLowReachability =
     typeof reachabilityScore === "number" && reachabilityScore < REACH_FIRST_MIN_REACHABILITY;
+  const hasActiveJobSearchSignal = candidateHasActiveJobSearchSignal(candidate);
 
   if (deliveryBucket === "reach_first") {
-    return hasLowReachability ? "worth_reviewing" : "priority_outreach";
+    return hasLowReachability || hasActiveJobSearchSignal ? "worth_reviewing" : "priority_outreach";
   }
   if (deliveryBucket === "review_next") return "worth_reviewing";
   const explicitTier = candidate.metadata?.display_tier;
   if (explicitTier === "priority_outreach") {
-    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE && !hasLowReachability
+    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE && !hasLowReachability && !hasActiveJobSearchSignal
       ? "priority_outreach"
       : "worth_reviewing";
   }
@@ -102,12 +103,49 @@ export function getCandidateDisplayTier(candidate: CandidateRow): CandidateDispl
   }
   const bucket = candidate.metadata?.bucket ?? candidate.metadata?.suitability?.bucket;
   if (bucket === "strong_now") {
-    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE && !hasLowReachability
+    return safeScore >= PRIORITY_OUTREACH_MIN_SCORE && !hasLowReachability && !hasActiveJobSearchSignal
       ? "priority_outreach"
       : "worth_reviewing";
   }
   if (bucket === "consider_next") return "worth_reviewing";
   return null;
+}
+
+function candidateHasActiveJobSearchSignal(candidate: CandidateRow) {
+  const metadata = candidate.metadata;
+  const text = [
+    candidate.headline,
+    metadata?.primary_risk,
+    metadata?.shortlist_reason,
+    metadata?.suitability?.primary_risk,
+    metadata?.suitability?.shortlist_reason,
+    ...(metadata?.risk_flags || []),
+    ...(metadata?.constraint_risks || []),
+    ...(metadata?.why_not_higher || []),
+    ...(metadata?.join_likelihood_reasons || []),
+    ...(metadata?.suitability?.risk_flags || []),
+    ...(metadata?.suitability?.why_not_higher || []),
+    ...(metadata?.suitability?.scoring_breakdown?.join_likelihood_reasons || []),
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  if (!text) return false;
+  return [
+    "actively looking",
+    "active looking",
+    "looking for new",
+    "looking for opportunities",
+    "open to work",
+    "opentowork",
+    "open to opportunities",
+    "seeking new",
+    "seeking opportunities",
+    "available immediately",
+    "c2c",
+    "c2h",
+  ].some((term) => text.includes(term));
 }
 
 export function getCandidateDeliveryBucket(candidate: CandidateRow) {

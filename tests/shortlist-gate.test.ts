@@ -129,6 +129,25 @@ test("getDisplayTierForAssessment: low Reachability strong fits are not reach-fi
   assert.equal(getDisplayTierForAssessment(a), "worth_reviewing");
 });
 
+test("getDisplayTierForAssessment: active job-search language is review-next, not reach-first", () => {
+  const a = assessment({
+    capability: 88,
+    relevance: 90,
+    joinLikelihood: 80,
+    quality: 89,
+    advance: 86,
+    mustHaveCoverage: "strong",
+    bucket: "strong_now",
+  });
+  a.suitability.advance_recommendation = "advance";
+  a.suitability.first_contact_confidence = "high";
+  a.suitability.evidence_quality = "high";
+  a.suitability.scoring_breakdown.join_likelihood_reasons = ["Actively looking for new positions"];
+
+  assert.equal(shouldDisplayCandidate(a), true);
+  assert.equal(getDisplayTierForAssessment(a), "worth_reviewing");
+});
+
 test("shouldDisplayCandidate: technicalWatchlistFit escape hatch requires clear strong evidence", () => {
   // Happily-employed mid-senior: join_likelihood ~25 is typical for this group.
   // Under the old 82/80 gate this was filtered; under the new 72/68 gate the

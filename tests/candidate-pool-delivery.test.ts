@@ -165,6 +165,35 @@ test("legacy reach-first metadata is downgraded when reachability is low", () =>
   assert.equal(getCandidateDeliveryBucket(candidate), "review_next");
 });
 
+test("legacy reach-first metadata is downgraded for active job-search profiles", () => {
+  const candidate = {
+    id: "candidate-active",
+    name: "Active Search Engineer",
+    headline: "Actively looking for new positions | Senior Data Engineer | Kafka | Spark",
+    location: "United States",
+    skills: [],
+    experience_years: null,
+    match_score: 88,
+    match_reasons: [],
+    profile_url: "https://www.linkedin.com/in/active-search",
+    github_url: null,
+    email: null,
+    outreach_draft: null,
+    status: "new",
+    metadata: {
+      delivery_bucket: "reach_first",
+      scoring_breakdown: {
+        capability_score: 88,
+        relevance_score: 90,
+        join_likelihood_score: 80,
+      },
+    },
+  } satisfies CandidateRow;
+
+  assert.equal(getCandidateDisplayTier(candidate), "worth_reviewing");
+  assert.equal(getCandidateDeliveryBucket(candidate), "review_next");
+});
+
 function candidateRow(index: number, deliveryBucket: CandidateRowInput["metadata"]["delivery_bucket"]): CandidateRowInput {
   return {
     name: `Candidate ${index}`,

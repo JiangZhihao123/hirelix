@@ -141,6 +141,18 @@ const DEFAULT_HIDDEN_GEM_TITLES = [
   "Production Engineer",
 ];
 
+const DATA_PLATFORM_KEYWORDS = [
+  "data platform",
+  "data infrastructure",
+  "spark",
+  "kafka",
+  "flink",
+  "airflow",
+  "warehouse",
+  "lakehouse",
+  "query engine",
+];
+
 function includesAnyKeyword(term: string, keywords: string[]) {
   const normalized = normalizeText(term);
   return keywords.some((keyword) => normalized.includes(keyword));
@@ -714,7 +726,16 @@ export function buildBrightDataRecallFilters(
   const lateralTitles = compactTerms([
     ...recallSpec.lateral_title_variants,
     ...DEFAULT_HIDDEN_GEM_TITLES,
-  ], 10).filter((term) => term !== "data engineer");
+  ], 10).filter((term) => {
+    if (term !== "data engineer") return true;
+    const signals = [
+      ...recallSpec.core_skill_terms,
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.domain_terms,
+      ...recallSpec.must_have_signals,
+    ];
+    return signals.some((signal) => includesAnyKeyword(signal, DATA_PLATFORM_KEYWORDS));
+  });
   const differentiatingTerms = compactTerms([
     ...signalGroups.search_domain,
     ...signalGroups.platform_engineering,

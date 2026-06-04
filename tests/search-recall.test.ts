@@ -227,3 +227,45 @@ test("buildBrightDataRecallFilters skips optional sourcing rounds when limits ar
   assert.deepEqual(rounds.map((round) => round.round), ["standard"]);
   assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50]);
 });
+
+test("buildBrightDataRecallFilters keeps data engineer lateral titles for data platform roles", () => {
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Staff Data Platform Engineer",
+      recall_spec: {
+        ...recallSpec,
+        title_variants: ["Staff Data Platform Engineer", "Senior Data Platform Engineer"],
+        core_skill_terms: ["Kafka", "Spark", "Kubernetes", "PostgreSQL"],
+        differentiating_skill_terms: ["data platform", "data infrastructure", "streaming pipelines"],
+        baseline_skill_terms: ["Kubernetes", "distributed systems"],
+        domain_terms: ["data platform"],
+        must_have_signals: ["data platform", "Kafka", "Spark", "PostgreSQL"],
+        lateral_title_variants: ["Data Engineer", "Infrastructure Engineer"],
+        recall_strategy: "multi_round",
+      },
+      hiring_brief: {
+        ...hiringBrief,
+        role_core: {
+          ...hiringBrief.role_core,
+          title: "Staff Data Platform Engineer",
+          function_focus: "Data platform engineering",
+        },
+      },
+    },
+    30,
+    executionProfile,
+    {
+      normalizeRecallSpec: (value) => value as RecallSpec,
+      sanitizeHiringBrief: (_value, parsed) => parsed.hiring_brief as HiringBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => null,
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 25,
+      companyTargetLimit: 0,
+    },
+  );
+
+  const hiddenGem = rounds.find((round) => round.round === "hidden_gem");
+  assert.ok(hiddenGem);
+  assert.ok(leafValues(hiddenGem.request.filter).includes("data engineer"));
+});

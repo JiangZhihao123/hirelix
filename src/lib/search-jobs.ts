@@ -2247,6 +2247,38 @@ function hasClearRoleMismatch(suitability: CandidateSuitability) {
   ].some((term) => text.includes(term));
 }
 
+function hasActiveJobSearchSignal(suitability: CandidateSuitability) {
+  const text = [
+    suitability.primary_risk,
+    suitability.shortlist_reason,
+    ...suitability.blocking_constraints,
+    ...suitability.constraint_risks,
+    ...suitability.risk_flags,
+    ...suitability.why_this_candidate,
+    ...suitability.why_not_higher,
+    ...suitability.scoring_breakdown.join_likelihood_reasons,
+  ]
+    .map((value) => normalizeText(value))
+    .filter(Boolean)
+    .join(" ");
+
+  if (!text) return false;
+  return [
+    "actively looking",
+    "active looking",
+    "looking for new",
+    "looking for opportunities",
+    "open to work",
+    "opentowork",
+    "open to opportunities",
+    "seeking new",
+    "seeking opportunities",
+    "available immediately",
+    "c2c",
+    "c2h",
+  ].some((term) => text.includes(term));
+}
+
 function hasRecruiterVisibleEvidence(suitability: CandidateSuitability) {
   const verdicts = suitability.constraint_verdicts;
   const breakdown = suitability.scoring_breakdown;
@@ -2335,6 +2367,7 @@ export function getDisplayTierForAssessment(
       const isFirstPriority =
         assessment.suitability.advance_recommendation === "advance" &&
         assessment.suitability.first_contact_confidence === "high" &&
+        !hasActiveJobSearchSignal(assessment.suitability) &&
         assessment.suitability.evidence_quality !== "low" &&
         assessment.suitability.constraint_verdicts.must_have_coverage === "strong" &&
         assessment.suitability.constraint_verdicts.work_model_fit === "yes" &&
