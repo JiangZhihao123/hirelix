@@ -134,7 +134,7 @@ export async function completeSearch(
   await helpers.upsertCandidatesForSearch(context.searchId, draftedRows, {
     replaceMissing: options?.replaceMissingCandidates ?? true,
   });
-  helpers.logSearchEvent("public_evidence_jobs_on_demand", {
+  helpers.logSearchEvent("public_evidence_available_on_demand", {
     search_id: context.searchId,
     eligible_candidates: recommendedRows.length,
   });

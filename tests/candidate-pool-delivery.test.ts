@@ -267,5 +267,5 @@ test("completeSearch upserts the full pool and drafts outreach only for recommen
   assert.equal(finalStats.delivered_candidate_count, 4);
   assert.equal(finalStats.recommended_count, 2);
   assert.equal(finalStats.lower_priority_count, 2);
-  assert.ok(events.includes("public_evidence_jobs_on_demand"));
+  assert.ok(events.includes("public_evidence_available_on_demand"));
 });

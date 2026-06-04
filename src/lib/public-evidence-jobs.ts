@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -141,40 +141,6 @@ async function upsertPublicEvidenceJob(input: {
   const id = inserted[0]?.id;
   if (!id) throw new Error("Failed to enqueue public evidence job");
   return { id };
-}
-
-export async function enqueuePublicEvidenceJobsForSearch(input: {
-  searchId: string;
-  userId: string;
-  limit?: number;
-}) {
-  const candidates = await db
-    .select({
-      id: hirelix_candidates.id,
-      metadata: hirelix_candidates.metadata,
-    })
-    .from(hirelix_candidates)
-    .where(eq(hirelix_candidates.search_id, input.searchId))
-    .orderBy(desc(hirelix_candidates.match_score))
-    .limit(Math.max(1, input.limit || 25));
-
-  let scanned = 0;
-  let enqueued = 0;
-  let skipped = 0;
-  for (const candidate of candidates) {
-    scanned += 1;
-    if (!shouldQueuePublicEvidence(candidate.metadata)) {
-      skipped += 1;
-      continue;
-    }
-    const result = await enqueuePublicEvidenceJobForCandidate({
-      candidateId: candidate.id,
-      searchId: input.searchId,
-      userId: input.userId,
-    });
-    if (result.queued) enqueued += 1;
-  }
-  return { scanned, enqueued, skipped };
 }
 
 export async function enqueuePublicEvidenceJobForCandidate(input: {
