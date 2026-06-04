@@ -267,5 +267,8 @@ test("buildBrightDataRecallFilters keeps data engineer lateral titles for data p
 
   const hiddenGem = rounds.find((round) => round.round === "hidden_gem");
   assert.ok(hiddenGem);
+  assert.ok(hiddenGem.diagnostics.title_terms.includes("data platform engineer"));
+  assert.ok(hiddenGem.diagnostics.title_terms.includes("data infrastructure engineer"));
+  assert.ok(hiddenGem.diagnostics.title_terms.includes("senior data engineer"));
   assert.ok(leafValues(hiddenGem.request.filter).includes("data engineer"));
 });

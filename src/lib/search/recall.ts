@@ -141,6 +141,15 @@ const DEFAULT_HIDDEN_GEM_TITLES = [
   "Production Engineer",
 ];
 
+const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
+  "Data Platform Engineer",
+  "Data Infrastructure Engineer",
+  "Staff Data Engineer",
+  "Principal Data Engineer",
+  "Senior Data Engineer",
+  "Data Engineer",
+];
+
 const DATA_PLATFORM_KEYWORDS = [
   "data platform",
   "data infrastructure",
@@ -156,6 +165,25 @@ const DATA_PLATFORM_KEYWORDS = [
 function includesAnyKeyword(term: string, keywords: string[]) {
   const normalized = normalizeText(term);
   return keywords.some((keyword) => normalized.includes(keyword));
+}
+
+function hasDataPlatformSignals(recallSpec: RecallSpec) {
+  const signals = [
+    ...recallSpec.core_skill_terms,
+    ...recallSpec.differentiating_skill_terms,
+    ...recallSpec.domain_terms,
+    ...recallSpec.must_have_signals,
+  ];
+  return signals.some((signal) => includesAnyKeyword(signal, DATA_PLATFORM_KEYWORDS));
+}
+
+function buildHiddenGemTitleTerms(recallSpec: RecallSpec) {
+  const dataPlatformRole = hasDataPlatformSignals(recallSpec);
+  return compactTerms([
+    ...recallSpec.lateral_title_variants,
+    ...(dataPlatformRole ? DATA_PLATFORM_HIDDEN_GEM_TITLES : []),
+    ...DEFAULT_HIDDEN_GEM_TITLES,
+  ], 14).filter((term) => dataPlatformRole || term !== "data engineer");
 }
 
 function compactTerms(terms: string[], limit: number) {
@@ -723,19 +751,7 @@ export function buildBrightDataRecallFilters(
     )
     : null;
 
-  const lateralTitles = compactTerms([
-    ...recallSpec.lateral_title_variants,
-    ...DEFAULT_HIDDEN_GEM_TITLES,
-  ], 10).filter((term) => {
-    if (term !== "data engineer") return true;
-    const signals = [
-      ...recallSpec.core_skill_terms,
-      ...recallSpec.differentiating_skill_terms,
-      ...recallSpec.domain_terms,
-      ...recallSpec.must_have_signals,
-    ];
-    return signals.some((signal) => includesAnyKeyword(signal, DATA_PLATFORM_KEYWORDS));
-  });
+  const lateralTitles = buildHiddenGemTitleTerms(recallSpec);
   const differentiatingTerms = compactTerms([
     ...signalGroups.search_domain,
     ...signalGroups.platform_engineering,
