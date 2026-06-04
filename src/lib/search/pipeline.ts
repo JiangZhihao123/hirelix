@@ -317,6 +317,17 @@ function isSnapshotProfileCacheRerun(parsed: Record<string, unknown>) {
   return parsed.rerun_mode === SNAPSHOT_PROFILE_CACHE_RERUN_MODE;
 }
 
+export function canAdditionalRecallRoundsOwnEmptyStandardSnapshot(
+  additionalSnapshots: Array<Pick<BrightDataSnapshotMetadata, "status">>,
+) {
+  return additionalSnapshots.some(
+    (snapshot) =>
+      snapshot.status === "ready" ||
+      snapshot.status === "scheduled" ||
+      snapshot.status === "building",
+  );
+}
+
 async function loadSearchLlmUsageStats(
   searchId: string,
   jobId: string,
@@ -1372,42 +1383,71 @@ async function buildBrightDataDatasetCandidates(
     });
   } else {
     if (forceSnapshotProfileCache) {
-      throw new Error(`Snapshot-profile rerun could not find DB rows for standard snapshot ${activeSnapshotId}.`);
-    }
-    try {
-      metadata = await getDatasetSnapshotMetadata(brightDataAuthToken, activeSnapshotId);
-    } catch (error) {
-      if (helpers.isTransientSnapshotDownloadError(error)) {
-        helpers.logSearchEvent("search_snapshot_metadata_retrying", {
+      const additionalSnapshotRows = await Promise.all(
+        additionalSnapshotRefs.map(async (round) => ({
+          ...round,
+          rows: await getSnapshotProfileRows(round.snapshotId, round.round),
+        })),
+      );
+      const additionalSnapshotMetadata = additionalSnapshotRows.map((round) =>
+        round.rows?.length
+          ? buildCachedSnapshotMetadata(round.snapshotId, round.rows, round.cacheEntry)
+          : ({
+              id: round.snapshotId,
+              status: "failed" as const,
+              dataset_id: "cached",
+              dataset_size: 0,
+              warning_code: "profile_cache_rows_missing",
+            })
+      );
+
+      if (canAdditionalRecallRoundsOwnEmptyStandardSnapshot(additionalSnapshotMetadata)) {
+        metadata = {
+          id: activeSnapshotId,
+          status: "failed",
+          dataset_id: "cached",
+          dataset_size: 0,
+          warning_code: "no_records_found",
+        };
+      } else {
+        throw new Error(`Snapshot-profile rerun could not find DB rows for standard snapshot ${activeSnapshotId}.`);
+      }
+    } else {
+      try {
+        metadata = await getDatasetSnapshotMetadata(brightDataAuthToken, activeSnapshotId);
+      } catch (error) {
+        if (helpers.isTransientSnapshotDownloadError(error)) {
+          helpers.logSearchEvent("search_snapshot_metadata_retrying", {
+            search_id: context.searchId,
+            round: "standard",
+            snapshot_id: activeSnapshotId,
+            job_id: context.jobId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw new DatasetRecallPendingError(
+            `Bright Data metadata temporarily unavailable for snapshot ${activeSnapshotId}`,
+            { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+          );
+        }
+        if (!standardCacheEntry) {
+          throw error;
+        }
+        await expireCachedSnapshot(activeSnapshotId);
+        helpers.logSearchEvent("search_snapshot_cache_expired", {
           search_id: context.searchId,
           round: "standard",
           snapshot_id: activeSnapshotId,
+          reason: "metadata_unavailable_after_db_miss",
           job_id: context.jobId,
           error: error instanceof Error ? error.message : String(error),
         });
+        snapshotId = null;
+        await submitStandardSnapshot(recallRequest);
         throw new DatasetRecallPendingError(
-          `Bright Data metadata temporarily unavailable for snapshot ${activeSnapshotId}`,
+          `Bright Data cached snapshot ${activeSnapshotId} was unavailable; submitted replacement snapshot ${snapshotId}`,
           { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
         );
       }
-      if (!standardCacheEntry) {
-        throw error;
-      }
-      await expireCachedSnapshot(activeSnapshotId);
-      helpers.logSearchEvent("search_snapshot_cache_expired", {
-        search_id: context.searchId,
-        round: "standard",
-        snapshot_id: activeSnapshotId,
-        reason: "metadata_unavailable_after_db_miss",
-        job_id: context.jobId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      snapshotId = null;
-      await submitStandardSnapshot(recallRequest);
-      throw new DatasetRecallPendingError(
-        `Bright Data cached snapshot ${activeSnapshotId} was unavailable; submitted replacement snapshot ${snapshotId}`,
-        { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
-      );
     }
   }
 

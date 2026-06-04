@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getSnapshotCacheTtlDays } from "../src/lib/search/persistence";
-import { shouldReuseProfileCacheDespiteSnapshotDrift } from "../src/lib/search/pipeline";
+import {
+  canAdditionalRecallRoundsOwnEmptyStandardSnapshot,
+  shouldReuseProfileCacheDespiteSnapshotDrift,
+} from "../src/lib/search/pipeline";
 
 const mutableEnv = process.env as Record<string, string | undefined>;
 
@@ -74,6 +77,35 @@ test("explicit pool expansion does not reuse a smaller cached snapshot", () => {
       standardProfileRowCount: 50,
       allowReuse: false,
     }),
+    false,
+  );
+});
+
+test("cache-only rerun allows additional recall to own an empty standard snapshot", () => {
+  assert.equal(
+    canAdditionalRecallRoundsOwnEmptyStandardSnapshot([{ status: "ready" }]),
+    true,
+  );
+
+  assert.equal(
+    canAdditionalRecallRoundsOwnEmptyStandardSnapshot([{ status: "scheduled" }]),
+    true,
+  );
+
+  assert.equal(
+    canAdditionalRecallRoundsOwnEmptyStandardSnapshot([{ status: "building" }]),
+    true,
+  );
+});
+
+test("cache-only rerun does not hide missing additional profile rows", () => {
+  assert.equal(
+    canAdditionalRecallRoundsOwnEmptyStandardSnapshot([]),
+    false,
+  );
+
+  assert.equal(
+    canAdditionalRecallRoundsOwnEmptyStandardSnapshot([{ status: "failed" }]),
     false,
   );
 });
