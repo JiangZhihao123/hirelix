@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { BrightDataFilterRule } from "@/lib/brightdata";
+import { chunkBrightDataFilter } from "@/lib/brightdata";
 import {
   buildBrightDataRecallFilters,
   sanitizeRecallSignalTerms,
@@ -110,6 +111,11 @@ function leafValues(rule: BrightDataFilterRule) {
   return flattenRules(rule)
     .filter((item): item is Extract<BrightDataFilterRule, { name: string }> => "name" in item)
     .map((item) => String(item.value).toLowerCase());
+}
+
+function maxGroupDepth(rule: BrightDataFilterRule): number {
+  if (!("filters" in rule)) return 0;
+  return 1 + rule.filters.reduce((max, child) => Math.max(max, maxGroupDepth(child)), 0);
 }
 
 test("sanitizeRecallSignalTerms removes non-searchable location and eligibility phrases", () => {
@@ -290,4 +296,5 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(!companyRound.diagnostics.title_terms.includes("web platform engineer"));
   assert.ok(leafValues(companyRound.request.filter).includes("kafka"));
   assert.ok(leafValues(companyRound.request.filter).includes("kubernetes"));
+  assert.ok(maxGroupDepth(chunkBrightDataFilter(companyRound.request.filter)) <= 3);
 });

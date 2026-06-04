@@ -374,6 +374,26 @@ function buildDataPlatformSkillFilter(recallSpec: RecallSpec): BrightDataFilterR
   return dataSystemFilter ?? depthFilter;
 }
 
+function buildShallowCompanySkillFilter(
+  recallSpec: RecallSpec,
+  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
+) {
+  return buildProfileSignalFilter([
+    ...sanitizeRecallSignalTerms([
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.must_have_signals,
+    ], 12),
+    ...signalGroups.search_domain,
+    ...signalGroups.platform_engineering,
+    ...signalGroups.database_backend,
+    ...signalGroups.production_ownership,
+    ...sanitizeRecallSignalTerms([
+      ...recallSpec.baseline_skill_terms,
+      ...recallSpec.core_skill_terms,
+    ], 12),
+  ], 8);
+}
+
 function buildTitleFilter(titleTerms: string[]): BrightDataFilterRule | null {
   const terms = compactTerms(titleTerms, 12);
   if (terms.length === 0) return null;
@@ -888,9 +908,7 @@ export function buildBrightDataRecallFilters(
       ], 10);
     const companyTitleFilter = buildTitleFilter(companyTitleTerms);
     if (companyTitleFilter) companyFilters.push(companyTitleFilter);
-    const companySkillFilter = isDataPlatformRole
-      ? buildDataPlatformSkillFilter(recallSpec)
-      : buildBalancedSkillFilter(recallSpec);
+    const companySkillFilter = buildShallowCompanySkillFilter(recallSpec, signalGroups);
     if (companySkillFilter) companyFilters.push(companySkillFilter);
     companyFilters.push(...qualityFilters);
     const recordsLimit = executionProfile.companyTargetLimit;
