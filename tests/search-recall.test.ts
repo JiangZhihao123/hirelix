@@ -228,7 +228,7 @@ test("buildBrightDataRecallFilters skips optional sourcing rounds when limits ar
   assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50]);
 });
 
-test("buildBrightDataRecallFilters keeps data engineer lateral titles for data platform roles", () => {
+test("buildBrightDataRecallFilters uses a focused data-platform recall round for data platform roles", () => {
   const rounds = buildBrightDataRecallFilters(
     {
       title: "Staff Data Platform Engineer",
@@ -253,7 +253,10 @@ test("buildBrightDataRecallFilters keeps data engineer lateral titles for data p
       },
     },
     30,
-    executionProfile,
+    {
+      ...executionProfile,
+      companyTargetLimit: 0,
+    },
     {
       normalizeRecallSpec: (value) => value as RecallSpec,
       sanitizeHiringBrief: (_value, parsed) => parsed.hiring_brief as HiringBrief,
@@ -265,10 +268,13 @@ test("buildBrightDataRecallFilters keeps data engineer lateral titles for data p
     },
   );
 
-  const hiddenGem = rounds.find((round) => round.round === "hidden_gem");
-  assert.ok(hiddenGem);
-  assert.ok(hiddenGem.diagnostics.title_terms.includes("data platform engineer"));
-  assert.ok(hiddenGem.diagnostics.title_terms.includes("data infrastructure engineer"));
-  assert.ok(hiddenGem.diagnostics.title_terms.includes("senior data engineer"));
-  assert.ok(leafValues(hiddenGem.request.filter).includes("data engineer"));
+  assert.deepEqual(rounds.map((round) => round.round), ["standard", "data_platform"]);
+  const dataPlatformRound = rounds.find((round) => round.round === "data_platform");
+  assert.ok(dataPlatformRound);
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("data platform engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("data infrastructure engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data engineer"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("data engineer"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("kafka"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("kubernetes"));
 });

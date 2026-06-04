@@ -26,7 +26,7 @@ import type {
 export type RecallFilterMode = "primary" | "relaxed";
 
 export type RecallRound = {
-  round: "standard" | "hidden_gem" | "company_target";
+  round: "standard" | "hidden_gem" | "data_platform" | "company_target";
   request: BrightDataDatasetFilterRequest;
   diagnostics: Omit<RecallRoundDiagnostics, "filter_hash" | "returned_count" | "quality_distribution">;
 };
@@ -153,12 +153,26 @@ const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
 const DATA_PLATFORM_KEYWORDS = [
   "data platform",
   "data infrastructure",
+  "data engineering",
   "spark",
   "kafka",
   "flink",
   "airflow",
   "warehouse",
   "lakehouse",
+  "query engine",
+];
+
+const DATA_PLATFORM_CORE_KEYWORDS = [
+  "data platform",
+  "data infrastructure",
+  "streaming",
+  "kafka",
+  "spark",
+  "flink",
+  "airflow",
+  "lakehouse",
+  "warehouse",
   "query engine",
 ];
 
@@ -184,6 +198,14 @@ function buildHiddenGemTitleTerms(recallSpec: RecallSpec) {
     ...(dataPlatformRole ? DATA_PLATFORM_HIDDEN_GEM_TITLES : []),
     ...DEFAULT_HIDDEN_GEM_TITLES,
   ], 14).filter((term) => dataPlatformRole || term !== "data engineer");
+}
+
+function buildDataPlatformTitleTerms(recallSpec: RecallSpec) {
+  return compactTerms([
+    ...recallSpec.title_variants.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_KEYWORDS)),
+    ...recallSpec.lateral_title_variants.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_KEYWORDS)),
+    ...DATA_PLATFORM_HIDDEN_GEM_TITLES,
+  ], 12);
 }
 
 function compactTerms(terms: string[], limit: number) {
@@ -320,6 +342,31 @@ function buildBalancedSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule 
     return { operator: "and", filters: [anchorFilter, depthFilter] };
   }
   return anchorFilter ?? depthFilter;
+}
+
+function buildDataPlatformSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {
+  const searchableSignals = sanitizeRecallSignalTerms([
+    ...recallSpec.differentiating_skill_terms,
+    ...recallSpec.domain_terms,
+    ...recallSpec.must_have_signals,
+    ...recallSpec.core_skill_terms,
+  ], 28);
+  const dataSystemTerms = compactTerms(
+    searchableSignals.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_CORE_KEYWORDS)),
+    10,
+  );
+  const depthTerms = compactTerms([
+    ...searchableSignals.filter((term) => includesAnyKeyword(term, PLATFORM_ENGINEERING_KEYWORDS)),
+    ...searchableSignals.filter((term) => includesAnyKeyword(term, DATABASE_BACKEND_KEYWORDS)),
+    ...searchableSignals.filter((term) => includesAnyKeyword(term, PRODUCTION_OWNERSHIP_KEYWORDS)),
+  ], 10);
+  const dataSystemFilter = buildProfileSignalFilter(dataSystemTerms, 8);
+  const depthFilter = buildProfileSignalFilter(depthTerms, 8);
+
+  if (dataSystemFilter && depthFilter) {
+    return { operator: "and", filters: [dataSystemFilter, depthFilter] };
+  }
+  return dataSystemFilter ?? depthFilter;
 }
 
 function buildTitleFilter(titleTerms: string[]): BrightDataFilterRule | null {
@@ -751,14 +798,19 @@ export function buildBrightDataRecallFilters(
     )
     : null;
 
-  const lateralTitles = buildHiddenGemTitleTerms(recallSpec);
+  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const lateralTitles = isDataPlatformRole
+    ? buildDataPlatformTitleTerms(recallSpec)
+    : buildHiddenGemTitleTerms(recallSpec);
   const differentiatingTerms = compactTerms([
     ...signalGroups.search_domain,
     ...signalGroups.platform_engineering,
   ], 10);
 
   if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
-    const hiddenSignalFilter = buildBalancedSkillFilter({
+    const hiddenSignalFilter = isDataPlatformRole
+      ? buildDataPlatformSkillFilter(recallSpec)
+      : buildBalancedSkillFilter({
       ...recallSpec,
       core_skill_terms: signalGroups.platform_engineering,
       baseline_skill_terms: signalGroups.platform_engineering,
@@ -785,14 +837,14 @@ export function buildBrightDataRecallFilters(
     if (recordsLimit <= 0) return rounds;
 
     rounds.push({
-      round: "hidden_gem",
+      round: isDataPlatformRole ? "data_platform" : "hidden_gem",
       request: {
         datasetId,
         recordsLimit,
         filter: { operator: "and", filters: hiddenGemFilters },
       },
       diagnostics: {
-        round: "hidden_gem",
+        round: isDataPlatformRole ? "data_platform" : "hidden_gem",
         requested_count: recordsLimit,
         title_terms: lateralTitles,
         skill_signal_groups: signalGroups,
