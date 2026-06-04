@@ -77,6 +77,43 @@ const PLATFORM_ENGINEERING_KEYWORDS = [
   "pipeline",
 ];
 
+const DATABASE_BACKEND_KEYWORDS = [
+  "postgresql",
+  "postgres",
+  "database",
+  "databases",
+  "sql",
+  "storage",
+  "data intensive",
+  "data-intensive",
+];
+
+const API_BACKEND_KEYWORDS = [
+  "api",
+  "apis",
+  "backend",
+  "back end",
+  "microservice",
+  "microservices",
+  "service",
+  "services",
+  "rest",
+  "grpc",
+];
+
+const PRODUCTION_OWNERSHIP_KEYWORDS = [
+  "production",
+  "reliability",
+  "observability",
+  "incident",
+  "on-call",
+  "on call",
+  "scale",
+  "scalability",
+  "distributed",
+  "systems",
+];
+
 const ENGINEERING_TITLE_KEYWORDS = [
   "software",
   "backend",
@@ -168,6 +205,18 @@ export function buildRecallSkillSignalGroups(recallSpec: RecallSpec) {
     baselineSignals.filter((term) => includesAnyKeyword(term, PLATFORM_ENGINEERING_KEYWORDS)),
     8,
   );
+  const databaseBackend = compactTerms(
+    searchableSignals.filter((term) => includesAnyKeyword(term, DATABASE_BACKEND_KEYWORDS)),
+    6,
+  );
+  const apiBackend = compactTerms(
+    searchableSignals.filter((term) => includesAnyKeyword(term, API_BACKEND_KEYWORDS)),
+    6,
+  );
+  const productionOwnership = compactTerms(
+    searchableSignals.filter((term) => includesAnyKeyword(term, PRODUCTION_OWNERSHIP_KEYWORDS)),
+    6,
+  );
 
   return {
     search_domain: searchDomain.length > 0
@@ -178,6 +227,9 @@ export function buildRecallSkillSignalGroups(recallSpec: RecallSpec) {
       : compactTerms(recallSpec.baseline_skill_terms.length > 0
         ? recallSpec.baseline_skill_terms
         : recallSpec.core_skill_terms, 6),
+    database_backend: databaseBackend,
+    api_backend: apiBackend,
+    production_ownership: productionOwnership,
   };
 }
 
@@ -202,15 +254,32 @@ function buildProfileSignalFilter(terms: string[], maxTerms = 8): BrightDataFilt
   };
 }
 
-function buildBalancedSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {
-  const groups = buildRecallSkillSignalGroups(recallSpec);
-  const searchFilter = buildProfileSignalFilter(groups.search_domain);
-  const platformFilter = buildProfileSignalFilter(groups.platform_engineering);
-  const filters = [searchFilter, platformFilter].filter(
+function combineEvidenceFilters(filters: Array<BrightDataFilterRule | null>) {
+  const presentFilters = filters.filter(
     (filter): filter is BrightDataFilterRule => Boolean(filter),
   );
-  if (filters.length === 0) return null;
-  return filters.length === 1 ? filters[0] : { operator: "or", filters };
+  if (presentFilters.length === 0) return null;
+  return presentFilters.length === 1
+    ? presentFilters[0]
+    : { operator: "or" as const, filters: presentFilters };
+}
+
+function buildBalancedSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {
+  const groups = buildRecallSkillSignalGroups(recallSpec);
+  const anchorFilter = combineEvidenceFilters([
+    buildProfileSignalFilter(groups.search_domain, 6),
+    buildProfileSignalFilter(groups.api_backend, 6),
+  ]);
+  const depthFilter = combineEvidenceFilters([
+    buildProfileSignalFilter(groups.database_backend, 6),
+    buildProfileSignalFilter(groups.production_ownership, 6),
+    buildProfileSignalFilter(groups.platform_engineering, 6),
+  ]);
+
+  if (anchorFilter && depthFilter) {
+    return { operator: "and", filters: [anchorFilter, depthFilter] };
+  }
+  return anchorFilter ?? depthFilter;
 }
 
 function buildTitleFilter(titleTerms: string[]): BrightDataFilterRule | null {

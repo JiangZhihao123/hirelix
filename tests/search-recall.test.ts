@@ -173,6 +173,18 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(!standardValues.includes("in sf nyc or seattle"));
   assert.ok(!flattenRules(rounds[0].request.filter).some((rule) => "name" in rule && rule.name === "location"));
   assert.equal(rounds[0].diagnostics.location_mode, "country_only");
+  const rootFilter = rounds[0].request.filter;
+  assert.ok("filters" in rootFilter);
+  const standardSkillFilter = rootFilter.filters.find((rule) =>
+    "filters" in rule &&
+    rule.operator === "and" &&
+    rule.filters.some((child) => leafValues(child).includes("search infrastructure")) &&
+    rule.filters.some((child) => leafValues(child).includes("kubernetes")),
+  );
+  assert.ok(
+    standardSkillFilter,
+    "standard recall should require both a role/domain anchor and engineering depth evidence",
+  );
 
   const hiddenValues = leafValues(rounds[1].request.filter);
   assert.ok(hiddenValues.includes("platform engineer"));

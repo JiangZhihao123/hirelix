@@ -5,6 +5,7 @@ import type { BrightDataProfile } from "@/lib/brightdata";
 import { completeSearch } from "@/lib/search/finalize";
 import { getDeliveryBucketForAssessment } from "@/lib/search/pipeline";
 import { buildBrightDataCandidateRows } from "@/lib/search/recall";
+import { tagPoolRows } from "@/lib/search/scoring";
 import type {
   CandidateDisplayTier,
   CandidateRowInput,
@@ -182,6 +183,67 @@ function candidateRow(index: number, deliveryBucket: CandidateRowInput["metadata
     },
   };
 }
+
+test("tagPoolRows keeps recruiter recommendations first and sorts same bucket by quality before reachability", () => {
+  const rows = [
+    {
+      ...candidateRow(0, "lower_priority"),
+      name: "High Trigger Lower Priority",
+      match_score: 99,
+      metadata: {
+        delivery_bucket: "lower_priority",
+        quality_score: 99,
+        advance_score: 99,
+        subscription_trigger_score: 99,
+      },
+    },
+    {
+      ...candidateRow(1, "review_next"),
+      name: "High Quality Review Next",
+      match_score: 84,
+      metadata: {
+        delivery_bucket: "review_next",
+        quality_score: 92,
+        advance_score: 84,
+        subscription_trigger_score: 40,
+      },
+    },
+    {
+      ...candidateRow(2, "review_next"),
+      name: "High Trigger Review Next",
+      match_score: 88,
+      metadata: {
+        delivery_bucket: "review_next",
+        quality_score: 75,
+        advance_score: 89,
+        subscription_trigger_score: 98,
+      },
+    },
+    {
+      ...candidateRow(3, "reach_first"),
+      name: "Reach First",
+      match_score: 78,
+      metadata: {
+        delivery_bucket: "reach_first",
+        quality_score: 80,
+        advance_score: 80,
+        subscription_trigger_score: 30,
+      },
+    },
+  ];
+
+  const tagged = tagPoolRows(rows, [], rows.length);
+
+  assert.deepEqual(
+    tagged.map((row) => row.name),
+    [
+      "Reach First",
+      "High Quality Review Next",
+      "High Trigger Review Next",
+      "High Trigger Lower Priority",
+    ],
+  );
+});
 
 test("completeSearch upserts the full pool and drafts outreach only for recommended rows", async () => {
   const rows = [

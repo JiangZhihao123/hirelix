@@ -587,8 +587,38 @@ export function tagPoolRows(
   supplementalRows: CandidateRowInput[],
   candidateLimit: number,
 ) {
+  const metadataScore = (row: CandidateRowInput, field: "quality_score" | "advance_score") => {
+    const directValue = row.metadata?.[field];
+    if (typeof directValue === "number") return directValue;
+    const scoringBreakdown = row.metadata?.scoring_breakdown;
+    if (scoringBreakdown && typeof scoringBreakdown === "object" && field in scoringBreakdown) {
+      const nestedValue = (scoringBreakdown as Record<string, unknown>)[field];
+      if (typeof nestedValue === "number") return nestedValue;
+    }
+    return row.match_score;
+  };
+  const deliveryPriority = (row: CandidateRowInput) => {
+    switch (row.metadata?.delivery_bucket) {
+      case "reach_first":
+        return 0;
+      case "review_next":
+        return 1;
+      case "lower_priority":
+        return 2;
+      case "not_recommended":
+        return 3;
+      default:
+        return 2;
+    }
+  };
   const finalRows = mergeCandidateRows(primaryRows, supplementalRows, candidateLimit).sort(
     (left, right) => {
+      const priorityDelta = deliveryPriority(left) - deliveryPriority(right);
+      if (priorityDelta !== 0) return priorityDelta;
+      const rightQuality = metadataScore(right, "quality_score");
+      const leftQuality = metadataScore(left, "quality_score");
+      const rightAdvance = metadataScore(right, "advance_score");
+      const leftAdvance = metadataScore(left, "advance_score");
       const rightTrigger =
         typeof right.metadata?.subscription_trigger_score === "number"
           ? right.metadata.subscription_trigger_score
@@ -600,8 +630,10 @@ export function tagPoolRows(
       const rightPreliminary = right.metadata?.preliminary === true ? 1 : 0;
       const leftPreliminary = left.metadata?.preliminary === true ? 1 : 0;
       return (
-        rightTrigger - leftTrigger ||
+        rightQuality - leftQuality ||
+        rightAdvance - leftAdvance ||
         right.match_score - left.match_score ||
+        rightTrigger - leftTrigger ||
         leftPreliminary - rightPreliminary
       );
     },
