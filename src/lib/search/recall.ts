@@ -176,19 +176,6 @@ const DATA_PLATFORM_CORE_KEYWORDS = [
   "query engine",
 ];
 
-const DATA_PLATFORM_AVOID_TITLE_TERMS = [
-  "data analyst",
-  "business intelligence",
-  "bi developer",
-  "power bi",
-  "tableau",
-  "etl developer",
-  "data scientist",
-  "machine learning researcher",
-  "product manager",
-  "program manager",
-];
-
 function includesAnyKeyword(term: string, keywords: string[]) {
   const normalized = normalizeText(term);
   return keywords.some((keyword) => normalized.includes(keyword));
@@ -849,13 +836,6 @@ export function buildBrightDataRecallFilters(
     ];
     if (countryFilter) hiddenGemFilters.push(countryFilter);
     hiddenGemFilters.push(hiddenSignalFilter);
-    if (isDataPlatformRole) {
-      hiddenGemFilters.push(...DATA_PLATFORM_AVOID_TITLE_TERMS.map((term) => ({
-        name: "position" as const,
-        operator: "not includes" as const,
-        value: term,
-      })));
-    }
     if (locationFilter) hiddenGemFilters.push(locationFilter);
     hiddenGemFilters.push(...qualityFilters);
     const recordsLimit = executionProfile.hiddenGemLimit;
