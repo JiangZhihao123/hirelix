@@ -62,6 +62,7 @@ import type {
 } from "./_components/types";
 import {
   buildWidenPoolSuggestions,
+  compareCandidatesForRecruiterRanking,
   formatDisplayCount,
   formatDeliveryBucketLabel,
   formatElapsedMinutes,
@@ -346,16 +347,7 @@ export default function SearchResultPage() {
         // Clear highlight after 4 seconds
         setTimeout(() => setNewCandidateIds(new Set()), 4000);
       }
-      // Sort: candidates with email first, then by match score
-      const sorted = candidatesData.sort((a, b) => {
-        const aRank = typeof a.metadata?.scored_rank === "number" ? a.metadata.scored_rank : Number.POSITIVE_INFINITY;
-        const bRank = typeof b.metadata?.scored_rank === "number" ? b.metadata.scored_rank : Number.POSITIVE_INFINITY;
-        if (aRank !== bRank) return aRank - bRank;
-        const aHasEmail = !!a.email;
-        const bHasEmail = !!b.email;
-        if (aHasEmail !== bHasEmail) return bHasEmail ? 1 : -1;
-        return b.match_score - a.match_score;
-      });
+      const sorted = candidatesData.sort(compareCandidatesForRecruiterRanking);
       setCandidates(sorted);
     }
   }, [authLoading, user, id]);
@@ -711,6 +703,7 @@ export default function SearchResultPage() {
     search.status === "searching" ||
     search.status === "screening";
   const allCandidates = [...candidates].sort((left, right) => {
+    if (sortMode === "overall") return compareCandidatesForRecruiterRanking(left, right);
     const scoreFor = (candidate: CandidateRow) => {
       switch (sortMode) {
         case "capability":
@@ -719,7 +712,6 @@ export default function SearchResultPage() {
           return getCandidateRelevanceScore(candidate);
         case "join_likelihood":
           return getCandidateJoinLikelihoodScore(candidate);
-        case "overall":
         default:
           return getCandidateOverallScore(candidate);
       }

@@ -5,6 +5,37 @@ import { db } from "@/db/client";
 import { hirelix_candidates, hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 
+const candidateDeliveryPrioritySql = sql`
+  CASE ${hirelix_candidates.metadata}->>'delivery_bucket'
+    WHEN 'reach_first' THEN 0
+    WHEN 'review_next' THEN 1
+    WHEN 'lower_priority' THEN 2
+    WHEN 'not_recommended' THEN 3
+    ELSE 2
+  END
+`;
+const candidateQualityScoreSql = sql`
+  COALESCE(
+    NULLIF(${hirelix_candidates.metadata}->>'quality_score', '')::numeric,
+    NULLIF(${hirelix_candidates.metadata}->'scoring_breakdown'->>'quality_score', '')::numeric,
+    ${hirelix_candidates.match_score}
+  )
+`;
+const candidateAdvanceScoreSql = sql`
+  COALESCE(
+    NULLIF(${hirelix_candidates.metadata}->>'advance_score', '')::numeric,
+    NULLIF(${hirelix_candidates.metadata}->'scoring_breakdown'->>'advance_score', '')::numeric,
+    ${hirelix_candidates.match_score}
+  )
+`;
+const candidateTriggerScoreSql = sql`
+  COALESCE(
+    NULLIF(${hirelix_candidates.metadata}->>'subscription_trigger_score', '')::numeric,
+    NULLIF(${hirelix_candidates.metadata}->'suitability'->>'subscription_trigger_score', '')::numeric,
+    ${hirelix_candidates.match_score}
+  )
+`;
+
 /**
  * GET /api/searches/[id]
  *
@@ -37,8 +68,12 @@ export async function GET(
     .from(hirelix_candidates)
     .where(eq(hirelix_candidates.search_id, id))
     .orderBy(
-      sql`(${hirelix_candidates.metadata}->>'scored_rank')::int ASC NULLS LAST`,
+      candidateDeliveryPrioritySql,
+      sql`${candidateQualityScoreSql} DESC NULLS LAST`,
+      sql`${candidateAdvanceScoreSql} DESC NULLS LAST`,
       desc(hirelix_candidates.match_score),
+      sql`${candidateTriggerScoreSql} DESC NULLS LAST`,
+      sql`(${hirelix_candidates.metadata}->>'scored_rank')::int ASC NULLS LAST`,
       asc(hirelix_candidates.created_at),
     );
 

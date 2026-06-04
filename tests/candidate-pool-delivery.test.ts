@@ -13,6 +13,7 @@ import type {
   SearchDisplayStats,
 } from "@/lib/search/types";
 import {
+  compareCandidatesForRecruiterRanking,
   getCandidateDeliveryBucket,
   getCandidateDisplayTier,
 } from "@/app/(product)/app/search/[id]/_components/utils";
@@ -241,6 +242,73 @@ test("tagPoolRows keeps recruiter recommendations first and sorts same bucket by
       "High Quality Review Next",
       "High Trigger Review Next",
       "High Trigger Lower Priority",
+    ],
+  );
+});
+
+test("client recruiter ranking preserves delivery buckets and quality before raw match score", () => {
+  const candidates = [
+    {
+      id: "lower-priority",
+      status: "new",
+      ...candidateRow(0, "lower_priority"),
+      name: "High Match Lower Priority",
+      match_score: 99,
+      metadata: {
+        delivery_bucket: "lower_priority",
+        quality_score: 99,
+        advance_score: 99,
+        subscription_trigger_score: 99,
+      },
+    },
+    {
+      id: "reach-first",
+      status: "new",
+      ...candidateRow(1, "reach_first"),
+      name: "Reach First Candidate",
+      match_score: 80,
+      metadata: {
+        delivery_bucket: "reach_first",
+        quality_score: 86,
+        advance_score: 80,
+        subscription_trigger_score: 70,
+      },
+    },
+    {
+      id: "review-next-quality",
+      status: "new",
+      ...candidateRow(2, "review_next"),
+      name: "High Quality Review Next",
+      match_score: 82,
+      metadata: {
+        delivery_bucket: "review_next",
+        quality_score: 92,
+        advance_score: 82,
+        subscription_trigger_score: 40,
+      },
+    },
+    {
+      id: "review-next-trigger",
+      status: "new",
+      ...candidateRow(3, "review_next"),
+      name: "High Trigger Review Next",
+      match_score: 84,
+      metadata: {
+        delivery_bucket: "review_next",
+        quality_score: 75,
+        advance_score: 89,
+        subscription_trigger_score: 98,
+      },
+    },
+  ] satisfies CandidateRow[];
+
+  assert.deepEqual(
+    [...candidates].sort(compareCandidatesForRecruiterRanking).map((candidate) => candidate.name),
+    [
+      "Reach First Candidate",
+      "High Quality Review Next",
+      "High Trigger Review Next",
+      "High Match Lower Priority",
     ],
   );
 });

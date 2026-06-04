@@ -155,6 +155,53 @@ export function formatDeliveryBucketLabel(candidate: CandidateRow) {
   }
 }
 
+function candidateQualityScore(candidate: CandidateRow) {
+  return candidate.metadata?.quality_score ??
+    candidate.metadata?.scoring_breakdown?.quality_score ??
+    getCandidateOverallScore(candidate);
+}
+
+function candidateAdvanceScore(candidate: CandidateRow) {
+  return candidate.metadata?.advance_score ??
+    candidate.metadata?.scoring_breakdown?.advance_score ??
+    candidate.match_score;
+}
+
+function candidateTriggerScore(candidate: CandidateRow) {
+  return candidate.metadata?.subscription_trigger_score ??
+    candidate.metadata?.suitability?.subscription_trigger_score ??
+    candidate.match_score;
+}
+
+function candidateDeliveryPriority(candidate: CandidateRow) {
+  switch (getCandidateDeliveryBucket(candidate)) {
+    case "reach_first":
+      return 0;
+    case "review_next":
+      return 1;
+    case "lower_priority":
+      return 2;
+    case "not_recommended":
+      return 3;
+    default:
+      return 2;
+  }
+}
+
+export function compareCandidatesForRecruiterRanking(left: CandidateRow, right: CandidateRow) {
+  const leftRank = typeof left.metadata?.scored_rank === "number" ? left.metadata.scored_rank : Number.POSITIVE_INFINITY;
+  const rightRank = typeof right.metadata?.scored_rank === "number" ? right.metadata.scored_rank : Number.POSITIVE_INFINITY;
+
+  return (
+    candidateDeliveryPriority(left) - candidateDeliveryPriority(right) ||
+    candidateQualityScore(right) - candidateQualityScore(left) ||
+    candidateAdvanceScore(right) - candidateAdvanceScore(left) ||
+    right.match_score - left.match_score ||
+    candidateTriggerScore(right) - candidateTriggerScore(left) ||
+    leftRank - rightRank
+  );
+}
+
 export function formatTierLabel(value: CandidateDisplayTier) {
   return value === "priority_outreach" ? "Reach Out First" : "Worth Reviewing";
 }
