@@ -1531,14 +1531,14 @@ async function buildBrightDataDatasetCandidates(
   const waitingOnAdditional = deferredAdditionalRounds.length > 0;
   const standardNoRecords =
     metadata?.status === "failed" && metadata.warning_code === "no_records_found";
-  const hasAdditionalFallback = additionalSnapshotStates.some(
+  const hasActiveAdditionalRecallRound = additionalSnapshotStates.some(
     (round) =>
       round.metadata.status === "ready" ||
       round.metadata.status === "scheduled" ||
       round.metadata.status === "building",
   );
 
-  if (standardNoRecords && !hasAdditionalFallback) {
+  if (standardNoRecords && !hasActiveAdditionalRecallRound) {
     throw new Error(
       `Bright Data dataset recall returned no records for snapshot ${activeSnapshotId}; fix recall filters instead of relaxing them automatically.`,
     );
