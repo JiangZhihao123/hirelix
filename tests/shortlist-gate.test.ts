@@ -194,6 +194,26 @@ test("shouldDisplayCandidate: partial must-have needs strong enough evidence", (
   assert.equal(shouldDisplayCandidate(strongPartial), true);
 });
 
+test("shouldDisplayCandidate: high-confidence partial platform owners can enter review-next", () => {
+  const platformOwner = assessment({
+    capability: 78,
+    relevance: 75,
+    joinLikelihood: 40,
+    quality: 77,
+    mustHaveCoverage: "partial",
+    bucket: "consider_next",
+  });
+  platformOwner.suitability.first_contact_confidence = "high";
+  platformOwner.suitability.why_this_candidate = [
+    "Lead data platform owner",
+    "Kafka/Pulsar streaming",
+  ];
+  platformOwner.suitability.why_not_higher = ["tech stack gaps"];
+
+  assert.equal(shouldDisplayCandidate(platformOwner), true);
+  assert.equal(getDisplayTierForAssessment(platformOwner), "worth_reviewing");
+});
+
 test("shouldDisplayCandidate: explicitly unreachable candidate (join < ~15) is still filtered", () => {
   // Sanity check: we did not accidentally let "will not respond" candidates
   // through. An LLM rating join_likelihood=10 signals explicit disinterest,
