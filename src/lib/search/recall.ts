@@ -877,12 +877,21 @@ export function buildBrightDataRecallFilters(
     ];
     if (countryFilter) companyFilters.push(countryFilter);
 
-    const companyTitleTerms = compactTerms([
-      ...standardTitleTerms,
-      ...DEFAULT_HIDDEN_GEM_TITLES,
-    ], 10);
+    const companyTitleTerms = isDataPlatformRole
+      ? compactTerms([
+        ...standardTitleTerms,
+        ...lateralTitles,
+      ], 12)
+      : compactTerms([
+        ...standardTitleTerms,
+        ...DEFAULT_HIDDEN_GEM_TITLES,
+      ], 10);
     const companyTitleFilter = buildTitleFilter(companyTitleTerms);
     if (companyTitleFilter) companyFilters.push(companyTitleFilter);
+    const companySkillFilter = isDataPlatformRole
+      ? buildDataPlatformSkillFilter(recallSpec)
+      : buildBalancedSkillFilter(recallSpec);
+    if (companySkillFilter) companyFilters.push(companySkillFilter);
     companyFilters.push(...qualityFilters);
     const recordsLimit = executionProfile.companyTargetLimit;
     if (recordsLimit <= 0) return rounds;

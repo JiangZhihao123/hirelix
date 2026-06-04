@@ -197,7 +197,8 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "current_company_name"));
   assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "position"));
   assert.ok(leafValues(rounds[2].request.filter).includes("elastic"));
-  assert.ok(!leafValues(rounds[2].request.filter).includes("search infrastructure"));
+  assert.ok(leafValues(rounds[2].request.filter).includes("search infrastructure"));
+  assert.ok(leafValues(rounds[2].request.filter).includes("kubernetes"));
 });
 
 test("buildBrightDataRecallFilters skips optional sourcing rounds when limits are zero", () => {
@@ -255,7 +256,7 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
     30,
     {
       ...executionProfile,
-      companyTargetLimit: 0,
+      companyTargetLimit: 25,
     },
     {
       normalizeRecallSpec: (value) => value as RecallSpec,
@@ -268,7 +269,7 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
     },
   );
 
-  assert.deepEqual(rounds.map((round) => round.round), ["standard", "data_platform"]);
+  assert.deepEqual(rounds.map((round) => round.round), ["standard", "data_platform", "company_target"]);
   const dataPlatformRound = rounds.find((round) => round.round === "data_platform");
   assert.ok(dataPlatformRound);
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("data platform engineer"));
@@ -281,4 +282,12 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("lead data engineer"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("kafka"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("kubernetes"));
+
+  const companyRound = rounds.find((round) => round.round === "company_target");
+  assert.ok(companyRound);
+  assert.ok(companyRound.diagnostics.title_terms.includes("staff data platform engineer"));
+  assert.ok(companyRound.diagnostics.title_terms.includes("data infrastructure engineer"));
+  assert.ok(!companyRound.diagnostics.title_terms.includes("web platform engineer"));
+  assert.ok(leafValues(companyRound.request.filter).includes("kafka"));
+  assert.ok(leafValues(companyRound.request.filter).includes("kubernetes"));
 });
