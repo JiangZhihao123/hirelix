@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   hasSearchJobStartedPipeline,
+  isTransientSnapshotDownloadError,
   resolveSearchJobRunnerBaseUrl,
 } from "../src/lib/search-jobs";
 
@@ -115,5 +116,14 @@ test("hasSearchJobStartedPipeline can reclaim cache-only rescore jobs before res
       },
     }),
     false,
+  );
+});
+
+test("isTransientSnapshotDownloadError treats Bright Data metadata 502 as retryable", () => {
+  assert.equal(
+    isTransientSnapshotDownloadError(
+      new Error("Bright Data snapshot metadata failed (502): <html>502 Bad Gateway</html>"),
+    ),
+    true,
   );
 });

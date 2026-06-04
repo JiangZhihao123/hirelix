@@ -676,11 +676,16 @@ function mapSnapshotStatus(
   return "polling";
 }
 
-function isTransientSnapshotDownloadError(error: unknown) {
+export function isTransientSnapshotDownloadError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     error instanceof BrightDataSnapshotNotReadyError ||
     error instanceof BrightDataRequestTimeoutError ||
+    /\b(?:408|429|500|502|503|504|524)\b/.test(message) ||
+    message.includes("bad gateway") ||
+    message.includes("service unavailable") ||
+    message.includes("gateway timeout") ||
+    message.includes("too many requests") ||
     message.includes("fetch failed") ||
     message.includes("network") ||
     message.includes("timeout") ||
