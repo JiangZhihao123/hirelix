@@ -242,10 +242,10 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
       recall_spec: {
         ...recallSpec,
         title_variants: ["Staff Data Platform Engineer", "Senior Data Platform Engineer"],
-        core_skill_terms: ["Kafka", "Spark", "Kubernetes", "PostgreSQL"],
-        differentiating_skill_terms: ["data platform", "data infrastructure", "streaming pipelines"],
+        core_skill_terms: ["Kafka", "Spark", "Kubernetes", "PostgreSQL", "Apache Druid"],
+        differentiating_skill_terms: ["data platform", "data infrastructure", "streaming pipelines", "big data compute"],
         baseline_skill_terms: ["Kubernetes", "distributed systems"],
-        domain_terms: ["data platform"],
+        domain_terms: ["data platform", "data systems"],
         must_have_signals: ["data platform", "Kafka", "Spark", "PostgreSQL"],
         lateral_title_variants: ["Data Engineer", "Infrastructure Engineer"],
         recall_strategy: "multi_round",
@@ -283,10 +283,14 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("data infrastructure engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff data infrastructure engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("streaming platform engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("big data compute engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("data systems engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior data engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("lead data engineer"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("kafka"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("big data compute"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("apache druid"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("kubernetes"));
 
   const companyRound = rounds.find((round) => round.round === "company_target");

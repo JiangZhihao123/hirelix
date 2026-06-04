@@ -153,17 +153,27 @@ const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Streaming Platform Engineer",
   "Staff Streaming Platform Engineer",
   "Principal Streaming Platform Engineer",
+  "Big Data Platform Engineer",
+  "Big Data Compute Engineer",
+  "Data Systems Engineer",
+  "Distributed Data Systems Engineer",
+  "Backend Data Infrastructure Engineer",
 ];
 
 const DATA_PLATFORM_KEYWORDS = [
   "data platform",
   "data infrastructure",
   "data engineering",
+  "big data compute",
+  "data systems",
   "spark",
   "kafka",
   "flink",
+  "druid",
+  "pulsar",
   "airflow",
-  "warehouse",
+  "databricks",
+  "iceberg",
   "lakehouse",
   "query engine",
 ];
@@ -172,12 +182,17 @@ const DATA_PLATFORM_CORE_KEYWORDS = [
   "data platform",
   "data infrastructure",
   "streaming",
+  "big data compute",
+  "data systems",
   "kafka",
   "spark",
   "flink",
+  "druid",
+  "pulsar",
   "airflow",
+  "databricks",
+  "iceberg",
   "lakehouse",
-  "warehouse",
   "query engine",
 ];
 
@@ -210,7 +225,7 @@ function buildDataPlatformTitleTerms(recallSpec: RecallSpec) {
     ...recallSpec.title_variants.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_KEYWORDS)),
     ...recallSpec.lateral_title_variants.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_KEYWORDS)),
     ...DATA_PLATFORM_HIDDEN_GEM_TITLES,
-  ], 12);
+  ], 16);
 }
 
 function compactTerms(terms: string[], limit: number) {
