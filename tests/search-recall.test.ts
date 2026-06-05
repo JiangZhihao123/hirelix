@@ -285,11 +285,11 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("lead data platform engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff streaming platform engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("principal streaming platform engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior software engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff software engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("principal software engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior backend engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior platform engineer"));
+  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior software engineer"));
+  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("staff software engineer"));
+  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("principal software engineer"));
+  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior backend engineer"));
+  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior platform engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data platform engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data infrastructure engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("streaming platform engineer"));
@@ -298,12 +298,10 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior data engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("lead data engineer"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("kafka"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("data platform"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("data infrastructure"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("big data compute"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("apache druid"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("confluent"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("hudi"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("data lake"));
+  assert.ok(leafValues(dataPlatformRound.request.filter).includes("distributed systems"));
   assert.ok(maxGroupDepth(chunkBrightDataFilter(dataPlatformRound.request.filter)) <= 3);
 
   const companyRound = rounds.find((round) => round.round === "company_target");

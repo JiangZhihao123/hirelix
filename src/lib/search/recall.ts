@@ -166,22 +166,6 @@ const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Backend Data Infrastructure Engineer",
 ];
 
-const DATA_PLATFORM_SENIOR_GENERIC_TITLES = [
-  "Senior Software Engineer",
-  "Staff Software Engineer",
-  "Principal Software Engineer",
-  "Lead Software Engineer",
-  "Senior Backend Engineer",
-  "Staff Backend Engineer",
-  "Principal Backend Engineer",
-  "Senior Platform Engineer",
-  "Staff Platform Engineer",
-  "Principal Platform Engineer",
-  "Senior Infrastructure Engineer",
-  "Staff Infrastructure Engineer",
-  "Principal Infrastructure Engineer",
-];
-
 const DATA_PLATFORM_COMPANY_TARGET_TITLES = [
   "Senior Software Engineer",
   "Staff Software Engineer",
@@ -310,10 +294,7 @@ function filterDataPlatformTitleTermsForSeniority(
       normalized.includes("distributed data systems");
   });
 
-  return compactTerms([
-    ...seniorDataTitles,
-    ...DATA_PLATFORM_SENIOR_GENERIC_TITLES,
-  ], 24);
+  return compactTerms(seniorDataTitles, 16);
 }
 
 function compactTerms(terms: string[], limit: number) {
@@ -450,21 +431,6 @@ function buildBalancedSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule 
     return { operator: "and", filters: [anchorFilter, depthFilter] };
   }
   return anchorFilter ?? depthFilter;
-}
-
-function buildDataPlatformSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {
-  const searchableSignals = sanitizeRecallSignalTerms([
-    ...recallSpec.differentiating_skill_terms,
-    ...recallSpec.domain_terms,
-    ...recallSpec.must_have_signals,
-    ...recallSpec.core_skill_terms,
-  ], 28);
-  const strongEvidenceTerms = compactTerms([
-    ...searchableSignals.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_HIGH_SIGNAL_TERMS)),
-    ...DATA_PLATFORM_HIGH_SIGNAL_TERMS,
-  ], 12);
-  const strongEvidenceFilter = buildProfileSignalFilter(strongEvidenceTerms, 10);
-  return strongEvidenceFilter;
 }
 
 function buildShallowCompanySkillFilter(
@@ -947,7 +913,22 @@ export function buildBrightDataRecallFilters(
 
   if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
     const hiddenSignalFilter = isDataPlatformRole
-      ? buildDataPlatformSkillFilter(recallSpec)
+      ? buildBalancedSkillFilter({
+      ...recallSpec,
+      core_skill_terms: [
+        ...signalGroups.platform_engineering,
+        ...signalGroups.database_backend,
+        ...signalGroups.production_ownership,
+      ],
+      baseline_skill_terms: [
+        ...signalGroups.platform_engineering,
+        ...signalGroups.database_backend,
+        ...signalGroups.production_ownership,
+      ],
+      differentiating_skill_terms: signalGroups.search_domain,
+      domain_terms: signalGroups.search_domain,
+      must_have_signals: signalGroups.search_domain,
+    })
       : buildBalancedSkillFilter({
       ...recallSpec,
       core_skill_terms: signalGroups.platform_engineering,
