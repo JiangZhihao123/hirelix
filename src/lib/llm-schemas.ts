@@ -353,6 +353,47 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: LlmJsonSchemaConfig = {
   },
 };
 
+const sourcingLaneSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "name",
+    "strategy",
+    "title_terms",
+    "skill_terms",
+    "company_terms",
+    "avoid_terms",
+    "budget_weight",
+  ],
+  properties: {
+    name: { type: "string" },
+    strategy: enumSchema(["title", "skill", "seniority", "company"]),
+    title_terms: stringArraySchema(),
+    skill_terms: stringArraySchema(),
+    company_terms: stringArraySchema(),
+    avoid_terms: stringArraySchema(),
+    budget_weight: { type: "number" },
+  },
+};
+
+export const RECALL_REACT_JSON_SCHEMA: LlmJsonSchemaConfig = {
+  name: "recall_react_observation",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["decision", "diagnosis", "revised_lanes"],
+    properties: {
+      decision: enumSchema(["score_now", "revise_recall"]),
+      diagnosis: { type: "string" },
+      revised_lanes: {
+        type: "array",
+        items: sourcingLaneSchema,
+      },
+    },
+  },
+};
+
 export function buildJudgeScoreJsonSchema(poolSize: number): LlmJsonSchemaConfig {
   return {
     name: poolSize === 1 ? "judge_score_single" : "judge_score_batch",

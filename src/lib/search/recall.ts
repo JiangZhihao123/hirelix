@@ -27,13 +27,7 @@ import type {
 export type RecallFilterMode = "primary" | "relaxed";
 
 export type RecallRound = {
-  round:
-    | "standard"
-    | "standard_skill"
-    | "standard_seniority"
-    | "hidden_gem"
-    | "data_platform"
-    | "company_target";
+  round: string;
   request: BrightDataDatasetFilterRequest;
   diagnostics: Omit<RecallRoundDiagnostics, "filter_hash" | "returned_count" | "quality_distribution">;
 };
@@ -590,12 +584,28 @@ function buildCompanyFilter(companyTerms: string[]): BrightDataFilterRule | null
   };
 }
 
-function normalizeLaneRoundName(lane: SourcingLane, index: number): RecallRound["round"] {
+function getLaneRoundBaseName(lane: SourcingLane, index: number) {
   if (index === 0 || lane.strategy === "title") return "standard";
   if (lane.strategy === "skill") return "standard_skill";
   if (lane.strategy === "seniority") return "standard_seniority";
   if (lane.strategy === "company") return "company_target";
   return "hidden_gem";
+}
+
+function getUniqueLaneRoundName(
+  lane: SourcingLane,
+  index: number,
+  usedRoundNames: Set<string>,
+) {
+  const baseName = getLaneRoundBaseName(lane, index);
+  if (!usedRoundNames.has(baseName)) {
+    usedRoundNames.add(baseName);
+    return baseName;
+  }
+
+  const uniqueName = `${baseName}_${index + 1}`;
+  usedRoundNames.add(uniqueName);
+  return uniqueName;
 }
 
 function allocateLaneLimits(
@@ -653,6 +663,7 @@ function buildRecallRoundsFromSourcingLanes(params: {
 
   const limits = allocateLaneLimits(lanes, params.executionProfile);
   const rounds: RecallRound[] = [];
+  const usedRoundNames = new Set<string>();
 
   lanes.forEach((lane, index) => {
     const recordsLimit = limits.get(index) ?? 0;
@@ -678,7 +689,7 @@ function buildRecallRoundsFromSourcingLanes(params: {
     if (params.locationFilter && lane.strategy !== "company") filters.push(params.locationFilter);
     filters.push(...params.qualityFilters);
 
-    const round = normalizeLaneRoundName(lane, index);
+    const round = getUniqueLaneRoundName(lane, index, usedRoundNames);
     rounds.push({
       round,
       request: {

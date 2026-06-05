@@ -82,6 +82,7 @@ import type {
   SearchJobRow,
   SearchPipelineResult,
   SearchRow,
+  SourcingLane,
 } from "@/lib/search/types";
 import {
   FINAL_SHORTLIST_TARGET,
@@ -971,6 +972,201 @@ async function scoreBrightDataProfiles(
       excluded_reason_counts: excludedReasonCounts,
     }),
   };
+}
+
+function getProfileRecallSource(profile: BrightDataProfile) {
+  const source = (profile as BrightDataProfile & { __recall_source?: unknown }).__recall_source;
+  return typeof source === "string" && source.length > 0 ? source : "standard";
+}
+
+function safeTruncate(text: string, maxChars: number) {
+  return text.length <= maxChars ? text : `${text.slice(0, maxChars)}...`;
+}
+
+function buildRecallObservationPrompt(params: {
+  parsed: Record<string, unknown>;
+  jdText: string;
+  profiles: BrightDataProfile[];
+  recallSpec: RecallSpec;
+  roundDiagnostics: RecallRoundDiagnostics[];
+}) {
+  const sourceCounts = params.profiles.reduce<Record<string, number>>((counts, profile) => {
+    const source = getProfileRecallSource(profile);
+    counts[source] = (counts[source] ?? 0) + 1;
+    return counts;
+  }, {});
+  const profileSamples = params.profiles.slice(0, 36).map((profile, index) => {
+    const currentRole = profile.current_company
+      ? [profile.current_company.title, profile.current_company.name].filter(Boolean).join(" at ")
+      : null;
+    const experience = (profile.experience ?? []).slice(0, 2)
+      .map((entry) => [entry.title, entry.company, entry.description].filter(Boolean).join(" | "))
+      .filter(Boolean)
+      .map((entry) => safeTruncate(entry, 280));
+    return {
+      index,
+      recall_source: getProfileRecallSource(profile),
+      name: profile.name,
+      headline: profile.headline,
+      current_role: currentRole,
+      location: [profile.city, profile.country_code].filter(Boolean).join(", "),
+      about: profile.about ? safeTruncate(profile.about, 360) : null,
+      experience,
+      skills: (profile.skills ?? []).slice(0, 12),
+    };
+  });
+
+  return JSON.stringify({
+    job_title: params.parsed.title ?? null,
+    jd_excerpt: safeTruncate(params.jdText, 1800),
+    current_sourcing_lanes: params.recallSpec.sourcing_lanes,
+    recall_rounds: params.roundDiagnostics.map((round) => ({
+      round: round.round,
+      requested_count: round.requested_count,
+      returned_count: round.returned_count ?? null,
+      title_terms: round.title_terms,
+      skill_terms: [
+        ...round.skill_signal_groups.search_domain,
+        ...round.skill_signal_groups.platform_engineering,
+      ],
+    })),
+    source_counts: sourceCounts,
+    observed_profiles: profileSamples,
+  });
+}
+
+function normalizeReactSourcingLanes(value: unknown, helpers: SearchPipelineHelpers): SourcingLane[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((rawLane) => {
+    const lane = rawLane && typeof rawLane === "object"
+      ? (rawLane as Record<string, unknown>)
+      : {};
+    const strategy = helpers.normalizeEnumValue(
+      lane.strategy,
+      ["title", "skill", "seniority", "company"] as const,
+      "skill",
+    );
+    const titleTerms = helpers.normalizeStringArray(lane.title_terms, 18);
+    const skillTerms = helpers.normalizeStringArray(lane.skill_terms, 18);
+    const companyTerms = helpers.normalizeStringArray(lane.company_terms, 15);
+    if (titleTerms.length === 0 && skillTerms.length === 0 && companyTerms.length === 0) return [];
+    const rawWeight = typeof lane.budget_weight === "number" && Number.isFinite(lane.budget_weight)
+      ? lane.budget_weight
+      : 1;
+    return [{
+      name: helpers.normalizeNullableString(lane.name) || `react_${strategy}`,
+      strategy,
+      title_terms: titleTerms,
+      skill_terms: skillTerms,
+      company_terms: companyTerms,
+      avoid_terms: helpers.normalizeStringArray(lane.avoid_terms, 8),
+      budget_weight: Math.max(0.25, Math.min(4, rawWeight)),
+    } satisfies SourcingLane];
+  }).slice(0, 3);
+}
+
+async function observeRecallAndMaybeRevise(params: {
+  context: PipelineContext;
+  parsed: Record<string, unknown>;
+  recallSpec: RecallSpec;
+  profiles: BrightDataProfile[];
+  roundDiagnostics: RecallRoundDiagnostics[];
+  helpers: SearchPipelineHelpers;
+}) {
+  if (params.profiles.length < Math.max(10, params.context.candidateCount)) return;
+  const existingReact = params.parsed.recall_react && typeof params.parsed.recall_react === "object"
+    ? (params.parsed.recall_react as Record<string, unknown>)
+    : null;
+  if (existingReact?.completed === true || existingReact?.revision_applied === true) return;
+
+  const {
+    generateLlmJson,
+    getLightweightLlmModel,
+    resolveDeepSeekThinkingMode,
+  } = await import("@/lib/llm-client");
+  const { RECALL_REACT_JSON_SCHEMA } = await import("@/lib/llm-schemas");
+  const { RECALL_REACT_PROMPT } = await import("@/lib/prompts");
+  const { withTimeout } = await import("@/lib/search/concurrency");
+
+  const prompt = buildRecallObservationPrompt({
+    parsed: params.parsed,
+    jdText: params.context.jdText,
+    profiles: params.profiles,
+    recallSpec: params.recallSpec,
+    roundDiagnostics: params.roundDiagnostics,
+  });
+  const { data } = await withTimeout(
+    (signal) => generateLlmJson<Record<string, unknown>>({
+      model: getLightweightLlmModel(),
+      system: RECALL_REACT_PROMPT,
+      prompt,
+      maxOutputTokens: 2600,
+      abortSignal: signal,
+      timeoutMs: 60000,
+      temperature: 0,
+      jsonSchema: RECALL_REACT_JSON_SCHEMA,
+      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
+      usageEvent: {
+        searchId: params.context.searchId,
+        jobId: params.context.jobId,
+        userId: params.context.userId,
+        stage: "recall_react",
+      },
+    }),
+    60000,
+    "Recall ReAct observation",
+  );
+
+  const decision = params.helpers.normalizeEnumValue(
+    data.decision,
+    ["score_now", "revise_recall"] as const,
+    "score_now",
+  );
+  const revisedLanes = normalizeReactSourcingLanes(data.revised_lanes, params.helpers);
+  const diagnosis = params.helpers.normalizeNullableString(data.diagnosis);
+
+  params.helpers.logSearchEvent("search_recall_react_observed", {
+    search_id: params.context.searchId,
+    decision,
+    revised_lane_count: revisedLanes.length,
+    diagnosis,
+    job_id: params.context.jobId,
+  });
+
+  if (decision !== "revise_recall" || revisedLanes.length === 0) {
+    params.parsed.recall_react = {
+      completed: true,
+      decision,
+      diagnosis,
+      revised_lane_count: 0,
+      observed_at: params.helpers.nowIso(),
+    };
+    await updateSearchParsedRequirements(params.context.searchId, params.parsed);
+    return;
+  }
+
+  params.parsed.recall_spec = {
+    ...(params.parsed.recall_spec && typeof params.parsed.recall_spec === "object"
+      ? params.parsed.recall_spec as Record<string, unknown>
+      : {}),
+    sourcing_lanes: revisedLanes,
+    recall_strategy: "multi_round",
+  };
+  params.parsed.recall_react = {
+    completed: true,
+    revision_applied: true,
+    decision,
+    diagnosis,
+    revised_lanes: revisedLanes,
+    observed_profile_count: params.profiles.length,
+    observed_at: params.helpers.nowIso(),
+  };
+  params.parsed.recall_metadata = undefined;
+  await updateSearchParsedRequirements(params.context.searchId, params.parsed);
+  throw new DatasetRecallPendingError(
+    "Recall ReAct revised sourcing lanes after observing Bright Data results",
+    { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+  );
 }
 
 async function buildBrightDataDatasetCandidates(
@@ -2123,6 +2319,18 @@ async function buildBrightDataDatasetCandidates(
     filter_summary: filterSummary,
   };
   await updateSearchParsedRequirements(context.searchId, parsed);
+
+  await observeRecallAndMaybeRevise({
+    context,
+    parsed,
+    recallSpec,
+    profiles: allProfiles,
+    roundDiagnostics: buildRoundDiagnostics({
+      standardReturned: standardProfileCount,
+      additionalReturned: additionalReturnedCounts,
+    }),
+    helpers,
+  });
 
   helpers.logSearchEvent("search_timing", {
     search_id: context.searchId,

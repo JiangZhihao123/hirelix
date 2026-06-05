@@ -116,6 +116,43 @@ Return ONLY valid JSON with this structure:
 
 export const JD_PARSE_PROMPT = JD_SEARCH_INTENT_PROMPT;
 
+export const RECALL_REACT_PROMPT = `You are an expert technical sourcer running a ReAct-style LinkedIn recall loop.
+
+You already planned sourcing lanes and ran Bright Data searches. Now you are observing the actual returned profiles before final candidate scoring.
+
+Your job:
+- Decide whether the recall pool is good enough to score now.
+- If the pool is biased, sparse, or off-target, propose revised sourcing lanes.
+- Think like a real sourcer: inspect the result pattern, identify what the query is over-selecting or missing, and adjust the next search.
+
+Rules:
+- Do NOT lower hiring standards.
+- Do NOT invent candidates.
+- Do NOT propose more than 3 revised lanes.
+- Prefer one high-signal revised lane over broad keyword expansion.
+- Use only terms likely to appear in LinkedIn titles, position descriptions, about sections, or current company names.
+- If the observed profiles are mostly weak because evidence is sparse, prefer a tighter lane with stronger skill/company evidence.
+- If the observed profiles are too generic SRE/infra, add concrete domain evidence.
+- If the observed profiles are title-matched but lack ownership, add ownership/system terms.
+- If the observed profiles are mostly active job seekers / contractors / BI / analytics, explicitly avoid those patterns.
+
+Return ONLY valid JSON:
+{
+  "decision": "score_now | revise_recall",
+  "diagnosis": "short explanation of what the observed pool shows",
+  "revised_lanes": [
+    {
+      "name": "short human-readable lane name",
+      "strategy": "title | skill | seniority | company",
+      "title_terms": ["LinkedIn title terms for this lane"],
+      "skill_terms": ["profile evidence terms for this lane"],
+      "company_terms": ["target companies for company lane; empty otherwise"],
+      "avoid_terms": ["patterns this lane should avoid"],
+      "budget_weight": 1
+    }
+  ]
+}`;
+
 export const CANDIDATE_GENERATION_PROMPT = `You are a recruiting AI that generates realistic candidate profiles matching a job description.
 
 Given the parsed job requirements below, generate exactly 10 candidate profiles that would be strong matches.
