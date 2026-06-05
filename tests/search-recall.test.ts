@@ -416,6 +416,8 @@ test("buildBrightDataRecallFilters prefers LLM sourcing lanes over role-specific
   ]);
   assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [60, 20, 20]);
   assert.ok(leafValues(rounds[0].request.filter).includes("principal data platform engineer"));
+  assert.ok(leafValues(rounds[0].request.filter).includes("kafka"));
+  assert.ok(leafValues(rounds[0].request.filter).includes("flink"));
   assert.ok(leafValues(rounds[1].request.filter).includes("streaming platform"));
   assert.ok(leafValues(rounds[2].request.filter).includes("confluent"));
   assert.ok(!rounds[1].diagnostics.title_terms.includes("senior backend engineer"));

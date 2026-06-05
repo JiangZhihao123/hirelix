@@ -132,8 +132,12 @@ Rules:
 - Prefer one high-signal revised lane over broad keyword expansion.
 - Use only terms likely to appear in LinkedIn titles, position descriptions, about sections, or current company names.
 - If the observed profiles are mostly weak because evidence is sparse, prefer a tighter lane with stronger skill/company evidence.
-- If the observed profiles are too generic SRE/infra, add concrete domain evidence.
-- If the observed profiles are title-matched but lack ownership, add ownership/system terms.
+- Revised lanes are executed against Bright Data, so every term must earn its place.
+- Do not use generic seniority words alone as title evidence: "Staff", "Principal", "Lead", "Senior", "Software Engineer", "Platform Engineer", "Backend Engineer", "SRE", or "Infrastructure Engineer" are too broad unless paired with concrete domain skill evidence.
+- For a broad senior title lane, include at least two concrete domain/ownership skill terms that must appear in the profile evidence, such as system names, platform ownership, streaming/data/search/security terms from the JD.
+- For a direct title lane, prefer full LinkedIn-style titles like "Staff Data Platform Engineer" over fragments like "Data Platform" or "Principal".
+- If the observed profiles are too generic SRE/infra, require concrete domain evidence instead of broadening titles.
+- If the observed profiles are title-matched but lack ownership, require ownership/system terms.
 - If the observed profiles are mostly active job seekers / contractors / BI / analytics, explicitly avoid those patterns.
 
 Return ONLY valid JSON:

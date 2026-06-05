@@ -682,7 +682,7 @@ function buildRecallRoundsFromSourcingLanes(params: {
     } else {
       if (!titleFilter) return;
       filters.push(titleFilter);
-      if (skillFilter && lane.strategy !== "title") filters.push(skillFilter);
+      if (skillFilter) filters.push(skillFilter);
     }
 
     if (params.countryFilter) filters.push(params.countryFilter);
