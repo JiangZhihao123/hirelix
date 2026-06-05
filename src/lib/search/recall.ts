@@ -779,12 +779,16 @@ export function buildBrightDataRecallFilter(
 
   const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const locationMode = getRecallLocationMode(hiringBrief);
+  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const effectiveTitleTerms = isDataPlatformRole
+    ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
+    : titleTerms;
   const countryCodes = recallSpec.countries
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
     .slice(0, 4);
 
-  const titleFilter = buildTitleFilter(titleTerms);
+  const titleFilter = buildTitleFilter(effectiveTitleTerms);
   if (!titleFilter) return null;
 
   const rootFilters: BrightDataFilterRule[] = [titleFilter];
@@ -793,7 +797,9 @@ export function buildBrightDataRecallFilter(
   if (countryFilter) rootFilters.push(countryFilter);
 
   const standardSkillFilter =
-    mode === "relaxed"
+    isDataPlatformRole
+      ? null
+      : mode === "relaxed"
       ? options.buildStandardSkillFilter(recallSpec, mode)
       : buildBalancedSkillFilter(recallSpec);
   if (standardSkillFilter) {
@@ -875,13 +881,20 @@ export function buildBrightDataRecallFilters(
     : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value));
   const standardTitleTerms = buildEngineeringTitleTerms(rawTitleTerms, normalizeNullableString(parsed.title));
   const signalGroups = buildRecallSkillSignalGroups(recallSpec);
+  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const dataPlatformStandardTitleTerms = isDataPlatformRole
+    ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
+    : [];
+  const standardDiagnosticTitleTerms = dataPlatformStandardTitleTerms.length > 0
+    ? dataPlatformStandardTitleTerms
+    : standardTitleTerms;
   const rounds: RecallRound[] = [{
     round: "standard",
     request: standardRequest,
     diagnostics: {
       round: "standard",
       requested_count: standardRequest.recordsLimit,
-      title_terms: standardTitleTerms,
+      title_terms: standardDiagnosticTitleTerms,
       skill_signal_groups: signalGroups,
       location_mode: locationMode,
     },
@@ -906,7 +919,6 @@ export function buildBrightDataRecallFilters(
     )
     : null;
 
-  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
   const lateralTitles = isDataPlatformRole
     ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
     : buildHiddenGemTitleTerms(recallSpec);
@@ -915,7 +927,7 @@ export function buildBrightDataRecallFilters(
     ...signalGroups.platform_engineering,
   ], 10);
 
-  if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
+  if (!isDataPlatformRole && lateralTitles.length > 0 && differentiatingTerms.length > 0) {
     const hiddenSignalFilter = isDataPlatformRole ? null : buildBalancedSkillFilter({
       ...recallSpec,
       core_skill_terms: signalGroups.platform_engineering,

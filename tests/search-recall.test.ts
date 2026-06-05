@@ -235,7 +235,7 @@ test("buildBrightDataRecallFilters skips optional sourcing rounds when limits ar
   assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50]);
 });
 
-test("buildBrightDataRecallFilters uses a high-recall data-platform round for LLM ranking", () => {
+test("buildBrightDataRecallFilters uses high-recall standard round for data platform LLM ranking", () => {
   const rounds = buildBrightDataRecallFilters(
     {
       title: "Staff Data Platform Engineer",
@@ -275,34 +275,34 @@ test("buildBrightDataRecallFilters uses a high-recall data-platform round for LL
     },
   );
 
-  assert.deepEqual(rounds.map((round) => round.round), ["standard", "data_platform", "company_target"]);
-  const dataPlatformRound = rounds.find((round) => round.round === "data_platform");
-  assert.ok(dataPlatformRound);
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff data platform engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data platform engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff data infrastructure engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data infrastructure engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("lead data platform engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff streaming platform engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("principal streaming platform engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior software engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("staff software engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("principal software engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior backend engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior platform engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data platform engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data infrastructure engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("streaming platform engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("big data compute engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data systems engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff data engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("principal data engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("lead data engineer"));
-  assert.ok(!leafValues(dataPlatformRound.request.filter).includes("big data compute"));
-  assert.ok(!leafValues(dataPlatformRound.request.filter).includes("distributed systems"));
-  assert.ok(maxGroupDepth(chunkBrightDataFilter(dataPlatformRound.request.filter)) <= 3);
+  assert.deepEqual(rounds.map((round) => round.round), ["standard", "company_target"]);
+  const standardRound = rounds.find((round) => round.round === "standard");
+  assert.ok(standardRound);
+  assert.ok(standardRound.diagnostics.title_terms.includes("staff data platform engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("senior data platform engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("staff data infrastructure engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("senior data infrastructure engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("lead data platform engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("staff streaming platform engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("principal streaming platform engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("senior software engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("staff software engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("principal software engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("senior backend engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("senior platform engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("data platform engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("data infrastructure engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("streaming platform engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("big data compute engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("data systems engineer"));
+  assert.ok(!standardRound.diagnostics.title_terms.includes("data engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("senior data engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("staff data engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("principal data engineer"));
+  assert.ok(standardRound.diagnostics.title_terms.includes("lead data engineer"));
+  assert.ok(!leafValues(standardRound.request.filter).includes("big data compute"));
+  assert.ok(!leafValues(standardRound.request.filter).includes("distributed systems"));
+  assert.ok(maxGroupDepth(chunkBrightDataFilter(standardRound.request.filter)) <= 3);
 
   const companyRound = rounds.find((round) => round.round === "company_target");
   assert.ok(companyRound);
