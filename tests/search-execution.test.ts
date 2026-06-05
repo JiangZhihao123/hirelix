@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { BILLING_PLANS } from "@/lib/billing";
 import {
   FINAL_SHORTLIST_TARGET,
   DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT,
@@ -25,8 +26,32 @@ function withProductionEnv<T>(fn: () => T): T {
   }
 }
 
+function withDefaultFreeScanEnv<T>(fn: () => T): T {
+  const keys = [
+    "SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT",
+    "SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT",
+    "SEARCH_FREE_BRIGHTDATA_COMPANY_TARGET_LIMIT",
+  ] as const;
+  const previous = new Map<string, string | undefined>(
+    keys.map((key) => [key, process.env[key]]),
+  );
+  for (const key of keys) delete process.env[key];
+  try {
+    return fn();
+  } finally {
+    for (const key of keys) {
+      const value = previous.get(key);
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 test("free searches use a constrained real-production preview profile", () => {
-  const profile = getInitialSearchExecutionProfile("free");
+  const profile = withDefaultFreeScanEnv(() => getInitialSearchExecutionProfile("free"));
 
   assert.equal(profile.name, "bright_free_preview");
   assert.equal(profile.mode, "production");
@@ -34,10 +59,11 @@ test("free searches use a constrained real-production preview profile", () => {
   assert.ok(profile.hiddenGemLimit > 0);
   assert.ok(profile.companyTargetLimit > 0);
 
-  const targets = getInitialSearchTargets("free");
+  const targets = withDefaultFreeScanEnv(() => getInitialSearchTargets("free"));
   assert.equal(targets.executionProfile, "bright_free_preview");
   assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
   assert.equal(targets.highlightCount, 3);
+  assert.equal(targets.profileScanBudget, BILLING_PLANS.free.profileScansPerMonth);
   assert.equal(
     targets.profileScanBudget,
     profile.filterLimit + profile.hiddenGemLimit + profile.companyTargetLimit,

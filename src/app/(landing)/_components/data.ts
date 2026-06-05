@@ -145,7 +145,7 @@ export const outreachChannels = [
 export const billingFaqs = [
   {
     title: "Do subscriptions renew automatically?",
-    body: "Yes. Solo, Pro, Business, and Agency subscriptions renew automatically until you cancel.",
+    body: "Yes. Starter and Pro subscriptions renew automatically until you cancel. Free is a one-role preview.",
   },
   {
     title: "How do I cancel?",

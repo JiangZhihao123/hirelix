@@ -132,11 +132,11 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
   free: {
     code: "free",
     name: "Free",
-    description: "Preview one client role before you pay.",
+    description: "Preview one client role with a real AI sourcing budget.",
     priceLabel: "$0",
-    cadenceLabel: "1 preview client role",
+    cadenceLabel: "1 AI sourcing preview",
     billingCycle: null,
-    profileScansPerMonth: 150,
+    profileScansPerMonth: 250,
     emailLookupsPerMonth: 0,
     publicEvidenceDeepDivesPerMonth: 0,
     searchesPerMonth: 1,
@@ -349,8 +349,8 @@ export function getPlanStatusCopy(
       ? "No targeted profile scans left this cycle"
       : `${clientRolesRemaining} / ${clientRolesLimit} client roles and ${profileScansRemaining} / ${profileScansLimit} targeted scans left`,
     capabilityLabel: isFreePlan
-      ? "Includes one ranked candidate pool from 150 targeted profile scans"
-      : `Includes ${billing.plan.searchesPerMonth} client roles, ranked candidate pools, contact lookup, evidence deep dives, export, and client-ready briefs`,
+      ? "Includes one ranked candidate pool from 250 targeted profile scans"
+      : `Includes ${billing.plan.searchesPerMonth} client roles, AI sourcing budget, contact lookup, on-demand evidence deep dives, export, and client-ready briefs`,
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",
     state: isExhausted ? "warning" : "default",

@@ -53,9 +53,9 @@ export function PricingSection({
       monthlyPrice: null,
       bullets: [
         "1 client role preview",
-        `${formatCount(freeProfileScans)} targeted profile scans`,
-        "Ranked candidate pool",
-        "Recommended shortlist with outreach drafts",
+        `${formatCount(freeProfileScans)} targeted profile scan budget`,
+        "AI-sourced ranked candidate pool",
+        "Top recommendations with outreach drafts",
       ],
     },
     {
@@ -71,11 +71,11 @@ export function PricingSection({
       monthlyPrice: starterMonthlyPlan.priceLabel,
       bullets: [
         `${starterAnnualPlan.searchesPerMonth} client roles per month`,
-        `${formatCount(getPlanProfileScansPerMonth(starterAnnualPlan))} targeted profile scans included`,
-        "Start each role with 500 scans",
-        "Expand the same role with remaining scans",
+        `${formatCount(getPlanProfileScansPerMonth(starterAnnualPlan))} targeted profile scan budget`,
+        "AI can split scans across sourcing angles",
+        "Useful profiles are deduped and ranked",
         `${formatCount(getPlanEmailLookupsPerMonth(starterAnnualPlan))} contact lookups`,
-        `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(starterAnnualPlan))} public evidence deep dives`,
+        `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(starterAnnualPlan))} on-demand evidence deep dives`,
         "CSV export and client-ready briefs",
       ],
     },
@@ -92,11 +92,11 @@ export function PricingSection({
       monthlyPrice: proMonthlyPlan.priceLabel,
       bullets: [
         `${proAnnualPlan.searchesPerMonth} client roles per month`,
-        `${formatCount(getPlanProfileScansPerMonth(proAnnualPlan))} targeted profile scans included`,
-        "Start each role with 500 scans",
-        "Expand the same role with remaining scans",
+        `${formatCount(getPlanProfileScansPerMonth(proAnnualPlan))} targeted profile scan budget`,
+        "AI can run more sourcing rounds per desk",
+        "Useful profiles are deduped and ranked",
         `${formatCount(getPlanEmailLookupsPerMonth(proAnnualPlan))} contact lookups`,
-        `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(proAnnualPlan))} public evidence deep dives`,
+        `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(proAnnualPlan))} on-demand evidence deep dives`,
         "CSV export and client-ready briefs",
       ],
     },
@@ -190,7 +190,7 @@ export function PricingSection({
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Targeted profile scans are sourced profiles returned by JD-based filters, not random resume browsing. Hirelix delivers the full ranked candidate pool and marks the recommended shortlist inside it.
+          Targeted profile scans are AI sourcing budget, not a guaranteed final candidate count. Hirelix observes the pool, adjusts sourcing angles, dedupes useful profiles, and ranks the strongest candidates found within your plan budget.
         </p>
       </div>
     </section>

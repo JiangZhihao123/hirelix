@@ -170,7 +170,7 @@ export function InviteActivationClient({
               <div>
                 <p className="font-semibold">Seat activated.</p>
                 <p className="mt-1 text-sm leading-6">
-                  You have 1 free ranked candidate preview and {activation.referralPasses} invite passes for other technical headhunters.
+                  You have 1 free client-role preview and {activation.referralPasses} invite passes for other technical headhunters.
                 </p>
                 {activation.emailMismatch ? (
                   <p className="mt-2 text-xs text-emerald-800">

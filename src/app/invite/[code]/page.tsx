@@ -99,7 +99,7 @@ export default async function InvitePage({
             </p>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
-              <BenefitCard title="1 free preview" body="One small ranked candidate preview during the beta." />
+              <BenefitCard title="1 free preview" body="One real client-role preview with AI sourcing budget during the beta." />
               <BenefitCard title="Technical headhunter beta" body="Built for independent and agency tech recruiters." />
               <BenefitCard title="3 invite passes" body="After activation, invite other technical headhunters." />
             </div>

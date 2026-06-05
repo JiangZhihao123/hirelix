@@ -84,7 +84,7 @@ function makeBillingSummary(
 }
 
 test("billing plans expose free, starter, and pro client-role tiers", () => {
-  assert.equal(BILLING_PLANS.free.profileScansPerMonth, 150);
+  assert.equal(BILLING_PLANS.free.profileScansPerMonth, 250);
   assert.equal(BILLING_PLANS.free.clientBriefEnabled, false);
   assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 25);
   assert.equal(BILLING_PLANS.free.emailLookupsPerMonth, 0);
@@ -138,12 +138,12 @@ test("plan status copy describes candidate pool actions for free and paid plans"
   assert.equal(freeCopy.title, "Free plan");
   assert.match(freeCopy.usageLabel, /targeted scans left/);
   assert.match(freeCopy.usageLabel, /client roles/);
-  assert.match(freeCopy.capabilityLabel, /150 targeted profile scans/);
+  assert.match(freeCopy.capabilityLabel, /250 targeted profile scans/);
   assert.match(freeCopy.capabilityLabel, /ranked candidate pool/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));
   assert.equal(monthlyCopy.title, "Starter");
-  assert.match(monthlyCopy.capabilityLabel, /ranked candidate pools/);
+  assert.match(monthlyCopy.capabilityLabel, /AI sourcing budget/);
   assert.match(monthlyCopy.capabilityLabel, /client-ready briefs/);
   assert.match(monthlyCopy.capabilityLabel, /3 client roles/);
 });

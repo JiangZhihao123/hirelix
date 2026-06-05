@@ -57,7 +57,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
       id="billing"
       eyebrow="Billing"
       title="Billing and usage"
-      description="Usage is based on targeted profiles sourced for each role, then email lookup and public evidence when you need them."
+      description="Usage is based on AI sourcing budget, then email lookup and public evidence only when you choose to run them."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -134,7 +134,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <ScanSearch className="h-4 w-4 text-slate-400" />
-                  Targeted profile scans
+                  Targeted profile scan budget
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.profileScansUsed}/{billing.usage.profileScansLimit}
@@ -261,12 +261,11 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   <div className="mt-4 space-y-1.5 text-xs text-slate-600">
                     {[
                       `${plan.searchesPerMonth} client roles per month`,
-                      `${profileScans} targeted profile scans per month`,
-                      "Full ranked candidate pool for every discovery pass",
-                      "500 scans in each default discovery pass",
-                      "Expand the same role with remaining scans",
+                      `${profileScans} targeted profile scan budget per month`,
+                      "AI can split scans across sourcing angles",
+                      "Useful profiles are deduped and ranked",
                       `${emailLookups} contact lookups per month`,
-                      `${evidenceDeepDives} public evidence deep dives per month`,
+                      `${evidenceDeepDives} on-demand evidence deep dives per month`,
                       "CSV export and client-ready briefs",
                     ].map((item) => (
                       <p key={item} className="inline-flex items-start gap-1.5">
