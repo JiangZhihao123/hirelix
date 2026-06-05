@@ -264,6 +264,31 @@ function buildDataPlatformTitleTerms(recallSpec: RecallSpec) {
   ], 16);
 }
 
+function seniorityRequiresSeniorDataPlatformTitle(hiringBrief: HiringBrief) {
+  const seniorityText = normalizeText([
+    hiringBrief.role_core.seniority,
+    hiringBrief.role_core.title,
+    hiringBrief.role_core.function_focus,
+    ...hiringBrief.must_have_constraints,
+  ].filter(Boolean).join(" "));
+
+  return /\b(staff|principal|lead|senior|sr)\b/.test(seniorityText);
+}
+
+function filterDataPlatformTitleTermsForSeniority(
+  titleTerms: string[],
+  hiringBrief: HiringBrief,
+) {
+  if (!seniorityRequiresSeniorDataPlatformTitle(hiringBrief)) return titleTerms;
+
+  return titleTerms.filter((term) => {
+    const normalized = normalizeText(term);
+    return /\b(staff|principal|lead|senior|sr)\b/.test(normalized) ||
+      normalized.includes("backend data infrastructure") ||
+      normalized.includes("distributed data systems");
+  });
+}
+
 function compactTerms(terms: string[], limit: number) {
   const seen = new Set<string>();
   const values: string[] = [];
@@ -886,7 +911,7 @@ export function buildBrightDataRecallFilters(
 
   const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
   const lateralTitles = isDataPlatformRole
-    ? buildDataPlatformTitleTerms(recallSpec)
+    ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
     : buildHiddenGemTitleTerms(recallSpec);
   const differentiatingTerms = compactTerms([
     ...signalGroups.search_domain,
