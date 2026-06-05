@@ -35,6 +35,13 @@ export type RecallRound = {
 const MAX_BRIGHT_OR_FILTERS = 20;
 const MAX_LLM_SOURCING_LANES = 4;
 
+const GENERIC_SENIORITY_TITLE_TERMS = new Set([
+  "staff",
+  "principal",
+  "lead",
+  "senior",
+]);
+
 const NON_SEARCHABLE_RECALL_SIGNAL_PATTERNS = [
   /\bus[-\s]?based\b/i,
   /\bin\s+sf\s+nyc\s+or\s+seattle\b/i,
@@ -559,7 +566,9 @@ function buildDataPlatformSeniorityLaneFilter(): BrightDataFilterRule | null {
 }
 
 function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRule | null {
-  const terms = compactTerms(titleTerms, limit);
+  const terms = compactTerms(titleTerms, limit).filter(
+    (term) => !GENERIC_SENIORITY_TITLE_TERMS.has(term),
+  );
   if (terms.length === 0) return null;
   return {
     operator: "or",

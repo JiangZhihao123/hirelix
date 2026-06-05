@@ -422,3 +422,52 @@ test("buildBrightDataRecallFilters prefers LLM sourcing lanes over role-specific
   assert.ok(leafValues(rounds[2].request.filter).includes("confluent"));
   assert.ok(!rounds[1].diagnostics.title_terms.includes("senior backend engineer"));
 });
+
+test("buildBrightDataRecallFilters drops generic seniority-only title terms from LLM lanes", () => {
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Staff Data Platform Engineer",
+      recall_spec: {
+        ...recallSpec,
+        sourcing_lanes: [
+          {
+            name: "target company data infra",
+            strategy: "company",
+            title_terms: ["Staff", "Principal", "Lead", "Principal Data Platform Engineer"],
+            skill_terms: ["Kafka", "data infrastructure"],
+            company_terms: ["Confluent", "Databricks"],
+            avoid_terms: [],
+            budget_weight: 1,
+          },
+        ],
+        recall_strategy: "multi_round",
+      },
+      hiring_brief: hiringBrief,
+    },
+    30,
+    {
+      ...executionProfile,
+      filterLimit: 50,
+      hiddenGemLimit: 0,
+      companyTargetLimit: 50,
+    },
+    {
+      normalizeRecallSpec,
+      sanitizeHiringBrief: () => hiringBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => null,
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 0,
+      companyTargetLimit: 50,
+    },
+  );
+
+  assert.equal(rounds.length, 1);
+  const values = leafValues(rounds[0].request.filter);
+  assert.ok(values.includes("principal data platform engineer"));
+  assert.ok(values.includes("kafka"));
+  assert.ok(values.includes("confluent"));
+  assert.ok(!values.includes("staff"));
+  assert.ok(!values.includes("principal"));
+  assert.ok(!values.includes("lead"));
+});
