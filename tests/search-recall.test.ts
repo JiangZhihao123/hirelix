@@ -275,7 +275,13 @@ test("buildBrightDataRecallFilters uses high-recall standard round for data plat
     },
   );
 
-  assert.deepEqual(rounds.map((round) => round.round), ["standard", "company_target"]);
+  assert.deepEqual(rounds.map((round) => round.round), [
+    "standard",
+    "standard_skill",
+    "standard_seniority",
+    "company_target",
+  ]);
+  assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50, 12, 13, 25]);
   const standardRound = rounds.find((round) => round.round === "standard");
   assert.ok(standardRound);
   assert.ok(standardRound.diagnostics.title_terms.includes("staff data platform engineer"));
@@ -303,6 +309,25 @@ test("buildBrightDataRecallFilters uses high-recall standard round for data plat
   assert.ok(!leafValues(standardRound.request.filter).includes("big data compute"));
   assert.ok(!leafValues(standardRound.request.filter).includes("distributed systems"));
   assert.ok(maxGroupDepth(chunkBrightDataFilter(standardRound.request.filter)) <= 3);
+
+  const skillRound = rounds.find((round) => round.round === "standard_skill");
+  assert.ok(skillRound);
+  assert.ok(skillRound.diagnostics.title_terms.includes("senior software engineer"));
+  assert.ok(skillRound.diagnostics.title_terms.includes("staff platform engineer"));
+  assert.ok(skillRound.diagnostics.title_terms.includes("principal data engineer"));
+  assert.ok(leafValues(skillRound.request.filter).includes("kafka"));
+  assert.ok(leafValues(skillRound.request.filter).includes("data platform"));
+  assert.ok(maxGroupDepth(chunkBrightDataFilter(skillRound.request.filter)) <= 3);
+
+  const seniorityRound = rounds.find((round) => round.round === "standard_seniority");
+  assert.ok(seniorityRound);
+  assert.ok(seniorityRound.diagnostics.title_terms.includes("staff software engineer"));
+  assert.ok(seniorityRound.diagnostics.title_terms.includes("principal platform engineer"));
+  assert.ok(seniorityRound.diagnostics.title_terms.includes("lead data engineer"));
+  assert.ok(!seniorityRound.diagnostics.title_terms.includes("senior software engineer"));
+  assert.ok(leafValues(seniorityRound.request.filter).includes("distributed systems"));
+  assert.ok(leafValues(seniorityRound.request.filter).includes("streaming platform"));
+  assert.ok(maxGroupDepth(chunkBrightDataFilter(seniorityRound.request.filter)) <= 3);
 
   const companyRound = rounds.find((round) => round.round === "company_target");
   assert.ok(companyRound);

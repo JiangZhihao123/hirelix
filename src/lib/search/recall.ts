@@ -26,7 +26,13 @@ import type {
 export type RecallFilterMode = "primary" | "relaxed";
 
 export type RecallRound = {
-  round: "standard" | "hidden_gem" | "data_platform" | "company_target";
+  round:
+    | "standard"
+    | "standard_skill"
+    | "standard_seniority"
+    | "hidden_gem"
+    | "data_platform"
+    | "company_target";
   request: BrightDataDatasetFilterRequest;
   diagnostics: Omit<RecallRoundDiagnostics, "filter_hash" | "returned_count" | "quality_distribution">;
 };
@@ -181,6 +187,44 @@ const DATA_PLATFORM_COMPANY_TARGET_TITLES = [
   "Staff Infrastructure Engineer",
   "Senior Platform Engineer",
   "Staff Platform Engineer",
+];
+
+const DATA_PLATFORM_SKILL_LANE_TITLES = [
+  "Senior Software Engineer",
+  "Staff Software Engineer",
+  "Principal Software Engineer",
+  "Lead Software Engineer",
+  "Senior Backend Engineer",
+  "Staff Backend Engineer",
+  "Principal Backend Engineer",
+  "Senior Platform Engineer",
+  "Staff Platform Engineer",
+  "Principal Platform Engineer",
+  "Senior Infrastructure Engineer",
+  "Staff Infrastructure Engineer",
+  "Principal Infrastructure Engineer",
+  "Senior Data Engineer",
+  "Staff Data Engineer",
+  "Principal Data Engineer",
+  "Lead Data Engineer",
+];
+
+const DATA_PLATFORM_SENIORITY_LANE_TITLES = [
+  "Staff Software Engineer",
+  "Principal Software Engineer",
+  "Lead Software Engineer",
+  "Staff Backend Engineer",
+  "Principal Backend Engineer",
+  "Lead Backend Engineer",
+  "Staff Platform Engineer",
+  "Principal Platform Engineer",
+  "Lead Platform Engineer",
+  "Staff Infrastructure Engineer",
+  "Principal Infrastructure Engineer",
+  "Lead Infrastructure Engineer",
+  "Staff Data Engineer",
+  "Principal Data Engineer",
+  "Lead Data Engineer",
 ];
 
 const DATA_PLATFORM_KEYWORDS = [
@@ -470,6 +514,52 @@ function buildShallowCompanySkillFilter(
       ...recallSpec.core_skill_terms,
     ], 12),
   ], options.dataPlatformRole ? 10 : 8);
+}
+
+function buildDataPlatformSkillLaneFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {
+  const skillSignals = compactTerms([
+    ...sanitizeRecallSignalTerms([
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.domain_terms,
+      ...recallSpec.core_skill_terms,
+      ...recallSpec.must_have_signals,
+    ], 32).filter((term) => includesAnyKeyword(term, DATA_PLATFORM_HIGH_SIGNAL_TERMS)),
+    ...DATA_PLATFORM_HIGH_SIGNAL_TERMS,
+  ], 10);
+
+  const ownershipSignals = compactTerms([
+    ...sanitizeRecallSignalTerms([
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.domain_terms,
+      ...recallSpec.must_have_signals,
+    ], 24).filter((term) => includesAnyKeyword(term, DATA_PLATFORM_OWNERSHIP_TERMS)),
+    "data platform",
+    "data infrastructure",
+    "streaming platform",
+    "distributed systems",
+  ], 6);
+
+  const skillFilter = buildProfileSignalFilter(skillSignals, 8);
+  const ownershipFilter = buildProfileSignalFilter(ownershipSignals, 6);
+  if (skillFilter && ownershipFilter) {
+    return { operator: "and", filters: [skillFilter, ownershipFilter] };
+  }
+  return skillFilter ?? ownershipFilter;
+}
+
+function buildDataPlatformSeniorityLaneFilter(): BrightDataFilterRule | null {
+  return buildProfileSignalFilter([
+    "data platform",
+    "data infrastructure",
+    "streaming platform",
+    "distributed systems",
+    "kafka",
+    "flink",
+    "spark",
+    "airflow",
+    "platform",
+    "infrastructure",
+  ], 10);
 }
 
 function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRule | null {
@@ -926,6 +1016,65 @@ export function buildBrightDataRecallFilters(
     ...signalGroups.search_domain,
     ...signalGroups.platform_engineering,
   ], 10);
+
+  if (isDataPlatformRole && countryFilter) {
+    const laneLimit = Math.max(1, Math.floor(executionProfile.hiddenGemLimit / 2));
+    const skillLaneLimit = laneLimit;
+    const seniorityLaneLimit = Math.max(0, executionProfile.hiddenGemLimit - laneLimit);
+    const skillLaneFilter = buildDataPlatformSkillLaneFilter(recallSpec);
+    const skillLaneTitleFilter = buildTitleFilter(DATA_PLATFORM_SKILL_LANE_TITLES, 18);
+    if (skillLaneLimit > 0 && skillLaneFilter && skillLaneTitleFilter) {
+      const skillLaneFilters: BrightDataFilterRule[] = [
+        skillLaneTitleFilter,
+        countryFilter,
+        skillLaneFilter,
+        ...qualityFilters,
+      ];
+      if (locationFilter) skillLaneFilters.push(locationFilter);
+      rounds.push({
+        round: "standard_skill",
+        request: {
+          datasetId,
+          recordsLimit: skillLaneLimit,
+          filter: { operator: "and", filters: skillLaneFilters },
+        },
+        diagnostics: {
+          round: "standard_skill",
+          requested_count: skillLaneLimit,
+          title_terms: compactTerms(DATA_PLATFORM_SKILL_LANE_TITLES, 18),
+          skill_signal_groups: signalGroups,
+          location_mode: locationMode,
+        },
+      });
+    }
+
+    const seniorityLaneFilter = buildDataPlatformSeniorityLaneFilter();
+    const seniorityLaneTitleFilter = buildTitleFilter(DATA_PLATFORM_SENIORITY_LANE_TITLES, 15);
+    if (seniorityLaneLimit > 0 && seniorityLaneFilter && seniorityLaneTitleFilter) {
+      const seniorityLaneFilters: BrightDataFilterRule[] = [
+        seniorityLaneTitleFilter,
+        countryFilter,
+        seniorityLaneFilter,
+        ...qualityFilters,
+      ];
+      if (locationFilter) seniorityLaneFilters.push(locationFilter);
+      rounds.push({
+        round: "standard_seniority",
+        request: {
+          datasetId,
+          recordsLimit: seniorityLaneLimit,
+          filter: { operator: "and", filters: seniorityLaneFilters },
+        },
+        diagnostics: {
+          round: "standard_seniority",
+          requested_count: seniorityLaneLimit,
+          title_terms: compactTerms(DATA_PLATFORM_SENIORITY_LANE_TITLES, 15),
+          skill_signal_groups: signalGroups,
+          location_mode: locationMode,
+        },
+      });
+    }
+  }
 
   if (!isDataPlatformRole && lateralTitles.length > 0 && differentiatingTerms.length > 0) {
     const hiddenSignalFilter = isDataPlatformRole ? null : buildBalancedSkillFilter({
