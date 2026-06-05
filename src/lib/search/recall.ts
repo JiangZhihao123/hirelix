@@ -162,6 +162,10 @@ const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Senior Big Data Compute Engineer",
   "Data Systems Engineer",
   "Senior Data Systems Engineer",
+  "Senior Data Engineer",
+  "Staff Data Engineer",
+  "Principal Data Engineer",
+  "Lead Data Engineer",
   "Distributed Data Systems Engineer",
   "Backend Data Infrastructure Engineer",
 ];
@@ -267,7 +271,7 @@ function buildDataPlatformTitleTerms(recallSpec: RecallSpec) {
     ...recallSpec.title_variants.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_KEYWORDS)),
     ...recallSpec.lateral_title_variants.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_KEYWORDS)),
     ...DATA_PLATFORM_HIDDEN_GEM_TITLES,
-  ], 16);
+  ], 28);
 }
 
 function seniorityRequiresSeniorDataPlatformTitle(hiringBrief: HiringBrief) {
@@ -294,7 +298,7 @@ function filterDataPlatformTitleTermsForSeniority(
       normalized.includes("distributed data systems");
   });
 
-  return compactTerms(seniorDataTitles, 16);
+  return compactTerms(seniorDataTitles, 24);
 }
 
 function compactTerms(terms: string[], limit: number) {
@@ -912,24 +916,7 @@ export function buildBrightDataRecallFilters(
   ], 10);
 
   if (lateralTitles.length > 0 && differentiatingTerms.length > 0) {
-    const hiddenSignalFilter = isDataPlatformRole
-      ? buildBalancedSkillFilter({
-      ...recallSpec,
-      core_skill_terms: [
-        ...signalGroups.platform_engineering,
-        ...signalGroups.database_backend,
-        ...signalGroups.production_ownership,
-      ],
-      baseline_skill_terms: [
-        ...signalGroups.platform_engineering,
-        ...signalGroups.database_backend,
-        ...signalGroups.production_ownership,
-      ],
-      differentiating_skill_terms: signalGroups.search_domain,
-      domain_terms: signalGroups.search_domain,
-      must_have_signals: signalGroups.search_domain,
-    })
-      : buildBalancedSkillFilter({
+    const hiddenSignalFilter = isDataPlatformRole ? null : buildBalancedSkillFilter({
       ...recallSpec,
       core_skill_terms: signalGroups.platform_engineering,
       baseline_skill_terms: signalGroups.platform_engineering,
@@ -937,7 +924,7 @@ export function buildBrightDataRecallFilters(
       domain_terms: signalGroups.search_domain,
       must_have_signals: signalGroups.search_domain,
     });
-    if (!hiddenSignalFilter) return rounds;
+    if (!isDataPlatformRole && !hiddenSignalFilter) return rounds;
     const hiddenGemFilters: BrightDataFilterRule[] = [
       {
         operator: "or",
@@ -949,7 +936,7 @@ export function buildBrightDataRecallFilters(
       },
     ];
     if (countryFilter) hiddenGemFilters.push(countryFilter);
-    hiddenGemFilters.push(hiddenSignalFilter);
+    if (hiddenSignalFilter) hiddenGemFilters.push(hiddenSignalFilter);
     if (locationFilter) hiddenGemFilters.push(locationFilter);
     hiddenGemFilters.push(...qualityFilters);
     const recordsLimit = executionProfile.hiddenGemLimit;

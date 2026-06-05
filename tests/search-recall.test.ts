@@ -235,7 +235,7 @@ test("buildBrightDataRecallFilters skips optional sourcing rounds when limits ar
   assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50]);
 });
 
-test("buildBrightDataRecallFilters uses a focused data-platform recall round for data platform roles", () => {
+test("buildBrightDataRecallFilters uses a high-recall data-platform round for LLM ranking", () => {
   const rounds = buildBrightDataRecallFilters(
     {
       title: "Staff Data Platform Engineer",
@@ -296,12 +296,12 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("big data compute engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data systems engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("senior data engineer"));
-  assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("lead data engineer"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("data platform"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("data infrastructure"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("big data compute"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("distributed systems"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff data engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("principal data engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("lead data engineer"));
+  assert.ok(!leafValues(dataPlatformRound.request.filter).includes("big data compute"));
+  assert.ok(!leafValues(dataPlatformRound.request.filter).includes("distributed systems"));
   assert.ok(maxGroupDepth(chunkBrightDataFilter(dataPlatformRound.request.filter)) <= 3);
 
   const companyRound = rounds.find((round) => round.round === "company_target");
