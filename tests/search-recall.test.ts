@@ -294,15 +294,7 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("confluent"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("hudi"));
   assert.ok(leafValues(dataPlatformRound.request.filter).includes("data lake"));
-  assert.ok(leafValues(dataPlatformRound.request.filter).includes("kubernetes"));
-  assert.ok(
-    flattenRules(dataPlatformRound.request.filter).some((rule) =>
-      "filters" in rule &&
-      rule.operator === "and" &&
-      rule.filters.some((child) => leafValues(child).includes("kafka")) &&
-      rule.filters.some((child) => leafValues(child).includes("data infrastructure")),
-    ),
-  );
+  assert.ok(maxGroupDepth(chunkBrightDataFilter(dataPlatformRound.request.filter)) <= 3);
 
   const companyRound = rounds.find((round) => round.round === "company_target");
   assert.ok(companyRound);

@@ -411,19 +411,8 @@ function buildDataPlatformSkillFilter(recallSpec: RecallSpec): BrightDataFilterR
     ...searchableSignals.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_HIGH_SIGNAL_TERMS)),
     ...DATA_PLATFORM_HIGH_SIGNAL_TERMS,
   ], 12);
-  const ownershipTerms = compactTerms([
-    ...searchableSignals.filter((term) => includesAnyKeyword(term, DATA_PLATFORM_OWNERSHIP_TERMS)),
-    ...searchableSignals.filter((term) => includesAnyKeyword(term, PLATFORM_ENGINEERING_KEYWORDS)),
-    ...searchableSignals.filter((term) => includesAnyKeyword(term, PRODUCTION_OWNERSHIP_KEYWORDS)),
-    ...DATA_PLATFORM_OWNERSHIP_TERMS,
-  ], 12);
   const strongEvidenceFilter = buildProfileSignalFilter(strongEvidenceTerms, 10);
-  const ownershipFilter = buildProfileSignalFilter(ownershipTerms, 8);
-
-  if (strongEvidenceFilter && ownershipFilter) {
-    return { operator: "and", filters: [strongEvidenceFilter, ownershipFilter] };
-  }
-  return strongEvidenceFilter ?? ownershipFilter;
+  return strongEvidenceFilter;
 }
 
 function buildShallowCompanySkillFilter(
