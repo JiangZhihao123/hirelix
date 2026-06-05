@@ -108,6 +108,7 @@ import type {
   SearchRow,
   ShortlistDecision,
   AdditionalRecallSnapshot,
+  SourcingLane,
 } from "@/lib/search/types";
 export {
   enqueueSearchJob,
@@ -331,6 +332,7 @@ export function normalizeRecallSpec(
   );
   const lateral_title_variants = normalizeStringArray(item.lateral_title_variants, 6);
   const target_companies = normalizeStringArray(item.target_companies, 15);
+  const sourcing_lanes = normalizeSourcingLanes(item.sourcing_lanes);
   const requested_recall_strategy = normalizeEnumValue(
     item.recall_strategy,
     ["standard", "multi_round"] as const,
@@ -341,6 +343,7 @@ export function normalizeRecallSpec(
     differentiatingSkillTerms: differentiating_skill_terms,
     lateralTitleVariants: lateral_title_variants,
     targetCompanies: target_companies,
+    sourcingLanes: sourcing_lanes,
     roleBreadth: role_breadth,
     recallConfidence: recall_confidence,
   });
@@ -369,6 +372,7 @@ export function normalizeRecallSpec(
     role_breadth,
     lateral_title_variants,
     target_companies,
+    sourcing_lanes,
     recall_strategy,
     record_limit:
       typeof options?.recordLimitOverride === "number" &&
@@ -604,9 +608,14 @@ function deriveStableRecallStrategy(input: {
   differentiatingSkillTerms: string[];
   lateralTitleVariants: string[];
   targetCompanies: string[];
+  sourcingLanes?: SourcingLane[];
   roleBreadth: RecallSpec["role_breadth"];
   recallConfidence: RecallSpec["recall_confidence"];
 }) {
+  if ((input.sourcingLanes ?? []).length >= 2) {
+    return "multi_round" as const;
+  }
+
   const differentiatingTerms = input.differentiatingSkillTerms
     .map((term) => normalizeText(term))
     .filter((term) => term.length >= 2);
@@ -636,6 +645,47 @@ function deriveStableRecallStrategy(input: {
   }
 
   return input.requestedStrategy;
+}
+
+function normalizeSourcingLanes(value: unknown): SourcingLane[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((rawLane) => {
+      const lane = rawLane && typeof rawLane === "object"
+        ? (rawLane as Record<string, unknown>)
+        : {};
+      const strategy = normalizeEnumValue(
+        lane.strategy,
+        ["title", "skill", "seniority", "company"] as const,
+        "title",
+      );
+      const titleTerms = normalizeStringArray(lane.title_terms, 18);
+      const skillTerms = sanitizeRecallSignalTerms(normalizeStringArray(lane.skill_terms, 18), 18);
+      const companyTerms = normalizeStringArray(lane.company_terms, 15);
+      const avoidTerms = normalizeStringArray(lane.avoid_terms, 8);
+      const hasSearchSurface =
+        titleTerms.length > 0 ||
+        skillTerms.length > 0 ||
+        companyTerms.length > 0;
+      if (!hasSearchSurface) return null;
+
+      const rawWeight = typeof lane.budget_weight === "number" && Number.isFinite(lane.budget_weight)
+        ? lane.budget_weight
+        : 1;
+
+      return {
+        name: normalizeNullableString(lane.name) || strategy,
+        strategy,
+        title_terms: titleTerms,
+        skill_terms: skillTerms,
+        company_terms: companyTerms,
+        avoid_terms: avoidTerms,
+        budget_weight: Math.max(0.25, Math.min(4, rawWeight)),
+      } satisfies SourcingLane;
+    })
+    .filter((lane): lane is SourcingLane => Boolean(lane))
+    .slice(0, 4);
 }
 
 function inferTargetCompaniesFromParsed(

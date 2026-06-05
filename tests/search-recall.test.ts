@@ -76,6 +76,7 @@ const recallSpec: RecallSpec = {
     "Databricks",
     "Snowflake",
   ],
+  sourcing_lanes: [],
   recall_strategy: "multi_round",
   record_limit: 50,
 };
@@ -344,4 +345,78 @@ test("buildBrightDataRecallFilters uses high-recall standard round for data plat
   assert.ok(leafValues(companyRound.request.filter).includes("confluent"));
   assert.ok(leafValues(companyRound.request.filter).includes("data lake"));
   assert.ok(maxGroupDepth(chunkBrightDataFilter(companyRound.request.filter)) <= 3);
+});
+
+test("buildBrightDataRecallFilters prefers LLM sourcing lanes over role-specific constants", () => {
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Staff Data Platform Engineer",
+      recall_spec: {
+        ...recallSpec,
+        title_variants: ["Staff Data Platform Engineer"],
+        core_skill_terms: ["Kafka", "Spark", "Flink", "Kubernetes"],
+        differentiating_skill_terms: ["streaming platform", "data infrastructure"],
+        domain_terms: ["data platform"],
+        must_have_signals: ["Kafka", "Flink", "streaming platform"],
+        sourcing_lanes: [
+          {
+            name: "direct data platform titles",
+            strategy: "title",
+            title_terms: ["Staff Data Platform Engineer", "Principal Data Platform Engineer"],
+            skill_terms: ["Kafka", "Spark", "Flink"],
+            company_terms: [],
+            avoid_terms: ["BI"],
+            budget_weight: 2,
+          },
+          {
+            name: "broad infra people with streaming evidence",
+            strategy: "skill",
+            title_terms: ["Staff Software Engineer", "Principal Platform Engineer"],
+            skill_terms: ["Kafka", "Flink", "streaming platform"],
+            company_terms: [],
+            avoid_terms: [],
+            budget_weight: 1,
+          },
+          {
+            name: "target company data infra",
+            strategy: "company",
+            title_terms: ["Staff Software Engineer", "Senior Data Engineer"],
+            skill_terms: ["data infrastructure"],
+            company_terms: ["Confluent", "Databricks"],
+            avoid_terms: [],
+            budget_weight: 1,
+          },
+        ],
+        recall_strategy: "multi_round",
+      },
+      hiring_brief: hiringBrief,
+    },
+    30,
+    {
+      ...executionProfile,
+      filterLimit: 60,
+      hiddenGemLimit: 20,
+      companyTargetLimit: 20,
+    },
+    {
+      normalizeRecallSpec,
+      sanitizeHiringBrief: () => hiringBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => null,
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 20,
+      companyTargetLimit: 20,
+    },
+  );
+
+  assert.deepEqual(rounds.map((round) => round.round), [
+    "standard",
+    "standard_skill",
+    "company_target",
+  ]);
+  assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [60, 20, 20]);
+  assert.ok(leafValues(rounds[0].request.filter).includes("principal data platform engineer"));
+  assert.ok(leafValues(rounds[1].request.filter).includes("streaming platform"));
+  assert.ok(leafValues(rounds[2].request.filter).includes("confluent"));
+  assert.ok(!rounds[1].diagnostics.title_terms.includes("senior backend engineer"));
 });

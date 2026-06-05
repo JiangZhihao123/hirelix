@@ -52,6 +52,17 @@ Read the job description and identify:
 - Default to "multi_round" for any JD with identifiable target companies OR a meaningful lateral talent pool — which is nearly every real JD.
 - Only use "standard" for a completely bare JD with no company context, no industry, no team description, and no tech stack.
 
+7. **Sourcing lanes — exactly how a human sourcer would search**
+- Build 2-4 independent Boolean-style lanes. Do NOT make one giant query.
+- Each lane should answer a different sourcing question:
+  - title: people whose current title already names the role/domain
+  - skill: broader titles, but with concrete profile evidence for the exact system/domain
+  - seniority: Staff/Principal/Lead people whose title is broad but whose work signals ownership
+  - company: people at target companies where weaker profile text can still be worth reviewing
+- Keep each lane small and practical. A human sourcer would run a lane, inspect results, then run the next.
+- Use terms that literally appear in LinkedIn titles, current positions, about sections, or company names.
+- For specialized engineering roles, the skill lane is usually more important than adding more title variants.
+
 Return ONLY valid JSON with this structure:
 {
   "title": "primary job title",
@@ -88,6 +99,17 @@ Return ONLY valid JSON with this structure:
     "role_breadth": "narrow | balanced | broad",
     "lateral_title_variants": ["3-6 adjacent LinkedIn titles for the hidden-gem pass — professionals who do NOT hold the primary title but whose work overlaps significantly; real LinkedIn titles only; almost always non-empty for real roles"],
     "target_companies": ["8-15 companies a headhunter would call first — competitors, same-vertical companies, companies with matching tech DNA; infer from industry/stack/stage clues; almost always non-empty for real JDs"],
+    "sourcing_lanes": [
+      {
+        "name": "short human-readable lane name",
+        "strategy": "title | skill | seniority | company",
+        "title_terms": ["LinkedIn title terms for this lane"],
+        "skill_terms": ["profile evidence terms for this lane; empty only for pure title lane"],
+        "company_terms": ["target companies for company lane; empty otherwise"],
+        "avoid_terms": ["patterns this lane should avoid"],
+        "budget_weight": 1
+      }
+    ],
     "recall_strategy": "standard | multi_round"
   }
 }`;

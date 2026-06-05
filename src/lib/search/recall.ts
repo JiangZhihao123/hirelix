@@ -21,6 +21,7 @@ import type {
   RecallRoundDiagnostics,
   RecallSpec,
   ScoredCandidateAssessment,
+  SourcingLane,
 } from "@/lib/search/types";
 
 export type RecallFilterMode = "primary" | "relaxed";
@@ -38,6 +39,7 @@ export type RecallRound = {
 };
 
 const MAX_BRIGHT_OR_FILTERS = 20;
+const MAX_LLM_SOURCING_LANES = 4;
 
 const NON_SEARCHABLE_RECALL_SIGNAL_PATTERNS = [
   /\bus[-\s]?based\b/i,
@@ -575,6 +577,133 @@ function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRul
   };
 }
 
+function buildCompanyFilter(companyTerms: string[]): BrightDataFilterRule | null {
+  const terms = compactTerms(companyTerms, 15);
+  if (terms.length === 0) return null;
+  return {
+    operator: "or",
+    filters: terms.map((term) => ({
+      name: "current_company_name",
+      operator: "includes",
+      value: term,
+    })),
+  };
+}
+
+function normalizeLaneRoundName(lane: SourcingLane, index: number): RecallRound["round"] {
+  if (index === 0 || lane.strategy === "title") return "standard";
+  if (lane.strategy === "skill") return "standard_skill";
+  if (lane.strategy === "seniority") return "standard_seniority";
+  if (lane.strategy === "company") return "company_target";
+  return "hidden_gem";
+}
+
+function allocateLaneLimits(
+  lanes: SourcingLane[],
+  executionProfile: SearchExecutionProfile,
+) {
+  const standardLimit = executionProfile.filterLimit;
+  const additionalBudget = Math.max(
+    0,
+    executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit,
+  );
+  const additionalLanes = lanes.slice(1);
+  const totalWeight = additionalLanes.reduce(
+    (sum, lane) => sum + Math.max(0.25, lane.budget_weight || 1),
+    0,
+  );
+  const limits = new Map<number, number>([[0, standardLimit]]);
+  let remainingBudget = additionalBudget;
+
+  additionalLanes.forEach((lane, offset) => {
+    const index = offset + 1;
+    const isLast = offset === additionalLanes.length - 1;
+    const limit = isLast
+      ? remainingBudget
+      : Math.max(
+        1,
+        Math.round(additionalBudget * Math.max(0.25, lane.budget_weight || 1) / Math.max(totalWeight, 1)),
+      );
+    limits.set(index, Math.max(0, limit));
+    remainingBudget = Math.max(0, remainingBudget - limit);
+  });
+
+  return limits;
+}
+
+function buildRecallRoundsFromSourcingLanes(params: {
+  datasetId: string;
+  recallSpec: RecallSpec;
+  hiringBrief: HiringBrief;
+  executionProfile: SearchExecutionProfile;
+  countryFilter: BrightDataFilterRule | null;
+  locationFilter: BrightDataFilterRule | null;
+  qualityFilters: BrightDataFilterRule[];
+  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>;
+  locationMode: "country_only" | "location_filter";
+}) {
+  const lanes = params.recallSpec.sourcing_lanes
+    .filter((lane) =>
+      lane.title_terms.length > 0 ||
+      lane.skill_terms.length > 0 ||
+      lane.company_terms.length > 0
+    )
+    .slice(0, MAX_LLM_SOURCING_LANES);
+  if (lanes.length === 0) return [];
+
+  const limits = allocateLaneLimits(lanes, params.executionProfile);
+  const rounds: RecallRound[] = [];
+
+  lanes.forEach((lane, index) => {
+    const recordsLimit = limits.get(index) ?? 0;
+    if (recordsLimit <= 0) return;
+
+    const filters: BrightDataFilterRule[] = [];
+    const titleFilter = buildTitleFilter(lane.title_terms, lane.strategy === "company" ? 18 : 14);
+    const skillFilter = buildProfileSignalFilter(lane.skill_terms, 10);
+    const companyFilter = buildCompanyFilter(lane.company_terms);
+
+    if (lane.strategy === "company") {
+      if (!companyFilter) return;
+      filters.push(companyFilter);
+      if (titleFilter) filters.push(titleFilter);
+      if (skillFilter) filters.push(skillFilter);
+    } else {
+      if (!titleFilter) return;
+      filters.push(titleFilter);
+      if (skillFilter && lane.strategy !== "title") filters.push(skillFilter);
+    }
+
+    if (params.countryFilter) filters.push(params.countryFilter);
+    if (params.locationFilter && lane.strategy !== "company") filters.push(params.locationFilter);
+    filters.push(...params.qualityFilters);
+
+    const round = normalizeLaneRoundName(lane, index);
+    rounds.push({
+      round,
+      request: {
+        datasetId: params.datasetId,
+        recordsLimit,
+        filter: filters.length === 1
+          ? filters[0]
+          : { operator: "and", filters },
+      },
+      diagnostics: {
+        round,
+        requested_count: recordsLimit,
+        title_terms: compactTerms(lane.title_terms, 18),
+        skill_signal_groups: {
+          search_domain: compactTerms(lane.skill_terms, 10),
+          platform_engineering: params.signalGroups.platform_engineering,
+        },
+        location_mode: lane.strategy === "company" ? "country_only" : params.locationMode,
+      },
+    });
+  });
+
+  return rounds;
+}
+
 function buildCountryFilter(countryCodes: string[]): BrightDataFilterRule | null {
   if (countryCodes.length === 0) return null;
   return countryCodes.length === 1
@@ -1008,6 +1137,21 @@ export function buildBrightDataRecallFilters(
       "primary",
     )
     : null;
+
+  const laneRounds = buildRecallRoundsFromSourcingLanes({
+    datasetId,
+    recallSpec,
+    hiringBrief,
+    executionProfile,
+    countryFilter,
+    locationFilter,
+    qualityFilters,
+    signalGroups,
+    locationMode,
+  });
+  if (laneRounds.length > 0) {
+    return laneRounds;
+  }
 
   const lateralTitles = isDataPlatformRole
     ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)

@@ -68,8 +68,19 @@ export type RecallSpec = {
   role_breadth: "narrow" | "balanced" | "broad";
   lateral_title_variants: string[];
   target_companies: string[];
+  sourcing_lanes: SourcingLane[];
   recall_strategy: "standard" | "multi_round";
   record_limit: number;
+};
+
+export type SourcingLane = {
+  name: string;
+  strategy: "title" | "skill" | "seniority" | "company";
+  title_terms: string[];
+  skill_terms: string[];
+  company_terms: string[];
+  avoid_terms: string[];
+  budget_weight: number;
 };
 
 export type RecallProvider = "brightdata_dataset";

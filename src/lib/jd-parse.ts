@@ -408,6 +408,9 @@ function sanitizeIntentCandidate(
         ["narrow", "balanced", "broad"] as const,
         "balanced",
       ),
+      sourcing_lanes: Array.isArray(recallSpec.sourcing_lanes)
+        ? recallSpec.sourcing_lanes
+        : [],
       lateral_title_variants: (() => {
         const fromLlm = normalizeStringArray(recallSpec.lateral_title_variants, 6);
         return fromLlm.length >= 2 ? fromLlm : inferLateralTitleVariants(title);
