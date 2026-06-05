@@ -143,21 +143,43 @@ const DEFAULT_HIDDEN_GEM_TITLES = [
 
 const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Data Platform Engineer",
+  "Senior Data Platform Engineer",
   "Staff Data Platform Engineer",
   "Principal Data Platform Engineer",
   "Lead Data Platform Engineer",
   "Data Infrastructure Engineer",
+  "Senior Data Infrastructure Engineer",
   "Staff Data Infrastructure Engineer",
   "Principal Data Infrastructure Engineer",
   "Lead Data Infrastructure Engineer",
   "Streaming Platform Engineer",
+  "Senior Streaming Platform Engineer",
   "Staff Streaming Platform Engineer",
   "Principal Streaming Platform Engineer",
   "Big Data Platform Engineer",
+  "Senior Big Data Platform Engineer",
   "Big Data Compute Engineer",
+  "Senior Big Data Compute Engineer",
   "Data Systems Engineer",
+  "Senior Data Systems Engineer",
   "Distributed Data Systems Engineer",
   "Backend Data Infrastructure Engineer",
+];
+
+const DATA_PLATFORM_SENIOR_GENERIC_TITLES = [
+  "Senior Software Engineer",
+  "Staff Software Engineer",
+  "Principal Software Engineer",
+  "Lead Software Engineer",
+  "Senior Backend Engineer",
+  "Staff Backend Engineer",
+  "Principal Backend Engineer",
+  "Senior Platform Engineer",
+  "Staff Platform Engineer",
+  "Principal Platform Engineer",
+  "Senior Infrastructure Engineer",
+  "Staff Infrastructure Engineer",
+  "Principal Infrastructure Engineer",
 ];
 
 const DATA_PLATFORM_COMPANY_TARGET_TITLES = [
@@ -281,12 +303,17 @@ function filterDataPlatformTitleTermsForSeniority(
 ) {
   if (!seniorityRequiresSeniorDataPlatformTitle(hiringBrief)) return titleTerms;
 
-  return titleTerms.filter((term) => {
+  const seniorDataTitles = titleTerms.filter((term) => {
     const normalized = normalizeText(term);
     return /\b(staff|principal|lead|senior|sr)\b/.test(normalized) ||
       normalized.includes("backend data infrastructure") ||
       normalized.includes("distributed data systems");
   });
+
+  return compactTerms([
+    ...seniorDataTitles,
+    ...DATA_PLATFORM_SENIOR_GENERIC_TITLES,
+  ], 24);
 }
 
 function compactTerms(terms: string[], limit: number) {

@@ -279,11 +279,17 @@ test("buildBrightDataRecallFilters uses a focused data-platform recall round for
   const dataPlatformRound = rounds.find((round) => round.round === "data_platform");
   assert.ok(dataPlatformRound);
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff data platform engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data platform engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff data infrastructure engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior data infrastructure engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("lead data platform engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff streaming platform engineer"));
   assert.ok(dataPlatformRound.diagnostics.title_terms.includes("principal streaming platform engineer"));
-  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("distributed data systems engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior software engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("staff software engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("principal software engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior backend engineer"));
+  assert.ok(dataPlatformRound.diagnostics.title_terms.includes("senior platform engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data platform engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("data infrastructure engineer"));
   assert.ok(!dataPlatformRound.diagnostics.title_terms.includes("streaming platform engineer"));
