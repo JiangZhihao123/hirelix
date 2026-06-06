@@ -36,6 +36,10 @@ import {
 } from "@/lib/analytics";
 import { PUBLIC_RESCORE_ERROR_MESSAGE } from "@/lib/public-errors";
 import {
+  SEARCH_EXPANSION_REASON_OPTIONS,
+  type SearchExpansionReasonCode,
+} from "@/lib/search-expansion";
+import {
   ArrowLeft,
   AlertCircle,
   Check,
@@ -156,6 +160,9 @@ export default function SearchResultPage() {
   const [rescoreSubmitting, setRescoreSubmitting] = useState(false);
   const [expandError, setExpandError] = useState<string | null>(null);
   const [expandSubmitting, setExpandSubmitting] = useState(false);
+  const [expandPanelOpen, setExpandPanelOpen] = useState(false);
+  const [expandReason, setExpandReason] = useState<SearchExpansionReasonCode>("too_few_strong_candidates");
+  const [expandFeedback, setExpandFeedback] = useState("");
   const hasTrackedTaskViewRef = useRef(false);
   const hasTrackedBriefReadyViewRef = useRef(false);
   const hasTrackedProcessingViewRef = useRef(false);
@@ -271,14 +278,27 @@ export default function SearchResultPage() {
     setExpandError(null);
     setExpandSubmitting(true);
     try {
+      trackEvent(ANALYTICS_EVENTS.candidateExpand, {
+        ...analyticsContext,
+        search_id: id,
+        feedback_reason: expandReason,
+        has_feedback_note: expandFeedback.trim().length > 0,
+      });
       const response = await fetchWithUserSession(`/api/search/${id}/expand`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          feedback_reason: expandReason,
+          feedback_note: expandFeedback.trim() || null,
+        }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { error?: string } | null;
         throw new Error(payload?.error || "Could not expand this candidate pool.");
       }
       window.sessionStorage.removeItem(getSearchPageCacheKey(id));
+      setExpandPanelOpen(false);
+      setExpandFeedback("");
       await Promise.all([fetchData(), refreshBilling()]);
     } catch (error) {
       setExpandError(error instanceof Error ? error.message : "Could not expand this candidate pool.");
@@ -969,13 +989,13 @@ export default function SearchResultPage() {
               )}
               {canExpandCandidatePool ? (
                 <button
-                  onClick={expandCandidatePool}
+                  onClick={() => setExpandPanelOpen((value) => !value)}
                   disabled={expandSubmitting}
                   className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition-colors hover:border-indigo-300 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <ScanSearch className={`h-3 w-3 ${expandSubmitting ? "animate-pulse" : ""}`} />
                   <span className="hidden sm:inline">
-                    {expandSubmitting ? "Expanding pool" : "Expand pool"}
+                    {expandSubmitting ? "Expanding pool" : "Refine & expand"}
                   </span>
                   <span className="sm:hidden">Expand</span>
                 </button>
@@ -1019,6 +1039,48 @@ export default function SearchResultPage() {
             </div>
           )}
         </div>
+        {expandPanelOpen && canExpandCandidatePool && (
+          <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,16rem)_1fr_auto] lg:items-end">
+              <label className="text-xs font-medium text-indigo-950">
+                Expansion reason
+                <select
+                  value={expandReason}
+                  onChange={(event) => setExpandReason(event.target.value as SearchExpansionReasonCode)}
+                  className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                >
+                  {SEARCH_EXPANSION_REASON_OPTIONS.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-indigo-950">
+                Recruiter feedback
+                <input
+                  value={expandFeedback}
+                  onChange={(event) => setExpandFeedback(event.target.value)}
+                  maxLength={600}
+                  placeholder="Example: need staff-level Kafka/Flink platform owners, not ETL-heavy profiles"
+                  className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => void expandCandidatePool()}
+                disabled={expandSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <ScanSearch className={`h-4 w-4 ${expandSubmitting ? "animate-pulse" : ""}`} />
+                {expandSubmitting ? "Expanding" : "Run expansion"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-indigo-900/75">
+              The next run keeps this JD, spends targeted scan budget, and uses your feedback to adjust the sourcing lanes before recall.
+            </p>
+          </div>
+        )}
         {reqs && !isReviewable && (
           <div className="mt-3 space-y-2">
             <div className="flex flex-wrap items-center gap-2">

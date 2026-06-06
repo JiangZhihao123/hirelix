@@ -65,6 +65,7 @@ import {
   scoreCandidateBatch,
 } from "@/lib/search/scoring-runtime";
 import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring";
+import { normalizeStoredSearchExpansionFeedback } from "@/lib/search-expansion";
 import type {
   CandidateRowInput,
   AdditionalRecallSnapshot,
@@ -1019,6 +1020,7 @@ function buildRecallObservationPrompt(params: {
   return JSON.stringify({
     job_title: params.parsed.title ?? null,
     jd_excerpt: safeTruncate(params.jdText, 1800),
+    expansion_feedback: normalizeStoredSearchExpansionFeedback(params.parsed.expansion_feedback),
     current_sourcing_lanes: params.recallSpec.sourcing_lanes,
     recall_rounds: params.roundDiagnostics.map((round) => ({
       round: round.round,
@@ -1032,6 +1034,51 @@ function buildRecallObservationPrompt(params: {
     })),
     source_counts: sourceCounts,
     observed_profiles: profileSamples,
+  });
+}
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function buildExpansionFeedbackPrompt(params: {
+  parsed: Record<string, unknown>;
+  jdText: string;
+  recallSpec: RecallSpec;
+  feedback: NonNullable<ReturnType<typeof normalizeStoredSearchExpansionFeedback>>;
+}) {
+  const recallMetadata = readRecord(params.parsed.recall_metadata);
+  const displayStats = readRecord(params.parsed.display_stats);
+  return JSON.stringify({
+    job_title: params.parsed.title ?? null,
+    jd_excerpt: safeTruncate(params.jdText, 1800),
+    expansion_feedback: params.feedback,
+    current_sourcing_lanes: params.recallSpec.sourcing_lanes,
+    recall_spec_summary: {
+      title_variants: params.recallSpec.title_variants,
+      core_skill_terms: params.recallSpec.core_skill_terms,
+      differentiating_skill_terms: params.recallSpec.differentiating_skill_terms,
+      domain_terms: params.recallSpec.domain_terms,
+      must_have_signals: params.recallSpec.must_have_signals,
+      avoid_profiles: params.recallSpec.avoid_profiles,
+      target_companies: params.recallSpec.target_companies,
+      countries: params.recallSpec.countries,
+      strict_location_terms: params.recallSpec.strict_location_terms,
+      nearby_location_terms: params.recallSpec.nearby_location_terms,
+    },
+    previous_recall: {
+      filter_summary: readRecord(recallMetadata?.filter_summary),
+      bright_profiles_requested: recallMetadata?.bright_profiles_requested ?? null,
+      bright_profiles_returned: recallMetadata?.bright_profiles_returned ?? null,
+      recall_profile_count: recallMetadata?.recall_profile_count ?? displayStats?.recall_profile_count ?? null,
+      recommended_count: displayStats?.recommended_count ?? null,
+      ruled_out_count: displayStats?.ruled_out_count ?? null,
+      excluded_reason_counts: Array.isArray(displayStats?.excluded_reason_counts)
+        ? displayStats.excluded_reason_counts
+        : [],
+    },
   });
 }
 
@@ -1065,6 +1112,105 @@ function normalizeReactSourcingLanes(value: unknown, helpers: SearchPipelineHelp
   }).slice(0, 3);
 }
 
+async function applyExpansionFeedbackToRecallSpec(params: {
+  context: PipelineContext;
+  parsed: Record<string, unknown>;
+  helpers: SearchPipelineHelpers;
+}) {
+  const feedback = normalizeStoredSearchExpansionFeedback(params.parsed.expansion_feedback);
+  if (!feedback) return;
+  const existingExpansionReact = readRecord(params.parsed.expansion_react);
+  if (
+    existingExpansionReact?.applied === true &&
+    existingExpansionReact.feedback_requested_at === feedback.requestedAt
+  ) {
+    return;
+  }
+
+  const {
+    generateLlmJson,
+    getLightweightLlmModel,
+    resolveDeepSeekThinkingMode,
+  } = await import("@/lib/llm-client");
+  const { RECALL_REACT_JSON_SCHEMA } = await import("@/lib/llm-schemas");
+  const { EXPANSION_REACT_PROMPT } = await import("@/lib/prompts");
+  const { withTimeout } = await import("@/lib/search/concurrency");
+
+  const recallSpec = params.helpers.normalizeRecallSpec(
+    params.parsed.recall_spec,
+    params.context.candidateCount,
+  );
+  const prompt = buildExpansionFeedbackPrompt({
+    parsed: params.parsed,
+    jdText: params.context.jdText,
+    recallSpec,
+    feedback,
+  });
+  const { data } = await withTimeout(
+    (signal) => generateLlmJson<Record<string, unknown>>({
+      model: getLightweightLlmModel(),
+      system: EXPANSION_REACT_PROMPT,
+      prompt,
+      maxOutputTokens: 2200,
+      abortSignal: signal,
+      timeoutMs: 60000,
+      temperature: 0,
+      jsonSchema: RECALL_REACT_JSON_SCHEMA,
+      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
+      usageEvent: {
+        searchId: params.context.searchId,
+        jobId: params.context.jobId,
+        userId: params.context.userId,
+        stage: "expansion_react",
+      },
+    }),
+    60000,
+    "Expansion ReAct planning",
+  );
+
+  const decision = params.helpers.normalizeEnumValue(
+    data.decision,
+    ["score_now", "revise_recall"] as const,
+    "score_now",
+  );
+  const revisedLanes = normalizeReactSourcingLanes(data.revised_lanes, params.helpers);
+  const diagnosis = params.helpers.normalizeNullableString(data.diagnosis);
+  const appliedAt = params.helpers.nowIso();
+
+  params.helpers.logSearchEvent("search_expansion_react_planned", {
+    search_id: params.context.searchId,
+    decision,
+    revised_lane_count: revisedLanes.length,
+    feedback_reason: feedback.reasonCode,
+    diagnosis,
+    job_id: params.context.jobId,
+  });
+
+  if (decision === "revise_recall" && revisedLanes.length > 0) {
+    params.parsed.recall_spec = {
+      ...(params.parsed.recall_spec && typeof params.parsed.recall_spec === "object"
+        ? params.parsed.recall_spec as Record<string, unknown>
+        : {}),
+      sourcing_lanes: revisedLanes,
+      recall_strategy: "multi_round",
+    };
+    params.parsed.recall_metadata = undefined;
+  }
+
+  params.parsed.expansion_react = {
+    applied: true,
+    decision,
+    diagnosis,
+    revised_lanes: decision === "revise_recall" ? revisedLanes : [],
+    feedback_reason_code: feedback.reasonCode,
+    feedback_reason: feedback.reasonLabel,
+    feedback_note: feedback.note,
+    feedback_requested_at: feedback.requestedAt,
+    applied_at: appliedAt,
+  };
+  await updateSearchParsedRequirements(params.context.searchId, params.parsed);
+}
+
 async function observeRecallAndMaybeRevise(params: {
   context: PipelineContext;
   parsed: Record<string, unknown>;
@@ -1073,7 +1219,9 @@ async function observeRecallAndMaybeRevise(params: {
   roundDiagnostics: RecallRoundDiagnostics[];
   helpers: SearchPipelineHelpers;
 }) {
-  if (params.profiles.length < Math.max(10, params.context.candidateCount)) return;
+  const expansionFeedback = normalizeStoredSearchExpansionFeedback(params.parsed.expansion_feedback);
+  if (params.profiles.length === 0) return;
+  if (!expansionFeedback && params.profiles.length < Math.max(10, params.context.candidateCount)) return;
   const existingReact = params.parsed.recall_react && typeof params.parsed.recall_react === "object"
     ? (params.parsed.recall_react as Record<string, unknown>)
     : null;
@@ -1130,6 +1278,7 @@ async function observeRecallAndMaybeRevise(params: {
     decision,
     revised_lane_count: revisedLanes.length,
     diagnosis,
+    expansion_feedback_reason: expansionFeedback?.reasonCode ?? null,
     job_id: params.context.jobId,
   });
 
@@ -2564,6 +2713,12 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
       ),
     }
     : await parseJobDescription(context, (search as SearchRow).parsed_requirements, helpers);
+
+  await applyExpansionFeedbackToRecallSpec({
+    context,
+    parsed,
+    helpers,
+  });
 
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_spec = helpers.normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {

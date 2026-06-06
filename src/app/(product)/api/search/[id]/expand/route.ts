@@ -8,6 +8,10 @@ import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 import { getLogger, errorLogFields } from "@/lib/logger";
 import {
+  normalizeSearchExpansionFeedbackInput,
+  toSearchExpansionFeedbackRecord,
+} from "@/lib/search-expansion";
+import {
   enqueueSearchJob,
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
@@ -139,8 +143,16 @@ export async function POST(
         { status: 403 },
       );
     }
+    const requestBody = await req.json().catch(() => null);
+    const expansionFeedback = normalizeSearchExpansionFeedbackInput(requestBody);
     const timestamp = new Date().toISOString();
+    const expansionFeedbackRecord = toSearchExpansionFeedbackRecord(expansionFeedback, timestamp);
     const currentExpansionCount = positiveInt(parsedRequirements.expansion_count) ?? 0;
+    const expansionHistory = Array.isArray(parsedRequirements.expansion_history)
+      ? parsedRequirements.expansion_history
+          .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+          .slice(-5)
+      : [];
     const nextDisplayStats = toJsonbSafeRecord({
       ...(displayStats ?? {}),
       bright_profile_budget: expansion.nextBudget,
@@ -152,6 +164,7 @@ export async function POST(
       expansion_requested_at: timestamp,
       expansion_previous_profile_scan_budget: expansion.currentBudget,
       expansion_additional_profile_scans: expansion.additionalBudget,
+      expansion_feedback_reason: expansionFeedback.reasonLabel,
     });
     const nextParsedRequirements = toJsonbSafeRecord({
       ...parsedRequirements,
@@ -165,6 +178,22 @@ export async function POST(
       expansion_count: currentExpansionCount + 1,
       expansion_previous_profile_scan_budget: expansion.currentBudget,
       expansion_additional_profile_scans: expansion.additionalBudget,
+      expansion_feedback: expansionFeedbackRecord,
+      expansion_history: [
+        ...expansionHistory,
+        {
+          ...expansionFeedbackRecord,
+          previous_profile_scan_budget: expansion.currentBudget,
+          additional_profile_scans: expansion.additionalBudget,
+          next_profile_scan_budget: expansion.nextBudget,
+        },
+      ],
+      recall_react: {
+        expansion_requested: true,
+        expansion_count: currentExpansionCount + 1,
+        expansion_feedback: expansionFeedbackRecord,
+        requested_at: timestamp,
+      },
       display_stats: nextDisplayStats,
     });
 
@@ -199,6 +228,9 @@ export async function POST(
         expansion_count: currentExpansionCount + 1,
         expansion_previous_profile_scan_budget: expansion.currentBudget,
         expansion_additional_profile_scans: expansion.additionalBudget,
+        expansion_feedback_reason_code: expansionFeedback.reasonCode,
+        expansion_feedback_reason: expansionFeedback.reasonLabel,
+        expansion_feedback_note: expansionFeedback.note,
       },
     });
 
