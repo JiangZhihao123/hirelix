@@ -142,8 +142,8 @@ export const ARBITER_SCORING_TIMEOUT_MS = getConfiguredPositiveInt(
 
 export const OUTREACH_POOL_TARGET = getConfiguredPositiveInt(
   "SEARCH_OUTREACH_POOL_TARGET",
-  25,
-  { max: 100 },
+  500,
+  { max: 500 },
 );
 
 export const HIGHLIGHT_CANDIDATE_COUNT = getConfiguredPositiveInt(

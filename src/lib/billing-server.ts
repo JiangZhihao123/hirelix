@@ -167,7 +167,6 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       enrichesUsed: emailLookupsUsed,
       enrichesLimit: emailLookupsLimit,
       enrichesRemaining: clampRemaining(emailLookupsLimit, emailLookupsUsed),
-      candidateLimitPerSearch: plan.candidateLimitPerSearch,
       exportEnabled: plan.exportEnabled,
       clientBriefEnabled: plan.clientBriefEnabled,
       extraSearchCredits: extraProfileScans,

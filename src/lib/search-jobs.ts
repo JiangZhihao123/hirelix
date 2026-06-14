@@ -1259,7 +1259,7 @@ function withExecutionState(
     search_phase: "phase_1",
     result_stage: "final",
     judge_mode: executionProfile.singleJudgeMode ? "single" : "dual",
-    display_count: options.displayCount ?? executionProfile.finalResultCap,
+    display_count: options.displayCount ?? executionProfile.deliveryReferenceCount,
   };
 }
 

@@ -86,7 +86,6 @@ import type {
   SourcingLane,
 } from "@/lib/search/types";
 import {
-  FINAL_SHORTLIST_TARGET,
   getInitialSearchExecutionProfile,
   getSearchExecutionProfile,
   normalizeSearchExecutionProfileName,
@@ -2661,6 +2660,12 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
         hiddenGemLimit: 0,
         companyTargetLimit: 0,
       };
+  const deliveryReferenceCount = Math.max(
+    1,
+    storedProfileScanBudget ??
+      (Number(job.candidate_count || (search as SearchRow).parsed_requirements?.candidate_count) ||
+        initialExecutionProfileWithBudget.deliveryReferenceCount),
+  );
 
   const context: PipelineContext = {
     searchId: job.search_id,
@@ -2672,20 +2677,13 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
         ? (search as SearchRow & { created_at?: string | null }).created_at ?? null
         : null,
     planCode,
-    candidateCount: Math.min(
-      FINAL_SHORTLIST_TARGET,
-      initialExecutionProfileWithBudget.finalResultCap,
-      Math.max(
-        1,
-        Number(job.candidate_count || (search as SearchRow).parsed_requirements?.candidate_count) ||
-          initialExecutionProfileWithBudget.finalResultCap,
-      ),
-    ),
+    candidateCount: deliveryReferenceCount,
     highlightCount:
       Number((search as SearchRow).parsed_requirements?.highlight_count) ||
       HIGHLIGHT_CANDIDATE_COUNT,
     outreachPoolTarget:
       Number((search as SearchRow).parsed_requirements?.outreach_pool_target) ||
+      deliveryReferenceCount ||
       OUTREACH_POOL_TARGET,
   };
 

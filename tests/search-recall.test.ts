@@ -19,7 +19,7 @@ const executionProfile: SearchExecutionProfile = {
   filterLimit: 50,
   hiddenGemLimit: 25,
   companyTargetLimit: 25,
-  finalResultCap: 20,
+  deliveryReferenceCount: 50,
   highlightCount: 5,
   minVisibleQualityScore: 0,
   strongNowQualityScore: 72,

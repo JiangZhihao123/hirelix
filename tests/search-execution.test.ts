@@ -3,8 +3,8 @@ import test from "node:test";
 
 import { BILLING_PLANS } from "@/lib/billing";
 import {
-  FINAL_SHORTLIST_TARGET,
   DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT,
+  DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
   getInitialSearchExecutionProfile,
   getInitialSearchTargets,
   getSearchExecutionProfile,
@@ -55,13 +55,13 @@ test("free searches use a constrained real-production preview profile", () => {
 
   assert.equal(profile.name, "bright_free_preview");
   assert.equal(profile.mode, "production");
-  assert.ok(profile.filterLimit >= FINAL_SHORTLIST_TARGET);
   assert.ok(profile.hiddenGemLimit > 0);
   assert.ok(profile.companyTargetLimit > 0);
 
   const targets = withDefaultFreeScanEnv(() => getInitialSearchTargets("free"));
   assert.equal(targets.executionProfile, "bright_free_preview");
-  assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
+  assert.equal(targets.candidateCount, BILLING_PLANS.free.profileScansPerMonth);
+  assert.equal(targets.displayCount, BILLING_PLANS.free.profileScansPerMonth);
   assert.equal(targets.highlightCount, 3);
   assert.equal(targets.profileScanBudget, BILLING_PLANS.free.profileScansPerMonth);
   assert.equal(
@@ -81,17 +81,18 @@ test("paid searches keep the full production profile in production mode", () => 
 
   const targets = withProductionEnv(() => getInitialSearchTargets("pro_monthly"));
   assert.equal(targets.executionProfile, "bright_production_full");
-  assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
+  assert.equal(targets.candidateCount, DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT);
+  assert.equal(targets.displayCount, DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT);
   assert.equal(
     targets.profileScanBudget,
     profile.filterLimit + profile.hiddenGemLimit + profile.companyTargetLimit,
   );
 });
 
-test("free plans use the same candidate quality target while constraining targeted profile scans", () => {
+test("search targets use profile scan budgets instead of a fixed candidate cap", () => {
   const freeTargets = getInitialSearchTargets("free");
-  assert.equal(freeTargets.candidateCount, FINAL_SHORTLIST_TARGET);
-  assert.equal(freeTargets.displayCount, FINAL_SHORTLIST_TARGET);
+  assert.equal(freeTargets.candidateCount, freeTargets.profileScanBudget);
+  assert.equal(freeTargets.displayCount, freeTargets.profileScanBudget);
 
   const paidPlanCodes = [
     "starter_monthly",
@@ -101,15 +102,15 @@ test("free plans use the same candidate quality target while constraining target
   ] as const;
 
   for (const planCode of paidPlanCodes) {
-    const targets = getInitialSearchTargets(planCode);
-    assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
-    assert.equal(targets.displayCount, FINAL_SHORTLIST_TARGET);
+    const targets = withProductionEnv(() => getInitialSearchTargets(planCode));
+    assert.equal(targets.candidateCount, DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT);
+    assert.equal(targets.displayCount, DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT);
   }
 });
 
 test("stored profile normalization accepts the free preview profile", () => {
   assert.equal(normalizeSearchExecutionProfileName("bright_free_preview"), "bright_free_preview");
-  assert.ok(getSearchExecutionProfile("bright_free_preview").filterLimit >= FINAL_SHORTLIST_TARGET);
+  assert.equal(getSearchExecutionProfile("bright_free_preview").deliveryReferenceCount, BILLING_PLANS.free.profileScansPerMonth);
 });
 
 test("expanded profile scan budgets use one paid batch or remaining scans", () => {

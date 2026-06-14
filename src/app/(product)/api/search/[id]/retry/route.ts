@@ -10,9 +10,21 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
-import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
+import { DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT } from "@/lib/search-execution";
 
 export const maxDuration = 30;
+
+function positiveInt(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : null;
+}
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
 export async function POST(
   req: NextRequest,
@@ -56,7 +68,15 @@ export async function POST(
     );
   }
 
-  const candidateCount = FINAL_SHORTLIST_TARGET;
+  const parsedRequirements = readRecord(search.parsed_requirements);
+  const displayStats = readRecord(parsedRequirements?.display_stats);
+  const recallMetadata = readRecord(parsedRequirements?.recall_metadata);
+  const candidateCount =
+    positiveInt(parsedRequirements?.profile_scan_budget) ??
+    positiveInt(displayStats?.bright_profiles_requested) ??
+    positiveInt(recallMetadata?.bright_profiles_requested) ??
+    positiveInt(parsedRequirements?.candidate_count) ??
+    DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT;
 
   await enqueueSearchJob({
     searchId: id,

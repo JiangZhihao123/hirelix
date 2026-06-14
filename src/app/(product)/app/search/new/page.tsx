@@ -102,7 +102,6 @@ export default function NewSearchPage() {
   const isOutOfFreePreview =
     billing?.plan.code === "free" && (isOutOfClientRoles || isOutOfDiscoveryScans);
   const cannotStart = Boolean(isOutOfClientRoles || isOutOfDiscoveryScans);
-  const candidateCount = billing?.usage.candidateLimitPerSearch ?? 25;
 
   const buildEditableBrief = (response: ClarifyResponse): EditableBrief => ({
     title: response.summary.title,
@@ -213,7 +212,6 @@ export default function NewSearchPage() {
       ...analyticsContext,
       ready_to_launch: stage.response.clarification.ready_to_launch,
       had_clarification: Boolean(stage.reply.trim()),
-      candidate_count: candidateCount,
     });
     await launchSearch(stage.response, stage.reply.trim(), stage.brief);
   }
@@ -231,7 +229,6 @@ export default function NewSearchPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jd_text: jdText.trim(),
-          candidate_count: candidateCount,
           growth_tracking: getGrowthIdentity(),
           parsed_requirements_override: editedParsedRequirements(clarifyData, brief),
           ...(userClarification ? { user_clarification: userClarification } : {}),
@@ -251,12 +248,10 @@ export default function NewSearchPage() {
       void refresh();
       trackEvent(ANALYTICS_EVENTS.searchCreateSuccess, {
         ...analyticsContext,
-        candidate_count: candidateCount,
         search_id: id,
         had_clarification: Boolean(userClarification),
       });
       await trackGrowthEvent("search_create_success", {
-        candidate_count: candidateCount,
         jd_length_bucket: getJdLengthBucket(jdText),
         had_clarification: Boolean(userClarification),
       }, { awaitResponse: true });

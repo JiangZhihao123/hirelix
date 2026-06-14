@@ -17,7 +17,7 @@ export type SearchExecutionProfile = {
   filterLimit: number;
   hiddenGemLimit: number;
   companyTargetLimit: number;
-  finalResultCap: number;
+  deliveryReferenceCount: number;
   highlightCount: number;
   minVisibleQualityScore: number;
   strongNowQualityScore: number;
@@ -54,23 +54,14 @@ function resolveSearchExecutionMode(): SearchExecutionMode {
   return process.env.NODE_ENV === "production" ? "production" : "test";
 }
 
-const DEFAULT_SHORTLIST_CAP = 25;
 const FREE_PROFILE_SCAN_LIMIT = 150;
 const FREE_HIDDEN_GEM_SCAN_LIMIT = 50;
 const FREE_COMPANY_TARGET_SCAN_LIMIT = 50;
 const PAID_HIDDEN_GEM_SCAN_LIMIT = 75;
 const PAID_COMPANY_TARGET_SCAN_LIMIT = 75;
 const PAID_PROFILE_SCAN_BATCH_LIMIT = 500;
-export const FINAL_SHORTLIST_TARGET = DEFAULT_SHORTLIST_CAP;
 export const DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT = PAID_PROFILE_SCAN_BATCH_LIMIT;
 export const DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT = PAID_PROFILE_SCAN_BATCH_LIMIT;
-const PLAN_SHORTLIST_CAPS: Record<SearchPlanCode, number> = {
-  free: DEFAULT_SHORTLIST_CAP,
-  starter_monthly: 25,
-  starter_annual: 25,
-  pro_monthly: 25,
-  pro_annual: 25,
-};
 
 const SEARCH_EXECUTION_PROFILES: Record<
   SearchExecutionProfileName,
@@ -82,7 +73,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     filterLimit: getConfiguredModeLimit("test", "STANDARD", 50),
     hiddenGemLimit: getConfiguredModeLimit("test", "HIDDEN_GEM", 0),
     companyTargetLimit: getConfiguredModeLimit("test", "COMPANY_TARGET", 0),
-    finalResultCap: DEFAULT_SHORTLIST_CAP,
+    deliveryReferenceCount: 50,
     highlightCount: 5,
     minVisibleQualityScore: 0,
     strongNowQualityScore: 72,
@@ -95,7 +86,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     filterLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_STANDARD_LIMIT", FREE_PROFILE_SCAN_LIMIT),
     hiddenGemLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_HIDDEN_GEM_LIMIT", FREE_HIDDEN_GEM_SCAN_LIMIT),
     companyTargetLimit: getConfiguredNonNegativeInt("SEARCH_FREE_BRIGHTDATA_COMPANY_TARGET_LIMIT", FREE_COMPANY_TARGET_SCAN_LIMIT),
-    finalResultCap: DEFAULT_SHORTLIST_CAP,
+    deliveryReferenceCount: FREE_PROFILE_SCAN_LIMIT + FREE_HIDDEN_GEM_SCAN_LIMIT + FREE_COMPANY_TARGET_SCAN_LIMIT,
     highlightCount: 3,
     minVisibleQualityScore: 0,
     strongNowQualityScore: 72,
@@ -108,7 +99,7 @@ const SEARCH_EXECUTION_PROFILES: Record<
     filterLimit: getConfiguredModeLimit("production", "STANDARD", PAID_PROFILE_SCAN_BATCH_LIMIT),
     hiddenGemLimit: getConfiguredModeLimit("production", "HIDDEN_GEM", PAID_HIDDEN_GEM_SCAN_LIMIT),
     companyTargetLimit: getConfiguredModeLimit("production", "COMPANY_TARGET", PAID_COMPANY_TARGET_SCAN_LIMIT),
-    finalResultCap: DEFAULT_SHORTLIST_CAP,
+    deliveryReferenceCount: PAID_PROFILE_SCAN_BATCH_LIMIT,
     highlightCount: 5,
     minVisibleQualityScore: 0,
     strongNowQualityScore: 72,
@@ -172,8 +163,7 @@ export function getInitialSearchTargets(
   planCode: SearchPlanCode,
 ) {
   const profile = getInitialSearchExecutionProfile(planCode);
-  const planCap = PLAN_SHORTLIST_CAPS[normalizeSearchPlanCode(planCode)];
-  const candidateCount = Math.min(DEFAULT_SHORTLIST_CAP, profile.finalResultCap, planCap);
+  const candidateCount = Math.max(1, profile.deliveryReferenceCount);
   return {
     candidateCount,
     displayCount: candidateCount,

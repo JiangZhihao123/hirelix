@@ -19,7 +19,6 @@ import {
 import { updateSearchUsageEventMetadata } from "@/lib/search/persistence";
 import {
   DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT,
-  FINAL_SHORTLIST_TARGET,
   normalizeSearchPlanCode,
   resolveExpandedProfileScanBudget,
 } from "@/lib/search-execution";
@@ -146,6 +145,7 @@ export async function POST(
     const requestBody = await req.json().catch(() => null);
     const expansionFeedback = normalizeSearchExpansionFeedbackInput(requestBody);
     const timestamp = new Date().toISOString();
+    const deliveryReferenceCount = Math.max(1, expansion.nextBudget);
     const expansionFeedbackRecord = toSearchExpansionFeedbackRecord(expansionFeedback, timestamp);
     const currentExpansionCount = positiveInt(parsedRequirements.expansion_count) ?? 0;
     const expansionHistory = Array.isArray(parsedRequirements.expansion_history)
@@ -169,9 +169,9 @@ export async function POST(
     const nextParsedRequirements = toJsonbSafeRecord({
       ...parsedRequirements,
       plan_code: planCode,
-      candidate_count: FINAL_SHORTLIST_TARGET,
-      display_count: FINAL_SHORTLIST_TARGET,
-      requested_candidate_count: FINAL_SHORTLIST_TARGET,
+      candidate_count: deliveryReferenceCount,
+      display_count: deliveryReferenceCount,
+      requested_candidate_count: deliveryReferenceCount,
       profile_scan_budget: expansion.nextBudget,
       expand_recall_mode: "fresh_snapshot",
       expansion_requested_at: timestamp,
@@ -218,9 +218,9 @@ export async function POST(
       searchId: id,
       metadata: {
         plan_code: billing.plan.code,
-        candidate_count: FINAL_SHORTLIST_TARGET,
-        display_count: FINAL_SHORTLIST_TARGET,
-        requested_candidate_count: FINAL_SHORTLIST_TARGET,
+        candidate_count: deliveryReferenceCount,
+        display_count: deliveryReferenceCount,
+        requested_candidate_count: deliveryReferenceCount,
         profile_scan_budget: expansion.nextBudget,
         profile_scans_reserved: expansion.nextBudget,
         profile_scans_used: returnedProfileCount ?? 0,
@@ -238,7 +238,7 @@ export async function POST(
       searchId: id,
       userId: user.id,
       jdText: search.jd_text,
-      candidateCount: FINAL_SHORTLIST_TARGET,
+      candidateCount: deliveryReferenceCount,
     });
 
     kickSearchJobRunner(resolveSearchJobRunnerBaseUrl(req.nextUrl.origin), {

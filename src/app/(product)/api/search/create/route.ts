@@ -15,7 +15,6 @@ import {
 } from "@/lib/search";
 import {
   DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
-  FINAL_SHORTLIST_TARGET,
   getInitialSearchTargets,
   normalizeSearchPlanCode,
 } from "@/lib/search-execution";
@@ -32,7 +31,6 @@ import { getLogger, errorLogFields } from "@/lib/logger";
 import { PUBLIC_SEARCH_CREATE_ERROR_MESSAGE, PUBLIC_SEARCH_FAILURE_MESSAGE } from "@/lib/public-errors";
 
 export const maxDuration = 30;
-const DEFAULT_OUTREACH_POOL_TARGET = FINAL_SHORTLIST_TARGET;
 const routeLogger = getLogger({ component: "api_search_create" });
 
 export async function POST(req: NextRequest) {
@@ -44,16 +42,11 @@ export async function POST(req: NextRequest) {
   let createdSearchId: string | null = null;
 
   try {
-    const { jd_text, candidate_count, parsed_requirements_override, user_clarification, growth_tracking } = await req.json();
+    const { jd_text, parsed_requirements_override, user_clarification, growth_tracking } = await req.json();
     const inviteCode = getInviteCodeFromRequest(req, growth_tracking);
     const billing = await getBillingSummaryForUser(user.id);
     const planCode = normalizeSearchPlanCode(billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
-    const maxCandidates = searchTargets.candidateCount;
-    const requestedCandidates = Math.min(
-      Math.max(Number(candidate_count) || maxCandidates, 1),
-      maxCandidates,
-    );
     const profileScanBudget = Math.min(
       billing.usage.profileScansRemaining,
       getPlanSearchBatchProfileScanLimit(
@@ -61,6 +54,9 @@ export async function POST(req: NextRequest) {
         DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
       ),
     );
+    const deliveryReferenceCount = Math.max(1, profileScanBudget);
+    const requestedCandidates = deliveryReferenceCount;
+    const outreachPoolTarget = deliveryReferenceCount;
 
     if (billing.usage.clientRolesRemaining <= 0) {
       return NextResponse.json(
@@ -109,11 +105,11 @@ export async function POST(req: NextRequest) {
           overrideWithClarification,
           jd_text.trim(),
           {
-            candidateCount: maxCandidates,
-            displayCount: searchTargets.displayCount,
+            candidateCount: deliveryReferenceCount,
+            displayCount: deliveryReferenceCount,
             highlightCount: searchTargets.highlightCount,
             requestedCandidateCount: requestedCandidates,
-            outreachPoolTarget: DEFAULT_OUTREACH_POOL_TARGET,
+            outreachPoolTarget,
             planCode,
             executionProfile: searchTargets.executionProfile,
             profileScanBudget,
@@ -121,11 +117,11 @@ export async function POST(req: NextRequest) {
         )
         : {
           search_started_at: timestamp,
-          candidate_count: maxCandidates,
-          display_count: searchTargets.displayCount,
+          candidate_count: deliveryReferenceCount,
+          display_count: deliveryReferenceCount,
           highlight_count: searchTargets.highlightCount,
           requested_candidate_count: requestedCandidates,
-          outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+          outreach_pool_target: outreachPoolTarget,
           profile_scan_budget: profileScanBudget,
           plan_code: planCode,
           launch_mode: "tech_recruiter_mvp",
@@ -183,7 +179,7 @@ export async function POST(req: NextRequest) {
       searchId: search.id,
       userId: user.id,
       jdText: jd_text.trim(),
-      candidateCount: maxCandidates,
+      candidateCount: deliveryReferenceCount,
     });
     kickSearchJobRunner(resolveSearchJobRunnerBaseUrl(req.nextUrl.origin), {
       searchId: search.id,
@@ -213,11 +209,11 @@ export async function POST(req: NextRequest) {
         related_id: search.id,
         metadata: {
           plan_code: billing.plan.code,
-          candidate_count: maxCandidates,
-          display_count: searchTargets.displayCount,
+          candidate_count: deliveryReferenceCount,
+          display_count: deliveryReferenceCount,
           highlight_count: searchTargets.highlightCount,
           requested_candidate_count: requestedCandidates,
-          outreach_pool_target: DEFAULT_OUTREACH_POOL_TARGET,
+          outreach_pool_target: outreachPoolTarget,
           profile_scan_budget: profileScanBudget,
           profile_scans_reserved: profileScanBudget,
           profile_scans_used: 0,
@@ -258,7 +254,7 @@ export async function POST(req: NextRequest) {
           ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? req.headers.get("x-real-ip"),
           user_agent: req.headers.get("user-agent"),
           metadata: {
-            candidate_count: maxCandidates,
+            candidate_count: deliveryReferenceCount,
             profile_scan_budget: profileScanBudget,
             invite_code: invite?.invite_code ?? inviteCode ?? null,
             invite_source: invite?.source ?? null,

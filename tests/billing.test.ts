@@ -62,8 +62,6 @@ function makeBillingSummary(
       enrichesLimit: emailLookupsLimit,
       enrichesRemaining:
         overrides.enrichesRemaining ?? overrides.emailLookupsRemaining ?? Math.max(emailLookupsLimit - emailLookupsUsed, 0),
-      candidateLimitPerSearch:
-        overrides.candidateLimitPerSearch ?? plan.candidateLimitPerSearch,
       exportEnabled: overrides.exportEnabled ?? plan.exportEnabled,
       clientBriefEnabled: overrides.clientBriefEnabled ?? plan.clientBriefEnabled,
       extraSearchCredits: overrides.extraSearchCredits ?? 0,
@@ -84,7 +82,6 @@ function makeBillingSummary(
 test("billing plans expose free, starter, and pro client-role tiers", () => {
   assert.equal(BILLING_PLANS.free.profileScansPerMonth, 250);
   assert.equal(BILLING_PLANS.free.clientBriefEnabled, false);
-  assert.equal(BILLING_PLANS.free.candidateLimitPerSearch, 25);
   assert.equal(BILLING_PLANS.free.emailLookupsPerMonth, 0);
   assert.equal(BILLING_PLANS.free.searchesPerMonth, 1);
   assert.deepEqual(
@@ -94,7 +91,6 @@ test("billing plans expose free, starter, and pro client-role tiers", () => {
   assert.equal(BILLING_PLANS.starter_monthly.name, "Starter");
   assert.equal(BILLING_PLANS.starter_monthly.priceLabel, "$149");
   assert.equal(BILLING_PLANS.starter_monthly.searchesPerMonth, 3);
-  assert.equal(BILLING_PLANS.starter_monthly.candidateLimitPerSearch, 25);
   assert.equal(BILLING_PLANS.starter_monthly.profileScansPerMonth, 4000);
   assert.equal(BILLING_PLANS.starter_monthly.emailLookupsPerMonth, 100);
   assert.equal(BILLING_PLANS.starter_monthly.publicEvidenceDeepDivesPerMonth, 50);
@@ -103,15 +99,10 @@ test("billing plans expose free, starter, and pro client-role tiers", () => {
   assert.equal(BILLING_PLANS.starter_annual.name, "Starter");
   assert.equal(BILLING_PLANS.starter_annual.priceLabel, "$99");
   assert.equal(BILLING_PLANS.starter_annual.priceCents, 118800);
-  assert.equal(BILLING_PLANS.starter_annual.candidateLimitPerSearch, 25);
   assert.equal(BILLING_PLANS.starter_annual.emailLookupsPerMonth, 100);
   assert.equal(
     BILLING_PLANS.starter_annual.profileScansPerMonth,
     BILLING_PLANS.starter_monthly.profileScansPerMonth,
-  );
-  assert.equal(
-    BILLING_PLANS.starter_annual.candidateLimitPerSearch,
-    BILLING_PLANS.starter_monthly.candidateLimitPerSearch,
   );
   assert.equal(
     BILLING_PLANS.starter_annual.emailLookupsPerMonth,

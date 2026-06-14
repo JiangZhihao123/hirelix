@@ -5,7 +5,7 @@ import {
   kickSearchJobRunner,
   resolveSearchJobRunnerBaseUrl,
 } from "@/lib/search";
-import { FINAL_SHORTLIST_TARGET } from "@/lib/search-execution";
+import { DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT } from "@/lib/search-execution";
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
@@ -16,6 +16,18 @@ import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 export const maxDuration = 30;
 
 const RERUN_MODE = "snapshot_profile_cache";
+
+function positiveInt(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : null;
+}
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
 function getSnapshotRefs(parsedRequirements: Record<string, unknown> | null) {
   const metadata =
@@ -92,10 +104,7 @@ export async function POST(
     );
   }
 
-  const parsedRequirements =
-    search.parsed_requirements && typeof search.parsed_requirements === "object"
-      ? search.parsed_requirements as Record<string, unknown>
-      : null;
+  const parsedRequirements = readRecord(search.parsed_requirements);
   const snapshotRefs = getSnapshotRefs(parsedRequirements);
   if (snapshotRefs.length === 0) {
     return NextResponse.json(
@@ -121,7 +130,14 @@ export async function POST(
     );
   }
 
-  const candidateCount = FINAL_SHORTLIST_TARGET;
+  const displayStats = readRecord(parsedRequirements?.display_stats);
+  const recallMetadata = readRecord(parsedRequirements?.recall_metadata);
+  const candidateCount =
+    positiveInt(parsedRequirements?.profile_scan_budget) ??
+    positiveInt(displayStats?.bright_profiles_requested) ??
+    positiveInt(recallMetadata?.bright_profiles_requested) ??
+    positiveInt(parsedRequirements?.candidate_count) ??
+    DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT;
   const timestamp = new Date().toISOString();
   const nextParsedRequirements = toJsonbSafeRecord({
     ...(parsedRequirements ?? {}),

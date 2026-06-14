@@ -18,7 +18,6 @@ export type BillingPlan = {
   emailLookupsPerMonth: number;
   publicEvidenceDeepDivesPerMonth: number;
   searchesPerMonth: number;
-  candidateLimitPerSearch: number;
   enrichesPerMonth: number;
   exportEnabled: boolean;
   clientBriefEnabled: boolean;
@@ -76,7 +75,6 @@ export type UsageSummary = {
   enrichesUsed: number;
   enrichesLimit: number;
   enrichesRemaining: number;
-  candidateLimitPerSearch: number;
   exportEnabled: boolean;
   clientBriefEnabled: boolean;
   extraSearchCredits: number;
@@ -136,7 +134,6 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     emailLookupsPerMonth: 0,
     publicEvidenceDeepDivesPerMonth: 0,
     searchesPerMonth: 1,
-    candidateLimitPerSearch: 25,
     enrichesPerMonth: 0,
     exportEnabled: false,
     clientBriefEnabled: false,
@@ -154,7 +151,6 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     emailLookupsPerMonth: 100,
     publicEvidenceDeepDivesPerMonth: 50,
     searchesPerMonth: 3,
-    candidateLimitPerSearch: 25,
     enrichesPerMonth: 100,
     exportEnabled: true,
     clientBriefEnabled: true,
@@ -172,7 +168,6 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     emailLookupsPerMonth: 100,
     publicEvidenceDeepDivesPerMonth: 50,
     searchesPerMonth: 3,
-    candidateLimitPerSearch: 25,
     enrichesPerMonth: 100,
     exportEnabled: true,
     clientBriefEnabled: true,
@@ -191,7 +186,6 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     emailLookupsPerMonth: 500,
     publicEvidenceDeepDivesPerMonth: 250,
     searchesPerMonth: 10,
-    candidateLimitPerSearch: 25,
     enrichesPerMonth: 500,
     exportEnabled: true,
     clientBriefEnabled: true,
@@ -209,7 +203,6 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     emailLookupsPerMonth: 500,
     publicEvidenceDeepDivesPerMonth: 250,
     searchesPerMonth: 10,
-    candidateLimitPerSearch: 25,
     enrichesPerMonth: 500,
     exportEnabled: true,
     clientBriefEnabled: true,
