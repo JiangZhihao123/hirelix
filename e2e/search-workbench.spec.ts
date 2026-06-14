@@ -12,18 +12,17 @@ const billingSummary = {
     code: "pro_monthly",
     name: "Pro",
     description: "For technical headhunters sourcing active roles.",
-    priceLabel: "$299",
-    cadenceLabel: "per seat / month",
+    priceLabel: "$399",
+    cadenceLabel: "per month",
     billingCycle: "month",
     profileScansPerMonth: 15000,
     emailLookupsPerMonth: 500,
     publicEvidenceDeepDivesPerMonth: 250,
     searchesPerMonth: 10,
-    candidateLimitPerSearch: 25,
     enrichesPerMonth: 500,
     exportEnabled: true,
     clientBriefEnabled: true,
-    priceCents: 29900,
+    priceCents: 39900,
     ctaLabel: "Upgrade monthly",
   },
   subscription: {
@@ -45,13 +44,15 @@ const billingSummary = {
     publicEvidenceDeepDivesUsed: 8,
     publicEvidenceDeepDivesLimit: 250,
     publicEvidenceDeepDivesRemaining: 242,
+    clientRolesUsed: 1,
+    clientRolesLimit: 10,
+    clientRolesRemaining: 9,
     searchesUsed: 500,
     searchesLimit: 15000,
     searchesRemaining: 14500,
     enrichesUsed: 21,
     enrichesLimit: 500,
     enrichesRemaining: 479,
-    candidateLimitPerSearch: 25,
     exportEnabled: true,
     clientBriefEnabled: true,
     extraSearchCredits: 0,
@@ -63,8 +64,6 @@ const billingSummary = {
     proAnnualPriceIdConfigured: false,
     starterMonthlyPriceIdConfigured: false,
     starterAnnualPriceIdConfigured: false,
-    businessPriceIdConfigured: false,
-    agencyPriceIdConfigured: false,
     searchPackPriceIdConfigured: false,
     contactPackPriceIdConfigured: false,
   },
@@ -289,17 +288,17 @@ test.describe("Search workbench", () => {
       origin: new URL(page.url()).origin,
     });
 
-    const shortlist = page.getByTestId("client-ready-shortlist");
-    await expect(shortlist).toBeVisible();
-    await expect(shortlist).toContainText("Client-ready shortlist");
-    await expect(shortlist).toContainText("Jordan Lee");
-    await expect(shortlist).toContainText("Priya Shah");
+    const recommendedPool = page.getByTestId("client-ready-recommended-pool");
+    await expect(recommendedPool).toBeVisible();
+    await expect(recommendedPool).toContainText("Client-ready recommended pool");
+    await expect(recommendedPool).toContainText("Jordan Lee");
+    await expect(recommendedPool).toContainText("Priya Shah");
 
     await page.getByTestId("copy-client-brief").click();
     await expect(page.getByTestId("copy-client-brief")).toContainText("Copied");
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-      .toContain("Client-ready shortlist: Senior Backend Engineer");
+      .toContain("Client-ready recommended pool: Senior Backend Engineer");
 
     const queue = page.getByTestId("outreach-approval-queue");
     await expect(queue).toBeVisible();

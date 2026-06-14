@@ -1,8 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { BriefcaseBusiness, CheckCircle2, Mail, ScanSearch, Sparkles } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  Mail,
+  ScanSearch,
+  Sparkles,
+} from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
+import { fetchWithUserSession } from "@/lib/client-auth";
 import {
   BILLING_PLANS,
   getPlanEmailLookupsPerMonth,
@@ -24,6 +33,7 @@ type PaidBillingPlanCode = Exclude<BillingPlanCode, "free">;
 
 export function BillingPanel({ billing }: { billing: BillingSummary }) {
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
+  const isPaidPlan = billing.subscription.planCode !== "free";
   const subscriptionTiers = [
     {
       key: "starter",
@@ -98,6 +108,13 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                   </p>
                 </div>
               </div>
+              {isPaidPlan ? (
+                <div className="border-t border-slate-200/80 pt-4">
+                  <BillingPortalButton
+                    onError={(message) => setBillingMessage({ type: "error", text: message })}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </SettingsFieldGroup>
@@ -300,6 +317,64 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
         <MessageBanner message={billingMessage} />
       </div>
     </SettingsSection>
+  );
+}
+
+function BillingPortalButton({ onError }: { onError: (message: string) => void }) {
+  const [loading, setLoading] = useState(false);
+
+  async function openPortal() {
+    setLoading(true);
+    try {
+      const response = await fetchWithUserSession("/api/billing", {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => ({})) as {
+        portalUrl?: unknown;
+        error?: unknown;
+      };
+
+      if (!response.ok) {
+        onError(
+          typeof data.error === "string" && data.error
+            ? data.error
+            : "Unable to open Paddle billing portal.",
+        );
+        return;
+      }
+
+      if (typeof data.portalUrl !== "string" || !data.portalUrl) {
+        onError("Paddle did not return a billing portal URL.");
+        return;
+      }
+
+      window.location.assign(data.portalUrl);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Unable to open Paddle billing portal.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={openPortal}
+      disabled={loading}
+      className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {loading ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Opening Paddle...
+        </>
+      ) : (
+        <>
+          <ExternalLink className="h-4 w-4" />
+          Manage in Paddle
+        </>
+      )}
+    </button>
   );
 }
 

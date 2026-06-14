@@ -5,6 +5,7 @@ import {
   hirelix_search_jobs,
   hirelix_searches,
 } from "@/db/schema";
+import { getInternalApiAuthorizationHeader } from "@/lib/internal-api-secret";
 import { getFetchDispatcherForUrl } from "@/lib/server-outbound-proxy";
 import {
   SEARCH_JOB_HEARTBEAT_SECONDS,
@@ -83,8 +84,8 @@ export function kickSearchJobRunner(
     return;
   }
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) return;
+  const authorizationHeader = getInternalApiAuthorizationHeader();
+  if (!authorizationHeader) return;
 
   const runnerUrl = new URL("/api/internal/search-jobs/run", baseUrl);
   const dispatcher = getFetchDispatcherForUrl(runnerUrl);
@@ -92,7 +93,7 @@ export function kickSearchJobRunner(
   void fetch(runnerUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
+      Authorization: authorizationHeader,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

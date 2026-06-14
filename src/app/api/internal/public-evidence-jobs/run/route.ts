@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isInternalApiAuthorizationValid } from "@/lib/internal-api-secret";
 import { processNextPublicEvidenceJob } from "@/lib/public-evidence-jobs";
 
 export const maxDuration = 300;
 
 function isAuthorized(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
+  return isInternalApiAuthorizationValid(req.headers.get("authorization"));
 }
 
 export async function POST(req: NextRequest) {

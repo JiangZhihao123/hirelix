@@ -17,7 +17,7 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       GOOGLE_CLIENT_ID: ci-google-client-id
       GOOGLE_CLIENT_SECRET: ci-google-client-secret
-      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      INTERNAL_API_SECRET: ci-internal-api-secret
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

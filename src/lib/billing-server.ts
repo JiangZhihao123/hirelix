@@ -19,6 +19,25 @@ import { getLogger } from "@/lib/logger";
 
 const billingLogger = getLogger({ component: "billing_server" });
 
+type PaddlePortalSessionResponse = {
+  data?: {
+    urls?: {
+      general?: {
+        overview?: unknown;
+      };
+      subscriptions?: Array<{
+        id?: unknown;
+        cancel_subscription?: unknown;
+        update_subscription_payment_method?: unknown;
+      }>;
+    };
+  };
+  error?: {
+    detail?: unknown;
+    message?: unknown;
+  };
+};
+
 export async function getBillingSummaryForUser(userId: string): Promise<BillingSummary> {
   const { startIso, endIso } = getBillingPeriodBounds();
   const startDate = new Date(startIso);
@@ -189,4 +208,104 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
 function getMetadataCount(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return Math.max(0, Math.round(value));
+}
+
+function getPaddleApiBaseUrl() {
+  const checkout = getCheckoutConfig();
+  return checkout.environment === "production"
+    ? "https://api.paddle.com"
+    : "https://sandbox-api.paddle.com";
+}
+
+function getPaddleErrorMessage(payload: PaddlePortalSessionResponse, status: number) {
+  const detail = payload.error?.detail ?? payload.error?.message;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  return `Paddle portal session request failed with status ${status}`;
+}
+
+export async function createBillingPortalSessionForUser(userId: string) {
+  const apiKey = (process.env.PADDLE_API_KEY || "").trim();
+  if (!apiKey) {
+    return {
+      ok: false as const,
+      status: 503,
+      error: "Paddle billing portal is not configured yet.",
+    };
+  }
+
+  const [settings] = await db
+    .select({
+      paddle_customer_id: hirelix_user_settings.paddle_customer_id,
+      paddle_subscription_id: hirelix_user_settings.paddle_subscription_id,
+    })
+    .from(hirelix_user_settings)
+    .where(eq(hirelix_user_settings.user_id, userId))
+    .limit(1);
+
+  const customerId = settings?.paddle_customer_id?.trim();
+  if (!customerId) {
+    return {
+      ok: false as const,
+      status: 409,
+      error: "No Paddle customer is linked to this account yet.",
+    };
+  }
+
+  const subscriptionId = settings?.paddle_subscription_id?.trim();
+  const response = await fetch(
+    `${getPaddleApiBaseUrl()}/customers/${encodeURIComponent(customerId)}/portal-sessions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        subscription_ids: subscriptionId ? [subscriptionId] : [],
+      }),
+    },
+  );
+  const payload = await response.json().catch(() => ({})) as PaddlePortalSessionResponse;
+
+  if (!response.ok) {
+    billingLogger.warn(
+      {
+        user_id: userId,
+        customer_id: customerId,
+        paddle_status: response.status,
+        paddle_error: payload.error,
+      },
+      "Paddle portal session request failed",
+    );
+    return {
+      ok: false as const,
+      status: response.status >= 500 ? 502 : 400,
+      error: getPaddleErrorMessage(payload, response.status),
+    };
+  }
+
+  const overviewUrl = payload.data?.urls?.general?.overview;
+  const subscriptionLinks = payload.data?.urls?.subscriptions?.[0];
+  const cancelUrl = subscriptionLinks?.cancel_subscription;
+  const updatePaymentMethodUrl = subscriptionLinks?.update_subscription_payment_method;
+
+  if (typeof overviewUrl !== "string" || !overviewUrl) {
+    billingLogger.warn(
+      { user_id: userId, customer_id: customerId, payload },
+      "Paddle portal session response did not include an overview URL",
+    );
+    return {
+      ok: false as const,
+      status: 502,
+      error: "Paddle did not return a billing portal URL.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    portalUrl: overviewUrl,
+    cancelUrl: typeof cancelUrl === "string" ? cancelUrl : null,
+    updatePaymentMethodUrl:
+      typeof updatePaymentMethodUrl === "string" ? updatePaymentMethodUrl : null,
+  };
 }

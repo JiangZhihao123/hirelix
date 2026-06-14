@@ -8,18 +8,17 @@ const billingSummary = {
     code: "pro_monthly",
     name: "Pro",
     description: "For technical headhunters sourcing active roles.",
-    priceLabel: "$299",
-    cadenceLabel: "per seat / month",
+    priceLabel: "$399",
+    cadenceLabel: "per month",
     billingCycle: "month",
     profileScansPerMonth: 15000,
     emailLookupsPerMonth: 500,
     publicEvidenceDeepDivesPerMonth: 250,
     searchesPerMonth: 10,
-    candidateLimitPerSearch: 25,
     enrichesPerMonth: 500,
     exportEnabled: true,
     clientBriefEnabled: true,
-    priceCents: 29900,
+    priceCents: 39900,
     ctaLabel: "Upgrade monthly",
   },
   subscription: {
@@ -41,13 +40,15 @@ const billingSummary = {
     publicEvidenceDeepDivesUsed: 8,
     publicEvidenceDeepDivesLimit: 250,
     publicEvidenceDeepDivesRemaining: 242,
+    clientRolesUsed: 1,
+    clientRolesLimit: 10,
+    clientRolesRemaining: 9,
     searchesUsed: 500,
     searchesLimit: 15000,
     searchesRemaining: 14500,
     enrichesUsed: 21,
     enrichesLimit: 500,
     enrichesRemaining: 479,
-    candidateLimitPerSearch: 25,
     exportEnabled: true,
     clientBriefEnabled: true,
     extraSearchCredits: 0,
@@ -59,8 +60,6 @@ const billingSummary = {
     proAnnualPriceIdConfigured: false,
     starterMonthlyPriceIdConfigured: false,
     starterAnnualPriceIdConfigured: false,
-    businessPriceIdConfigured: false,
-    agencyPriceIdConfigured: false,
     searchPackPriceIdConfigured: false,
     contactPackPriceIdConfigured: false,
   },
@@ -244,12 +243,12 @@ test.describe("Core user flow", () => {
     await page.getByTestId("hero-primary-cta").click();
 
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "One more step to build your shortlist." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "One more step to build your candidate pool." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("We are hiring a Senior Backend Engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
   });
 
-  test("lets an authenticated recruiter create a sourcing run and land on the shortlist workbench", async ({
+  test("lets an authenticated recruiter create a sourcing run and land on the candidate pool workbench", async ({
     page,
   }) => {
     const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
@@ -261,11 +260,11 @@ test.describe("Core user flow", () => {
     await page.getByPlaceholder("Paste the full client job description here...").fill(jdText);
     await page.getByRole("button", { name: "Build brief" }).click();
 
-    await expect(page.getByText("Reading JD...")).toBeVisible();
-    await page.getByRole("button", { name: "Launch shortlist" }).click();
+    await expect(page.getByText("Ready to launch.")).toBeVisible();
+    await page.getByRole("button", { name: "Launch search" }).click();
     await expect(page).toHaveURL(/\/app\/search\/core-search$/);
     await expect(page.getByRole("heading", { name: "Senior Backend Engineer" })).toBeVisible();
-    await expect(page.getByTestId("client-ready-shortlist")).toContainText("Jordan Lee");
+    await expect(page.getByTestId("client-ready-recommended-pool")).toContainText("Jordan Lee");
     await expect(page.getByTestId("outreach-approval-queue")).toContainText("LinkedIn copy");
 
     expect(calls.find((call) => call.path === "/api/search/clarify")?.body).toMatchObject({
@@ -273,7 +272,6 @@ test.describe("Core user flow", () => {
     });
     expect(calls.find((call) => call.path === "/api/search/create")?.body).toMatchObject({
       jd_text: jdText,
-      candidate_count: 25,
     });
   });
 });

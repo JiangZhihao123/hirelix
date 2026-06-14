@@ -117,7 +117,7 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | 数据库 | us-2 VPS Postgres | 自托管 PostgreSQL 17，所有 hirelix_* 业务表 + better-auth 表 |
 | Auth | better-auth | Google OAuth，session 写入同一 Postgres，无独立 Auth 服务 |
 
-当前生产部署以本文件为准。`README.md` 与 `docs/migrate_to_vps_postgres.md` 里仍可能保留 Supabase Auth / Vultr / 旧迁移阶段口径，排查生产问题时不要优先引用这些旧说法。
+当前生产部署以本文件与 `README.md` 为准。`docs/migrate_to_vps_postgres.md` 仍是迁移阶段归档，可能保留 Supabase Auth / 旧迁移阶段口径，排查生产问题时不要优先引用这些旧说法。
 
 ### 4.2 搜索流水线
 

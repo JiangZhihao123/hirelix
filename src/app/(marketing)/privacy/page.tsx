@@ -63,10 +63,11 @@ export default function PrivacyPage() {
           body: (
             <>
               <p>
-                We rely on third-party providers to operate the service, including Supabase for
-                database and authentication infrastructure, Vercel for hosting, Paddle for billing,
-                Anthropic for AI generation, Serper for search results, Apollo and Hunter for
-                contact enrichment, and Bright Data for web data access.
+                We rely on third-party providers to operate the service, including Vercel for
+                hosting, a self-hosted PostgreSQL database for application and authentication
+                records, Paddle for billing, Anthropic and DeepSeek for AI generation, Serper for
+                search results, Apollo and Hunter for contact enrichment, and Bright Data for web
+                data access.
               </p>
               <p>
                 These providers may process data on our behalf only as needed to deliver the

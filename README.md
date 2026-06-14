@@ -17,9 +17,9 @@ AI 驱动的被动候选人搜索平台：输入职位描述（JD），自动在
               ┌────────────┼────────────┐
               │                         │
        ┌──────▼───────┐         ┌──────▼───────┐
-       │   Supabase    │         │  VPS (Vultr) │
-       │  PostgreSQL   │         │   调度器      │  处理 3-5 分钟的搜索任务
-       │  + Auth       │◄────────│   独立进程    │
+       │ us-2 Postgres │         │   us-2 VPS   │
+       │ 业务 + Auth DB │         │   调度器      │  处理长耗时搜索任务
+       │ better-auth表 │◄────────│   独立进程    │
        └──────────────┘         └──────────────┘
 ```
 
@@ -83,7 +83,7 @@ npm run scheduler:dev
 
 ### 网络代理
 
-中国大陆本地开发需要代理访问 Supabase 和外部服务：
+中国大陆本地开发通常需要代理访问 Google OAuth 和外部服务：
 
 ```bash
 # 在 .env 中配置
@@ -119,12 +119,13 @@ npx tsx --test tests/github-signals.test.ts
 
 | 分组 | 变量 | 说明 |
 |------|------|------|
-| 数据库 | `DATABASE_URL` | PostgreSQL 连接字符串 |
-| Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase 认证与数据库 |
+| 数据库 | `DATABASE_URL` | us-2 自托管 PostgreSQL 连接字符串 |
+| Auth | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | better-auth + Google OAuth |
+| 内部 API | `INTERNAL_API_SECRET` | 调度器触发内部 runner 的 Bearer secret |
 | AI | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY` | AI 模型配置（默认 DeepSeek） |
 | 数据源 | `BRIGHTDATA_API_TOKEN` | LinkedIn 数据召回 |
 | GitHub | `GITHUB_TOKEN`, `SERPER_API_KEY`（可选） | GitHub 富化（Serper 仅用于身份发现兜底） |
-| 计费 | `NEXT_PUBLIC_PADDLE_*` | Paddle 支付集成 |
+| 计费 | `NEXT_PUBLIC_PADDLE_*`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET` | Paddle 支付、webhook 与 customer portal |
 | 通知 | `RESEND_API_KEY`, `SEARCH_NOTIFICATIONS_ENABLED` | 搜索完成邮件通知 |
 
 ## 部署
@@ -132,7 +133,8 @@ npx tsx --test tests/github-signals.test.ts
 | 组件 | 部署位置 | 说明 |
 |------|----------|------|
 | Next.js 前端 + API | Vercel | push 到 main 自动部署 |
-| 搜索调度器 | VPS (Vultr) | GitHub Actions CI/CD 自动部署 |
+| 搜索调度器 | us-2 VPS `/opt/hirelix` | GitHub Actions CI/CD 自动部署 |
+| 数据库 | us-2 PostgreSQL | 自托管业务表与 better-auth 表 |
 
 生产域名：`hirelix.online`
 

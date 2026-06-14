@@ -2,13 +2,11 @@
  * Drizzle ORM schema definitions for Hirelix self-hosted Postgres.
  *
  * Naming convention: snake_case for both column names and TypeScript property
- * names so existing call sites (which use snake_case keys returned by Supabase
- * client) can be migrated with minimal churn.
+ * names so existing call sites can be migrated with minimal churn.
  *
  * Notes:
- * - `user_id` columns originally referenced `auth.users(id)` in Supabase. We
- *   keep them as plain `uuid` (no FK) because Auth lives in Supabase but data
- *   lives in our own Postgres.
+ * - `user_id` columns are kept as plain `uuid` (no FK) because better-auth
+ *   identity tables and Hirelix business tables are managed separately.
  * - Defaults / NOT NULL constraints mirror `supabase/migrations/*.sql`.
  */
 
