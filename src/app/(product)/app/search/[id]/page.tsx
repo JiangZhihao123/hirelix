@@ -888,8 +888,8 @@ export default function SearchResultPage() {
     deepReviewCompletedCount <= allCandidates.length ||
     Math.abs(deepReviewCompletedCount - allCandidates.length) <= 1;
   const poolCoverageCopy = hasCompleteRankedPool
-    ? `${recommendedCount} are recommended for client review; the rest stay available as lower-priority market coverage.`
-    : `${recommendedCount} are recommended for client review. This older run shows the saved ranked pool; run or expand the role to build the full pool.`;
+    ? `All ${deliveredCandidateCount} delivered profiles stay in the ranked pool, with ${recommendedCount} marked for first-pass review.`
+    : `This older run shows ${deliveredCandidateCount} saved profiles, with ${recommendedCount} marked for first-pass review. Run or expand the role to build a fresh full pool.`;
   const selectedPoolLabel = poolView === "full_pool" ? "Full pool" : "Recommended";
   const taskStage = getSearchTaskStage({
     ...search,
@@ -918,7 +918,7 @@ export default function SearchResultPage() {
       }),
     }));
   const clientReadyBriefText = [
-    `Client-ready recommended pool: ${displayTitle}`,
+    `Client-ready ranked pool: ${displayTitle}`,
     locationScope ? `Location/work model: ${[locationScope, workModel].filter(Boolean).join(" | ")}` : null,
     requiredSkills.length > 0 ? `Must-haves: ${requiredSkills.slice(0, 8).join(", ")}` : null,
     "",
@@ -1374,11 +1374,11 @@ export default function SearchResultPage() {
 	                </p>
 	                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
 	                  {recommendedCount > 0
-	                    ? `${recommendedCount} recommended candidates, backed by a ${allCandidates.length}-profile ranked pool.`
-	                    : `${allCandidates.length} sourced profiles are ready for market review.`}
+	                    ? `${allCandidates.length} delivered candidates, ranked with ${recommendedCount} first-pass priorities.`
+	                    : `${allCandidates.length} delivered candidates are ready for market review.`}
 	                </h2>
 	                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-	                  Start with recommended profiles, then use the full pool to understand the market and recover edge cases.
+	                  Every sourced profile remains available; use the priority labels to decide who to review first.
 	                </p>
               </div>
               <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto xl:grid-cols-5">
@@ -1444,7 +1444,7 @@ export default function SearchResultPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-	                  Client-ready recommended pool
+	                  Client-ready ranked pool
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
                   Copy a client brief before you start outreach.
@@ -1520,7 +1520,7 @@ export default function SearchResultPage() {
                   Review, copy, then mark progress.
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-	                  This keeps the workflow human-in-the-loop while still moving recommended candidates to contacted, replied, submitted, interview, and placed.
+	                  This keeps the workflow human-in-the-loop while still moving candidates to contacted, replied, submitted, interview, and placed.
                 </p>
               </div>
               <div className="grid grid-cols-5 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
@@ -1674,7 +1674,7 @@ export default function SearchResultPage() {
 	                  Candidate pool
 	                </p>
 	                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-	                  Reviewed {recallProfileCount} sourced profiles. {recommendedCount} recommended for client review.
+	                  Delivered {deliveredCandidateCount} ranked candidates from {recallProfileCount} sourced profiles.
 	                </h2>
 	              </div>
               <p className="text-xs text-slate-500">
@@ -1726,7 +1726,7 @@ export default function SearchResultPage() {
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 />
                 <p className="text-xs text-slate-600">
-	                  You can review the ranked pool, fit reasons, risks, and recommended outreach drafts now.
+	                  You can review the ranked pool, fit reasons, risks, and outreach drafts now.
                 </p>
               </div>
             </div>
@@ -1906,9 +1906,9 @@ export default function SearchResultPage() {
 	                        {selectedPoolLabel} ({visibleCandidates.length})
 	                      </h3>
 	                      <p className="mt-1 text-sm text-slate-600">
-	                        {poolView === "full_pool"
-	                          ? "Scan the full ranked pool with lower-priority context preserved."
-	                          : "Work from the recommended profiles first. The right panel defaults to the copy-ready selling kit."}
+                        {poolView === "full_pool"
+                          ? "Scan the full ranked pool with lower-priority context preserved."
+                          : "Work from the first-pass priorities first. The right panel defaults to the copy-ready selling kit."}
                       </p>
                     </div>
                     <div className="space-y-3">
