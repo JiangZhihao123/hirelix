@@ -9,8 +9,8 @@ export function ObjectionsSection() {
     },
     {
       icon: ShieldCheck,
-      title: "What public evidence does Hirelix research?",
-      desc: "Hirelix checks sources like GitHub, papers, technical blogs, company engineering blogs, open-source packages, Stack Overflow, talks, personal sites, and portfolios.",
+      title: "What candidate research does Hirelix run?",
+      desc: "When you choose to research a candidate, Hirelix checks sources like GitHub, papers, technical blogs, company engineering blogs, open-source packages, Stack Overflow, talks, personal sites, and portfolios.",
     },
     {
       icon: Search,

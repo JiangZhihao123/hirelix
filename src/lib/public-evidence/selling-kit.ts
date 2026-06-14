@@ -98,7 +98,7 @@ function sourceLabel(sourceType: string | null | undefined) {
     case "other_professional":
       return "Identity";
     default:
-      return "Public evidence";
+      return "Candidate Research";
   }
 }
 

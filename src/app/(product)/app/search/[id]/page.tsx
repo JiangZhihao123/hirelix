@@ -644,7 +644,7 @@ export default function SearchResultPage() {
       (billing?.usage.publicEvidenceDeepDivesRemaining ?? 0) <= 0
     ) {
       handleUpgradeClick("candidate_public_evidence_deep_dive");
-      setPublicEvidenceError("Start a subscription to unlock public evidence deep dives.");
+      setPublicEvidenceError("Start a subscription to unlock candidate research.");
       return;
     }
 
@@ -657,7 +657,7 @@ export default function SearchResultPage() {
         body: JSON.stringify({ public_evidence: true }),
       });
       if (!res.ok) {
-        throw new Error("Could not start public evidence deep dive.");
+        throw new Error("Could not start candidate research.");
       }
       const data = await res.json();
       if (data.metadata) {
@@ -671,7 +671,7 @@ export default function SearchResultPage() {
       }
       await refreshBilling();
     } catch (error) {
-      setPublicEvidenceError(error instanceof Error ? error.message : "Could not start public evidence deep dive.");
+      setPublicEvidenceError(error instanceof Error ? error.message : "Could not start candidate research.");
     } finally {
       setPublicEvidenceQueueingId(null);
     }
@@ -1120,7 +1120,7 @@ export default function SearchResultPage() {
               )}
               {launchScope === "linkedin_plus_github" && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  Public evidence available as a deep dive
+                  Candidate research available
                 </span>
               )}
             </div>
@@ -1707,7 +1707,7 @@ export default function SearchResultPage() {
                 Unlock contact lookup and deep evidence when you are ready.
               </h3>
               <p className="mt-2 text-sm text-slate-700">
-                Upgrade for email lookup, public evidence deep dives, CSV export, and client-ready briefs on the candidates you choose.
+                Upgrade for email lookup, candidate research, CSV export, and client-ready briefs on the candidates you choose.
               </p>
 	              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
 	                <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{recommendedCount} recommended profiles</span>

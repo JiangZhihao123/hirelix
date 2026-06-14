@@ -125,7 +125,7 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 2. Bright Data 召回：`src/lib/brightdata.ts`（LinkedIn 数据集筛选 + 抓取）
 3. AI 预筛 + 深度评分：`src/lib/search-jobs.ts`
 4. 初始交付：交付本次召回并评分后的候选人池，召回到的候选人都应进入交付池，不能再按旧“最多 25 人 shortlist”叙事截断
-5. 按需深调：用户选择某个候选人后再触发公开证据深度调研；GitHub 只是深调来源之一，不是初始交付界面的一等产品心智
+5. 按需候选人研究：用户选择某个候选人后再触发 Candidate Research；GitHub 只是研究来源之一，不是初始交付界面的一等产品心智
 
 ### 4.3 核心文件
 
@@ -142,8 +142,8 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | `src/lib/search-notifications.ts` | 搜索完成通知(Resend 邮件) |
 | `src/lib/recruiter-outreach.ts` | 外联文案生成 |
 | `src/lib/brightdata.ts` | Bright Data 数据集/抓取接口 |
-| `src/lib/public-evidence-jobs.ts` | 候选人按需公开证据深调队列 |
-| `src/lib/public-evidence/` | 公开证据深调、来源发现与销售证据整理 |
+| `src/lib/public-evidence-jobs.ts` | 候选人按需研究队列（内部仍沿用 public evidence 命名） |
+| `src/lib/public-evidence/` | 候选人研究的来源发现、证据整理与销售证据判断 |
 | `src/lib/github-signals.ts` | 深调内部使用的 GitHub 证据来源之一，不参与初始候选人交付 |
 | `src/lib/github/discovery.ts` | 深调内部 GitHub 身份发现（含 Serper 兜底） |
 | `src/lib/github-enrichment-jobs.ts` | 旧 GitHub 富化队列，保留兼容但不应由初始搜索、调度器或 smoke 主链路触发 |
@@ -168,8 +168,8 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | `hirelix_searches` | 搜索任务主表，包含状态机 |
 | `hirelix_candidates` | 候选人结果表 |
 | `hirelix_search_jobs` | 搜索任务队列表 |
-| `hirelix_public_evidence_jobs` | 候选人公开证据深调任务队列表 |
-| `hirelix_public_evidence_items` | 公开证据深调结果明细 |
+| `hirelix_public_evidence_jobs` | 候选人研究任务队列表 |
+| `hirelix_public_evidence_items` | 候选人研究来源与证据明细 |
 | `hirelix_github_enrichment_jobs` | 旧 GitHub 富化任务队列表，仅作兼容排查，不应主动接入初始交付链路 |
 
 ### 4.5 页面路由分组
@@ -191,7 +191,7 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | `search/clarify` | JD 补全/澄清 |
 | `search/[id]/retry` | 重试搜索 |
 | `candidates/[id]` | 候选人详情 |
-| `candidates/[id]/enrich` | 候选人邮箱查询、外联重写、按需公开证据深调入口 |
+| `candidates/[id]/enrich` | 候选人邮箱查询、外联重写、按需候选人研究入口 |
 | `settings/ai-company` | AI 公司描述 |
 | `billing/*` | 计费相关 |
 
@@ -202,7 +202,7 @@ Hirelix 是一个 AI 驱动的被动候选人搜索平台：输入职位描述�
 | 路由 | 说明 |
 |------|------|
 | `internal/search-jobs/run` | 调度器触发搜索执行 |
-| `internal/public-evidence-jobs/run` | 调度器触发候选人按需公开证据深调 |
+| `internal/public-evidence-jobs/run` | 调度器触发候选人按需研究 |
 | `paddle/webhook` | Paddle 支付 webhook |
 
 ### 4.8 搜索状态机
@@ -310,7 +310,7 @@ npm run scheduler:dev
 | Auth | `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | AI 模型 | `AI_PROVIDER`, `AI_MODEL`, `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_THINKING`, `DEEPSEEK_REASONING_EFFORT`, `SEARCH_PARSE_THINKING`, `SEARCH_OUTREACH_THINKING`, `SEARCH_JUDGE_REASONING_EFFORT`, `SEARCH_ARBITER_REASONING_EFFORT`, `ANTHROPIC_API_KEY` |
 | 搜索模型档位 | `SEARCH_LIGHT_MODEL`, `SEARCH_JUDGE_MODEL`, `SEARCH_ARBITER_MODEL` |
-| 数据源 | `BRIGHTDATA_API_TOKEN`, `GITHUB_TOKEN`, `HUNTER_API_KEY`, `SERPER_API_KEY`（`GITHUB_TOKEN`/`SERPER_API_KEY` 仅用于按需公开证据深调，不参与初始候选人交付） |
+| 数据源 | `BRIGHTDATA_API_TOKEN`, `GITHUB_TOKEN`, `HUNTER_API_KEY`, `SERPER_API_KEY`（`GITHUB_TOKEN`/`SERPER_API_KEY` 仅用于按需候选人研究，不参与初始候选人交付） |
 | 搜索调优 | `SEARCH_EXECUTION_MODE`, `SEARCH_TEST_BRIGHTDATA_STANDARD_LIMIT`, `SEARCH_PRODUCTION_BRIGHTDATA_STANDARD_LIMIT`, `BRIGHTDATA_SNAPSHOT_CACHE_TTL_DAYS`, `SEARCH_JOB_SCHEDULER_CONCURRENCY`, `SEARCH_DEEP_REVIEW_CONCURRENCY`, `SEARCH_LLM_GLOBAL_CONCURRENCY`, `SEARCH_DEEP_CACHE_PRIMER_COUNT`, `SEARCH_JUDGE_SCORING_TIMEOUT_MS` |
 | Paddle 计费 | `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET` |
 | 通知 | `RESEND_API_KEY`, `SEARCH_NOTIFICATIONS_ENABLED` |
@@ -351,8 +351,8 @@ SQL 迁移文件位于 `supabase/migrations/`（路径名是历史包袱，实�
 
 - Mock 测试只能验证局部 UI、状态转换、请求 payload、错误分支等低风险边界
 - 回答“核心用户旅程是否可用”“真实搜索链路是否正常”“生产依赖是否打通”时，不能只跑 mock 测试
-- 核心链路验证应优先使用真实登录/session、真实数据库、真实 API 路由、真实调度器、真实 LLM/Bright Data/按需公开证据等外部依赖
-- 生产/准生产链路测试优先在 `us-2` 上执行，尤其是 Bright Data、按需公开证据、LLM、Postgres 等外部依赖链路；本地中国大陆网络容易放大跨境下载/连接耗时，不能单独作为生产性能结论
+- 核心链路验证应优先使用真实登录/session、真实数据库、真实 API 路由、真实调度器、真实 LLM/Bright Data/按需候选人研究等外部依赖
+- 生产/准生产链路测试优先在 `us-2` 上执行，尤其是 Bright Data、按需候选人研究、LLM、Postgres 等外部依赖链路；本地中国大陆网络容易放大跨境下载/连接耗时，不能单独作为生产性能结论
 - 如果受环境、费用、速率限制无法跑真实链路，必须明确说明“只跑了 mock/fixture 测试，不能证明真实链路可用”
 - 测试结果汇报中必须区分：`mock 回归`、`本地真实链路`、`生产/准生产链路`
 
@@ -364,7 +364,7 @@ Mock 是辅助，不是结论；核心用户价值必须用真实链路验证或
 优先检查：
 - `scheduler/index.ts`
 - 搜索队列表 `hirelix_search_jobs`
-- 公开证据深调队列表 `hirelix_public_evidence_jobs`
+- 候选人研究队列表 `hirelix_public_evidence_jobs`
 - VPS 上的 `hirelix-scheduler` systemd 服务状态与日志
 
 ### 7.4 日志排查

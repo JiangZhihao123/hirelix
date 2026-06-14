@@ -282,7 +282,7 @@ test("buildRecruiterFacingGithubReadout falls back to profile narrative when pub
 
   assert.equal(readout.evidenceStrength, "none");
   assert.match(readout.recruiterSummary, /profile fit/i);
-  assert.match(readout.recruiterSummary, /public evidence deep dive/i);
+  assert.match(readout.recruiterSummary, /candidate research/i);
   assert.ok(readout.verificationRisks.some((item) => /Public engineering evidence has not been researched/i.test(item)));
 });
 

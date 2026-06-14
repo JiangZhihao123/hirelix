@@ -67,7 +67,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
       id="billing"
       eyebrow="Billing"
       title="Billing and usage"
-      description="Usage is based on AI sourcing budget, then email lookup and public evidence only when you choose to run them."
+      description="Usage is based on AI sourcing budget, then email lookup and candidate research only when you choose to run them."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -197,7 +197,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <Sparkles className="h-4 w-4 text-slate-400" />
-                  Evidence deep dives
+                  Candidate research
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.publicEvidenceDeepDivesUsed}/{billing.usage.publicEvidenceDeepDivesLimit}
@@ -215,7 +215,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.publicEvidenceDeepDivesRemaining} deep dives left this cycle
+                {billing.usage.publicEvidenceDeepDivesRemaining} research runs left this cycle
               </p>
             </div>
           </div>
@@ -282,7 +282,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                       "AI can split scans across sourcing angles",
                       "Useful profiles are deduped and ranked",
                       `${emailLookups} contact lookups per month`,
-                      `${evidenceDeepDives} on-demand evidence deep dives per month`,
+                      `${evidenceDeepDives} candidate research runs per month`,
                       "CSV export and client-ready briefs",
                     ].map((item) => (
                       <p key={item} className="inline-flex items-start gap-1.5">

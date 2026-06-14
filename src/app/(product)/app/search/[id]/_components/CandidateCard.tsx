@@ -201,7 +201,7 @@ export function CandidateCard({
   const publicEvidenceItems = requiresPublicEvidenceUpgrade ? [] : publicEvidence?.items || [];
   const deepDiveBadge = requiresPublicEvidenceUpgrade
     ? { text: "Profile fit reviewed", className: "bg-blue-50 text-blue-700" }
-    : { text: "Deep dive available", className: "bg-slate-100 text-slate-700" };
+    : { text: "Research available", className: "bg-slate-100 text-slate-700" };
   const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
@@ -469,11 +469,11 @@ export function CandidateCard({
                   </div>
                   <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
                     <span className="font-semibold">Profile fit reviewed</span>
-                    <span> · Run a deep dive when this candidate needs citable public evidence.</span>
+                    <span> · Research this candidate when you need citable proof.</span>
                   </div>
                   {publicEvidenceItems.length === 0 && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      <span className="flex-1">Run a public evidence deep dive when this profile is worth deeper review.</span>
+                      <span className="flex-1">Research this candidate when this profile is worth a closer look.</span>
                       {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
@@ -494,7 +494,7 @@ export function CandidateCard({
                           className="inline-flex items-center gap-1 rounded-md bg-slate-950 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {publicEvidenceQueueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          {publicEvidenceQueueing ? "Queued" : "Deep dive"}
+                          {publicEvidenceQueueing ? "Queued" : "Research"}
                         </button>
                       )}
                     </div>

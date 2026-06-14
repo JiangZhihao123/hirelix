@@ -71,7 +71,7 @@ function formatPublicEvidenceCategory(item: PublicEvidenceItem) {
     case "engineering_proof":
       return "Engineering proof";
     default:
-      return item.source_type ? item.source_type.replace(/_/g, " ") : "Public evidence";
+      return item.source_type ? item.source_type.replace(/_/g, " ") : "Research source";
   }
 }
 
@@ -190,7 +190,7 @@ export function CandidateWorkbenchDetail({
       label: "Evidence status",
       value:
         publicEvidence?.status === "queued" || publicEvidence?.status === "running"
-          ? "Deep dive pending"
+          ? "Research pending"
           : "Not researched yet",
     },
     {
@@ -199,7 +199,7 @@ export function CandidateWorkbenchDetail({
     },
     {
       label: "Sources",
-      value: "Run deep dive to collect sources",
+      value: "Research candidate to collect sources",
     },
     {
       label: "Identity confidence",
@@ -252,14 +252,14 @@ export function CandidateWorkbenchDetail({
   const publicEvidenceSourceLabel = primaryEvidenceItem?.source_type
     ? `${primaryEvidenceItem.citation_label || "[1]"} ${formatPublicEvidenceCategory(primaryEvidenceItem)}`
     : publicEvidence?.status === "queued" || publicEvidence?.status === "running"
-      ? "Deep dive pending"
-      : "Profile fit evidence";
+      ? "Research pending"
+      : "Profile fit";
   const bestOpeningAngle =
     sellingKit?.outreach_opener ||
     primaryEvidenceItem?.outreach_angle ||
     (publicEvidenceItems.length > 0
       ? "Lead with the strongest verified public engineering evidence."
-      : "Use the most relevant profile experience in the opening line, or run a deep dive before citing public proof.");
+      : "Use the most relevant profile experience in the opening line, or research the candidate before citing outside proof.");
 
   async function handleEnrich(options: { regenerateOutreach?: boolean } = {}) {
     if (enriching || !user) return;
@@ -553,7 +553,7 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Public proof has not been prepared for this candidate yet. Use the profile fit notes, or run a deep dive before citing public sources.
+                      Candidate research has not been run yet. Use the profile fit notes, or research this candidate before citing outside sources.
                     </p>
                   )}
                 </div>
@@ -590,7 +590,7 @@ export function CandidateWorkbenchDetail({
           {activeDetailTab === "evidence" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Evidence source details
+                Research sources
               </p>
               <p className="mt-1 text-sm text-slate-600">
                 Selling evidence is separated from identity support so recruiters do not overstate the proof.
@@ -613,7 +613,7 @@ export function CandidateWorkbenchDetail({
                   </div>
                 )) : (
                   <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                    Public evidence has not been researched for this candidate yet.
+                    Candidate research has not been run for this candidate yet.
                   </p>
                 )}
                 {publicEvidenceItems.length === 0 && (
@@ -621,8 +621,8 @@ export function CandidateWorkbenchDetail({
                     <div className="flex flex-wrap items-center gap-3">
                       <p className="flex-1 text-sm text-slate-600">
                         {requiresPublicEvidenceUpgrade
-                          ? "Upgrade to run public evidence deep dives on the candidates you choose."
-                          : "Run a public evidence deep dive when this candidate is worth a closer look."}
+                          ? "Upgrade to research the candidates you choose."
+                          : "Research this candidate when they are worth a closer look."}
                       </p>
                       {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
@@ -644,7 +644,7 @@ export function CandidateWorkbenchDetail({
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {publicEvidenceQueueing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                          {publicEvidenceQueueing ? "Queued" : "Deep dive"}
+                          {publicEvidenceQueueing ? "Queued" : "Research"}
                         </button>
                       )}
                     </div>
@@ -663,7 +663,7 @@ export function CandidateWorkbenchDetail({
                   </p>
                   <p className="mt-2 text-sm text-slate-600">
                     {isRecommendedCandidate
-                      ? `Current source: ${publicEvidenceSourceLabel}`
+                      ? `Current basis: ${publicEvidenceSourceLabel}`
                       : "Lower-priority profiles stay available for review, but Hirelix does not treat them as ready-to-contact recommendations."}
                   </p>
                 </div>
@@ -792,7 +792,7 @@ export function CandidateWorkbenchDetail({
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
                     >
                       {enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                      Regenerate with public evidence
+                      Regenerate with research
                     </button>
                   )}
                   {sellingKit?.outreach_opener && (
@@ -856,7 +856,7 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Public proof has not been prepared for this candidate yet. Use the profile fit notes, or run a deep dive before citing public sources.
+                      Candidate research has not been run yet. Use the profile fit notes, or research this candidate before citing outside sources.
                     </p>
                   )}
                 </div>
@@ -974,7 +974,7 @@ export function CandidateWorkbenchDetail({
                 ))}
               </div>
               <p className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-                Public evidence deep dives can strengthen technical fit and outreach confidence when you choose to run them.
+                Candidate research can strengthen technical fit and outreach confidence when you choose to run it.
               </p>
             </div>
 
@@ -999,7 +999,7 @@ export function CandidateWorkbenchDetail({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Evidence source details
+                    Research sources
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
                     Selling evidence is separated from identity support so recruiters do not overstate the proof.
@@ -1102,10 +1102,10 @@ export function CandidateWorkbenchDetail({
                 <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3">
                   <p className="text-sm text-slate-500">
                     {publicEvidence?.status === "queued" || publicEvidence?.status === "running"
-                      ? "Public evidence review is pending. Current ranking stays based on profile fit and risk signals until the background check finishes."
+                      ? "Candidate research is pending. Current ranking stays based on profile fit and risk signals until the background check finishes."
                       : requiresPublicEvidenceUpgrade
-                        ? "Upgrade to run public evidence deep dives on selected candidates. The current ranking is based on profile fit and risk signals."
-                        : "Public evidence has not been researched yet. Current ranking stays based on profile fit and risk signals."}
+                        ? "Upgrade to research selected candidates. The current ranking is based on profile fit and risk signals."
+                        : "Candidate research has not been run yet. Current ranking stays based on profile fit and risk signals."}
                   </p>
                   {publicEvidence?.status !== "queued" && publicEvidence?.status !== "running" && (
                     <div className="mt-3">
@@ -1129,7 +1129,7 @@ export function CandidateWorkbenchDetail({
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {publicEvidenceQueueing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                          {publicEvidenceQueueing ? "Queued" : "Run deep dive"}
+                          {publicEvidenceQueueing ? "Queued" : "Research candidate"}
                         </button>
                       )}
                     </div>
@@ -1218,7 +1218,7 @@ export function CandidateWorkbenchDetail({
               <div className="mt-3 grid gap-3">
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Evidence source
+                    Research basis
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">{publicEvidenceSourceLabel}</p>
                 </div>
@@ -1294,7 +1294,7 @@ export function CandidateWorkbenchDetail({
                   Lead with verified public engineering evidence when available; otherwise use the strongest profile-based fit signal.
                 </p>
                 <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
-                  Current source: {publicEvidenceSourceLabel}
+                  Current basis: {publicEvidenceSourceLabel}
                 </p>
               </div>
               <button

@@ -37,7 +37,7 @@ export function CandidateWorkbenchListItem({
   const overallScore = getCandidateOverallScore(candidate);
   const deepDiveBadge = hidePublicEvidence
     ? { text: "Profile fit reviewed", className: "bg-blue-50 text-blue-700" }
-    : { text: "Deep dive available", className: "bg-slate-100 text-slate-700" };
+    : { text: "Research available", className: "bg-slate-100 text-slate-700" };
   const scoreMetrics = getCandidateScoreMetrics(candidate).filter((metric) => metric.key !== "overall");
   const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);

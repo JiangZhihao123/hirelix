@@ -84,8 +84,8 @@ export function FeaturesSection() {
     },
     {
       icon: Github,
-      title: "Public engineering evidence research",
-      desc: "Checks GitHub, papers, technical blogs, company engineering blogs, package registries, Stack Overflow, talks, personal sites, and portfolios.",
+      title: "Candidate research",
+      desc: "When you choose to research a candidate, Hirelix checks sources like GitHub, papers, technical blogs, company engineering blogs, package registries, Stack Overflow, talks, personal sites, and portfolios.",
     },
     {
       icon: ListChecks,
@@ -100,7 +100,7 @@ export function FeaturesSection() {
     {
       icon: Mail,
       title: "Outreach drafts",
-      desc: "Creates personalized outreach starting points from profile fit and verified public evidence. Nothing is sent automatically.",
+      desc: "Creates personalized outreach starting points from profile fit and candidate research. Nothing is sent automatically.",
     },
   ];
 
@@ -143,7 +143,7 @@ export function FeaturesSection() {
           </div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-            Public evidence stays separated from risks
+            Research sources stay separated from risks
           </div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />

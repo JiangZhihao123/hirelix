@@ -155,8 +155,8 @@ export async function POST(
           {
             error:
               billing.plan.code === "free"
-                ? "Start a subscription to unlock public evidence deep dives."
-                : "You have reached this month's public evidence deep dive limit. Your next cycle will reset automatically.",
+                ? "Start a subscription to unlock candidate research."
+                : "You have reached this month's candidate research limit. Your next cycle will reset automatically.",
           },
           { status: 403 },
         );
@@ -317,7 +317,7 @@ Skills: ${(Array.isArray(candidate.skills) ? candidate.skills : []).slice(0, 6).
 Experience: ${candidate.experience_years || "?"} years
 Match reasons: ${(Array.isArray(candidate.match_reasons) ? candidate.match_reasons : []).slice(0, 3).join("; ")}
 Location: ${candidate.location || "N/A"}
-Evidence source: ${evidence.evidenceSourceLabel}
+Research basis: ${evidence.evidenceSourceLabel}
 Evidence strength: ${evidence.evidenceStrength}
 Recruiter summary: ${evidence.recruiterSummary}
 Proof to reference: ${evidence.proofToReference}
@@ -328,7 +328,7 @@ Outreach angle: ${evidence.outreachAngle}
 - Never reveal or name the client company. Refer to the role as "one of my clients" or a confidential opportunity.
 - You must use the proof line above. Do not invent extra proof.
 - If the evidence source is GitHub, use that concrete code/project/PR detail.
-- If the evidence source is Public Evidence, use only the proof line and approved public-evidence angle.
+- If the research basis is Candidate Research, use only the proof line and approved research angle.
 - If the evidence source is LinkedIn, use a concrete LinkedIn detail instead.
 - If company info is provided, mention 1-2 compelling things about the company (mission, growth, tech stack, culture)
 - Connect the candidate's experience to WHY they'd be excited about this opportunity

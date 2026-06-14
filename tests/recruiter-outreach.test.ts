@@ -13,7 +13,7 @@ test("buildRecruiterOutreachEvidence prefers concrete linkedin facts over boiler
     location: "Haddington, Scotland, United Kingdom, GB",
     skills: ["Java", "PCI-DSS"],
     matchReasons: [
-      "Shaun Rew has profile fit worth reviewing as Senior Software Engineer at Mastercard. Run a public evidence deep dive before citing off-profile proof.",
+      "Shaun Rew has profile fit worth reviewing as Senior Software Engineer at Mastercard. Run candidate research before citing off-profile proof.",
       "4+ years payment systems at Mastercard.",
       "Profile suggests deep payments and risk expertise.",
     ],
@@ -32,7 +32,7 @@ test("buildRecruiterOutreachEvidence marks sparse linkedin evidence as weak", ()
     location: "Ithaca, New York, United States, US",
     skills: ["Payments", "Go"],
     matchReasons: [
-      "Evan Andrews has profile fit worth reviewing as engineering work at Stripe. Run a public evidence deep dive before citing off-profile proof.",
+      "Evan Andrews has profile fit worth reviewing as engineering work at Stripe. Run candidate research before citing off-profile proof.",
       "Current Stripe employee, top payments domain.",
       "Profile suggests deep payments and risk expertise.",
     ],
@@ -54,7 +54,7 @@ test("buildRecruiterOutreachPrompt includes anti-overclaim guardrails", () => {
       location: "Ithaca, New York, United States, US",
       skills: ["Payments", "Go"],
       matchReasons: [
-        "Evan Andrews has profile fit worth reviewing as engineering work at Stripe. Run a public evidence deep dive before citing off-profile proof.",
+        "Evan Andrews has profile fit worth reviewing as engineering work at Stripe. Run candidate research before citing off-profile proof.",
         "Profile suggests deep payments and risk expertise.",
       ],
     },

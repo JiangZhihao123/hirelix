@@ -43,7 +43,7 @@ type RecruiterOutreachCandidate = {
 
 export type RecruiterOutreachEvidence = {
   evidenceSource: "public_evidence" | "github" | "linkedin";
-  evidenceSourceLabel: "Public Evidence" | "GitHub" | "LinkedIn";
+  evidenceSourceLabel: "Candidate Research" | "GitHub" | "LinkedIn";
   recruiterSummary: string;
   outreachAngle: string;
   proofToReference: string;
@@ -137,7 +137,7 @@ function reasonIsBoilerplate(reason: string) {
   return [
     "still looks worth reviewing",
     "profile fit worth reviewing",
-    "run a public evidence deep dive",
+    "run candidate research",
     "looks worth contacting",
     "no public github evidence was verified",
     "public engineering evidence has not been researched",
@@ -267,7 +267,7 @@ export function buildRecruiterOutreachEvidence(
     const proof = `${citation} ${topPublicEvidence.evidence_summary}`;
     return {
       evidenceSource: "public_evidence",
-      evidenceSourceLabel: "Public Evidence",
+      evidenceSourceLabel: "Candidate Research",
       recruiterSummary:
         normalizeText(sellingKit?.one_line_pitch) ||
         normalizeText(topPublicEvidence.evidence_summary) ||
@@ -285,7 +285,7 @@ export function buildRecruiterOutreachEvidence(
         ...(sellingKit?.client_brief?.evidence_refs || []),
       ]).slice(0, 5),
       cautions: [
-        "Use only the public evidence listed in approved facts.",
+        "Use only the research evidence listed in approved facts.",
         "Do not use identity-only sources as engineering proof.",
         "Do not imply the candidate solely owned a paper, product, or project unless the evidence explicitly says so.",
         ...(sellingKit?.client_brief?.risks_to_verify || []),
@@ -350,7 +350,7 @@ Name: ${params.candidate.name}
 Headline: ${params.candidate.headline || "Professional"}
 Location: ${params.candidate.location || "Unknown"}
 Skills: ${params.candidate.skills?.slice(0, 8).join(", ") || "Unknown"}
-Evidence source: ${evidence.evidenceSourceLabel}
+Research basis: ${evidence.evidenceSourceLabel}
 Evidence strength: ${evidence.evidenceStrength}
 Evidence confidence: ${evidence.proofConfidence}
 Recruiter summary: ${evidence.recruiterSummary}
@@ -381,7 +381,7 @@ Rules:
 - Do not use company affiliation, domain association, or role title alone to claim the candidate built or led a specific system.
 - If evidence confidence is "weak", use cautious language such as "caught my eye", "may be relevant", or "seems aligned".
 - Avoid phrases like "perfect match", "aligns perfectly", or "extensive experience" unless the proof explicitly supports them.
-- If evidence source is Public Evidence, cite the proof naturally but do not include bracket labels unless they read cleanly.
+- If research basis is Candidate Research, cite the proof naturally but do not include bracket labels unless they read cleanly.
 - Never use identity-only public sources as engineering proof.
 - If the evidence source is GitHub, keep the message anchored in that concrete code, project, or PR detail.
 - If the evidence source is GitHub, use it as an engineering credibility signal only. Do not infer payments or domain expertise unless the proof itself shows it.

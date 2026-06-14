@@ -278,7 +278,7 @@ export function buildWidenPoolSuggestions(
     } else if (reason === "title_or_seniority_mismatch") {
       suggestions.push("Widen the accepted title family or seniority band so adjacent profiles can enter the review pool.");
     } else if (reason === "evidence_too_weak") {
-      suggestions.push("Accept a broader evidence mix, or run deep dives only on the candidates who need citable proof.");
+      suggestions.push("Accept a broader evidence mix, or research only the candidates who need citable proof.");
     } else if (reason === "response_risk") {
       suggestions.push("Relax tenure or company-stage assumptions if you want more candidates who may still be reachable.");
     } else if (reason === "multiple_risks") {
@@ -337,11 +337,11 @@ export function deriveCurrentRole(candidate: CandidateRow) {
 export function formatEvidenceStrength(value: GithubSignals["evidence_strength"]) {
   switch (value) {
     case "strong":
-      return "Strong public evidence";
+      return "Strong evidence";
     case "medium":
-      return "Medium public evidence";
+      return "Moderate evidence";
     case "weak":
-      return "Light public evidence";
+      return "Light evidence";
     default:
       return "Profile fit reviewed";
   }
@@ -379,21 +379,21 @@ export function formatRecruiterSellingHeadline(
 }
 
 export function getEvidenceSourceLabel(signals: GithubSignals | null) {
-  if (signals?.status === "verified") return "Public evidence ready";
-  if (signals?.status === "ambiguous_match") return "Public evidence needs review";
-  if (signals?.status === "queued" || signals?.status === "running") return "Deep dive pending";
-  return "Profile fit evidence";
+  if (signals?.status === "verified") return "Research ready";
+  if (signals?.status === "ambiguous_match") return "Research needs review";
+  if (signals?.status === "queued" || signals?.status === "running") return "Research pending";
+  return "Profile fit";
 }
 
 export function getGithubBadge(signals: GithubSignals | null) {
   if (signals?.status === "verified") {
-    return { text: "Public evidence ready", className: "bg-emerald-50 text-emerald-700" };
+    return { text: "Research ready", className: "bg-emerald-50 text-emerald-700" };
   }
   if (signals?.status === "queued") {
-    return { text: "Deep dive pending", className: "bg-amber-50 text-amber-700" };
+    return { text: "Research pending", className: "bg-amber-50 text-amber-700" };
   }
   if (signals?.status === "running") {
-    return { text: "Deep dive pending", className: "bg-sky-50 text-sky-700" };
+    return { text: "Research pending", className: "bg-sky-50 text-sky-700" };
   }
   if (signals?.status === "ambiguous_match") {
     return { text: "Evidence needs review", className: "bg-violet-50 text-violet-700" };
@@ -492,7 +492,7 @@ export function getCandidateScoreMetrics(candidate: CandidateRow) {
       label: "Technical Fit",
       shortLabel: "Tech",
       score: getCandidateCapabilityScore(candidate),
-      description: "Engineering depth from the profile, strengthened by public evidence when you run a deep dive.",
+      description: "Engineering depth from the profile, strengthened by candidate research when you run it.",
     },
     {
       key: "role_fit",
@@ -765,9 +765,9 @@ export function getCandidateTrustLabel(
 
   if (safePublicEvidenceCount > 0) {
     return {
-      label: "Public evidence ready",
+      label: "Research ready",
       tone: "strong" as const,
-      description: "Safe public proof is available for the client brief or outreach.",
+      description: "Research-backed proof is available for the client brief or outreach.",
     };
   }
 
@@ -775,14 +775,14 @@ export function getCandidateTrustLabel(
     return {
       label: "Profile fit reviewed",
       tone: "medium" as const,
-      description: "Ranking is based on profile facts. Run public evidence research when this person is worth deeper review.",
+      description: "Ranking is based on profile facts. Research this candidate when they are worth deeper review.",
     };
   }
 
   return {
     label: "Fit reviewed",
     tone: "medium" as const,
-    description: "Hirelix scored the profile fit and risks. Public evidence can be added on demand.",
+    description: "Hirelix scored the profile fit and risks. Candidate research can be added on demand.",
   };
 }
 
@@ -884,7 +884,7 @@ export function getCandidateDecisionAudit(
 
   return {
     trust,
-    proofLines: uniqueProof.length > 0 ? uniqueProof : ["Profile facts support initial review; run a public evidence deep dive when you need citable proof."],
+    proofLines: uniqueProof.length > 0 ? uniqueProof : ["Profile facts support initial review; research the candidate when you need citable proof."],
     riskLines: uniqueRisks.length > 0 ? uniqueRisks : ["Verify current interest, compensation range, and role scope before pitching."],
     nextAction,
     rankingReason,

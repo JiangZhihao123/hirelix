@@ -130,7 +130,7 @@ export function buildRecruiterFacingGithubReadout(params: {
     const roleLine = `${params.candidateName} has profile fit worth reviewing as ${role}${company ? ` at ${company}` : ""}.`;
     return {
       evidenceStrength: "none" as GithubEvidenceStrength,
-      recruiterSummary: `${roleLine} Run a public evidence deep dive before citing off-profile proof.`,
+      recruiterSummary: `${roleLine} Run candidate research before citing off-profile proof.`,
       outreachAngle: skillHint
         ? `Lead with the profile background and connect it to the role's ${skillHint} needs.`
         : "Lead with one concrete profile detail instead of public code evidence.",

@@ -708,7 +708,7 @@ export default function Home() {
             <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600">
               {[
                 { icon: UserSearch, label: "Real profiles" },
-                { icon: Search, label: "Public evidence research" },
+                { icon: Search, label: "Candidate research" },
                 { icon: MailCheck, label: "Outreach drafts included" },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
