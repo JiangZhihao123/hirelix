@@ -311,10 +311,12 @@ npm run scheduler:dev
 | 代理（仅本地） | `PROXY_ENABLED`, `PROXY_URL` |
 
 Bright Data 说明：
-- `BRIGHTDATA_API_TOKEN` 是敏感凭据，只写入 `.env`、Vercel 环境变量和 `/etc/hirelix.env`，不要把明文 key 写入 `AGENTS.md` 或其他会提交的文件
+- 当前 Bright Data API key：`588f9fbd-b996-47b5-b267-8580aa69fbbd`（用户已明确允许在项目代理说明中明文记录）
+- `BRIGHTDATA_API_TOKEN` 仍应同步写入 `.env`、Vercel 环境变量和 `/etc/hirelix.env`
 - 查询账户余额：
 
 ```bash
+export BRIGHTDATA_API_TOKEN='588f9fbd-b996-47b5-b267-8580aa69fbbd'
 curl -sS 'https://api.brightdata.com/customer/balance' \
   -H "Authorization: Bearer $BRIGHTDATA_API_TOKEN" | jq .
 ```
