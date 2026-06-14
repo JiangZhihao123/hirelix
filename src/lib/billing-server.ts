@@ -219,8 +219,8 @@ function getPaddleApiBaseUrl() {
 
 function getPaddleErrorMessage(payload: PaddlePortalSessionResponse, status: number) {
   const detail = payload.error?.detail ?? payload.error?.message;
-  if (typeof detail === "string" && detail.trim()) return detail;
-  return `Paddle portal session request failed with status ${status}`;
+  if (typeof detail === "string" && detail.trim()) return "Unable to open the billing portal.";
+  return `Billing portal request failed with status ${status}`;
 }
 
 export async function createBillingPortalSessionForUser(userId: string) {
@@ -229,7 +229,7 @@ export async function createBillingPortalSessionForUser(userId: string) {
     return {
       ok: false as const,
       status: 503,
-      error: "Paddle billing portal is not configured yet.",
+      error: "Billing portal is not configured yet.",
     };
   }
 
@@ -247,7 +247,7 @@ export async function createBillingPortalSessionForUser(userId: string) {
     return {
       ok: false as const,
       status: 409,
-      error: "No Paddle customer is linked to this account yet.",
+      error: "No billing profile is linked to this account yet.",
     };
   }
 
@@ -297,7 +297,7 @@ export async function createBillingPortalSessionForUser(userId: string) {
     return {
       ok: false as const,
       status: 502,
-      error: "Paddle did not return a billing portal URL.",
+      error: "Billing portal did not return a URL.",
     };
   }
 

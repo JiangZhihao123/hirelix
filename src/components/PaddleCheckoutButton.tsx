@@ -71,7 +71,7 @@ export function PaddleCheckoutButton({
         checkout_kind: checkout.type,
         error_reason: "missing_price_id",
       });
-      onError?.("Paddle checkout is not configured yet.");
+      onError?.("Checkout is not configured yet.");
       return;
     }
 
@@ -85,7 +85,7 @@ export function PaddleCheckoutButton({
           checkout_kind: checkout.type,
           error_reason: "paddle_load_failed",
         });
-        onError?.("Paddle checkout failed to load.");
+        onError?.("Checkout failed to load.");
         return;
       }
 
@@ -111,7 +111,7 @@ export function PaddleCheckoutButton({
         checkout_kind: checkout.type,
         error_reason: err instanceof Error ? err.message : "unknown",
       });
-      onError?.(err instanceof Error ? err.message : "Paddle checkout failed.");
+      onError?.("Checkout failed.");
     } finally {
       setLoading(false);
     }

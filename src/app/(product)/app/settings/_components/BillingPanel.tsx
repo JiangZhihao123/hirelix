@@ -338,19 +338,19 @@ function BillingPortalButton({ onError }: { onError: (message: string) => void }
         onError(
           typeof data.error === "string" && data.error
             ? data.error
-            : "Unable to open Paddle billing portal.",
+            : "Unable to open the billing portal.",
         );
         return;
       }
 
       if (typeof data.portalUrl !== "string" || !data.portalUrl) {
-        onError("Paddle did not return a billing portal URL.");
+        onError("Billing portal did not return a URL.");
         return;
       }
 
       window.location.assign(data.portalUrl);
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Unable to open Paddle billing portal.");
+      onError(err instanceof Error ? err.message : "Unable to open the billing portal.");
     } finally {
       setLoading(false);
     }
@@ -366,12 +366,12 @@ function BillingPortalButton({ onError }: { onError: (message: string) => void }
       {loading ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
-          Opening Paddle...
+          Opening billing...
         </>
       ) : (
         <>
           <ExternalLink className="h-4 w-4" />
-          Manage in Paddle
+          Manage billing
         </>
       )}
     </button>
