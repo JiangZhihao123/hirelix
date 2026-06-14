@@ -310,6 +310,17 @@ npm run scheduler:dev
 | 通知 | `RESEND_API_KEY`, `SEARCH_NOTIFICATIONS_ENABLED` |
 | 代理（仅本地） | `PROXY_ENABLED`, `PROXY_URL` |
 
+Bright Data 说明：
+- `BRIGHTDATA_API_TOKEN` 是敏感凭据，只写入 `.env`、Vercel 环境变量和 `/etc/hirelix.env`，不要把明文 key 写入 `AGENTS.md` 或其他会提交的文件
+- 查询账户余额：
+
+```bash
+curl -sS 'https://api.brightdata.com/customer/balance' \
+  -H "Authorization: Bearer $BRIGHTDATA_API_TOKEN" | jq .
+```
+
+- 如果返回 `Token expired` / `401`，去 Bright Data 控制台的 Account settings / Users 重新生成 API key，并同步更新本地、Vercel 和 VPS 调度器环境变量
+
 ### 6.5 数据库迁移
 
 SQL 迁移文件位于 `supabase/migrations/`（路径名是历史包袱，实际跑在 us-2 自托管 Postgres 上）。命名格式为 `YYYYMMDD_description.sql`。
