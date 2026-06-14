@@ -95,8 +95,6 @@ export function resolvePaddlePlanCode(priceIds: string[]) {
   }
   if (priceIds.includes(config.proMonthlyPriceId)) return "pro_monthly";
   if (priceIds.includes(config.proAnnualPriceId)) return "pro_annual";
-  if (priceIds.includes(config.businessPriceId)) return "business_monthly";
-  if (priceIds.includes(config.agencyPriceId)) return "agency_monthly";
   return null;
 }
 

@@ -79,7 +79,7 @@ test("paid searches keep the full production profile in production mode", () => 
   assert.ok(profile.hiddenGemLimit > 0);
   assert.ok(profile.companyTargetLimit > 0);
 
-  const targets = withProductionEnv(() => getInitialSearchTargets("agency_monthly"));
+  const targets = withProductionEnv(() => getInitialSearchTargets("pro_monthly"));
   assert.equal(targets.executionProfile, "bright_production_full");
   assert.equal(targets.candidateCount, FINAL_SHORTLIST_TARGET);
   assert.equal(
@@ -98,8 +98,6 @@ test("free plans use the same candidate quality target while constraining target
     "starter_annual",
     "pro_monthly",
     "pro_annual",
-    "business_monthly",
-    "agency_monthly",
   ] as const;
 
   for (const planCode of paidPlanCodes) {

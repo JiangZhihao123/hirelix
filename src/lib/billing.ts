@@ -3,9 +3,7 @@ export type BillingPlanCode =
   | "starter_monthly"
   | "starter_annual"
   | "pro_monthly"
-  | "pro_annual"
-  | "business_monthly"
-  | "agency_monthly";
+  | "pro_annual";
 export type BillingStatus = "active" | "trialing" | "past_due" | "canceled";
 export type BillingCycle = "month" | "year" | null;
 
@@ -103,8 +101,6 @@ export type BillingSummary = {
     proAnnualPriceIdConfigured: boolean;
     starterMonthlyPriceIdConfigured: boolean;
     starterAnnualPriceIdConfigured: boolean;
-    businessPriceIdConfigured: boolean;
-    agencyPriceIdConfigured: boolean;
   };
 };
 
@@ -220,42 +216,6 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
     priceCents: 358800,
     ctaLabel: "Start Pro",
   },
-  business_monthly: {
-    code: "business_monthly",
-    name: "Business",
-    description: "For small teams. Higher volume, shared workspace, priority support.",
-    priceLabel: "$799",
-    cadenceLabel: "up to 3 seats / month",
-    billingCycle: "month",
-    profileScansPerMonth: 20000,
-    emailLookupsPerMonth: 250,
-    publicEvidenceDeepDivesPerMonth: 150,
-    searchesPerMonth: 25,
-    candidateLimitPerSearch: 25,
-    enrichesPerMonth: 250,
-    exportEnabled: true,
-    clientBriefEnabled: true,
-    priceCents: 79900,
-    ctaLabel: "Upgrade to Business",
-  },
-  agency_monthly: {
-    code: "agency_monthly",
-    name: "Agency",
-    description: "For search firms. High volume, white-label export, API, dedicated onboarding.",
-    priceLabel: "$1,999",
-    cadenceLabel: "up to 10 seats / month",
-    billingCycle: "month",
-    profileScansPerMonth: 60000,
-    emailLookupsPerMonth: 1000,
-    publicEvidenceDeepDivesPerMonth: 600,
-    searchesPerMonth: 75,
-    candidateLimitPerSearch: 25,
-    enrichesPerMonth: 1000,
-    exportEnabled: true,
-    clientBriefEnabled: true,
-    priceCents: 199900,
-    ctaLabel: "Contact us",
-  },
 };
 
 const ACTIVE_BILLING_STATUSES = new Set<BillingStatus>(["active", "trialing"]);
@@ -276,8 +236,6 @@ export function getEffectivePlanCode(
     "starter_annual",
     "pro_monthly",
     "pro_annual",
-    "business_monthly",
-    "agency_monthly",
   ]);
   const normalizedPlan = validCodes.has(planCode as BillingPlanCode)
     ? (planCode as BillingPlanCode)
@@ -365,16 +323,12 @@ export function getCheckoutConfig(): {
   proAnnualPriceId: string;
   starterMonthlyPriceId: string;
   starterAnnualPriceId: string;
-  businessPriceId: string;
-  agencyPriceId: string;
 } {
   const clientToken = (process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || "").trim();
   const proMonthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID || "").trim();
   const proAnnualPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID || "").trim();
   const starterMonthlyPriceId = (process.env.NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID || "").trim();
   const starterAnnualPriceId = (process.env.NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID || "").trim();
-  const businessPriceId = (process.env.NEXT_PUBLIC_PADDLE_BUSINESS_PRICE_ID || "").trim();
-  const agencyPriceId = (process.env.NEXT_PUBLIC_PADDLE_AGENCY_PRICE_ID || "").trim();
 
   return {
     enabled: Boolean(clientToken),
@@ -385,7 +339,5 @@ export function getCheckoutConfig(): {
     proAnnualPriceId,
     starterMonthlyPriceId,
     starterAnnualPriceId,
-    businessPriceId,
-    agencyPriceId,
   };
 }

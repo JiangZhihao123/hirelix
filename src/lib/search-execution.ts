@@ -70,8 +70,6 @@ const PLAN_SHORTLIST_CAPS: Record<SearchPlanCode, number> = {
   starter_annual: 25,
   pro_monthly: 25,
   pro_annual: 25,
-  business_monthly: 25,
-  agency_monthly: 25,
 };
 
 const SEARCH_EXECUTION_PROFILES: Record<
@@ -141,8 +139,6 @@ const PAID_PLAN_CODES = new Set<SearchPlanCode>([
   "starter_annual",
   "pro_monthly",
   "pro_annual",
-  "business_monthly",
-  "agency_monthly",
 ]);
 
 export function normalizeSearchPlanCode(value: unknown): SearchPlanCode {

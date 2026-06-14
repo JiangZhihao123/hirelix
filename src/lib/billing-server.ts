@@ -113,8 +113,6 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     ["starter_annual", checkout.starterAnnualPriceId],
     ["pro_monthly", checkout.proMonthlyPriceId],
     ["pro_annual", checkout.proAnnualPriceId],
-    ["business_monthly", checkout.businessPriceId],
-    ["agency_monthly", checkout.agencyPriceId],
   ]
     .filter(([, priceId]) => !priceId)
     .map(([key]) => key);
@@ -183,8 +181,6 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       proAnnualPriceIdConfigured: Boolean(checkout.proAnnualPriceId),
       starterMonthlyPriceIdConfigured: Boolean(checkout.starterMonthlyPriceId),
       starterAnnualPriceIdConfigured: Boolean(checkout.starterAnnualPriceId),
-      businessPriceIdConfigured: Boolean(checkout.businessPriceId),
-      agencyPriceIdConfigured: Boolean(checkout.agencyPriceId),
     },
   };
 

@@ -77,8 +77,6 @@ function makeBillingSummary(
       proAnnualPriceIdConfigured: false,
       starterMonthlyPriceIdConfigured: false,
       starterAnnualPriceIdConfigured: false,
-      businessPriceIdConfigured: false,
-      agencyPriceIdConfigured: false,
     },
   };
 }
