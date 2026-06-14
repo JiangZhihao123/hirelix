@@ -174,6 +174,30 @@ export type BrightDataSnapshotMetadata = {
   warning_code?: string | number;
 };
 
+export function normalizeBrightDataSnapshotCost(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return numeric;
+}
+
+export async function getBrightDataAccountBalance(apiToken: string): Promise<number | null> {
+  const res = await brightDataFetch("https://api.brightdata.com/customer/balance", {
+    headers: { Authorization: `Bearer ${apiToken}` },
+  });
+  const rawText = await readResponseTextWithTimeout(res, "Bright Data account balance");
+  if (!res.ok) {
+    throw new Error(`Bright Data balance failed (${res.status}): ${rawText.slice(0, 200)}`);
+  }
+
+  const payload = JSON.parse(rawText) as Record<string, unknown>;
+  for (const key of ["balance", "remaining_balance", "available_balance", "credit"]) {
+    const value = payload[key];
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+}
+
 export function formatBrightDataSnapshotFailure(
   snapshotId: string,
   metadata: Pick<

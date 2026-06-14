@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Check,
   Copy,
-  Github,
   GraduationCap,
   Loader2,
   Mail,
@@ -29,12 +28,10 @@ import {
   formatDimensionLabel,
   getCandidateDeliveryBucket,
   getCandidateDecisionAudit,
-  getCandidateGithubSignals,
   getCandidateOverallScore,
   getCandidatePublicEvidence,
   getCandidateSellingKit,
   getCandidateScoreMetrics,
-  getEvidenceSourceLabel,
   formatRecruiterSellingHeadline,
   hidePublicEvidenceLine,
   parseOutreach,
@@ -136,9 +133,7 @@ export function CandidateWorkbenchDetail({
   const currentRole = deriveCurrentRole(localCandidate);
   const localDisplayName = sanitizeDisplayName(localCandidate.name);
   const suitability = localCandidate.metadata?.suitability;
-  const rawGithubSignals = getCandidateGithubSignals(localCandidate);
   const rawPublicEvidence = getCandidatePublicEvidence(localCandidate);
-  const githubSignals = requiresPublicEvidenceUpgrade ? null : rawGithubSignals;
   const publicEvidence = requiresPublicEvidenceUpgrade ? null : rawPublicEvidence;
   const sellingKit = getCandidateSellingKit(localCandidate);
   const audit = getCandidateDecisionAudit(localCandidate, undefined, {
@@ -180,31 +175,7 @@ export function CandidateWorkbenchDetail({
     localCandidate.metadata?.blocking_constraints ??
     suitability?.blocking_constraints ??
     [];
-  const hasVerifiedGithub = githubSignals?.status === "verified";
-  const evidenceSourceLabel = getEvidenceSourceLabel(githubSignals);
-  const publicEvidenceItems: PublicEvidenceItem[] =
-    publicEvidence?.items && publicEvidence.items.length > 0
-      ? publicEvidence.items
-      : hasVerifiedGithub && (githubSignals?.highlight || githubSignals?.recruiter_summary)
-        ? [
-            {
-              source_type: "github",
-              source_url: githubSignals.profile_url || localCandidate.github_url || null,
-              title: githubSignals.profile_login || "GitHub",
-              identity_confidence: githubSignals.discovery_confidence ?? null,
-              relevance_score: githubSignals.github_signal_score ?? null,
-              evidence_strength:
-                githubSignals.evidence_strength === "strong" ||
-                githubSignals.evidence_strength === "medium" ||
-                githubSignals.evidence_strength === "weak"
-                  ? githubSignals.evidence_strength
-                  : "weak",
-              citation_label: "[1]",
-              evidence_summary: githubSignals.highlight || githubSignals.recruiter_summary,
-              outreach_angle: githubSignals.outreach_angle,
-            },
-          ]
-        : [];
+  const publicEvidenceItems: PublicEvidenceItem[] = publicEvidence?.items || [];
   const sellingEvidenceItems = publicEvidenceItems.filter(isSellingEvidence);
   const identityEvidenceItems = publicEvidenceItems.filter(
     (item) => item.selling_tier === "identity_only" || item.evidence_category === "identity_support",
@@ -214,32 +185,25 @@ export function CandidateWorkbenchDetail({
     publicEvidenceItems.find((item) => item.selling_tier !== "identity_only" && item.evidence_category !== "identity_support") ||
     publicEvidenceItems[0] ||
     null;
-  const githubSignalCards = [
+  const baselineEvidenceCards = [
     {
-      label: "Activity trend",
-      value: hasVerifiedGithub
-        ? githubSignals?.activity_trend || "No activity trend computed"
-        : "Not researched yet",
-    },
-    {
-      label: "Real stack",
+      label: "Evidence status",
       value:
-        hasVerifiedGithub && githubSignals?.top_languages && githubSignals.top_languages.length > 0
-          ? githubSignals.top_languages.slice(0, 3).join(", ")
-          : "Profile-based fit only",
+        publicEvidence?.status === "queued" || publicEvidence?.status === "running"
+          ? "Deep dive pending"
+          : "Not researched yet",
     },
     {
-      label: "Merged PRs",
-      value:
-        hasVerifiedGithub && typeof githubSignals?.merged_pr_count === "number"
-          ? `${githubSignals.merged_pr_count}`
-          : "Not available",
+      label: "Current basis",
+      value: "Profile fit and risk signals",
     },
     {
-      label: "Commit hygiene",
-      value: hasVerifiedGithub
-        ? githubSignals?.commit_message_quality || "Not evaluated yet"
-        : "Not evaluated yet",
+      label: "Sources",
+      value: "Run deep dive to collect sources",
+    },
+    {
+      label: "Identity confidence",
+      value: "Not researched yet",
     },
   ];
   const publicEvidenceCards =
@@ -272,32 +236,27 @@ export function CandidateWorkbenchDetail({
                 : "Verified source",
           },
         ]
-      : githubSignalCards;
+      : baselineEvidenceCards;
   const safeShortlistReason = hidePublicEvidenceLine(shortlistReason);
   const safeFirstMatchReason = hidePublicEvidenceLine(localCandidate.match_reasons[0]);
   const whyContactSummary =
     publicEvidence?.summary ||
-    githubSignals?.recruiter_summary ||
     safeShortlistReason ||
     safeFirstMatchReason ||
     `${localDisplayName} looks relevant based on profile fit and risk signals.`;
   const proofToReference =
     primaryEvidenceItem?.evidence_summary ||
-    githubSignals?.highlight ||
-    githubSignals?.evidence_summary?.[0] ||
     safeFirstMatchReason ||
     "No specific proof line is ready yet.";
-  const verificationChecklist = [
-    ...(githubSignals?.verification_risks || []),
-    ...riskFlags,
-  ].slice(0, 5);
+  const verificationChecklist = riskFlags.slice(0, 5);
   const publicEvidenceSourceLabel = primaryEvidenceItem?.source_type
     ? `${primaryEvidenceItem.citation_label || "[1]"} ${formatPublicEvidenceCategory(primaryEvidenceItem)}`
-    : evidenceSourceLabel;
+    : publicEvidence?.status === "queued" || publicEvidence?.status === "running"
+      ? "Deep dive pending"
+      : "Profile fit evidence";
   const bestOpeningAngle =
     sellingKit?.outreach_opener ||
     primaryEvidenceItem?.outreach_angle ||
-    githubSignals?.outreach_angle ||
     (publicEvidenceItems.length > 0
       ? "Lead with the strongest verified public engineering evidence."
       : "Use the most relevant profile experience in the opening line, or run a deep dive before citing public proof.");
@@ -998,7 +957,7 @@ export function CandidateWorkbenchDetail({
 	                  </p>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
-                  {evidenceSourceLabel}
+                  {publicEvidenceSourceLabel}
                 </span>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1046,13 +1005,13 @@ export function CandidateWorkbenchDetail({
                     Selling evidence is separated from identity support so recruiters do not overstate the proof.
                   </p>
                 </div>
-                <Github className="h-5 w-5 text-slate-400" />
+                <Sparkles className="h-5 w-5 text-slate-400" />
               </div>
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-slate-800">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
                   {primaryEvidenceItem
                     ? `${primaryEvidenceItem.citation_label || "[1]"} ${formatPublicEvidenceCategory(primaryEvidenceItem)}`
-                    : evidenceSourceLabel}
+                    : publicEvidenceSourceLabel}
                 </p>
                 <p className="mt-2">{proofToReference}</p>
               </div>
@@ -1128,16 +1087,6 @@ export function CandidateWorkbenchDetail({
                   </p>
                   <p className="mt-2">{primaryEvidenceItem.outreach_angle}</p>
                 </div>
-              )}
-              {publicEvidenceItems.length === 0 && githubSignals?.evidence_summary && githubSignals.evidence_summary.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {githubSignals.evidence_summary.slice(0, 3).map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-sm leading-6 text-slate-700">
-                      <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-sky-600" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
               )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {publicEvidenceCards.map((item) => (

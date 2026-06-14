@@ -443,12 +443,15 @@ export async function lookupCachedSnapshot(filterHash: string): Promise<Snapshot
     return {
       snapshotId: data.snapshot_id,
       datasetSize: typeof data.dataset_size === "number" ? data.dataset_size : null,
-      cost:
-        data.cost === null || data.cost === undefined
-          ? null
-          : typeof data.cost === "number"
-            ? data.cost
-            : Number(data.cost),
+      cost: (() => {
+        const numeric =
+          data.cost === null || data.cost === undefined
+            ? Number.NaN
+            : typeof data.cost === "number"
+              ? data.cost
+              : Number(data.cost);
+        return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+      })(),
       expiresAt: data.expires_at.toISOString(),
     };
   } catch {

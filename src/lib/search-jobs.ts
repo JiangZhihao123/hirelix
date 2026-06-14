@@ -989,8 +989,10 @@ function buildSearchDisplayStats(
     ...(typeof overrides.bright_profiles_returned === "number"
       ? { bright_profiles_returned: Math.max(0, Math.round(overrides.bright_profiles_returned)) }
       : {}),
-    ...(typeof overrides.bright_snapshot_cost === "number"
-      ? { bright_snapshot_cost: Math.max(0, overrides.bright_snapshot_cost) }
+    ...(typeof overrides.bright_snapshot_cost === "number" &&
+    Number.isFinite(overrides.bright_snapshot_cost) &&
+    overrides.bright_snapshot_cost > 0
+      ? { bright_snapshot_cost: overrides.bright_snapshot_cost }
       : {}),
     ...(typeof overrides.estimated_llm_cost === "number"
       ? { estimated_llm_cost: Math.max(0, overrides.estimated_llm_cost) }
@@ -1284,8 +1286,20 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
       ? Math.max(0, Math.round(item.recall_latency_ms))
       : null;
   const cost =
-    typeof item.cost === "number" && Number.isFinite(item.cost)
-      ? Math.max(0, item.cost)
+    typeof item.cost === "number" && Number.isFinite(item.cost) && item.cost > 0
+      ? item.cost
+      : null;
+  const cost_source =
+    cost != null && (item.cost_source === "metadata" || item.cost_source === "balance_delta")
+      ? item.cost_source
+      : null;
+  const bright_balance_before =
+    typeof item.bright_balance_before === "number" && Number.isFinite(item.bright_balance_before)
+      ? item.bright_balance_before
+      : null;
+  const bright_balance_after =
+    typeof item.bright_balance_after === "number" && Number.isFinite(item.bright_balance_after)
+      ? item.bright_balance_after
       : null;
   const bright_profile_budget =
     typeof item.bright_profile_budget === "number" && Number.isFinite(item.bright_profile_budget)
@@ -1447,6 +1461,9 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     dataset_size,
     recall_latency_ms,
     cost,
+    cost_source,
+    bright_balance_before,
+    bright_balance_after,
     bright_profile_budget,
     bright_profiles_requested,
     bright_profiles_returned,

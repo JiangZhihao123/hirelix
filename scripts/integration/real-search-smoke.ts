@@ -2,20 +2,18 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { count, desc, eq, inArray } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 
 import { closeDb, db } from "../../src/db/client";
 import {
   hirelix_candidates,
-  hirelix_github_enrichment_jobs,
   hirelix_search_jobs,
   hirelix_searches,
 } from "../../src/db/schema";
-import { getDatasetSnapshotMetadata } from "../../src/lib/brightdata";
 import {
-  enqueueGithubEnrichmentJobsForSearch,
-  processNextGithubEnrichmentJob,
-} from "../../src/lib/github-enrichment-jobs";
+  getDatasetSnapshotMetadata,
+  normalizeBrightDataSnapshotCost,
+} from "../../src/lib/brightdata";
 import {
   enqueueSearchJob,
   processNextSearchJob,
@@ -38,7 +36,6 @@ type Args = {
   candidateCount: number;
   timeoutMs: number;
   pollMs: number;
-  githubLimit: number;
   jdText: string;
 };
 
@@ -74,7 +71,6 @@ function readArgs(): Args {
     candidateCount: readNumberArg("candidate-count", 5),
     timeoutMs: readNumberArg("timeout-ms", 20 * 60 * 1000),
     pollMs: readNumberArg("poll-ms", 3000),
-    githubLimit: readNumberArg("github-limit", 3),
     jdText: readJdText(),
   };
 }
@@ -101,11 +97,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
-}
-
-function getGithubStatus(metadata: unknown) {
-  const signals = asRecord(asRecord(metadata).github_signals);
-  return typeof signals.status === "string" ? signals.status : "none";
 }
 
 function getRecallMetadata(search: { parsed_requirements: unknown } | null) {
@@ -240,7 +231,8 @@ async function printBrightSnapshotFacts(searchId: string) {
         snapshot_id: snapshotId,
         status: meta.status,
         dataset_size: meta.dataset_size ?? null,
-        cost: meta.cost ?? null,
+        metadata_cost: normalizeBrightDataSnapshotCost(meta.cost),
+        raw_metadata_cost: meta.cost ?? null,
         warning_code: meta.warning_code ?? null,
         error_code: meta.error_code ?? null,
       });
@@ -300,8 +292,6 @@ async function printCandidates(searchId: string, limit = 10) {
       location: hirelix_candidates.location,
       match_score: hirelix_candidates.match_score,
       profile_url: hirelix_candidates.profile_url,
-      github_url: hirelix_candidates.github_url,
-      metadata: hirelix_candidates.metadata,
     })
     .from(hirelix_candidates)
     .where(eq(hirelix_candidates.search_id, searchId))
@@ -315,52 +305,9 @@ async function printCandidates(searchId: string, limit = 10) {
     location: candidate.location,
     match_score: candidate.match_score,
     profile_url: candidate.profile_url,
-    github_url: candidate.github_url,
-    github_status: getGithubStatus(candidate.metadata),
   })));
 
   return candidates;
-}
-
-async function runGithubEnrichment(searchId: string, limit: number) {
-  const search = await fetchSearch(searchId);
-  if (!search) throw new Error(`Search not found: ${searchId}`);
-
-  const enqueueResult = await enqueueGithubEnrichmentJobsForSearch({
-    searchId,
-    userId: search.user_id,
-    limit,
-  });
-  console.log("[real-smoke] github_enqueue", enqueueResult);
-
-  const candidates = await db
-    .select({ id: hirelix_candidates.id })
-    .from(hirelix_candidates)
-    .where(eq(hirelix_candidates.search_id, searchId))
-    .orderBy(desc(hirelix_candidates.match_score))
-    .limit(limit);
-
-  for (const candidate of candidates) {
-    const result = await processNextGithubEnrichmentJob(candidate.id);
-    console.log("[real-smoke] github_process", {
-      candidate_id: candidate.id,
-      ...result,
-    });
-  }
-
-  const candidateIds = candidates.map((candidate) => candidate.id);
-  if (candidateIds.length === 0) return;
-  const rows = await db
-    .select({
-      candidate_id: hirelix_github_enrichment_jobs.candidate_id,
-      status: hirelix_github_enrichment_jobs.status,
-      attempt_count: hirelix_github_enrichment_jobs.attempt_count,
-      last_error: hirelix_github_enrichment_jobs.last_error,
-    })
-    .from(hirelix_github_enrichment_jobs)
-    .where(inArray(hirelix_github_enrichment_jobs.candidate_id, candidateIds));
-
-  console.log("[real-smoke] github_jobs", rows);
 }
 
 async function main() {
@@ -368,7 +315,6 @@ async function main() {
   requireEnv("DATABASE_URL");
   requireEnv("DEEPSEEK_API_KEY");
   requireEnv("BRIGHTDATA_API_TOKEN");
-  requireEnv("GITHUB_TOKEN");
 
   initializeGlobalOutboundProxy();
   const args = readArgs();
@@ -399,12 +345,7 @@ async function main() {
   });
 
   await printBrightSnapshotFacts(searchId);
-  const candidates = await printCandidates(searchId);
-
-  if (candidates.length > 0 && args.githubLimit > 0) {
-    await runGithubEnrichment(searchId, Math.min(args.githubLimit, candidates.length));
-    await printCandidates(searchId, args.githubLimit);
-  }
+  await printCandidates(searchId);
 }
 
 main()

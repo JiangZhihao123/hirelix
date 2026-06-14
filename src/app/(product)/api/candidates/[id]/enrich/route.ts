@@ -18,7 +18,6 @@ import {
   resolveDeepSeekThinkingMode,
 } from "@/lib/llm-client";
 import { buildOutreachDraftJsonSchema } from "@/lib/llm-schemas";
-import { enqueueGithubEnrichmentJob } from "@/lib/github-enrichment-jobs";
 import { enqueuePublicEvidenceJobForCandidate } from "@/lib/public-evidence-jobs";
 import { buildRecruiterOutreachEvidence } from "@/lib/recruiter-outreach";
 import { sanitizeDisplayName } from "@/lib/display-name";
@@ -220,32 +219,12 @@ export async function POST(
         ? (candidate.metadata as Record<string, unknown>)
         : {};
 
-    let effectiveMetadata = { ...currentMetadata };
-    let effectiveGithubSignals =
+    const effectiveMetadata = { ...currentMetadata };
+    const effectiveGithubSignals =
       effectiveMetadata.github_signals && typeof effectiveMetadata.github_signals === "object"
         ? (effectiveMetadata.github_signals as Record<string, unknown>)
         : null;
     const effectiveGithubUrl = typeof candidate.github_url === "string" ? candidate.github_url : null;
-
-    const githubStatus = typeof effectiveGithubSignals?.status === "string"
-      ? effectiveGithubSignals.status
-      : null;
-    if (!effectiveGithubSignals || githubStatus !== "verified") {
-      const queuedGithub = await enqueueGithubEnrichmentJob({
-        candidateId: candidate.id,
-        searchId: candidate.search_id,
-        userId: user.id,
-      });
-      effectiveMetadata =
-        queuedGithub.metadata && typeof queuedGithub.metadata === "object"
-          ? (queuedGithub.metadata as Record<string, unknown>)
-          : effectiveMetadata;
-      effectiveGithubSignals =
-        effectiveMetadata.github_signals && typeof effectiveMetadata.github_signals === "object"
-          ? (effectiveMetadata.github_signals as Record<string, unknown>)
-          : effectiveGithubSignals;
-      updates.metadata = effectiveMetadata;
-    }
 
     // ── Step 1: Find email (if not already found) ──
     if (needsContactLookup && (apolloApiKey || hunterApiKey)) {

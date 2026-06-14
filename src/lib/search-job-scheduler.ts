@@ -1,9 +1,5 @@
 import { processNextSearchJob, reclaimStaleRunningJobs } from "@/lib/search";
 import {
-  processNextGithubEnrichmentJob,
-  reclaimStaleGithubEnrichmentJobs,
-} from "@/lib/github-enrichment-jobs";
-import {
   processNextPublicEvidenceJob,
   reclaimStalePublicEvidenceJobs,
 } from "@/lib/public-evidence-jobs";
@@ -75,11 +71,6 @@ async function runSchedulerLoop(workerIndex: number) {
         continue;
       }
 
-      const githubResult = await processNextGithubEnrichmentJob();
-      if (githubResult.processed || githubResult.hasMore) {
-        continue;
-      }
-
       const publicEvidenceResult = await processNextPublicEvidenceJob();
       if (!publicEvidenceResult.processed && !publicEvidenceResult.hasMore) {
         await sleep(idlePollMs);
@@ -99,7 +90,6 @@ function startReclaimTimer() {
   setInterval(async () => {
     try {
       await reclaimStaleRunningJobs();
-      await reclaimStaleGithubEnrichmentJobs();
       await reclaimStalePublicEvidenceJobs();
     } catch (error) {
       schedulerLogger.error({ err: error }, "reclaim timer failed");

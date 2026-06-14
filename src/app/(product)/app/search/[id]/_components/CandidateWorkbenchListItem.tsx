@@ -10,15 +10,12 @@ import {
 import {
   deriveCurrentCompany,
   deriveCurrentRole,
-  formatEvidenceStrength,
   formatDeliveryBucketLabel,
   getCandidateDeliveryBucket,
-  getCandidateGithubSignals,
   getCandidateDecisionAudit,
   getCandidateOverallScore,
   getCandidateSellingKit,
   getCandidateScoreMetrics,
-  getGithubBadge,
   formatRecruiterSellingHeadline,
 } from "./utils";
 import { InitialsAvatar, ScoreBadge } from "./ui";
@@ -38,10 +35,9 @@ export function CandidateWorkbenchListItem({
 }) {
   const hidePublicEvidence = billingPlanCode === "free";
   const overallScore = getCandidateOverallScore(candidate);
-  const githubSignals = hidePublicEvidence ? null : getCandidateGithubSignals(candidate);
-  const githubBadge = hidePublicEvidence
+  const deepDiveBadge = hidePublicEvidence
     ? { text: "Profile fit reviewed", className: "bg-blue-50 text-blue-700" }
-    : getGithubBadge(githubSignals);
+    : { text: "Deep dive available", className: "bg-slate-100 text-slate-700" };
   const scoreMetrics = getCandidateScoreMetrics(candidate).filter((metric) => metric.key !== "overall");
   const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
@@ -138,8 +134,8 @@ export function CandidateWorkbenchListItem({
                 {candidate.location}
               </span>
             )}
-            <span className={`rounded-full px-2.5 py-1 text-[11px] ${githubBadge.className}`}>
-              {githubBadge.text}
+            <span className={`rounded-full px-2.5 py-1 text-[11px] ${deepDiveBadge.className}`}>
+              {deepDiveBadge.text}
             </span>
             {!hidePublicEvidence && (sellingKit?.evidence_badges || []).slice(0, 3).map((badge, index) => (
               <span
@@ -157,7 +153,7 @@ export function CandidateWorkbenchListItem({
             ))}
             {(hidePublicEvidence || !sellingKit?.evidence_badges || sellingKit.evidence_badges.length === 0) && (
               <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
-                {formatEvidenceStrength(githubSignals?.evidence_strength)}
+                Profile fit reviewed
               </span>
             )}
             {(sellingKit?.risk_flags || []).slice(0, 1).map((risk) => (

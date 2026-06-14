@@ -12,7 +12,6 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Github,
   GraduationCap,
   Loader2,
   Mail,
@@ -34,15 +33,12 @@ import {
   formatDimensionLabel,
   formatDeliveryBucketLabel,
   getCandidateDeliveryBucket,
-  formatEvidenceStrength,
   getCandidateDecisionAudit,
-  getCandidateGithubSignals,
   getCandidateOverallScore,
   getCandidatePublicEvidence,
   getCandidateScoreMetrics,
   getCandidateScoringBreakdown,
   getCandidateSellingKit,
-  getGithubBadge,
   formatRecruiterSellingHeadline,
   parseOutreach,
 } from "./utils";
@@ -201,12 +197,11 @@ export function CandidateCard({
     candidate.metadata?.shortlist_reason ??
     suitability?.shortlist_reason ??
     null;
-  const githubSignals = getCandidateGithubSignals(candidate);
   const publicEvidence = getCandidatePublicEvidence(localCandidate);
   const publicEvidenceItems = requiresPublicEvidenceUpgrade ? [] : publicEvidence?.items || [];
-  const githubBadge = requiresPublicEvidenceUpgrade
+  const deepDiveBadge = requiresPublicEvidenceUpgrade
     ? { text: "Profile fit reviewed", className: "bg-blue-50 text-blue-700" }
-    : getGithubBadge(githubSignals);
+    : { text: "Deep dive available", className: "bg-slate-100 text-slate-700" };
   const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
@@ -279,7 +274,7 @@ export function CandidateCard({
                 {recommendationLabel}
               </span>
             )}
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${githubBadge.className}`}>{githubBadge.text}</span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${deepDiveBadge.className}`}>{deepDiveBadge.text}</span>
             {candidate.status !== "new" && (
               <span
                 className={`text-xs font-medium capitalize ${statusColors[candidate.status] || ""}`}
@@ -416,17 +411,6 @@ export function CandidateCard({
                       LinkedIn
                     </a>
                   )}
-                  {candidate.github_url && (
-                    <a
-                      href={candidate.github_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-primary hover:underline"
-                    >
-                      <Github className="h-3.5 w-3.5" />
-                      GitHub
-                    </a>
-                  )}
                 </div>
               </div>
 
@@ -484,8 +468,8 @@ export function CandidateCard({
                     ))}
                   </div>
                   <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
-                    <span className="font-semibold">{githubBadge.text}</span>
-                    <span> · {formatEvidenceStrength(requiresPublicEvidenceUpgrade ? undefined : githubSignals?.evidence_strength)}. Public evidence deep dives can strengthen the pitch when you choose to run them.</span>
+                    <span className="font-semibold">Profile fit reviewed</span>
+                    <span> · Run a deep dive when this candidate needs citable public evidence.</span>
                   </div>
                   {publicEvidenceItems.length === 0 && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">

@@ -278,7 +278,7 @@ export function buildWidenPoolSuggestions(
     } else if (reason === "title_or_seniority_mismatch") {
       suggestions.push("Widen the accepted title family or seniority band so adjacent profiles can enter the review pool.");
     } else if (reason === "evidence_too_weak") {
-      suggestions.push("Accept a broader evidence mix instead of relying so heavily on public GitHub proof.");
+      suggestions.push("Accept a broader evidence mix, or run deep dives only on the candidates who need citable proof.");
     } else if (reason === "response_risk") {
       suggestions.push("Relax tenure or company-stage assumptions if you want more candidates who may still be reachable.");
     } else if (reason === "multiple_risks") {
@@ -379,24 +379,24 @@ export function formatRecruiterSellingHeadline(
 }
 
 export function getEvidenceSourceLabel(signals: GithubSignals | null) {
-  if (signals?.status === "verified") return "GitHub evidence";
-  if (signals?.status === "ambiguous_match") return "Possible GitHub match";
-  if (signals?.status === "queued" || signals?.status === "running") return "GitHub review pending";
+  if (signals?.status === "verified") return "Public evidence ready";
+  if (signals?.status === "ambiguous_match") return "Public evidence needs review";
+  if (signals?.status === "queued" || signals?.status === "running") return "Deep dive pending";
   return "Profile fit evidence";
 }
 
 export function getGithubBadge(signals: GithubSignals | null) {
   if (signals?.status === "verified") {
-    return { text: "GitHub verified", className: "bg-emerald-50 text-emerald-700" };
+    return { text: "Public evidence ready", className: "bg-emerald-50 text-emerald-700" };
   }
   if (signals?.status === "queued") {
-    return { text: "GitHub pending", className: "bg-amber-50 text-amber-700" };
+    return { text: "Deep dive pending", className: "bg-amber-50 text-amber-700" };
   }
   if (signals?.status === "running") {
-    return { text: "GitHub pending", className: "bg-sky-50 text-sky-700" };
+    return { text: "Deep dive pending", className: "bg-sky-50 text-sky-700" };
   }
   if (signals?.status === "ambiguous_match") {
-    return { text: "Possible GitHub", className: "bg-violet-50 text-violet-700" };
+    return { text: "Evidence needs review", className: "bg-violet-50 text-violet-700" };
   }
   if (signals?.status === "missing_public_data") {
     return { text: "Profile fit reviewed", className: "bg-slate-100 text-slate-600" };
@@ -733,12 +733,11 @@ export function getCandidateSellingKit(candidate: CandidateRow): CandidateSellin
 
 export function hasPublicGithubEvidence(candidate: CandidateRow) {
   const signals = getCandidateGithubSignals(candidate);
-  return signals?.status === "verified" || Boolean(candidate.github_url);
+  return signals?.status === "verified";
 }
 
 export function hasVerifiedPublicEvidence(candidate: CandidateRow) {
   const publicEvidence = getCandidatePublicEvidence(candidate);
-  const signals = getCandidateGithubSignals(candidate);
   return (
     publicEvidence?.items?.some(
       (item) =>
@@ -746,9 +745,7 @@ export function hasVerifiedPublicEvidence(candidate: CandidateRow) {
         item.safe_to_use_in_outreach === true ||
         item.selling_tier === "strong_selling_point" ||
         item.selling_tier === "supporting_point",
-    ) ||
-    signals?.status === "verified" ||
-    Boolean(candidate.github_url)
+    ) || false
   );
 }
 
@@ -757,7 +754,6 @@ export function getCandidateTrustLabel(
   options: { hidePublicEvidence?: boolean } = {},
 ) {
   const publicEvidence = options.hidePublicEvidence ? null : getCandidatePublicEvidence(candidate);
-  const githubSignals = options.hidePublicEvidence ? null : getCandidateGithubSignals(candidate);
   const sellingKit = getCandidateSellingKit(candidate);
   const safePublicEvidenceCount = publicEvidence?.items?.filter(
     (item) =>
@@ -772,14 +768,6 @@ export function getCandidateTrustLabel(
       label: "Public evidence ready",
       tone: "strong" as const,
       description: "Safe public proof is available for the client brief or outreach.",
-    };
-  }
-
-  if (githubSignals?.status === "verified" || candidate.github_url) {
-    return {
-      label: "GitHub verified",
-      tone: "medium" as const,
-      description: "GitHub identity was found. Run a deep dive before using public proof in a pitch.",
     };
   }
 
@@ -840,7 +828,6 @@ export function getCandidateDecisionAudit(
 ) {
   const sellingKit = getCandidateSellingKit(candidate);
   const publicEvidence = options.hidePublicEvidence ? null : getCandidatePublicEvidence(candidate);
-  const githubSignals = options.hidePublicEvidence ? null : getCandidateGithubSignals(candidate);
   const trust = getCandidateTrustLabel(candidate, options);
   const deliveryBucket = getCandidateDeliveryBucket(candidate);
   const currentRole = deriveCurrentRole(candidate);
@@ -861,7 +848,6 @@ export function getCandidateDecisionAudit(
       )
       .map((item) => item.evidence_summary)
       .filter((item): item is string => Boolean(item)),
-    ...(githubSignals?.evidence_summary || []),
     ...(sellingKit?.client_brief?.why_match || []),
     ...candidate.match_reasons,
   ]

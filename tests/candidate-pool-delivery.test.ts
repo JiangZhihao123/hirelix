@@ -133,6 +133,26 @@ test("candidate row builder delivers every scored profile with delivery buckets"
   assert.equal(rows[1].metadata.recall_source, undefined);
 });
 
+test("initial candidate delivery does not queue GitHub enrichment metadata", () => {
+  const profiles = [profile(0), profile(1)];
+  const selected = [
+    assessment(0, "strong_now"),
+    assessment(1, "consider_next"),
+  ];
+
+  const rows = buildBrightDataCandidateRows(profiles, selected, selected.length, "main", {
+    getDisplayTierForAssessment: () => "worth_reviewing",
+  });
+  const taggedRows = tagPoolRows(rows, [], rows.length);
+
+  assert.equal(taggedRows.length, 2);
+  for (const row of taggedRows) {
+    assert.equal("github_signals" in row.metadata, false);
+    assert.equal("github_enrichment" in row.metadata, false);
+    assert.equal("github_signal_score" in row.metadata, false);
+  }
+});
+
 test("delivery buckets do not recommend profiles that fail the shortlist gate", () => {
   const a = assessment(0, "strong_now");
   assert.equal(

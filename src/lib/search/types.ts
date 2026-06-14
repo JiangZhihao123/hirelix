@@ -382,6 +382,9 @@ export type RecallMetadata = {
   dataset_size?: number | null;
   recall_latency_ms?: number | null;
   cost?: number | null;
+  cost_source?: "metadata" | "balance_delta" | null;
+  bright_balance_before?: number | null;
+  bright_balance_after?: number | null;
   bright_profile_budget?: number | null;
   bright_profiles_requested?: number | null;
   bright_profiles_returned?: number | null;
