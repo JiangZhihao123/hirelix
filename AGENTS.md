@@ -45,6 +45,7 @@
 | 页面渐进式测试 | 优先使用 Playwright MCP，边观察边决策 |
 | 测试结论 | 不要把 mock 测试当作核心用户旅程或真实链路结论；核心结论必须优先跑真实服务、真实 DB、真实外部依赖或明确说明未覆盖 |
 | 真实链路问题 | 遇到真实依赖或生产级验证失败时，优先定位根因并修复；不能解决就明确标记阻塞，不要用 mock、降级、跳过或缩小范围包装成成功 |
+| Bright Data 测试 | Bright 真实召回会产生费用，不能作为默认回归手段；除非用户明确授权，复盘和排查优先只读查询生产 DB、缓存表和日志 |
 | Imagegen | 使用 `$imagegen` / `gpt-image-2` 时，不要预设图中文字会错乱；最新 `gpt-image-2` 文字能力已足够强，品牌图、海报、封面、横幅等可以优先考虑直接生成或迭代 |
 | 本地代理 | 中国大陆本地开发通常需要 `http://127.0.0.1:7890` 访问 Google OAuth 和外部服务 |
 | 登录方式 | 仅支持 Google OAuth（better-auth + Google Cloud OAuth Client） |
@@ -353,6 +354,8 @@ SQL 迁移文件位于 `supabase/migrations/`（路径名是历史包袱，实�
 - 回答“核心用户旅程是否可用”“真实搜索链路是否正常”“生产依赖是否打通”时，不能只跑 mock 测试
 - 核心链路验证应优先使用真实登录/session、真实数据库、真实 API 路由、真实调度器、真实 LLM/Bright Data/按需候选人研究等外部依赖
 - 生产/准生产链路测试优先在 `us-2` 上执行，尤其是 Bright Data、按需候选人研究、LLM、Postgres 等外部依赖链路；本地中国大陆网络容易放大跨境下载/连接耗时，不能单独作为生产性能结论
+- Bright Data 真实召回不是常规回归手段；创建 snapshot、扩大召回、重新跑真实搜索前必须得到用户明确授权
+- 对既有 Bright 测试结果做复盘时，默认只读查询 `hirelix_searches`、`hirelix_candidates`、`hirelix_snapshot_profiles`、`hirelix_dataset_snapshots` 和调度器日志，优先复用已缓存 profiles
 - 如果受环境、费用、速率限制无法跑真实链路，必须明确说明“只跑了 mock/fixture 测试，不能证明真实链路可用”
 - 测试结果汇报中必须区分：`mock 回归`、`本地真实链路`、`生产/准生产链路`
 
