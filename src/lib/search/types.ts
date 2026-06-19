@@ -335,7 +335,7 @@ export type ExcludedReasonCount = {
 
 export type AdditionalRecallSnapshot = {
   round: string;
-  snapshot_id: string;
+  snapshot_id?: string | null;
   records_limit?: number | null;
   filter_hash?: string | null;
   requested_count?: number | null;

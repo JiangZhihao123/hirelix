@@ -127,3 +127,17 @@ test("isTransientSnapshotDownloadError treats Bright Data metadata 502 as retrya
     true,
   );
 });
+
+test("isTransientSnapshotDownloadError treats wrapped database network errors as retryable", () => {
+  assert.equal(
+    isTransientSnapshotDownloadError(
+      new Error("Failed to persist Bright Data snapshot profiles: write EPIPE", {
+        cause: Object.assign(new Error("write EPIPE"), {
+          code: "EPIPE",
+          errno: -32,
+        }),
+      }),
+    ),
+    true,
+  );
+});

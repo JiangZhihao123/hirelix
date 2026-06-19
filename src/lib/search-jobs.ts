@@ -727,11 +727,19 @@ function mapSnapshotStatus(
 }
 
 export function isTransientSnapshotDownloadError(error: unknown) {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const messages: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < 3 && current; depth += 1) {
+    messages.push(current instanceof Error ? current.message.toLowerCase() : String(current).toLowerCase());
+    current = current instanceof Error ? current.cause : null;
+  }
+  const message = messages.join(" ");
   return (
     error instanceof BrightDataSnapshotNotReadyError ||
     error instanceof BrightDataRequestTimeoutError ||
     /\b(?:408|429|500|502|503|504|524)\b/.test(message) ||
+    message.includes("connection_closed") ||
+    message.includes("connect_timeout") ||
     message.includes("bad gateway") ||
     message.includes("service unavailable") ||
     message.includes("gateway timeout") ||
@@ -740,7 +748,9 @@ export function isTransientSnapshotDownloadError(error: unknown) {
     message.includes("network") ||
     message.includes("timeout") ||
     message.includes("timed out") ||
+    message.includes("epipe") ||
     message.includes("econnreset") ||
+    message.includes("econnrefused") ||
     message.includes("socket")
   );
 }
@@ -1330,7 +1340,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
         const snapshot = entry as Record<string, unknown>;
         const round = normalizeNullableString(snapshot.round);
         const snapshotId = normalizeNullableString(snapshot.snapshot_id);
-        if (!round || !snapshotId) return null;
+        if (!round) return null;
         const records_limit =
           typeof snapshot.records_limit === "number" && Number.isFinite(snapshot.records_limit)
             ? Math.max(0, Math.round(snapshot.records_limit))
@@ -1343,6 +1353,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
         const submitted_at = normalizeNullableString(snapshot.submitted_at);
         const ready_at = normalizeNullableString(snapshot.ready_at);
         const failed_at = normalizeNullableString(snapshot.failed_at);
+        const failure_code = normalizeNullableString(snapshot.failure_code);
         const last_polled_at = normalizeNullableString(snapshot.last_polled_at);
         const download_started_at = normalizeNullableString(snapshot.download_started_at);
         const download_completed_at = normalizeNullableString(snapshot.download_completed_at);
@@ -1377,6 +1388,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           submitted_at,
           ready_at,
           failed_at,
+          failure_code,
           last_polled_at,
           download_started_at,
           download_completed_at,
@@ -1488,7 +1500,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
 
 function buildAdditionalSnapshotMetadata(params: {
   round: string;
-  snapshotId: string;
+  snapshotId?: string | null;
   recordsLimit?: number | null;
   existing?: AdditionalRecallSnapshot | null;
   status?: AdditionalRecallSnapshot["status"];
@@ -1496,6 +1508,7 @@ function buildAdditionalSnapshotMetadata(params: {
   readyAt?: string | null;
   failedAt?: string | null;
   failureCode?: string | null;
+  clearFailure?: boolean;
   lastPolledAt?: string | null;
   downloadStartedAt?: string | null;
   downloadCompletedAt?: string | null;
@@ -1505,11 +1518,11 @@ function buildAdditionalSnapshotMetadata(params: {
 }) {
   const existing = params.existing ?? null;
   const readyAt = params.readyAt ?? existing?.ready_at ?? null;
-  const failedAt = params.failedAt ?? existing?.failed_at ?? null;
-  const failureCode = params.failureCode ?? existing?.failure_code ?? null;
+  const failedAt = params.clearFailure ? null : params.failedAt ?? existing?.failed_at ?? null;
+  const failureCode = params.clearFailure ? null : params.failureCode ?? existing?.failure_code ?? null;
   return {
     round: params.round,
-    snapshot_id: params.snapshotId,
+    snapshot_id: params.snapshotId ?? existing?.snapshot_id ?? null,
     records_limit: params.recordsLimit ?? existing?.records_limit ?? null,
     requested_count: params.recordsLimit ?? existing?.requested_count ?? null,
     status: params.status ?? existing?.status,

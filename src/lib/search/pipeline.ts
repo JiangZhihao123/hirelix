@@ -57,6 +57,7 @@ import {
   buildBrightDataCandidateRows,
   buildBrightDataRecallFilters,
   getTotalRecallRequestLimit,
+  type RecallRound,
 } from "@/lib/search/recall";
 import {
   arbitrateCandidateScore,
@@ -169,7 +170,7 @@ type SearchPipelineHelpers = {
   ) => BrightDataDatasetFilterRequest["filter"] | null;
   buildAdditionalSnapshotMetadata: (params: {
     round: string;
-    snapshotId: string;
+    snapshotId?: string | null;
     recordsLimit?: number | null;
     existing?: AdditionalRecallSnapshot | null;
     status?: AdditionalRecallSnapshot["status"];
@@ -177,6 +178,7 @@ type SearchPipelineHelpers = {
     readyAt?: string | null;
     failedAt?: string | null;
     failureCode?: string | null;
+    clearFailure?: boolean;
     lastPolledAt?: string | null;
     downloadStartedAt?: string | null;
     downloadCompletedAt?: string | null;
@@ -472,7 +474,10 @@ async function persistDownloadedSnapshotProfiles(
       error: result.error instanceof Error ? result.error.message : String(result.error),
     });
     throw new Error(
-      `Failed to persist Bright Data snapshot profiles for ${params.sourceRound} snapshot ${params.snapshotId}`,
+      `Failed to persist Bright Data snapshot profiles for ${params.sourceRound} snapshot ${params.snapshotId}: ${
+        result.error instanceof Error ? result.error.message : String(result.error)
+      }`,
+      { cause: result.error },
     );
   }
   return result;
@@ -1410,6 +1415,116 @@ async function buildBrightDataDatasetCandidates(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
   let additionalSnapshotRefs: RecallSnapshotRef[] = [];
+  const markAdditionalRoundPending = (round: RecallRound, error: unknown, submittedAt: string) => {
+    const message = error instanceof Error ? error.message : String(error);
+    persistedAdditionalSnapshots.set(
+      round.round,
+      helpers.buildAdditionalSnapshotMetadata({
+        round: round.round,
+        snapshotId: null,
+        recordsLimit: round.request.recordsLimit,
+        existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+        status: "failed",
+        submittedAt,
+        failedAt: submittedAt,
+        failureCode: message.slice(0, 180),
+      }),
+    );
+    helpers.logSearchEvent("search_multi_round_trigger_retrying", {
+      search_id: context.searchId,
+      round: round.round,
+      records_limit: round.request.recordsLimit,
+      error: message,
+      job_id: context.jobId,
+    });
+  };
+  const submitAdditionalRoundSnapshot = async (round: RecallRound): Promise<RecallSnapshotRef | null> => {
+    const submittedAt = helpers.nowIso();
+    const roundHash = computeFilterHash(round.request);
+    const cachedRoundEntry = await lookupCachedSnapshot(roundHash);
+    let roundSnapshotId: string;
+    let roundCacheEntry: SnapshotCacheEntry | null = null;
+    if (cachedRoundEntry) {
+      roundSnapshotId = cachedRoundEntry.snapshotId;
+      roundCacheEntry = cachedRoundEntry;
+      helpers.logSearchEvent("search_snapshot_cache_hit", {
+        search_id: context.searchId,
+        round: round.round,
+        snapshot_id: roundSnapshotId,
+        expires_at: cachedRoundEntry.expiresAt,
+        job_id: context.jobId,
+      });
+    } else {
+      if (forceSnapshotProfileCache) {
+        throw new Error("Snapshot-profile rerun cannot submit additional Bright Data snapshots.");
+      }
+      await captureBrightBalanceBefore();
+      try {
+        roundSnapshotId = await triggerDatasetFilter(brightDataAuthToken, round.request);
+      } catch (error) {
+        markAdditionalRoundPending(round, error, submittedAt);
+        return null;
+      }
+      void cacheSnapshotEntry({
+        snapshotId: roundSnapshotId,
+        round: round.round,
+        filterHash: roundHash,
+        filterSummary: null,
+        recordsLimit: round.request.recordsLimit,
+      });
+      helpers.logSearchEvent("search_multi_round_triggered", {
+        search_id: context.searchId,
+        round: round.round,
+        snapshot_id: roundSnapshotId,
+        records_limit: round.request.recordsLimit,
+        job_id: context.jobId,
+      });
+    }
+    const ref = {
+      round: round.round,
+      snapshotId: roundSnapshotId,
+      request: round.request,
+      recordsLimit: round.request.recordsLimit,
+      filterHash: roundHash,
+      diagnostics: round.diagnostics,
+      submittedAt,
+      cacheEntry: roundCacheEntry,
+    };
+    persistedAdditionalSnapshots.set(
+      round.round,
+      helpers.buildAdditionalSnapshotMetadata({
+        round: round.round,
+        snapshotId: roundSnapshotId,
+        recordsLimit: round.request.recordsLimit,
+        existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+        status: "submitted",
+        submittedAt,
+        clearFailure: true,
+      }),
+    );
+    return ref;
+  };
+  const buildSubmittedAdditionalSnapshotMetadata = () =>
+    additionalRounds.map((round) => {
+      const submitted = additionalSnapshotRefs.find((snapshot) => snapshot.round === round.round);
+      if (submitted) {
+        return helpers.buildAdditionalSnapshotMetadata({
+          round: submitted.round,
+          snapshotId: submitted.snapshotId,
+          recordsLimit: submitted.recordsLimit,
+          existing: persistedAdditionalSnapshots.get(submitted.round) ?? null,
+          status: "submitted",
+          submittedAt: submitted.submittedAt,
+        });
+      }
+      return helpers.buildAdditionalSnapshotMetadata({
+        round: round.round,
+        snapshotId: null,
+        recordsLimit: round.request.recordsLimit,
+        existing: persistedAdditionalSnapshots.get(round.round) ?? null,
+        status: persistedAdditionalSnapshots.get(round.round)?.status ?? "failed",
+      });
+    });
 
   const filterSummary = {
     title_terms: recallSpec.title_variants.length > 0
@@ -1598,54 +1713,10 @@ async function buildBrightDataDatasetCandidates(
   if (!snapshotId) {
     await submitStandardSnapshot(recallRequest);
 
-    additionalSnapshotRefs = await Promise.all(additionalRounds.map(async (round) => {
-      const submittedAt = helpers.nowIso();
-      const roundHash = computeFilterHash(round.request);
-      const cachedRoundEntry = await lookupCachedSnapshot(roundHash);
-      let roundSnapshotId: string;
-      let roundCacheEntry: SnapshotCacheEntry | null = null;
-      if (cachedRoundEntry) {
-        roundSnapshotId = cachedRoundEntry.snapshotId;
-        roundCacheEntry = cachedRoundEntry;
-        helpers.logSearchEvent("search_snapshot_cache_hit", {
-          search_id: context.searchId,
-          round: round.round,
-          snapshot_id: roundSnapshotId,
-          expires_at: cachedRoundEntry.expiresAt,
-          job_id: context.jobId,
-        });
-      } else {
-        if (forceSnapshotProfileCache) {
-          throw new Error("Snapshot-profile rerun cannot submit additional Bright Data snapshots.");
-        }
-        await captureBrightBalanceBefore();
-        roundSnapshotId = await triggerDatasetFilter(brightDataAuthToken, round.request);
-        void cacheSnapshotEntry({
-          snapshotId: roundSnapshotId,
-          round: round.round,
-          filterHash: roundHash,
-          filterSummary: null,
-          recordsLimit: round.request.recordsLimit,
-        });
-        helpers.logSearchEvent("search_multi_round_triggered", {
-          search_id: context.searchId,
-          round: round.round,
-          snapshot_id: roundSnapshotId,
-          records_limit: round.request.recordsLimit,
-          job_id: context.jobId,
-        });
-      }
-      return {
-        round: round.round,
-        snapshotId: roundSnapshotId,
-        request: round.request,
-        recordsLimit: round.request.recordsLimit,
-        filterHash: roundHash,
-        diagnostics: round.diagnostics,
-        submittedAt,
-        cacheEntry: roundCacheEntry,
-      };
-    }));
+    for (const round of additionalRounds) {
+      const submitted = await submitAdditionalRoundSnapshot(round);
+      if (submitted) additionalSnapshotRefs.push(submitted);
+    }
 
     parsed.recall_provider = "brightdata_dataset";
     parsed.recall_metadata = {
@@ -1662,18 +1733,15 @@ async function buildBrightDataDatasetCandidates(
       bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       round_diagnostics: buildRoundDiagnostics(),
-      additional_snapshots: additionalSnapshotRefs.map((round) => ({
-        ...helpers.buildAdditionalSnapshotMetadata({
-          round: round.round,
-          snapshotId: round.snapshotId,
-          recordsLimit: round.recordsLimit,
-          existing: persistedAdditionalSnapshots.get(round.round) ?? null,
-          status: "submitted",
-          submittedAt: round.submittedAt,
-        }),
-      })),
+      additional_snapshots: buildSubmittedAdditionalSnapshotMetadata(),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
+    if (additionalSnapshotRefs.length < additionalRounds.length) {
+      throw new DatasetRecallPendingError(
+        "Bright Data additional recall round submission is incomplete; retrying missing rounds",
+        { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+      );
+    }
     helpers.logSearchEvent("search_step_started", {
       search_id: context.searchId,
       step: "searching",
@@ -1718,6 +1786,38 @@ async function buildBrightDataDatasetCandidates(
         submittedAt: persisted.submitted_at ?? undefined,
       }];
     });
+    const submittedRoundNames = new Set(additionalSnapshotRefs.map((round) => round.round));
+    for (const round of additionalRounds) {
+      if (submittedRoundNames.has(round.round)) continue;
+      const submitted = await submitAdditionalRoundSnapshot(round);
+      if (submitted) {
+        additionalSnapshotRefs.push(submitted);
+        submittedRoundNames.add(round.round);
+      }
+    }
+    if (additionalSnapshotRefs.length < additionalRounds.length) {
+      parsed.recall_metadata = {
+        ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
+          provider: "brightdata_dataset" as const,
+          snapshot_id: snapshotId,
+        }),
+        provider: "brightdata_dataset",
+        snapshot_id: snapshotId,
+        requested_at: new Date(requestedAt).toISOString(),
+        status: "submitted",
+        filter_summary: filterSummary,
+        bright_profile_budget: totalProfileScanBudget,
+        bright_profiles_requested: totalRequestedLimit,
+        judge_mode: runtime.judgeMode,
+        round_diagnostics: buildRoundDiagnostics(),
+        additional_snapshots: buildSubmittedAdditionalSnapshotMetadata(),
+      } satisfies RecallMetadata;
+      await updateSearchParsedRequirements(context.searchId, parsed);
+      throw new DatasetRecallPendingError(
+        "Bright Data additional recall round submission is incomplete; retrying missing rounds",
+        { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+      );
+    }
     if (!Number.isFinite(requestedAt)) {
       requestedAt = Date.now();
     }
