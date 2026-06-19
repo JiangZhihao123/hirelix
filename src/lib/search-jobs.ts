@@ -1511,6 +1511,7 @@ function buildAdditionalSnapshotMetadata(params: {
     round: params.round,
     snapshot_id: params.snapshotId,
     records_limit: params.recordsLimit ?? existing?.records_limit ?? null,
+    requested_count: params.recordsLimit ?? existing?.requested_count ?? null,
     status: params.status ?? existing?.status,
     submitted_at: params.submittedAt ?? existing?.submitted_at ?? null,
     ready_at: readyAt,
@@ -1547,6 +1548,7 @@ function hasRecallSnapshotDrift(
   executionProfile: SearchExecutionProfile,
   runtime: SearchExecutionRuntime,
   requestedLimit: number,
+  totalProfileScanBudget?: number,
 ) {
   if (!metadata || metadata.provider !== "brightdata_dataset") return false;
   if (!metadata.snapshot_id) return false;
@@ -1574,7 +1576,11 @@ function hasRecallSnapshotDrift(
     JSON.stringify(normalizeSummaryTerms(filterSummary.avoid_profiles));
   const sameBudget =
     metadata.bright_profile_budget == null ||
-    metadata.bright_profile_budget === executionProfile.filterLimit;
+    metadata.bright_profile_budget === (
+      typeof totalProfileScanBudget === "number" && Number.isFinite(totalProfileScanBudget)
+        ? Math.max(0, Math.round(totalProfileScanBudget))
+        : executionProfile.filterLimit
+    );
   const sameRequested =
     metadata.bright_profiles_requested == null ||
     metadata.bright_profiles_requested === requestedLimit;

@@ -55,8 +55,8 @@ import {
 } from "@/lib/search/persistence";
 import {
   buildBrightDataCandidateRows,
-  buildBrightDataRecallFilter,
   buildBrightDataRecallFilters,
+  getTotalRecallRequestLimit,
 } from "@/lib/search/recall";
 import {
   arbitrateCandidateScore,
@@ -190,6 +190,7 @@ type SearchPipelineHelpers = {
     executionProfile: SearchExecutionProfile,
     runtime: ReturnType<typeof getExecutionRuntime>,
     requestedLimit: number,
+    totalProfileScanBudget?: number,
   ) => boolean;
   mapSnapshotStatus: (metadata: BrightDataSnapshotMetadata | null | undefined) => AdditionalRecallSnapshot["status"];
   isTransientSnapshotDownloadError: (error: unknown) => boolean;
@@ -653,6 +654,8 @@ async function scoreBrightDataProfiles(
   options?: {
     progressOffset?: number;
     onFirstVisibleCandidate?: (statsPatch: Partial<SearchDisplayStats>) => Promise<void>;
+    totalProfileScanBudget?: number;
+    totalProfilesRequested?: number;
   },
 ): Promise<SearchPipelineResult> {
   const scoringStartMs = Date.now();
@@ -934,8 +937,8 @@ async function scoreBrightDataProfiles(
       outreach_pool_count: finalRows.length,
       shortlist_count: finalRows.length,
       brightdata_scrape_count: brightProfiles.length,
-      bright_profile_budget: executionProfile.filterLimit,
-      bright_profiles_requested: executionProfile.filterLimit,
+      bright_profile_budget: options?.totalProfileScanBudget ?? executionProfile.filterLimit,
+      bright_profiles_requested: options?.totalProfilesRequested ?? executionProfile.filterLimit,
       bright_profiles_returned: brightProfiles.length,
       estimated_llm_cost: estimatedCosts.estimatedLlmCost,
       estimated_search_total_cost: estimatedCosts.estimatedSearchTotalCost,
@@ -1326,26 +1329,10 @@ async function buildBrightDataDatasetCandidates(
   const recallSpec = helpers.normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
-  const primaryRecallRequest = buildBrightDataRecallFilter(
-    parsed,
-    context.candidateCount,
-    executionProfile,
-    {
-      normalizeRecallSpec: helpers.normalizeRecallSpec,
-      sanitizeHiringBrief: helpers.sanitizeHiringBrief,
-      buildStandardSkillFilter: helpers.buildStandardSkillFilter,
-      buildRecallLocationFilter: helpers.buildRecallLocationFilter,
-      isPlaceholderTitle: helpers.isPlaceholderTitle,
-    },
-  );
-  if (!primaryRecallRequest) {
-    return null;
-  }
   if (!brightDataToken && !forceSnapshotProfileCache) {
     return null;
   }
   const brightDataAuthToken = brightDataToken ?? "";
-  let recallRequest = primaryRecallRequest;
   const pipelineStartMs = Date.now();
 
   await setSearchStatus(context.searchId, "searching");
@@ -1411,7 +1398,14 @@ async function buildBrightDataDatasetCandidates(
     },
   );
   const standardRound = recallRounds.find((round) => round.round === "standard");
+  if (!standardRound) {
+    return null;
+  }
   const additionalRounds = recallRounds.filter((round) => round.round !== "standard");
+  let recallRequest = standardRound.request;
+  const totalRequestedLimit = getTotalRecallRequestLimit(recallRounds);
+  const totalProfileScanBudget =
+    executionProfile.filterLimit + executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit;
   const persistedAdditionalSnapshots = new Map(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
@@ -1533,8 +1527,8 @@ async function buildBrightDataDatasetCandidates(
       requested_at: submittedAt,
       status: "submitted",
       filter_summary: filterSummary,
-      bright_profile_budget: executionProfile.filterLimit,
-      bright_profiles_requested: request.recordsLimit,
+      bright_profile_budget: totalProfileScanBudget,
+      bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       standard_recall_requested_at: submittedAt,
       round_diagnostics: buildRoundDiagnostics(),
@@ -1560,7 +1554,8 @@ async function buildBrightDataDatasetCandidates(
     filterSummary,
     executionProfile,
     runtime,
-    recallRequest.recordsLimit,
+    totalRequestedLimit,
+    totalProfileScanBudget,
   );
   const shouldKeepSnapshotProfileCache = forceSnapshotProfileCache || shouldReuseProfileCacheDespiteSnapshotDrift({
     hasSnapshotDrift,
@@ -1575,7 +1570,7 @@ async function buildBrightDataDatasetCandidates(
       snapshot_id: existingRecallMetadata?.snapshot_id,
       standard_profile_rows: existingStandardSnapshotRows?.length ?? 0,
       previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
-      next_budget: executionProfile.filterLimit,
+      next_budget: totalProfileScanBudget,
       previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
       next_judge_mode: runtime.judgeMode,
       rerun_mode: forceSnapshotProfileCache ? SNAPSHOT_PROFILE_CACHE_RERUN_MODE : null,
@@ -1589,7 +1584,7 @@ async function buildBrightDataDatasetCandidates(
       previous_filter_summary: existingRecallMetadata?.filter_summary ?? null,
       next_filter_summary: filterSummary,
       previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
-      next_budget: executionProfile.filterLimit,
+      next_budget: totalProfileScanBudget,
       previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
       next_judge_mode: runtime.judgeMode,
       job_id: context.jobId,
@@ -1663,8 +1658,8 @@ async function buildBrightDataDatasetCandidates(
       requested_at: new Date(requestedAt).toISOString(),
       status: "submitted",
       filter_summary: filterSummary,
-      bright_profile_budget: executionProfile.filterLimit,
-      bright_profiles_requested: recallRequest.recordsLimit,
+      bright_profile_budget: totalProfileScanBudget,
+      bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       round_diagnostics: buildRoundDiagnostics(),
       additional_snapshots: additionalSnapshotRefs.map((round) => ({
@@ -2015,8 +2010,8 @@ async function buildBrightDataDatasetCandidates(
       requested_at: new Date(requestedAt).toISOString(),
       status: "polling",
       filter_summary: filterSummary,
-      bright_profile_budget: executionProfile.filterLimit,
-      bright_profiles_requested: recallRequest.recordsLimit,
+      bright_profile_budget: totalProfileScanBudget,
+      bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       standard_recall_requested_at:
         helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_requested_at ??
@@ -2131,8 +2126,8 @@ async function buildBrightDataDatasetCandidates(
         requested_at: new Date(requestedAt).toISOString(),
         status: "polling",
         filter_summary: filterSummary,
-        bright_profile_budget: executionProfile.filterLimit,
-        bright_profiles_requested: recallRequest.recordsLimit,
+        bright_profile_budget: totalProfileScanBudget,
+        bright_profiles_requested: totalRequestedLimit,
         judge_mode: runtime.judgeMode,
         standard_recall_requested_at:
           helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_requested_at ??
@@ -2196,8 +2191,8 @@ async function buildBrightDataDatasetCandidates(
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
     cost: getMetadataCost(metadata),
-    bright_profile_budget: executionProfile.filterLimit,
-    bright_profiles_requested: recallRequest.recordsLimit,
+    bright_profile_budget: totalProfileScanBudget,
+    bright_profiles_requested: totalRequestedLimit,
     bright_profiles_returned: profiles.length,
     judge_mode: runtime.judgeMode,
     requested_at: new Date(requestedAt).toISOString(),
@@ -2234,8 +2229,8 @@ async function buildBrightDataDatasetCandidates(
   };
   parsed.display_stats = helpers.buildSearchDisplayStats({
     ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
-    bright_profile_budget: executionProfile.filterLimit,
-    bright_profiles_requested: recallRequest.recordsLimit,
+    bright_profile_budget: totalProfileScanBudget,
+    bright_profiles_requested: totalRequestedLimit,
     bright_profiles_returned: profiles.length,
     recall_profile_count: profiles.length,
     retrieval_count: profiles.length,
@@ -2406,8 +2401,8 @@ async function buildBrightDataDatasetCandidates(
       cost_source: null,
       bright_balance_before: brightBalanceBefore,
       bright_balance_after: brightBalanceAfter,
-      bright_profile_budget: executionProfile.filterLimit,
-      bright_profiles_requested: recallRequest.recordsLimit,
+      bright_profile_budget: totalProfileScanBudget,
+      bright_profiles_requested: totalRequestedLimit,
       bright_profiles_returned: allProfiles.length,
       judge_mode: runtime.judgeMode,
       requested_at: new Date(requestedAt).toISOString(),
@@ -2488,8 +2483,8 @@ async function buildBrightDataDatasetCandidates(
     cost_source: resolvedRecallCostSource,
     bright_balance_before: brightBalanceBefore,
     bright_balance_after: brightBalanceAfter,
-    bright_profile_budget: executionProfile.filterLimit,
-    bright_profiles_requested: recallRequest.recordsLimit,
+    bright_profile_budget: totalProfileScanBudget,
+    bright_profiles_requested: totalRequestedLimit,
     bright_profiles_returned: allProfiles.length,
     judge_mode: runtime.judgeMode,
     requested_at: new Date(requestedAt).toISOString(),
@@ -2583,8 +2578,8 @@ async function buildBrightDataDatasetCandidates(
     deep_review_requested_count: allProfiles.length,
     deep_review_completed_count: 0,
     bright_snapshot_cost: resolvedRecallCost ?? undefined,
-    bright_profile_budget: executionProfile.filterLimit,
-    bright_profiles_requested: recallRequest.recordsLimit,
+    bright_profile_budget: totalProfileScanBudget,
+    bright_profiles_requested: totalRequestedLimit,
     judge_mode: runtime.judgeMode,
     time_to_ack_ms: 0,
     time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
@@ -2607,6 +2602,8 @@ async function buildBrightDataDatasetCandidates(
     {
       progressOffset: 0,
       onFirstVisibleCandidate: handleFirstVisibleCandidate,
+      totalProfileScanBudget,
+      totalProfilesRequested: totalRequestedLimit,
     },
   );
 
@@ -2652,8 +2649,8 @@ async function buildBrightDataDatasetCandidates(
       ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
       ...combinedResult.displayStats,
       bright_snapshot_cost: resolvedRecallCost ?? undefined,
-      bright_profile_budget: executionProfile.filterLimit,
-      bright_profiles_requested: recallRequest.recordsLimit,
+      bright_profile_budget: totalProfileScanBudget,
+      bright_profiles_requested: totalRequestedLimit,
       bright_profiles_returned: allProfiles.length,
       judge_mode: runtime.judgeMode,
     }),

@@ -32,6 +32,13 @@ export type RecallRound = {
   diagnostics: Omit<RecallRoundDiagnostics, "filter_hash" | "returned_count" | "quality_distribution">;
 };
 
+type BudgetPool = "hidden" | "company";
+
+type BudgetedRecallRound = RecallRound & {
+  budgetPool?: BudgetPool;
+  budgetWeight?: number;
+};
+
 const MAX_BRIGHT_OR_FILTERS = 20;
 const MAX_LLM_SOURCING_LANES = 4;
 
@@ -593,68 +600,125 @@ function buildCompanyFilter(companyTerms: string[]): BrightDataFilterRule | null
   };
 }
 
-function getLaneRoundBaseName(lane: SourcingLane, index: number) {
-  if (index === 0 || lane.strategy === "title") return "standard";
-  if (lane.strategy === "skill") return "standard_skill";
-  if (lane.strategy === "seniority") return "standard_seniority";
-  if (lane.strategy === "company") return "company_target";
-  return "hidden_gem";
+function getLlmLaneRoundName(lane: SourcingLane, index: number) {
+  return `llm_${lane.strategy}_${index + 1}`;
 }
 
-function getUniqueLaneRoundName(
-  lane: SourcingLane,
-  index: number,
-  usedRoundNames: Set<string>,
+function getFilterChildCount(filter: BrightDataFilterRule | null) {
+  if (!filter) return 0;
+  return "filters" in filter ? filter.filters.length : 1;
+}
+
+function allocateWeightedLimits(
+  items: Array<{ index: number; weight: number }>,
+  totalBudget: number,
 ) {
-  const baseName = getLaneRoundBaseName(lane, index);
-  if (!usedRoundNames.has(baseName)) {
-    usedRoundNames.add(baseName);
-    return baseName;
+  const limits = new Map<number, number>();
+  const normalizedBudget = Math.max(0, Math.round(totalBudget));
+  if (items.length === 0 || normalizedBudget <= 0) return limits;
+
+  const normalizedItems = items.map((item) => ({
+    ...item,
+    weight: Math.max(0.25, item.weight),
+  }));
+  if (normalizedBudget < normalizedItems.length) {
+    const prioritized = [...normalizedItems].sort((left, right) => right.weight - left.weight);
+    for (let index = 0; index < normalizedBudget; index += 1) {
+      const item = prioritized[index];
+      if (item) limits.set(item.index, 1);
+    }
+    return limits;
   }
 
-  const uniqueName = `${baseName}_${index + 1}`;
-  usedRoundNames.add(uniqueName);
-  return uniqueName;
-}
-
-function allocateLaneLimits(
-  lanes: SourcingLane[],
-  executionProfile: SearchExecutionProfile,
-) {
-  const standardLimit = executionProfile.filterLimit;
-  const additionalBudget = Math.max(
-    0,
-    executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit,
-  );
-  const additionalLanes = lanes.slice(1);
-  const totalWeight = additionalLanes.reduce(
-    (sum, lane) => sum + Math.max(0.25, lane.budget_weight || 1),
-    0,
-  );
-  const limits = new Map<number, number>([[0, standardLimit]]);
-  let remainingBudget = additionalBudget;
-
-  additionalLanes.forEach((lane, offset) => {
-    const index = offset + 1;
-    const isLast = offset === additionalLanes.length - 1;
-    const limit = isLast
-      ? remainingBudget
-      : Math.max(
-        1,
-        Math.round(additionalBudget * Math.max(0.25, lane.budget_weight || 1) / Math.max(totalWeight, 1)),
-      );
-    limits.set(index, Math.max(0, limit));
-    remainingBudget = Math.max(0, remainingBudget - limit);
+  const totalWeight = normalizedItems.reduce((sum, item) => sum + item.weight, 0);
+  const rawAllocations = normalizedItems.map((item) => {
+    const raw = normalizedBudget * item.weight / Math.max(totalWeight, 1);
+    return {
+      ...item,
+      allocated: Math.max(1, Math.floor(raw)),
+      remainder: raw - Math.floor(raw),
+    };
   });
+  let allocatedTotal = rawAllocations.reduce((sum, item) => sum + item.allocated, 0);
 
+  const byRemainderDesc = [...rawAllocations].sort((left, right) =>
+    right.remainder - left.remainder || right.weight - left.weight,
+  );
+  for (let index = 0; allocatedTotal < normalizedBudget; index = (index + 1) % byRemainderDesc.length) {
+    const item = byRemainderDesc[index];
+    if (!item) continue;
+    item.allocated += 1;
+    allocatedTotal += 1;
+  }
+
+  const byRemainderAsc = [...rawAllocations].sort((left, right) =>
+    left.remainder - right.remainder || left.weight - right.weight,
+  );
+  for (let index = 0; allocatedTotal > normalizedBudget; index = (index + 1) % byRemainderAsc.length) {
+    const item = byRemainderAsc[index];
+    if (!item || item.allocated <= 1) continue;
+    item.allocated -= 1;
+    allocatedTotal -= 1;
+  }
+
+  for (const item of rawAllocations) {
+    limits.set(item.index, item.allocated);
+  }
   return limits;
 }
 
-function buildRecallRoundsFromSourcingLanes(params: {
+function withRecordsLimit(round: BudgetedRecallRound, recordsLimit: number): BudgetedRecallRound | null {
+  const normalizedLimit = Math.max(0, Math.round(recordsLimit));
+  if (normalizedLimit <= 0) return null;
+  return {
+    ...round,
+    request: {
+      ...round.request,
+      recordsLimit: normalizedLimit,
+    },
+    diagnostics: {
+      ...round.diagnostics,
+      requested_count: normalizedLimit,
+    },
+  };
+}
+
+function rebalanceSupplementalRoundLimits(
+  rounds: BudgetedRecallRound[],
+  executionProfile: SearchExecutionProfile,
+): RecallRound[] {
+  let rebalanced = [...rounds];
+  const rebalancePool = (pool: BudgetPool, budget: number) => {
+    const poolItems = rebalanced
+      .map((round, index) => ({ round, index }))
+      .filter((item) => item.round.budgetPool === pool);
+    const limits = allocateWeightedLimits(
+      poolItems.map((item) => ({
+        index: item.index,
+        weight: item.round.budgetWeight ?? item.round.request.recordsLimit,
+      })),
+      budget,
+    );
+    rebalanced = rebalanced.flatMap((round, index) => {
+      if (round.budgetPool !== pool) return [round];
+      const updated = withRecordsLimit(round, limits.get(index) ?? 0);
+      return updated ? [updated] : [];
+    });
+  };
+
+  rebalancePool("hidden", executionProfile.hiddenGemLimit);
+  rebalancePool("company", executionProfile.companyTargetLimit);
+
+  return rebalanced.map((round) => ({
+    round: round.round,
+    request: round.request,
+    diagnostics: round.diagnostics,
+  }));
+}
+
+function buildLlmSupplementalRounds(params: {
   datasetId: string;
   recallSpec: RecallSpec;
-  hiringBrief: HiringBrief;
-  executionProfile: SearchExecutionProfile;
   countryFilter: BrightDataFilterRule | null;
   locationFilter: BrightDataFilterRule | null;
   qualityFilters: BrightDataFilterRule[];
@@ -670,47 +734,44 @@ function buildRecallRoundsFromSourcingLanes(params: {
     .slice(0, MAX_LLM_SOURCING_LANES);
   if (lanes.length === 0) return [];
 
-  const limits = allocateLaneLimits(lanes, params.executionProfile);
-  const rounds: RecallRound[] = [];
-  const usedRoundNames = new Set<string>();
+  const rounds: BudgetedRecallRound[] = [];
 
   lanes.forEach((lane, index) => {
-    const recordsLimit = limits.get(index) ?? 0;
-    if (recordsLimit <= 0) return;
-
     const filters: BrightDataFilterRule[] = [];
     const titleFilter = buildTitleFilter(lane.title_terms, lane.strategy === "company" ? 18 : 14);
     const skillFilter = buildProfileSignalFilter(lane.skill_terms, 10);
     const companyFilter = buildCompanyFilter(lane.company_terms);
+    const budgetWeight = Math.max(0.25, lane.budget_weight || 1);
 
     if (lane.strategy === "company") {
       if (!companyFilter) return;
       filters.push(companyFilter);
-      if (titleFilter) filters.push(titleFilter);
-      if (skillFilter) filters.push(skillFilter);
+      if (params.countryFilter) filters.push(params.countryFilter);
+      if (titleFilter && getFilterChildCount(titleFilter) >= 2) filters.push(titleFilter);
+      if (skillFilter && compactTerms(lane.skill_terms, 10).length >= 3) filters.push(skillFilter);
     } else {
       if (!titleFilter) return;
-      filters.push(titleFilter);
-      if (skillFilter) filters.push(skillFilter);
+      filters.push(skillFilter ? { operator: "or", filters: [titleFilter, skillFilter] } : titleFilter);
+      if (params.countryFilter) filters.push(params.countryFilter);
+      if (params.locationFilter) filters.push(params.locationFilter);
     }
-
-    if (params.countryFilter) filters.push(params.countryFilter);
-    if (params.locationFilter && lane.strategy !== "company") filters.push(params.locationFilter);
     filters.push(...params.qualityFilters);
 
-    const round = getUniqueLaneRoundName(lane, index, usedRoundNames);
+    const round = getLlmLaneRoundName(lane, index);
     rounds.push({
       round,
+      budgetPool: lane.strategy === "company" ? "company" : "hidden",
+      budgetWeight,
       request: {
         datasetId: params.datasetId,
-        recordsLimit,
+        recordsLimit: Math.max(1, Math.round(budgetWeight)),
         filter: filters.length === 1
           ? filters[0]
           : { operator: "and", filters },
       },
       diagnostics: {
         round,
-        requested_count: recordsLimit,
+        requested_count: Math.max(1, Math.round(budgetWeight)),
         title_terms: compactTerms(lane.title_terms, 18),
         skill_signal_groups: {
           search_domain: compactTerms(lane.skill_terms, 10),
@@ -743,9 +804,10 @@ function buildCountryFilter(countryCodes: string[]): BrightDataFilterRule | null
 }
 
 function getRecallLocationMode(hiringBrief: HiringBrief) {
-  return hiringBrief.relocation_allowed === "yes" && hiringBrief.location_flexibility !== "strict"
-    ? "country_only" as const
-    : "location_filter" as const;
+  if (hiringBrief.location_flexibility === "strict") return "location_filter" as const;
+  if (hiringBrief.work_model === "remote") return "country_only" as const;
+  if (hiringBrief.relocation_allowed !== "no") return "country_only" as const;
+  return "location_filter" as const;
 }
 
 function buildQualityFilters(): BrightDataFilterRule[] {
@@ -1069,7 +1131,199 @@ export function buildBrightDataRecallFilter(
           operator: "and",
           filters: rootFilters,
         },
-  };
+	  };
+}
+
+export function getTotalRecallRequestLimit(rounds: RecallRound[]) {
+  return rounds.reduce((sum, round) => sum + Math.max(0, round.request.recordsLimit), 0);
+}
+
+function buildDeterministicExpansionRounds(params: {
+  datasetId: string;
+  recallSpec: RecallSpec;
+  hiringBrief: HiringBrief;
+  executionProfile: SearchExecutionProfile;
+  countryFilter: BrightDataFilterRule | null;
+  locationFilter: BrightDataFilterRule | null;
+  qualityFilters: BrightDataFilterRule[];
+  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>;
+  isDataPlatformRole: boolean;
+  standardTitleTerms: string[];
+  locationMode: "country_only" | "location_filter";
+}) {
+  const rounds: BudgetedRecallRound[] = [];
+  const lateralTitles = params.isDataPlatformRole
+    ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(params.recallSpec), params.hiringBrief)
+    : buildHiddenGemTitleTerms(params.recallSpec);
+  const differentiatingTerms = compactTerms([
+    ...params.signalGroups.search_domain,
+    ...params.signalGroups.platform_engineering,
+  ], 10);
+
+  if (params.isDataPlatformRole && params.countryFilter) {
+    const laneLimit = Math.max(1, Math.floor(params.executionProfile.hiddenGemLimit / 2));
+    const skillLaneLimit = laneLimit;
+    const seniorityLaneLimit = Math.max(0, params.executionProfile.hiddenGemLimit - laneLimit);
+    const skillLaneFilter = buildDataPlatformSkillLaneFilter(params.recallSpec);
+    const skillLaneTitleFilter = buildTitleFilter(DATA_PLATFORM_SKILL_LANE_TITLES, 18);
+    if (skillLaneLimit > 0 && skillLaneFilter && skillLaneTitleFilter) {
+      const skillLaneFilters: BrightDataFilterRule[] = [
+        skillLaneTitleFilter,
+        params.countryFilter,
+        skillLaneFilter,
+        ...params.qualityFilters,
+      ];
+      if (params.locationFilter) skillLaneFilters.push(params.locationFilter);
+      rounds.push({
+        round: "standard_skill",
+        budgetPool: "hidden",
+        budgetWeight: skillLaneLimit,
+        request: {
+          datasetId: params.datasetId,
+          recordsLimit: skillLaneLimit,
+          filter: { operator: "and", filters: skillLaneFilters },
+        },
+        diagnostics: {
+          round: "standard_skill",
+          requested_count: skillLaneLimit,
+          title_terms: compactTerms(DATA_PLATFORM_SKILL_LANE_TITLES, 18),
+          skill_signal_groups: params.signalGroups,
+          location_mode: params.locationMode,
+        },
+      });
+    }
+
+    const seniorityLaneFilter = buildDataPlatformSeniorityLaneFilter();
+    const seniorityLaneTitleFilter = buildTitleFilter(DATA_PLATFORM_SENIORITY_LANE_TITLES, 15);
+    if (seniorityLaneLimit > 0 && seniorityLaneFilter && seniorityLaneTitleFilter) {
+      const seniorityLaneFilters: BrightDataFilterRule[] = [
+        seniorityLaneTitleFilter,
+        params.countryFilter,
+        seniorityLaneFilter,
+        ...params.qualityFilters,
+      ];
+      if (params.locationFilter) seniorityLaneFilters.push(params.locationFilter);
+      rounds.push({
+        round: "standard_seniority",
+        budgetPool: "hidden",
+        budgetWeight: seniorityLaneLimit,
+        request: {
+          datasetId: params.datasetId,
+          recordsLimit: seniorityLaneLimit,
+          filter: { operator: "and", filters: seniorityLaneFilters },
+        },
+        diagnostics: {
+          round: "standard_seniority",
+          requested_count: seniorityLaneLimit,
+          title_terms: compactTerms(DATA_PLATFORM_SENIORITY_LANE_TITLES, 15),
+          skill_signal_groups: params.signalGroups,
+          location_mode: params.locationMode,
+        },
+      });
+    }
+  }
+
+  if (!params.isDataPlatformRole && lateralTitles.length > 0 && differentiatingTerms.length > 0) {
+    const hiddenSignalFilter = buildBalancedSkillFilter({
+      ...params.recallSpec,
+      core_skill_terms: params.signalGroups.platform_engineering,
+      baseline_skill_terms: params.signalGroups.platform_engineering,
+      differentiating_skill_terms: params.signalGroups.search_domain,
+      domain_terms: params.signalGroups.search_domain,
+      must_have_signals: params.signalGroups.search_domain,
+    });
+    if (hiddenSignalFilter) {
+      const hiddenGemFilters: BrightDataFilterRule[] = [
+        {
+          operator: "or",
+          filters: lateralTitles.map((term) => ({
+            name: "position",
+            operator: "includes",
+            value: term,
+          })),
+        },
+      ];
+      if (params.countryFilter) hiddenGemFilters.push(params.countryFilter);
+      hiddenGemFilters.push(hiddenSignalFilter);
+      if (params.locationFilter) hiddenGemFilters.push(params.locationFilter);
+      hiddenGemFilters.push(...params.qualityFilters);
+      const recordsLimit = params.executionProfile.hiddenGemLimit;
+      if (recordsLimit > 0) {
+        rounds.push({
+          round: "hidden_gem",
+          budgetPool: "hidden",
+          budgetWeight: recordsLimit,
+          request: {
+            datasetId: params.datasetId,
+            recordsLimit,
+            filter: { operator: "and", filters: hiddenGemFilters },
+          },
+          diagnostics: {
+            round: "hidden_gem",
+            requested_count: recordsLimit,
+            title_terms: lateralTitles,
+            skill_signal_groups: params.signalGroups,
+            location_mode: params.locationMode,
+          },
+        });
+      }
+    }
+  }
+
+  const targetCompanies = params.recallSpec.target_companies.filter((company) => company.length >= 2);
+  if (targetCompanies.length > 0) {
+    const companyFilters: BrightDataFilterRule[] = [
+      {
+        operator: "or",
+        filters: targetCompanies.slice(0, 15).map((company) => ({
+          name: "current_company_name",
+          operator: "includes",
+          value: company,
+        })),
+      },
+    ];
+    if (params.countryFilter) companyFilters.push(params.countryFilter);
+
+    const companyTitleTerms = params.isDataPlatformRole
+      ? compactTerms([
+        ...DATA_PLATFORM_COMPANY_TARGET_TITLES,
+        ...params.standardTitleTerms,
+        ...lateralTitles,
+      ], 18)
+      : compactTerms([
+        ...params.standardTitleTerms,
+        ...DEFAULT_HIDDEN_GEM_TITLES,
+      ], 10);
+    const companyTitleFilter = buildTitleFilter(companyTitleTerms, params.isDataPlatformRole ? 18 : 12);
+    if (companyTitleFilter) companyFilters.push(companyTitleFilter);
+    const companySkillFilter = buildShallowCompanySkillFilter(params.recallSpec, params.signalGroups, {
+      dataPlatformRole: params.isDataPlatformRole,
+    });
+    if (companySkillFilter) companyFilters.push(companySkillFilter);
+    companyFilters.push(...params.qualityFilters);
+    const recordsLimit = params.executionProfile.companyTargetLimit;
+    if (recordsLimit > 0) {
+      rounds.push({
+        round: "company_target",
+        budgetPool: "company",
+        budgetWeight: recordsLimit,
+        request: {
+          datasetId: params.datasetId,
+          recordsLimit,
+          filter: { operator: "and", filters: companyFilters },
+        },
+        diagnostics: {
+          round: "company_target",
+          requested_count: recordsLimit,
+          title_terms: companyTitleTerms,
+          skill_signal_groups: params.signalGroups,
+          location_mode: "country_only",
+        },
+      });
+    }
+  }
+
+  return rounds;
 }
 
 export function buildBrightDataRecallFilters(
@@ -1158,182 +1412,33 @@ export function buildBrightDataRecallFilters(
     )
     : null;
 
-  const laneRounds = buildRecallRoundsFromSourcingLanes({
-    datasetId,
-    recallSpec,
-    hiringBrief,
-    executionProfile,
-    countryFilter,
-    locationFilter,
-    qualityFilters,
-    signalGroups,
-    locationMode,
-  });
-  if (laneRounds.length > 0) {
-    return laneRounds;
-  }
+  const supplementalRounds = [
+    ...buildDeterministicExpansionRounds({
+      datasetId,
+      recallSpec,
+      hiringBrief,
+      executionProfile,
+      countryFilter,
+      locationFilter,
+      qualityFilters,
+      signalGroups,
+      isDataPlatformRole,
+      standardTitleTerms,
+      locationMode,
+    }),
+    ...buildLlmSupplementalRounds({
+      datasetId,
+      recallSpec,
+      countryFilter,
+      locationFilter,
+      qualityFilters,
+      signalGroups,
+      locationMode,
+    }),
+  ];
 
-  const lateralTitles = isDataPlatformRole
-    ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
-    : buildHiddenGemTitleTerms(recallSpec);
-  const differentiatingTerms = compactTerms([
-    ...signalGroups.search_domain,
-    ...signalGroups.platform_engineering,
-  ], 10);
-
-  if (isDataPlatformRole && countryFilter) {
-    const laneLimit = Math.max(1, Math.floor(executionProfile.hiddenGemLimit / 2));
-    const skillLaneLimit = laneLimit;
-    const seniorityLaneLimit = Math.max(0, executionProfile.hiddenGemLimit - laneLimit);
-    const skillLaneFilter = buildDataPlatformSkillLaneFilter(recallSpec);
-    const skillLaneTitleFilter = buildTitleFilter(DATA_PLATFORM_SKILL_LANE_TITLES, 18);
-    if (skillLaneLimit > 0 && skillLaneFilter && skillLaneTitleFilter) {
-      const skillLaneFilters: BrightDataFilterRule[] = [
-        skillLaneTitleFilter,
-        countryFilter,
-        skillLaneFilter,
-        ...qualityFilters,
-      ];
-      if (locationFilter) skillLaneFilters.push(locationFilter);
-      rounds.push({
-        round: "standard_skill",
-        request: {
-          datasetId,
-          recordsLimit: skillLaneLimit,
-          filter: { operator: "and", filters: skillLaneFilters },
-        },
-        diagnostics: {
-          round: "standard_skill",
-          requested_count: skillLaneLimit,
-          title_terms: compactTerms(DATA_PLATFORM_SKILL_LANE_TITLES, 18),
-          skill_signal_groups: signalGroups,
-          location_mode: locationMode,
-        },
-      });
-    }
-
-    const seniorityLaneFilter = buildDataPlatformSeniorityLaneFilter();
-    const seniorityLaneTitleFilter = buildTitleFilter(DATA_PLATFORM_SENIORITY_LANE_TITLES, 15);
-    if (seniorityLaneLimit > 0 && seniorityLaneFilter && seniorityLaneTitleFilter) {
-      const seniorityLaneFilters: BrightDataFilterRule[] = [
-        seniorityLaneTitleFilter,
-        countryFilter,
-        seniorityLaneFilter,
-        ...qualityFilters,
-      ];
-      if (locationFilter) seniorityLaneFilters.push(locationFilter);
-      rounds.push({
-        round: "standard_seniority",
-        request: {
-          datasetId,
-          recordsLimit: seniorityLaneLimit,
-          filter: { operator: "and", filters: seniorityLaneFilters },
-        },
-        diagnostics: {
-          round: "standard_seniority",
-          requested_count: seniorityLaneLimit,
-          title_terms: compactTerms(DATA_PLATFORM_SENIORITY_LANE_TITLES, 15),
-          skill_signal_groups: signalGroups,
-          location_mode: locationMode,
-        },
-      });
-    }
-  }
-
-  if (!isDataPlatformRole && lateralTitles.length > 0 && differentiatingTerms.length > 0) {
-    const hiddenSignalFilter = isDataPlatformRole ? null : buildBalancedSkillFilter({
-      ...recallSpec,
-      core_skill_terms: signalGroups.platform_engineering,
-      baseline_skill_terms: signalGroups.platform_engineering,
-      differentiating_skill_terms: signalGroups.search_domain,
-      domain_terms: signalGroups.search_domain,
-      must_have_signals: signalGroups.search_domain,
-    });
-    if (!isDataPlatformRole && !hiddenSignalFilter) return rounds;
-    const hiddenGemFilters: BrightDataFilterRule[] = [
-      {
-        operator: "or",
-        filters: lateralTitles.map((term) => ({
-          name: "position",
-          operator: "includes",
-          value: term,
-        })),
-      },
-    ];
-    if (countryFilter) hiddenGemFilters.push(countryFilter);
-    if (hiddenSignalFilter) hiddenGemFilters.push(hiddenSignalFilter);
-    if (locationFilter) hiddenGemFilters.push(locationFilter);
-    hiddenGemFilters.push(...qualityFilters);
-    const recordsLimit = executionProfile.hiddenGemLimit;
-    if (recordsLimit <= 0) return rounds;
-
-    rounds.push({
-      round: isDataPlatformRole ? "data_platform" : "hidden_gem",
-      request: {
-        datasetId,
-        recordsLimit,
-        filter: { operator: "and", filters: hiddenGemFilters },
-      },
-      diagnostics: {
-        round: isDataPlatformRole ? "data_platform" : "hidden_gem",
-        requested_count: recordsLimit,
-        title_terms: lateralTitles,
-        skill_signal_groups: signalGroups,
-        location_mode: locationMode,
-      },
-    });
-  }
-
-  const targetCompanies = recallSpec.target_companies.filter((company) => company.length >= 2);
-  if (targetCompanies.length > 0) {
-    const companyFilters: BrightDataFilterRule[] = [
-      {
-        operator: "or",
-        filters: targetCompanies.slice(0, 15).map((company) => ({
-          name: "current_company_name",
-          operator: "includes",
-          value: company,
-        })),
-      },
-    ];
-    if (countryFilter) companyFilters.push(countryFilter);
-
-    const companyTitleTerms = isDataPlatformRole
-      ? compactTerms([
-        ...DATA_PLATFORM_COMPANY_TARGET_TITLES,
-        ...standardTitleTerms,
-        ...lateralTitles,
-      ], 18)
-      : compactTerms([
-        ...standardTitleTerms,
-        ...DEFAULT_HIDDEN_GEM_TITLES,
-      ], 10);
-    const companyTitleFilter = buildTitleFilter(companyTitleTerms, isDataPlatformRole ? 18 : 12);
-    if (companyTitleFilter) companyFilters.push(companyTitleFilter);
-    const companySkillFilter = buildShallowCompanySkillFilter(recallSpec, signalGroups, {
-      dataPlatformRole: isDataPlatformRole,
-    });
-    if (companySkillFilter) companyFilters.push(companySkillFilter);
-    companyFilters.push(...qualityFilters);
-    const recordsLimit = executionProfile.companyTargetLimit;
-    if (recordsLimit <= 0) return rounds;
-
-    rounds.push({
-      round: "company_target",
-      request: {
-        datasetId,
-        recordsLimit,
-        filter: { operator: "and", filters: companyFilters },
-      },
-      diagnostics: {
-        round: "company_target",
-        requested_count: recordsLimit,
-        title_terms: companyTitleTerms,
-        skill_signal_groups: signalGroups,
-        location_mode: "country_only",
-      },
-    });
-  }
-
-  return rounds;
+  return [
+    ...rounds,
+    ...rebalanceSupplementalRoundLimits(supplementalRounds, executionProfile),
+  ];
 }

@@ -347,7 +347,7 @@ test("buildBrightDataRecallFilters uses high-recall standard round for data plat
   assert.ok(maxGroupDepth(chunkBrightDataFilter(companyRound.request.filter)) <= 3);
 });
 
-test("buildBrightDataRecallFilters prefers LLM sourcing lanes over role-specific constants", () => {
+test("buildBrightDataRecallFilters adds LLM lanes without replacing deterministic rounds", () => {
   const rounds = buildBrightDataRecallFilters(
     {
       title: "Staff Data Platform Engineer",
@@ -412,23 +412,54 @@ test("buildBrightDataRecallFilters prefers LLM sourcing lanes over role-specific
   assert.deepEqual(rounds.map((round) => round.round), [
     "standard",
     "standard_skill",
+    "standard_seniority",
     "company_target",
+    "llm_title_1",
+    "llm_skill_2",
+    "llm_company_3",
   ]);
-  assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [60, 20, 20]);
-  assert.ok(leafValues(rounds[0].request.filter).includes("principal data platform engineer"));
-  assert.ok(leafValues(rounds[0].request.filter).includes("kafka"));
-  assert.ok(leafValues(rounds[0].request.filter).includes("flink"));
-  assert.ok(leafValues(rounds[1].request.filter).includes("streaming platform"));
-  assert.ok(leafValues(rounds[2].request.filter).includes("confluent"));
-  assert.ok(!rounds[1].diagnostics.title_terms.includes("senior backend engineer"));
+  assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 100);
+  assert.equal(rounds.find((round) => round.round === "standard")?.request.recordsLimit, 60);
+  assert.equal(
+    rounds
+      .filter((round) => ["standard_skill", "standard_seniority", "llm_title_1", "llm_skill_2"].includes(round.round))
+      .reduce((sum, round) => sum + round.request.recordsLimit, 0),
+    20,
+  );
+  assert.equal(
+    rounds
+      .filter((round) => ["company_target", "llm_company_3"].includes(round.round))
+      .reduce((sum, round) => sum + round.request.recordsLimit, 0),
+    20,
+  );
+
+  const standardRound = rounds.find((round) => round.round === "standard");
+  assert.ok(standardRound);
+  assert.ok(leafValues(standardRound.request.filter).includes("principal data platform engineer"));
+  assert.ok(!leafValues(standardRound.request.filter).includes("flink"));
+
+  const llmTitleRound = rounds.find((round) => round.round === "llm_title_1");
+  assert.ok(llmTitleRound);
+  assert.ok(leafValues(llmTitleRound.request.filter).includes("principal data platform engineer"));
+  assert.ok(leafValues(llmTitleRound.request.filter).includes("kafka"));
+  assert.ok(leafValues(llmTitleRound.request.filter).includes("flink"));
+
+  const companyRound = rounds.find((round) => round.round === "company_target");
+  assert.ok(companyRound);
+  assert.ok(leafValues(companyRound.request.filter).includes("confluent"));
+
+  const llmSkillRound = rounds.find((round) => round.round === "llm_skill_2");
+  assert.ok(llmSkillRound);
+  assert.ok(!llmSkillRound.diagnostics.title_terms.includes("senior backend engineer"));
 });
 
-test("buildBrightDataRecallFilters drops generic seniority-only title terms from LLM lanes", () => {
+test("buildBrightDataRecallFilters keeps single LLM lane supplemental and preserves deterministic budget pools", () => {
   const rounds = buildBrightDataRecallFilters(
     {
       title: "Staff Data Platform Engineer",
       recall_spec: {
         ...recallSpec,
+        target_companies: ["Confluent", "Databricks", "Snowflake", "Airbnb", "Uber"],
         sourcing_lanes: [
           {
             name: "target company data infra",
@@ -462,12 +493,65 @@ test("buildBrightDataRecallFilters drops generic seniority-only title terms from
     },
   );
 
-  assert.equal(rounds.length, 1);
-  const values = leafValues(rounds[0].request.filter);
-  assert.ok(values.includes("principal data platform engineer"));
-  assert.ok(values.includes("kafka"));
+  assert.deepEqual(rounds.map((round) => round.round), [
+    "standard",
+    "company_target",
+    "llm_company_1",
+  ]);
+  assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 100);
+  assert.equal(rounds.find((round) => round.round === "standard")?.request.recordsLimit, 50);
+  assert.equal(
+    rounds
+      .filter((round) => ["company_target", "llm_company_1"].includes(round.round))
+      .reduce((sum, round) => sum + round.request.recordsLimit, 0),
+    50,
+  );
+
+  const llmCompanyRound = rounds.find((round) => round.round === "llm_company_1");
+  assert.ok(llmCompanyRound);
+  const values = leafValues(llmCompanyRound.request.filter);
   assert.ok(values.includes("confluent"));
+  assert.ok(!values.includes("principal data platform engineer"));
+  assert.ok(!values.includes("kafka"));
   assert.ok(!values.includes("staff"));
   assert.ok(!values.includes("principal"));
   assert.ok(!values.includes("lead"));
+});
+
+test("buildBrightDataRecallFilters does not add location filter for moderate remote-friendly recall", () => {
+  const remoteBrief: HiringBrief = {
+    ...hiringBrief,
+    work_model: "remote",
+    location_flexibility: "moderate",
+    relocation_allowed: "unknown",
+  };
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Senior Software Engineer",
+      recall_spec: recallSpec,
+      hiring_brief: remoteBrief,
+    },
+    20,
+    executionProfile,
+    {
+      normalizeRecallSpec: (value) => value as RecallSpec,
+      sanitizeHiringBrief: () => remoteBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => ({
+        operator: "or",
+        filters: [
+          { name: "location", operator: "includes", value: "san francisco" },
+        ],
+      }),
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 25,
+      companyTargetLimit: 25,
+    },
+  );
+
+  assert.ok(rounds.length > 0);
+  assert.ok(rounds.every((round) => round.diagnostics.location_mode === "country_only"));
+  assert.ok(rounds.every((round) =>
+    !flattenRules(round.request.filter).some((rule) => "name" in rule && rule.name === "location")
+  ));
 });
