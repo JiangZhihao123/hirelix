@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { BILLING_PLANS } from "@/lib/billing";
 import {
+  applyProfileScanBudgetToExecutionProfile,
   DEFAULT_SEARCH_PROFILE_SCAN_EXPAND_INCREMENT,
   DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
   getInitialSearchExecutionProfile,
@@ -111,6 +112,30 @@ test("search targets use profile scan budgets instead of a fixed candidate cap",
 test("stored profile normalization accepts the free preview profile", () => {
   assert.equal(normalizeSearchExecutionProfileName("bright_free_preview"), "bright_free_preview");
   assert.equal(getSearchExecutionProfile("bright_free_preview").deliveryReferenceCount, BILLING_PLANS.free.profileScansPerMonth);
+});
+
+test("stored profile scan budget preserves multi-round free recall lanes", () => {
+  const profile = withDefaultFreeScanEnv(() => getInitialSearchExecutionProfile("free"));
+  const adjusted = applyProfileScanBudgetToExecutionProfile(profile, 250);
+
+  assert.equal(adjusted.deliveryReferenceCount, 250);
+  assert.equal(adjusted.filterLimit, 150);
+  assert.equal(adjusted.hiddenGemLimit, 50);
+  assert.equal(adjusted.companyTargetLimit, 50);
+});
+
+test("profile scan budget scales recall lanes instead of disabling additional rounds", () => {
+  const profile = withDefaultFreeScanEnv(() => getInitialSearchExecutionProfile("free"));
+  const adjusted = applyProfileScanBudgetToExecutionProfile(profile, 125);
+
+  assert.equal(adjusted.deliveryReferenceCount, 125);
+  assert.equal(
+    adjusted.filterLimit + adjusted.hiddenGemLimit + adjusted.companyTargetLimit,
+    125,
+  );
+  assert.ok(adjusted.filterLimit > adjusted.hiddenGemLimit);
+  assert.ok(adjusted.hiddenGemLimit > 0);
+  assert.ok(adjusted.companyTargetLimit > 0);
 });
 
 test("expanded profile scan budgets use one paid batch or remaining scans", () => {

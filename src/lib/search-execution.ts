@@ -174,6 +174,87 @@ export function getInitialSearchTargets(
   };
 }
 
+export function getSearchExecutionProfileScanBudget(
+  profile: SearchExecutionProfile,
+) {
+  return Math.max(
+    0,
+    profile.filterLimit + profile.hiddenGemLimit + profile.companyTargetLimit,
+  );
+}
+
+export function applyProfileScanBudgetToExecutionProfile(
+  profile: SearchExecutionProfile,
+  profileScanBudget: number,
+): SearchExecutionProfile {
+  const totalBudget = Number.isFinite(profileScanBudget)
+    ? Math.max(1, Math.round(profileScanBudget))
+    : getSearchExecutionProfileScanBudget(profile);
+  const lanes = [
+    { key: "filterLimit" as const, base: Math.max(0, profile.filterLimit) },
+    { key: "hiddenGemLimit" as const, base: Math.max(0, profile.hiddenGemLimit) },
+    { key: "companyTargetLimit" as const, base: Math.max(0, profile.companyTargetLimit) },
+  ].filter((lane) => lane.base > 0);
+  const baseBudget = lanes.reduce((sum, lane) => sum + lane.base, 0);
+  if (baseBudget <= 0 || lanes.length === 0) {
+    return {
+      ...profile,
+      filterLimit: totalBudget,
+      hiddenGemLimit: 0,
+      companyTargetLimit: 0,
+      deliveryReferenceCount: totalBudget,
+    };
+  }
+
+  const allocations = new Map<(typeof lanes)[number]["key"], number>();
+  if (totalBudget < lanes.length) {
+    const prioritized = [...lanes].sort((left, right) => right.base - left.base);
+    for (let index = 0; index < totalBudget; index += 1) {
+      const lane = prioritized[index];
+      if (lane) allocations.set(lane.key, 1);
+    }
+  } else {
+    const rawAllocations = lanes.map((lane) => {
+      const raw = totalBudget * lane.base / baseBudget;
+      return {
+        ...lane,
+        allocated: Math.max(1, Math.floor(raw)),
+        remainder: raw - Math.floor(raw),
+      };
+    });
+    let allocatedTotal = rawAllocations.reduce((sum, lane) => sum + lane.allocated, 0);
+    const byRemainderDesc = [...rawAllocations].sort((left, right) =>
+      right.remainder - left.remainder || right.base - left.base,
+    );
+    for (let index = 0; allocatedTotal < totalBudget; index = (index + 1) % byRemainderDesc.length) {
+      const lane = byRemainderDesc[index];
+      if (!lane) continue;
+      lane.allocated += 1;
+      allocatedTotal += 1;
+    }
+    const byRemainderAsc = [...rawAllocations].sort((left, right) =>
+      left.remainder - right.remainder || left.base - right.base,
+    );
+    for (let index = 0; allocatedTotal > totalBudget; index = (index + 1) % byRemainderAsc.length) {
+      const lane = byRemainderAsc[index];
+      if (!lane || lane.allocated <= 1) continue;
+      lane.allocated -= 1;
+      allocatedTotal -= 1;
+    }
+    for (const lane of rawAllocations) {
+      allocations.set(lane.key, lane.allocated);
+    }
+  }
+
+  return {
+    ...profile,
+    filterLimit: allocations.get("filterLimit") ?? 0,
+    hiddenGemLimit: allocations.get("hiddenGemLimit") ?? 0,
+    companyTargetLimit: allocations.get("companyTargetLimit") ?? 0,
+    deliveryReferenceCount: totalBudget,
+  };
+}
+
 export function resolveExpandedProfileScanBudget({
   currentBudget,
   remainingScans,

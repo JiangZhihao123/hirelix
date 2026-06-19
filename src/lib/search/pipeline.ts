@@ -86,6 +86,7 @@ import type {
   SourcingLane,
 } from "@/lib/search/types";
 import {
+  applyProfileScanBudgetToExecutionProfile,
   getInitialSearchExecutionProfile,
   getSearchExecutionProfile,
   normalizeSearchExecutionProfileName,
@@ -2463,6 +2464,17 @@ async function buildBrightDataDatasetCandidates(
       : null;
   const scoringRecallReadyAt = helpers.nowIso();
   const allRecallCompletedAt = deferredAdditionalRounds.length === 0 ? scoringRecallReadyAt : null;
+  const persistedAdditionalSnapshotList = additionalSnapshotRefs.map((round) =>
+    persistedAdditionalSnapshots.get(round.round) ??
+    helpers.buildAdditionalSnapshotMetadata({
+      round: round.round,
+      snapshotId: round.snapshotId,
+      recordsLimit: round.recordsLimit,
+      existing: null,
+      status: "ready",
+      submittedAt: round.submittedAt ?? null,
+    }),
+  );
   parsed.recall_metadata = {
     ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
       provider: "brightdata_dataset" as const,
@@ -2498,22 +2510,7 @@ async function buildBrightDataDatasetCandidates(
       standardReturned: standardProfileCount,
       additionalReturned: additionalReturnedCounts,
     }),
-    additional_snapshots: additionalSnapshotRefs.map((round) => ({
-      ...helpers.buildAdditionalSnapshotMetadata({
-        round: round.round,
-        snapshotId: round.snapshotId,
-        recordsLimit: round.recordsLimit,
-        existing: persistedAdditionalSnapshots.get(round.round) ?? null,
-        status: persistedAdditionalSnapshots.get(round.round)?.status ?? "ready",
-        submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
-        readyAt: persistedAdditionalSnapshots.get(round.round)?.ready_at ?? null,
-        failedAt: persistedAdditionalSnapshots.get(round.round)?.failed_at ?? null,
-        lastPolledAt: persistedAdditionalSnapshots.get(round.round)?.last_polled_at ?? null,
-        downloadStartedAt: persistedAdditionalSnapshots.get(round.round)?.download_started_at ?? null,
-        downloadCompletedAt: persistedAdditionalSnapshots.get(round.round)?.download_completed_at ?? null,
-        profilesReturned: persistedAdditionalSnapshots.get(round.round)?.profiles_returned ?? null,
-      }),
-    })),
+    additional_snapshots: persistedAdditionalSnapshotList,
     status: "ready",
     filter_summary: filterSummary,
   };
@@ -2705,12 +2702,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
   const initialExecutionProfileWithBudget =
     storedProfileScanBudget === null
       ? initialExecutionProfile
-      : {
-        ...initialExecutionProfile,
-        filterLimit: storedProfileScanBudget,
-        hiddenGemLimit: 0,
-        companyTargetLimit: 0,
-      };
+      : applyProfileScanBudgetToExecutionProfile(initialExecutionProfile, storedProfileScanBudget);
   const deliveryReferenceCount = Math.max(
     1,
     storedProfileScanBudget ??
