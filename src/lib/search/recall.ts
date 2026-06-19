@@ -41,6 +41,7 @@ type BudgetedRecallRound = RecallRound & {
 
 const MAX_BRIGHT_OR_FILTERS = 20;
 const MAX_LLM_SOURCING_LANES = 4;
+const MIN_LLM_SUPPLEMENTAL_RECORDS = 3;
 
 const GENERIC_SENIORITY_TITLE_TERMS = new Set([
   "staff",
@@ -491,6 +492,41 @@ function buildBalancedSkillFilter(recallSpec: RecallSpec): BrightDataFilterRule 
   return anchorFilter ?? depthFilter;
 }
 
+function buildHighIntentSkillFilter(
+  recallSpec: RecallSpec,
+  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
+): BrightDataFilterRule | null {
+  const primaryDepthTerms = compactTerms([
+    ...signalGroups.database_backend,
+    ...signalGroups.production_ownership,
+  ], 10);
+  const depthTerms = compactTerms([
+    ...(primaryDepthTerms.length > 0 ? primaryDepthTerms : signalGroups.platform_engineering),
+  ], 12);
+  if (depthTerms.length === 0) return null;
+
+  const depthTermSet = new Set(depthTerms.map((term) => normalizeText(term)));
+  const rawAnchorTerms = compactTerms([
+    ...signalGroups.search_domain,
+    ...signalGroups.api_backend,
+    ...sanitizeRecallSignalTerms([
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.must_have_signals,
+    ], 16),
+  ], 18);
+  const anchorTerms = compactTerms(
+    rawAnchorTerms.filter((term) => !depthTermSet.has(normalizeText(term))),
+    10,
+  );
+  if (anchorTerms.length === 0) return null;
+
+  const anchorFilter = buildProfileSignalFilter(anchorTerms, 8);
+  const depthFilter = buildProfileSignalFilter(depthTerms, 8);
+  if (!anchorFilter || !depthFilter) return null;
+
+  return { operator: "and", filters: [anchorFilter, depthFilter] };
+}
+
 function buildShallowCompanySkillFilter(
   recallSpec: RecallSpec,
   signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
@@ -524,6 +560,18 @@ function buildShallowCompanySkillFilter(
       ...recallSpec.core_skill_terms,
     ], 12),
   ], options.dataPlatformRole ? 10 : 8);
+}
+
+function buildCompanyTargetSkillFilter(
+  recallSpec: RecallSpec,
+  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
+  options: { dataPlatformRole?: boolean } = {},
+) {
+  if (options.dataPlatformRole) {
+    return buildShallowCompanySkillFilter(recallSpec, signalGroups, options);
+  }
+  return buildHighIntentSkillFilter(recallSpec, signalGroups) ??
+    buildShallowCompanySkillFilter(recallSpec, signalGroups, options);
 }
 
 function buildDataPlatformSkillLaneFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {
@@ -681,6 +729,52 @@ function withRecordsLimit(round: BudgetedRecallRound, recordsLimit: number): Bud
       requested_count: normalizedLimit,
     },
   };
+}
+
+function isLlmSupplementalRound(round: BudgetedRecallRound) {
+  return round.round.startsWith("llm_");
+}
+
+function pruneLowBudgetLlmSupplementalRounds(
+  rounds: BudgetedRecallRound[],
+  executionProfile: SearchExecutionProfile,
+) {
+  let pruned = [...rounds];
+
+  const prunePool = (pool: BudgetPool, budget: number) => {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const poolItems = pruned
+        .map((round, index) => ({ round, index }))
+        .filter((item) => item.round.budgetPool === pool);
+      const hasDeterministicRound = poolItems.some((item) => !isLlmSupplementalRound(item.round));
+      const llmItems = poolItems.filter((item) => isLlmSupplementalRound(item.round));
+      if (!hasDeterministicRound || llmItems.length === 0) return;
+
+      const limits = allocateWeightedLimits(
+        poolItems.map((item) => ({
+          index: item.index,
+          weight: item.round.budgetWeight ?? item.round.request.recordsLimit,
+        })),
+        budget,
+      );
+      const lowBudgetIndexes = new Set(
+        llmItems
+          .filter((item) => (limits.get(item.index) ?? 0) < MIN_LLM_SUPPLEMENTAL_RECORDS)
+          .map((item) => item.index),
+      );
+      if (lowBudgetIndexes.size === 0) return;
+
+      pruned = pruned.filter((_round, index) => !lowBudgetIndexes.has(index));
+      changed = true;
+    }
+  };
+
+  prunePool("hidden", executionProfile.hiddenGemLimit);
+  prunePool("company", executionProfile.companyTargetLimit);
+
+  return pruned;
 }
 
 function rebalanceSupplementalRoundLimits(
@@ -1224,14 +1318,15 @@ function buildDeterministicExpansionRounds(params: {
   }
 
   if (!params.isDataPlatformRole && lateralTitles.length > 0 && differentiatingTerms.length > 0) {
-    const hiddenSignalFilter = buildBalancedSkillFilter({
-      ...params.recallSpec,
-      core_skill_terms: params.signalGroups.platform_engineering,
-      baseline_skill_terms: params.signalGroups.platform_engineering,
-      differentiating_skill_terms: params.signalGroups.search_domain,
-      domain_terms: params.signalGroups.search_domain,
-      must_have_signals: params.signalGroups.search_domain,
-    });
+    const hiddenSignalFilter = buildHighIntentSkillFilter(params.recallSpec, params.signalGroups) ??
+      buildBalancedSkillFilter({
+        ...params.recallSpec,
+        core_skill_terms: params.signalGroups.platform_engineering,
+        baseline_skill_terms: params.signalGroups.platform_engineering,
+        differentiating_skill_terms: params.signalGroups.search_domain,
+        domain_terms: params.signalGroups.search_domain,
+        must_have_signals: params.signalGroups.search_domain,
+      });
     if (hiddenSignalFilter) {
       const hiddenGemFilters: BrightDataFilterRule[] = [
         {
@@ -1296,7 +1391,7 @@ function buildDeterministicExpansionRounds(params: {
       ], 10);
     const companyTitleFilter = buildTitleFilter(companyTitleTerms, params.isDataPlatformRole ? 18 : 12);
     if (companyTitleFilter) companyFilters.push(companyTitleFilter);
-    const companySkillFilter = buildShallowCompanySkillFilter(params.recallSpec, params.signalGroups, {
+    const companySkillFilter = buildCompanyTargetSkillFilter(params.recallSpec, params.signalGroups, {
       dataPlatformRole: params.isDataPlatformRole,
     });
     if (companySkillFilter) companyFilters.push(companySkillFilter);
@@ -1437,8 +1532,13 @@ export function buildBrightDataRecallFilters(
     }),
   ];
 
+  const prunedSupplementalRounds = pruneLowBudgetLlmSupplementalRounds(
+    supplementalRounds,
+    executionProfile,
+  );
+
   return [
     ...rounds,
-    ...rebalanceSupplementalRoundLimits(supplementalRounds, executionProfile),
+    ...rebalanceSupplementalRoundLimits(prunedSupplementalRounds, executionProfile),
   ];
 }

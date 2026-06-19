@@ -205,7 +205,16 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "position"));
   assert.ok(leafValues(rounds[2].request.filter).includes("elastic"));
   assert.ok(leafValues(rounds[2].request.filter).includes("search infrastructure"));
-  assert.ok(leafValues(rounds[2].request.filter).includes("kubernetes"));
+  assert.ok(leafValues(rounds[2].request.filter).includes("distributed systems"));
+  assert.ok(
+    flattenRules(rounds[2].request.filter).some((rule) =>
+      "filters" in rule &&
+      rule.operator === "and" &&
+      rule.filters.some((child) => leafValues(child).includes("search infrastructure")) &&
+      rule.filters.some((child) => leafValues(child).includes("distributed systems"))
+    ),
+    "company target recall should require both role/domain anchor and deeper systems evidence",
+  );
 });
 
 test("buildBrightDataRecallFilters skips optional sourcing rounds when limits are zero", () => {
@@ -366,7 +375,7 @@ test("buildBrightDataRecallFilters adds LLM lanes without replacing deterministi
             skill_terms: ["Kafka", "Spark", "Flink"],
             company_terms: [],
             avoid_terms: ["BI"],
-            budget_weight: 2,
+            budget_weight: 4,
           },
           {
             name: "broad infra people with streaming evidence",
@@ -375,7 +384,7 @@ test("buildBrightDataRecallFilters adds LLM lanes without replacing deterministi
             skill_terms: ["Kafka", "Flink", "streaming platform"],
             company_terms: [],
             avoid_terms: [],
-            budget_weight: 1,
+            budget_weight: 4,
           },
           {
             name: "target company data infra",
@@ -384,7 +393,7 @@ test("buildBrightDataRecallFilters adds LLM lanes without replacing deterministi
             skill_terms: ["data infrastructure"],
             company_terms: ["Confluent", "Databricks"],
             avoid_terms: [],
-            budget_weight: 1,
+            budget_weight: 4,
           },
         ],
         recall_strategy: "multi_round",
@@ -453,7 +462,7 @@ test("buildBrightDataRecallFilters adds LLM lanes without replacing deterministi
   assert.ok(!llmSkillRound.diagnostics.title_terms.includes("senior backend engineer"));
 });
 
-test("buildBrightDataRecallFilters keeps single LLM lane supplemental and preserves deterministic budget pools", () => {
+test("buildBrightDataRecallFilters prunes low-budget LLM micro-lanes and preserves deterministic budget pools", () => {
   const rounds = buildBrightDataRecallFilters(
     {
       title: "Staff Data Platform Engineer",
@@ -496,26 +505,219 @@ test("buildBrightDataRecallFilters keeps single LLM lane supplemental and preser
   assert.deepEqual(rounds.map((round) => round.round), [
     "standard",
     "company_target",
-    "llm_company_1",
   ]);
   assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 100);
   assert.equal(rounds.find((round) => round.round === "standard")?.request.recordsLimit, 50);
-  assert.equal(
-    rounds
-      .filter((round) => ["company_target", "llm_company_1"].includes(round.round))
-      .reduce((sum, round) => sum + round.request.recordsLimit, 0),
-    50,
+  assert.equal(rounds.find((round) => round.round === "company_target")?.request.recordsLimit, 50);
+  assert.ok(!rounds.some((round) => round.round.startsWith("llm_")));
+
+  const companyRound = rounds.find((round) => round.round === "company_target");
+  assert.ok(companyRound);
+  const values = leafValues(companyRound.request.filter);
+  assert.ok(values.includes("confluent"));
+});
+
+test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent and prunes one-record LLM lanes", () => {
+  const openlyRecallSpec: RecallSpec = {
+    countries: ["US"],
+    title_variants: [
+      "Senior Backend Engineer",
+      "Staff Backend Engineer",
+      "Principal Backend Engineer",
+      "Senior Software Engineer",
+      "Staff Software Engineer",
+      "Lead Backend Engineer",
+    ],
+    core_skill_terms: [
+      "Go",
+      "PostgreSQL",
+      "Kubernetes",
+      "Google Cloud",
+      "distributed systems",
+      "microservices",
+      "API",
+      "gRPC",
+      "Pub/Sub",
+      "Terraform",
+    ],
+    differentiating_skill_terms: ["Go", "Kubernetes", "Cloud Run", "Pub/Sub", "BigQuery"],
+    baseline_skill_terms: ["PostgreSQL", "REST", "SQL", "Git", "CI/CD"],
+    domain_terms: ["insurance", "fintech", "payments"],
+    location_terms: [],
+    strict_location_terms: [],
+    nearby_location_terms: [],
+    must_have_signals: [
+      "go",
+      "postgresql",
+      "kubernetes",
+      "production backend",
+      "distributed systems",
+      "cloud infrastructure",
+    ],
+    avoid_profiles: ["frontend", "mobile", "data analyst", "QA", "ML research", "Python only"],
+    geo_strategy: "Focus on US-based candidates; remote-friendly; no location restrictions beyond country.",
+    recall_confidence: "high",
+    role_breadth: "balanced",
+    lateral_title_variants: [
+      "Platform Engineer",
+      "Infrastructure Engineer",
+      "Site Reliability Engineer",
+      "Cloud Engineer",
+      "Distributed Systems Engineer",
+    ],
+    target_companies: [
+      "Lemonade",
+      "Hippo",
+      "Root Insurance",
+      "Metromile",
+      "Policygenius",
+      "Next Insurance",
+      "Kin Insurance",
+      "Clearcover",
+      "Trov",
+      "Zego",
+      "Stripe",
+      "Plaid",
+      "Adyen",
+      "Checkout.com",
+      "Confluent",
+    ],
+    sourcing_lanes: [
+      {
+        name: "Primary Title",
+        strategy: "title",
+        title_terms: [
+          "Senior Backend Engineer",
+          "Staff Backend Engineer",
+          "Principal Backend Engineer",
+          "Senior Software Engineer",
+          "Staff Software Engineer",
+          "Lead Backend Engineer",
+        ],
+        skill_terms: ["go", "postgresql", "kubernetes"],
+        company_terms: [],
+        avoid_terms: ["frontend", "mobile", "data analyst", "QA", "ML"],
+        budget_weight: 1,
+      },
+      {
+        name: "Lateral Pools",
+        strategy: "title",
+        title_terms: [
+          "Platform Engineer",
+          "Infrastructure Engineer",
+          "Site Reliability Engineer",
+          "Cloud Engineer",
+          "Distributed Systems Engineer",
+        ],
+        skill_terms: ["go", "postgresql", "kubernetes"],
+        company_terms: [],
+        avoid_terms: ["frontend", "mobile", "data analyst", "QA", "ML"],
+        budget_weight: 1,
+      },
+      {
+        name: "Target Companies",
+        strategy: "company",
+        title_terms: ["Backend Engineer", "Software Engineer", "Platform Engineer", "Infrastructure Engineer"],
+        skill_terms: ["go", "postgresql", "kubernetes"],
+        company_terms: [
+          "Lemonade",
+          "Hippo",
+          "Root Insurance",
+          "Metromile",
+          "Policygenius",
+          "Next Insurance",
+          "Kin Insurance",
+          "Clearcover",
+          "Trov",
+          "Zego",
+          "Stripe",
+          "Plaid",
+          "Adyen",
+          "Checkout.com",
+          "Confluent",
+        ],
+        avoid_terms: ["frontend", "mobile", "data analyst", "QA", "ML"],
+        budget_weight: 1,
+      },
+    ],
+    recall_strategy: "multi_round",
+    record_limit: 150,
+  };
+  const remoteBrief: HiringBrief = {
+    ...hiringBrief,
+    role_core: {
+      title: "Senior Backend Engineer",
+      seniority: "Senior",
+      function_focus: "Backend platform systems",
+      required_skills: ["Go", "PostgreSQL", "Kubernetes"],
+      nice_to_have_skills: ["GCP", "Terraform"],
+    },
+    work_model: "remote",
+    location_scope: "United States",
+    location_flexibility: "flexible",
+    relocation_allowed: "unknown",
+    must_have_constraints: ["US-based"],
+    soft_constraints: [],
+    company_stage_expectation: "growth",
+  };
+
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Senior Backend Engineer",
+      recall_spec: openlyRecallSpec,
+      hiring_brief: remoteBrief,
+    },
+    25,
+    {
+      ...executionProfile,
+      filterLimit: 150,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    },
+    {
+      normalizeRecallSpec: (value) => value as RecallSpec,
+      sanitizeHiringBrief: () => remoteBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => null,
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    },
   );
 
-  const llmCompanyRound = rounds.find((round) => round.round === "llm_company_1");
-  assert.ok(llmCompanyRound);
-  const values = leafValues(llmCompanyRound.request.filter);
-  assert.ok(values.includes("confluent"));
-  assert.ok(!values.includes("principal data platform engineer"));
-  assert.ok(!values.includes("kafka"));
-  assert.ok(!values.includes("staff"));
-  assert.ok(!values.includes("principal"));
-  assert.ok(!values.includes("lead"));
+  assert.deepEqual(rounds.map((round) => round.round), [
+    "standard",
+    "hidden_gem",
+    "company_target",
+  ]);
+  assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 250);
+  assert.ok(!rounds.some((round) => round.round.startsWith("llm_")));
+
+  const hiddenRound = rounds.find((round) => round.round === "hidden_gem");
+  assert.ok(hiddenRound);
+  assert.ok(leafValues(hiddenRound.request.filter).includes("cloud engineer"));
+  assert.ok(
+    flattenRules(hiddenRound.request.filter).some((rule) =>
+      "filters" in rule &&
+      rule.operator === "and" &&
+      rule.filters.some((child) => leafValues(child).includes("go")) &&
+      rule.filters.some((child) => leafValues(child).includes("postgresql"))
+    ),
+    "hidden gem recall should require both exact backend stack evidence and depth evidence",
+  );
+
+  const companyRound = rounds.find((round) => round.round === "company_target");
+  assert.ok(companyRound);
+  assert.ok(leafValues(companyRound.request.filter).includes("zego"));
+  assert.ok(
+    flattenRules(companyRound.request.filter).some((rule) =>
+      "filters" in rule &&
+      rule.operator === "and" &&
+      rule.filters.some((child) => leafValues(child).includes("go")) &&
+      rule.filters.some((child) => leafValues(child).includes("postgresql"))
+    ),
+    "company target recall should not accept target-company title matches without backend stack evidence",
+  );
 });
 
 test("buildBrightDataRecallFilters does not add location filter for moderate remote-friendly recall", () => {
