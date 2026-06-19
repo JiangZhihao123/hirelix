@@ -198,7 +198,8 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(hiddenValues.includes("ml infrastructure engineer"));
   assert.ok(hiddenValues.includes("production engineer"));
   assert.ok(!hiddenValues.includes("data engineer"));
-  assert.ok(hiddenValues.includes("ranking"));
+  assert.ok(hiddenValues.includes("search infrastructure"));
+  assert.ok(maxGroupDepth(chunkBrightDataFilter(rounds[1].request.filter)) <= 3);
 
   const companyRules = flattenRules(rounds[2].request.filter);
   assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "current_company_name"));
@@ -709,15 +710,11 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
   const companyRound = rounds.find((round) => round.round === "company_target");
   assert.ok(companyRound);
   assert.ok(leafValues(companyRound.request.filter).includes("zego"));
-  assert.ok(
-    flattenRules(companyRound.request.filter).some((rule) =>
-      "filters" in rule &&
-      rule.operator === "and" &&
-      rule.filters.some((child) => leafValues(child).includes("go")) &&
-      rule.filters.some((child) => leafValues(child).includes("postgresql"))
-    ),
-    "company target recall should not accept target-company title matches without backend stack evidence",
-  );
+  assert.ok(maxGroupDepth(chunkBrightDataFilter(companyRound.request.filter)) <= 3);
+  assert.ok(leafValues(companyRound.request.filter).includes("golang"));
+  assert.ok(leafValues(companyRound.request.filter).includes("postgresql"));
+  assert.ok(!leafValues(companyRound.request.filter).includes("go"));
+  assert.ok(!leafValues(companyRound.request.filter).includes("4 years backend experience"));
 });
 
 test("buildBrightDataRecallFilters does not add location filter for moderate remote-friendly recall", () => {

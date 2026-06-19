@@ -95,6 +95,7 @@ export type BillingSummary = {
   usage: UsageSummary;
   checkout: {
     paddleEnabled: boolean;
+    paddlePortalConfigured: boolean;
     proMonthlyPriceIdConfigured: boolean;
     proAnnualPriceIdConfigured: boolean;
     starterMonthlyPriceIdConfigured: boolean;

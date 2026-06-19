@@ -58,7 +58,15 @@ const NON_SEARCHABLE_RECALL_SIGNAL_PATTERNS = [
   /\bhybrid\b/i,
   /\brelocat/i,
   /\bopen to/i,
+  /\b\d+\s*(?:years?|yrs?)\b/i,
 ];
+
+const AMBIGUOUS_SHORT_COMPANY_TARGET_TERMS = new Set([
+  "ai",
+  "go",
+  "ml",
+  "qa",
+]);
 
 const SEARCH_DOMAIN_KEYWORDS = [
   "search",
@@ -464,6 +472,58 @@ function buildProfileSignalFilter(terms: string[], maxTerms = 8): BrightDataFilt
   };
 }
 
+function buildProfileSignalLeaf(term: string, name: "about" | "position"): BrightDataFilterRule {
+  return {
+    name,
+    operator: "includes",
+    value: term,
+  };
+}
+
+function buildHighIntentSignalPairFilter(
+  anchorTerms: string[],
+  depthTerms: string[],
+  maxPairs = 4,
+): BrightDataFilterRule | null {
+  const anchors = compactTerms(anchorTerms, 6);
+  const depths = compactTerms(depthTerms, 6);
+  if (anchors.length === 0 || depths.length === 0) return null;
+
+  const pairs: BrightDataFilterRule[] = [];
+  const seen = new Set<string>();
+  const addPair = (
+    anchor: string,
+    depth: string,
+    anchorField: "about" | "position",
+    depthField: "about" | "position",
+  ) => {
+    const key = `${anchorField}:${normalizeText(anchor)}|${depthField}:${normalizeText(depth)}`;
+    if (seen.has(key) || pairs.length >= maxPairs) return;
+    seen.add(key);
+    pairs.push({
+      operator: "and",
+      filters: [
+        buildProfileSignalLeaf(anchor, anchorField),
+        buildProfileSignalLeaf(depth, depthField),
+      ],
+    });
+  };
+
+  for (const anchor of anchors) {
+    for (const depth of depths) {
+      addPair(anchor, depth, "position", "position");
+      addPair(anchor, depth, "about", "position");
+      addPair(anchor, depth, "position", "about");
+      addPair(anchor, depth, "about", "about");
+      if (pairs.length >= maxPairs) break;
+    }
+    if (pairs.length >= maxPairs) break;
+  }
+
+  if (pairs.length === 0) return null;
+  return pairs.length === 1 ? pairs[0] : { operator: "or", filters: pairs };
+}
+
 function combineEvidenceFilters(filters: Array<BrightDataFilterRule | null>) {
   const presentFilters = filters.filter(
     (filter): filter is BrightDataFilterRule => Boolean(filter),
@@ -520,11 +580,7 @@ function buildHighIntentSkillFilter(
   );
   if (anchorTerms.length === 0) return null;
 
-  const anchorFilter = buildProfileSignalFilter(anchorTerms, 8);
-  const depthFilter = buildProfileSignalFilter(depthTerms, 8);
-  if (!anchorFilter || !depthFilter) return null;
-
-  return { operator: "and", filters: [anchorFilter, depthFilter] };
+  return buildHighIntentSignalPairFilter(anchorTerms, depthTerms);
 }
 
 function buildShallowCompanySkillFilter(
@@ -570,8 +626,27 @@ function buildCompanyTargetSkillFilter(
   if (options.dataPlatformRole) {
     return buildShallowCompanySkillFilter(recallSpec, signalGroups, options);
   }
-  return buildHighIntentSkillFilter(recallSpec, signalGroups) ??
-    buildShallowCompanySkillFilter(recallSpec, signalGroups, options);
+
+  const normalizedTerms = compactTerms([
+    ...signalGroups.database_backend,
+    ...signalGroups.production_ownership,
+    ...signalGroups.api_backend,
+    ...signalGroups.platform_engineering,
+    ...signalGroups.search_domain,
+    ...sanitizeRecallSignalTerms([
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.must_have_signals,
+      ...recallSpec.baseline_skill_terms,
+      ...recallSpec.core_skill_terms,
+    ], 24),
+  ], 24).flatMap((term) => {
+    const normalized = normalizeText(term);
+    if (normalized === "go") return ["golang"];
+    if (AMBIGUOUS_SHORT_COMPANY_TARGET_TERMS.has(normalized)) return [];
+    return [normalized];
+  });
+
+  return buildProfileSignalFilter(normalizedTerms, 8);
 }
 
 function buildDataPlatformSkillLaneFilter(recallSpec: RecallSpec): BrightDataFilterRule | null {

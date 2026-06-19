@@ -195,6 +195,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     },
     checkout: {
       paddleEnabled: checkout.enabled,
+      paddlePortalConfigured: isPaddlePortalConfigured(),
       proMonthlyPriceIdConfigured: Boolean(checkout.proMonthlyPriceId),
       proAnnualPriceIdConfigured: Boolean(checkout.proAnnualPriceId),
       starterMonthlyPriceIdConfigured: Boolean(checkout.starterMonthlyPriceId),
@@ -217,6 +218,10 @@ function getPaddleApiBaseUrl() {
     : "https://sandbox-api.paddle.com";
 }
 
+export function isPaddlePortalConfigured() {
+  return Boolean((process.env.PADDLE_API_KEY || "").trim());
+}
+
 function getPaddleErrorMessage(payload: PaddlePortalSessionResponse, status: number) {
   const detail = payload.error?.detail ?? payload.error?.message;
   if (typeof detail === "string" && detail.trim()) return "Unable to open the billing portal.";
@@ -225,7 +230,7 @@ function getPaddleErrorMessage(payload: PaddlePortalSessionResponse, status: num
 
 export async function createBillingPortalSessionForUser(userId: string) {
   const apiKey = (process.env.PADDLE_API_KEY || "").trim();
-  if (!apiKey) {
+  if (!isPaddlePortalConfigured()) {
     return {
       ok: false as const,
       status: 503,

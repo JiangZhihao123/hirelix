@@ -110,9 +110,22 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               </div>
               {isPaidPlan ? (
                 <div className="border-t border-slate-200/80 pt-4">
-                  <BillingPortalButton
-                    onError={(message) => setBillingMessage({ type: "error", text: message })}
-                  />
+                  {billing.checkout.paddlePortalConfigured ? (
+                    <BillingPortalButton
+                      onError={(message) => setBillingMessage({ type: "error", text: message })}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      Billing portal is not configured yet. Email{" "}
+                      <a
+                        className="font-medium underline decoration-amber-400 underline-offset-2"
+                        href="mailto:support@hirelix.online"
+                      >
+                        support@hirelix.online
+                      </a>{" "}
+                      for plan changes or invoices.
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

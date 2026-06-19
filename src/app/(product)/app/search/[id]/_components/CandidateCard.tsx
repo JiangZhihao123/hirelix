@@ -551,16 +551,16 @@ export function CandidateCard({
               </div>
 
                 <div>
-	                  <div className="mb-2 flex items-center gap-2">
-	                    <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
-	                      Pool note
-	                    </p>
-	                    {candidate.metadata?.preliminary && (
-	                      <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
-	                        Preliminary
-	                      </span>
-	                    )}
-	                </div>
+                    <div className="mb-2 flex items-center gap-2">
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
+                        Pool note
+                      </p>
+                      {candidate.metadata?.preliminary && (
+                        <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+                          Preliminary
+                        </span>
+                      )}
+                  </div>
                 {shortlistReason && (
                   <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                     {shortlistReason}

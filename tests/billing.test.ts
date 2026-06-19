@@ -71,6 +71,7 @@ function makeBillingSummary(
     },
     checkout: {
       paddleEnabled: false,
+      paddlePortalConfigured: false,
       proMonthlyPriceIdConfigured: false,
       proAnnualPriceIdConfigured: false,
       starterMonthlyPriceIdConfigured: false,

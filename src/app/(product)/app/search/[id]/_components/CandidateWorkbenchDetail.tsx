@@ -353,16 +353,16 @@ export function CandidateWorkbenchDetail({
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
             <InitialsAvatar name={localDisplayName} />
-	            <div>
-	              <div className="flex flex-wrap items-center gap-2">
-	                <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-	                  {localDisplayName}
-	                </h2>
-	                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deliveryBucketTone}`}>
-	                  {deliveryBucketLabel}
-	                </span>
-	                <ActionabilityBadge candidate={localCandidate} />
-	                <ScoreBadge score={overallScore} />
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                    {localDisplayName}
+                  </h2>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deliveryBucketTone}`}>
+                    {deliveryBucketLabel}
+                  </span>
+                  <ActionabilityBadge candidate={localCandidate} />
+                  <ScoreBadge score={overallScore} />
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 {currentRole}
@@ -430,13 +430,13 @@ export function CandidateWorkbenchDetail({
             <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
               <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-	                  <div>
-	                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                       {isRecommendedCandidate ? "Candidate Selling Kit" : "Pool Review"}
-	                    </p>
-	                    <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-	                      {deliveryBucketLabel}
-	                    </p>
+                      </p>
+                      <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                        {deliveryBucketLabel}
+                      </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {sellingKit?.outreach_opener && (
@@ -777,12 +777,12 @@ export function CandidateWorkbenchDetail({
             <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-	                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-	                    Candidate Selling Kit
-	                  </p>
-	                  <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-	                    {deliveryBucketLabel}
-	                  </p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                      Candidate Selling Kit
+                    </p>
+                    <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                      {deliveryBucketLabel}
+                    </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {canRegenerateWithPublicEvidence && (
@@ -952,9 +952,9 @@ export function CandidateWorkbenchDetail({
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Scorecard
                   </p>
-	                  <p className="mt-1 text-sm text-slate-600">
-	                    Overall ranks the candidate pool; the three dimensions explain why.
-	                  </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Overall ranks the candidate pool; the three dimensions explain why.
+                    </p>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
                   {publicEvidenceSourceLabel}
