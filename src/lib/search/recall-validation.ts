@@ -24,6 +24,7 @@ export type RecallLaneValidationSample = {
   location: string | null;
   profile_url: string | null;
   quality_label: "potential_advance" | "review" | "likely_irrelevant";
+  quality_reasons: string[];
 };
 
 export type RecallLaneValidationRoundReport = {
@@ -130,6 +131,34 @@ function profileText(profile: BrightDataProfile) {
     .toLowerCase();
 }
 
+function normalizeToken(value: string | null | undefined) {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/https?:\/\/(www\.)?linkedin\.com\/in\//g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getProfileSlug(profile: BrightDataProfile) {
+  const url = profile.url || profile.input?.url || "";
+  const match = url.match(/linkedin\.com\/in\/([^/?#]+)/i);
+  return match ? decodeURIComponent(match[1]).toLowerCase() : "";
+}
+
+function hasIdentityMismatch(profile: BrightDataProfile) {
+  const slug = normalizeToken(getProfileSlug(profile));
+  if (!slug) return false;
+  const nameTokens = normalizeToken(profile.name)
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+  if (nameTokens.length === 0) return false;
+  return !nameTokens.some((token) => {
+    if (slug.includes(token)) return true;
+    const prefixLength = Math.min(4, token.length);
+    return prefixLength >= 4 && slug.includes(token.slice(0, prefixLength));
+  });
+}
+
 function getLocation(profile: BrightDataProfile) {
   const city = profile.city?.trim();
   const country = profile.country_code?.trim();
@@ -145,6 +174,17 @@ const IRRELEVANT_PROFILE_PATTERNS = [
   /\bproduct manager\b/i,
   /\bproject manager\b/i,
   /\bprogram manager\b/i,
+  /\bcareer coach\b/i,
+  /\bleadership coach\b/i,
+  /\bfounder\b/i,
+  /\bchief executive\b/i,
+  /\bceo\b/i,
+  /\bconsultant\b/i,
+  /\bgraduate student\b/i,
+  /\bmaster'?s student\b/i,
+  /\bseeking\b/i,
+  /\bopen to work\b/i,
+  /\blooking for\b/i,
 ];
 
 const ENGINEERING_PROFILE_PATTERNS = [
@@ -163,6 +203,35 @@ const ENGINEERING_PROFILE_PATTERNS = [
   /\bprincipal engineer\b/i,
   /\bsenior engineer\b/i,
   /\bengineering\b/i,
+];
+
+const CURRENT_ENGINEERING_TITLE_PATTERNS = [
+  /\bsoftware engineer\b/i,
+  /\bbackend engineer\b/i,
+  /\bback end engineer\b/i,
+  /\bplatform engineer\b/i,
+  /\binfrastructure engineer\b/i,
+  /\bcloud engineer\b/i,
+  /\bdevops engineer\b/i,
+  /\bsite reliability engineer\b/i,
+  /\bsre\b/i,
+  /\bdata engineer\b/i,
+  /\bdata platform engineer\b/i,
+  /\bmachine learning engineer\b/i,
+  /\bml engineer\b/i,
+  /\bsystems engineer\b/i,
+  /\bsystems programming analyst\b/i,
+];
+
+const MANAGER_ONLY_TITLE_PATTERNS = [
+  /\bengineering manager\b/i,
+  /\bmanager\b/i,
+  /\bdirector\b/i,
+  /\bhead of\b/i,
+  /\bvp\b/i,
+  /\bvice president\b/i,
+  /\bcto\b/i,
+  /\bchief technology\b/i,
 ];
 
 const TECHNICAL_SIGNAL_PATTERNS = [
@@ -186,32 +255,69 @@ const TECHNICAL_SIGNAL_PATTERNS = [
 export function classifyRecallValidationProfile(
   profile: BrightDataProfile,
 ): RecallLaneValidationSample["quality_label"] {
-  const text = profileText(profile);
-  if (IRRELEVANT_PROFILE_PATTERNS.some((pattern) => pattern.test(text))) {
-    return "likely_irrelevant";
-  }
+  return assessRecallValidationProfile(profile).label;
+}
 
+export function assessRecallValidationProfile(
+  profile: BrightDataProfile,
+): {
+  label: RecallLaneValidationSample["quality_label"];
+  reasons: string[];
+} {
+  const text = profileText(profile);
+  const currentTitle = profile.current_company?.title ?? profile.headline ?? "";
+  const reasons: string[] = [];
+  const identityMismatch = hasIdentityMismatch(profile);
+  const irrelevantProfile = IRRELEVANT_PROFILE_PATTERNS.some((pattern) => pattern.test(text));
+  const managerOnly =
+    MANAGER_ONLY_TITLE_PATTERNS.some((pattern) => pattern.test(currentTitle)) &&
+    !CURRENT_ENGINEERING_TITLE_PATTERNS.some((pattern) => pattern.test(currentTitle));
+  const hasCurrentEngineeringTitle = CURRENT_ENGINEERING_TITLE_PATTERNS.some((pattern) =>
+    pattern.test(currentTitle),
+  );
   const hasEngineeringSignal = ENGINEERING_PROFILE_PATTERNS.some((pattern) => pattern.test(text));
   const technicalSignalCount = TECHNICAL_SIGNAL_PATTERNS.filter((pattern) => pattern.test(text)).length;
-  if (hasEngineeringSignal && technicalSignalCount >= 2) {
-    return "potential_advance";
+  const hasCompany = Boolean(profile.current_company?.name);
+
+  if (identityMismatch) reasons.push("profile_url_name_mismatch");
+  if (irrelevantProfile) reasons.push("irrelevant_or_inactive_profile_signal");
+  if (managerOnly) reasons.push("manager_only_current_title");
+  if (!hasCurrentEngineeringTitle) reasons.push("current_title_not_engineering");
+  if (!hasCompany) reasons.push("missing_current_company");
+  if (technicalSignalCount >= 2) reasons.push("technical_depth_signal");
+  if (technicalSignalCount < 2) reasons.push("insufficient_technical_depth");
+  if (hasCurrentEngineeringTitle) reasons.push("current_engineering_title");
+
+  if (identityMismatch || irrelevantProfile || managerOnly) {
+    return { label: "likely_irrelevant", reasons };
   }
-  if (hasEngineeringSignal || technicalSignalCount >= 2) {
-    return "review";
+
+  if (hasCurrentEngineeringTitle && hasCompany && technicalSignalCount >= 2) {
+    return { label: "potential_advance", reasons };
   }
-  return "likely_irrelevant";
+  if (hasCurrentEngineeringTitle && hasCompany) {
+    return { label: "review", reasons };
+  }
+  if ((hasCurrentEngineeringTitle || hasEngineeringSignal) && technicalSignalCount >= 1) {
+    return { label: "review", reasons };
+  }
+  return { label: "likely_irrelevant", reasons };
 }
 
 function buildSampleProfiles(profiles: BrightDataProfile[]): RecallLaneValidationSample[] {
-  return profiles.slice(0, 5).map((profile) => ({
-    name: profile.name,
-    headline: profile.headline,
-    company: profile.current_company?.name ?? null,
-    title: profile.current_company?.title ?? null,
-    location: getLocation(profile),
-    profile_url: profile.url,
-    quality_label: classifyRecallValidationProfile(profile),
-  }));
+  return profiles.slice(0, 5).map((profile) => {
+    const assessment = assessRecallValidationProfile(profile);
+    return {
+      name: profile.name,
+      headline: profile.headline,
+      company: profile.current_company?.name ?? null,
+      title: profile.current_company?.title ?? null,
+      location: getLocation(profile),
+      profile_url: profile.url,
+      quality_label: assessment.label,
+      quality_reasons: assessment.reasons,
+    };
+  });
 }
 
 function buildRoundReport(params: {
@@ -234,7 +340,7 @@ function buildRoundReport(params: {
       ? Math.max(0, Math.round(params.requestedOverride))
       : params.round.request.recordsLimit;
   const potentialAdvance = params.profiles.filter(
-    (profile) => classifyRecallValidationProfile(profile) === "potential_advance",
+    (profile) => assessRecallValidationProfile(profile).label === "potential_advance",
   ).length;
   const returnedRate = roundRate(returned, requested);
   const uniqueRate = roundRate(unique, returned);

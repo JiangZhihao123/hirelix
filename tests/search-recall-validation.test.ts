@@ -4,9 +4,11 @@ import test from "node:test";
 import type { BrightDataDatasetFilterRequest } from "@/lib/brightdata";
 import type { RecallRound } from "@/lib/search/recall";
 import {
+  assessRecallValidationProfile,
   validateRecallLanes,
   type RecallLaneValidationDependencies,
 } from "@/lib/search/recall-validation";
+import { adaptDatasetRecordToBrightDataProfile } from "@/lib/brightdata";
 
 function request(recordsLimit: number): BrightDataDatasetFilterRequest {
   return {
@@ -84,15 +86,31 @@ test("validateRecallLanes reports cache hits, cross-lane duplicates, and quality
     [
       "standard",
       [
-        profileRow({ linkedin_id: "candidate-1", name: "Candidate One" }),
-        profileRow({ linkedin_id: "candidate-2", name: "Candidate Two" }),
+        profileRow({
+          linkedin_id: "candidate-1",
+          name: "Candidate One",
+          url: "https://www.linkedin.com/in/candidate-one",
+        }),
+        profileRow({
+          linkedin_id: "candidate-2",
+          name: "Candidate Two",
+          url: "https://www.linkedin.com/in/candidate-two",
+        }),
       ],
     ],
     [
       "hidden_gem",
       [
-        profileRow({ linkedin_id: "candidate-2", name: "Candidate Two" }),
-        profileRow({ linkedin_id: "candidate-3", name: "Candidate Three" }),
+        profileRow({
+          linkedin_id: "candidate-2",
+          name: "Candidate Two",
+          url: "https://www.linkedin.com/in/candidate-two",
+        }),
+        profileRow({
+          linkedin_id: "candidate-3",
+          name: "Candidate Three",
+          url: "https://www.linkedin.com/in/candidate-three",
+        }),
       ],
     ],
   ]);
@@ -131,8 +149,16 @@ test("validateRecallLanes keeps historical snapshot request counts separate from
   const deps: RecallLaneValidationDependencies = {
     lookupCachedSnapshot: async () => null,
     loadCachedSnapshotProfiles: async () => [
-      profileRow({ linkedin_id: "candidate-1", name: "Candidate One" }),
-      profileRow({ linkedin_id: "candidate-2", name: "Candidate Two" }),
+      profileRow({
+        linkedin_id: "candidate-1",
+        name: "Candidate One",
+        url: "https://www.linkedin.com/in/candidate-one",
+      }),
+      profileRow({
+        linkedin_id: "candidate-2",
+        name: "Candidate Two",
+        url: "https://www.linkedin.com/in/candidate-two",
+      }),
     ],
   };
 
@@ -204,4 +230,89 @@ test("validateRecallLanes flags weak samples as bad filter signals", async () =>
   assert.equal(report.rounds[0]?.bad_filter_signal, "sample_quality_weak");
   assert.equal(report.rounds[0]?.lane_usefulness, "weak");
   assert.equal(report.rounds[0]?.potential_advance_rate, 0);
+});
+
+test("assessRecallValidationProfile rejects profile URL/name mismatches", () => {
+  const assessment = assessRecallValidationProfile(
+    adaptDatasetRecordToBrightDataProfile(profileRow({
+      name: "Aurora Dai",
+      linkedin_id: "aurora-dai",
+      url: "https://www.linkedin.com/in/arlinda-de-jesus-5b1905107",
+      headline: "Senior Software Engineer",
+      current_company_name: "Google",
+      current_company_title: "Senior Software Engineer",
+      skills: ["Kubernetes", "Distributed Systems"],
+    })),
+  );
+
+  assert.equal(assessment.label, "likely_irrelevant");
+  assert.ok(assessment.reasons.includes("profile_url_name_mismatch"));
+});
+
+test("assessRecallValidationProfile accepts abbreviated LinkedIn profile slugs", () => {
+  const assessment = assessRecallValidationProfile(
+    adaptDatasetRecordToBrightDataProfile(profileRow({
+      name: "Emilio Gonzalez",
+      linkedin_id: "emilio-gonzalez",
+      url: "https://linkedin.com/in/emilgonzdev",
+      headline: "Senior Software Engineer",
+      current_company_name: "Lemonade",
+      current_company_title: "Senior Software Engineer",
+      skills: ["Kubernetes", "Distributed Systems"],
+    })),
+  );
+
+  assert.notEqual(assessment.label, "likely_irrelevant");
+  assert.ok(!assessment.reasons.includes("profile_url_name_mismatch"));
+});
+
+test("assessRecallValidationProfile requires current engineering role for potential advance", () => {
+  const assessment = assessRecallValidationProfile(
+    adaptDatasetRecordToBrightDataProfile(profileRow({
+      name: "Irina Stanescu",
+      linkedin_id: "irina-stanescu",
+      url: "https://www.linkedin.com/in/irinastanescu",
+      headline: "Staff Software Engineer • Tech Lead Manager • Career Coach",
+      current_company_name: "The Caring Techie",
+      current_company_title: "Founder & CEO - Engineering Leadership Coach",
+      skills: ["Distributed Systems", "Kubernetes", "Leadership"],
+    })),
+  );
+
+  assert.equal(assessment.label, "likely_irrelevant");
+  assert.ok(assessment.reasons.includes("irrelevant_or_inactive_profile_signal"));
+});
+
+test("validateRecallLanes includes quality reasons in sample profiles", async () => {
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => ({
+      snapshotId: "snapshot-cache",
+      datasetSize: 1,
+      cost: null,
+      expiresAt: "2026-07-01T00:00:00.000Z",
+    }),
+    loadCachedSnapshotProfiles: async () => [
+      profileRow({
+        name: "Jane Engineer",
+        linkedin_id: "jane-engineer",
+        headline: "Senior Backend Engineer building distributed systems on Kubernetes",
+        current_company_name: "Example",
+        current_company_title: "Senior Backend Engineer",
+        skills: ["Kubernetes", "Distributed Systems"],
+      }),
+    ],
+  };
+
+  const report = await validateRecallLanes(
+    [round("standard", 5)],
+    deps,
+    {
+      allowBright: false,
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(report.rounds[0]?.sample_profiles[0]?.quality_label, "potential_advance");
+  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("current_engineering_title"));
+  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("technical_depth_signal"));
 });
