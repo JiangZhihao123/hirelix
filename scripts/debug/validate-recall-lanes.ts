@@ -162,6 +162,7 @@ async function loadParsedFromFile(filePath: string, options: CliOptions) {
   if (!options.parseJd) {
     return {
       searchId: null,
+      jobId: null,
       parsed: recordFromJson(JSON.parse(raw)),
       candidateCount: 250,
       knownSnapshots: [] as KnownRecallSnapshot[],
@@ -173,6 +174,7 @@ async function loadParsedFromFile(filePath: string, options: CliOptions) {
   const candidateCount = profile.deliveryReferenceCount;
   return {
     searchId: null,
+    jobId: null,
     parsed: buildParsedRequirementsForLaunch(draft, raw, {
       candidateCount,
       displayCount: candidateCount,
@@ -202,6 +204,7 @@ async function loadParsedFromSearch(searchId: string) {
 
   const jobRows = await db
     .select({
+      id: hirelix_search_jobs.id,
       candidate_count: hirelix_search_jobs.candidate_count,
     })
     .from(hirelix_search_jobs)
@@ -265,6 +268,7 @@ async function loadParsedFromSearch(searchId: string) {
 
   return {
     searchId,
+    jobId: jobRows[0]?.id ?? null,
     parsed,
     candidateCount,
     knownSnapshots,
@@ -335,12 +339,12 @@ async function main() {
           return downloadDatasetSnapshot(process.env.BRIGHTDATA_API_TOKEN!, snapshotId);
         }
         : undefined,
-      persistSnapshotProfiles: inputData.searchId
+      persistSnapshotProfiles: inputData.searchId && inputData.jobId
         ? (rows, params) =>
           persistSnapshotProfiles(rows, {
             snapshotId: params.snapshotId,
             searchId: inputData.searchId!,
-            jobId: inputData.searchId!,
+            jobId: inputData.jobId!,
             sourceRound: params.sourceRound,
           }).then(() => undefined)
         : undefined,

@@ -717,6 +717,14 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
     ),
     "hidden gem recall should require both exact backend stack evidence and depth evidence",
   );
+  assert.ok(
+    flattenRules(hiddenRound.request.filter).some((rule) =>
+      "filters" in rule &&
+      rule.operator === "and" &&
+      rule.filters.every((child) => "name" in child && child.name === "position")
+    ),
+    "hidden gem recall should require current-position evidence instead of broad about-only skill matches",
+  );
 
   const companyRound = rounds.find((round) => round.round === "company_target");
   assert.ok(companyRound);

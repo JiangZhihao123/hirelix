@@ -12,6 +12,7 @@ export type RecallLaneValidationMode = "cache_replay" | "micro_recall";
 export type RecallLaneValidationStatus =
   | "cache_hit"
   | "historical_snapshot"
+  | "downloaded_cache_snapshot"
   | "submitted_micro"
   | "not_run_cache_miss"
   | "download_failed";
@@ -188,7 +189,7 @@ const IRRELEVANT_PROFILE_PATTERNS = [
   /\blooking for\b/i,
 ];
 
-const ENGINEERING_PROFILE_PATTERNS = [
+const WEAK_ENGINEERING_PROFILE_PATTERNS = [
   /\bsoftware engineer\b/i,
   /\bbackend engineer\b/i,
   /\bback end engineer\b/i,
@@ -204,6 +205,22 @@ const ENGINEERING_PROFILE_PATTERNS = [
   /\bprincipal engineer\b/i,
   /\bsenior engineer\b/i,
   /\bengineering\b/i,
+];
+
+const NON_BACKEND_CURRENT_TITLE_PATTERNS = [
+  /\bfront[-\s]?end\b/i,
+  /\bfrontend\b/i,
+  /\breact\b/i,
+  /\breact native\b/i,
+  /\bmobile\b/i,
+  /\bios\b/i,
+  /\bandroid\b/i,
+  /\bdatabase administrator\b/i,
+  /\bdba\b/i,
+  /\bbusiness intelligence\b/i,
+  /\bdata analyst\b/i,
+  /\banalytics engineer\b/i,
+  /\bdashboard\b/i,
 ];
 
 const CURRENT_ENGINEERING_TITLE_PATTERNS = [
@@ -238,7 +255,10 @@ const MANAGER_ONLY_TITLE_PATTERNS = [
 const TECHNICAL_SIGNAL_PATTERNS = [
   /\bdistributed systems?\b/i,
   /\bkubernetes\b/i,
+  /\bgolang\b/i,
+  /\bgo\b/i,
   /\bbackend\b/i,
+  /\bback end\b/i,
   /\bplatform\b/i,
   /\binfrastructure\b/i,
   /\bpostgres(ql)?\b/i,
@@ -251,6 +271,20 @@ const TECHNICAL_SIGNAL_PATTERNS = [
   /\bmicroservices?\b/i,
   /\bproduction\b/i,
   /\bscal(e|able|ability)\b/i,
+];
+
+const BACKEND_DEPTH_SIGNAL_PATTERNS = [
+  /\bdistributed systems?\b/i,
+  /\bgolang\b/i,
+  /\bgo\b/i,
+  /\bbackend\b/i,
+  /\bback end\b/i,
+  /\bpostgres(ql)?\b/i,
+  /\bkafka\b/i,
+  /\bapi\b/i,
+  /\bapis\b/i,
+  /\bgrpc\b/i,
+  /\bmicroservices?\b/i,
 ];
 
 export function classifyRecallValidationProfile(
@@ -273,31 +307,40 @@ export function assessRecallValidationProfile(
   const managerOnly =
     MANAGER_ONLY_TITLE_PATTERNS.some((pattern) => pattern.test(currentTitle)) &&
     !CURRENT_ENGINEERING_TITLE_PATTERNS.some((pattern) => pattern.test(currentTitle));
+  const nonBackendCurrentTitle = NON_BACKEND_CURRENT_TITLE_PATTERNS.some((pattern) =>
+    pattern.test(currentTitle),
+  );
   const hasCurrentEngineeringTitle = CURRENT_ENGINEERING_TITLE_PATTERNS.some((pattern) =>
     pattern.test(currentTitle),
   );
-  const hasEngineeringSignal = ENGINEERING_PROFILE_PATTERNS.some((pattern) => pattern.test(text));
+  const hasEngineeringSignal = WEAK_ENGINEERING_PROFILE_PATTERNS.some((pattern) => pattern.test(text));
   const technicalSignalCount = TECHNICAL_SIGNAL_PATTERNS.filter((pattern) => pattern.test(text)).length;
+  const backendDepthSignalCount = BACKEND_DEPTH_SIGNAL_PATTERNS.filter((pattern) => pattern.test(text)).length;
   const hasCompany = Boolean(profile.current_company?.name);
 
   if (identityMismatch) reasons.push("profile_url_name_mismatch");
   if (irrelevantProfile) reasons.push("irrelevant_or_inactive_profile_signal");
   if (managerOnly) reasons.push("manager_only_current_title");
+  if (nonBackendCurrentTitle) reasons.push("non_backend_current_title");
   if (!hasCurrentEngineeringTitle) reasons.push("current_title_not_engineering");
   if (!hasCompany) reasons.push("missing_current_company");
   if (technicalSignalCount >= 2) reasons.push("technical_depth_signal");
   if (technicalSignalCount < 2) reasons.push("insufficient_technical_depth");
+  if (backendDepthSignalCount < 2) reasons.push("insufficient_backend_depth");
   if (hasCurrentEngineeringTitle) reasons.push("current_engineering_title");
 
-  if (identityMismatch || irrelevantProfile || managerOnly) {
+  if (identityMismatch || irrelevantProfile || managerOnly || nonBackendCurrentTitle) {
     return { label: "likely_irrelevant", reasons };
   }
 
-  if (hasCurrentEngineeringTitle && hasCompany && technicalSignalCount >= 2) {
+  if (hasCurrentEngineeringTitle && hasCompany && backendDepthSignalCount >= 2) {
     return { label: "potential_advance", reasons };
   }
   if (hasCurrentEngineeringTitle && hasCompany) {
     return { label: "review", reasons };
+  }
+  if (!hasCompany) {
+    return { label: "likely_irrelevant", reasons };
   }
   if ((hasCurrentEngineeringTitle || hasEngineeringSignal) && technicalSignalCount >= 1) {
     return { label: "review", reasons };
@@ -350,6 +393,7 @@ function buildRoundReport(params: {
   const statusHasData =
     params.status === "cache_hit" ||
     params.status === "historical_snapshot" ||
+    params.status === "downloaded_cache_snapshot" ||
     params.status === "submitted_micro";
   const badFilterSignal =
     statusHasData && returned === 0
@@ -407,7 +451,10 @@ async function resolveRowsForRound(params: {
     !params.knownSnapshot?.filterHash ||
     params.knownSnapshot.filterHash === params.filterHash;
   if (params.knownSnapshot?.snapshotId && historicalFilterMatches) {
-    const rows = await params.deps.loadCachedSnapshotProfiles(params.knownSnapshot.snapshotId, params.round.round);
+    const rows = await params.deps.loadCachedSnapshotProfiles(
+      params.knownSnapshot.snapshotId,
+      params.round.round,
+    );
     if (rows?.length) {
       return {
         status: "historical_snapshot",
@@ -415,6 +462,28 @@ async function resolveRowsForRound(params: {
         requestedOverride: params.knownSnapshot.recordsLimit,
         rows,
       };
+    }
+    if (params.allowBright && params.deps.downloadDatasetSnapshot) {
+      try {
+        const downloadedRows = await params.deps.downloadDatasetSnapshot(params.knownSnapshot.snapshotId);
+        await params.deps.persistSnapshotProfiles?.(downloadedRows, {
+          snapshotId: params.knownSnapshot.snapshotId,
+          sourceRound: params.round.round,
+        });
+        return {
+          status: "downloaded_cache_snapshot",
+          snapshotId: params.knownSnapshot.snapshotId,
+          requestedOverride: params.knownSnapshot.recordsLimit,
+          rows: downloadedRows,
+        };
+      } catch {
+        return {
+          status: "download_failed",
+          snapshotId: params.knownSnapshot.snapshotId,
+          requestedOverride: params.knownSnapshot.recordsLimit,
+          rows: [],
+        };
+      }
     }
   }
 
@@ -427,6 +496,26 @@ async function resolveRowsForRound(params: {
         snapshotId: cached.snapshotId,
         rows,
       };
+    }
+    if (params.allowBright && params.deps.downloadDatasetSnapshot) {
+      try {
+        const downloadedRows = await params.deps.downloadDatasetSnapshot(cached.snapshotId);
+        await params.deps.persistSnapshotProfiles?.(downloadedRows, {
+          snapshotId: cached.snapshotId,
+          sourceRound: params.round.round,
+        });
+        return {
+          status: "downloaded_cache_snapshot",
+          snapshotId: cached.snapshotId,
+          rows: downloadedRows,
+        };
+      } catch {
+        return {
+          status: "download_failed",
+          snapshotId: cached.snapshotId,
+          rows: [],
+        };
+      }
     }
   }
 
@@ -473,6 +562,7 @@ function chooseRecommendation(rounds: RecallLaneValidationRoundReport[]) {
   const dataRounds = rounds.filter((round) =>
     round.status === "cache_hit" ||
     round.status === "historical_snapshot" ||
+    round.status === "downloaded_cache_snapshot" ||
     round.status === "submitted_micro"
   );
   if (dataRounds.length === 0) return "insufficient_data" as const;

@@ -145,6 +145,120 @@ test("validateRecallLanes reports cache hits, cross-lane duplicates, and quality
   assert.equal(report.rounds[1]?.lane_usefulness, "useful");
 });
 
+test("validateRecallLanes downloads existing cache snapshots without resubmitting Bright", async () => {
+  let triggerCalls = 0;
+  let downloadedSnapshotId: string | null = null;
+  let persistedSnapshotId: string | null = null;
+  let persistedRound: string | null = null;
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => ({
+      snapshotId: "snapshot-cache",
+      datasetSize: 1,
+      cost: null,
+      expiresAt: "2026-07-01T00:00:00.000Z",
+    }),
+    loadCachedSnapshotProfiles: async () => null,
+    triggerDatasetFilter: async () => {
+      triggerCalls += 1;
+      return "new-snapshot";
+    },
+    downloadDatasetSnapshot: async (snapshotId) => {
+      downloadedSnapshotId = snapshotId;
+      return [profileRow()];
+    },
+    persistSnapshotProfiles: async (_rows, params) => {
+      persistedSnapshotId = params.snapshotId;
+      persistedRound = params.sourceRound;
+    },
+  };
+
+  const report = await validateRecallLanes(
+    [round("standard", 5)],
+    deps,
+    {
+      allowBright: true,
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(triggerCalls, 0);
+  assert.equal(downloadedSnapshotId, "snapshot-cache");
+  assert.equal(persistedSnapshotId, "snapshot-cache");
+  assert.equal(persistedRound, "standard");
+  assert.equal(report.rounds[0]?.status, "downloaded_cache_snapshot");
+  assert.equal(report.rounds[0]?.returned, 1);
+});
+
+test("validateRecallLanes downloads historical snapshots without resubmitting Bright", async () => {
+  let triggerCalls = 0;
+  let downloadedSnapshotId: string | null = null;
+  let persistedSnapshotId: string | null = null;
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => null,
+    loadCachedSnapshotProfiles: async () => null,
+    triggerDatasetFilter: async () => {
+      triggerCalls += 1;
+      return "new-snapshot";
+    },
+    downloadDatasetSnapshot: async (snapshotId) => {
+      downloadedSnapshotId = snapshotId;
+      return [profileRow()];
+    },
+    persistSnapshotProfiles: async (_rows, params) => {
+      persistedSnapshotId = params.snapshotId;
+    },
+  };
+
+  const report = await validateRecallLanes(
+    [round("standard", 5)],
+    deps,
+    {
+      allowBright: true,
+      knownSnapshots: [
+        {
+          round: "standard",
+          snapshotId: "historical-standard",
+          recordsLimit: 150,
+        },
+      ],
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(triggerCalls, 0);
+  assert.equal(downloadedSnapshotId, "historical-standard");
+  assert.equal(persistedSnapshotId, "historical-standard");
+  assert.equal(report.rounds[0]?.status, "downloaded_cache_snapshot");
+  assert.equal(report.rounds[0]?.requested, 150);
+  assert.equal(report.rounds[0]?.returned, 1);
+});
+
+test("validateRecallLanes submits Bright only when cache is absent", async () => {
+  let triggerCalls = 0;
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => null,
+    loadCachedSnapshotProfiles: async () => null,
+    triggerDatasetFilter: async () => {
+      triggerCalls += 1;
+      return "new-snapshot";
+    },
+    downloadDatasetSnapshot: async () => [profileRow()],
+  };
+
+  const report = await validateRecallLanes(
+    [round("standard", 5)],
+    deps,
+    {
+      allowBright: true,
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(triggerCalls, 1);
+  assert.equal(report.rounds[0]?.status, "submitted_micro");
+  assert.equal(report.rounds[0]?.returned, 1);
+});
+
 test("validateRecallLanes keeps historical snapshot request counts separate from micro caps", async () => {
   const deps: RecallLaneValidationDependencies = {
     lookupCachedSnapshot: async () => null,
