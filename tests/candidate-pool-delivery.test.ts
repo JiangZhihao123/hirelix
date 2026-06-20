@@ -3,7 +3,10 @@ import test from "node:test";
 
 import type { BrightDataProfile } from "@/lib/brightdata";
 import { completeSearch } from "@/lib/search/finalize";
-import { getDeliveryBucketForAssessment } from "@/lib/search/pipeline";
+import {
+  buildSearchQualityDiagnosis,
+  getDeliveryBucketForAssessment,
+} from "@/lib/search/pipeline";
 import { buildBrightDataCandidateRows } from "@/lib/search/recall";
 import { tagPoolRows } from "@/lib/search/scoring";
 import type {
@@ -159,6 +162,36 @@ test("delivery buckets do not recommend profiles that fail the shortlist gate", 
     getDeliveryBucketForAssessment(a, "priority_outreach", () => false),
     "lower_priority",
   );
+});
+
+test("search quality diagnosis marks missing reach-first as calibration-needed", () => {
+  const diagnosis = buildSearchQualityDiagnosis({
+    requestedCount: 250,
+    returnedCount: 102,
+    strictAdvanceCount: 3,
+    reachFirstCount: 0,
+    reviewNextCount: 5,
+  });
+
+  assert.equal(diagnosis.status, "needs_calibration");
+  assert.equal(diagnosis.primary_issue, "weak_actionable_yield");
+  assert.equal(diagnosis.reach_first_count, 0);
+  assert.ok(diagnosis.notes.some((note) => note.includes("strict advance")));
+  assert.ok(diagnosis.notes.some((note) => note.includes("first-outreach")));
+});
+
+test("search quality diagnosis passes when actionable-delivery bar is met", () => {
+  const diagnosis = buildSearchQualityDiagnosis({
+    requestedCount: 250,
+    returnedCount: 130,
+    strictAdvanceCount: 5,
+    reachFirstCount: 1,
+    reviewNextCount: 6,
+  });
+
+  assert.equal(diagnosis.status, "meets_bar");
+  assert.equal(diagnosis.primary_issue, "healthy");
+  assert.equal(diagnosis.recommended_count, 7);
 });
 
 test("legacy reach-first metadata is downgraded when reachability is low", () => {

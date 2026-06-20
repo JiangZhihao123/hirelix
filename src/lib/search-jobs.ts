@@ -99,11 +99,13 @@ import type {
   HiringBrief,
   PipelineContext,
   RecallMetadata,
+  RecallPersona,
   RecallProvider,
   RecallSpec,
   ScoredCandidateAssessment,
   SearchCostEstimate,
   SearchDisplayStats,
+  SearchQualityDiagnosis,
   SearchExecutionRuntime,
   SearchRow,
   ShortlistDecision,
@@ -1146,6 +1148,9 @@ function buildSearchDisplayStats(
     ...(excludedReasonCounts.length > 0
       ? { excluded_reason_counts: excludedReasonCounts }
       : {}),
+    ...(overrides.search_quality_diagnosis
+      ? { search_quality_diagnosis: normalizeSearchQualityDiagnosis(overrides.search_quality_diagnosis) ?? overrides.search_quality_diagnosis }
+      : {}),
   };
 }
 
@@ -1256,6 +1261,74 @@ function normalizeSearchDisplayStats(value: unknown): SearchDisplayStats | null 
     : null;
 }
 
+function normalizeRecallPersona(value: unknown): RecallPersona | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const id = normalizeNullableString(item.id);
+  const round = normalizeNullableString(item.round);
+  const label = normalizeNullableString(item.label);
+  const intent = normalizeNullableString(item.intent);
+  if (!id || !round || !label || !intent) return null;
+  const kind = normalizeEnumValue(
+    item.kind,
+    [
+      "standard_ic",
+      "adjacent_strong",
+      "target_company",
+      "skill_depth",
+      "seniority_depth",
+    ] as const,
+    "standard_ic",
+  );
+  return {
+    id,
+    round,
+    kind,
+    label,
+    intent,
+    title_terms: normalizeStringArray(item.title_terms, 18),
+    skill_terms: normalizeStringArray(item.skill_terms, 18),
+    company_terms: normalizeStringArray(item.company_terms, 15),
+  };
+}
+
+function normalizeSearchQualityDiagnosis(value: unknown): SearchQualityDiagnosis | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  const normalizeCount = (entry: unknown) =>
+    typeof entry === "number" && Number.isFinite(entry)
+      ? Math.max(0, Math.round(entry))
+      : 0;
+  const primaryIssue = normalizeEnumValue(
+    item.primary_issue,
+    [
+      "healthy",
+      "recall_underfilled",
+      "weak_actionable_yield",
+      "missing_reach_first",
+      "review_pool_underfilled",
+      "needs_search_calibration",
+    ] as const,
+    "needs_search_calibration",
+  );
+  return {
+    status: item.status === "meets_bar" ? "meets_bar" : "needs_calibration",
+    primary_issue: primaryIssue,
+    requested_count: normalizeCount(item.requested_count),
+    returned_count: normalizeCount(item.returned_count),
+    strict_advance_count: normalizeCount(item.strict_advance_count),
+    reach_first_count: normalizeCount(item.reach_first_count),
+    review_next_count: normalizeCount(item.review_next_count),
+    recommended_count: normalizeCount(item.recommended_count),
+    target_requested_count: normalizeCount(item.target_requested_count),
+    target_returned_count: normalizeCount(item.target_returned_count),
+    target_strict_advance_count: normalizeCount(item.target_strict_advance_count),
+    target_reach_first_count: normalizeCount(item.target_reach_first_count),
+    target_review_next_count: normalizeCount(item.target_review_next_count),
+    notes: normalizeStringArray(item.notes, 8),
+  };
+}
+
 function withExecutionState(
   parsed: Record<string, unknown>,
   executionProfile: SearchExecutionProfile,
@@ -1333,6 +1406,11 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
   const standard_download_started_at = normalizeNullableString(item.standard_download_started_at);
   const standard_download_completed_at = normalizeNullableString(item.standard_download_completed_at);
   const all_recall_completed_at = normalizeNullableString(item.all_recall_completed_at);
+  const recall_personas = Array.isArray(item.recall_personas)
+    ? item.recall_personas
+      .map(normalizeRecallPersona)
+      .filter((entry): entry is RecallPersona => Boolean(entry))
+    : [];
   const additional_snapshots = Array.isArray(item.additional_snapshots)
     ? item.additional_snapshots
       .map((entry) => {
@@ -1435,6 +1513,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           },
           location_mode:
             diagnostic.location_mode === "country_only" ? "country_only" as const : "location_filter" as const,
+          persona: normalizeRecallPersona(diagnostic.persona),
           quality_distribution: qualityDistribution
             ? {
               strong_now: normalizeCount(qualityDistribution.strong_now),
@@ -1488,6 +1567,7 @@ function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     standard_download_started_at,
     standard_download_completed_at,
     all_recall_completed_at,
+    recall_personas,
     additional_snapshots,
     round_diagnostics,
     status:

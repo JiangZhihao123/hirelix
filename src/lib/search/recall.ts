@@ -18,6 +18,8 @@ import type {
   CandidateDisplayTier,
   CandidateRowInput,
   HiringBrief,
+  RecallPersona,
+  RecallPersonaKind,
   RecallRoundDiagnostics,
   RecallSpec,
   ScoredCandidateAssessment,
@@ -710,6 +712,55 @@ function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRul
   };
 }
 
+function toRecallPersona(params: {
+  round: string;
+  kind: RecallPersonaKind;
+  label: string;
+  intent: string;
+  titleTerms?: string[];
+  skillTerms?: string[];
+  companyTerms?: string[];
+}): RecallPersona {
+  return {
+    id: params.round,
+    round: params.round,
+    kind: params.kind,
+    label: params.label,
+    intent: params.intent,
+    title_terms: compactTerms(params.titleTerms ?? [], 18),
+    skill_terms: compactTerms(params.skillTerms ?? [], 18),
+    company_terms: compactTerms(params.companyTerms ?? [], 15),
+  };
+}
+
+function withPersona(
+  diagnostics: Omit<RecallRoundDiagnostics, "filter_hash" | "returned_count" | "quality_distribution">,
+  params: {
+    kind: RecallPersonaKind;
+    label: string;
+    intent: string;
+    titleTerms?: string[];
+    skillTerms?: string[];
+    companyTerms?: string[];
+  },
+) {
+  return {
+    ...diagnostics,
+    persona: toRecallPersona({
+      round: diagnostics.round,
+      kind: params.kind,
+      label: params.label,
+      intent: params.intent,
+      titleTerms: params.titleTerms ?? diagnostics.title_terms,
+      skillTerms: params.skillTerms ?? [
+        ...diagnostics.skill_signal_groups.search_domain,
+        ...diagnostics.skill_signal_groups.platform_engineering,
+      ],
+      companyTerms: params.companyTerms,
+    }),
+  };
+}
+
 function buildCompanyFilter(companyTerms: string[]): BrightDataFilterRule | null {
   const terms = compactTerms(companyTerms, 15);
   if (terms.length === 0) return null;
@@ -938,7 +989,7 @@ function buildLlmSupplementalRounds(params: {
           ? filters[0]
           : { operator: "and", filters },
       },
-      diagnostics: {
+      diagnostics: withPersona({
         round,
         requested_count: Math.max(1, Math.round(budgetWeight)),
         title_terms: compactTerms(lane.title_terms, 18),
@@ -947,7 +998,22 @@ function buildLlmSupplementalRounds(params: {
           platform_engineering: params.signalGroups.platform_engineering,
         },
         location_mode: lane.strategy === "company" ? "country_only" : params.locationMode,
-      },
+      }, {
+        kind: lane.strategy === "company"
+          ? "target_company"
+          : lane.strategy === "seniority"
+            ? "seniority_depth"
+            : lane.strategy === "skill"
+              ? "skill_depth"
+              : "adjacent_strong",
+        label: lane.name || `LLM ${lane.strategy} lane`,
+        intent: lane.strategy === "company"
+          ? "Find engineers from target or adjacent companies with enough title/skill breadth to avoid over-narrow company filters."
+          : "Find adjacent high-signal engineers without requiring every JD keyword to appear in the Bright filter.",
+        titleTerms: lane.title_terms,
+        skillTerms: lane.skill_terms,
+        companyTerms: lane.company_terms,
+      }),
     });
   });
 
@@ -1307,6 +1373,18 @@ export function getTotalRecallRequestLimit(rounds: RecallRound[]) {
   return rounds.reduce((sum, round) => sum + Math.max(0, round.request.recordsLimit), 0);
 }
 
+export function getRecallPersonas(rounds: RecallRound[]) {
+  const personas: RecallPersona[] = [];
+  const seen = new Set<string>();
+  for (const round of rounds) {
+    const persona = round.diagnostics.persona;
+    if (!persona || seen.has(persona.id)) continue;
+    seen.add(persona.id);
+    personas.push(persona);
+  }
+  return personas;
+}
+
 function buildDeterministicExpansionRounds(params: {
   datasetId: string;
   recallSpec: RecallSpec;
@@ -1352,13 +1430,23 @@ function buildDeterministicExpansionRounds(params: {
           recordsLimit: skillLaneLimit,
           filter: { operator: "and", filters: skillLaneFilters },
         },
-        diagnostics: {
+        diagnostics: withPersona({
           round: "standard_skill",
           requested_count: skillLaneLimit,
           title_terms: compactTerms(DATA_PLATFORM_SKILL_LANE_TITLES, 18),
           skill_signal_groups: params.signalGroups,
           location_mode: params.locationMode,
-        },
+        }, {
+          kind: "skill_depth",
+          label: "Data platform skill-depth engineers",
+          intent: "Find engineers with data-platform ownership evidence even when exact titles vary.",
+          titleTerms: DATA_PLATFORM_SKILL_LANE_TITLES,
+          skillTerms: [
+            ...params.signalGroups.search_domain,
+            ...params.signalGroups.platform_engineering,
+            ...DATA_PLATFORM_HIGH_SIGNAL_TERMS,
+          ],
+        }),
       });
     }
 
@@ -1381,13 +1469,22 @@ function buildDeterministicExpansionRounds(params: {
           recordsLimit: seniorityLaneLimit,
           filter: { operator: "and", filters: seniorityLaneFilters },
         },
-        diagnostics: {
+        diagnostics: withPersona({
           round: "standard_seniority",
           requested_count: seniorityLaneLimit,
           title_terms: compactTerms(DATA_PLATFORM_SENIORITY_LANE_TITLES, 15),
           skill_signal_groups: params.signalGroups,
           location_mode: params.locationMode,
-        },
+        }, {
+          kind: "seniority_depth",
+          label: "Senior data-platform ICs",
+          intent: "Find staff/principal/lead data-platform profiles while scoring later separates hands-on ICs from manager-only profiles.",
+          titleTerms: DATA_PLATFORM_SENIORITY_LANE_TITLES,
+          skillTerms: [
+            ...params.signalGroups.platform_engineering,
+            ...DATA_PLATFORM_OWNERSHIP_TERMS,
+          ],
+        }),
       });
     }
   }
@@ -1428,13 +1525,19 @@ function buildDeterministicExpansionRounds(params: {
             recordsLimit,
             filter: { operator: "and", filters: hiddenGemFilters },
           },
-          diagnostics: {
+          diagnostics: withPersona({
             round: "hidden_gem",
             requested_count: recordsLimit,
             title_terms: lateralTitles,
             skill_signal_groups: params.signalGroups,
             location_mode: params.locationMode,
-          },
+          }, {
+            kind: "adjacent_strong",
+            label: "Adjacent strong technical operators",
+            intent: "Find credible adjacent backend/platform/infrastructure engineers who may be missed by exact JD titles.",
+            titleTerms: lateralTitles,
+            skillTerms: differentiatingTerms,
+          }),
         });
       }
     }
@@ -1482,13 +1585,23 @@ function buildDeterministicExpansionRounds(params: {
           recordsLimit,
           filter: { operator: "and", filters: companyFilters },
         },
-        diagnostics: {
+        diagnostics: withPersona({
           round: "company_target",
           requested_count: recordsLimit,
           title_terms: companyTitleTerms,
           skill_signal_groups: params.signalGroups,
           location_mode: "country_only",
-        },
+        }, {
+          kind: "target_company",
+          label: "Target-company engineers",
+          intent: "Find engineers from target or adjacent companies with broad enough title/skill evidence for recruiter review.",
+          titleTerms: companyTitleTerms,
+          skillTerms: [
+            ...params.signalGroups.search_domain,
+            ...params.signalGroups.platform_engineering,
+          ],
+          companyTerms: targetCompanies,
+        }),
       });
     }
   }
@@ -1554,13 +1667,22 @@ export function buildBrightDataRecallFilters(
   const rounds: RecallRound[] = [{
     round: "standard",
     request: standardRequest,
-    diagnostics: {
+    diagnostics: withPersona({
       round: "standard",
       requested_count: standardRequest.recordsLimit,
       title_terms: standardDiagnosticTitleTerms,
       skill_signal_groups: signalGroups,
       location_mode: locationMode,
-    },
+    }, {
+      kind: "standard_ic",
+      label: "Standard matching IC engineers",
+      intent: "Find the most direct title and role-fit profiles before exploring adjacent sourcing personas.",
+      titleTerms: standardDiagnosticTitleTerms,
+      skillTerms: [
+        ...signalGroups.search_domain,
+        ...signalGroups.platform_engineering,
+      ],
+    }),
   }];
 
   if (recallSpec.recall_strategy !== "multi_round") return rounds;

@@ -5,6 +5,7 @@ import type { BrightDataFilterRule } from "@/lib/brightdata";
 import { chunkBrightDataFilter } from "@/lib/brightdata";
 import {
   buildBrightDataRecallFilters,
+  getRecallPersonas,
   sanitizeRecallSignalTerms,
 } from "@/lib/search/recall";
 import type { HiringBrief, RecallSpec } from "@/lib/search/types";
@@ -169,6 +170,14 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
     "hidden_gem",
     "company_target",
   ]);
+  assert.deepEqual(getRecallPersonas(rounds).map((persona) => persona.kind), [
+    "standard_ic",
+    "adjacent_strong",
+    "target_company",
+  ]);
+  assert.equal(rounds[0].diagnostics.persona?.label, "Standard matching IC engineers");
+  assert.equal(rounds[1].diagnostics.persona?.round, "hidden_gem");
+  assert.ok(rounds[2].diagnostics.persona?.company_terms.includes("elastic"));
   assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [50, 25, 25]);
 
   const standardValues = leafValues(rounds[0].request.filter);

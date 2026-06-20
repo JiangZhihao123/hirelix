@@ -56,6 +56,7 @@ import {
 import {
   buildBrightDataCandidateRows,
   buildBrightDataRecallFilters,
+  getRecallPersonas,
   getTotalRecallRequestLimit,
   type RecallRound,
 } from "@/lib/search/recall";
@@ -76,6 +77,7 @@ import type {
   HiringBrief,
   PipelineContext,
   RecallMetadata,
+  SearchQualityDiagnosis,
   RecallRoundDiagnostics,
   RecallRoundQualityDistribution,
   RecallSpec,
@@ -432,6 +434,67 @@ function buildRoundQualityDistribution(
     byRound.set(round, current);
   }
   return byRound;
+}
+
+export function buildSearchQualityDiagnosis(stats: {
+  requestedCount?: number | null;
+  returnedCount?: number | null;
+  strictAdvanceCount?: number | null;
+  reachFirstCount?: number | null;
+  reviewNextCount?: number | null;
+}): SearchQualityDiagnosis {
+  const requestedCount = Math.max(0, Math.round(stats.requestedCount ?? 0));
+  const returnedCount = Math.max(0, Math.round(stats.returnedCount ?? 0));
+  const strictAdvanceCount = Math.max(0, Math.round(stats.strictAdvanceCount ?? 0));
+  const reachFirstCount = Math.max(0, Math.round(stats.reachFirstCount ?? 0));
+  const reviewNextCount = Math.max(0, Math.round(stats.reviewNextCount ?? 0));
+  const recommendedCount = reachFirstCount + reviewNextCount;
+  const targetRequestedCount = 250;
+  const targetReturnedCount = 100;
+  const targetStrictAdvanceCount = 5;
+  const targetReachFirstCount = 1;
+  const targetReviewNextCount = 5;
+  const notes: string[] = [];
+
+  let primaryIssue: SearchQualityDiagnosis["primary_issue"] = "healthy";
+  if (requestedCount < targetRequestedCount) {
+    primaryIssue = "needs_search_calibration";
+    notes.push("Profile scan budget was not fully exercised.");
+  }
+  if (returnedCount < targetReturnedCount) {
+    primaryIssue = primaryIssue === "healthy" ? "recall_underfilled" : primaryIssue;
+    notes.push("Bright recall returned too few profiles for a robust recruiter decision.");
+  }
+  if (strictAdvanceCount < targetStrictAdvanceCount) {
+    primaryIssue = primaryIssue === "healthy" ? "weak_actionable_yield" : primaryIssue;
+    notes.push("Too few candidates cleared the strict advance bar.");
+  }
+  if (reachFirstCount < targetReachFirstCount) {
+    primaryIssue = primaryIssue === "healthy" ? "missing_reach_first" : primaryIssue;
+    notes.push("No candidate reached the first-outreach priority tier.");
+  }
+  if (reviewNextCount < targetReviewNextCount) {
+    primaryIssue = primaryIssue === "healthy" ? "review_pool_underfilled" : primaryIssue;
+    notes.push("The review-next backup pool is underfilled.");
+  }
+
+  const status = primaryIssue === "healthy" ? "meets_bar" : "needs_calibration";
+  return {
+    status,
+    primary_issue: primaryIssue,
+    requested_count: requestedCount,
+    returned_count: returnedCount,
+    strict_advance_count: strictAdvanceCount,
+    reach_first_count: reachFirstCount,
+    review_next_count: reviewNextCount,
+    recommended_count: recommendedCount,
+    target_requested_count: targetRequestedCount,
+    target_returned_count: targetReturnedCount,
+    target_strict_advance_count: targetStrictAdvanceCount,
+    target_reach_first_count: targetReachFirstCount,
+    target_review_next_count: targetReviewNextCount,
+    notes: notes.length > 0 ? notes : ["Search meets the current actionable-delivery bar."],
+  };
 }
 
 function buildCachedSnapshotMetadata(
@@ -873,6 +936,10 @@ async function scoreBrightDataProfiles(
   const taggedRows = tagPoolRows(deepRows, [], deepRows.length);
   const deliveryCounts = countDeliveryBuckets(taggedRows);
   const finalRows = taggedRows;
+  const strictAdvanceCount = deepAssessments.filter((assessment) =>
+    assessment.suitability.shortlist_decision === "yes" &&
+    assessment.suitability.advance_recommendation === "advance"
+  ).length;
   const topQualityScore = deepAssessments.reduce(
     (best, assessment) => Math.max(best, assessment.suitability.quality_score),
     0,
@@ -975,6 +1042,13 @@ async function scoreBrightDataProfiles(
       consider_next_count: deliveryCounts.reviewNext,
       do_not_show_count: deliveryCounts.notRecommended,
       excluded_reason_counts: excludedReasonCounts,
+      search_quality_diagnosis: buildSearchQualityDiagnosis({
+        requestedCount: options?.totalProfilesRequested ?? executionProfile.filterLimit,
+        returnedCount: brightProfiles.length,
+        strictAdvanceCount,
+        reachFirstCount: deliveryCounts.reachFirst,
+        reviewNextCount: deliveryCounts.reviewNext,
+      }),
     }),
   };
 }
@@ -1409,6 +1483,7 @@ async function buildBrightDataDatasetCandidates(
   const additionalRounds = recallRounds.filter((round) => round.round !== "standard");
   let recallRequest = standardRound.request;
   const totalRequestedLimit = getTotalRecallRequestLimit(recallRounds);
+  const recallPersonas = getRecallPersonas(recallRounds);
   const totalProfileScanBudget =
     executionProfile.filterLimit + executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit;
   const persistedAdditionalSnapshots = new Map(
@@ -1646,6 +1721,7 @@ async function buildBrightDataDatasetCandidates(
       bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       standard_recall_requested_at: submittedAt,
+      recall_personas: recallPersonas,
       round_diagnostics: buildRoundDiagnostics(),
       additional_snapshots: additionalSnapshotRefs.map((round) => ({
         ...helpers.buildAdditionalSnapshotMetadata({
@@ -1732,6 +1808,7 @@ async function buildBrightDataDatasetCandidates(
       bright_profile_budget: totalProfileScanBudget,
       bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
+      recall_personas: recallPersonas,
       round_diagnostics: buildRoundDiagnostics(),
       additional_snapshots: buildSubmittedAdditionalSnapshotMetadata(),
     } satisfies RecallMetadata;
@@ -1809,6 +1886,7 @@ async function buildBrightDataDatasetCandidates(
         bright_profile_budget: totalProfileScanBudget,
         bright_profiles_requested: totalRequestedLimit,
         judge_mode: runtime.judgeMode,
+        recall_personas: recallPersonas,
         round_diagnostics: buildRoundDiagnostics(),
         additional_snapshots: buildSubmittedAdditionalSnapshotMetadata(),
       } satisfies RecallMetadata;
@@ -2196,6 +2274,7 @@ async function buildBrightDataDatasetCandidates(
           helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt,
         standard_download_started_at: standardDownloadStartedAt,
         standard_download_completed_at: helpers.nowIso(),
+        recall_personas: recallPersonas,
         round_diagnostics: buildRoundDiagnostics({ standardReturned: profiles.length }),
       } satisfies RecallMetadata;
     } catch (error) {
@@ -2235,6 +2314,7 @@ async function buildBrightDataDatasetCandidates(
         standard_recall_ready_at:
           helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ?? pollRecordedAt,
         standard_download_started_at: standardDownloadStartedAt,
+        recall_personas: recallPersonas,
         round_diagnostics: buildRoundDiagnostics({ standardReturned: profiles.length }),
         additional_snapshots: additionalSnapshotStates.map((round) => ({
           ...helpers.buildAdditionalSnapshotMetadata({
@@ -2323,6 +2403,7 @@ async function buildBrightDataDatasetCandidates(
         profilesReturned: round.metadata.dataset_size ?? null,
       }),
     })),
+    recall_personas: recallPersonas,
     round_diagnostics: buildRoundDiagnostics({ standardReturned: profiles.length }),
     status: "ready",
     filter_summary: filterSummary,
@@ -2519,6 +2600,7 @@ async function buildBrightDataDatasetCandidates(
         helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
         standardRecallCompletedAt,
       all_recall_completed_at: null,
+      recall_personas: recallPersonas,
       round_diagnostics: buildRoundDiagnostics({
         standardReturned: standardProfileCount,
         additionalReturned: additionalReturnedCounts,
@@ -2601,6 +2683,7 @@ async function buildBrightDataDatasetCandidates(
       helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
       standardRecallCompletedAt,
     all_recall_completed_at: allRecallCompletedAt,
+    recall_personas: recallPersonas,
     round_diagnostics: buildRoundDiagnostics({
       standardReturned: standardProfileCount,
       additionalReturned: additionalReturnedCounts,
@@ -2718,6 +2801,7 @@ async function buildBrightDataDatasetCandidates(
     }),
     provider: "brightdata_dataset",
     snapshot_id: activeSnapshotId,
+    recall_personas: recallPersonas,
     round_diagnostics: buildRoundDiagnostics({
       standardReturned: standardProfileCount,
       additionalReturned: additionalReturnedCounts,

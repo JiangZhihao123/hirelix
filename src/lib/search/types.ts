@@ -83,6 +83,24 @@ export type SourcingLane = {
   budget_weight: number;
 };
 
+export type RecallPersonaKind =
+  | "standard_ic"
+  | "adjacent_strong"
+  | "target_company"
+  | "skill_depth"
+  | "seniority_depth";
+
+export type RecallPersona = {
+  id: string;
+  kind: RecallPersonaKind;
+  label: string;
+  intent: string;
+  round: string;
+  title_terms: string[];
+  skill_terms: string[];
+  company_terms: string[];
+};
+
 export type RecallProvider = "brightdata_dataset";
 
 export type HiringBriefRoleCore = {
@@ -304,6 +322,7 @@ export type SearchDisplayStats = {
   time_to_reviewable_ms?: number;
   time_to_done_ms?: number;
   excluded_reason_counts?: ExcludedReasonCount[];
+  search_quality_diagnosis?: SearchQualityDiagnosis;
 };
 
 export type SearchPipelineResult = {
@@ -331,6 +350,31 @@ export type ExcludedReason =
 export type ExcludedReasonCount = {
   reason: ExcludedReason;
   count: number;
+};
+
+export type SearchQualityDiagnosisCode =
+  | "healthy"
+  | "recall_underfilled"
+  | "weak_actionable_yield"
+  | "missing_reach_first"
+  | "review_pool_underfilled"
+  | "needs_search_calibration";
+
+export type SearchQualityDiagnosis = {
+  status: "meets_bar" | "needs_calibration";
+  primary_issue: SearchQualityDiagnosisCode;
+  requested_count: number;
+  returned_count: number;
+  strict_advance_count: number;
+  reach_first_count: number;
+  review_next_count: number;
+  recommended_count: number;
+  target_requested_count: number;
+  target_returned_count: number;
+  target_strict_advance_count: number;
+  target_reach_first_count: number;
+  target_review_next_count: number;
+  notes: string[];
 };
 
 export type AdditionalRecallSnapshot = {
@@ -372,6 +416,7 @@ export type RecallRoundDiagnostics = {
     platform_engineering: string[];
   };
   location_mode: "country_only" | "location_filter";
+  persona?: RecallPersona | null;
   quality_distribution?: RecallRoundQualityDistribution | null;
 };
 
@@ -397,6 +442,7 @@ export type RecallMetadata = {
   standard_download_started_at?: string | null;
   standard_download_completed_at?: string | null;
   all_recall_completed_at?: string | null;
+  recall_personas?: RecallPersona[];
   round_diagnostics?: RecallRoundDiagnostics[];
   status?: "submitted" | "polling" | "ready";
   filter_summary?: {
