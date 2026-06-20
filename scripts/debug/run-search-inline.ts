@@ -1,6 +1,9 @@
+import { initializeGlobalOutboundProxy } from "@/lib/server-outbound-proxy";
 import { processNextSearchJob } from "@/lib/search-jobs";
 
 async function main() {
+  initializeGlobalOutboundProxy();
+
   const searchId = process.argv[2];
   if (!searchId) {
     console.error("usage: run-search-inline.ts <search-id>");
