@@ -185,6 +185,42 @@ test("validateRecallLanes keeps historical snapshot request counts separate from
   assert.equal(report.rounds[0]?.returned_rate, 0.0133);
 });
 
+test("validateRecallLanes skips historical snapshots when filter hash drifted", async () => {
+  let loadedHistorical = false;
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => null,
+    loadCachedSnapshotProfiles: async () => {
+      loadedHistorical = true;
+      return [profileRow({
+        linkedin_id: "candidate-1",
+        name: "Candidate One",
+        url: "https://www.linkedin.com/in/candidate-one",
+      })];
+    },
+  };
+
+  const report = await validateRecallLanes(
+    [round("standard", 5)],
+    deps,
+    {
+      allowBright: false,
+      knownSnapshots: [
+        {
+          round: "standard",
+          snapshotId: "historical-standard",
+          recordsLimit: 150,
+          filterHash: "old-filter-hash",
+        },
+      ],
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(loadedHistorical, false);
+  assert.equal(report.rounds[0]?.status, "not_run_cache_miss");
+  assert.equal(report.rounds[0]?.returned, 0);
+});
+
 test("validateRecallLanes flags weak samples as bad filter signals", async () => {
   const deps: RecallLaneValidationDependencies = {
     lookupCachedSnapshot: async () => ({

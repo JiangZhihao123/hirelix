@@ -65,6 +65,7 @@ export type KnownRecallSnapshot = {
   round: string;
   snapshotId: string;
   recordsLimit?: number | null;
+  filterHash?: string | null;
 };
 
 export type RecallLaneValidationDependencies = {
@@ -402,7 +403,10 @@ async function resolveRowsForRound(params: {
   requestedOverride?: number | null;
   rows: Record<string, unknown>[];
 }> {
-  if (params.knownSnapshot?.snapshotId) {
+  const historicalFilterMatches =
+    !params.knownSnapshot?.filterHash ||
+    params.knownSnapshot.filterHash === params.filterHash;
+  if (params.knownSnapshot?.snapshotId && historicalFilterMatches) {
     const rows = await params.deps.loadCachedSnapshotProfiles(params.knownSnapshot.snapshotId, params.round.round);
     if (rows?.length) {
       return {

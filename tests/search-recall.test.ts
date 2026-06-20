@@ -207,6 +207,7 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(hiddenValues.includes("platform engineer"));
   assert.ok(hiddenValues.includes("ml infrastructure engineer"));
   assert.ok(hiddenValues.includes("production engineer"));
+  assert.ok(!hiddenValues.includes("cloud engineer"));
   assert.ok(!hiddenValues.includes("data engineer"));
   assert.ok(hiddenValues.includes("search infrastructure"));
   assert.ok(maxGroupDepth(chunkBrightDataFilter(rounds[1].request.filter)) <= 3);
@@ -220,11 +221,11 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(
     flattenRules(rounds[2].request.filter).some((rule) =>
       "filters" in rule &&
-      rule.operator === "and" &&
+      rule.operator === "or" &&
       rule.filters.some((child) => leafValues(child).includes("search infrastructure")) &&
       rule.filters.some((child) => leafValues(child).includes("distributed systems"))
     ),
-    "company target recall should require both role/domain anchor and deeper systems evidence",
+    "company target recall should use title or skill evidence inside target companies, not triple-AND them",
   );
 });
 
@@ -706,7 +707,7 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
 
   const hiddenRound = rounds.find((round) => round.round === "hidden_gem");
   assert.ok(hiddenRound);
-  assert.ok(leafValues(hiddenRound.request.filter).includes("cloud engineer"));
+  assert.ok(!leafValues(hiddenRound.request.filter).includes("cloud engineer"));
   assert.ok(
     flattenRules(hiddenRound.request.filter).some((rule) =>
       "filters" in rule &&

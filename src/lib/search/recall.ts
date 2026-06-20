@@ -168,6 +168,13 @@ const DEFAULT_HIDDEN_GEM_TITLES = [
   "Production Engineer",
 ];
 
+const LOW_PRECISION_HIDDEN_GEM_TITLES = [
+  "cloud engineer",
+  "devops engineer",
+  "site reliability engineer",
+  "sre",
+];
+
 const DATA_PLATFORM_HIDDEN_GEM_TITLES = [
   "Data Platform Engineer",
   "Senior Data Platform Engineer",
@@ -324,11 +331,21 @@ function hasDataPlatformSignals(recallSpec: RecallSpec) {
 
 function buildHiddenGemTitleTerms(recallSpec: RecallSpec) {
   const dataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const primaryTitleText = normalizeText(recallSpec.title_variants.join(" "));
+  const allowReliabilityAdjacentTitles = /\b(cloud|devops|site reliability|sre)\b/.test(primaryTitleText);
   return compactTerms([
     ...recallSpec.lateral_title_variants,
     ...(dataPlatformRole ? DATA_PLATFORM_HIDDEN_GEM_TITLES : []),
     ...DEFAULT_HIDDEN_GEM_TITLES,
-  ], 14).filter((term) => dataPlatformRole || term !== "data engineer");
+  ], 14).filter((term) => {
+    if (dataPlatformRole) return true;
+    const normalized = normalizeText(term);
+    if (normalized === "data engineer") return false;
+    if (!allowReliabilityAdjacentTitles && LOW_PRECISION_HIDDEN_GEM_TITLES.includes(normalized)) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function buildDataPlatformTitleTerms(recallSpec: RecallSpec) {
@@ -1598,11 +1615,11 @@ function buildDeterministicExpansionRounds(params: {
         ...DEFAULT_HIDDEN_GEM_TITLES,
       ], 10);
     const companyTitleFilter = buildTitleFilter(companyTitleTerms, params.isDataPlatformRole ? 18 : 12);
-    if (companyTitleFilter) companyFilters.push(companyTitleFilter);
     const companySkillFilter = buildCompanyTargetSkillFilter(params.recallSpec, params.signalGroups, {
       dataPlatformRole: params.isDataPlatformRole,
     });
-    if (companySkillFilter) companyFilters.push(companySkillFilter);
+    const companyEvidenceFilter = combineEvidenceFilters([companyTitleFilter, companySkillFilter]);
+    if (companyEvidenceFilter) companyFilters.push(companyEvidenceFilter);
     companyFilters.push(...params.qualityFilters);
     const recordsLimit = params.executionProfile.companyTargetLimit;
     if (recordsLimit > 0) {

@@ -216,12 +216,19 @@ async function loadParsedFromSearch(searchId: string) {
       diagnostic.requested_count,
     ]),
   );
+  const filterHashByRound = new Map(
+    (metadata?.round_diagnostics ?? []).map((diagnostic) => [
+      diagnostic.round,
+      diagnostic.filter_hash ?? null,
+    ]),
+  );
   const knownSnapshots: KnownRecallSnapshot[] = [];
   if (metadata?.snapshot_id) {
     knownSnapshots.push({
       round: "standard",
       snapshotId: metadata.snapshot_id,
       recordsLimit: requestedByRound.get("standard") ?? null,
+      filterHash: filterHashByRound.get("standard") ?? null,
     });
   }
   for (const snapshot of metadata?.additional_snapshots ?? []) {
@@ -234,6 +241,7 @@ async function loadParsedFromSearch(searchId: string) {
           snapshot.records_limit ??
           snapshot.requested_count ??
           null,
+        filterHash: filterHashByRound.get(snapshot.round) ?? snapshot.filter_hash ?? null,
       });
     }
   }
