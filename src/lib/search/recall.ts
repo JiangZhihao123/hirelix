@@ -736,43 +736,41 @@ function buildCompanyTargetSkillFilter(
   return buildProfileSignalFilter(normalizedTerms, 8);
 }
 
-function buildCompanyCurrentPositionSkillFilter(
+function buildCompanyCurrentPositionEvidenceFilter(
   recallSpec: RecallSpec,
   signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
-  titleTerms: string[],
 ) {
   const hasGoSignal = [
     ...recallSpec.core_skill_terms,
     ...recallSpec.differentiating_skill_terms,
     ...recallSpec.must_have_signals,
   ].some((term) => normalizeText(term) === "go" || normalizeText(term) === "golang");
-  const roleAnchors = compactTerms([
-    ...titleTerms,
+  const depthTerms = hasGoSignal
+    ? compactTerms([
+      "golang",
+      ...signalGroups.database_backend,
+      ...signalGroups.production_ownership,
+      ...signalGroups.api_backend,
+      ...signalGroups.search_domain,
+      ...signalGroups.platform_engineering,
+    ], 3)
+    : compactTerms([
+      ...signalGroups.search_domain.slice(0, 1),
+      ...signalGroups.platform_engineering,
+      ...signalGroups.database_backend,
+      ...signalGroups.production_ownership,
+      ...signalGroups.api_backend,
+    ], 3);
+  const evidenceTerms = compactTerms([
     "software engineer",
-    "backend engineer",
-    "back end engineer",
-    "platform engineer",
-    "infrastructure engineer",
+    ...depthTerms,
   ], 10);
-  const depthTerms = compactTerms([
-    ...(hasGoSignal ? ["golang"] : []),
-    ...signalGroups.database_backend,
-    ...signalGroups.production_ownership,
-    ...signalGroups.api_backend,
-    ...sanitizeRecallSignalTerms([
-      ...recallSpec.differentiating_skill_terms,
-      ...recallSpec.must_have_signals,
-      ...recallSpec.baseline_skill_terms,
-      ...recallSpec.core_skill_terms,
-    ], 24).flatMap((term) => {
-      const normalized = normalizeText(term);
-      if (normalized === "go") return ["golang"];
-      if (AMBIGUOUS_SHORT_COMPANY_TARGET_TERMS.has(normalized)) return [];
-      return [normalized];
-    }),
-  ], 12);
+  if (evidenceTerms.length === 0) return null;
 
-  return buildCurrentPositionSignalPairFilter(roleAnchors, depthTerms);
+  return {
+    operator: "or" as const,
+    filters: evidenceTerms.slice(0, 4).map(buildPositionSignalLeaf),
+  };
 }
 
 function buildHiddenGemCurrentPositionSkillFilter(
@@ -1759,16 +1757,13 @@ function buildDeterministicExpansionRounds(params: {
         ...DEFAULT_HIDDEN_GEM_TITLES,
       ], 10);
     const companyTitleFilter = buildTitleFilter(companyTitleTerms, params.isDataPlatformRole ? 18 : 12);
-    const companySkillFilter = params.isDataPlatformRole
+    const strictCompanySkillFilter = params.isDataPlatformRole
       ? buildCompanyTargetSkillFilter(params.recallSpec, params.signalGroups, { dataPlatformRole: true })
-      : buildCompanyCurrentPositionSkillFilter(
-        params.recallSpec,
-        params.signalGroups,
-        companyTitleTerms,
-      );
+      : buildCompanyCurrentPositionEvidenceFilter(params.recallSpec, params.signalGroups);
+    const companySkillFilter = strictCompanySkillFilter;
     const companyEvidenceFilter = params.isDataPlatformRole
       ? combineEvidenceFilters([companyTitleFilter, companySkillFilter])
-      : companySkillFilter ?? companyTitleFilter;
+      : combineEvidenceFilters([companyTitleFilter, companySkillFilter]);
     if (companyEvidenceFilter) companyFilters.push(companyEvidenceFilter);
     companyFilters.push(...params.qualityFilters);
     const recordsLimit = params.executionProfile.companyTargetLimit;
