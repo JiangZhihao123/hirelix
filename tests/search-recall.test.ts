@@ -7,6 +7,7 @@ import {
   buildBrightDataRecallFilters,
   getRecallPersonas,
   sanitizeRecallSignalTerms,
+  scaleRecallRoundsForValidation,
 } from "@/lib/search/recall";
 import type { HiringBrief, RecallSpec } from "@/lib/search/types";
 import { normalizeRecallSpec } from "@/lib/search-jobs";
@@ -762,4 +763,48 @@ test("buildBrightDataRecallFilters does not add location filter for moderate rem
   assert.ok(rounds.every((round) =>
     !flattenRules(round.request.filter).some((rule) => "name" in rule && rule.name === "location")
   ));
+});
+
+test("scaleRecallRoundsForValidation caps per-round and total request limits", () => {
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Senior Software Engineer",
+      recall_spec: recallSpec,
+      hiring_brief: hiringBrief,
+    },
+    20,
+    {
+      ...executionProfile,
+      filterLimit: 150,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    },
+    {
+      normalizeRecallSpec: (value) => value as RecallSpec,
+      sanitizeHiringBrief: () => hiringBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => null,
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    },
+  );
+
+  const scaled = scaleRecallRoundsForValidation(rounds, {
+    perRoundLimit: 5,
+    totalLimit: 12,
+  });
+
+  assert.equal(scaled[0]?.round, "standard");
+  assert.ok(scaled.length >= 1);
+  assert.ok(scaled.every((round) => round.request.recordsLimit <= 5));
+  assert.equal(
+    scaled.reduce((sum, round) => sum + round.request.recordsLimit, 0),
+    12,
+  );
+  assert.ok(scaled.every((round) => round.diagnostics.requested_count === round.request.recordsLimit));
+  assert.deepEqual(
+    scaled.map((round) => round.round),
+    rounds.slice(0, scaled.length).map((round) => round.round),
+  );
 });

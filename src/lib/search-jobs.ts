@@ -387,7 +387,7 @@ export function normalizeRecallSpec(
   };
 }
 
-function isPlaceholderTitle(title: string | null | undefined) {
+export function isPlaceholderTitle(title: string | null | undefined) {
   if (!title) return true;
   return normalizeText(title) === "untitled role";
 }
@@ -471,7 +471,7 @@ function getCountryLocationAliases(countryCodes: string[]) {
   return aliases;
 }
 
-function buildRecallLocationFilter(
+export function buildRecallLocationFilter(
   hiringBrief: HiringBrief,
   recallSpec: RecallSpec,
   countryCodes: string[],
@@ -578,7 +578,7 @@ function buildProfileSignalFilter(terms: string[]): BrightDataFilterRule | null 
   };
 }
 
-function buildStandardSkillFilter(recallSpec: RecallSpec, mode: RecallFilterMode): BrightDataFilterRule | null {
+export function buildStandardSkillFilter(recallSpec: RecallSpec, mode: RecallFilterMode): BrightDataFilterRule | null {
   const standardSkillFilter = buildProfileSignalFilter(buildStandardSkillTerms(recallSpec, mode));
   if (!standardSkillFilter) return null;
 
@@ -1352,7 +1352,7 @@ function isActivationRun(parsed: Record<string, unknown> | null | undefined) {
   return parsed?.activation_run === true;
 }
 
-function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
+export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   const provider: RecallProvider = "brightdata_dataset";
@@ -1763,7 +1763,7 @@ function normalizeRequiredSkillAlternatives(skills: string[]) {
   ].slice(0, 12);
 }
 
-function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unknown>): HiringBrief {
+export function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<string, unknown>): HiringBrief {
   const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const roleCore =
     item.role_core && typeof item.role_core === "object"

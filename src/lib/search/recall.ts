@@ -1373,6 +1373,36 @@ export function getTotalRecallRequestLimit(rounds: RecallRound[]) {
   return rounds.reduce((sum, round) => sum + Math.max(0, round.request.recordsLimit), 0);
 }
 
+export function scaleRecallRoundsForValidation(
+  rounds: RecallRound[],
+  options: { perRoundLimit?: number; totalLimit?: number } = {},
+): RecallRound[] {
+  const perRoundLimit = Math.max(1, Math.round(options.perRoundLimit ?? 5));
+  const totalLimit = Math.max(1, Math.round(options.totalLimit ?? 40));
+  let remaining = totalLimit;
+
+  return rounds.flatMap((round) => {
+    if (remaining <= 0) return [];
+    const recordsLimit = Math.min(
+      Math.max(1, round.request.recordsLimit),
+      perRoundLimit,
+      remaining,
+    );
+    remaining -= recordsLimit;
+    return [{
+      ...round,
+      request: {
+        ...round.request,
+        recordsLimit,
+      },
+      diagnostics: {
+        ...round.diagnostics,
+        requested_count: recordsLimit,
+      },
+    }];
+  });
+}
+
 export function getRecallPersonas(rounds: RecallRound[]) {
   const personas: RecallPersona[] = [];
   const seen = new Set<string>();
