@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { getSnapshotCacheTtlDays } from "../src/lib/search/persistence";
 import {
   canAdditionalRecallRoundsOwnEmptyStandardSnapshot,
+  shouldContinueScoringWithStandardRecall,
   shouldReuseProfileCacheDespiteSnapshotDrift,
 } from "../src/lib/search/pipeline";
 
@@ -106,6 +107,26 @@ test("cache-only rerun does not hide missing additional profile rows", () => {
 
   assert.equal(
     canAdditionalRecallRoundsOwnEmptyStandardSnapshot([{ status: "failed" }]),
+    false,
+  );
+});
+
+test("standard recall can proceed to scoring while additional rounds are still pending", () => {
+  assert.equal(
+    shouldContinueScoringWithStandardRecall({
+      standardProfileCount: 69,
+      deferredAdditionalRoundCount: 5,
+    }),
+    true,
+  );
+});
+
+test("additional rounds still matter when standard recall has no profiles", () => {
+  assert.equal(
+    shouldContinueScoringWithStandardRecall({
+      standardProfileCount: 0,
+      deferredAdditionalRoundCount: 2,
+    }),
     false,
   );
 });

@@ -410,6 +410,13 @@ export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
   );
 }
 
+export function shouldContinueScoringWithStandardRecall(params: {
+  standardProfileCount: number;
+  deferredAdditionalRoundCount: number;
+}) {
+  return params.standardProfileCount > 0 && params.deferredAdditionalRoundCount > 0;
+}
+
 function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
   return {
     strong_now: 0,
@@ -2365,10 +2372,25 @@ async function buildBrightDataDatasetCandidates(
     job_id: context.jobId,
   });
 
-  const standardRecallCompletedAt = helpers.nowIso();
+  const previousRecallMetadataAfterDownload = helpers.normalizeRecallMetadata(parsed.recall_metadata);
+  const standardRecallCompletedAt =
+    previousRecallMetadataAfterDownload?.standard_recall_completed_at ??
+    previousRecallMetadataAfterDownload?.standard_download_completed_at ??
+    previousRecallMetadataAfterDownload?.standard_recall_ready_at ??
+    helpers.nowIso();
+  const standardRecallReadyAt =
+    previousRecallMetadataAfterDownload?.standard_recall_ready_at ??
+    previousRecallMetadataAfterDownload?.standard_download_completed_at ??
+    standardRecallCompletedAt;
+  const standardDownloadStartedAt =
+    previousRecallMetadataAfterDownload?.standard_download_started_at ??
+    standardRecallCompletedAt;
+  const standardDownloadCompletedAt =
+    previousRecallMetadataAfterDownload?.standard_download_completed_at ??
+    standardRecallCompletedAt;
   const searchStartedAt = helpers.getSearchStartedAt(parsed, context);
   const timeToStandardRecallReadyMs =
-    helpers.elapsedSince(searchStartedAt, standardRecallCompletedAt) ?? (Date.now() - requestedAt);
+    helpers.elapsedSince(searchStartedAt, standardRecallReadyAt) ?? (Date.now() - requestedAt);
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_metadata = {
     provider: "brightdata_dataset",
@@ -2383,14 +2405,10 @@ async function buildBrightDataDatasetCandidates(
     requested_at: new Date(requestedAt).toISOString(),
     completed_at: standardRecallCompletedAt,
     standard_recall_requested_at: new Date(requestedAt).toISOString(),
-    standard_recall_ready_at: standardRecallCompletedAt,
+    standard_recall_ready_at: standardRecallReadyAt,
     standard_recall_completed_at: standardRecallCompletedAt,
-    standard_download_started_at:
-      helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_started_at ??
-      standardRecallCompletedAt,
-    standard_download_completed_at:
-      helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
-      standardRecallCompletedAt,
+    standard_download_started_at: standardDownloadStartedAt,
+    standard_download_completed_at: standardDownloadCompletedAt,
     additional_snapshots: additionalSnapshotStates.map((round) => ({
       ...helpers.buildAdditionalSnapshotMetadata({
         round: round.round,
@@ -2475,35 +2493,78 @@ async function buildBrightDataDatasetCandidates(
         } catch (error) {
           if (!helpers.isTransientSnapshotDownloadError(error) && roundRef.cacheEntry) {
             await expireCachedSnapshot(roundSnapId);
-            const replacementSnapshotId = await triggerDatasetFilter(brightDataAuthToken, roundRef.request);
-            void cacheSnapshotEntry({
-              snapshotId: replacementSnapshotId,
-              round,
-              filterHash: computeFilterHash(roundRef.request),
-              filterSummary: null,
-              recordsLimit: roundRef.recordsLimit,
-            });
             helpers.logSearchEvent("search_snapshot_cache_expired", {
               search_id: context.searchId,
               round,
               snapshot_id: roundSnapId,
-              replacement_snapshot_id: replacementSnapshotId,
               reason: "download_unavailable_after_db_miss",
               job_id: context.jobId,
               error: error instanceof Error ? error.message : String(error),
             });
-            throw new DatasetRecallPendingError(
-              `Bright Data cached additional snapshot ${roundSnapId} could not be downloaded; submitted replacement snapshot ${replacementSnapshotId}`,
-              { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+            persistedAdditionalSnapshots.set(
+              round,
+              helpers.buildAdditionalSnapshotMetadata({
+                round,
+                snapshotId: roundSnapId,
+                recordsLimit: roundRef.recordsLimit,
+                existing: persistedAdditionalSnapshots.get(round) ?? null,
+                status: "failed",
+                submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
+                failedAt: helpers.nowIso(),
+                failureCode: "cached_snapshot_download_unavailable",
+                profilesReturned: null,
+              }),
             );
+            additionalReturnedCounts.set(round, 0);
+            continue;
           }
           if (!helpers.isTransientSnapshotDownloadError(error)) {
-            throw error;
+            persistedAdditionalSnapshots.set(
+              round,
+              helpers.buildAdditionalSnapshotMetadata({
+                round,
+                snapshotId: roundSnapId,
+                recordsLimit: roundRef.recordsLimit,
+                existing: persistedAdditionalSnapshots.get(round) ?? null,
+                status: "failed",
+                submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
+                failedAt: helpers.nowIso(),
+                failureCode: error instanceof Error ? error.message.slice(0, 180) : String(error).slice(0, 180),
+                profilesReturned: null,
+              }),
+            );
+            additionalReturnedCounts.set(round, 0);
+            helpers.logSearchEvent("search_multi_round_download_failed_nonblocking", {
+              search_id: context.searchId,
+              round,
+              snapshot_id: roundSnapId,
+              job_id: context.jobId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            continue;
           }
-          throw new DatasetRecallPendingError(
-            `Bright Data additional snapshot ${roundSnapId} is ready but the download is still finalizing`,
-            { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+          persistedAdditionalSnapshots.set(
+            round,
+            helpers.buildAdditionalSnapshotMetadata({
+              round,
+              snapshotId: roundSnapId,
+              recordsLimit: roundRef.recordsLimit,
+              existing: persistedAdditionalSnapshots.get(round) ?? null,
+              status: "polling",
+              submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
+              lastPolledAt: helpers.nowIso(),
+              profilesReturned: null,
+            }),
           );
+          additionalReturnedCounts.set(round, 0);
+          helpers.logSearchEvent("search_multi_round_download_deferred_nonblocking", {
+            search_id: context.searchId,
+            round,
+            snapshot_id: roundSnapId,
+            job_id: context.jobId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          continue;
         }
       }
       persistedAdditionalSnapshots.set(
@@ -2561,7 +2622,13 @@ async function buildBrightDataDatasetCandidates(
     }
   }
 
-  if (deferredAdditionalRounds.length > 0) {
+  if (
+    deferredAdditionalRounds.length > 0 &&
+    !shouldContinueScoringWithStandardRecall({
+      standardProfileCount,
+      deferredAdditionalRoundCount: deferredAdditionalRounds.length,
+    })
+  ) {
     helpers.logSearchEvent("search_additional_rounds_deferred_before_score", {
       search_id: context.searchId,
       job_id: context.jobId,
@@ -2594,16 +2661,10 @@ async function buildBrightDataDatasetCandidates(
       requested_at: new Date(requestedAt).toISOString(),
       completed_at: standardRecallCompletedAt,
       standard_recall_requested_at: new Date(requestedAt).toISOString(),
-      standard_recall_ready_at:
-        helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ??
-        standardRecallCompletedAt,
+      standard_recall_ready_at: standardRecallReadyAt,
       standard_recall_completed_at: standardRecallCompletedAt,
-      standard_download_started_at:
-        helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_started_at ??
-        standardRecallCompletedAt,
-      standard_download_completed_at:
-        helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
-        standardRecallCompletedAt,
+      standard_download_started_at: standardDownloadStartedAt,
+      standard_download_completed_at: standardDownloadCompletedAt,
       all_recall_completed_at: null,
       recall_personas: recallPersonas,
       round_diagnostics: buildRoundDiagnostics({
@@ -2634,6 +2695,20 @@ async function buildBrightDataDatasetCandidates(
       `Waiting for ${deferredAdditionalRounds.length} additional recall round(s) before scoring ${allProfiles.length} profiles`,
       { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
     );
+  }
+
+  if (deferredAdditionalRounds.length > 0) {
+    helpers.logSearchEvent("search_additional_rounds_nonblocking_before_score", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      standard_profiles: standardProfileCount,
+      currently_available_profiles: allProfiles.length,
+      deferred_rounds: deferredAdditionalRounds.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        status: round.metadata.status,
+      })),
+    });
   }
 
   await captureBrightBalanceAfter();
@@ -2677,16 +2752,10 @@ async function buildBrightDataDatasetCandidates(
     requested_at: new Date(requestedAt).toISOString(),
     completed_at: standardRecallCompletedAt,
     standard_recall_requested_at: new Date(requestedAt).toISOString(),
-    standard_recall_ready_at:
-      helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_recall_ready_at ??
-      standardRecallCompletedAt,
+    standard_recall_ready_at: standardRecallReadyAt,
     standard_recall_completed_at: standardRecallCompletedAt,
-    standard_download_started_at:
-      helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_started_at ??
-      standardRecallCompletedAt,
-    standard_download_completed_at:
-      helpers.normalizeRecallMetadata(parsed.recall_metadata)?.standard_download_completed_at ??
-      standardRecallCompletedAt,
+    standard_download_started_at: standardDownloadStartedAt,
+    standard_download_completed_at: standardDownloadCompletedAt,
     all_recall_completed_at: allRecallCompletedAt,
     recall_personas: recallPersonas,
     round_diagnostics: buildRoundDiagnostics({
