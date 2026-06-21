@@ -1883,7 +1883,7 @@ export function sanitizeAdvancementRubric(
   };
 }
 
-function buildPromptSearchContext(parsed: Record<string, unknown>) {
+export function buildPromptSearchContext(parsed: Record<string, unknown>) {
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const advancementRubric = sanitizeAdvancementRubric(parsed.advancement_rubric, parsed);
   const lines = [
