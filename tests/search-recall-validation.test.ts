@@ -433,6 +433,36 @@ test("assessRecallValidationProfile requires current engineering role for potent
   assert.ok(assessment.reasons.includes("irrelevant_or_inactive_profile_signal"));
 });
 
+test("assessRecallValidationProfile does not treat adjacent full-stack or AI profiles as advance-ready", () => {
+  const fullStack = assessRecallValidationProfile(
+    adaptDatasetRecordToBrightDataProfile(profileRow({
+      name: "Full Stack Engineer",
+      linkedin_id: "full-stack-engineer",
+      url: "https://www.linkedin.com/in/full-stack-engineer",
+      headline: "Senior Software Engineer at Example | Full Stack Developer",
+      current_company_name: "Example",
+      current_company_title: "Senior Software Engineer | Full Stack Developer",
+      skills: ["PostgreSQL", "Kubernetes", "Distributed Systems"],
+    })),
+  );
+  const aiProfile = assessRecallValidationProfile(
+    adaptDatasetRecordToBrightDataProfile(profileRow({
+      name: "AI Engineer",
+      linkedin_id: "ai-engineer",
+      url: "https://www.linkedin.com/in/ai-engineer",
+      headline: "Senior Software Engineer | AI/ML | RAG & LLM Expert | Python",
+      current_company_name: "Example",
+      current_company_title: "Senior Software Engineer | AI/ML | RAG & LLM Expert",
+      skills: ["PostgreSQL", "Kubernetes", "Distributed Systems"],
+    })),
+  );
+
+  assert.equal(fullStack.label, "likely_irrelevant");
+  assert.ok(fullStack.reasons.includes("non_backend_current_title"));
+  assert.equal(aiProfile.label, "likely_irrelevant");
+  assert.ok(aiProfile.reasons.includes("non_backend_current_title"));
+});
+
 test("validateRecallLanes includes quality reasons in sample profiles", async () => {
   const deps: RecallLaneValidationDependencies = {
     lookupCachedSnapshot: async () => ({
@@ -445,10 +475,10 @@ test("validateRecallLanes includes quality reasons in sample profiles", async ()
       profileRow({
         name: "Jane Engineer",
         linkedin_id: "jane-engineer",
-        headline: "Senior Backend Engineer building distributed systems on Kubernetes",
+        headline: "Senior Backend Engineer building distributed systems on Kubernetes and PostgreSQL",
         current_company_name: "Example",
         current_company_title: "Senior Backend Engineer",
-        skills: ["Kubernetes", "Distributed Systems"],
+        skills: ["Kubernetes", "Distributed Systems", "PostgreSQL"],
       }),
     ],
   };

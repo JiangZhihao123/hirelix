@@ -229,6 +229,42 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   );
 });
 
+test("buildBrightDataRecallFilters uses exact company matching for short target names", () => {
+  const rounds = buildBrightDataRecallFilters(
+    {
+      title: "Senior Backend Engineer",
+      recall_spec: {
+        ...recallSpec,
+        target_companies: ["Trov", "Hippo", "Stripe", "Lemonade"],
+      },
+      hiring_brief: hiringBrief,
+    },
+    20,
+    executionProfile,
+    {
+      normalizeRecallSpec: (value) => value as RecallSpec,
+      sanitizeHiringBrief: () => hiringBrief,
+      buildStandardSkillFilter: () => null,
+      buildRecallLocationFilter: () => null,
+      isPlaceholderTitle: (title) => !title,
+      hiddenGemLimit: 25,
+      companyTargetLimit: 25,
+    },
+  );
+
+  const companyRound = rounds.find((round) => round.round === "company_target");
+  assert.ok(companyRound);
+  const companyRules = flattenRules(companyRound.request.filter)
+    .filter((rule): rule is Extract<BrightDataFilterRule, { name: string }> =>
+      "name" in rule && rule.name === "current_company_name",
+    );
+  const operatorsByValue = new Map(companyRules.map((rule) => [String(rule.value).toLowerCase(), rule.operator]));
+  assert.equal(operatorsByValue.get("trov"), "=");
+  assert.equal(operatorsByValue.get("hippo"), "=");
+  assert.equal(operatorsByValue.get("stripe"), "includes");
+  assert.equal(operatorsByValue.get("lemonade"), "includes");
+});
+
 test("buildBrightDataRecallFilters skips optional sourcing rounds when limits are zero", () => {
   const rounds = buildBrightDataRecallFilters(
     {

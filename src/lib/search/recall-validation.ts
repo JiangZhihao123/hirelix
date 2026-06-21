@@ -184,6 +184,8 @@ const IRRELEVANT_PROFILE_PATTERNS = [
   /\bconsultant\b/i,
   /\bgraduate student\b/i,
   /\bmaster'?s student\b/i,
+  /\bmscs student\b/i,
+  /\blearning\b/i,
   /\bseeking\b/i,
   /\bopen to work\b/i,
   /\blooking for\b/i,
@@ -221,6 +223,14 @@ const NON_BACKEND_CURRENT_TITLE_PATTERNS = [
   /\bdata analyst\b/i,
   /\banalytics engineer\b/i,
   /\bdashboard\b/i,
+  /\bfull[-\s]?stack\b/i,
+  /\bfull stack\b/i,
+  /\bai\/ml\b/i,
+  /\bmachine learning\b/i,
+  /\bml engineer\b/i,
+  /\bcomputer vision\b/i,
+  /\brag\b/i,
+  /\bllm\b/i,
 ];
 
 const CURRENT_ENGINEERING_TITLE_PATTERNS = [
@@ -317,6 +327,7 @@ export function assessRecallValidationProfile(
   const technicalSignalCount = TECHNICAL_SIGNAL_PATTERNS.filter((pattern) => pattern.test(text)).length;
   const backendDepthSignalCount = BACKEND_DEPTH_SIGNAL_PATTERNS.filter((pattern) => pattern.test(text)).length;
   const hasCompany = Boolean(profile.current_company?.name);
+  const hasGoOrPostgres = /\b(golang|go|postgres|postgresql)\b/i.test(text);
 
   if (identityMismatch) reasons.push("profile_url_name_mismatch");
   if (irrelevantProfile) reasons.push("irrelevant_or_inactive_profile_signal");
@@ -333,7 +344,7 @@ export function assessRecallValidationProfile(
     return { label: "likely_irrelevant", reasons };
   }
 
-  if (hasCurrentEngineeringTitle && hasCompany && backendDepthSignalCount >= 2) {
+  if (hasCurrentEngineeringTitle && hasCompany && backendDepthSignalCount >= 2 && hasGoOrPostgres) {
     return { label: "potential_advance", reasons };
   }
   if (hasCurrentEngineeringTitle && hasCompany) {

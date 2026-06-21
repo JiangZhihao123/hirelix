@@ -922,11 +922,14 @@ function buildCompanyFilter(companyTerms: string[]): BrightDataFilterRule | null
   if (terms.length === 0) return null;
   return {
     operator: "or",
-    filters: terms.map((term) => ({
-      name: "current_company_name",
-      operator: "includes",
-      value: term,
-    })),
+    filters: terms.map((term) => {
+      const exactMatch = normalizeText(term).length <= 5;
+      return {
+        name: "current_company_name",
+        operator: exactMatch ? "=" : "includes",
+        value: term,
+      };
+    }),
   };
 }
 
@@ -1737,11 +1740,14 @@ function buildDeterministicExpansionRounds(params: {
     const companyFilters: BrightDataFilterRule[] = [
       {
         operator: "or",
-        filters: targetCompanies.slice(0, 15).map((company) => ({
-          name: "current_company_name",
-          operator: "includes",
-          value: company,
-        })),
+        filters: targetCompanies.slice(0, 15).map((company) => {
+          const exactMatch = normalizeText(company).length <= 5;
+          return {
+            name: "current_company_name",
+            operator: exactMatch ? "=" : "includes",
+            value: company,
+          };
+        }),
       },
     ];
     if (params.countryFilter) companyFilters.push(params.countryFilter);
