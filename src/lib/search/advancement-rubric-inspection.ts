@@ -23,21 +23,98 @@ export type AdvancementRubricInspectionReport = {
   >;
   advancement_rubric: AdvancementRubric;
   scoring_context_preview: string;
-  checks: {
-    has_role_specific_same_work: boolean;
+  structural_checks: {
+    has_same_work_evidence: boolean;
     has_must_have_evidence: boolean;
     has_reject_signals: boolean;
     prompt_includes_advancement_rubric: boolean;
   };
-  recommendation: "ready_to_validate_candidates" | "needs_jd_parse_review";
+  llm_review: AdvancementRubricLlmReview | null;
+  recommendation:
+    | "requires_llm_review"
+    | "ready_to_validate_candidates"
+    | "needs_jd_parse_review"
+    | "uncertain"
+    | "insufficient_structure";
   reasons: string[];
 };
+
+export type AdvancementRubricLlmReview = {
+  verdict: "ready_to_validate_candidates" | "needs_jd_parse_review" | "uncertain";
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+  suggested_changes: string[];
+};
+
+function normalizeStringList(value: unknown, limit: number) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+export function normalizeAdvancementRubricLlmReview(value: unknown): AdvancementRubricLlmReview {
+  const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const verdict = item.verdict === "ready_to_validate_candidates" ||
+    item.verdict === "needs_jd_parse_review" ||
+    item.verdict === "uncertain"
+    ? item.verdict
+    : "uncertain";
+  return {
+    verdict,
+    summary: typeof item.summary === "string" ? item.summary.trim() : "",
+    strengths: normalizeStringList(item.strengths, 5),
+    gaps: normalizeStringList(item.gaps, 5),
+    suggested_changes: normalizeStringList(item.suggested_changes, 5),
+  };
+}
+
+function truncateText(value: string, maxChars: number) {
+  return value.length > maxChars ? `${value.slice(0, maxChars)}...` : value;
+}
+
+export function buildAdvancementRubricLlmReviewPrompt(params: {
+  jdText: string | null;
+  parsed: Record<string, unknown>;
+  scoringContextPreview: string;
+}) {
+  return `You are an expert technical recruiting reviewer.
+
+Your job is to judge whether the parsed JD understanding and advancement rubric are good enough to evaluate candidates for this specific JD.
+
+Important:
+- Do not use generic rules or keyword matching.
+- Judge whether the rubric captures the actual work, seniority, must-haves, acceptable adjacent backgrounds, and role-specific reject reasons.
+- A good rubric should help a recruiter decide whether a specific JD/profile pair is worth advancing.
+- Do not judge candidate quality here. Judge only whether this JD-specific decision framework is usable.
+
+Return only JSON:
+{
+  "verdict": "ready_to_validate_candidates | needs_jd_parse_review | uncertain",
+  "summary": "short plain-English judgment",
+  "strengths": ["what the rubric gets right"],
+  "gaps": ["what is missing or too generic"],
+  "suggested_changes": ["specific prompt/rubric changes"]
+}
+
+## Original JD
+${truncateText((params.jdText ?? "").trim(), 5000)}
+
+## Parsed Requirements
+${truncateText(JSON.stringify(params.parsed, null, 2), 7000)}
+
+## Scoring Context Preview
+${truncateText(params.scoringContextPreview, 5000)}`;
+}
 
 export function buildAdvancementRubricInspectionReport(
   parsed: Record<string, unknown>,
   options: {
     searchId?: string | null;
     source: AdvancementRubricInspectionReport["source"];
+    llmReview?: AdvancementRubricLlmReview | null;
     sanitizeHiringBrief: (value: unknown, fallbackParsed: Record<string, unknown>) => HiringBrief;
     normalizeRecallSpec: (value: unknown, recordLimit: number) => RecallSpec;
     sanitizeAdvancementRubric: (
@@ -61,29 +138,18 @@ export function buildAdvancementRubricInspectionReport(
   );
   const scoringContextPreview = options.buildPromptSearchContext(parsed);
 
-  const joinedSameWork = advancementRubric.same_work_evidence.join(" ").toLowerCase();
-  const joinedRejectSignals = advancementRubric.reject_signals.join(" ").toLowerCase();
   const title = typeof parsed.title === "string" && parsed.title.trim()
     ? parsed.title.trim()
     : hiringBrief.role_core.title;
-  const coreTerms = [
-    title,
-    hiringBrief.role_core.function_focus,
-    ...hiringBrief.role_core.required_skills,
-    ...recallSpec.core_skill_terms,
-    ...recallSpec.must_have_signals,
-  ]
-    .map((value) => value?.toLowerCase().trim())
-    .filter((value): value is string => Boolean(value && value.length >= 3));
 
-  const hasRoleSpecificSameWork = coreTerms.some((term) => joinedSameWork.includes(term));
+  const hasSameWorkEvidence = advancementRubric.same_work_evidence.length > 0;
   const hasMustHaveEvidence = advancementRubric.must_have_evidence.length > 0;
   const hasRejectSignals = advancementRubric.reject_signals.length > 0;
   const promptIncludesAdvancementRubric = scoringContextPreview.includes("Advancement Rubric:");
 
   const reasons: string[] = [];
-  if (!hasRoleSpecificSameWork) {
-    reasons.push("same_work_evidence_not_role_specific");
+  if (!hasSameWorkEvidence) {
+    reasons.push("missing_same_work_evidence");
   }
   if (!hasMustHaveEvidence) {
     reasons.push("missing_must_have_evidence");
@@ -94,16 +160,11 @@ export function buildAdvancementRubricInspectionReport(
   if (!promptIncludesAdvancementRubric) {
     reasons.push("scoring_context_missing_advancement_rubric");
   }
-  if (
-    joinedRejectSignals.includes("only title") ||
-    joinedRejectSignals.includes("keywords")
-  ) {
-    reasons.push("rejects_title_or_keyword_only_matches");
+  const hasStructuralGap = reasons.length > 0;
+  const llmReview = options.llmReview ?? null;
+  if (!llmReview && !hasStructuralGap) {
+    reasons.push("needs_llm_rubric_judge");
   }
-
-  const blockingReasons = reasons.filter(
-    (reason) => reason !== "rejects_title_or_keyword_only_matches",
-  );
 
   return {
     search_id: options.searchId ?? null,
@@ -123,15 +184,18 @@ export function buildAdvancementRubricInspectionReport(
     },
     advancement_rubric: advancementRubric,
     scoring_context_preview: scoringContextPreview,
-    checks: {
-      has_role_specific_same_work: hasRoleSpecificSameWork,
+    structural_checks: {
+      has_same_work_evidence: hasSameWorkEvidence,
       has_must_have_evidence: hasMustHaveEvidence,
       has_reject_signals: hasRejectSignals,
       prompt_includes_advancement_rubric: promptIncludesAdvancementRubric,
     },
-    recommendation: blockingReasons.length === 0
-      ? "ready_to_validate_candidates"
-      : "needs_jd_parse_review",
+    llm_review: llmReview,
+    recommendation: llmReview
+      ? llmReview.verdict
+      : hasStructuralGap
+        ? "insufficient_structure"
+        : "requires_llm_review",
     reasons,
   };
 }

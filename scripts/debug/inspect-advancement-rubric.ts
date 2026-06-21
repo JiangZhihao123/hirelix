@@ -8,18 +8,24 @@ import {
   buildParsedRequirementsForLaunch,
   parseJobDescriptionToDraft,
 } from "@/lib/jd-parse";
+import { generateLlmJson, getLightweightLlmModel } from "@/lib/llm-client";
 import {
   buildPromptSearchContext,
   normalizeRecallSpec,
   sanitizeAdvancementRubric,
   sanitizeHiringBrief,
 } from "@/lib/search-jobs";
-import { buildAdvancementRubricInspectionReport } from "@/lib/search/advancement-rubric-inspection";
+import {
+  buildAdvancementRubricInspectionReport,
+  buildAdvancementRubricLlmReviewPrompt,
+  normalizeAdvancementRubricLlmReview,
+} from "@/lib/search/advancement-rubric-inspection";
 import { getInitialSearchExecutionProfile } from "@/lib/search-execution";
 
 type CliOptions = {
   input: string | null;
   parseJd: boolean;
+  judgeRubric: boolean;
   out: string | null;
 };
 
@@ -45,6 +51,7 @@ function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     input: null,
     parseJd: false,
+    judgeRubric: false,
     out: null,
   };
 
@@ -53,6 +60,10 @@ function parseArgs(argv: string[]): CliOptions {
     if (!arg) continue;
     if (arg === "--parse-jd") {
       options.parseJd = true;
+      continue;
+    }
+    if (arg === "--judge-rubric") {
+      options.judgeRubric = true;
       continue;
     }
     if (arg.startsWith("--out=")) {
@@ -73,7 +84,7 @@ function parseArgs(argv: string[]): CliOptions {
 
   if (!options.input) {
     throw new Error(
-      "Usage: npx tsx scripts/debug/inspect-advancement-rubric.ts <search-id|parsed-json-file|jd-file> [--parse-jd] [--out tmp/rubric.json]",
+      "Usage: npx tsx scripts/debug/inspect-advancement-rubric.ts <search-id|parsed-json-file|jd-file> [--parse-jd] [--judge-rubric] [--out tmp/rubric.json]",
     );
   }
   return options;
@@ -105,6 +116,7 @@ async function loadParsedFromSearch(searchId: string) {
     searchId,
     source: "search" as const,
     parsed: recordFromJson(search.parsed_requirements),
+    jdText: null,
   };
 }
 
@@ -116,6 +128,7 @@ async function loadParsedFromFile(filePath: string, options: CliOptions) {
       searchId: null,
       source: "parsed_json" as const,
       parsed: recordFromJson(JSON.parse(raw)),
+      jdText: null,
     };
   }
 
@@ -125,6 +138,7 @@ async function loadParsedFromFile(filePath: string, options: CliOptions) {
   return {
     searchId: null,
     source: "jd_parse" as const,
+    jdText: raw,
     parsed: buildParsedRequirementsForLaunch(draft, raw, {
       candidateCount,
       displayCount: candidateCount,
@@ -146,7 +160,7 @@ async function main() {
     ? await loadParsedFromSearch(options.input!)
     : await loadParsedFromFile(options.input!, options);
 
-  const report = buildAdvancementRubricInspectionReport(inputData.parsed, {
+  const baseReport = buildAdvancementRubricInspectionReport(inputData.parsed, {
     searchId: inputData.searchId,
     source: inputData.source,
     sanitizeHiringBrief,
@@ -154,6 +168,43 @@ async function main() {
     sanitizeAdvancementRubric,
     buildPromptSearchContext,
   });
+  const llmReview = options.judgeRubric
+    ? normalizeAdvancementRubricLlmReview((await generateLlmJson<{
+      verdict?: unknown;
+      summary?: unknown;
+      strengths?: unknown;
+      gaps?: unknown;
+      suggested_changes?: unknown;
+    }>({
+      model: getLightweightLlmModel(),
+      prompt: buildAdvancementRubricLlmReviewPrompt({
+        jdText: inputData.jdText,
+        parsed: inputData.parsed,
+        scoringContextPreview: baseReport.scoring_context_preview,
+      }),
+      temperature: 0,
+      maxOutputTokens: 900,
+      jsonMode: true,
+      deepSeekThinking: "disabled",
+      usageEvent: {
+        searchId: inputData.searchId ?? undefined,
+        stage: "advancement_rubric_inspection",
+        batchSize: 1,
+        metadata: { source: inputData.source },
+      },
+    })).data)
+    : null;
+  const report = llmReview
+    ? buildAdvancementRubricInspectionReport(inputData.parsed, {
+      searchId: inputData.searchId,
+      source: inputData.source,
+      llmReview,
+      sanitizeHiringBrief,
+      normalizeRecallSpec,
+      sanitizeAdvancementRubric,
+      buildPromptSearchContext,
+    })
+    : baseReport;
 
   const output = `${JSON.stringify(report, null, 2)}\n`;
   if (options.out) {

@@ -16,7 +16,7 @@ const dependencies = {
   buildPromptSearchContext,
 };
 
-test("advancement rubric inspection reports JD-specific scoring context", () => {
+test("advancement rubric inspection reports structure and defers quality judgment to LLM", () => {
   const parsed = {
     title: "Staff Data Platform Engineer",
     candidate_count: 250,
@@ -69,15 +69,16 @@ test("advancement rubric inspection reports JD-specific scoring context", () => 
   });
 
   assert.equal(report.search_id, "search-1");
-  assert.equal(report.recommendation, "ready_to_validate_candidates");
-  assert.equal(report.checks.has_role_specific_same_work, true);
-  assert.equal(report.checks.prompt_includes_advancement_rubric, true);
+  assert.equal(report.recommendation, "requires_llm_review");
+  assert.equal(report.structural_checks.has_same_work_evidence, true);
+  assert.equal(report.structural_checks.prompt_includes_advancement_rubric, true);
+  assert.equal(report.llm_review, null);
   assert.match(report.scoring_context_preview, /Advancement Rubric:/);
   assert.match(report.scoring_context_preview, /Same Work Evidence:.*data platform/i);
-  assert.ok(report.reasons.includes("rejects_title_or_keyword_only_matches"));
+  assert.ok(report.reasons.includes("needs_llm_rubric_judge"));
 });
 
-test("advancement rubric inspection flags generic same-work evidence", () => {
+test("advancement rubric inspection only flags structural gaps without judging quality", () => {
   const report = buildAdvancementRubricInspectionReport(
     {
       title: "Senior Backend Engineer",
@@ -96,7 +97,51 @@ test("advancement rubric inspection flags generic same-work evidence", () => {
         must_have_signals: ["distributed systems"],
       },
       advancement_rubric: {
-        same_work_evidence: ["Current profile evidence shows similar work."],
+        same_work_evidence: [],
+        must_have_evidence: ["Concrete profile evidence for Go."],
+        reject_signals: ["Mostly unrelated to this JD."],
+      },
+    },
+    {
+      source: "parsed_json",
+      sanitizeHiringBrief,
+      normalizeRecallSpec,
+      sanitizeAdvancementRubric: () => ({
+        same_work_evidence: [],
+        seniority_evidence: [],
+        must_have_evidence: ["Concrete profile evidence for Go."],
+        acceptable_tradeoffs: [],
+        reject_signals: ["Mostly unrelated to this JD."],
+      }),
+      buildPromptSearchContext,
+    },
+  );
+
+  assert.equal(report.recommendation, "insufficient_structure");
+  assert.equal(report.structural_checks.has_same_work_evidence, false);
+  assert.ok(report.reasons.includes("missing_same_work_evidence"));
+});
+
+test("advancement rubric inspection uses explicit LLM review for quality verdict", () => {
+  const report = buildAdvancementRubricInspectionReport(
+    {
+      title: "Senior Backend Engineer",
+      candidate_count: 50,
+      hiring_brief: {
+        role_core: {
+          title: "Senior Backend Engineer",
+          seniority: "Senior",
+          function_focus: "backend systems",
+          required_skills: ["Go", "PostgreSQL"],
+        },
+      },
+      recall_spec: {
+        countries: ["US"],
+        core_skill_terms: ["Go", "PostgreSQL"],
+        must_have_signals: ["distributed systems"],
+      },
+      advancement_rubric: {
+        same_work_evidence: ["Current profile evidence shows backend systems ownership."],
         must_have_evidence: ["Concrete profile evidence for Go."],
         reject_signals: ["Mostly unrelated to this JD."],
       },
@@ -104,10 +149,16 @@ test("advancement rubric inspection flags generic same-work evidence", () => {
     {
       ...dependencies,
       source: "parsed_json",
+      llmReview: {
+        verdict: "needs_jd_parse_review",
+        summary: "Too generic for this JD.",
+        strengths: ["Has must-have evidence"],
+        gaps: ["Reject signals are not role-specific enough"],
+        suggested_changes: ["Tie reject reasons to backend ownership and system scale"],
+      },
     },
   );
 
   assert.equal(report.recommendation, "needs_jd_parse_review");
-  assert.equal(report.checks.has_role_specific_same_work, false);
-  assert.ok(report.reasons.includes("same_work_evidence_not_role_specific"));
+  assert.equal(report.llm_review?.summary, "Too generic for this JD.");
 });
