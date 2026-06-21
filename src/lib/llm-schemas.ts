@@ -420,6 +420,31 @@ export function buildFastJudgeScoreJsonSchema(poolSize: number): LlmJsonSchemaCo
   };
 }
 
+export const RECALL_VALIDATION_QUALITY_JSON_SCHEMA: LlmJsonSchemaConfig = {
+  name: "recall_validation_quality",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["assessments"],
+    properties: {
+      assessments: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["index", "quality_label", "quality_reasons"],
+          properties: {
+            index: { type: "integer" },
+            quality_label: enumSchema(["potential_advance", "review", "likely_irrelevant"]),
+            quality_reasons: stringArraySchema(),
+          },
+        },
+      },
+    },
+  },
+};
+
 export const ARBITER_SCORE_JSON_SCHEMA: LlmJsonSchemaConfig = {
   name: "arbiter_score_batch",
   strict: true,

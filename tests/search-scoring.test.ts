@@ -154,6 +154,26 @@ test("judge prompt marks IC versus management profiles as mismatches", () => {
   assert.match(prompt, /Mark shortlist_decision=no/);
 });
 
+test("judge prompt requires concrete JD evidence before advancing candidates", () => {
+  const prompt = buildJudgeScorePrompt(
+    {},
+    "Senior backend engineer for payments infrastructure",
+    "[12] Candidate A\nSenior Software Engineer at Stripe",
+    1,
+    "Judge A",
+    {
+      truncateForPrompt: (text) => text,
+      buildPromptSearchContext: () => "Must-Have Signals: distributed systems | Go | PostgreSQL",
+      expectedIndexes: [12],
+    },
+  );
+
+  assert.match(prompt, /concrete JD-relevant evidence for role function, seniority, and at least the core must-have area/);
+  assert.match(prompt, /Do not infer this from employer brand, target-company membership, title, or a loose keyword match alone/);
+  assert.match(prompt, /If the best reason is only "works at target company"/);
+  assert.match(prompt, /Adjacent profiles can still advance when the profile evidence shows equivalent work/);
+});
+
 test("judge prompt accepts equivalent core data platform evidence without Kafka literalism", () => {
   const prompt = buildJudgeScorePrompt(
     {},

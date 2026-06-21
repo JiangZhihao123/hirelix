@@ -4,6 +4,8 @@ import {
   type BrightDataDatasetFilterRequest,
   type BrightDataProfile,
 } from "@/lib/brightdata";
+import { generateLlmJson, getLightweightLlmModel } from "@/lib/llm-client";
+import { RECALL_VALIDATION_QUALITY_JSON_SCHEMA } from "@/lib/llm-schemas";
 import type { SnapshotCacheEntry } from "@/lib/search/persistence";
 import type { RecallRound } from "@/lib/search/recall";
 import { getTotalRecallRequestLimit } from "@/lib/search/recall";
@@ -18,6 +20,7 @@ export type RecallLaneValidationStatus =
   | "download_failed";
 
 export type RecallLaneValidationSample = {
+  index: number;
   name: string;
   headline: string | null;
   company: string | null;
@@ -90,14 +93,34 @@ export type RecallLaneValidationDependencies = {
     filterHash: string;
     recordsLimit: number;
   }) => Promise<void>;
+  assessProfileQuality?: (
+    profiles: BrightDataProfile[],
+    context: RecallValidationQualityContext,
+  ) => Promise<RecallValidationQualityAssessment[]>;
 };
 
 export type ValidateRecallLanesOptions = {
   searchId?: string | null;
   allowBright?: boolean;
+  useLlmQualityJudge?: boolean;
   mode?: RecallLaneValidationMode;
   knownSnapshots?: KnownRecallSnapshot[];
+  jdText?: string | null;
+  parsedRequirements?: Record<string, unknown> | null;
   now?: () => Date;
+};
+
+export type RecallValidationQualityContext = {
+  searchId: string | null;
+  jdText: string | null;
+  parsedRequirements: Record<string, unknown> | null;
+  round: string;
+};
+
+export type RecallValidationQualityAssessment = {
+  index: number;
+  quality_label: RecallLaneValidationSample["quality_label"];
+  quality_reasons: string[];
 };
 
 function roundRate(numerator: number, denominator: number) {
@@ -116,20 +139,6 @@ function normalizeProfileKey(profile: BrightDataProfile) {
   ]
     .filter(Boolean)
     .join("|")
-    .toLowerCase();
-}
-
-function profileText(profile: BrightDataProfile) {
-  return [
-    profile.headline,
-    profile.about,
-    profile.current_company?.title,
-    profile.current_company?.name,
-    ...profile.skills,
-    ...profile.experience.flatMap((item) => [item.title, item.company, item.description]),
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(" ")
     .toLowerCase();
 }
 
@@ -167,136 +176,6 @@ function getLocation(profile: BrightDataProfile) {
   return [city, country].filter(Boolean).join(", ") || null;
 }
 
-const IRRELEVANT_PROFILE_PATTERNS = [
-  /\brecruit(er|ing)\b/i,
-  /\btalent acquisition\b/i,
-  /\bsales\b/i,
-  /\baccount executive\b/i,
-  /\bcustomer success\b/i,
-  /\bproduct manager\b/i,
-  /\bproject manager\b/i,
-  /\bprogram manager\b/i,
-  /\bcareer coach\b/i,
-  /\bleadership coach\b/i,
-  /\bfounder\b/i,
-  /\bchief executive\b/i,
-  /\bceo\b/i,
-  /\bconsultant\b/i,
-  /\bgraduate student\b/i,
-  /\bmaster'?s student\b/i,
-  /\bmscs student\b/i,
-  /\blearning\b/i,
-  /\bseeking\b/i,
-  /\bopen to work\b/i,
-  /\blooking for\b/i,
-];
-
-const WEAK_ENGINEERING_PROFILE_PATTERNS = [
-  /\bsoftware engineer\b/i,
-  /\bbackend engineer\b/i,
-  /\bback end engineer\b/i,
-  /\bplatform engineer\b/i,
-  /\binfrastructure engineer\b/i,
-  /\bdata engineer\b/i,
-  /\bdata platform\b/i,
-  /\bsite reliability\b/i,
-  /\bsre\b/i,
-  /\bmachine learning engineer\b/i,
-  /\bml engineer\b/i,
-  /\bstaff engineer\b/i,
-  /\bprincipal engineer\b/i,
-  /\bsenior engineer\b/i,
-  /\bengineering\b/i,
-];
-
-const NON_BACKEND_CURRENT_TITLE_PATTERNS = [
-  /\bfront[-\s]?end\b/i,
-  /\bfrontend\b/i,
-  /\breact\b/i,
-  /\breact native\b/i,
-  /\bmobile\b/i,
-  /\bios\b/i,
-  /\bandroid\b/i,
-  /\bdatabase administrator\b/i,
-  /\bdba\b/i,
-  /\bbusiness intelligence\b/i,
-  /\bdata analyst\b/i,
-  /\banalytics engineer\b/i,
-  /\bdashboard\b/i,
-  /\bfull[-\s]?stack\b/i,
-  /\bfull stack\b/i,
-  /\bai\/ml\b/i,
-  /\bmachine learning\b/i,
-  /\bml engineer\b/i,
-  /\bcomputer vision\b/i,
-  /\brag\b/i,
-  /\bllm\b/i,
-];
-
-const CURRENT_ENGINEERING_TITLE_PATTERNS = [
-  /\bsoftware engineer\b/i,
-  /\bbackend engineer\b/i,
-  /\bback end engineer\b/i,
-  /\bplatform engineer\b/i,
-  /\binfrastructure engineer\b/i,
-  /\bcloud engineer\b/i,
-  /\bdevops engineer\b/i,
-  /\bsite reliability engineer\b/i,
-  /\bsre\b/i,
-  /\bdata engineer\b/i,
-  /\bdata platform engineer\b/i,
-  /\bmachine learning engineer\b/i,
-  /\bml engineer\b/i,
-  /\bsystems engineer\b/i,
-  /\bsystems programming analyst\b/i,
-];
-
-const MANAGER_ONLY_TITLE_PATTERNS = [
-  /\bengineering manager\b/i,
-  /\bmanager\b/i,
-  /\bdirector\b/i,
-  /\bhead of\b/i,
-  /\bvp\b/i,
-  /\bvice president\b/i,
-  /\bcto\b/i,
-  /\bchief technology\b/i,
-];
-
-const TECHNICAL_SIGNAL_PATTERNS = [
-  /\bdistributed systems?\b/i,
-  /\bkubernetes\b/i,
-  /\bgolang\b/i,
-  /\bgo\b/i,
-  /\bbackend\b/i,
-  /\bback end\b/i,
-  /\bplatform\b/i,
-  /\binfrastructure\b/i,
-  /\bpostgres(ql)?\b/i,
-  /\bkafka\b/i,
-  /\bspark\b/i,
-  /\bsearch\b/i,
-  /\branking\b/i,
-  /\bdata pipeline/i,
-  /\bapi\b/i,
-  /\bmicroservices?\b/i,
-  /\bproduction\b/i,
-  /\bscal(e|able|ability)\b/i,
-];
-
-const BACKEND_DEPTH_SIGNAL_PATTERNS = [
-  /\bdistributed systems?\b/i,
-  /\bgolang\b/i,
-  /\bgo\b/i,
-  /\bbackend\b/i,
-  /\bback end\b/i,
-  /\bpostgres(ql)?\b/i,
-  /\bkafka\b/i,
-  /\bapi\b/i,
-  /\bapis\b/i,
-  /\bgrpc\b/i,
-  /\bmicroservices?\b/i,
-];
-
 export function classifyRecallValidationProfile(
   profile: BrightDataProfile,
 ): RecallLaneValidationSample["quality_label"] {
@@ -309,68 +188,177 @@ export function assessRecallValidationProfile(
   label: RecallLaneValidationSample["quality_label"];
   reasons: string[];
 } {
-  const text = profileText(profile);
-  const currentTitle = profile.current_company?.title ?? profile.headline ?? "";
   const reasons: string[] = [];
   const identityMismatch = hasIdentityMismatch(profile);
-  const irrelevantProfile = IRRELEVANT_PROFILE_PATTERNS.some((pattern) => pattern.test(text));
-  const managerOnly =
-    MANAGER_ONLY_TITLE_PATTERNS.some((pattern) => pattern.test(currentTitle)) &&
-    !CURRENT_ENGINEERING_TITLE_PATTERNS.some((pattern) => pattern.test(currentTitle));
-  const nonBackendCurrentTitle = NON_BACKEND_CURRENT_TITLE_PATTERNS.some((pattern) =>
-    pattern.test(currentTitle),
-  );
-  const hasCurrentEngineeringTitle = CURRENT_ENGINEERING_TITLE_PATTERNS.some((pattern) =>
-    pattern.test(currentTitle),
-  );
-  const hasEngineeringSignal = WEAK_ENGINEERING_PROFILE_PATTERNS.some((pattern) => pattern.test(text));
-  const technicalSignalCount = TECHNICAL_SIGNAL_PATTERNS.filter((pattern) => pattern.test(text)).length;
-  const backendDepthSignalCount = BACKEND_DEPTH_SIGNAL_PATTERNS.filter((pattern) => pattern.test(text)).length;
   const hasCompany = Boolean(profile.current_company?.name);
-  const hasGoOrPostgres = /\b(golang|go|postgres|postgresql)\b/i.test(text);
+  const hasCurrentTitle = Boolean(profile.current_company?.title || profile.headline);
 
   if (identityMismatch) reasons.push("profile_url_name_mismatch");
-  if (irrelevantProfile) reasons.push("irrelevant_or_inactive_profile_signal");
-  if (managerOnly) reasons.push("manager_only_current_title");
-  if (nonBackendCurrentTitle) reasons.push("non_backend_current_title");
-  if (!hasCurrentEngineeringTitle) reasons.push("current_title_not_engineering");
   if (!hasCompany) reasons.push("missing_current_company");
-  if (technicalSignalCount >= 2) reasons.push("technical_depth_signal");
-  if (technicalSignalCount < 2) reasons.push("insufficient_technical_depth");
-  if (backendDepthSignalCount < 2) reasons.push("insufficient_backend_depth");
-  if (hasCurrentEngineeringTitle) reasons.push("current_engineering_title");
+  if (!hasCurrentTitle) reasons.push("missing_current_title");
+  if (!profile.headline && profile.skills.length === 0 && profile.experience.length === 0) {
+    reasons.push("sparse_profile_evidence");
+  }
 
-  if (identityMismatch || irrelevantProfile || managerOnly || nonBackendCurrentTitle) {
+  if (identityMismatch || !hasCompany || !hasCurrentTitle) {
     return { label: "likely_irrelevant", reasons };
   }
 
-  if (hasCurrentEngineeringTitle && hasCompany && backendDepthSignalCount >= 2 && hasGoOrPostgres) {
-    return { label: "potential_advance", reasons };
-  }
-  if (hasCurrentEngineeringTitle && hasCompany) {
-    return { label: "review", reasons };
-  }
-  if (!hasCompany) {
-    return { label: "likely_irrelevant", reasons };
-  }
-  if ((hasCurrentEngineeringTitle || hasEngineeringSignal) && technicalSignalCount >= 1) {
-    return { label: "review", reasons };
-  }
-  return { label: "likely_irrelevant", reasons };
+  reasons.push("needs_llm_quality_judge");
+  return { label: "review", reasons };
 }
 
-function buildSampleProfiles(profiles: BrightDataProfile[]): RecallLaneValidationSample[] {
-  return profiles.slice(0, 5).map((profile) => {
-    const assessment = assessRecallValidationProfile(profile);
+function normalizeQualityLabel(value: unknown): RecallLaneValidationSample["quality_label"] {
+  return value === "potential_advance" || value === "review" || value === "likely_irrelevant"
+    ? value
+    : "review";
+}
+
+function normalizeQualityReasons(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function truncateText(value: string, maxChars: number) {
+  return value.length > maxChars ? `${value.slice(0, maxChars)}...` : value;
+}
+
+function profileQualityPromptText(profile: BrightDataProfile, index: number) {
+  return [
+    `[${index}] ${profile.name}`,
+    `Headline: ${profile.headline ?? ""}`,
+    `Current company: ${profile.current_company?.name ?? ""}`,
+    `Current title: ${profile.current_company?.title ?? ""}`,
+    `Location: ${getLocation(profile) ?? ""}`,
+    `Skills: ${profile.skills.slice(0, 18).join(", ")}`,
+    profile.about ? `About: ${truncateText(profile.about, 600)}` : "",
+    profile.experience.length
+      ? `Recent experience: ${profile.experience.slice(0, 3).map((item) =>
+        [item.title, item.company, item.description ? truncateText(item.description, 240) : ""]
+          .filter(Boolean)
+          .join(" @ "),
+      ).join(" | ")}`
+      : "",
+  ].filter(Boolean).join("\n");
+}
+
+export function buildRecallValidationQualityPrompt(params: {
+  jdText: string | null;
+  parsedRequirements: Record<string, unknown> | null;
+  round: string;
+  profiles: BrightDataProfile[];
+}) {
+  const requiredIndexes = params.profiles.map((_profile, index) => index);
+  const parsedSummary = params.parsedRequirements
+    ? JSON.stringify({
+      title: params.parsedRequirements.title,
+      hiring_brief: params.parsedRequirements.hiring_brief,
+      recall_spec: params.parsedRequirements.recall_spec,
+    }, null, 2)
+    : "{}";
+  return `You are a technical recruiting quality judge for a cheap recall-lane validation run.
+
+The goal is not to deeply score every candidate. The goal is to decide whether this recall lane is bringing candidates a recruiter could realistically move forward.
+
+Labels:
+- potential_advance: strong enough that a technical recruiter would likely inspect or contact them next for this JD.
+- review: plausible but missing important evidence, adjacent, or needs human/LLM deep scoring.
+- likely_irrelevant: wrong function, wrong seniority, inactive/student-only, non-technical, or clearly off-JD.
+
+Rules:
+- Judge against the JD and parsed search intent, not against hard-coded keyword lists.
+- Do not reject a profile only because it uses an adjacent title if the evidence shows equivalent work.
+- Do not advance a profile on employer prestige, title, or target-company membership alone.
+- Sparse profiles can be review, but potential_advance needs concrete evidence tied to the JD.
+- Keep quality_reasons short and evidence-based; max 3 reasons.
+- Return exactly ${params.profiles.length} assessment object${params.profiles.length === 1 ? "" : "s"}, one for every profile.
+- Required index values: ${requiredIndexes.join(", ") || "none"}.
+- Return only JSON with { "assessments": [...] }.
+
+## Recall Round
+${params.round}
+
+## Original JD
+${truncateText((params.jdText ?? "").trim(), 4000)}
+
+## Parsed Search Intent
+${truncateText(parsedSummary, 4000)}
+
+## Profiles
+${params.profiles.map((profile, index) => profileQualityPromptText(profile, index)).join("\n\n")}`;
+}
+
+export async function assessRecallValidationProfilesWithLlm(
+  profiles: BrightDataProfile[],
+  context: RecallValidationQualityContext,
+): Promise<RecallValidationQualityAssessment[]> {
+  if (profiles.length === 0) return [];
+  const prompt = buildRecallValidationQualityPrompt({
+    jdText: context.jdText,
+    parsedRequirements: context.parsedRequirements,
+    round: context.round,
+    profiles,
+  });
+  const { data } = await generateLlmJson<{
+    assessments?: Array<{
+      index?: unknown;
+      quality_label?: unknown;
+      quality_reasons?: unknown;
+    }>;
+  }>({
+    model: getLightweightLlmModel(),
+    prompt,
+    temperature: 0,
+    maxOutputTokens: Math.min(1800, Math.max(600, profiles.length * 220)),
+    jsonSchema: RECALL_VALIDATION_QUALITY_JSON_SCHEMA,
+    requireParameters: true,
+    deepSeekThinking: "disabled",
+    usageEvent: {
+      searchId: context.searchId ?? undefined,
+      stage: "recall_validation_quality",
+      batchSize: profiles.length,
+      metadata: { round: context.round },
+    },
+  });
+  return (data.assessments ?? [])
+    .map((item): RecallValidationQualityAssessment | null => {
+      const index = typeof item.index === "number" ? item.index : Number(item.index);
+      if (!Number.isInteger(index) || index < 0 || index >= profiles.length) return null;
+      return {
+        index,
+        quality_label: normalizeQualityLabel(item.quality_label),
+        quality_reasons: normalizeQualityReasons(item.quality_reasons),
+      };
+    })
+    .filter((item): item is RecallValidationQualityAssessment => Boolean(item));
+}
+
+function buildSampleProfiles(
+  profiles: BrightDataProfile[],
+  qualityByIndex: Map<number, RecallValidationQualityAssessment>,
+  qualityJudgeAttempted: boolean,
+): RecallLaneValidationSample[] {
+  return profiles.slice(0, 5).map((profile, index) => {
+    const fallback = assessRecallValidationProfile(profile);
+    const assessment = qualityByIndex.get(index);
+    const reasons = assessment?.quality_reasons.length
+      ? assessment.quality_reasons
+      : qualityJudgeAttempted
+        ? ["llm_quality_judge_missing"]
+        : fallback.reasons;
     return {
+      index,
       name: profile.name,
       headline: profile.headline,
       company: profile.current_company?.name ?? null,
       title: profile.current_company?.title ?? null,
       location: getLocation(profile),
       profile_url: profile.url,
-      quality_label: assessment.label,
-      quality_reasons: assessment.reasons,
+      quality_label: assessment?.quality_label ?? fallback.label,
+      quality_reasons: reasons,
     };
   });
 }
@@ -382,8 +370,14 @@ function buildRoundReport(params: {
   snapshotId: string | null;
   requestedOverride?: number | null;
   profiles: BrightDataProfile[];
+  qualityAssessments: RecallValidationQualityAssessment[];
+  qualityJudgeAttempted: boolean;
   globalSeenBeforeRound: Set<string>;
 }) {
+  const qualityByIndex = new Map(params.qualityAssessments.map((assessment) => [
+    assessment.index,
+    assessment,
+  ]));
   const profileKeys = params.profiles
     .map((profile) => normalizeProfileKey(profile))
     .filter((key) => key.length > 0);
@@ -394,8 +388,8 @@ function buildRoundReport(params: {
     typeof params.requestedOverride === "number" && Number.isFinite(params.requestedOverride)
       ? Math.max(0, Math.round(params.requestedOverride))
       : params.round.request.recordsLimit;
-  const potentialAdvance = params.profiles.filter(
-    (profile) => assessRecallValidationProfile(profile).label === "potential_advance",
+  const potentialAdvance = params.profiles.filter((_profile, index) =>
+    qualityByIndex.get(index)?.quality_label === "potential_advance"
   ).length;
   const returnedRate = roundRate(returned, requested);
   const uniqueRate = roundRate(unique, returned);
@@ -409,6 +403,8 @@ function buildRoundReport(params: {
   const badFilterSignal =
     statusHasData && returned === 0
       ? "returned_zero"
+      : statusHasData && params.qualityJudgeAttempted && returned > 0 && params.qualityAssessments.length === 0
+        ? "quality_judge_incomplete"
       : statusHasData && returnedRate < 0.5
         ? "returned_too_low"
         : statusHasData && returned >= 3 && uniqueRate < 0.5
@@ -442,7 +438,7 @@ function buildRoundReport(params: {
     filter_hash: params.filterHash,
     snapshot_id: params.snapshotId,
     location_mode: params.round.diagnostics.location_mode,
-    sample_profiles: buildSampleProfiles(params.profiles),
+    sample_profiles: buildSampleProfiles(params.profiles, qualityByIndex, params.qualityJudgeAttempted),
   } satisfies RecallLaneValidationRoundReport;
 }
 
@@ -603,6 +599,7 @@ export async function validateRecallLanes(
   options: ValidateRecallLanesOptions = {},
 ): Promise<RecallLaneValidationReport> {
   const allowBright = options.allowBright === true;
+  const useLlmQualityJudge = options.useLlmQualityJudge === true;
   const knownSnapshots = new Map(
     (options.knownSnapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
@@ -620,6 +617,15 @@ export async function validateRecallLanes(
       deps,
     });
     const profiles = resolved.rows.map(adaptDatasetRecordToBrightDataProfile);
+    const qualityJudgeAttempted = useLlmQualityJudge && profiles.length > 0;
+    const qualityAssessments = qualityJudgeAttempted
+      ? await (deps.assessProfileQuality ?? assessRecallValidationProfilesWithLlm)(profiles, {
+        searchId: options.searchId ?? null,
+        jdText: options.jdText ?? null,
+        parsedRequirements: options.parsedRequirements ?? null,
+        round: round.round,
+      })
+      : [];
     roundReports.push(buildRoundReport({
       round,
       status: resolved.status,
@@ -627,6 +633,8 @@ export async function validateRecallLanes(
       snapshotId: resolved.snapshotId,
       requestedOverride: resolved.requestedOverride,
       profiles,
+      qualityAssessments,
+      qualityJudgeAttempted,
       globalSeenBeforeRound: globalSeen,
     }));
   }

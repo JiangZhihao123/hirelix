@@ -5,6 +5,7 @@ import type { BrightDataDatasetFilterRequest } from "@/lib/brightdata";
 import type { RecallRound } from "@/lib/search/recall";
 import {
   assessRecallValidationProfile,
+  buildRecallValidationQualityPrompt,
   validateRecallLanes,
   type RecallLaneValidationDependencies,
 } from "@/lib/search/recall-validation";
@@ -122,6 +123,11 @@ test("validateRecallLanes reports cache hits, cross-lane duplicates, and quality
       expiresAt: "2026-07-01T00:00:00.000Z",
     }),
     loadCachedSnapshotProfiles: async (_snapshotId, sourceRound) => rowsByRound.get(sourceRound) ?? null,
+    assessProfileQuality: async (profiles) => profiles.map((_profile, index) => ({
+      index,
+      quality_label: "potential_advance" as const,
+      quality_reasons: ["mock judge accepted profile"],
+    })),
   };
 
   const report = await validateRecallLanes(
@@ -129,6 +135,7 @@ test("validateRecallLanes reports cache hits, cross-lane duplicates, and quality
     deps,
     {
       allowBright: false,
+      useLlmQualityJudge: true,
       now: () => new Date("2026-06-20T00:00:00.000Z"),
     },
   );
@@ -366,6 +373,11 @@ test("validateRecallLanes flags weak samples as bad filter signals", async () =>
         skills: ["Roadmap"],
       }),
     ],
+    assessProfileQuality: async (profiles) => profiles.map((_profile, index) => ({
+      index,
+      quality_label: "likely_irrelevant" as const,
+      quality_reasons: ["mock judge rejected profile"],
+    })),
   };
 
   const report = await validateRecallLanes(
@@ -373,6 +385,7 @@ test("validateRecallLanes flags weak samples as bad filter signals", async () =>
     deps,
     {
       allowBright: false,
+      useLlmQualityJudge: true,
       now: () => new Date("2026-06-20T00:00:00.000Z"),
     },
   );
@@ -416,7 +429,7 @@ test("assessRecallValidationProfile accepts abbreviated LinkedIn profile slugs",
   assert.ok(!assessment.reasons.includes("profile_url_name_mismatch"));
 });
 
-test("assessRecallValidationProfile requires current engineering role for potential advance", () => {
+test("assessRecallValidationProfile fallback does not decide role quality without LLM", () => {
   const assessment = assessRecallValidationProfile(
     adaptDatasetRecordToBrightDataProfile(profileRow({
       name: "Irina Stanescu",
@@ -429,11 +442,11 @@ test("assessRecallValidationProfile requires current engineering role for potent
     })),
   );
 
-  assert.equal(assessment.label, "likely_irrelevant");
-  assert.ok(assessment.reasons.includes("irrelevant_or_inactive_profile_signal"));
+  assert.equal(assessment.label, "review");
+  assert.ok(assessment.reasons.includes("needs_llm_quality_judge"));
 });
 
-test("assessRecallValidationProfile does not treat adjacent full-stack or AI profiles as advance-ready", () => {
+test("assessRecallValidationProfile fallback keeps adjacent profiles for LLM review", () => {
   const fullStack = assessRecallValidationProfile(
     adaptDatasetRecordToBrightDataProfile(profileRow({
       name: "Full Stack Engineer",
@@ -457,13 +470,13 @@ test("assessRecallValidationProfile does not treat adjacent full-stack or AI pro
     })),
   );
 
-  assert.equal(fullStack.label, "likely_irrelevant");
-  assert.ok(fullStack.reasons.includes("non_backend_current_title"));
-  assert.equal(aiProfile.label, "likely_irrelevant");
-  assert.ok(aiProfile.reasons.includes("non_backend_current_title"));
+  assert.equal(fullStack.label, "review");
+  assert.ok(fullStack.reasons.includes("needs_llm_quality_judge"));
+  assert.equal(aiProfile.label, "review");
+  assert.ok(aiProfile.reasons.includes("needs_llm_quality_judge"));
 });
 
-test("validateRecallLanes includes quality reasons in sample profiles", async () => {
+test("validateRecallLanes includes LLM quality reasons in sample profiles", async () => {
   const deps: RecallLaneValidationDependencies = {
     lookupCachedSnapshot: async () => ({
       snapshotId: "snapshot-cache",
@@ -481,6 +494,66 @@ test("validateRecallLanes includes quality reasons in sample profiles", async ()
         skills: ["Kubernetes", "Distributed Systems", "PostgreSQL"],
       }),
     ],
+    assessProfileQuality: async () => [
+      {
+        index: 0,
+        quality_label: "potential_advance",
+        quality_reasons: ["backend platform evidence", "matches JD must-have"],
+      },
+    ],
+  };
+
+  const report = await validateRecallLanes(
+    [round("standard", 5)],
+    deps,
+    {
+      allowBright: false,
+      useLlmQualityJudge: true,
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(report.rounds[0]?.sample_profiles[0]?.quality_label, "potential_advance");
+  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("backend platform evidence"));
+  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("matches JD must-have"));
+});
+
+test("validateRecallLanes flags incomplete LLM quality judge output", async () => {
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => ({
+      snapshotId: "snapshot-cache",
+      datasetSize: 1,
+      cost: null,
+      expiresAt: "2026-07-01T00:00:00.000Z",
+    }),
+    loadCachedSnapshotProfiles: async () => [profileRow()],
+    assessProfileQuality: async () => [],
+  };
+
+  const report = await validateRecallLanes(
+    [round("standard", 5)],
+    deps,
+    {
+      allowBright: false,
+      useLlmQualityJudge: true,
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(report.rounds[0]?.bad_filter_signal, "quality_judge_incomplete");
+  assert.equal(report.rounds[0]?.sample_profiles[0]?.quality_label, "review");
+  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("llm_quality_judge_missing"));
+});
+
+test("validateRecallLanes does not count potential advance without LLM quality judge", async () => {
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => ({
+      snapshotId: "snapshot-cache",
+      datasetSize: 1,
+      cost: null,
+      expiresAt: "2026-07-01T00:00:00.000Z",
+    }),
+    loadCachedSnapshotProfiles: async () => [profileRow()],
   };
 
   const report = await validateRecallLanes(
@@ -492,7 +565,33 @@ test("validateRecallLanes includes quality reasons in sample profiles", async ()
     },
   );
 
-  assert.equal(report.rounds[0]?.sample_profiles[0]?.quality_label, "potential_advance");
-  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("current_engineering_title"));
-  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("technical_depth_signal"));
+  assert.equal(report.potential_advance_count, 0);
+  assert.equal(report.rounds[0]?.sample_profiles[0]?.quality_label, "review");
+  assert.ok(report.rounds[0]?.sample_profiles[0]?.quality_reasons.includes("needs_llm_quality_judge"));
+});
+
+test("buildRecallValidationQualityPrompt asks the LLM to judge against the JD instead of keyword rules", () => {
+  const prompt = buildRecallValidationQualityPrompt({
+    jdText: "Senior Backend Engineer for distributed payments infrastructure",
+    parsedRequirements: {
+      title: "Senior Backend Engineer",
+      hiring_brief: { role_core: { required_skills: ["Go", "PostgreSQL"] } },
+      recall_spec: { must_have_signals: ["distributed systems", "payments"] },
+    },
+    round: "company_target",
+    profiles: [
+      adaptDatasetRecordToBrightDataProfile(profileRow({
+        name: "Casey Engineer",
+        current_company_name: "Stripe",
+        current_company_title: "Senior Software Engineer",
+      })),
+    ],
+  });
+
+  assert.match(prompt, /Judge against the JD and parsed search intent/);
+  assert.match(prompt, /not against hard-coded keyword lists/);
+  assert.match(prompt, /Do not advance a profile on employer prestige, title, or target-company membership alone/);
+  assert.match(prompt, /potential_advance needs concrete evidence tied to the JD/);
+  assert.match(prompt, /Return exactly 1 assessment object/);
+  assert.match(prompt, /Required index values: 0/);
 });

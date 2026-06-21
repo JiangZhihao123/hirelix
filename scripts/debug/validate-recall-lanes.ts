@@ -48,6 +48,7 @@ type CliOptions = {
   totalCap: number;
   out: string | null;
   parseJd: boolean;
+  judgeQuality: boolean;
 };
 
 function loadEnvFile(filePath: string) {
@@ -86,6 +87,7 @@ function parseArgs(argv: string[]): CliOptions {
     totalCap: 40,
     out: null,
     parseJd: false,
+    judgeQuality: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -101,6 +103,14 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--parse-jd") {
       options.parseJd = true;
+      continue;
+    }
+    if (arg === "--judge-quality") {
+      options.judgeQuality = true;
+      continue;
+    }
+    if (arg.startsWith("--judge-quality=")) {
+      options.judgeQuality = parseBoolean(arg.split("=")[1], false);
       continue;
     }
     if (arg.startsWith("--per-round=")) {
@@ -163,6 +173,7 @@ async function loadParsedFromFile(filePath: string, options: CliOptions) {
     return {
       searchId: null,
       jobId: null,
+      jdText: options.parseJd ? raw : null,
       parsed: recordFromJson(JSON.parse(raw)),
       candidateCount: 250,
       knownSnapshots: [] as KnownRecallSnapshot[],
@@ -175,6 +186,7 @@ async function loadParsedFromFile(filePath: string, options: CliOptions) {
   return {
     searchId: null,
     jobId: null,
+    jdText: raw,
     parsed: buildParsedRequirementsForLaunch(draft, raw, {
       candidateCount,
       displayCount: candidateCount,
@@ -269,6 +281,7 @@ async function loadParsedFromSearch(searchId: string) {
   return {
     searchId,
     jobId: jobRows[0]?.id ?? null,
+    jdText: search.jd_text,
     parsed,
     candidateCount,
     knownSnapshots,
@@ -360,6 +373,9 @@ async function main() {
     {
       searchId: inputData.searchId,
       allowBright: options.allowBright,
+      useLlmQualityJudge: options.judgeQuality,
+      jdText: inputData.jdText,
+      parsedRequirements: inputData.parsed,
       knownSnapshots: inputData.knownSnapshots,
       mode: options.allowBright ? "micro_recall" : "cache_replay",
     },
