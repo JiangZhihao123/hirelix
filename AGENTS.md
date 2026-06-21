@@ -76,6 +76,8 @@ Hirelix’s core product quality must come from JD-aware LLM judgment, not speci
 
 When a candidate should be advanced, held, or rejected, encode the reasoning in prompts, schemas, scoring rubrics, and eval fixtures. The judge must compare the profile against the JD, parsed search intent, role function, seniority, and core must-have evidence. Target-company membership, employer prestige, exact-looking titles, or loose keyword overlap are not enough to advance a candidate without concrete profile evidence. Adjacent profiles can pass when the evidence shows equivalent work.
 
+Candidate quality labels are always scoped to a specific `(JD, candidate profile)` pair. Never create or reuse a global “good candidate” / “bad candidate” label independent of the JD. The same person can be `advance` for one role and `reject` for another.
+
 ## Testing Guidelines
 
 Mock tests are useful for local state, payloads, and error branches, but they do not prove the real search journey works. For core search, billing, auth, Bright Data, LLM, Postgres, or scheduler behavior, prefer real services or clearly state what was not verified. Report results as `mock regression`, `local real chain`, or `production/staging chain`.
