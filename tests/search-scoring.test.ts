@@ -169,6 +169,7 @@ test("judge prompt requires concrete JD evidence before advancing candidates", (
   );
 
   assert.match(prompt, /concrete JD-relevant evidence for role function, seniority, and at least the core must-have area/);
+  assert.match(prompt, /Use the Advancement Rubric in Search Intent as the JD-specific decision framework/);
   assert.match(prompt, /Do not infer this from employer brand, target-company membership, title, or a loose keyword match alone/);
   assert.match(prompt, /If the best reason is only "works at target company"/);
   assert.match(prompt, /Adjacent profiles can still advance when the profile evidence shows equivalent work/);

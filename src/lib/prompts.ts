@@ -63,6 +63,15 @@ Read the job description and identify:
 - Use terms that literally appear in LinkedIn titles, current positions, about sections, or company names.
 - For specialized engineering roles, the skill lane is usually more important than adding more title variants.
 
+8. **Advancement rubric — how to decide if a recalled person is worth moving forward**
+- Define the JD-specific theory of fit before looking at candidates.
+- same_work_evidence: what concrete profile evidence proves the person currently does the same kind of work.
+- seniority_evidence: what proves the person operates at the required level and scope.
+- must_have_evidence: what evidence must be present or strongly implied before a recruiter should advance them.
+- acceptable_tradeoffs: adjacent backgrounds or missing literals that are acceptable when equivalent evidence exists.
+- reject_signals: reasons to hold/reject even if the title, company, or keywords look good.
+- This rubric is not a keyword filter. It is the judge's decision framework for this exact JD.
+
 Return ONLY valid JSON with this structure:
 {
   "title": "primary job title",
@@ -111,6 +120,13 @@ Return ONLY valid JSON with this structure:
       }
     ],
     "recall_strategy": "standard | multi_round"
+  },
+  "advancement_rubric": {
+    "same_work_evidence": ["what proves the candidate does the same work as this JD"],
+    "seniority_evidence": ["what proves the required seniority/scope"],
+    "must_have_evidence": ["evidence needed before advance, not just review"],
+    "acceptable_tradeoffs": ["adjacent backgrounds that can still pass with equivalent evidence"],
+    "reject_signals": ["role-specific reasons to hold/reject despite title/company/keyword match"]
   }
 }`;
 

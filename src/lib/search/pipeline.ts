@@ -123,6 +123,10 @@ type SearchPipelineHelpers = {
   isPlaceholderTitle: (title: string | null | undefined) => boolean;
   deriveCoreSkillsFromJdText: (jdText: string, maxItems?: number) => string[];
   inferCountriesFromJdText: (jdText: string) => string[];
+  sanitizeAdvancementRubric: (
+    value: unknown,
+    parsed: Record<string, unknown>,
+  ) => Record<string, string[]>;
   sanitizeHiringBrief: (value: unknown, fallbackParsed: Record<string, unknown>) => HiringBrief;
   sanitizeCompanyProfile: (value: unknown) => Record<string, unknown> | null;
   sanitizeCandidateSuitability: (value: unknown) => ScoredCandidateAssessment["suitability"] | null;
@@ -667,6 +671,7 @@ async function parseJobDescription(
 
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_spec = helpers.enrichRecallSpecFromJd(parsed, context.jdText, context.candidateCount);
+  parsed.advancement_rubric = helpers.sanitizeAdvancementRubric(parsed.advancement_rubric, parsed);
   const { estimateSearchIntentCost, roundCurrency } = await import("@/lib/search/config");
   parsed.estimated_parse_llm_cost = roundCurrency(
     estimatedParseCost || estimateSearchIntentCost(parseInput),
@@ -2932,6 +2937,10 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
       recall_spec: helpers.normalizeRecallSpec(
         (search as SearchRow).parsed_requirements?.recall_spec,
         context.candidateCount,
+      ),
+      advancement_rubric: helpers.sanitizeAdvancementRubric(
+        (search as SearchRow).parsed_requirements?.advancement_rubric,
+        (search as SearchRow).parsed_requirements || {},
       ),
     }
     : await parseJobDescription(context, (search as SearchRow).parsed_requirements, helpers);

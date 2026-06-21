@@ -131,6 +131,14 @@ export type ConstraintVerdict = {
   must_have_coverage: "strong" | "partial" | "weak" | "unknown";
 };
 
+export type AdvancementRubric = {
+  same_work_evidence: string[];
+  seniority_evidence: string[];
+  must_have_evidence: string[];
+  acceptable_tradeoffs: string[];
+  reject_signals: string[];
+};
+
 export type CompanyProfile = {
   size: string | null;
   mission: string | null;

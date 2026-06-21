@@ -55,6 +55,7 @@ type ParsedSearchIntent = {
   title?: unknown;
   hiring_brief?: unknown;
   recall_spec?: unknown;
+  advancement_rubric?: unknown;
   required_skills?: unknown;
   nice_to_have_skills?: unknown;
   location?: unknown;
@@ -294,6 +295,66 @@ function inferLateralTitleVariants(mainTitle: string): string[] {
   return [];
 }
 
+function sanitizeAdvancementRubric(
+  value: unknown,
+  params: {
+    title: string;
+    roleCore: Record<string, unknown>;
+    requiredSkills: string[];
+    mustHaveSignals: string[];
+    mustHaveConstraints: string[];
+  },
+) {
+  const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const functionFocus = normalizeNullableString(params.roleCore.function_focus);
+  const seniority = normalizeNullableString(params.roleCore.seniority);
+  const required = params.requiredSkills.slice(0, 5);
+  const signals = params.mustHaveSignals.length > 0
+    ? params.mustHaveSignals.slice(0, 5)
+    : required;
+
+  return {
+    same_work_evidence:
+      normalizeStringArray(item.same_work_evidence, 5).length > 0
+        ? normalizeStringArray(item.same_work_evidence, 5)
+        : [
+          functionFocus
+            ? `Profile evidence shows current work in ${functionFocus}.`
+            : `Profile evidence shows current work comparable to ${params.title}.`,
+          signals.length > 0
+            ? `Recent role mentions ${signals.join(", ")} in real project or ownership context.`
+            : "Recent role description shows the same day-to-day problem space as the JD.",
+        ],
+    seniority_evidence:
+      normalizeStringArray(item.seniority_evidence, 5).length > 0
+        ? normalizeStringArray(item.seniority_evidence, 5)
+        : [
+          seniority
+            ? `Scope matches ${seniority} expectations, not just a title string.`
+            : "Scope, ownership, and complexity match the level implied by the JD.",
+        ],
+    must_have_evidence:
+      normalizeStringArray(item.must_have_evidence, 6).length > 0
+        ? normalizeStringArray(item.must_have_evidence, 6)
+        : signals.map((signal) => `Concrete profile evidence for ${signal}.`).slice(0, 6),
+    acceptable_tradeoffs:
+      normalizeStringArray(item.acceptable_tradeoffs, 5).length > 0
+        ? normalizeStringArray(item.acceptable_tradeoffs, 5)
+        : [
+          "Different title is acceptable when the profile shows equivalent work.",
+          "Missing exact tool wording is acceptable when comparable system ownership is explicit.",
+        ],
+    reject_signals:
+      normalizeStringArray(item.reject_signals, 6).length > 0
+        ? normalizeStringArray(item.reject_signals, 6)
+        : [
+          "Only title, employer brand, or target-company membership supports the match.",
+          "Profile evidence is mostly unrelated to the JD's core work.",
+          ...params.mustHaveConstraints.slice(0, 3).map((constraint) => `Clear mismatch on ${constraint}.`),
+        ].slice(0, 6),
+  };
+}
+
 function sanitizeIntentCandidate(
   raw: ParsedSearchIntent | null | undefined,
   jdText: string,
@@ -335,8 +396,13 @@ function sanitizeIntentCandidate(
   const rawTitleVariants = normalizeStringArray(recallSpec.title_variants, 8);
   const titleVariants = expandTitleVariants(rawTitleVariants, title);
   const coreSkillTerms = normalizeStringArray(recallSpec.core_skill_terms, 12);
+  const mustHaveConstraints = normalizeStringArray(hiringBrief.must_have_constraints, 10);
+  const rawMustHaveSignals = normalizeStringArray(recallSpec.must_have_signals, 12);
+  const normalizedMustHaveSignals = rawMustHaveSignals.length > 0
+    ? rawMustHaveSignals
+    : normalizedRequiredSkills;
 
-  return {
+  const normalized: ParsedSearchIntent = {
     title,
     experience_years_min:
       typeof raw?.experience_years_min === "number"
@@ -373,7 +439,7 @@ function sanitizeIntentCandidate(
         ["yes", "no", "unknown"] as const,
         "unknown",
       ),
-      must_have_constraints: normalizeStringArray(hiringBrief.must_have_constraints, 10),
+      must_have_constraints: mustHaveConstraints,
       soft_constraints: normalizeStringArray(hiringBrief.soft_constraints, 10),
       company_stage_expectation: normalizeEnumValue(
         hiringBrief.company_stage_expectation,
@@ -391,9 +457,7 @@ function sanitizeIntentCandidate(
       differentiating_skill_terms: normalizeStringArray(recallSpec.differentiating_skill_terms, 5),
       baseline_skill_terms: normalizeStringArray(recallSpec.baseline_skill_terms, 6),
       domain_terms: normalizeStringArray(recallSpec.domain_terms, 3),
-      must_have_signals: normalizeStringArray(recallSpec.must_have_signals, 12).length > 0
-        ? normalizeStringArray(recallSpec.must_have_signals, 12)
-        : normalizedRequiredSkills,
+      must_have_signals: normalizedMustHaveSignals,
       avoid_profiles: normalizeStringArray(recallSpec.avoid_profiles, 8),
       strict_location_terms: normalizeStringArray(recallSpec.strict_location_terms, 10),
       nearby_location_terms: normalizeStringArray(recallSpec.nearby_location_terms, 10),
@@ -431,6 +495,14 @@ function sanitizeIntentCandidate(
       })(),
     },
   };
+  normalized.advancement_rubric = sanitizeAdvancementRubric(raw?.advancement_rubric, {
+    title,
+    roleCore,
+    requiredSkills: normalizedRequiredSkills,
+    mustHaveSignals: normalizedMustHaveSignals,
+    mustHaveConstraints,
+  });
+  return normalized;
 }
 
 export async function parseJobDescriptionToDraft(
@@ -559,6 +631,7 @@ export function buildParsedRequirementsForLaunch(
     activation_run: false,
     search_phase: "mvp_focus",
     search_started_at: timestamp,
+    advancement_rubric: normalized.advancement_rubric,
     hiring_brief: {
       ...hiringBrief,
       role_core:

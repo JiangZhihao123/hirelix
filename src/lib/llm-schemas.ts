@@ -237,7 +237,7 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: LlmJsonSchemaConfig = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["title", "hiring_brief", "recall_spec"],
+    required: ["title", "hiring_brief", "recall_spec", "advancement_rubric"],
     properties: {
       title: { type: "string" },
       hiring_brief: {
@@ -347,6 +347,24 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: LlmJsonSchemaConfig = {
             },
           },
           recall_strategy: enumSchema(["standard", "multi_round"]),
+        },
+      },
+      advancement_rubric: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "same_work_evidence",
+          "seniority_evidence",
+          "must_have_evidence",
+          "acceptable_tradeoffs",
+          "reject_signals",
+        ],
+        properties: {
+          same_work_evidence: stringArraySchema(),
+          seniority_evidence: stringArraySchema(),
+          must_have_evidence: stringArraySchema(),
+          acceptable_tradeoffs: stringArraySchema(),
+          reject_signals: stringArraySchema(),
         },
       },
     },

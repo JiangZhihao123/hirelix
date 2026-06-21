@@ -117,6 +117,7 @@ export function buildJudgeScorePrompt(
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world.
 - shortlist_decision should answer whether this person deserves to appear in a recruiter-curated shortlist.
 - A candidate is worth advancing only when the profile contains concrete JD-relevant evidence for role function, seniority, and at least the core must-have area. Do not infer this from employer brand, target-company membership, title, or a loose keyword match alone.
+- Use the Advancement Rubric in Search Intent as the JD-specific decision framework. It defines what same-work evidence, seniority evidence, must-have evidence, acceptable tradeoffs, and reject signals mean for this role.
 - For advance_recommendation=advance or shortlist_decision=yes, short_reasons must cite the strongest actual evidence in the profile. If the best reason is only "works at target company", "has senior title", "mentions engineering", or "could maybe learn it", use hold/no instead.
 - Adjacent profiles can still advance when the profile evidence shows equivalent work for this JD. Conversely, exact-looking titles should hold or reject when the evidence is generic, stale, student-only, management-only, or unrelated to the JD's core work.
 - Do not collapse quality because of sparse evidence alone. Use evidence_quality and risk fields to express uncertainty.

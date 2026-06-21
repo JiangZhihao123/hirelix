@@ -40,4 +40,12 @@ Node.js, TypeScript, PostgreSQL, AWS.
     parsed.user_clarification,
     "Focus on marketplace or fintech backgrounds.",
   );
+  const rubric = parsed.advancement_rubric as Record<string, unknown>;
+  assert.ok(Array.isArray(rubric.same_work_evidence));
+  assert.ok(Array.isArray(rubric.must_have_evidence));
+  assert.ok(Array.isArray(rubric.reject_signals));
+  assert.match(
+    (rubric.reject_signals as string[]).join(" "),
+    /title|employer brand|target-company|keywords/i,
+  );
 });

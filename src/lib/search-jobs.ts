@@ -88,6 +88,7 @@ import { getLogger, errorLogFields } from "@/lib/logger";
 import { PUBLIC_SEARCH_FAILURE_MESSAGE } from "@/lib/public-errors";
 import type {
   AdvanceRecommendation,
+  AdvancementRubric,
   BlockingSeverity,
   CandidateDisplayTier,
   CandidateRowInput,
@@ -1825,8 +1826,66 @@ export function sanitizeHiringBrief(value: unknown, fallbackParsed: Record<strin
   };
 }
 
+export function sanitizeAdvancementRubric(
+  value: unknown,
+  parsed: Record<string, unknown>,
+): AdvancementRubric {
+  const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, Number(parsed.candidate_count) || 5);
+  const title = normalizeNullableString(parsed.title) || hiringBrief.role_core.title || "this role";
+  const functionFocus = hiringBrief.role_core.function_focus;
+  const mustHaveSignals = recallSpec.must_have_signals.length > 0
+    ? recallSpec.must_have_signals
+    : hiringBrief.role_core.required_skills;
+  const sameWorkEvidence = normalizeStringArray(item.same_work_evidence, 5);
+  const seniorityEvidence = normalizeStringArray(item.seniority_evidence, 5);
+  const mustHaveEvidence = normalizeStringArray(item.must_have_evidence, 6);
+  const acceptableTradeoffs = normalizeStringArray(item.acceptable_tradeoffs, 5);
+  const rejectSignals = normalizeStringArray(item.reject_signals, 6);
+
+  return {
+    same_work_evidence: sameWorkEvidence.length > 0
+      ? sameWorkEvidence
+      : [
+        functionFocus
+          ? `Current profile evidence shows work in ${functionFocus}.`
+          : `Current profile evidence shows work comparable to ${title}.`,
+        mustHaveSignals.length > 0
+          ? `Recent role evidence connects to ${mustHaveSignals.slice(0, 4).join(", ")}.`
+          : "Recent role evidence matches the JD's day-to-day problem space.",
+      ],
+    seniority_evidence: seniorityEvidence.length > 0
+      ? seniorityEvidence
+      : [
+        hiringBrief.role_core.seniority
+          ? `Scope matches ${hiringBrief.role_core.seniority}, not just the title string.`
+          : "Scope, ownership, and complexity match the level implied by the JD.",
+      ],
+    must_have_evidence: mustHaveEvidence.length > 0
+      ? mustHaveEvidence
+      : mustHaveSignals.slice(0, 6).map((signal) => `Concrete profile evidence for ${signal}.`),
+    acceptable_tradeoffs: acceptableTradeoffs.length > 0
+      ? acceptableTradeoffs
+      : [
+        "Different title is acceptable when profile evidence shows equivalent work.",
+        "Missing exact tool wording is acceptable when comparable system ownership is explicit.",
+      ],
+    reject_signals: rejectSignals.length > 0
+      ? rejectSignals
+      : [
+        "Only title, employer brand, target-company membership, or loose keywords support the match.",
+        "Profile evidence is mostly unrelated to the JD's core work.",
+        ...hiringBrief.must_have_constraints
+          .slice(0, 3)
+          .map((constraint) => `Clear mismatch on ${constraint}.`),
+      ].slice(0, 6),
+  };
+}
+
 function buildPromptSearchContext(parsed: Record<string, unknown>) {
   const hiringBrief = sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const advancementRubric = sanitizeAdvancementRubric(parsed.advancement_rubric, parsed);
   const lines = [
     `Title: ${normalizeNullableString(parsed.title) || "N/A"}`,
   ];
@@ -1877,6 +1936,22 @@ function buildPromptSearchContext(parsed: Record<string, unknown>) {
   }
   if (recallSpec.must_have_signals.length > 0) {
     lines.push(`Must-Have Signals: ${recallSpec.must_have_signals.join(" | ")}`);
+  }
+  lines.push("Advancement Rubric:");
+  if (advancementRubric.same_work_evidence.length > 0) {
+    lines.push(`- Same Work Evidence: ${advancementRubric.same_work_evidence.join(" | ")}`);
+  }
+  if (advancementRubric.seniority_evidence.length > 0) {
+    lines.push(`- Seniority Evidence: ${advancementRubric.seniority_evidence.join(" | ")}`);
+  }
+  if (advancementRubric.must_have_evidence.length > 0) {
+    lines.push(`- Must-Have Evidence: ${advancementRubric.must_have_evidence.join(" | ")}`);
+  }
+  if (advancementRubric.acceptable_tradeoffs.length > 0) {
+    lines.push(`- Acceptable Tradeoffs: ${advancementRubric.acceptable_tradeoffs.join(" | ")}`);
+  }
+  if (advancementRubric.reject_signals.length > 0) {
+    lines.push(`- Reject Signals: ${advancementRubric.reject_signals.join(" | ")}`);
   }
   if (recallSpec.avoid_profiles.length > 0) {
     lines.push(`Avoid Profiles: ${recallSpec.avoid_profiles.join(" | ")}`);
@@ -3031,6 +3106,7 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
         isPlaceholderTitle,
         deriveCoreSkillsFromJdText,
         inferCountriesFromJdText,
+        sanitizeAdvancementRubric,
         sanitizeHiringBrief,
         sanitizeCompanyProfile,
         sanitizeCandidateSuitability,
