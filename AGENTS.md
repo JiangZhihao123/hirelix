@@ -70,6 +70,12 @@ For server logs, use `getLogger({ component: "..." })` from `src/lib/logger.ts`;
 
 For natural-language cleaning, classification, extraction, scoring, or repair, prefer LLM logic over regex. Regex is acceptable for strict formats such as dates, URLs, and email validation.
 
+## Candidate Quality Principle
+
+Hirelix’s core product quality must come from JD-aware LLM judgment, not special-case keyword patches. Do not improve candidate quality by adding hard-coded exclusions for particular titles, stacks, schools, companies, profile phrases, or one-off observed failures. Use deterministic code only for structural concerns such as budget accounting, deduplication, cache identity, snapshot status, location eligibility primitives, and safe Bright Data filter construction.
+
+When a candidate should be advanced, held, or rejected, encode the reasoning in prompts, schemas, scoring rubrics, and eval fixtures. The judge must compare the profile against the JD, parsed search intent, role function, seniority, and core must-have evidence. Target-company membership, employer prestige, exact-looking titles, or loose keyword overlap are not enough to advance a candidate without concrete profile evidence. Adjacent profiles can pass when the evidence shows equivalent work.
+
 ## Testing Guidelines
 
 Mock tests are useful for local state, payloads, and error branches, but they do not prove the real search journey works. For core search, billing, auth, Bright Data, LLM, Postgres, or scheduler behavior, prefer real services or clearly state what was not verified. Report results as `mock regression`, `local real chain`, or `production/staging chain`.
