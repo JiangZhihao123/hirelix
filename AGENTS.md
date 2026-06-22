@@ -82,7 +82,7 @@ Candidate quality labels are always scoped to a specific `(JD, candidate profile
 
 Mock tests are useful for local state, payloads, and error branches, but they do not prove the real search journey works. For core search, billing, auth, Bright Data, LLM, Postgres, or scheduler behavior, prefer real services or clearly state what was not verified. Report results as `mock regression`, `local real chain`, or `production/staging chain`.
 
-Bright Data real recall costs money. Do not create snapshots, expand recall, or rerun real searches without explicit authorization. For retrospective analysis, start read-only from `hirelix_searches`, `hirelix_candidates`, `hirelix_snapshot_profiles`, `hirelix_dataset_snapshots`, and scheduler logs. Treat Bright snapshot `cost <= 0` as unknown, not real zero cost.
+Bright Data real recall costs money. Current Bright Filter API pricing is USD 2.50 per 1,000 records. Do not create snapshots, expand recall, or rerun real searches without explicit authorization. For retrospective analysis, start read-only from `hirelix_searches`, `hirelix_candidates`, `hirelix_snapshot_profiles`, `hirelix_dataset_snapshots`, and scheduler logs. Treat Bright snapshot `cost <= 0` as unknown, not real zero cost.
 
 For page debugging, use Playwright MCP progressively: inspect page state, console, network, and DOM before deciding the next action. Stable regression flows can later move to Playwright CLI or `@playwright/test`.
 
