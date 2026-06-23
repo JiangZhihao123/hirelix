@@ -1,12 +1,15 @@
 import { sanitizeDisplayName } from "@/lib/display-name";
+import { getLogger } from "@/lib/logger";
 import type { CandidateRowInput } from "@/lib/search/types";
+
+const searchLogger = getLogger({ component: "search_pipeline" });
 
 export function nowIso() {
   return new Date().toISOString();
 }
 
 export function logSearchEvent(eventName: string, payload: Record<string, unknown>) {
-  console.log(`[search:${eventName}] ${JSON.stringify(payload)}`);
+  searchLogger.info({ event: eventName, ...payload });
 }
 
 export function normalizeNullableString(value: unknown): string | null {

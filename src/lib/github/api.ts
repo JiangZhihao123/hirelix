@@ -7,6 +7,7 @@ import type {
   GithubDiscoverySource,
   SerperGithubSearchResult,
 } from "./types";
+import { getLogger } from "@/lib/logger";
 import { withTimeout } from "@/lib/search/concurrency";
 
 const GITHUB_API_BASE = "https://api.github.com";
@@ -15,6 +16,7 @@ const SERPER_API_BASE = "https://google.serper.dev";
 const GITHUB_RATE_LIMIT_FALLBACK_COOLDOWN_MS = 60_000;
 const DEFAULT_GITHUB_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_SERPER_REQUEST_TIMEOUT_MS = 15_000;
+const githubSignalsLogger = getLogger({ component: "github_signals" });
 
 // Proactive rate limiter: spaces out requests so we never exceed GitHub API limits.
 // All workers in the same process share the same limiter instances.
@@ -129,10 +131,10 @@ export function recordGithubTraceEntry(entry: GithubRequestTraceEntry) {
   trace.requests.push(entry);
 
   if (isGithubTraceLoggingEnabled()) {
-    console.info("[github-signals] request", JSON.stringify({
-      candidate_name: trace.candidateName,
+    githubSignalsLogger.info({
+      event: "github_request",
       ...entry,
-    }));
+    });
   }
 }
 
@@ -148,8 +150,8 @@ export function logGithubTraceSummary(params: {
   const topResources = Object.entries(trace.resourceCounts)
     .sort((left, right) => right[1] - left[1]);
   const recentRequests = trace.requests.slice(-8);
-  console.info("[github-signals] summary", JSON.stringify({
-    candidate_name: trace.candidateName,
+  githubSignalsLogger.info({
+    event: "github_trace_summary",
     github_login: params.githubLogin || null,
     outcome: params.outcome,
     discovery_source: params.discoverySource || null,
@@ -161,7 +163,7 @@ export function logGithubTraceSummary(params: {
     top_rate_limit_resources: topResources,
     recent_requests: recentRequests,
     error: params.error || null,
-  }));
+  });
 }
 
 function resolveRetryAfterMs(value: string | null) {

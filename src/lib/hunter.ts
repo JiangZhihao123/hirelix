@@ -19,9 +19,11 @@ import {
   resolveDeepSeekThinkingMode,
 } from "@/lib/llm-client";
 import { COMPANY_INFO_EXTRACTION_JSON_SCHEMA } from "@/lib/llm-schemas";
+import { getLogger } from "@/lib/logger";
 
 const HUNTER_BASE = "https://api.hunter.io/v2";
 const APOLLO_BASE = "https://api.apollo.io/api/v1";
+const emailLookupLogger = getLogger({ component: "email_lookup" });
 
 // ──────────────────── Types ────────────────────
 
@@ -160,7 +162,10 @@ If uncertain, return null for that field. Return ONLY valid JSON, no markdown.`;
       domain: data.domain || null,
     };
   } catch (err) {
-    console.log(`[email] LLM company extraction failed: ${err instanceof Error ? err.message : String(err)}`);
+    emailLookupLogger.warn({
+      event: "company_extraction_failed",
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { companyName: null, domain: null };
   }
 }
@@ -357,35 +362,54 @@ export async function findEmail(opts: {
         domain: metadataCompanyInfo.domain,
       });
       if (result.email) {
-        console.log(`[email] ✅ Apollo found: ${result.email} for ${fullName}`);
+        emailLookupLogger.info({
+          event: "email_lookup_found",
+          source: "apollo",
+        });
         return { name: fullName, email: result.email, confidence: 90, source: "apollo" };
       }
     } catch (err) {
-      console.log(`[email] Apollo failed for ${fullName}: ${err instanceof Error ? err.message : String(err)}`);
+      emailLookupLogger.warn({
+        event: "apollo_lookup_failed",
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
   if (!hunterApiKey) {
-    console.log(`[email] No Hunter API key, stopping`);
+    emailLookupLogger.info({
+      event: "email_lookup_stopped",
+      reason: "missing_hunter_api_key",
+    });
     return { name: fullName, email: null, confidence: 0, source: null };
   }
 
   // Strategy 2: LLM extract company name + domain from metadata
-  console.log(`[email] Extracting company info via LLM for ${fullName}...`);
+  emailLookupLogger.info({
+    event: "company_extraction_started",
+  });
   const { companyName, domain: extractedDomain } =
     metadataCompanyInfo.companyName || metadataCompanyInfo.domain
       ? metadataCompanyInfo
       : await extractCompanyInfo(metadata, headline);
-  console.log(`[email] LLM extracted: company="${companyName}", domain="${extractedDomain}"`);
+  emailLookupLogger.info({
+    event: "company_extraction_completed",
+    has_company_name: Boolean(companyName),
+    has_domain: Boolean(extractedDomain),
+  });
 
   let domain = extractedDomain;
 
   // Strategy 3: Hunter domain-search if we have company name but no domain
   if (companyName && !domain) {
-    console.log(`[email] Searching domain for company: ${companyName}`);
+    emailLookupLogger.info({
+      event: "hunter_domain_search_started",
+    });
     domain = await hunterDomainSearch(hunterApiKey, companyName);
     if (domain) {
-      console.log(`[email] Hunter domain-search found: ${domain}`);
+      emailLookupLogger.info({
+        event: "hunter_domain_search_found",
+      });
     }
   }
 
@@ -394,30 +418,50 @@ export async function findEmail(opts: {
     try {
       const result = await hunterEmailFinder(hunterApiKey, firstName, lastName, domain);
       if (result.email) {
-        console.log(`[email] ✅ Hunter email-finder found: ${result.email} for ${fullName} (${result.score}%)`);
+        emailLookupLogger.info({
+          event: "email_lookup_found",
+          source: "hunter",
+          score: result.score,
+        });
         return { name: fullName, email: result.email, confidence: result.score, source: "hunter" };
       }
     } catch (err) {
-      console.log(`[email] Hunter email-finder failed: ${err instanceof Error ? err.message : String(err)}`);
+      emailLookupLogger.warn({
+        event: "hunter_email_finder_failed",
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
   // Strategy 5: Email pattern guessing + Hunter verifier
   if (domain && firstName && lastName) {
-    console.log(`[email] Trying email pattern guessing for ${fullName} @ ${domain}`);
+    emailLookupLogger.info({
+      event: "email_pattern_guessing_started",
+      has_domain: Boolean(domain),
+    });
     const patterns = guessEmailPatterns(firstName, lastName, domain);
     
     for (const email of patterns) {
       const verification = await hunterVerifyEmail(hunterApiKey, email);
       if (verification.valid && verification.score >= 70) {
-        console.log(`[email] ✅ Pattern guess verified: ${email} (${verification.score}%)`);
+        emailLookupLogger.info({
+          event: "email_lookup_found",
+          source: "hunter",
+          score: verification.score,
+          strategy: "pattern_guess",
+        });
         return { name: fullName, email, confidence: verification.score, source: "hunter" };
       }
     }
-    console.log(`[email] No valid pattern found`);
+    emailLookupLogger.info({
+      event: "email_pattern_guessing_not_found",
+      has_domain: Boolean(domain),
+    });
   }
 
-  console.log(`[email] ❌ No email found for ${fullName}`);
+  emailLookupLogger.info({
+    event: "email_lookup_not_found",
+  });
   return { name: fullName, email: null, confidence: 0, source: null };
 }
 

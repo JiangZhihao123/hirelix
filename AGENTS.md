@@ -125,9 +125,11 @@ Scheduler logs:
 
 ```bash
 ssh us-2 'sudo journalctl -u hirelix-scheduler -f'
+ssh us-2 'sudo tail -f /var/log/hirelix/scheduler.log'
+ssh us-2 'sudo jq '"'"'select(.search_id == "SEARCH_ID")'"'"' /var/log/hirelix/scheduler.log'
 ```
 
-Production scheduler environment variables are loaded from `/etc/hirelix.env`. The scheduler is deployed by GitHub Actions after pushes to `main`: build, type check, unit tests, then pull/install/restart on `us-2`. If disabling the production scheduler is explicitly requested, use `sudo systemctl disable --now hirelix-scheduler` and verify ownership before stopping services on shared hosts.
+Production scheduler environment variables are loaded from `/etc/hirelix.env`. File logging is opt-in with `LOG_FILE_ENABLED=true` and `LOG_FILE_PATH=/var/log/hirelix/scheduler.log`; daily rotation is documented in `docs/ops/logging.md` and configured by `deploy/logrotate/hirelix-scheduler`. The scheduler is deployed by GitHub Actions after pushes to `main`: build, type check, unit tests, then pull/install/restart on `us-2`. If disabling the production scheduler is explicitly requested, use `sudo systemctl disable --now hirelix-scheduler` and verify ownership before stopping services on shared hosts.
 
 ## Commit & Pull Request Guidelines
 

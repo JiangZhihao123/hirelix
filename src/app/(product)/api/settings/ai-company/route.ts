@@ -117,7 +117,7 @@ async function generateCompanyProfileFromPrompt(
 }
 
 function logCompanyResearch(eventName: string, payload: Record<string, unknown>) {
-  console.log(`[ai_company:${eventName}] ${JSON.stringify(payload)}`);
+  routeLogger.info({ event: eventName, ...payload });
 }
 
 /**

@@ -1,0 +1,12 @@
+/var/log/hirelix/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    dateext
+    dateformat -%Y%m%d
+    create 0640 root adm
+}

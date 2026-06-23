@@ -3,8 +3,11 @@ import {
   OpenRouter,
 } from "@openrouter/sdk";
 import { createHash } from "node:crypto";
+import { getLogger } from "@/lib/logger";
 import { recordLlmUsageEvent } from "@/lib/search/persistence";
 import type { LlmUsageEventPayload } from "@/lib/search/types";
+
+const llmLogger = getLogger({ component: "llm_client" });
 
 export type LlmJsonSchemaConfig = {
   name: string;
@@ -633,7 +636,8 @@ async function recordUsageFromExit(params: {
       responsePayload,
     });
   } catch (error) {
-    console.error("[llm-client] record usage failed", {
+    llmLogger.error({
+      event: "llm_usage_record_failed",
       stage: usageEvent?.stage || "unknown",
       error: error instanceof Error ? error.message : String(error),
     });

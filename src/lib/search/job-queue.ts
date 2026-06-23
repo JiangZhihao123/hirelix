@@ -6,6 +6,7 @@ import {
   hirelix_searches,
 } from "@/db/schema";
 import { getInternalApiAuthorizationHeader } from "@/lib/internal-api-secret";
+import { getLogger } from "@/lib/logger";
 import { getFetchDispatcherForUrl } from "@/lib/server-outbound-proxy";
 import {
   SEARCH_JOB_HEARTBEAT_SECONDS,
@@ -37,6 +38,8 @@ type SearchStartupState = {
   search_completed_at?: string | null | Date;
   parsed_requirements?: unknown;
 };
+
+const searchJobQueueLogger = getLogger({ component: "search_job_queue" });
 
 function isSnapshotProfileCacheRerun(parsedRequirements: unknown) {
   return Boolean(
@@ -101,7 +104,12 @@ export function kickSearchJobRunner(
     }),
     ...(dispatcher ? { dispatcher } : {}),
   }).catch((error) => {
-    console.error("[search_jobs] Failed to kick runner:", error);
+    searchJobQueueLogger.error({
+      event: "search_job_runner_kick_failed",
+      search_id: options?.searchId ?? null,
+      base_url: baseUrl,
+      err: error,
+    });
   });
 }
 

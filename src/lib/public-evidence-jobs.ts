@@ -10,10 +10,13 @@ import {
 } from "@/db/schema";
 import { extractRequiredSkillsForGithub } from "@/lib/github-enrichment-jobs";
 import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
+import { getLogger } from "@/lib/logger";
 import { enrichPublicEvidenceForCandidate } from "@/lib/public-evidence";
 import { getSellableEvidenceItems } from "@/lib/public-evidence/selling-kit";
 import type { PublicEvidenceItem } from "@/lib/public-evidence/types";
 import { withTimeout } from "@/lib/search/concurrency";
+
+const publicEvidenceLogger = getLogger({ component: "public_evidence_jobs" });
 
 const PUBLIC_EVIDENCE_MAX_ATTEMPTS = 3;
 const PUBLIC_EVIDENCE_RETRY_DELAY_MS = 5 * 60 * 1000;
@@ -470,7 +473,8 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
       }
     }
     await updateJobStatus(job.id, "done", { last_error: null });
-    console.log("[public_evidence] Job done", {
+    publicEvidenceLogger.info({
+      event: "public_evidence_job_done",
       job_id: job.id,
       candidate_id: job.candidate_id,
       search_id: job.search_id,
@@ -489,7 +493,8 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
         ? new Date(Date.now() + PUBLIC_EVIDENCE_RETRY_DELAY_MS).toISOString()
         : nowIso(),
     });
-    console.error("[public_evidence] Job failed", {
+    publicEvidenceLogger.error({
+      event: "public_evidence_job_failed",
       job_id: job.id,
       candidate_id: job.candidate_id,
       search_id: job.search_id,

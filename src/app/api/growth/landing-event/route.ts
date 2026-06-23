@@ -2,9 +2,11 @@ import { after, NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
 import { hirelix_growth_landing_events } from "@/db/schema";
+import { getLogger } from "@/lib/logger";
 
 const DEFAULT_PREVIEW_REQUEST_RECIPIENT = "jzh_spring@163.com";
 const DEFAULT_ALERT_TIMEOUT_MS = 1200;
+const growthLandingLogger = getLogger({ component: "growth_landing_event" });
 
 const ALLOWED_EVENTS = new Set([
   "page_view",
@@ -229,7 +231,8 @@ export async function POST(req: NextRequest) {
       metadata,
     });
   } catch (error) {
-    console.error("[growth:landing_event_failed]", {
+    growthLandingLogger.error({
+      event: "landing_event_record_failed",
       event_type: eventType,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -245,7 +248,8 @@ export async function POST(req: NextRequest) {
         metadata,
         recipient,
       }).catch((error) => {
-        console.error("[growth:preview_request_alert_failed]", {
+        growthLandingLogger.error({
+          event: "preview_request_alert_failed",
           email_id: emailId,
           error: error instanceof Error ? error.message : String(error),
         });

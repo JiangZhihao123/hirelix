@@ -11,6 +11,7 @@ import {
   hirelix_usage_events,
 } from "@/db/schema";
 import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
+import { getLogger } from "@/lib/logger";
 import { nowIso } from "@/lib/search/normalize";
 import type {
   CandidateRowInput,
@@ -32,6 +33,8 @@ export type SnapshotProfilePersistResult = {
   error?: unknown;
 };
 
+const persistenceLogger = getLogger({ component: "search_persistence" });
+const snapshotLogger = getLogger({ component: "snapshot_profiles" });
 const DEFAULT_SNAPSHOT_CACHE_TTL_DAYS = 14;
 function assertSearchStatus(status: string): asserts status is SearchStatus {
   if (!SEARCH_STATUS_VALUES.includes(status as SearchStatus)) {
@@ -244,7 +247,8 @@ async function insertLlmUsageEventRows(rows: LlmUsageEventRow[]) {
       return;
     } catch (error) {
       const retrying = attempt < 3;
-      console.error("[search_persistence] recordLlmUsageEvent failed", {
+      persistenceLogger.error({
+        event: "llm_usage_event_record_failed",
         batch_size: rows.length,
         stages: [...new Set(rows.map((row) => row.stage))],
         search_id: rows[0]?.search_id,
@@ -280,7 +284,8 @@ function scheduleLlmUsageFlush() {
     state.flushTimer = null;
     state.flushPromise = drainLlmUsageQueue()
       .catch((error) => {
-        console.error("[search_persistence] llm usage flush failed", {
+        persistenceLogger.error({
+          event: "llm_usage_flush_failed",
           error: formatDbError(error),
         });
       })
@@ -308,7 +313,8 @@ export async function flushPendingLlmUsageEvents() {
   if (!state.flushPromise) {
     state.flushPromise = drainLlmUsageQueue()
       .catch((error) => {
-        console.error("[search_persistence] llm usage flush failed", {
+        persistenceLogger.error({
+          event: "llm_usage_flush_failed",
           error: formatDbError(error),
         });
       })
@@ -362,7 +368,8 @@ export async function setSearchStatus(
       lastError = error;
     }
 
-    console.error("[search_persistence] setSearchStatus failed", {
+    persistenceLogger.error({
+      event: "search_status_update_failed",
       search_id: searchId,
       status,
       attempt,
@@ -411,7 +418,8 @@ export async function setSearchStatus(
           ),
         );
     } catch (error) {
-      console.error("[search_persistence] terminal job update failed", {
+      persistenceLogger.error({
+        event: "terminal_job_update_failed",
         search_id: searchId,
         status,
         error: formatDbError(error),
@@ -531,7 +539,12 @@ export async function loadCachedSnapshotProfiles(
       .map((row) => row.raw_data)
       .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object");
   } catch (error) {
-    console.error("[snapshot_profiles] load failed", { snapshotId, sourceRound, error });
+    snapshotLogger.error({
+      event: "snapshot_profiles_load_failed",
+      snapshot_id: snapshotId,
+      source_round: sourceRound,
+      err: error,
+    });
     return null;
   }
 }
@@ -545,9 +558,14 @@ export async function persistSnapshotProfiles(
     sourceRound: string;
   },
 ): Promise<SnapshotProfilePersistResult> {
-  console.log(
-    `[snapshot_profiles] persist called: snapshot=${params.snapshotId} round=${params.sourceRound} records=${records.length}`,
-  );
+  snapshotLogger.info({
+    event: "snapshot_profiles_persist_started",
+    snapshot_id: params.snapshotId,
+    search_id: params.searchId,
+    job_id: params.jobId,
+    source_round: params.sourceRound,
+    records: records.length,
+  });
   if (records.length === 0) return { ok: true, rowCount: 0 };
 
   const rows = records.map((record, index) => {
@@ -594,12 +612,24 @@ export async function persistSnapshotProfiles(
         .values(rows.slice(index, index + batchSize));
     }
 
-    console.log(
-      `[snapshot_profiles] persisted ${rows.length} rows for snapshot=${params.snapshotId} round=${params.sourceRound}`,
-    );
+    snapshotLogger.info({
+      event: "snapshot_profiles_persisted",
+      snapshot_id: params.snapshotId,
+      search_id: params.searchId,
+      job_id: params.jobId,
+      source_round: params.sourceRound,
+      row_count: rows.length,
+    });
     return { ok: true, rowCount: rows.length };
   } catch (error) {
-    console.error("[snapshot_profiles] persist failed", params.snapshotId, error);
+    snapshotLogger.error({
+      event: "snapshot_profiles_persist_failed",
+      snapshot_id: params.snapshotId,
+      search_id: params.searchId,
+      job_id: params.jobId,
+      source_round: params.sourceRound,
+      err: error,
+    });
     return { ok: false, rowCount: 0, error };
   }
 }
@@ -646,7 +676,8 @@ export async function updateSearchParsedRequirements(
       lastError = error;
     }
 
-    console.error("[search_persistence] updateSearchParsedRequirements failed", {
+    persistenceLogger.error({
+      event: "search_parsed_requirements_update_failed",
       search_id: searchId,
       attempt,
       retrying: attempt < maxAttempts,

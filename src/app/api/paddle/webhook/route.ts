@@ -5,9 +5,12 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_billing_events, hirelix_user_settings, user } from "@/db/schema";
 import { getCheckoutConfig } from "@/lib/billing";
+import { getLogger } from "@/lib/logger";
+
+const paddleWebhookLogger = getLogger({ component: "paddle_webhook" });
 
 function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
-  console.log(`[billing:${eventName}] ${JSON.stringify(payload)}`);
+  paddleWebhookLogger.info({ event: eventName, ...payload });
 }
 
 const DEFAULT_SUBSCRIPTION_ALERT_RECIPIENT = "jzh_spring@163.com";
@@ -433,8 +436,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     const errorDetails = describeError(err);
-    logBillingEvent("webhook_failed", errorDetails);
-    console.error("[paddle-webhook] Error:", errorDetails);
+    paddleWebhookLogger.error({ event: "webhook_failed", ...errorDetails });
     return NextResponse.json({ error: "Webhook handling failed" }, { status: 500 });
   }
 }

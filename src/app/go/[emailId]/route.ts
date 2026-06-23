@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
 import { hirelix_growth_outreach_clicks } from "@/db/schema";
+import { getLogger } from "@/lib/logger";
 
 const DEFAULT_CLICK_ALERT_RECIPIENT = "jzh_spring@163.com";
 const OUTREACH_EMAIL_ID_PATTERN =
   /^20\d{2}-\d{2}-\d{2}-(?:batch\d+|followup)-[a-z0-9-]+$/;
 const STATIC_ASSET_PATTERN = /(?:^|\/)(?:_next\/static|static\/|assets\/|favicon\.|robots\.txt|sitemap\.xml)|\.(?:js|css|map|png|jpg|jpeg|gif|svg|ico|webp|woff2?)$/i;
 const SCANNER_USER_AGENT_PATTERN = /virustotal|appengine-google|python-requests|go-http-client|urlscan|googleimageproxy|proofpoint|mimecast|barracuda|mandrill|sendgrid|mailchimp|linkexpand|preview|crawler|spider|bot/i;
+const growthClickLogger = getLogger({ component: "growth_outreach_click" });
 
 function getBaseUrl() {
   return process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://hirelix.online";
@@ -189,7 +191,8 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("[growth:outreach_click_failed]", {
+    growthClickLogger.error({
+      event: "outreach_click_record_failed",
       email_id: emailId,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -207,7 +210,8 @@ export async function GET(
         userAgent,
       });
     } catch (error) {
-      console.error("[growth:outreach_click_alert_failed]", {
+      growthClickLogger.error({
+        event: "outreach_click_alert_failed",
         email_id: emailId,
         error: error instanceof Error ? error.message : String(error),
       });

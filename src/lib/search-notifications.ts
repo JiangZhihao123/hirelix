@@ -2,9 +2,12 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_search_notifications, hirelix_searches } from "@/db/schema";
+import { getLogger } from "@/lib/logger";
 import { getEmailByUserId } from "@/lib/user-identity";
 import { areSearchNotificationsEnabledOnServer } from "@/lib/search-notification-config";
 import { getSearchDisplayTitle } from "@/lib/search-title";
+
+const notificationLogger = getLogger({ component: "search_notifications" });
 
 type SearchNotificationKind = "first_shortlist_ready" | "search_failed";
 
@@ -48,7 +51,7 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 function logSearchNotification(eventName: string, payload: Record<string, unknown>) {
-  console.log(`[search:${eventName}] ${JSON.stringify(payload)}`);
+  notificationLogger.info({ event: eventName, ...payload });
 }
 
 function buildSearchUrl(searchId: string) {

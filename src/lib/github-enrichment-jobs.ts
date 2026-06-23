@@ -11,6 +11,9 @@ import {
   buildPendingGithubSignals,
   enrichGithubSignalsForCandidate,
 } from "@/lib/github-signals";
+import { getLogger } from "@/lib/logger";
+
+const githubEnrichmentLogger = getLogger({ component: "github_enrichment_jobs" });
 
 const GITHUB_ENRICHMENT_MAX_ATTEMPTS = 3;
 const GITHUB_ENRICHMENT_RETRY_DELAY_MS = 5 * 60 * 1000;
@@ -520,7 +523,8 @@ export async function processNextGithubEnrichmentJob(
       locked_at: null,
     });
 
-    console.log("[github_enrichment] Job done", {
+    githubEnrichmentLogger.info({
+      event: "github_enrichment_job_done",
       job_id: job.id,
       candidate_id: job.candidate_id,
       search_id: job.search_id,
@@ -540,7 +544,8 @@ export async function processNextGithubEnrichmentJob(
         ? new Date(Date.now() + GITHUB_ENRICHMENT_RETRY_DELAY_MS).toISOString()
         : nowIso(),
     });
-    console.error("[github_enrichment] Job failed", {
+    githubEnrichmentLogger.error({
+      event: "github_enrichment_job_failed",
       job_id: job.id,
       candidate_id: job.candidate_id,
       search_id: job.search_id,

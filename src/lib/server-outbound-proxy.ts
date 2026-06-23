@@ -1,7 +1,10 @@
 import { Agent, ProxyAgent, setGlobalDispatcher, type Dispatcher } from "undici";
 
+import { getLogger } from "@/lib/logger";
+
 let initialized = false;
 const directLoopbackDispatcher = new Agent();
+const networkLogger = getLogger({ component: "network" });
 
 function getConfiguredBoolean(envName: string) {
   const raw = process.env[envName];
@@ -55,7 +58,17 @@ export function initializeGlobalOutboundProxy() {
   }
 
   setGlobalDispatcher(new ProxyAgent(proxyUrl));
-  console.log(`[network] Global outbound proxy enabled: ${proxyUrl}`);
+  const proxyHost = (() => {
+    try {
+      return new URL(proxyUrl).host;
+    } catch {
+      return "configured";
+    }
+  })();
+  networkLogger.info({
+    event: "global_outbound_proxy_enabled",
+    proxy_host: proxyHost,
+  });
 }
 
 export function shouldBypassOutboundProxyForUrl(target: string | URL) {

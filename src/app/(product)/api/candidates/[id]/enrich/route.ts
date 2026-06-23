@@ -246,7 +246,13 @@ export async function POST(
           if (emailResult.email) {
             updates.email = emailResult.email;
             updates.enrich_source = emailResult.source;
-            console.log(`[enrich] Email found for ${sanitizedCandidateName}: ${emailResult.email} (via ${emailResult.source})`);
+            routeLogger.info({
+              event: "candidate_email_found",
+              candidate_id: candidate.id,
+              search_id: candidate.search_id,
+              user_id: user.id,
+              source: emailResult.source,
+            });
           }
         } catch (err) {
           routeLogger.error(

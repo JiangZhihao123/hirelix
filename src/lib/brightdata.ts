@@ -9,6 +9,7 @@
  */
 import { createHash } from "node:crypto";
 import { extractPublicProfileLinks, type PublicProfileLinks } from "@/lib/github/public-links";
+import { getLogger } from "@/lib/logger";
 
 const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
 const BRIGHTDATA_FILTER_API_BASE = "https://api.brightdata.com/datasets";
@@ -44,6 +45,7 @@ export type BrightDataDatasetFilterRequest = {
 
 const BRIGHTDATA_MAX_RULES_PER_GROUP = 4;
 const BRIGHTDATA_MAX_GROUP_DEPTH = 3;
+const brightDataLogger = getLogger({ component: "brightdata" });
 
 function isFilterGroup(
   filter: BrightDataFilterRule,
@@ -890,7 +892,13 @@ export async function pollSnapshot(
   intervalMs: number = 20000,
 ): Promise<BrightDataProfile[]> {
   for (let i = 0; i < maxAttempts; i++) {
-    console.log(`[brightdata] Polling snapshot ${snapshotId} (attempt ${i + 1}/${maxAttempts})...`);
+    brightDataLogger.info({
+      event: "snapshot_poll_started",
+      snapshot_id: snapshotId,
+      attempt: i + 1,
+      max_attempts: maxAttempts,
+      interval_ms: intervalMs,
+    });
     await sleep(intervalMs);
 
     const res = await brightDataFetch(
@@ -909,7 +917,11 @@ export async function pollSnapshot(
     const data = JSON.parse(rawText);
 
     if (data.status === "running") {
-      console.log(`[brightdata] Snapshot still running, waiting...`);
+      brightDataLogger.info({
+        event: "snapshot_poll_running",
+        snapshot_id: snapshotId,
+        attempt: i + 1,
+      });
       continue;
     }
 
@@ -940,23 +952,35 @@ export async function pollSnapshot(
       }
 
       if (droppedErrorRecords > 0 || droppedThinRecords > 0) {
-        console.warn(
-          `[brightdata] Filtered ${droppedErrorRecords} error record(s) and ${droppedThinRecords} thin record(s) from snapshot ${snapshotId}.`,
-        );
+        brightDataLogger.warn({
+          event: "snapshot_records_filtered",
+          snapshot_id: snapshotId,
+          dropped_error_records: droppedErrorRecords,
+          dropped_thin_records: droppedThinRecords,
+        });
       }
       if (errorCodes.size > 0) {
-        console.warn(
-          `[brightdata] Error code distribution: ${Array.from(errorCodes.entries())
-            .map(([code, count]) => `${code}=${count}`)
-            .join(", ")}`,
-        );
+        brightDataLogger.warn({
+          event: "snapshot_error_code_distribution",
+          snapshot_id: snapshotId,
+          error_codes: Object.fromEntries(errorCodes.entries()),
+        });
       }
-      console.log(`[brightdata] Got ${profiles.length} usable profile(s)`);
+      brightDataLogger.info({
+        event: "snapshot_poll_completed",
+        snapshot_id: snapshotId,
+        records: records.length,
+        usable_profiles: profiles.length,
+      });
       return profiles;
     }
 
     // Unexpected format
-    console.error("[brightdata] Unexpected response format:", JSON.stringify(data).slice(0, 200));
+    brightDataLogger.error({
+      event: "snapshot_unexpected_response_format",
+      snapshot_id: snapshotId,
+      response_preview: JSON.stringify(data).slice(0, 200),
+    });
     throw new Error("Unexpected Bright Data response format");
   }
 
@@ -980,9 +1004,13 @@ export async function* streamLinkedInProfiles(
   const allowPartial = options.allowPartial ?? false;
 
   const batches = chunkArray(linkedinUrls, batchSize);
-  console.log(
-    `[brightdata:stream] Starting stream for ${linkedinUrls.length} profiles in ${batches.length} batches...`,
-  );
+  brightDataLogger.info({
+    event: "stream_started",
+    profile_count: linkedinUrls.length,
+    batch_count: batches.length,
+    batch_size: batchSize,
+    concurrency: Math.min(concurrency, batches.length),
+  });
 
   const snapshots = await runWithConcurrency(
     batches,
@@ -990,13 +1018,30 @@ export async function* streamLinkedInProfiles(
     async (urls, batchIndex) => {
       const label = `batch ${batchIndex + 1}/${batches.length}`;
       try {
-        console.log(`[brightdata:stream] Triggering ${label} for ${urls.length} profiles...`);
+        brightDataLogger.info({
+          event: "stream_batch_trigger_started",
+          batch_index: batchIndex,
+          batch_label: label,
+          profile_count: urls.length,
+        });
         const snapshotId = await triggerScrape(apiToken, datasetId, urls);
-        console.log(`[brightdata:stream] ${label} snapshot ID: ${snapshotId}`);
+        brightDataLogger.info({
+          event: "stream_batch_triggered",
+          batch_index: batchIndex,
+          batch_label: label,
+          snapshot_id: snapshotId,
+          profile_count: urls.length,
+        });
         return { snapshotId, batchIndex, urls, label, error: null };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`[brightdata:stream] ${label} trigger failed: ${message}`);
+        brightDataLogger.error({
+          event: "stream_batch_trigger_failed",
+          batch_index: batchIndex,
+          batch_label: label,
+          profile_count: urls.length,
+          error: message,
+        });
         if (!allowPartial) throw error;
         return { snapshotId: null, batchIndex, urls, label, error: message };
       }
@@ -1015,7 +1060,12 @@ export async function* streamLinkedInProfiles(
 
   for (const snapshot of snapshots) {
     if (snapshot.error || !snapshot.snapshotId) {
-      console.log(`[brightdata:stream] Skipping ${snapshot.label} due to trigger error`);
+      brightDataLogger.warn({
+        event: "stream_batch_skipped_after_trigger_error",
+        batch_index: snapshot.batchIndex,
+        batch_label: snapshot.label,
+        error: snapshot.error,
+      });
       continue;
     }
 
@@ -1046,7 +1096,12 @@ export async function* streamLinkedInProfiles(
     pendingPolls.delete(settled.batchIndex);
 
     if (settled.error || !settled.profiles) {
-      console.error(`[brightdata:stream] ${settled.label} poll failed: ${settled.error}`);
+      brightDataLogger.error({
+        event: "stream_batch_poll_failed",
+        batch_index: settled.batchIndex,
+        batch_label: settled.label,
+        error: settled.error,
+      });
       if (!allowPartial) {
         throw new Error(
           settled.error || `Bright Data poll failed for ${settled.label}`,
@@ -1055,13 +1110,16 @@ export async function* streamLinkedInProfiles(
       continue;
     }
 
-    console.log(
-      `[brightdata:stream] ${settled.label} completed with ${settled.profiles.length} profiles`,
-    );
+    brightDataLogger.info({
+      event: "stream_batch_completed",
+      batch_index: settled.batchIndex,
+      batch_label: settled.label,
+      profile_count: settled.profiles.length,
+    });
     yield settled.profiles;
   }
 
-  console.log(`[brightdata:stream] Stream completed`);
+  brightDataLogger.info({ event: "stream_completed" });
 }
 
 export async function scrapeLinkedInProfiles(
@@ -1079,16 +1137,26 @@ export async function scrapeLinkedInProfiles(
   const allowPartial = options.allowPartial ?? false;
 
   if (batchSize >= linkedinUrls.length && concurrency === 1) {
-    console.log(`[brightdata] Triggering scrape for ${linkedinUrls.length} profiles...`);
+    brightDataLogger.info({
+      event: "scrape_trigger_started",
+      profile_count: linkedinUrls.length,
+    });
     const snapshotId = await triggerScrape(apiToken, datasetId, linkedinUrls);
-    console.log(`[brightdata] Snapshot ID: ${snapshotId}`);
+    brightDataLogger.info({
+      event: "scrape_triggered",
+      snapshot_id: snapshotId,
+      profile_count: linkedinUrls.length,
+    });
     return pollSnapshot(apiToken, snapshotId, maxAttempts, intervalMs);
   }
 
   const batches = chunkArray(linkedinUrls, batchSize);
-  console.log(
-    `[brightdata] Triggering ${batches.length} scrape batch(es) for ${linkedinUrls.length} profiles with concurrency ${Math.min(concurrency, batches.length)}...`,
-  );
+  brightDataLogger.info({
+    event: "scrape_batches_started",
+    batch_count: batches.length,
+    profile_count: linkedinUrls.length,
+    concurrency: Math.min(concurrency, batches.length),
+  });
 
   const batchResults = await runWithConcurrency(
     batches,
@@ -1097,9 +1165,20 @@ export async function scrapeLinkedInProfiles(
       const label = `batch ${batchIndex + 1}/${batches.length}`;
 
       try {
-        console.log(`[brightdata] Triggering ${label} for ${urls.length} profiles...`);
+        brightDataLogger.info({
+          event: "scrape_batch_trigger_started",
+          batch_index: batchIndex,
+          batch_label: label,
+          profile_count: urls.length,
+        });
         const snapshotId = await triggerScrape(apiToken, datasetId, urls);
-        console.log(`[brightdata] ${label} snapshot ID: ${snapshotId}`);
+        brightDataLogger.info({
+          event: "scrape_batch_triggered",
+          batch_index: batchIndex,
+          batch_label: label,
+          snapshot_id: snapshotId,
+          profile_count: urls.length,
+        });
 
         const profiles = await pollSnapshot(
           apiToken,
@@ -1115,7 +1194,12 @@ export async function scrapeLinkedInProfiles(
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`[brightdata] ${label} failed: ${message}`);
+        brightDataLogger.error({
+          event: "scrape_batch_failed",
+          batch_index: batchIndex,
+          batch_label: label,
+          error: message,
+        });
 
         if (!allowPartial) {
           throw error;
@@ -1144,15 +1228,19 @@ export async function scrapeLinkedInProfiles(
   }
 
   if (failures.length > 0) {
-    console.warn(
-      `[brightdata] Completed with ${failures.length} failed batch(es); returning ${profiles.length} profile(s).`,
-    );
+    brightDataLogger.warn({
+      event: "scrape_batches_completed_with_failures",
+      failed_batches: failures.length,
+      profile_count: profiles.length,
+    });
   }
 
   if (profiles.length < linkedinUrls.length) {
-    console.warn(
-      `[brightdata] Requested ${linkedinUrls.length} profiles but received ${profiles.length}.`,
-    );
+    brightDataLogger.warn({
+      event: "scrape_profile_count_shortfall",
+      requested_profiles: linkedinUrls.length,
+      received_profiles: profiles.length,
+    });
   }
 
   return profiles;

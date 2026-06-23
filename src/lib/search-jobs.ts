@@ -2910,7 +2910,10 @@ async function generateOutreachDraftsForRows(
         if (!subject || !linkedin || !email) {
           logSearchEvent("outreach_draft_fallback", {
             search_id: context.searchId,
-            candidate_name: normalizedRow.name,
+            candidate_index:
+              typeof normalizedRow.metadata?.source_index === "number"
+                ? normalizedRow.metadata.source_index
+                : null,
             reason: "incomplete_llm_output",
             job_id: context.jobId,
           });
@@ -2923,7 +2926,10 @@ async function generateOutreachDraftsForRows(
       } catch (error) {
         logSearchEvent("outreach_draft_fallback", {
           search_id: context.searchId,
-          candidate_name: normalizedRow.name,
+          candidate_index:
+            typeof normalizedRow.metadata?.source_index === "number"
+              ? normalizedRow.metadata.source_index
+              : null,
           reason: error instanceof Error ? error.message : String(error),
           job_id: context.jobId,
         });
