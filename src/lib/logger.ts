@@ -4,15 +4,22 @@ import path from "node:path";
 import pino from "pino";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
+const logLevel = process.env.LOG_LEVEL || (isDevelopment ? "debug" : "info");
 
 function isEnabled(value: string | undefined) {
   if (value == null) return false;
   return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
+function getStreamLevel(): pino.Level {
+  if (logLevel === "silent") return "fatal";
+  return logLevel as pino.Level;
+}
+
 function buildStreams(): pino.StreamEntry[] {
+  const streamLevel = getStreamLevel();
   const streams: pino.StreamEntry[] = [
-    { stream: process.stdout },
+    { level: streamLevel, stream: process.stdout },
   ];
   const logFilePath = process.env.LOG_FILE_PATH?.trim();
 
@@ -23,6 +30,7 @@ function buildStreams(): pino.StreamEntry[] {
   try {
     fs.mkdirSync(path.dirname(logFilePath), { recursive: true });
     streams.push({
+      level: streamLevel,
       stream: pino.destination({
         dest: logFilePath,
         mkdir: true,
@@ -38,7 +46,7 @@ function buildStreams(): pino.StreamEntry[] {
 }
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL || (isDevelopment ? "debug" : "info"),
+  level: logLevel,
   base: {
     service: "hirelix",
     env: process.env.NODE_ENV || "development",
