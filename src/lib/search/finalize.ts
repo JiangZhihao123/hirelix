@@ -67,6 +67,12 @@ export async function completeSearch(
   const worthReviewingCount = deliveredRows.filter(
     (row) => row.metadata?.delivery_bucket === "review_next" || row.metadata?.display_tier === "worth_reviewing",
   ).length;
+  const lowerPriorityCount = deliveredRows.filter(
+    (row) => row.metadata?.delivery_bucket === "lower_priority",
+  ).length;
+  const notRecommendedCount = deliveredRows.filter(
+    (row) => row.metadata?.delivery_bucket === "not_recommended",
+  ).length;
   const clearLocationFitCount = deliveredRows.filter((row) => {
     const verdicts =
       row.metadata?.constraint_verdicts && typeof row.metadata.constraint_verdicts === "object"
@@ -80,6 +86,13 @@ export async function completeSearch(
         ? (row.metadata.constraint_verdicts as Record<string, unknown>)
         : null;
     return verdicts?.must_have_coverage === "strong";
+  }).length;
+  const mustHaveUnknownCount = deliveredRows.filter((row) => {
+    const verdicts =
+      row.metadata?.constraint_verdicts && typeof row.metadata.constraint_verdicts === "object"
+        ? (row.metadata.constraint_verdicts as Record<string, unknown>)
+        : null;
+    return verdicts?.must_have_coverage === "unknown";
   }).length;
   const firstContactConfidenceCount = deliveredRows.filter(
     (row) =>
@@ -105,9 +118,12 @@ export async function completeSearch(
     priority_outreach_count: priorityOutreachCount,
     worth_reviewing_count: worthReviewingCount,
     recommended_count: recommendedRows.length,
-    lower_priority_count: Math.max(0, deliveredRows.length - recommendedRows.length),
+    lower_priority_count: lowerPriorityCount,
+    ruled_out_count: notRecommendedCount,
+    do_not_show_count: notRecommendedCount,
     clear_location_fit_count: clearLocationFitCount,
     must_have_strong_count: mustHaveStrongCount,
+    must_have_unknown_count: mustHaveUnknownCount,
     first_contact_confidence_count: firstContactConfidenceCount,
     time_to_done_ms:
       displayStats.time_to_done_ms ?? helpers.elapsedSince(startedAt, doneAt),

@@ -317,6 +317,7 @@ export type SearchDisplayStats = {
   shortlist_no_count?: number;
   clear_location_fit_count?: number;
   must_have_strong_count?: number;
+  must_have_unknown_count?: number;
   first_contact_confidence_count?: number;
   lower_priority_count?: number;
   recommended_count?: number;
@@ -364,6 +365,7 @@ export type SearchQualityDiagnosisCode =
   | "healthy"
   | "recall_underfilled"
   | "weak_actionable_yield"
+  | "recall_quality_weak"
   | "missing_reach_first"
   | "review_pool_underfilled"
   | "needs_search_calibration";
@@ -376,6 +378,10 @@ export type SearchQualityDiagnosis = {
   strict_advance_count: number;
   reach_first_count: number;
   review_next_count: number;
+  lower_priority_count: number;
+  not_recommended_count: number;
+  must_have_strong_count: number;
+  must_have_unknown_count: number;
   recommended_count: number;
   target_requested_count: number;
   target_returned_count: number;

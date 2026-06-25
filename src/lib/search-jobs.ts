@@ -1105,6 +1105,9 @@ function buildSearchDisplayStats(
     ...(typeof overrides.must_have_strong_count === "number"
       ? { must_have_strong_count: Math.max(0, Math.round(overrides.must_have_strong_count)) }
       : {}),
+    ...(typeof overrides.must_have_unknown_count === "number"
+      ? { must_have_unknown_count: Math.max(0, Math.round(overrides.must_have_unknown_count)) }
+      : {}),
     ...(typeof overrides.first_contact_confidence_count === "number"
       ? { first_contact_confidence_count: Math.max(0, Math.round(overrides.first_contact_confidence_count)) }
       : {}),
@@ -1308,6 +1311,7 @@ function normalizeSearchQualityDiagnosis(value: unknown): SearchQualityDiagnosis
       "healthy",
       "recall_underfilled",
       "weak_actionable_yield",
+      "recall_quality_weak",
       "missing_reach_first",
       "review_pool_underfilled",
       "needs_search_calibration",
@@ -1322,6 +1326,10 @@ function normalizeSearchQualityDiagnosis(value: unknown): SearchQualityDiagnosis
     strict_advance_count: normalizeCount(item.strict_advance_count),
     reach_first_count: normalizeCount(item.reach_first_count),
     review_next_count: normalizeCount(item.review_next_count),
+    lower_priority_count: normalizeCount(item.lower_priority_count),
+    not_recommended_count: normalizeCount(item.not_recommended_count),
+    must_have_strong_count: normalizeCount(item.must_have_strong_count),
+    must_have_unknown_count: normalizeCount(item.must_have_unknown_count),
     recommended_count: normalizeCount(item.recommended_count),
     target_requested_count: normalizeCount(item.target_requested_count),
     target_returned_count: normalizeCount(item.target_returned_count),

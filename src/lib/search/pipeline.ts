@@ -558,12 +558,20 @@ export function buildSearchQualityDiagnosis(stats: {
   strictAdvanceCount?: number | null;
   reachFirstCount?: number | null;
   reviewNextCount?: number | null;
+  lowerPriorityCount?: number | null;
+  notRecommendedCount?: number | null;
+  mustHaveStrongCount?: number | null;
+  mustHaveUnknownCount?: number | null;
 }): SearchQualityDiagnosis {
   const requestedCount = Math.max(0, Math.round(stats.requestedCount ?? 0));
   const returnedCount = Math.max(0, Math.round(stats.returnedCount ?? 0));
   const strictAdvanceCount = Math.max(0, Math.round(stats.strictAdvanceCount ?? 0));
   const reachFirstCount = Math.max(0, Math.round(stats.reachFirstCount ?? 0));
   const reviewNextCount = Math.max(0, Math.round(stats.reviewNextCount ?? 0));
+  const lowerPriorityCount = Math.max(0, Math.round(stats.lowerPriorityCount ?? 0));
+  const notRecommendedCount = Math.max(0, Math.round(stats.notRecommendedCount ?? 0));
+  const mustHaveStrongCount = Math.max(0, Math.round(stats.mustHaveStrongCount ?? 0));
+  const mustHaveUnknownCount = Math.max(0, Math.round(stats.mustHaveUnknownCount ?? 0));
   const recommendedCount = reachFirstCount + reviewNextCount;
   const targetRequestedCount = 250;
   const targetReturnedCount = 100;
@@ -571,6 +579,10 @@ export function buildSearchQualityDiagnosis(stats: {
   const targetReachFirstCount = 1;
   const targetReviewNextCount = 5;
   const notes: string[] = [];
+  const returnedDenominator = Math.max(returnedCount, 1);
+  const notRecommendedRate = notRecommendedCount / returnedDenominator;
+  const mustHaveStrongRate = mustHaveStrongCount / returnedDenominator;
+  const mustHaveUnknownRate = mustHaveUnknownCount / returnedDenominator;
 
   let primaryIssue: SearchQualityDiagnosis["primary_issue"] = "healthy";
   if (requestedCount < targetRequestedCount) {
@@ -580,6 +592,17 @@ export function buildSearchQualityDiagnosis(stats: {
   if (returnedCount < targetReturnedCount) {
     primaryIssue = primaryIssue === "healthy" ? "recall_underfilled" : primaryIssue;
     notes.push("Bright recall returned too few profiles for a robust recruiter decision.");
+  }
+  if (
+    returnedCount >= targetReturnedCount &&
+    (
+      notRecommendedRate >= 0.7 ||
+      (mustHaveStrongCount > 0 && mustHaveStrongRate < 0.05) ||
+      mustHaveUnknownRate >= 0.6
+    )
+  ) {
+    primaryIssue = primaryIssue === "healthy" ? "recall_quality_weak" : primaryIssue;
+    notes.push("Most recalled profiles lacked enough JD-specific evidence for recruiter action.");
   }
   if (strictAdvanceCount < targetStrictAdvanceCount) {
     primaryIssue = primaryIssue === "healthy" ? "weak_actionable_yield" : primaryIssue;
@@ -603,6 +626,10 @@ export function buildSearchQualityDiagnosis(stats: {
     strict_advance_count: strictAdvanceCount,
     reach_first_count: reachFirstCount,
     review_next_count: reviewNextCount,
+    lower_priority_count: lowerPriorityCount,
+    not_recommended_count: notRecommendedCount,
+    must_have_strong_count: mustHaveStrongCount,
+    must_have_unknown_count: mustHaveUnknownCount,
     recommended_count: recommendedCount,
     target_requested_count: targetRequestedCount,
     target_returned_count: targetReturnedCount,
@@ -1107,6 +1134,15 @@ async function scoreBrightDataProfiles(
       : null;
     return verdicts?.must_have_coverage === "strong";
   }).length;
+  const mustHaveUnknownCount = finalRows.filter((row) => {
+    const metadata = row.metadata && typeof row.metadata === "object"
+      ? (row.metadata as Record<string, unknown>)
+      : null;
+    const verdicts = metadata?.constraint_verdicts && typeof metadata.constraint_verdicts === "object"
+      ? (metadata.constraint_verdicts as ConstraintVerdict)
+      : null;
+    return verdicts?.must_have_coverage === "unknown";
+  }).length;
   const firstContactConfidenceCount = finalRows.filter((row) => {
     const metadata = row.metadata && typeof row.metadata === "object"
       ? (row.metadata as Record<string, unknown>)
@@ -1144,10 +1180,11 @@ async function scoreBrightDataProfiles(
       priority_outreach_count: deliveryCounts.reachFirst,
       worth_reviewing_count: deliveryCounts.reviewNext,
       recommended_count: deliveryCounts.reachFirst + deliveryCounts.reviewNext,
-      lower_priority_count: deliveryCounts.lowerPriority + deliveryCounts.notRecommended,
+      lower_priority_count: deliveryCounts.lowerPriority,
       ruled_out_count: ruledOutAssessments.length,
       clear_location_fit_count: clearLocationFitCount,
       must_have_strong_count: mustHaveStrongCount,
+      must_have_unknown_count: mustHaveUnknownCount,
       first_contact_confidence_count: firstContactConfidenceCount,
       deep_qualified_rate: deepAssessments.length > 0 ? visibleAssessments.length / deepAssessments.length : 0,
       hard_blocked_count: hardBlockedCount,
@@ -1165,6 +1202,10 @@ async function scoreBrightDataProfiles(
         strictAdvanceCount,
         reachFirstCount: deliveryCounts.reachFirst,
         reviewNextCount: deliveryCounts.reviewNext,
+        lowerPriorityCount: deliveryCounts.lowerPriority,
+        notRecommendedCount: deliveryCounts.notRecommended,
+        mustHaveStrongCount,
+        mustHaveUnknownCount,
       }),
     }),
   };

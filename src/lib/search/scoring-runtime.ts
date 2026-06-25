@@ -597,6 +597,27 @@ function shouldRequestSecondReview(assessment: ScoredCandidateAssessment) {
   return nearVisibleThreshold || strongButRisky || scoreContradiction || actionContradiction;
 }
 
+function shouldReserveFrontierDeepReview(assessment: ScoredCandidateAssessment) {
+  const suitability = assessment.suitability;
+  const breakdown = suitability.scoring_breakdown;
+
+  if (
+    suitability.blocking_severity === "hard" ||
+    suitability.advance_recommendation === "reject" ||
+    suitability.bucket === "do_not_show" ||
+    suitability.evidence_quality === "low"
+  ) {
+    return false;
+  }
+
+  return (
+    suitability.bucket === "consider_next" &&
+    suitability.quality_score >= 66 &&
+    breakdown.relevance_score >= 55 &&
+    breakdown.capability_score >= 65
+  );
+}
+
 function selectDeepReviewIndexes(
   assessments: ScoredCandidateAssessment[],
   selectedIndexes: number[],
@@ -621,17 +642,34 @@ function selectDeepReviewIndexes(
         left.suitability.scoring_breakdown.relevance_score,
     );
   const selected = new Set<number>();
-
-  for (const assessment of sorted) {
+  const addSelected = (
+    predicate: (assessment: ScoredCandidateAssessment) => boolean,
+    targetCount: number,
+  ) => {
+    for (const assessment of sorted) {
+      if (selected.size >= targetCount) break;
+      if (selected.has(assessment.index) || !predicate(assessment)) continue;
+      selected.add(assessment.index);
+    }
+  };
+  const shouldCoreDeepReview = (assessment: ScoredCandidateAssessment) => {
     const suitability = assessment.suitability;
     const breakdown = suitability.scoring_breakdown;
-    const shouldDeepReview =
+    return (
       suitability.shortlist_decision === "yes" ||
       suitability.advance_recommendation === "advance" ||
-      (suitability.quality_score >= 75 && breakdown.relevance_score >= 70);
-    if (shouldDeepReview) selected.add(assessment.index);
-    if (selected.size >= maxCount) break;
-  }
+      (suitability.quality_score >= 75 && breakdown.relevance_score >= 70)
+    );
+  };
+  const frontierReserveCount =
+    maxCount > minCount
+      ? Math.min(Math.ceil(maxCount * 0.25), maxCount - minCount)
+      : 0;
+  const coreTargetCount = Math.max(minCount, maxCount - frontierReserveCount);
+
+  addSelected(shouldCoreDeepReview, coreTargetCount);
+  addSelected(shouldReserveFrontierDeepReview, maxCount);
+  addSelected(shouldCoreDeepReview, maxCount);
 
   for (const assessment of sorted) {
     if (selected.size >= minCount) break;

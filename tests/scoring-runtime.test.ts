@@ -123,6 +123,80 @@ test("deepScoreSelectedProfiles batches judge scoring instead of scoring one can
   assert.equal(completed.length, 25);
 });
 
+test("deepScoreSelectedProfiles reserves deep review coverage for frontier review candidates", async () => {
+  const batches: number[][] = [];
+  const selectedIndexes = Array.from({ length: 50 }, (_, index) => index);
+  const mockFastCandidateBatch = async (
+    _runtime: Parameters<typeof deepScoreSelectedProfiles>[0],
+    _parsed: Record<string, unknown>,
+    _jdText: string,
+    _profiles: string[],
+    batchIndexes: number[],
+  ) => {
+    return batchIndexes.map((index) => {
+      const assessment = assessmentForIndex(index);
+      if (index < 40) {
+        assessment.suitability.shortlist_decision = "yes";
+        assessment.suitability.advance_recommendation = "advance";
+        assessment.suitability.bucket = "strong_now";
+        assessment.suitability.quality_score = 90 - index * 0.2;
+        assessment.suitability.advance_score = 86 - index * 0.2;
+        assessment.suitability.scoring_breakdown.capability_score = 88;
+        assessment.suitability.scoring_breakdown.relevance_score = 82;
+        return assessment;
+      }
+
+      assessment.suitability.shortlist_decision = "no";
+      assessment.suitability.advance_recommendation = "hold";
+      assessment.suitability.bucket = "consider_next";
+      assessment.suitability.quality_score = 70;
+      assessment.suitability.advance_score = 62;
+      assessment.suitability.scoring_breakdown.capability_score = 72;
+      assessment.suitability.scoring_breakdown.relevance_score = 60;
+      return assessment;
+    });
+  };
+  const mockScoreCandidateBatch: typeof scoreCandidateBatch = async (
+    _runtime,
+    _parsed,
+    _jdText,
+    _profiles,
+    batchIndexes,
+  ) => {
+    batches.push([...batchIndexes]);
+    return batchIndexes.map(assessmentForIndex);
+  };
+
+  await deepScoreSelectedProfiles(
+    {
+      lightPrescreenMaxOutputTokens: 200,
+      judgeMaxOutputTokens: 2400,
+      arbiterMaxOutputTokens: 4000,
+      outreachMaxOutputTokens: 700,
+      judgeMaxAttempts: 1,
+      arbiterMaxAttempts: 1,
+      judgeMode: "dual",
+    },
+    {},
+    "JD",
+    selectedIndexes.map((index) => `[${index}] Candidate ${index}`),
+    selectedIndexes,
+    selectedIndexes.length,
+    {
+      scoreFastCandidateBatch: mockFastCandidateBatch as never,
+      scoreCandidateBatch: mockScoreCandidateBatch,
+      sortCandidateAssessments: (left, right) =>
+        right.suitability.advance_score - left.suitability.advance_score,
+      scoringHelpers: {} as never,
+    },
+  );
+
+  const deepReviewIndexes = batches.flat();
+  assert.equal(deepReviewIndexes.length, 40);
+  assert.ok(deepReviewIndexes.some((index) => index >= 40));
+  assert.ok(deepReviewIndexes.filter((index) => index >= 40).length <= 10);
+});
+
 function judgeResult(
   index: number,
   overrides: Partial<JudgeScoreResult> = {},

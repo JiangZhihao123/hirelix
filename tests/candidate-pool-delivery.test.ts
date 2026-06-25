@@ -181,6 +181,28 @@ test("search quality diagnosis marks missing reach-first as calibration-needed",
   assert.ok(diagnosis.notes.some((note) => note.includes("first-outreach")));
 });
 
+test("search quality diagnosis flags full but weak recall pools", () => {
+  const diagnosis = buildSearchQualityDiagnosis({
+    requestedCount: 250,
+    returnedCount: 249,
+    strictAdvanceCount: 2,
+    reachFirstCount: 1,
+    reviewNextCount: 2,
+    lowerPriorityCount: 28,
+    notRecommendedCount: 218,
+    mustHaveStrongCount: 3,
+    mustHaveUnknownCount: 196,
+  });
+
+  assert.equal(diagnosis.status, "needs_calibration");
+  assert.equal(diagnosis.primary_issue, "recall_quality_weak");
+  assert.equal(diagnosis.lower_priority_count, 28);
+  assert.equal(diagnosis.not_recommended_count, 218);
+  assert.equal(diagnosis.must_have_unknown_count, 196);
+  assert.ok(diagnosis.notes.some((note) => note.includes("Most recalled profiles")));
+  assert.ok(diagnosis.notes.some((note) => note.includes("strict advance")));
+});
+
 test("search quality diagnosis passes when actionable-delivery bar is met", () => {
   const diagnosis = buildSearchQualityDiagnosis({
     requestedCount: 250,
@@ -484,7 +506,9 @@ test("completeSearch upserts the full pool and drafts outreach only for recommen
   assert.ok(finalStats);
   assert.equal(finalStats.delivered_candidate_count, 4);
   assert.equal(finalStats.recommended_count, 2);
-  assert.equal(finalStats.lower_priority_count, 2);
+  assert.equal(finalStats.lower_priority_count, 1);
+  assert.equal(finalStats.ruled_out_count, 1);
+  assert.equal(finalStats.do_not_show_count, 1);
   assert.ok(events.includes("public_evidence_available_on_demand"));
 });
 
