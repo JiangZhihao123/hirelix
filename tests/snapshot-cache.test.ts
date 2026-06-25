@@ -6,6 +6,7 @@ import {
   getRecallReadyProfileThreshold,
   shouldContinueScoringWithStandardRecall,
   shouldFailUnderfilledRecallAfterSubmittedRounds,
+  shouldTimeoutAdditionalRecallBeforeScoring,
   shouldWaitForAdditionalRecallBeforeScoring,
   shouldWaitForAdditionalRecallBeforeZeroRecall,
   shouldReuseProfileCacheDespiteSnapshotDrift,
@@ -240,5 +241,27 @@ test("full standard recall still waits when a submitted additional download is p
       requestedProfileCount: 250,
     }),
     true,
+  );
+});
+
+test("additional recall wait times out instead of polling forever", () => {
+  assert.equal(
+    shouldTimeoutAdditionalRecallBeforeScoring({
+      metadataDeferredRoundCount: 1,
+      downloadDeferredRoundCount: 0,
+      elapsedMs: 900_000,
+      timeoutMs: 900_000,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldTimeoutAdditionalRecallBeforeScoring({
+      metadataDeferredRoundCount: 0,
+      downloadDeferredRoundCount: 1,
+      elapsedMs: 899_999,
+      timeoutMs: 900_000,
+    }),
+    false,
   );
 });

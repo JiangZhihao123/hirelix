@@ -508,6 +508,20 @@ export function shouldWaitForAdditionalRecallBeforeScoring(params: {
   });
 }
 
+export function shouldTimeoutAdditionalRecallBeforeScoring(params: {
+  metadataDeferredRoundCount: number;
+  downloadDeferredRoundCount: number;
+  elapsedMs: number;
+  timeoutMs: number;
+}) {
+  const totalDeferredRoundCount =
+    params.metadataDeferredRoundCount + params.downloadDeferredRoundCount;
+  return (
+    totalDeferredRoundCount > 0 &&
+    params.elapsedMs >= params.timeoutMs
+  );
+}
+
 function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
   return {
     strong_now: 0,
@@ -2754,6 +2768,8 @@ async function buildBrightDataDatasetCandidates(
       standard_profiles: standardProfileCount,
       currently_available_profiles: allProfiles.length,
       deferred_rounds: blockedAdditionalRounds,
+      elapsed_ms: totalElapsedMs,
+      timeout_ms: BRIGHTDATA_FILTER_TIMEOUT_MS,
     });
 
     parsed.recall_metadata = {
@@ -2806,6 +2822,27 @@ async function buildBrightDataDatasetCandidates(
       filter_summary: filterSummary,
     };
     await updateSearchParsedRequirements(context.searchId, parsed);
+    if (
+      shouldTimeoutAdditionalRecallBeforeScoring({
+        metadataDeferredRoundCount: deferredAdditionalRounds.length,
+        downloadDeferredRoundCount: downloadDeferredAdditionalRounds.length,
+        elapsedMs: totalElapsedMs,
+        timeoutMs: BRIGHTDATA_FILTER_TIMEOUT_MS,
+      })
+    ) {
+      helpers.logSearchEvent("search_additional_rounds_timeout_before_score", {
+        search_id: context.searchId,
+        job_id: context.jobId,
+        standard_profiles: standardProfileCount,
+        currently_available_profiles: allProfiles.length,
+        deferred_rounds: blockedAdditionalRounds,
+        elapsed_ms: totalElapsedMs,
+        timeout_ms: BRIGHTDATA_FILTER_TIMEOUT_MS,
+      });
+      throw new Error(
+        `Bright Data additional recall timed out after ${BRIGHTDATA_FILTER_TIMEOUT_MS}ms before scoring ${allProfiles.length} profiles`,
+      );
+    }
     throw new DatasetRecallPendingError(
       `Waiting for ${blockedAdditionalRounds.length} additional recall round(s) before scoring ${allProfiles.length} profiles`,
       { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
