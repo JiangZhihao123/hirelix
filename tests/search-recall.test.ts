@@ -185,7 +185,8 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok(standardValues.includes("staff search engineer"));
   assert.ok(standardValues.includes("search infrastructure"));
   assert.ok(standardValues.includes("kubernetes"));
-  assert.ok(!standardValues.includes("python"));
+  assert.ok(standardValues.includes("python"));
+  assert.ok(standardValues.includes("golang"));
   assert.ok(!standardValues.includes("us-based"));
   assert.ok(!standardValues.includes("in sf nyc or seattle"));
   assert.ok(!flattenRules(rounds[0].request.filter).some((rule) => "name" in rule && rule.name === "location"));
@@ -194,13 +195,13 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   assert.ok("filters" in rootFilter);
   const standardSkillFilter = rootFilter.filters.find((rule) =>
     "filters" in rule &&
-    rule.operator === "and" &&
-    rule.filters.some((child) => leafValues(child).includes("search infrastructure")) &&
-    rule.filters.some((child) => leafValues(child).includes("kubernetes")),
+    rule.operator === "or" &&
+    leafValues(rule).includes("search infrastructure") &&
+    leafValues(rule).includes("kubernetes"),
   );
   assert.ok(
     standardSkillFilter,
-    "standard recall should require both a role/domain anchor and engineering depth evidence",
+    "standard recall should keep a broad skill signal OR so LLM scoring can judge quality after recall",
   );
 
   const hiddenValues = leafValues(rounds[1].request.filter);
@@ -747,11 +748,11 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
   assert.ok(
     flattenRules(hiddenRound.request.filter).some((rule) =>
       "filters" in rule &&
-      rule.operator === "and" &&
-      rule.filters.some((child) => leafValues(child).includes("go")) &&
-      rule.filters.some((child) => leafValues(child).includes("postgresql"))
+      rule.operator === "or" &&
+      leafValues(rule).includes("golang") &&
+      leafValues(rule).includes("postgresql")
     ),
-    "hidden gem recall should require both exact backend stack evidence and depth evidence",
+    "hidden gem recall should keep broad backend skill evidence without requiring every skill together",
   );
   assert.ok(
     flattenRules(hiddenRound.request.filter).some((rule) =>
@@ -764,7 +765,7 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
   assert.ok(
     flattenRules(hiddenRound.request.filter).some((rule) =>
       "filters" in rule &&
-      rule.operator === "and" &&
+      rule.operator === "or" &&
       rule.filters.some((child) => "name" in child && child.name === "about") &&
       rule.filters.some((child) => "name" in child && child.name === "position")
     ),

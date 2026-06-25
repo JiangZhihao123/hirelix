@@ -516,12 +516,38 @@ function buildProfileSignalFilter(terms: string[], maxTerms = 8): BrightDataFilt
   };
 }
 
-function buildPositionSignalLeaf(term: string): BrightDataFilterRule {
-  return {
-    name: "position",
-    operator: "includes",
-    value: term,
-  };
+function normalizeBrightSkillSignalTerms(terms: string[]) {
+  return terms.flatMap((term) => {
+    const normalized = normalizeText(term);
+    if (normalized === "go") return ["golang"];
+    if (AMBIGUOUS_SHORT_COMPANY_TARGET_TERMS.has(normalized)) return [];
+    return [normalized];
+  });
+}
+
+function buildBroadRecallSkillFilter(
+  recallSpec: RecallSpec,
+  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
+  maxTerms = 10,
+): BrightDataFilterRule | null {
+  return buildProfileSignalFilter(
+    normalizeBrightSkillSignalTerms([
+      ...sanitizeRecallSignalTerms([
+        ...recallSpec.baseline_skill_terms,
+        ...recallSpec.core_skill_terms,
+      ], 18),
+      ...signalGroups.platform_engineering,
+      ...signalGroups.database_backend,
+      ...signalGroups.api_backend,
+      ...signalGroups.production_ownership,
+      ...signalGroups.search_domain,
+      ...sanitizeRecallSignalTerms([
+        ...recallSpec.differentiating_skill_terms,
+        ...recallSpec.domain_terms,
+      ], 18),
+    ]),
+    maxTerms,
+  );
 }
 
 function buildProfileSignalLeaf(term: string, name: "about" | "position"): BrightDataFilterRule {
@@ -746,43 +772,6 @@ function buildCompanyTargetSkillFilter(
   });
 
   return buildProfileSignalFilter(normalizedTerms, 8);
-}
-
-function buildCompanyCurrentPositionEvidenceFilter(
-  recallSpec: RecallSpec,
-  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>,
-) {
-  const hasGoSignal = [
-    ...recallSpec.core_skill_terms,
-    ...recallSpec.differentiating_skill_terms,
-    ...recallSpec.must_have_signals,
-  ].some((term) => normalizeText(term) === "go" || normalizeText(term) === "golang");
-  const depthTerms = hasGoSignal
-    ? compactTerms([
-      "golang",
-      ...signalGroups.database_backend,
-      ...signalGroups.production_ownership,
-      ...signalGroups.api_backend,
-      ...signalGroups.search_domain,
-      ...signalGroups.platform_engineering,
-    ], 3)
-    : compactTerms([
-      ...signalGroups.search_domain.slice(0, 1),
-      ...signalGroups.platform_engineering,
-      ...signalGroups.database_backend,
-      ...signalGroups.production_ownership,
-      ...signalGroups.api_backend,
-    ], 3);
-  const evidenceTerms = compactTerms([
-    "software engineer",
-    ...depthTerms,
-  ], 10);
-  if (evidenceTerms.length === 0) return null;
-
-  return {
-    operator: "or" as const,
-    filters: evidenceTerms.slice(0, 4).map(buildPositionSignalLeaf),
-  };
 }
 
 function buildHiddenGemCurrentPositionSkillFilter(
@@ -1487,6 +1476,7 @@ export function buildBrightDataRecallFilter(
   const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const locationMode = getRecallLocationMode(hiringBrief);
   const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const signalGroups = buildRecallSkillSignalGroups(recallSpec);
   const effectiveTitleTerms = isDataPlatformRole
     ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
     : titleTerms;
@@ -1508,7 +1498,7 @@ export function buildBrightDataRecallFilter(
       ? null
       : mode === "relaxed"
       ? options.buildStandardSkillFilter(recallSpec, mode)
-      : buildBalancedSkillFilter(recallSpec);
+      : buildBroadRecallSkillFilter(recallSpec, signalGroups);
   if (standardSkillFilter) {
     rootFilters.push(standardSkillFilter);
   }
@@ -1691,7 +1681,11 @@ function buildDeterministicExpansionRounds(params: {
   }
 
   if (!params.isDataPlatformRole && lateralTitles.length > 0 && differentiatingTerms.length > 0) {
-    const hiddenSignalFilter = buildHiddenGemCurrentPositionSkillFilter(
+    const hiddenSignalFilter = buildBroadRecallSkillFilter(
+      params.recallSpec,
+      params.signalGroups,
+      12,
+    ) ?? buildHiddenGemCurrentPositionSkillFilter(
       params.recallSpec,
       params.signalGroups,
     ) ?? buildHighIntentSkillFilter(params.recallSpec, params.signalGroups) ??
@@ -1777,7 +1771,7 @@ function buildDeterministicExpansionRounds(params: {
     const companyTitleFilter = buildTitleFilter(companyTitleTerms, params.isDataPlatformRole ? 18 : 12);
     const strictCompanySkillFilter = params.isDataPlatformRole
       ? buildCompanyTargetSkillFilter(params.recallSpec, params.signalGroups, { dataPlatformRole: true })
-      : buildCompanyCurrentPositionEvidenceFilter(params.recallSpec, params.signalGroups);
+      : buildBroadRecallSkillFilter(params.recallSpec, params.signalGroups, 10);
     const companySkillFilter = strictCompanySkillFilter;
     const companyEvidenceFilter = params.isDataPlatformRole
       ? combineEvidenceFilters([companyTitleFilter, companySkillFilter])
