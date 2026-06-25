@@ -6,6 +6,7 @@ import {
   getRecallReadyProfileThreshold,
   shouldContinueScoringWithStandardRecall,
   shouldFailUnderfilledRecallAfterSubmittedRounds,
+  shouldWaitForAdditionalRecallBeforeScoring,
   shouldWaitForAdditionalRecallBeforeZeroRecall,
   shouldReuseProfileCacheDespiteSnapshotDrift,
 } from "../src/lib/search/pipeline";
@@ -187,6 +188,32 @@ test("zero standard recall waits when an additional round download is still pend
       standardProfileCount: 0,
       availableProfileCount: 4,
       deferredAdditionalRoundCount: 1,
+    }),
+    false,
+  );
+});
+
+test("underfilled recall waits when a ready additional round download is still pending", () => {
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeScoring({
+      standardProfileCount: 5,
+      availableProfileCount: 5,
+      metadataDeferredRoundCount: 0,
+      downloadDeferredRoundCount: 1,
+      requestedProfileCount: 250,
+    }),
+    true,
+  );
+});
+
+test("sufficient standard recall can proceed when only additional download is pending", () => {
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeScoring({
+      standardProfileCount: 100,
+      availableProfileCount: 100,
+      metadataDeferredRoundCount: 0,
+      downloadDeferredRoundCount: 1,
+      requestedProfileCount: 250,
     }),
     false,
   );

@@ -485,6 +485,32 @@ export function shouldWaitForAdditionalRecallBeforeZeroRecall(params: {
   );
 }
 
+export function shouldWaitForAdditionalRecallBeforeScoring(params: {
+  standardProfileCount: number;
+  availableProfileCount: number;
+  metadataDeferredRoundCount: number;
+  downloadDeferredRoundCount: number;
+  requestedProfileCount?: number | null;
+}) {
+  const totalDeferredRoundCount =
+    params.metadataDeferredRoundCount + params.downloadDeferredRoundCount;
+  if (totalDeferredRoundCount <= 0) return false;
+  if (
+    shouldWaitForAdditionalRecallBeforeZeroRecall({
+      standardProfileCount: params.standardProfileCount,
+      availableProfileCount: params.availableProfileCount,
+      deferredAdditionalRoundCount: totalDeferredRoundCount,
+    })
+  ) {
+    return true;
+  }
+  return !shouldContinueScoringWithStandardRecall({
+    standardProfileCount: params.standardProfileCount,
+    deferredAdditionalRoundCount: totalDeferredRoundCount,
+    requestedProfileCount: params.requestedProfileCount,
+  });
+}
+
 function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
   return {
     strong_now: 0,
@@ -2624,10 +2650,13 @@ async function buildBrightDataDatasetCandidates(
               snapshotId: roundSnapId,
               recordsLimit: roundRef.recordsLimit,
               existing: persistedAdditionalSnapshots.get(round) ?? null,
-              status: "polling",
+              status: "ready",
               submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
+              readyAt: persistedAdditionalSnapshots.get(round)?.ready_at ?? helpers.nowIso(),
               lastPolledAt: helpers.nowIso(),
-              profilesReturned: null,
+              downloadStartedAt: roundDownloadStartedAt,
+              profilesReturned: roundMeta?.dataset_size ?? null,
+              incrementDownloadAttempt: true,
             }),
           );
           additionalReturnedCounts.set(round, 0);
@@ -2702,16 +2731,12 @@ async function buildBrightDataDatasetCandidates(
   }
 
   if (
-    (deferredAdditionalRounds.length > 0 &&
-      !shouldContinueScoringWithStandardRecall({
-        standardProfileCount,
-        deferredAdditionalRoundCount: deferredAdditionalRounds.length,
-        requestedProfileCount: totalRequestedLimit,
-      })) ||
-    shouldWaitForAdditionalRecallBeforeZeroRecall({
+    shouldWaitForAdditionalRecallBeforeScoring({
       standardProfileCount,
       availableProfileCount: allProfiles.length,
-      deferredAdditionalRoundCount: downloadDeferredAdditionalRounds.length,
+      metadataDeferredRoundCount: deferredAdditionalRounds.length,
+      downloadDeferredRoundCount: downloadDeferredAdditionalRounds.length,
+      requestedProfileCount: totalRequestedLimit,
     })
   ) {
     const blockedAdditionalRounds = [
