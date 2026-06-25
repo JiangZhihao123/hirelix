@@ -119,6 +119,26 @@ export class ZeroRecallError extends Error {
   }
 }
 
+export class RecallUnderfilledError extends Error {
+  returnedCount: number;
+  requestedCount: number;
+  minimumCount: number;
+
+  constructor(params: {
+    returnedCount: number;
+    requestedCount: number;
+    minimumCount: number;
+  }) {
+    super(
+      `Bright Data recall returned ${params.returnedCount} profiles, below the minimum ${params.minimumCount} for ${params.requestedCount} requested profiles.`,
+    );
+    this.name = "RecallUnderfilledError";
+    this.returnedCount = params.returnedCount;
+    this.requestedCount = params.requestedCount;
+    this.minimumCount = params.minimumCount;
+  }
+}
+
 type SearchPipelineHelpers = {
   nowIso: () => string;
   logSearchEvent: (eventName: string, payload: Record<string, unknown>) => void;
@@ -420,11 +440,37 @@ export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
   );
 }
 
+const MIN_RECALL_PROFILES_BEFORE_SCORING = 100;
+
+export function getRecallReadyProfileThreshold(requestedProfileCount?: number | null) {
+  const requested = Number.isFinite(requestedProfileCount)
+    ? Math.max(0, Math.round(requestedProfileCount ?? 0))
+    : 0;
+  if (requested <= 0) return MIN_RECALL_PROFILES_BEFORE_SCORING;
+  return Math.min(MIN_RECALL_PROFILES_BEFORE_SCORING, requested);
+}
+
 export function shouldContinueScoringWithStandardRecall(params: {
   standardProfileCount: number;
   deferredAdditionalRoundCount: number;
+  requestedProfileCount?: number | null;
 }) {
-  return params.standardProfileCount > 0 && params.deferredAdditionalRoundCount > 0;
+  if (params.deferredAdditionalRoundCount <= 0) return params.standardProfileCount > 0;
+  return (
+    params.standardProfileCount >=
+    getRecallReadyProfileThreshold(params.requestedProfileCount)
+  );
+}
+
+export function shouldFailUnderfilledRecallAfterSubmittedRounds(params: {
+  availableProfileCount: number;
+  deferredAdditionalRoundCount: number;
+  requestedProfileCount?: number | null;
+}) {
+  if (params.availableProfileCount <= 0 || params.deferredAdditionalRoundCount > 0) {
+    return false;
+  }
+  return params.availableProfileCount < getRecallReadyProfileThreshold(params.requestedProfileCount);
 }
 
 export function shouldWaitForAdditionalRecallBeforeZeroRecall(params: {
@@ -2660,6 +2706,7 @@ async function buildBrightDataDatasetCandidates(
       !shouldContinueScoringWithStandardRecall({
         standardProfileCount,
         deferredAdditionalRoundCount: deferredAdditionalRounds.length,
+        requestedProfileCount: totalRequestedLimit,
       })) ||
     shouldWaitForAdditionalRecallBeforeZeroRecall({
       standardProfileCount,
@@ -2813,6 +2860,30 @@ async function buildBrightDataDatasetCandidates(
     filter_summary: filterSummary,
   };
   await updateSearchParsedRequirements(context.searchId, parsed);
+
+  const recallReadyProfileThreshold = getRecallReadyProfileThreshold(totalRequestedLimit);
+  if (
+    shouldFailUnderfilledRecallAfterSubmittedRounds({
+      availableProfileCount: allProfiles.length,
+      deferredAdditionalRoundCount: deferredAdditionalRounds.length + downloadDeferredAdditionalRounds.length,
+      requestedProfileCount: totalRequestedLimit,
+    })
+  ) {
+    helpers.logSearchEvent("search_recall_underfilled_after_all_rounds", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      requested_profiles: totalRequestedLimit,
+      returned_profiles: allProfiles.length,
+      minimum_profiles: recallReadyProfileThreshold,
+      standard_profiles: standardProfileCount,
+      additional_profiles: allProfiles.length - standardProfileCount,
+    });
+    throw new RecallUnderfilledError({
+      returnedCount: allProfiles.length,
+      requestedCount: totalRequestedLimit,
+      minimumCount: recallReadyProfileThreshold,
+    });
+  }
 
   await observeRecallAndMaybeRevise({
     context,

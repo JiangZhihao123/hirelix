@@ -82,6 +82,7 @@ import {
 } from "@/lib/search/recall";
 import {
   DatasetRecallPendingError,
+  RecallUnderfilledError,
   ZeroRecallError,
   runSearchPipeline,
 } from "@/lib/search/pipeline";
@@ -3053,7 +3054,12 @@ async function failSearch(searchId: string, error?: unknown) {
       String(error instanceof Error ? error.message : error ?? "").toLowerCase().includes("no profiles")
     )
   );
-  const searchErrorType = isZeroRecall ? "zero_recall" : "provider_failure";
+  const isRecallUnderfilled = error instanceof RecallUnderfilledError;
+  const searchErrorType = isZeroRecall
+    ? "zero_recall"
+    : isRecallUnderfilled
+      ? "recall_underfilled"
+      : "provider_failure";
   const releaseClientRole = candidateCount === 0;
   await updateSearchUsageEventMetadata(searchId, {
     search_error_type: searchErrorType,
@@ -3076,6 +3082,8 @@ async function failSearch(searchId: string, error?: unknown) {
   await setSearchStatus(searchId, "error", {
     error_message: isZeroRecall
       ? "No matching profiles were found for this search. Refine the JD or retry with broader criteria."
+      : isRecallUnderfilled
+        ? "The available profile pool was too small for a reliable candidate review. Retry with broader criteria."
       : PUBLIC_SEARCH_FAILURE_MESSAGE,
   });
 

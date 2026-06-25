@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { getSnapshotCacheTtlDays } from "../src/lib/search/persistence";
 import {
   canAdditionalRecallRoundsOwnEmptyStandardSnapshot,
+  getRecallReadyProfileThreshold,
   shouldContinueScoringWithStandardRecall,
+  shouldFailUnderfilledRecallAfterSubmittedRounds,
   shouldWaitForAdditionalRecallBeforeZeroRecall,
   shouldReuseProfileCacheDespiteSnapshotDrift,
 } from "../src/lib/search/pipeline";
@@ -112,13 +114,50 @@ test("cache-only rerun does not hide missing additional profile rows", () => {
   );
 });
 
-test("standard recall can proceed to scoring while additional rounds are still pending", () => {
+test("recall ready threshold caps the recruiter-quality minimum", () => {
+  assert.equal(getRecallReadyProfileThreshold(250), 100);
+  assert.equal(getRecallReadyProfileThreshold(50), 50);
+});
+
+test("standard recall can proceed to scoring while additional rounds are still pending after enough profiles", () => {
   assert.equal(
     shouldContinueScoringWithStandardRecall({
-      standardProfileCount: 69,
+      standardProfileCount: 100,
       deferredAdditionalRoundCount: 5,
+      requestedProfileCount: 250,
     }),
     true,
+  );
+});
+
+test("underfilled standard recall waits for pending additional rounds", () => {
+  assert.equal(
+    shouldContinueScoringWithStandardRecall({
+      standardProfileCount: 16,
+      deferredAdditionalRoundCount: 1,
+      requestedProfileCount: 250,
+    }),
+    false,
+  );
+});
+
+test("underfilled recall fails after all submitted rounds are exhausted", () => {
+  assert.equal(
+    shouldFailUnderfilledRecallAfterSubmittedRounds({
+      availableProfileCount: 66,
+      deferredAdditionalRoundCount: 0,
+      requestedProfileCount: 250,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldFailUnderfilledRecallAfterSubmittedRounds({
+      availableProfileCount: 66,
+      deferredAdditionalRoundCount: 1,
+      requestedProfileCount: 250,
+    }),
+    false,
   );
 });
 
@@ -127,6 +166,7 @@ test("additional rounds still matter when standard recall has no profiles", () =
     shouldContinueScoringWithStandardRecall({
       standardProfileCount: 0,
       deferredAdditionalRoundCount: 2,
+      requestedProfileCount: 250,
     }),
     false,
   );
