@@ -120,11 +120,22 @@ test("recall ready threshold caps the recruiter-quality minimum", () => {
   assert.equal(getRecallReadyProfileThreshold(50), 50);
 });
 
-test("standard recall can proceed to scoring while additional rounds are still pending after enough profiles", () => {
+test("standard recall waits while submitted additional rounds are still pending", () => {
   assert.equal(
     shouldContinueScoringWithStandardRecall({
       standardProfileCount: 100,
       deferredAdditionalRoundCount: 5,
+      requestedProfileCount: 250,
+    }),
+    false,
+  );
+});
+
+test("standard recall can proceed once submitted additional rounds are resolved", () => {
+  assert.equal(
+    shouldContinueScoringWithStandardRecall({
+      standardProfileCount: 100,
+      deferredAdditionalRoundCount: 0,
       requestedProfileCount: 250,
     }),
     true,
@@ -206,7 +217,7 @@ test("underfilled recall waits when a ready additional round download is still p
   );
 });
 
-test("sufficient standard recall can proceed when only additional download is pending", () => {
+test("sufficient standard recall waits when only additional download is pending", () => {
   assert.equal(
     shouldWaitForAdditionalRecallBeforeScoring({
       standardProfileCount: 100,
@@ -215,6 +226,19 @@ test("sufficient standard recall can proceed when only additional download is pe
       downloadDeferredRoundCount: 1,
       requestedProfileCount: 250,
     }),
-    false,
+    true,
+  );
+});
+
+test("full standard recall still waits when a submitted additional download is pending", () => {
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeScoring({
+      standardProfileCount: 150,
+      availableProfileCount: 150,
+      metadataDeferredRoundCount: 0,
+      downloadDeferredRoundCount: 1,
+      requestedProfileCount: 250,
+    }),
+    true,
   );
 });

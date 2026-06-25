@@ -456,10 +456,7 @@ export function shouldContinueScoringWithStandardRecall(params: {
   requestedProfileCount?: number | null;
 }) {
   if (params.deferredAdditionalRoundCount <= 0) return params.standardProfileCount > 0;
-  return (
-    params.standardProfileCount >=
-    getRecallReadyProfileThreshold(params.requestedProfileCount)
-  );
+  return false;
 }
 
 export function shouldFailUnderfilledRecallAfterSubmittedRounds(params: {
