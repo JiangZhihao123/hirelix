@@ -587,18 +587,30 @@ function buildCurrentPositionSignalPairFilter(
 
   const pairs: BrightDataFilterRule[] = [];
   const seen = new Set<string>();
+  const addPair = (
+    anchor: string,
+    depth: string,
+    anchorField: "about" | "position",
+    depthField: "about" | "position",
+  ) => {
+    const key = `${anchorField}:${normalizeText(anchor)}|${depthField}:${normalizeText(depth)}`;
+    if (seen.has(key) || pairs.length >= maxPairs) return;
+    seen.add(key);
+    pairs.push({
+      operator: "and",
+      filters: [
+        buildProfileSignalLeaf(anchor, anchorField),
+        buildProfileSignalLeaf(depth, depthField),
+      ],
+    });
+  };
+
   for (const anchor of anchors) {
     for (const depth of depths) {
-      const key = `${normalizeText(anchor)}|${normalizeText(depth)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      pairs.push({
-        operator: "and",
-        filters: [
-          buildPositionSignalLeaf(anchor),
-          buildPositionSignalLeaf(depth),
-        ],
-      });
+      addPair(anchor, depth, "about", "position");
+      addPair(anchor, depth, "position", "about");
+      addPair(anchor, depth, "about", "about");
+      addPair(anchor, depth, "position", "position");
       if (pairs.length >= maxPairs) break;
     }
     if (pairs.length >= maxPairs) break;

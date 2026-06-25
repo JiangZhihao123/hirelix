@@ -755,11 +755,20 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
   );
   assert.ok(
     flattenRules(hiddenRound.request.filter).some((rule) =>
+      "name" in rule &&
+      rule.name === "position" &&
+      leafValues(rule).some((value) => value.includes("platform engineer"))
+    ),
+    "hidden gem recall should keep current-position title evidence while allowing profile-wide skill evidence",
+  );
+  assert.ok(
+    flattenRules(hiddenRound.request.filter).some((rule) =>
       "filters" in rule &&
       rule.operator === "and" &&
-      rule.filters.every((child) => "name" in child && child.name === "position")
+      rule.filters.some((child) => "name" in child && child.name === "about") &&
+      rule.filters.some((child) => "name" in child && child.name === "position")
     ),
-    "hidden gem recall should require current-position evidence instead of broad about-only skill matches",
+    "hidden gem skill evidence should not be constrained to current-position text only",
   );
 
   const companyRound = rounds.find((round) => round.round === "company_target");
