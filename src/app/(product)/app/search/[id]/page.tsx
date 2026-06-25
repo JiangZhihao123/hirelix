@@ -766,7 +766,7 @@ export default function SearchResultPage() {
   });
   const lowerPriorityCandidates = allCandidates.filter((candidate) => {
     const bucket = getCandidateDeliveryBucket(candidate);
-    return bucket === "lower_priority" || bucket === "not_recommended";
+    return bucket === "lower_priority";
   });
   const actualPriorityOutreachCount = priorityCandidates.length;
   const actualWorthReviewingCount = worthReviewingCandidates.length;
@@ -841,8 +841,14 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.deep_review_count) ??
     Math.max(allCandidates.length, 0);
   const deliveredCandidateCount = allCandidates.length;
-  const priorityOutreachCount = actualPriorityOutreachCount;
-  const worthReviewingCount = actualWorthReviewingCount;
+  const priorityOutreachCount =
+    positiveInt(rawDisplayStats?.priority_outreach_count) ??
+    positiveInt(rawDisplayStats?.strong_now_count) ??
+    actualPriorityOutreachCount;
+  const worthReviewingCount =
+    positiveInt(rawDisplayStats?.worth_reviewing_count) ??
+    positiveInt(rawDisplayStats?.consider_next_count) ??
+    actualWorthReviewingCount;
   const isFreePlan = billing?.plan.code === "free";
   const ruledOutCount =
     positiveInt(rawDisplayStats?.ruled_out_count) ??
@@ -882,8 +888,12 @@ export default function SearchResultPage() {
         candidate.metadata?.first_contact_confidence === "high" ||
         candidate.metadata?.suitability?.first_contact_confidence === "high",
     ).length;
-  const recommendedCount = recommendedCandidates.length;
-  const lowerPriorityCount = lowerPriorityCandidates.length;
+  const recommendedCount =
+    positiveInt(rawDisplayStats?.recommended_count) ??
+    recommendedCandidates.length;
+  const lowerPriorityCount =
+    positiveInt(rawDisplayStats?.lower_priority_count) ??
+    lowerPriorityCandidates.length;
   const hasCompleteRankedPool =
     deepReviewCompletedCount <= allCandidates.length ||
     Math.abs(deepReviewCompletedCount - allCandidates.length) <= 1;
