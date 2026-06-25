@@ -109,6 +109,16 @@ export class DatasetRecallPendingError extends Error {
   }
 }
 
+export class ZeroRecallError extends Error {
+  snapshotId: string;
+
+  constructor(snapshotId: string, message?: string) {
+    super(message ?? `Bright Data recall produced no profiles for snapshot ${snapshotId}.`);
+    this.name = "ZeroRecallError";
+    this.snapshotId = snapshotId;
+  }
+}
+
 type SearchPipelineHelpers = {
   nowIso: () => string;
   logSearchEvent: (eventName: string, payload: Record<string, unknown>) => void;
@@ -415,6 +425,18 @@ export function shouldContinueScoringWithStandardRecall(params: {
   deferredAdditionalRoundCount: number;
 }) {
   return params.standardProfileCount > 0 && params.deferredAdditionalRoundCount > 0;
+}
+
+export function shouldWaitForAdditionalRecallBeforeZeroRecall(params: {
+  standardProfileCount: number;
+  availableProfileCount: number;
+  deferredAdditionalRoundCount: number;
+}) {
+  return (
+    params.standardProfileCount === 0 &&
+    params.availableProfileCount === 0 &&
+    params.deferredAdditionalRoundCount > 0
+  );
 }
 
 function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
@@ -2149,8 +2171,9 @@ async function buildBrightDataDatasetCandidates(
   );
 
   if (standardNoRecords && !hasActiveAdditionalRecallRound) {
-    throw new Error(
-      `Bright Data dataset recall returned no records for snapshot ${activeSnapshotId}; fix recall filters instead of relaxing them automatically.`,
+    throw new ZeroRecallError(
+      activeSnapshotId,
+      `Bright Data dataset recall returned no records for snapshot ${activeSnapshotId}.`,
     );
   } else if (metadata?.status === "failed" && !standardNoRecords) {
     if (standardCacheEntry) {
@@ -2351,7 +2374,7 @@ async function buildBrightDataDatasetCandidates(
     }
   }
 
-  if (!profiles.length && !standardNoRecords) {
+  if (!profiles.length && !standardNoRecords && !hasActiveAdditionalRecallRound) {
     helpers.logSearchEvent("search_provider_failed", {
       search_id: context.searchId,
       provider: "brightdata_dataset",
@@ -2454,6 +2477,11 @@ async function buildBrightDataDatasetCandidates(
   const allProfiles = [...profiles];
   let totalRecallCost = getMetadataCost(metadata);
   const additionalReturnedCounts = new Map<string, number>();
+  const downloadDeferredAdditionalRounds: Array<{
+    round: string;
+    snapshotId: string;
+    status: BrightDataSnapshotMetadata["status"] | "polling";
+  }> = [];
 
   if (additionalSnapshotRefs.length > 0) {
     const seenIds = new Set<string>();
@@ -2557,6 +2585,11 @@ async function buildBrightDataDatasetCandidates(
             }),
           );
           additionalReturnedCounts.set(round, 0);
+          downloadDeferredAdditionalRounds.push({
+            round,
+            snapshotId: roundSnapId,
+            status: "polling",
+          });
           helpers.logSearchEvent("search_multi_round_download_deferred_nonblocking", {
             search_id: context.searchId,
             round,
@@ -2623,22 +2656,35 @@ async function buildBrightDataDatasetCandidates(
   }
 
   if (
-    deferredAdditionalRounds.length > 0 &&
-    !shouldContinueScoringWithStandardRecall({
+    (deferredAdditionalRounds.length > 0 &&
+      !shouldContinueScoringWithStandardRecall({
+        standardProfileCount,
+        deferredAdditionalRoundCount: deferredAdditionalRounds.length,
+      })) ||
+    shouldWaitForAdditionalRecallBeforeZeroRecall({
       standardProfileCount,
-      deferredAdditionalRoundCount: deferredAdditionalRounds.length,
+      availableProfileCount: allProfiles.length,
+      deferredAdditionalRoundCount: downloadDeferredAdditionalRounds.length,
     })
   ) {
+    const blockedAdditionalRounds = [
+      ...deferredAdditionalRounds.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        status: round.metadata.status,
+      })),
+      ...downloadDeferredAdditionalRounds.map((round) => ({
+        round: round.round,
+        snapshot_id: round.snapshotId,
+        status: round.status,
+      })),
+    ];
     helpers.logSearchEvent("search_additional_rounds_deferred_before_score", {
       search_id: context.searchId,
       job_id: context.jobId,
       standard_profiles: standardProfileCount,
       currently_available_profiles: allProfiles.length,
-      deferred_rounds: deferredAdditionalRounds.map((round) => ({
-        round: round.round,
-        snapshot_id: round.snapshotId,
-        status: round.metadata.status,
-      })),
+      deferred_rounds: blockedAdditionalRounds,
     });
 
     parsed.recall_metadata = {
@@ -2692,7 +2738,7 @@ async function buildBrightDataDatasetCandidates(
     };
     await updateSearchParsedRequirements(context.searchId, parsed);
     throw new DatasetRecallPendingError(
-      `Waiting for ${deferredAdditionalRounds.length} additional recall round(s) before scoring ${allProfiles.length} profiles`,
+      `Waiting for ${blockedAdditionalRounds.length} additional recall round(s) before scoring ${allProfiles.length} profiles`,
       { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
     );
   }
@@ -2847,7 +2893,7 @@ async function buildBrightDataDatasetCandidates(
   };
 
   if (allProfiles.length === 0) {
-    throw new Error(`Bright Data recall produced no profiles for snapshot ${activeSnapshotId}.`);
+    throw new ZeroRecallError(activeSnapshotId);
   }
   const combinedResult = await scoreBrightDataProfiles(
     context,

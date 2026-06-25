@@ -21,6 +21,7 @@ const eslintConfig = defineConfig([
     ".playwright-cli/**",
     ".playwright-mcp/**",
     "output/**",
+    "runs/**",
     // Local utility scripts are not part of the web app lint gate.
     "scripts/**",
   ]),

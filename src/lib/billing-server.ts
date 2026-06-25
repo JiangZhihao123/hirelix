@@ -59,6 +59,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       .limit(1),
     db
       .select({
+        related_id: hirelix_usage_events.related_id,
         event_type: hirelix_usage_events.event_type,
         metadata: hirelix_usage_events.metadata,
       })
@@ -86,6 +87,8 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   let profileScansUsed = 0;
   let emailLookupsUsed = 0;
   let publicEvidenceDeepDivesUsed = 0;
+  let billableClientRolesFromEvents = 0;
+  const releasedSearchIds = new Set<string>();
 
   for (const row of usageEventRows) {
     const metadata =
@@ -100,6 +103,10 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     if (row.event_type === "search_created") {
       const profileScanCount = Math.max(profileScans ?? 0, reservedProfileScans ?? 0);
       profileScansUsed += profileScanCount;
+      billableClientRolesFromEvents += getBillableClientRoleCount(metadata);
+      if (isClientRoleReleased(metadata) && row.related_id) {
+        releasedSearchIds.add(row.related_id);
+      }
     } else if (row.event_type === "candidate_enriched") {
       emailLookupsUsed += emailLookupCount ?? 1;
     } else if (row.event_type === "public_evidence_deep_dive") {
@@ -117,7 +124,8 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   const baseProfileScansLimit = getPlanProfileScansPerMonth(plan);
   const emailLookupsLimit = getPlanEmailLookupsPerMonth(plan) + extraEmailLookups;
   const publicEvidenceDeepDivesLimit = getPlanPublicEvidenceDeepDivesPerMonth(plan);
-  const clientRolesUsed = Math.max(0, searchCountRows[0]?.count ?? 0);
+  const searchRowsUsed = Math.max(0, (searchCountRows[0]?.count ?? 0) - releasedSearchIds.size);
+  const clientRolesUsed = Math.max(billableClientRolesFromEvents, searchRowsUsed);
   const clientRolesLimit = plan.searchesPerMonth;
   const freePreviewUsed = plan.code === "free" && profileScansUsed > 0;
   const profileScansLimit = freePreviewUsed
@@ -209,6 +217,23 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
 function getMetadataCount(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return Math.max(0, Math.round(value));
+}
+
+export function getBillableClientRoleCount(metadata: Record<string, unknown>) {
+  if (isClientRoleReleased(metadata)) {
+    return 0;
+  }
+  const explicitCount = getMetadataCount(metadata.client_roles_used);
+  if (explicitCount != null) return explicitCount;
+  return 1;
+}
+
+function isClientRoleReleased(metadata: Record<string, unknown>) {
+  return (
+    metadata.client_role_billing_status === "released_after_failure" ||
+    metadata.search_billing_status === "released_after_failure" ||
+    metadata.profile_scans_billing_status === "released_after_failure"
+  );
 }
 
 function getPaddleApiBaseUrl() {

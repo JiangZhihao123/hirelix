@@ -942,7 +942,7 @@ export default function SearchResultPage() {
   }).length;
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
-  const errorPresentation = getSearchErrorPresentation();
+  const errorPresentation = getSearchErrorPresentation(search.parsed_requirements);
   const entryQuery =
     analyticsContext.entry_mode === "workspace"
       ? ""

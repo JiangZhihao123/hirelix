@@ -431,7 +431,15 @@ export function getProviderDelayCopy(elapsedMs: number | null, emailEnabled: boo
   return `This is taking a bit longer than usual. ${getSearchCompletionFollowUpCopy(emailEnabled)}.`;
 }
 
-export function getSearchErrorPresentation() {
+export function getSearchErrorPresentation(parsedRequirements?: Record<string, unknown> | null) {
+  if (parsedRequirements?.search_error_type === "zero_recall") {
+    return {
+      title: "No matching profiles were found",
+      body: "The search finished without usable LinkedIn profiles for the current constraints.",
+      hint: "This run has been released from your client-role allowance. Broaden the JD or retry with wider criteria.",
+    };
+  }
+
   return {
     title: "This shortlist run didn't finish",
     body: "Hirelix couldn't finish this search. The detailed error has been logged for debugging.",

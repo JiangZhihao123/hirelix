@@ -4,6 +4,7 @@ import { getSnapshotCacheTtlDays } from "../src/lib/search/persistence";
 import {
   canAdditionalRecallRoundsOwnEmptyStandardSnapshot,
   shouldContinueScoringWithStandardRecall,
+  shouldWaitForAdditionalRecallBeforeZeroRecall,
   shouldReuseProfileCacheDespiteSnapshotDrift,
 } from "../src/lib/search/pipeline";
 
@@ -126,6 +127,26 @@ test("additional rounds still matter when standard recall has no profiles", () =
     shouldContinueScoringWithStandardRecall({
       standardProfileCount: 0,
       deferredAdditionalRoundCount: 2,
+    }),
+    false,
+  );
+});
+
+test("zero standard recall waits when an additional round download is still pending", () => {
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeZeroRecall({
+      standardProfileCount: 0,
+      availableProfileCount: 0,
+      deferredAdditionalRoundCount: 1,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeZeroRecall({
+      standardProfileCount: 0,
+      availableProfileCount: 4,
+      deferredAdditionalRoundCount: 1,
     }),
     false,
   );

@@ -8,7 +8,7 @@ const DEFAULT_PREVIEW_REQUEST_RECIPIENT = "jzh_spring@163.com";
 const DEFAULT_ALERT_TIMEOUT_MS = 1200;
 const growthLandingLogger = getLogger({ component: "growth_landing_event" });
 
-const ALLOWED_EVENTS = new Set([
+export const ALLOWED_LANDING_EVENTS = new Set([
   "page_view",
   "session_summary",
   "engaged_10s",
@@ -18,6 +18,7 @@ const ALLOWED_EVENTS = new Set([
   "section_view",
   "hero_input_start",
   "hero_submit_attempt",
+  "try_for_free_click",
   "sample_view",
   "signin_view",
   "google_signin_click",
@@ -48,6 +49,24 @@ type LandingEventBody = {
   referrer?: unknown;
   metadata?: unknown;
 };
+
+type LandingEventDecision =
+  | {
+      action: "record";
+      eventType: string;
+      metadata: Record<string, unknown>;
+    }
+  | {
+      action: "ignore";
+      eventType: string | null;
+      reason: "invalid_event_type" | "ops_page";
+    }
+  | {
+      action: "reject";
+      error: string;
+      reason: "invalid_preview_request";
+      status: 400;
+    };
 
 function textValue(value: unknown, maxLength = 500) {
   if (typeof value !== "string") return null;
@@ -96,6 +115,57 @@ function isOpsPage(value: string | null) {
   } catch {
     return value.includes("/ops/");
   }
+}
+
+export function validateLandingEventForRecording(params: {
+  eventType: string | null;
+  metadata: Record<string, unknown>;
+  pageUrl: string | null;
+}): LandingEventDecision {
+  if (!params.eventType || !ALLOWED_LANDING_EVENTS.has(params.eventType)) {
+    return {
+      action: "ignore",
+      eventType: params.eventType,
+      reason: "invalid_event_type",
+    };
+  }
+
+  if (isOpsPage(params.pageUrl) || isOpsPage(getMetadataText(params.metadata, "route", 120))) {
+    return {
+      action: "ignore",
+      eventType: params.eventType,
+      reason: "ops_page",
+    };
+  }
+
+  if (params.eventType === "preview_request_submit") {
+    const replyEmail = getMetadataText(params.metadata, "reply_email", 160);
+    const rolePreview = getMetadataText(params.metadata, "role_preview", 500);
+    if (!isValidEmail(replyEmail) || !rolePreview || rolePreview.length < 12) {
+      return {
+        action: "reject",
+        error: "Invalid preview request",
+        reason: "invalid_preview_request",
+        status: 400,
+      };
+    }
+    return {
+      action: "record",
+      eventType: params.eventType,
+      metadata: {
+        ...params.metadata,
+        reply_email: replyEmail,
+        role_preview: rolePreview,
+        role_length: rolePreview.length,
+      },
+    };
+  }
+
+  return {
+    action: "record",
+    eventType: params.eventType,
+    metadata: params.metadata,
+  };
 }
 
 function escapeHtml(value: string) {
@@ -190,13 +260,24 @@ export async function POST(req: NextRequest) {
   }
 
   const eventType = textValue(body.event_type, 80);
-  if (!eventType || !ALLOWED_EVENTS.has(eventType)) {
-    return NextResponse.json({ error: "Invalid event_type" }, { status: 400 });
-  }
   const metadata = metadataValue(body.metadata);
   const pageUrl = textValue(body.page_url, 1000);
-  if (isOpsPage(pageUrl) || isOpsPage(getMetadataText(metadata, "route", 120))) {
-    return NextResponse.json({ ok: true });
+  const decision = validateLandingEventForRecording({ eventType, metadata, pageUrl });
+  if (decision.action === "ignore") {
+    if (decision.reason === "invalid_event_type") {
+      growthLandingLogger.warn({
+        event: "landing_event_ignored",
+        reason: decision.reason,
+        event_type: decision.eventType,
+      });
+    }
+    return NextResponse.json({ ok: true, ignored: true, reason: decision.reason });
+  }
+  if (decision.action === "reject") {
+    return NextResponse.json(
+      { error: decision.error, code: decision.reason },
+      { status: decision.status },
+    );
   }
 
   const emailId = textValue(body.email_id, 200);
@@ -204,20 +285,9 @@ export async function POST(req: NextRequest) {
   const recipient = textValue(body.recipient, 320);
   const company = textValue(body.company, 200);
 
-  if (eventType === "preview_request_submit") {
-    const replyEmail = getMetadataText(metadata, "reply_email", 160);
-    const rolePreview = getMetadataText(metadata, "role_preview", 500);
-    if (!isValidEmail(replyEmail) || !rolePreview || rolePreview.length < 12) {
-      return NextResponse.json({ error: "Invalid preview request" }, { status: 400 });
-    }
-    metadata.reply_email = replyEmail;
-    metadata.role_preview = rolePreview;
-    metadata.role_length = rolePreview.length;
-  }
-
   try {
     await db.insert(hirelix_growth_landing_events).values({
-      event_type: eventType,
+      event_type: decision.eventType,
       visitor_id: textValue(body.visitor_id, 120),
       session_id: textValue(body.session_id, 120),
       email_id: emailId,
@@ -228,24 +298,24 @@ export async function POST(req: NextRequest) {
       referrer: textValue(body.referrer, 1000),
       ip_address: getIpAddress(req),
       user_agent: getHeader(req, "user-agent"),
-      metadata,
+      metadata: decision.metadata,
     });
   } catch (error) {
     growthLandingLogger.error({
       event: "landing_event_record_failed",
-      event_type: eventType,
+      event_type: decision.eventType,
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: "Failed to record event" }, { status: 500 });
   }
 
-  if (eventType === "preview_request_submit") {
+  if (decision.eventType === "preview_request_submit") {
     after(() => {
       return notifyPreviewRequest({
         batch_id: batchId,
         company,
         email_id: emailId,
-        metadata,
+        metadata: decision.metadata,
         recipient,
       }).catch((error) => {
         growthLandingLogger.error({

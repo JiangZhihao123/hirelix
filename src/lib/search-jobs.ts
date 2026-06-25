@@ -82,6 +82,7 @@ import {
 } from "@/lib/search/recall";
 import {
   DatasetRecallPendingError,
+  ZeroRecallError,
   runSearchPipeline,
 } from "@/lib/search/pipeline";
 import { getLogger, errorLogFields } from "@/lib/logger";
@@ -553,6 +554,24 @@ function buildStandardSkillTerms(recallSpec: RecallSpec, mode: RecallFilterMode)
   );
 }
 
+function buildStandardAnchorTerms(recallSpec: RecallSpec) {
+  return compactNormalizedTerms(
+    [
+      ...recallSpec.domain_terms,
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.must_have_signals,
+    ]
+      .map((term) => normalizeText(term))
+      .filter((term) => {
+        if (term.length < 3) return false;
+        if (/\b(?:years?|yrs?)\b/.test(term)) return false;
+        if (/\b(?:us|remote|hybrid|relocat|sf|nyc|seattle|bay area)\b/.test(term)) return false;
+        return /\b(?:search|retrieval|ranking|backend|api|distributed|platform|infrastructure|database|postgres|postgresql)\b/.test(term);
+      }),
+    3,
+  );
+}
+
 function buildProfileSignalFilter(terms: string[]): BrightDataFilterRule | null {
   const normalizedTerms = compactNormalizedTerms(
     terms
@@ -580,30 +599,12 @@ function buildProfileSignalFilter(terms: string[]): BrightDataFilterRule | null 
 }
 
 export function buildStandardSkillFilter(recallSpec: RecallSpec, mode: RecallFilterMode): BrightDataFilterRule | null {
-  const standardSkillFilter = buildProfileSignalFilter(buildStandardSkillTerms(recallSpec, mode));
-  if (!standardSkillFilter) return null;
-
-  if (mode === "relaxed") {
-    return standardSkillFilter;
-  }
-
-  const roleSpecificFilter = buildProfileSignalFilter([
-    ...recallSpec.differentiating_skill_terms,
-    ...recallSpec.domain_terms,
-    ...recallSpec.must_have_signals,
+  const standardSkillFilter = buildProfileSignalFilter([
+    ...buildStandardSkillTerms(recallSpec, mode),
+    ...(mode === "primary" ? buildStandardAnchorTerms(recallSpec) : []),
   ]);
-
-  if (!roleSpecificFilter) {
-    return standardSkillFilter;
-  }
-
-  return {
-    operator: "and",
-    filters: [
-      roleSpecificFilter,
-      standardSkillFilter,
-    ],
-  };
+  if (!standardSkillFilter) return null;
+  return standardSkillFilter;
 }
 
 function deriveStableRecallStrategy(input: {
@@ -3028,35 +3029,57 @@ async function markSearchReviewable(
 
 
 
-async function failSearch(searchId: string) {
+async function failSearch(searchId: string, error?: unknown) {
   const rows = await getSearchRowsForFailureBilling(searchId);
   const parsed = rows[0]?.parsed_requirements;
-  const displayStats =
+  const parsedRecord =
     parsed && typeof parsed === "object"
-      ? normalizeSearchDisplayStats((parsed as Record<string, unknown>).display_stats)
-      : null;
+      ? (parsed as Record<string, unknown>)
+      : {};
+  const displayStats = normalizeSearchDisplayStats(parsedRecord.display_stats);
   const recallMetadata =
-    parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).recall_metadata &&
-    typeof (parsed as Record<string, unknown>).recall_metadata === "object"
-      ? ((parsed as Record<string, unknown>).recall_metadata as Record<string, unknown>)
+    parsedRecord.recall_metadata && typeof parsedRecord.recall_metadata === "object"
+      ? (parsedRecord.recall_metadata as Record<string, unknown>)
       : null;
   const returnedProfiles =
     displayStats?.bright_profiles_returned ??
     getPositiveInt(recallMetadata?.bright_profiles_returned) ??
     0;
+  const candidateCount = await countCandidatesForSearch(searchId);
+  const isZeroRecall = error instanceof ZeroRecallError || (
+    returnedProfiles === 0 &&
+    (
+      typeof recallMetadata?.bright_profiles_returned === "number" ||
+      String(error instanceof Error ? error.message : error ?? "").toLowerCase().includes("no profiles")
+    )
+  );
+  const searchErrorType = isZeroRecall ? "zero_recall" : "provider_failure";
+  const releaseClientRole = candidateCount === 0;
   await updateSearchUsageEventMetadata(searchId, {
+    search_error_type: searchErrorType,
+    client_role_billing_status: releaseClientRole
+      ? "released_after_failure"
+      : "charged_after_partial_delivery_failure",
+    client_roles_used: releaseClientRole ? 0 : 1,
     profile_scans_reserved: 0,
     profile_scans_used: returnedProfiles,
     profile_scans_returned: returnedProfiles,
     profile_scans_billing_status:
       returnedProfiles > 0 ? "charged_after_pipeline_failure" : "released_after_failure",
   });
-  await setSearchStatus(searchId, "error", {
-    error_message: PUBLIC_SEARCH_FAILURE_MESSAGE,
+  await updateSearchParsedRequirements(searchId, {
+    ...parsedRecord,
+    search_error_type: searchErrorType,
+    search_error_at: nowIso(),
+    search_error_retryable: true,
   });
-  const count = await countCandidatesForSearch(searchId);
+  await setSearchStatus(searchId, "error", {
+    error_message: isZeroRecall
+      ? "No matching profiles were found for this search. Refine the JD or retry with broader criteria."
+      : PUBLIC_SEARCH_FAILURE_MESSAGE,
+  });
 
-  if (count === 0) {
+  if (candidateCount === 0) {
     void queueOrSendSearchNotification(searchId, "search_failed").catch((error) => {
       searchJobLogger.error(
         {
@@ -3215,7 +3238,7 @@ export async function processNextSearchJob(preferredSearchId?: string | null) {
       };
     }
 
-    await failSearch(job.search_id);
+    await failSearch(job.search_id, error);
 
     logSearchEvent("search_provider_failed", {
       search_id: job.search_id,

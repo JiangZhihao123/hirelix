@@ -11,6 +11,7 @@ import { db } from "@/db/client";
 import { hirelix_searches } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT } from "@/lib/search-execution";
+import { buildRetryParsedRequirements } from "@/lib/search-retry";
 
 export const maxDuration = 30;
 
@@ -86,6 +87,7 @@ export async function POST(
   });
 
   const ts = new Date();
+  const nextParsedRequirements = buildRetryParsedRequirements(parsedRequirements);
   await db
     .update(hirelix_searches)
     .set({
@@ -96,6 +98,7 @@ export async function POST(
       search_completed_at: null,
       partial_ready_at: null,
       done_at: null,
+      parsed_requirements: nextParsedRequirements,
       updated_at: ts,
     })
     .where(eq(hirelix_searches.id, id));

@@ -19,6 +19,7 @@ import {
   compareCandidatesForRecruiterRanking,
   getCandidateDeliveryBucket,
   getCandidateDisplayTier,
+  getSearchErrorPresentation,
 } from "@/app/(product)/app/search/[id]/_components/utils";
 import type { CandidateRow } from "@/app/(product)/app/search/[id]/_components/types";
 
@@ -485,4 +486,11 @@ test("completeSearch upserts the full pool and drafts outreach only for recommen
   assert.equal(finalStats.recommended_count, 2);
   assert.equal(finalStats.lower_priority_count, 2);
   assert.ok(events.includes("public_evidence_available_on_demand"));
+});
+
+test("zero recall error presentation explains released client role allowance", () => {
+  const presentation = getSearchErrorPresentation({ search_error_type: "zero_recall" });
+
+  assert.equal(presentation.title, "No matching profiles were found");
+  assert.match(presentation.hint, /released from your client-role allowance/);
 });
