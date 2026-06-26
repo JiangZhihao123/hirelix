@@ -235,8 +235,8 @@ export const SEARCH_LOW_COST_MODE = getConfiguredBoolean(
 
 export const PARSE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_PARSE_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 900 : 1800,
-  { min: 200, max: 4000 },
+  SEARCH_LOW_COST_MODE ? 1400 : 3200,
+  { min: 200, max: 6000 },
 );
 
 export const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(

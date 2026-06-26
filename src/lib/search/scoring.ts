@@ -8,6 +8,37 @@ import type {
 } from "@/lib/search/types";
 import { mergeCandidateRows } from "@/lib/search/recall";
 
+function readRecord(value: unknown) {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function readStringArray(value: unknown, maxItems = 8) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim())
+    .slice(0, maxItems);
+}
+
+function buildHeadhunterJudgeContext(parsed: Record<string, unknown>) {
+  const brief = readRecord(parsed.headhunter_brief);
+  if (!brief) return "";
+  const lines = ["## Headhunter Brief"];
+  const roleMission = typeof brief.role_mission === "string" ? brief.role_mission.trim() : "";
+  if (roleMission) lines.push(`Role Mission: ${roleMission}`);
+  const ideal = readStringArray(brief.ideal_candidate_backgrounds);
+  if (ideal.length > 0) lines.push(`Ideal Backgrounds: ${ideal.join(" | ")}`);
+  const adjacent = readStringArray(brief.allowed_adjacent_profiles);
+  if (adjacent.length > 0) lines.push(`Allowed Adjacent Profiles: ${adjacent.join(" | ")}`);
+  const misleading = readStringArray(brief.misleading_profile_patterns);
+  if (misleading.length > 0) lines.push(`Misleading Patterns: ${misleading.join(" | ")}`);
+  const equivalent = readStringArray(brief.equivalent_evidence);
+  if (equivalent.length > 0) lines.push(`Equivalent Evidence: ${equivalent.join(" | ")}`);
+  const risks = readStringArray(brief.verification_risks);
+  if (risks.length > 0) lines.push(`Verification Risks: ${risks.join(" | ")}`);
+  return lines.length > 1 ? lines.join("\n") : "";
+}
+
 export function buildJudgeScorePrompt(
   parsed: Record<string, unknown>,
   jdText: string,
@@ -106,9 +137,11 @@ export function buildJudgeScorePrompt(
   const indexRule = poolSize === 1
     ? `Return exactly one JSON object. Use the exact candidate index shown in the profile header (for example "[57] Name" means "index": 57). ${allowedIndexText}`.trim()
     : `Return one object per profile. Use the exact candidate index shown in each profile header, not the row position inside this batch. For example, if the header is "[57] Jane", return "index": 57, never "index": 0. ${allowedIndexText}`.trim();
+  const headhunterContext = buildHeadhunterJudgeContext(parsed);
 
   const sharedRules = `Rules:
 - ${styleHint}
+- Judge like a human technical headhunter deciding whether a real recruiter should spend attention on this person.
 - ${indexRule}
 - capability_score measures how strong the person is overall in seniority, depth, and execution track record. Profiles with only bootcamp credentials and no professional engineering tenure beyond internships should receive capability_score <= 40.
 - relevance_score measures how directly their real background matches this JD's stack, responsibilities, and domain. Domain experience in the hiring company's industry (stated in hiring_brief) should boost relevance_score.
@@ -117,7 +150,9 @@ export function buildJudgeScorePrompt(
 - advance_recommendation should reflect whether this candidate is worth moving forward in the real world.
 - shortlist_decision should answer whether this person deserves to appear in a recruiter-curated shortlist.
 - A candidate is worth advancing only when the profile contains concrete JD-relevant evidence for role function, seniority, and at least the core must-have area. Do not infer this from employer brand, target-company membership, title, or a loose keyword match alone.
-- Use the Advancement Rubric in Search Intent as the JD-specific decision framework. It defines what same-work evidence, seniority evidence, must-have evidence, acceptable tradeoffs, and reject signals mean for this role.
+- Use the Advancement Rubric in Search Intent as the JD-specific decision framework, together with the Headhunter Brief. It defines the sourcing thesis, same-work evidence, seniority evidence, must-have evidence, acceptable tradeoffs, and reject signals for this role.
+- Do not reject solely because one literal keyword is absent when the profile shows equivalent experience described in the Headhunter Brief. Explain the equivalence in short_reasons or the uncertainty in risk_flags.
+- Do not advance solely because company, title, prestige, or target-company membership looks right. Structured fields are diagnostic context, not keyword gates.
 - For advance_recommendation=advance or shortlist_decision=yes, short_reasons must cite the strongest actual evidence in the profile. If the best reason is only "works at target company", "has senior title", "mentions engineering", or "could maybe learn it", use hold/no instead.
 - Adjacent profiles can still advance when the profile evidence shows equivalent work for this JD. Conversely, exact-looking titles should hold or reject when the evidence is generic, stale, student-only, management-only, or unrelated to the JD's core work.
 - Do not collapse quality because of sparse evidence alone. Use evidence_quality and risk fields to express uncertainty.
@@ -159,6 +194,8 @@ ${options.truncateForPrompt(jdText.trim(), 5000)}
 
 ## Search Intent
 ${options.buildPromptSearchContext(parsed)}
+
+${headhunterContext ? `${headhunterContext}\n` : ""}
 
 ## Candidate Profiles (${poolSize} candidates)
 The profiles below are raw candidate profiles derived from LinkedIn data.

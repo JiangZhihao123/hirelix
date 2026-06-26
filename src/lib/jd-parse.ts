@@ -54,6 +54,9 @@ const COMMON_SKILLS = [
 type ParsedSearchIntent = {
   title?: unknown;
   hiring_brief?: unknown;
+  headhunter_brief?: unknown;
+  sourcing_plan?: unknown;
+  recall_iterations?: unknown;
   recall_spec?: unknown;
   advancement_rubric?: unknown;
   required_skills?: unknown;
@@ -122,6 +125,168 @@ function normalizeEnumValue<T extends string>(
   return typeof value === "string" && allowed.includes(value as T)
     ? (value as T)
     : fallback;
+}
+
+function inferLaneKind(
+  value: unknown,
+  strategy: "title" | "skill" | "seniority" | "company",
+) {
+  if (
+    value === "primary_exact" ||
+    value === "primary_relaxed" ||
+    value === "target_company_engineering" ||
+    value === "adjacent_authorized" ||
+    value === "exploration"
+  ) {
+    return value;
+  }
+  if (strategy === "company") return "target_company_engineering";
+  if (strategy === "skill" || strategy === "seniority") return "primary_relaxed";
+  return "primary_exact";
+}
+
+function normalizeBudget(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(1, Math.round(value))
+    : fallback;
+}
+
+function defaultInitialBudget(laneKind: string) {
+  if (laneKind === "primary_exact") return 35;
+  if (laneKind === "primary_relaxed") return 15;
+  if (laneKind === "exploration") return 10;
+  if (laneKind === "target_company_engineering") return 25;
+  return 15;
+}
+
+function defaultMaxBudget(laneKind: string) {
+  if (laneKind === "primary_exact") return 150;
+  if (laneKind === "primary_relaxed") return 80;
+  if (laneKind === "exploration") return 15;
+  if (laneKind === "target_company_engineering") return 50;
+  return 40;
+}
+
+function normalizeSourcingLaneContracts(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      const lane = entry && typeof entry === "object"
+        ? (entry as Record<string, unknown>)
+        : {};
+      const strategy = normalizeEnumValue(
+        lane.strategy,
+        ["title", "skill", "seniority", "company"] as const,
+        "title",
+      );
+      const titleTerms = normalizeStringArray(lane.title_terms, 18);
+      const skillTerms = normalizeStringArray(lane.skill_terms, 18);
+      const companyTerms = normalizeStringArray(lane.company_terms, 15);
+      if (titleTerms.length === 0 && skillTerms.length === 0 && companyTerms.length === 0) {
+        return null;
+      }
+      const laneKind = inferLaneKind(lane.lane_kind, strategy);
+      const name = normalizeNullableString(lane.name) || `${laneKind} lane`;
+      return {
+        name,
+        strategy,
+        lane_kind: laneKind,
+        target_persona:
+          normalizeNullableString(lane.target_persona) ||
+          (companyTerms.length > 0
+            ? `Engineering profiles at ${companyTerms.slice(0, 3).join(", ")}`
+            : `Profiles matching ${titleTerms.slice(0, 3).join(", ") || skillTerms.slice(0, 3).join(", ") || name}`),
+        non_negotiables: normalizeStringArray(lane.non_negotiables, 8),
+        relaxed_evidence: normalizeStringArray(lane.relaxed_evidence, 8),
+        exclusion_patterns: normalizeStringArray(lane.exclusion_patterns, 8),
+        initial_budget: normalizeBudget(lane.initial_budget, defaultInitialBudget(laneKind)),
+        max_budget: normalizeBudget(lane.max_budget, defaultMaxBudget(laneKind)),
+        title_terms: titleTerms,
+        skill_terms: skillTerms,
+        company_terms: companyTerms,
+        avoid_terms: normalizeStringArray(lane.avoid_terms, 8),
+        budget_weight:
+          typeof lane.budget_weight === "number" && Number.isFinite(lane.budget_weight)
+            ? Math.max(0.25, Math.min(4, lane.budget_weight))
+            : 1,
+      };
+    })
+    .filter((lane): lane is NonNullable<typeof lane> => Boolean(lane))
+    .slice(0, 4);
+}
+
+function buildDefaultHeadhunterBrief(params: {
+  rawBrief: unknown;
+  title: string;
+  functionFocus: string | null;
+  requiredSkills: string[];
+  mustHaveSignals: string[];
+  avoidProfiles: string[];
+  lateralTitles: string[];
+}) {
+  const brief = params.rawBrief && typeof params.rawBrief === "object"
+    ? (params.rawBrief as Record<string, unknown>)
+    : {};
+  return {
+    role_mission:
+      normalizeNullableString(brief.role_mission) ||
+      params.functionFocus ||
+      `Hire a strong ${params.title} who can solve the role's core engineering problem.`,
+    ideal_candidate_backgrounds: normalizeStringArray(brief.ideal_candidate_backgrounds, 8).length > 0
+      ? normalizeStringArray(brief.ideal_candidate_backgrounds, 8)
+      : [
+        `${params.title} with evidence of ${params.requiredSkills.slice(0, 3).join(", ") || "similar production work"}`,
+      ],
+    allowed_adjacent_profiles: normalizeStringArray(brief.allowed_adjacent_profiles, 8).length > 0
+      ? normalizeStringArray(brief.allowed_adjacent_profiles, 8)
+      : params.lateralTitles.map((title) => `${title} with equivalent same-work evidence`).slice(0, 6),
+    misleading_profile_patterns: normalizeStringArray(brief.misleading_profile_patterns, 8).length > 0
+      ? normalizeStringArray(brief.misleading_profile_patterns, 8)
+      : params.avoidProfiles,
+    equivalent_evidence: normalizeStringArray(brief.equivalent_evidence, 8).length > 0
+      ? normalizeStringArray(brief.equivalent_evidence, 8)
+      : params.mustHaveSignals.slice(0, 6),
+    verification_risks: normalizeStringArray(brief.verification_risks, 8).length > 0
+      ? normalizeStringArray(brief.verification_risks, 8)
+      : ["Confirm exact scope, seniority, and current hands-on ownership before presenting."],
+  };
+}
+
+function buildDefaultSourcingPlan(
+  rawPlan: unknown,
+  lanes: ReturnType<typeof normalizeSourcingLaneContracts>,
+  title: string,
+) {
+  const plan = rawPlan && typeof rawPlan === "object"
+    ? (rawPlan as Record<string, unknown>)
+    : {};
+  const planLanes = normalizeSourcingLaneContracts(plan.lanes);
+  const toPlanLane = (lane: ReturnType<typeof normalizeSourcingLaneContracts>[number]) => ({
+    name: lane.name,
+    lane_kind: lane.lane_kind,
+    target_persona: lane.target_persona,
+    non_negotiables: lane.non_negotiables,
+    relaxed_evidence: lane.relaxed_evidence,
+    exclusion_patterns: lane.exclusion_patterns,
+    initial_budget: lane.initial_budget,
+    max_budget: lane.max_budget,
+  });
+  const finalLanes = planLanes.length > 0
+    ? planLanes.map(toPlanLane)
+    : lanes.map(toPlanLane);
+  return {
+    strategy_mode: "headhunter_v1",
+    first_probe_goal:
+      normalizeNullableString(plan.first_probe_goal) ||
+      `Validate that the first 50 recalled profiles are genuinely plausible ${title} candidates before expanding.`,
+    lanes: finalLanes,
+    early_stop_rules: normalizeStringArray(plan.early_stop_rules, 8).length > 0
+      ? normalizeStringArray(plan.early_stop_rules, 8)
+      : [
+        "Stop lanes dominated by non-engineering, generic, or unrelated profiles.",
+        "Revise lanes that match title/company but lack same-work evidence.",
+      ],
+  };
 }
 
 function inferExperienceYears(jdText: string) {
@@ -396,11 +561,27 @@ function sanitizeIntentCandidate(
   const rawTitleVariants = normalizeStringArray(recallSpec.title_variants, 8);
   const titleVariants = expandTitleVariants(rawTitleVariants, title);
   const coreSkillTerms = normalizeStringArray(recallSpec.core_skill_terms, 12);
+  const normalizedSourcingLanes = normalizeSourcingLaneContracts(recallSpec.sourcing_lanes);
   const mustHaveConstraints = normalizeStringArray(hiringBrief.must_have_constraints, 10);
   const rawMustHaveSignals = normalizeStringArray(recallSpec.must_have_signals, 12);
   const normalizedMustHaveSignals = rawMustHaveSignals.length > 0
     ? rawMustHaveSignals
     : normalizedRequiredSkills;
+  const normalizedAvoidProfiles = normalizeStringArray(recallSpec.avoid_profiles, 8);
+  const normalizedLateralTitleVariants = (() => {
+    const fromLlm = normalizeStringArray(recallSpec.lateral_title_variants, 6);
+    return fromLlm.length >= 2 ? fromLlm : inferLateralTitleVariants(title);
+  })();
+  const functionFocus = normalizeNullableString(roleCore.function_focus);
+  const headhunterBrief = buildDefaultHeadhunterBrief({
+    rawBrief: raw?.headhunter_brief,
+    title,
+    functionFocus,
+    requiredSkills: normalizedRequiredSkills,
+    mustHaveSignals: normalizedMustHaveSignals,
+    avoidProfiles: normalizedAvoidProfiles,
+    lateralTitles: normalizedLateralTitleVariants,
+  });
 
   const normalized: ParsedSearchIntent = {
     title,
@@ -418,7 +599,7 @@ function sanitizeIntentCandidate(
       role_core: {
         title: normalizeNullableString(roleCore.title) || title,
         seniority: normalizeNullableString(roleCore.seniority),
-        function_focus: normalizeNullableString(roleCore.function_focus),
+        function_focus: functionFocus,
         required_skills: normalizedRequiredSkills,
         nice_to_have_skills: normalizedNiceToHaveSkills,
       },
@@ -472,13 +653,8 @@ function sanitizeIntentCandidate(
         ["narrow", "balanced", "broad"] as const,
         "balanced",
       ),
-      sourcing_lanes: Array.isArray(recallSpec.sourcing_lanes)
-        ? recallSpec.sourcing_lanes
-        : [],
-      lateral_title_variants: (() => {
-        const fromLlm = normalizeStringArray(recallSpec.lateral_title_variants, 6);
-        return fromLlm.length >= 2 ? fromLlm : inferLateralTitleVariants(title);
-      })(),
+      sourcing_lanes: normalizedSourcingLanes,
+      lateral_title_variants: normalizedLateralTitleVariants,
       target_companies: normalizeStringArray(recallSpec.target_companies, 15),
       recall_strategy: (() => {
         // LLM often defaults to "standard" even when it shouldn't — enforce multi_round
@@ -494,6 +670,13 @@ function sanitizeIntentCandidate(
         );
       })(),
     },
+    headhunter_brief: headhunterBrief,
+    sourcing_plan: buildDefaultSourcingPlan(
+      raw?.sourcing_plan,
+      normalizedSourcingLanes,
+      title,
+    ),
+    recall_iterations: Array.isArray(raw?.recall_iterations) ? raw.recall_iterations : [],
   };
   normalized.advancement_rubric = sanitizeAdvancementRubric(raw?.advancement_rubric, {
     title,

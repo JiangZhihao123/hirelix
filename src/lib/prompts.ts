@@ -47,23 +47,36 @@ Read the job description and identify:
 - Do NOT default to FAANG unless the domain or stack specifically warrants it.
 - You should produce at least 8 target companies for any JD with identifiable industry, tech stack, or company stage. Only return an empty array for a completely context-free JD (e.g., just a title with no description).
 
-6. **Recall strategy**
+6. **Headhunter brief — the sourcing thesis**
+- Before writing filters, describe the role the way a human headhunter would explain it to another sourcer.
+- role_mission: what problem this hire is really solving for the company.
+- ideal_candidate_backgrounds: real candidate archetypes that probably did this work already.
+- allowed_adjacent_profiles: adjacent backgrounds that can be credible, with enough explanation to justify why they are adjacent.
+- misleading_profile_patterns: profiles that may match title/company/keywords but should be treated skeptically.
+- equivalent_evidence: evidence that can substitute for literal JD keywords.
+- verification_risks: what the recruiter must confirm before presenting a candidate.
+- This brief is shared context for recall planning, lane auditing, and candidate judging. It is not a keyword list.
+
+7. **Recall strategy**
 - "multi_round" means the search will run separate rounds for: (a) primary title variants, (b) lateral talent pool titles, (c) target company names. This is how a headhunter actually works.
 - Default to "multi_round" for any JD with identifiable target companies OR a meaningful lateral talent pool — which is nearly every real JD.
 - Only use "standard" for a completely bare JD with no company context, no industry, no team description, and no tech stack.
 
-7. **Sourcing lanes — exactly how a human sourcer would search**
+8. **Sourcing lanes — exactly how a human sourcer would search**
 - Build 2-4 independent Boolean-style lanes. Do NOT make one giant query.
-- Each lane should answer a different sourcing question:
-  - title: people whose current title already names the role/domain
-  - skill: broader titles, but with concrete profile evidence for the exact system/domain
-  - seniority: Staff/Principal/Lead people whose title is broad but whose work signals ownership
-  - company: people at target companies where weaker profile text can still be worth reviewing
+- Each lane must have a contract:
+  - primary_exact: the most direct role-fit population.
+  - primary_relaxed: the same role family with slightly weaker literal evidence but still credible.
+  - target_company_engineering: engineers at target companies. Do not let non-engineering profiles into this lane.
+  - adjacent_authorized: adjacent profiles only when the headhunter brief explicitly says why this adjacent background is reasonable.
+  - exploration: tiny-budget exploration only; it must not consume the main budget.
+- Each lane must state target_persona, non_negotiables, relaxed_evidence, exclusion_patterns, initial_budget, and max_budget.
+- Free v1 starts with primary_exact=35 and primary_relaxed=15. Do not default-start company, hidden, adjacent, or exploration lanes unless the JD makes the exact lane necessary and the budget stays small.
 - Keep each lane small and practical. A human sourcer would run a lane, inspect results, then run the next.
 - Use terms that literally appear in LinkedIn titles, current positions, about sections, or company names.
 - For specialized engineering roles, the skill lane is usually more important than adding more title variants.
 
-8. **Advancement rubric — how to decide if a recalled person is worth moving forward**
+9. **Advancement rubric — how to decide if a recalled person is worth moving forward**
 - Define the JD-specific theory of fit before looking at candidates.
 - same_work_evidence: what concrete profile evidence proves the person currently does the same kind of work.
 - seniority_evidence: what proves the person operates at the required level and scope.
@@ -92,6 +105,31 @@ Return ONLY valid JSON with this structure:
     "company_stage_expectation": "startup | growth | enterprise | unknown",
     "constraint_reasoning": "brief explanation of how location/work model should affect search and ranking"
   },
+  "headhunter_brief": {
+    "role_mission": "what problem this hire is really solving",
+    "ideal_candidate_backgrounds": ["real candidate archetypes likely to have done similar work"],
+    "allowed_adjacent_profiles": ["adjacent backgrounds that are credible and why"],
+    "misleading_profile_patterns": ["profiles that look related but should be treated skeptically"],
+    "equivalent_evidence": ["evidence that can substitute for literal JD keywords"],
+    "verification_risks": ["questions a recruiter should confirm before presenting a candidate"]
+  },
+  "sourcing_plan": {
+    "strategy_mode": "headhunter_v1",
+    "first_probe_goal": "what the first 50-profile probe should prove before expanding",
+    "lanes": [
+      {
+        "name": "short human-readable lane name",
+        "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+        "target_persona": "who this lane is trying to find",
+        "non_negotiables": ["boundaries this lane must not relax"],
+        "relaxed_evidence": ["evidence this lane may relax or accept equivalently"],
+        "exclusion_patterns": ["people this lane should exclude from recall"],
+        "initial_budget": 35,
+        "max_budget": 120
+      }
+    ],
+    "early_stop_rules": ["patterns that mean this lane should be stopped or revised before spending more"]
+  },
   "recall_spec": {
     "countries": ["ISO country codes where recall should reasonably focus"],
     "title_variants": ["3-8 clean standalone LinkedIn titles — no comma or dash suffixes, seniority variants included, never fewer than 3; for specialized engineering roles, prefer domain-specific titles before generic Software Engineer titles"],
@@ -112,6 +150,13 @@ Return ONLY valid JSON with this structure:
       {
         "name": "short human-readable lane name",
         "strategy": "title | skill | seniority | company",
+        "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+        "target_persona": "same target persona as the sourcing_plan lane",
+        "non_negotiables": ["boundaries this lane must not relax"],
+        "relaxed_evidence": ["evidence this lane may relax or accept equivalently"],
+        "exclusion_patterns": ["people this lane should exclude from recall"],
+        "initial_budget": 35,
+        "max_budget": 120,
         "title_terms": ["LinkedIn title terms for this lane"],
         "skill_terms": ["profile evidence terms for this lane; empty only for pure title lane"],
         "company_terms": ["target companies for company lane; empty otherwise"],
@@ -164,6 +209,13 @@ Return ONLY valid JSON:
     {
       "name": "short human-readable lane name",
       "strategy": "title | skill | seniority | company",
+      "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+      "target_persona": "who this lane is trying to find",
+      "non_negotiables": ["boundaries this lane must not relax"],
+      "relaxed_evidence": ["evidence this lane may relax or accept equivalently"],
+      "exclusion_patterns": ["people this lane should exclude from recall"],
+      "initial_budget": 25,
+      "max_budget": 80,
       "title_terms": ["LinkedIn title terms for this lane"],
       "skill_terms": ["profile evidence terms for this lane"],
       "company_terms": ["target companies for company lane; empty otherwise"],
@@ -171,6 +223,49 @@ Return ONLY valid JSON:
       "budget_weight": 1
     }
   ]
+}`;
+
+export const HEADHUNTER_LANE_AUDITOR_PROMPT = `You are an expert technical sourcer auditing one sourcing lane after a small Bright Data probe.
+
+You are not judging candidates for hire here. You are judging whether this lane is worth more recall budget.
+
+Input context:
+- Original JD.
+- Headhunter brief.
+- Lane contract.
+- This round's profile sample.
+- A short summary of judge outcomes for the sample.
+
+Act like a human headhunter:
+- Ask whether the returned people are the kind of people you meant to find.
+- Separate a bad lane from a good lane with sparse evidence.
+- Do not use keyword hit-counts as candidate-quality rules.
+- Do not advance or reject individual candidates here.
+- Do not broaden standards just to spend the budget.
+
+Decision policy:
+- expand: A or strong B lane. Spend more because the profile pattern is directionally right.
+- revise: B/C lane. Keep the thesis but rewrite the lane before spending more.
+- stop: C/D lane. Do not spend more on this lane.
+- escalate_adjacent: only when the primary lane is too sparse and the headhunter brief explicitly authorizes adjacent profiles.
+
+Return ONLY valid JSON:
+{
+  "decision": "expand | revise | stop | escalate_adjacent",
+  "quality_grade": "A | B | C | D",
+  "why_this_lane_is_working": "what the sample shows that matches the lane contract",
+  "why_this_lane_is_wrong": "what the sample shows that violates the lane contract",
+  "wrong_profile_patterns": ["patterns overrepresented in this lane"],
+  "next_lane_revision": {
+    "name": "short human-readable lane name",
+    "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+    "target_persona": "who the revised lane should find",
+    "non_negotiables": ["boundaries this lane must not relax"],
+    "relaxed_evidence": ["evidence this lane may relax or accept equivalently"],
+    "exclusion_patterns": ["people this lane should exclude from recall"],
+    "initial_budget": 25,
+    "max_budget": 80
+  }
 }`;
 
 export const EXPANSION_REACT_PROMPT = `You are an expert technical sourcer refining a LinkedIn search after a recruiter reviewed the first delivery and asked to expand the same role.
@@ -205,6 +300,13 @@ Return ONLY valid JSON:
     {
       "name": "short human-readable lane name",
       "strategy": "title | skill | seniority | company",
+      "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+      "target_persona": "who this lane is trying to find",
+      "non_negotiables": ["boundaries this lane must not relax"],
+      "relaxed_evidence": ["evidence this lane may relax or accept equivalently"],
+      "exclusion_patterns": ["people this lane should exclude from recall"],
+      "initial_budget": 25,
+      "max_budget": 80,
       "title_terms": ["LinkedIn title terms for this lane"],
       "skill_terms": ["profile evidence terms for this lane"],
       "company_terms": ["target companies for company lane; empty otherwise"],

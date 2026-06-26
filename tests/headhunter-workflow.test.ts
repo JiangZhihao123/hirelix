@@ -1,0 +1,221 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  JD_SEARCH_INTENT_JSON_SCHEMA,
+  LANE_AUDITOR_JSON_SCHEMA,
+} from "@/lib/llm-schemas";
+import {
+  HEADHUNTER_LANE_AUDITOR_PROMPT,
+  JD_SEARCH_INTENT_PROMPT,
+} from "@/lib/prompts";
+import { buildJudgeScorePrompt } from "@/lib/search/scoring";
+import {
+  buildBrightDataRecallFilters,
+} from "@/lib/search/recall";
+import {
+  buildRecallLocationFilter,
+  buildStandardSkillFilter,
+  isPlaceholderTitle,
+  normalizeRecallSpec,
+  sanitizeHiringBrief,
+} from "@/lib/search-jobs";
+import {
+  buildLaneAuditUserPrompt,
+  normalizeLaneAuditResult,
+} from "@/lib/search/lane-auditor";
+import type { SearchExecutionProfile } from "@/lib/search-execution";
+
+process.env.BRIGHTDATA_DATASET_ID = process.env.BRIGHTDATA_DATASET_ID || "test_dataset";
+
+const freeExecutionProfile: SearchExecutionProfile = {
+  name: "bright_free_preview",
+  mode: "production",
+  filterLimit: 150,
+  hiddenGemLimit: 50,
+  companyTargetLimit: 50,
+  deliveryReferenceCount: 250,
+  highlightCount: 3,
+  minVisibleQualityScore: 0,
+  strongNowQualityScore: 72,
+  lowCostMode: false,
+  singleJudgeMode: false,
+};
+
+const parsed = {
+  title: "Senior Backend Engineer",
+  hiring_brief: {
+    role_core: {
+      title: "Senior Backend Engineer",
+      seniority: "Senior",
+      function_focus: "Backend platform ownership for payments APIs",
+      required_skills: ["Go", "PostgreSQL", "distributed systems"],
+      nice_to_have_skills: ["Kafka"],
+    },
+    work_model: "remote",
+    location_scope: "US",
+    location_flexibility: "flexible",
+    relocation_allowed: "unknown",
+    must_have_constraints: [],
+    soft_constraints: [],
+    company_stage_expectation: "growth",
+    constraint_reasoning: "US remote candidates are eligible.",
+  },
+  headhunter_brief: {
+    role_mission: "Find backend engineers who own reliable payments APIs.",
+    ideal_candidate_backgrounds: ["Backend platform engineers at API-heavy fintech companies"],
+    allowed_adjacent_profiles: ["Infrastructure engineers with product API ownership"],
+    misleading_profile_patterns: ["Manager-only profiles", "Data/DevOps-only profiles"],
+    equivalent_evidence: ["Ledger, billing, or transaction systems can substitute for payments wording"],
+    verification_risks: ["Confirm hands-on backend ownership"],
+  },
+  recall_spec: {
+    countries: ["US"],
+    title_variants: ["Senior Backend Engineer", "Staff Backend Engineer", "Senior Software Engineer"],
+    core_skill_terms: ["Go", "PostgreSQL", "distributed systems", "API", "payments"],
+    differentiating_skill_terms: ["payments", "ledger", "billing"],
+    baseline_skill_terms: ["Go", "PostgreSQL", "API"],
+    domain_terms: ["fintech"],
+    location_terms: [],
+    strict_location_terms: [],
+    nearby_location_terms: [],
+    must_have_signals: ["payments APIs", "distributed systems"],
+    avoid_profiles: ["manager only", "frontend only"],
+    geo_strategy: "US remote",
+    recall_confidence: "high",
+    role_breadth: "balanced",
+    lateral_title_variants: ["Platform Engineer", "Infrastructure Engineer"],
+    target_companies: ["Stripe", "Block", "Adyen"],
+    sourcing_lanes: [
+      {
+        name: "direct backend payments",
+        strategy: "title",
+        lane_kind: "primary_exact",
+        target_persona: "Backend engineers with payments API ownership",
+        non_negotiables: ["backend engineering", "payments or equivalent transaction systems"],
+        relaxed_evidence: ["ledger or billing systems"],
+        exclusion_patterns: ["manager only"],
+        initial_budget: 35,
+        max_budget: 150,
+        title_terms: ["Senior Backend Engineer", "Staff Backend Engineer"],
+        skill_terms: ["payments", "distributed systems"],
+        company_terms: [],
+        avoid_terms: ["manager only"],
+        budget_weight: 1,
+      },
+      {
+        name: "same family backend",
+        strategy: "skill",
+        lane_kind: "primary_relaxed",
+        target_persona: "Backend engineers with equivalent transaction systems",
+        non_negotiables: ["backend engineering"],
+        relaxed_evidence: ["ledger or billing systems"],
+        exclusion_patterns: ["frontend only"],
+        initial_budget: 15,
+        max_budget: 80,
+        title_terms: ["Senior Software Engineer"],
+        skill_terms: ["ledger", "billing", "API"],
+        company_terms: [],
+        avoid_terms: ["frontend only"],
+        budget_weight: 1,
+      },
+    ],
+    recall_strategy: "multi_round",
+  },
+};
+
+test("JD parse schema and prompt require headhunter brief and lane contracts", () => {
+  assert.ok(JD_SEARCH_INTENT_JSON_SCHEMA.schema);
+  const required = JD_SEARCH_INTENT_JSON_SCHEMA.schema.required as string[];
+  assert.ok(required.includes("headhunter_brief"));
+  assert.ok(required.includes("sourcing_plan"));
+  assert.match(JD_SEARCH_INTENT_PROMPT, /Headhunter brief/);
+  assert.match(JD_SEARCH_INTENT_PROMPT, /primary_exact/);
+  assert.match(JD_SEARCH_INTENT_PROMPT, /target_company_engineering/);
+});
+
+test("headhunter recall strategy compiles free search into a 35 plus 15 probe", () => {
+  const previous = process.env.SEARCH_RECALL_STRATEGY;
+  process.env.SEARCH_RECALL_STRATEGY = "headhunter_v1";
+  try {
+    const rounds = buildBrightDataRecallFilters(parsed, 5, freeExecutionProfile, {
+      normalizeRecallSpec,
+      sanitizeHiringBrief,
+      buildStandardSkillFilter,
+      buildRecallLocationFilter,
+      isPlaceholderTitle,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    });
+
+    assert.deepEqual(rounds.map((round) => round.round), ["standard", "primary_relaxed"]);
+    assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [35, 15]);
+    assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 50);
+    assert.ok(!rounds.some((round) => round.round === "hidden_gem" || round.round === "company_target"));
+    assert.equal(rounds[0]?.diagnostics.persona?.label, "Primary exact headhunter lane");
+  } finally {
+    if (previous == null) {
+      delete process.env.SEARCH_RECALL_STRATEGY;
+    } else {
+      process.env.SEARCH_RECALL_STRATEGY = previous;
+    }
+  }
+});
+
+test("lane auditor schema and normalizer keep decisions inside allowed enums", () => {
+  assert.match(HEADHUNTER_LANE_AUDITOR_PROMPT, /Do not use keyword hit-counts as candidate-quality rules/);
+  assert.ok(LANE_AUDITOR_JSON_SCHEMA.schema);
+  const decisionEnum = (LANE_AUDITOR_JSON_SCHEMA.schema.properties as Record<string, { enum?: string[] }>).decision.enum;
+  assert.deepEqual(decisionEnum, ["expand", "revise", "stop", "escalate_adjacent"]);
+
+  const result = normalizeLaneAuditResult({
+    decision: "spend_everything",
+    quality_grade: "Z",
+    why_this_lane_is_working: "Some backend profiles are relevant.",
+    wrong_profile_patterns: ["manager only"],
+    next_lane_revision: {
+      lane_kind: "exploration",
+      initial_budget: 500,
+      max_budget: 500,
+    },
+  });
+  assert.equal(result.decision, "revise");
+  assert.equal(result.quality_grade, "C");
+  assert.equal(result.next_lane_revision.lane_kind, "exploration");
+});
+
+test("lane audit prompt includes JD, brief, lane contract, sample, and judge summary", () => {
+  const prompt = buildLaneAuditUserPrompt({
+    jdText: "We need a Senior Backend Engineer for payments APIs.",
+    headhunterBrief: parsed.headhunter_brief,
+    lane: normalizeRecallSpec(parsed.recall_spec, 5).sourcing_lanes[0],
+    profileSample: "[0] Senior Backend Engineer at Stripe",
+    judgeSummary: "1 strong, 2 weak, manager-only pattern observed",
+  });
+  assert.match(prompt, /Original JD/);
+  assert.match(prompt, /Headhunter Brief/);
+  assert.match(prompt, /Lane Contract/);
+  assert.match(prompt, /Profile Sample/);
+  assert.match(prompt, /Judge Result Summary/);
+});
+
+test("judge prompt uses headhunter brief and human-equivalence rules", () => {
+  const prompt = buildJudgeScorePrompt(
+    parsed,
+    "We need a Senior Backend Engineer for payments APIs.",
+    "[0] Jane Doe\nSenior Backend Engineer at Stripe\nBuilt billing and ledger APIs.",
+    1,
+    "Judge A",
+    {
+      truncateForPrompt: (text) => text,
+      buildPromptSearchContext: () => "Search context",
+      expectedIndexes: [0],
+    },
+  );
+
+  assert.match(prompt, /## Headhunter Brief/);
+  assert.match(prompt, /Equivalent Evidence: Ledger, billing, or transaction systems/);
+  assert.match(prompt, /Judge like a human technical headhunter/);
+  assert.match(prompt, /Do not reject solely because one literal keyword is absent/);
+  assert.match(prompt, /Structured fields are diagnostic context, not keyword gates/);
+});

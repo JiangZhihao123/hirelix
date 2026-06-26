@@ -261,6 +261,11 @@ export type SearchDisplayStats = {
   first_contact_confidence_count?: number;
   lower_priority_count?: number;
   recommended_count?: number;
+  recall_strategy_mode?: "legacy" | "headhunter_v1";
+  recall_iteration_count?: number;
+  lane_audit_summary?: string;
+  actionable_candidate_count?: number;
+  stopped_lane_count?: number;
   brief_ready_at?: string;
   first_shortlist_candidate_at?: string;
   reviewable_at?: string;

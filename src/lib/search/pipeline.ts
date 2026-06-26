@@ -811,6 +811,11 @@ async function parseJobDescription(
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_spec = helpers.enrichRecallSpecFromJd(parsed, context.jdText, context.candidateCount);
   parsed.advancement_rubric = helpers.sanitizeAdvancementRubric(parsed.advancement_rubric, parsed);
+  const recallStrategyMode =
+    (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase() === "headhunter_v1"
+      ? "headhunter_v1"
+      : "legacy";
+  parsed.recall_strategy_mode = recallStrategyMode;
   const { estimateSearchIntentCost, roundCurrency } = await import("@/lib/search/config");
   parsed.estimated_parse_llm_cost = roundCurrency(
     estimatedParseCost || estimateSearchIntentCost(parseInput),
@@ -828,6 +833,11 @@ async function parseJobDescription(
     time_to_ack_ms: currentStats.time_to_ack_ms ?? 0,
     time_to_brief_ready_ms:
       currentStats.time_to_brief_ready_ms ?? helpers.elapsedSince(startedAt, parseCompletedAt),
+    recall_strategy_mode: recallStrategyMode,
+    recall_iteration_count:
+      recallStrategyMode === "headhunter_v1"
+        ? currentStats.recall_iteration_count ?? 0
+        : currentStats.recall_iteration_count,
   });
   await db
     .update(hirelix_searches)
@@ -1336,9 +1346,45 @@ function normalizeReactSourcingLanes(value: unknown, helpers: SearchPipelineHelp
     const rawWeight = typeof lane.budget_weight === "number" && Number.isFinite(lane.budget_weight)
       ? lane.budget_weight
       : 1;
+    const laneKind = helpers.normalizeEnumValue(
+      lane.lane_kind,
+      [
+        "primary_exact",
+        "primary_relaxed",
+        "target_company_engineering",
+        "adjacent_authorized",
+        "exploration",
+      ] as const,
+      strategy === "company" ? "target_company_engineering" : strategy === "title" ? "primary_exact" : "primary_relaxed",
+    );
+    const defaultInitialBudget =
+      laneKind === "primary_exact" ? 35 :
+        laneKind === "primary_relaxed" ? 15 :
+          laneKind === "exploration" ? 10 :
+            laneKind === "target_company_engineering" ? 25 : 15;
+    const defaultMaxBudget =
+      laneKind === "primary_exact" ? 150 :
+        laneKind === "primary_relaxed" ? 80 :
+          laneKind === "exploration" ? 15 :
+            laneKind === "target_company_engineering" ? 50 : 40;
     return [{
       name: helpers.normalizeNullableString(lane.name) || `react_${strategy}`,
       strategy,
+      lane_kind: laneKind,
+      target_persona:
+        helpers.normalizeNullableString(lane.target_persona) ||
+        `Profiles matching ${[...titleTerms, ...skillTerms, ...companyTerms].slice(0, 3).join(", ") || strategy}`,
+      non_negotiables: helpers.normalizeStringArray(lane.non_negotiables, 8),
+      relaxed_evidence: helpers.normalizeStringArray(lane.relaxed_evidence, 8),
+      exclusion_patterns: helpers.normalizeStringArray(lane.exclusion_patterns, 8),
+      initial_budget:
+        typeof lane.initial_budget === "number" && Number.isFinite(lane.initial_budget)
+          ? Math.max(1, Math.round(lane.initial_budget))
+          : defaultInitialBudget,
+      max_budget:
+        typeof lane.max_budget === "number" && Number.isFinite(lane.max_budget)
+          ? Math.max(1, Math.round(lane.max_budget))
+          : defaultMaxBudget,
       title_terms: titleTerms,
       skill_terms: skillTerms,
       company_terms: companyTerms,
@@ -1644,6 +1690,13 @@ async function buildBrightDataDatasetCandidates(
   const recallPersonas = getRecallPersonas(recallRounds);
   const totalProfileScanBudget =
     executionProfile.filterLimit + executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit;
+  const recallStrategyMode =
+    parsed.recall_strategy_mode === "headhunter_v1" ||
+    (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase() === "headhunter_v1"
+      ? "headhunter_v1"
+      : "legacy";
+  const effectiveProfileScanBudget =
+    recallStrategyMode === "headhunter_v1" ? totalRequestedLimit : totalProfileScanBudget;
   const persistedAdditionalSnapshots = new Map(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
@@ -2539,13 +2592,45 @@ async function buildBrightDataDatasetCandidates(
   const timeToStandardRecallReadyMs =
     helpers.elapsedSince(searchStartedAt, standardRecallReadyAt) ?? (Date.now() - requestedAt);
   parsed.recall_provider = "brightdata_dataset";
+  const laneKindForRound = (round: string) => {
+    if (round === "standard") return "primary_exact" as const;
+    if (round === "primary_relaxed") return "primary_relaxed" as const;
+    if (round === "company_target" || round.includes("company")) return "target_company_engineering" as const;
+    if (round.includes("exploration")) return "exploration" as const;
+    return "adjacent_authorized" as const;
+  };
+  const recallIterations = recallStrategyMode === "headhunter_v1"
+    ? [
+      {
+        iteration: 1,
+        lane: "standard",
+        lane_kind: laneKindForRound("standard"),
+        budget: standardRound.request.recordsLimit,
+        snapshot_id: activeSnapshotId,
+        audit: null,
+        continue_expansion: null,
+      },
+      ...additionalSnapshotStates.map((round, index) => ({
+        iteration: index + 2,
+        lane: round.round,
+        lane_kind: laneKindForRound(round.round),
+        budget: round.recordsLimit,
+        snapshot_id: round.snapshotId,
+        audit: null,
+        continue_expansion: null,
+      })),
+    ]
+    : [];
+
   parsed.recall_metadata = {
     provider: "brightdata_dataset",
     snapshot_id: activeSnapshotId,
+    recall_strategy_mode: recallStrategyMode,
+    ...(recallIterations.length > 0 ? { recall_iterations: recallIterations } : {}),
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
     cost: getMetadataCost(metadata),
-    bright_profile_budget: totalProfileScanBudget,
+    bright_profile_budget: effectiveProfileScanBudget,
     bright_profiles_requested: totalRequestedLimit,
     bright_profiles_returned: profiles.length,
     judge_mode: runtime.judgeMode,
@@ -2580,9 +2665,15 @@ async function buildBrightDataDatasetCandidates(
   };
   parsed.display_stats = helpers.buildSearchDisplayStats({
     ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
-    bright_profile_budget: totalProfileScanBudget,
+    bright_profile_budget: effectiveProfileScanBudget,
     bright_profiles_requested: totalRequestedLimit,
     bright_profiles_returned: profiles.length,
+    recall_strategy_mode: recallStrategyMode,
+    recall_iteration_count: recallIterations.length || recallRounds.length,
+    lane_audit_summary:
+      recallStrategyMode === "headhunter_v1"
+        ? "Initial headhunter probe recalled primary exact and relaxed lanes; lane audit pending after scoring."
+        : undefined,
     recall_profile_count: profiles.length,
     retrieval_count: profiles.length,
     deep_review_requested_count: profiles.length,

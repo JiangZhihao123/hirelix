@@ -8,6 +8,7 @@ type TimelineMetrics = {
   recalledCount?: number | null;
   reviewedCount?: number | null;
   visibleCandidateCount?: number | null;
+  recallStrategyMode?: "legacy" | "headhunter_v1" | null;
 };
 
 export function TaskTimelinePanel({
@@ -19,8 +20,32 @@ export function TaskTimelinePanel({
   };
   metrics?: TimelineMetrics;
 }) {
-  const steps = getSearchTaskTimelineItems(search);
+  const headhunterMode = metrics?.recallStrategyMode === "headhunter_v1";
+  const headhunterLabels = [
+    "Reading role",
+    "Testing first sourcing lane",
+    "Calibrating market fit",
+    "Expanding best lane",
+    "Reviewing candidates",
+  ] as const;
+  const steps = getSearchTaskTimelineItems(search).map((step, index) => ({
+    ...step,
+    label: headhunterMode ? headhunterLabels[index] ?? step.label : step.label,
+  }));
   const detailForStep = (label: string) => {
+    if (label === "Reading role") return "Building the headhunter brief";
+    if (label === "Testing first sourcing lane") return "Running the first small sourcing probe";
+    if (label === "Calibrating market fit") {
+      return search.standard_recall_completed_at
+        ? `${metrics?.recalledCount ?? "LinkedIn"} profiles recalled for lane review`
+        : "Waiting for the first probe to return";
+    }
+    if (label === "Expanding best lane") return "Continuing only lanes that stay on target";
+    if (label === "Reviewing candidates") {
+      return metrics?.reviewedCount
+        ? `${metrics.reviewedCount} profiles judged against the role`
+        : "Judging complete profiles against the JD";
+    }
     if (label === "Accepted") return "Search created and queued";
     if (label === "Brief ready") {
       return search.parse_completed_at ? "Role brief parsed" : "Parsing JD into search criteria";

@@ -1204,6 +1204,7 @@ export default function SearchResultPage() {
                 recalledCount: recallProfileCount,
                 reviewedCount: deepReviewCompletedCount,
                 visibleCandidateCount,
+                recallStrategyMode: rawDisplayStats?.recall_strategy_mode ?? null,
               }}
             />
           </div>

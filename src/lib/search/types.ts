@@ -73,9 +73,32 @@ export type RecallSpec = {
   record_limit: number;
 };
 
+export type HeadhunterLaneKind =
+  | "primary_exact"
+  | "primary_relaxed"
+  | "target_company_engineering"
+  | "adjacent_authorized"
+  | "exploration";
+
+export type HeadhunterBrief = {
+  role_mission: string;
+  ideal_candidate_backgrounds: string[];
+  allowed_adjacent_profiles: string[];
+  misleading_profile_patterns: string[];
+  equivalent_evidence: string[];
+  verification_risks: string[];
+};
+
 export type SourcingLane = {
   name: string;
   strategy: "title" | "skill" | "seniority" | "company";
+  lane_kind?: HeadhunterLaneKind;
+  target_persona?: string;
+  non_negotiables?: string[];
+  relaxed_evidence?: string[];
+  exclusion_patterns?: string[];
+  initial_budget?: number;
+  max_budget?: number;
   title_terms: string[];
   skill_terms: string[];
   company_terms: string[];
@@ -321,6 +344,11 @@ export type SearchDisplayStats = {
   first_contact_confidence_count?: number;
   lower_priority_count?: number;
   recommended_count?: number;
+  recall_strategy_mode?: "legacy" | "headhunter_v1";
+  recall_iteration_count?: number;
+  lane_audit_summary?: string;
+  actionable_candidate_count?: number;
+  stopped_lane_count?: number;
   brief_ready_at?: string;
   first_shortlist_candidate_at?: string;
   reviewable_at?: string;
@@ -437,6 +465,20 @@ export type RecallRoundDiagnostics = {
 export type RecallMetadata = {
   provider: RecallProvider;
   snapshot_id: string;
+  recall_strategy_mode?: "legacy" | "headhunter_v1";
+  recall_iterations?: Array<{
+    iteration: number;
+    lane: string;
+    lane_kind?: HeadhunterLaneKind | null;
+    budget: number;
+    snapshot_id?: string | null;
+    audit?: {
+      decision: "expand" | "revise" | "stop" | "escalate_adjacent";
+      quality_grade: "A" | "B" | "C" | "D";
+      summary?: string | null;
+    } | null;
+    continue_expansion?: boolean | null;
+  }>;
   additional_snapshots?: AdditionalRecallSnapshot[];
   dataset_size?: number | null;
   recall_latency_ms?: number | null;

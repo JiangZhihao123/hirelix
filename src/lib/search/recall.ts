@@ -18,6 +18,7 @@ import type {
   CandidateDisplayTier,
   CandidateRowInput,
   HiringBrief,
+  HeadhunterLaneKind,
   RecallPersona,
   RecallPersonaKind,
   RecallRoundDiagnostics,
@@ -1096,6 +1097,56 @@ function rebalanceSupplementalRoundLimits(
   }));
 }
 
+function isHeadhunterRecallStrategy(parsed: Record<string, unknown>) {
+  const raw = (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase();
+  if (raw === "headhunter_v1") return true;
+  if (parsed.recall_strategy_mode === "headhunter_v1") return true;
+  const displayStats = parsed.display_stats && typeof parsed.display_stats === "object"
+    ? (parsed.display_stats as Record<string, unknown>)
+    : null;
+  return displayStats?.recall_strategy_mode === "headhunter_v1";
+}
+
+function getLaneInitialBudget(
+  recallSpec: RecallSpec,
+  laneKind: HeadhunterLaneKind,
+  fallback: number,
+) {
+  const lane = recallSpec.sourcing_lanes.find((item) => item.lane_kind === laneKind);
+  return typeof lane?.initial_budget === "number" && Number.isFinite(lane.initial_budget)
+    ? Math.max(1, Math.round(lane.initial_budget))
+    : fallback;
+}
+
+function buildHeadhunterProbeBudgets(
+  recallSpec: RecallSpec,
+  executionProfile: SearchExecutionProfile,
+) {
+  const totalAvailable = Math.max(
+    1,
+    Math.round(
+      executionProfile.filterLimit +
+      executionProfile.hiddenGemLimit +
+      executionProfile.companyTargetLimit,
+    ),
+  );
+  const probeBudget = Math.min(50, totalAvailable);
+  const requestedPrimaryExact = getLaneInitialBudget(recallSpec, "primary_exact", 35);
+  const requestedPrimaryRelaxed = getLaneInitialBudget(recallSpec, "primary_relaxed", 15);
+  const requestedTotal = Math.max(1, requestedPrimaryExact + requestedPrimaryRelaxed);
+  const primaryExact = Math.max(
+    1,
+    Math.min(
+      probeBudget - 1,
+      Math.round(probeBudget * requestedPrimaryExact / requestedTotal),
+    ),
+  );
+  return {
+    primaryExact,
+    primaryRelaxed: Math.max(0, probeBudget - primaryExact),
+  };
+}
+
 function buildLlmSupplementalRounds(params: {
   datasetId: string;
   recallSpec: RecallSpec;
@@ -1842,7 +1893,17 @@ export function buildBrightDataRecallFilters(
     companyTargetLimit: number;
   },
 ): RecallRound[] {
-  const standardRequest = buildBrightDataRecallFilter(parsed, candidateCount, executionProfile, {
+  const recallSpec = options.normalizeRecallSpec(parsed.recall_spec, candidateCount, {
+    recordLimitOverride: executionProfile.filterLimit,
+  });
+  const headhunterMode = isHeadhunterRecallStrategy(parsed);
+  const headhunterBudgets = headhunterMode
+    ? buildHeadhunterProbeBudgets(recallSpec, executionProfile)
+    : null;
+  const standardExecutionProfile = headhunterBudgets
+    ? { ...executionProfile, filterLimit: headhunterBudgets.primaryExact }
+    : executionProfile;
+  const standardRequest = buildBrightDataRecallFilter(parsed, candidateCount, standardExecutionProfile, {
     normalizeRecallSpec: options.normalizeRecallSpec,
     sanitizeHiringBrief: options.sanitizeHiringBrief,
     buildStandardSkillFilter: options.buildStandardSkillFilter,
@@ -1851,9 +1912,6 @@ export function buildBrightDataRecallFilters(
   });
   if (!standardRequest) return [];
 
-  const recallSpec = options.normalizeRecallSpec(parsed.recall_spec, candidateCount, {
-    recordLimitOverride: executionProfile.filterLimit,
-  });
   const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const locationMode = getRecallLocationMode(hiringBrief);
   const rawTitleTerms = recallSpec.title_variants.length > 0
@@ -1879,8 +1937,10 @@ export function buildBrightDataRecallFilters(
       location_mode: locationMode,
     }, {
       kind: "standard_ic",
-      label: "Standard matching IC engineers",
-      intent: "Find the most direct title and role-fit profiles before exploring adjacent sourcing personas.",
+      label: headhunterMode ? "Primary exact headhunter lane" : "Standard matching IC engineers",
+      intent: headhunterMode
+        ? "Probe the most direct role-fit lane before spending more recall budget."
+        : "Find the most direct title and role-fit profiles before exploring adjacent sourcing personas.",
       titleTerms: standardDiagnosticTitleTerms,
       skillTerms: [
         ...signalGroups.search_domain,
@@ -1888,6 +1948,48 @@ export function buildBrightDataRecallFilters(
       ],
     }),
   }];
+
+  if (headhunterMode) {
+    const relaxedLimit = headhunterBudgets?.primaryRelaxed ?? 0;
+    if (relaxedLimit <= 0) return rounds;
+    const relaxedRequest = buildBrightDataRecallFilter(
+      parsed,
+      candidateCount,
+      { ...executionProfile, filterLimit: relaxedLimit },
+      {
+        normalizeRecallSpec: options.normalizeRecallSpec,
+        sanitizeHiringBrief: options.sanitizeHiringBrief,
+        buildStandardSkillFilter: options.buildStandardSkillFilter,
+        buildRecallLocationFilter: options.buildRecallLocationFilter,
+        isPlaceholderTitle: options.isPlaceholderTitle,
+        mode: "relaxed",
+      },
+    );
+    if (!relaxedRequest) return rounds;
+    return [
+      ...rounds,
+      {
+        round: "primary_relaxed",
+        request: relaxedRequest,
+        diagnostics: withPersona({
+          round: "primary_relaxed",
+          requested_count: relaxedRequest.recordsLimit,
+          title_terms: standardDiagnosticTitleTerms,
+          skill_signal_groups: signalGroups,
+          location_mode: locationMode,
+        }, {
+          kind: "skill_depth",
+          label: "Primary relaxed headhunter lane",
+          intent: "Probe same-role-family profiles that may use adjacent titles but still need equivalent evidence before expansion.",
+          titleTerms: standardDiagnosticTitleTerms,
+          skillTerms: [
+            ...signalGroups.search_domain,
+            ...signalGroups.platform_engineering,
+          ],
+        }),
+      },
+    ];
+  }
 
   if (recallSpec.recall_strategy !== "multi_round") return rounds;
 

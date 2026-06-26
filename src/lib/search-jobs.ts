@@ -99,6 +99,7 @@ import type {
   ConstraintVerdict,
   ExcludedReason,
   ExcludedReasonCount,
+  HeadhunterLaneKind,
   HiringBrief,
   PipelineContext,
   RecallMetadata,
@@ -669,6 +670,17 @@ function normalizeSourcingLanes(value: unknown): SourcingLane[] {
       const skillTerms = sanitizeRecallSignalTerms(normalizeStringArray(lane.skill_terms, 18), 18);
       const companyTerms = normalizeStringArray(lane.company_terms, 15);
       const avoidTerms = normalizeStringArray(lane.avoid_terms, 8);
+      const laneKind = normalizeEnumValue(
+        lane.lane_kind,
+        [
+          "primary_exact",
+          "primary_relaxed",
+          "target_company_engineering",
+          "adjacent_authorized",
+          "exploration",
+        ] as const,
+        strategy === "company" ? "target_company_engineering" : strategy === "skill" ? "primary_relaxed" : "primary_exact",
+      );
       const hasSearchSurface =
         titleTerms.length > 0 ||
         skillTerms.length > 0 ||
@@ -682,6 +694,15 @@ function normalizeSourcingLanes(value: unknown): SourcingLane[] {
       return {
         name: normalizeNullableString(lane.name) || strategy,
         strategy,
+        lane_kind: laneKind,
+        target_persona:
+          normalizeNullableString(lane.target_persona) ||
+          describeLanePersona(strategy, laneKind, titleTerms, skillTerms, companyTerms),
+        non_negotiables: normalizeStringArray(lane.non_negotiables, 8),
+        relaxed_evidence: normalizeStringArray(lane.relaxed_evidence, 8),
+        exclusion_patterns: normalizeStringArray(lane.exclusion_patterns, 8),
+        initial_budget: normalizeLaneBudget(lane.initial_budget, defaultLaneInitialBudget(laneKind)),
+        max_budget: normalizeLaneBudget(lane.max_budget, defaultLaneMaxBudget(laneKind)),
         title_terms: titleTerms,
         skill_terms: skillTerms,
         company_terms: companyTerms,
@@ -689,8 +710,52 @@ function normalizeSourcingLanes(value: unknown): SourcingLane[] {
         budget_weight: Math.max(0.25, Math.min(4, rawWeight)),
       } satisfies SourcingLane;
     })
-    .filter((lane): lane is SourcingLane => Boolean(lane))
+    .filter((lane): lane is NonNullable<typeof lane> => Boolean(lane))
     .slice(0, 4);
+}
+
+function normalizeLaneBudget(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(1, Math.round(value))
+    : fallback;
+}
+
+function defaultLaneInitialBudget(kind: HeadhunterLaneKind) {
+  if (kind === "primary_exact") return 35;
+  if (kind === "primary_relaxed") return 15;
+  if (kind === "exploration") return 10;
+  if (kind === "target_company_engineering") return 25;
+  return 15;
+}
+
+function defaultLaneMaxBudget(kind: HeadhunterLaneKind) {
+  if (kind === "primary_exact") return 150;
+  if (kind === "primary_relaxed") return 80;
+  if (kind === "exploration") return 15;
+  if (kind === "target_company_engineering") return 50;
+  return 40;
+}
+
+function describeLanePersona(
+  strategy: SourcingLane["strategy"],
+  laneKind: HeadhunterLaneKind,
+  titleTerms: string[],
+  skillTerms: string[],
+  companyTerms: string[],
+) {
+  if (laneKind === "target_company_engineering") {
+    return `Engineering profiles at ${companyTerms.slice(0, 3).join(", ") || "target companies"}`;
+  }
+  if (laneKind === "primary_relaxed") {
+    return `Same role family with equivalent evidence in ${skillTerms.slice(0, 3).join(", ") || titleTerms.slice(0, 2).join(", ") || strategy}`;
+  }
+  if (laneKind === "adjacent_authorized") {
+    return `Authorized adjacent profiles with credible equivalent work evidence`;
+  }
+  if (laneKind === "exploration") {
+    return `Small-budget exploration lane to test an uncertain sourcing thesis`;
+  }
+  return `Direct role-fit profiles matching ${titleTerms.slice(0, 3).join(", ") || strategy}`;
 }
 
 function inferTargetCompaniesFromParsed(
@@ -1116,6 +1181,21 @@ function buildSearchDisplayStats(
       : {}),
     ...(typeof overrides.recommended_count === "number"
       ? { recommended_count: Math.max(0, Math.round(overrides.recommended_count)) }
+      : {}),
+    ...(overrides.recall_strategy_mode === "headhunter_v1" || overrides.recall_strategy_mode === "legacy"
+      ? { recall_strategy_mode: overrides.recall_strategy_mode }
+      : {}),
+    ...(typeof overrides.recall_iteration_count === "number"
+      ? { recall_iteration_count: Math.max(0, Math.round(overrides.recall_iteration_count)) }
+      : {}),
+    ...(typeof overrides.lane_audit_summary === "string" && overrides.lane_audit_summary.trim().length > 0
+      ? { lane_audit_summary: overrides.lane_audit_summary.trim().slice(0, 500) }
+      : {}),
+    ...(typeof overrides.actionable_candidate_count === "number"
+      ? { actionable_candidate_count: Math.max(0, Math.round(overrides.actionable_candidate_count)) }
+      : {}),
+    ...(typeof overrides.stopped_lane_count === "number"
+      ? { stopped_lane_count: Math.max(0, Math.round(overrides.stopped_lane_count)) }
       : {}),
     ...(typeof overrides.brief_ready_at === "string" &&
       overrides.brief_ready_at.length > 0
@@ -1556,10 +1636,74 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     item.judge_mode === "single" || item.judge_mode === "dual"
       ? item.judge_mode
       : null;
+  const recall_strategy_mode =
+    item.recall_strategy_mode === "headhunter_v1" || item.recall_strategy_mode === "legacy"
+      ? item.recall_strategy_mode
+      : undefined;
+  const recall_iterations = Array.isArray(item.recall_iterations)
+    ? item.recall_iterations
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const iteration = entry as Record<string, unknown>;
+        const lane = normalizeNullableString(iteration.lane);
+        const laneKind = normalizeEnumValue(
+          iteration.lane_kind,
+          [
+            "primary_exact",
+            "primary_relaxed",
+            "target_company_engineering",
+            "adjacent_authorized",
+            "exploration",
+          ] as const,
+          "primary_exact",
+        );
+        const audit = iteration.audit && typeof iteration.audit === "object"
+          ? (iteration.audit as Record<string, unknown>)
+          : null;
+        if (!lane) return null;
+        const auditDecision = audit
+          ? normalizeEnumValue(
+            audit.decision,
+            ["expand", "revise", "stop", "escalate_adjacent"] as const,
+            "revise",
+          )
+          : null;
+        const auditGrade = audit
+          ? normalizeEnumValue(audit.quality_grade, ["A", "B", "C", "D"] as const, "C")
+          : null;
+        return {
+          iteration:
+            typeof iteration.iteration === "number" && Number.isFinite(iteration.iteration)
+              ? Math.max(1, Math.round(iteration.iteration))
+              : 1,
+          lane,
+          lane_kind: laneKind,
+          budget:
+            typeof iteration.budget === "number" && Number.isFinite(iteration.budget)
+              ? Math.max(0, Math.round(iteration.budget))
+              : 0,
+          snapshot_id: normalizeNullableString(iteration.snapshot_id),
+          audit: auditDecision && auditGrade
+            ? {
+              decision: auditDecision,
+              quality_grade: auditGrade,
+              summary: normalizeNullableString(audit?.summary),
+            }
+            : null,
+          continue_expansion:
+            typeof iteration.continue_expansion === "boolean"
+              ? iteration.continue_expansion
+              : null,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    : [];
 
   return {
     provider,
     snapshot_id: snapshotId,
+    ...(recall_strategy_mode ? { recall_strategy_mode } : {}),
+    ...(recall_iterations.length > 0 ? { recall_iterations } : {}),
     dataset_size,
     recall_latency_ms,
     cost,
@@ -1938,6 +2082,30 @@ export function buildPromptSearchContext(parsed: Record<string, unknown>) {
   }
 
   const recallSpec = normalizeRecallSpec(parsed.recall_spec, Number(parsed.candidate_count) || 5);
+  const headhunterBrief =
+    parsed.headhunter_brief && typeof parsed.headhunter_brief === "object"
+      ? (parsed.headhunter_brief as Record<string, unknown>)
+      : null;
+  if (headhunterBrief) {
+    const roleMission = normalizeNullableString(headhunterBrief.role_mission);
+    if (roleMission) lines.push(`Headhunter Role Mission: ${roleMission}`);
+    const idealBackgrounds = normalizeStringArray(headhunterBrief.ideal_candidate_backgrounds, 8);
+    if (idealBackgrounds.length > 0) {
+      lines.push(`Ideal Candidate Backgrounds: ${idealBackgrounds.join(" | ")}`);
+    }
+    const adjacentProfiles = normalizeStringArray(headhunterBrief.allowed_adjacent_profiles, 8);
+    if (adjacentProfiles.length > 0) {
+      lines.push(`Allowed Adjacent Profiles: ${adjacentProfiles.join(" | ")}`);
+    }
+    const equivalentEvidence = normalizeStringArray(headhunterBrief.equivalent_evidence, 8);
+    if (equivalentEvidence.length > 0) {
+      lines.push(`Equivalent Evidence: ${equivalentEvidence.join(" | ")}`);
+    }
+    const misleadingPatterns = normalizeStringArray(headhunterBrief.misleading_profile_patterns, 8);
+    if (misleadingPatterns.length > 0) {
+      lines.push(`Misleading Profile Patterns: ${misleadingPatterns.join(" | ")}`);
+    }
+  }
   if (recallSpec.title_variants.length > 0) {
     lines.push(`Title Variants: ${recallSpec.title_variants.join(" || ")}`);
   }
