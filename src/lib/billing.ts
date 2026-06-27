@@ -301,7 +301,7 @@ export function getPlanStatusCopy(
       ? "No targeted profile scans left this cycle"
       : `${clientRolesRemaining} / ${clientRolesLimit} client roles and ${profileScansRemaining} / ${profileScansLimit} targeted scans left`,
     capabilityLabel: isFreePlan
-      ? "Includes one ranked candidate pool from 250 targeted profile scans"
+      ? "Includes one ranked candidate pool, starting with a calibrated sourcing probe"
       : `Includes ${billing.plan.searchesPerMonth} client roles, AI sourcing budget, contact lookup, on-demand candidate research, export, and client-ready briefs`,
     renewalLabel: renewalDate ? `Cycle resets ${renewalDate}` : null,
     actionLabel: billing ? "Manage" : "Open",

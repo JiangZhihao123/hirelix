@@ -68,12 +68,18 @@ import {
 } from "@/lib/search/scoring-runtime";
 import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring";
 import { normalizeStoredSearchExpansionFeedback } from "@/lib/search-expansion";
+import {
+  buildLaneAuditUserPrompt,
+  normalizeLaneAuditResult,
+  type LaneAuditResult,
+} from "@/lib/search/lane-auditor";
 import type {
   CandidateRowInput,
   AdditionalRecallSnapshot,
   CandidateDeliveryBucket,
   ConstraintVerdict,
   ExcludedReasonCount,
+  HeadhunterLaneKind,
   HiringBrief,
   PipelineContext,
   RecallMetadata,
@@ -550,6 +556,307 @@ function buildRoundQualityDistribution(
     byRound.set(round, current);
   }
   return byRound;
+}
+
+function getHeadhunterLaneKindForRound(round: string): HeadhunterLaneKind {
+  if (round === "standard") return "primary_exact";
+  if (round === "primary_relaxed") return "primary_relaxed";
+  if (round === "company_target" || round.includes("company")) return "target_company_engineering";
+  if (round.includes("exploration")) return "exploration";
+  return "adjacent_authorized";
+}
+
+function getSourcingLaneForRound(
+  recallSpec: RecallSpec,
+  round: string,
+  laneKind: HeadhunterLaneKind,
+): SourcingLane {
+  const laneByKind = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === laneKind);
+  if (laneByKind) return laneByKind;
+  const fallbackLane = recallSpec.sourcing_lanes[0];
+  if (fallbackLane) return fallbackLane;
+  return {
+    name: round === "standard" ? "Primary exact lane" : `${round} lane`,
+    strategy: laneKind === "target_company_engineering" ? "company" : laneKind === "primary_exact" ? "title" : "skill",
+    lane_kind: laneKind,
+    target_persona: "Profiles matching the parsed role intent",
+    non_negotiables: recallSpec.must_have_signals,
+    relaxed_evidence: recallSpec.differentiating_skill_terms,
+    exclusion_patterns: recallSpec.avoid_profiles,
+    initial_budget: laneKind === "primary_exact" ? 35 : 15,
+    max_budget: laneKind === "primary_exact" ? 150 : 80,
+    title_terms: recallSpec.title_variants,
+    skill_terms: recallSpec.core_skill_terms,
+    company_terms: recallSpec.target_companies,
+    avoid_terms: recallSpec.avoid_profiles,
+    budget_weight: 1,
+  };
+}
+
+function countLaneProfiles(profiles: BrightDataProfile[], round: string) {
+  return profiles.filter((profile) => getProfileRecallSource(profile) === round).length;
+}
+
+function incrementCount(map: Map<string, number>, value: string | null | undefined) {
+  const key = value?.trim();
+  if (!key) return;
+  map.set(key, (map.get(key) ?? 0) + 1);
+}
+
+function topCounts(map: Map<string, number>, limit = 6) {
+  return [...map.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, limit)
+    .map(([value, count]) => ({ value, count }));
+}
+
+function buildLaneJudgeSummary(params: {
+  round: string;
+  assessments: ScoredCandidateAssessment[] | undefined;
+  profiles: BrightDataProfile[];
+  qualityDistribution?: RecallRoundQualityDistribution | null;
+}) {
+  const laneAssessments = (params.assessments ?? []).filter((assessment) => {
+    const profile = params.profiles[assessment.index];
+    return profile ? getProfileRecallSource(profile) === params.round : false;
+  });
+  const advanceCounts = new Map<string, number>();
+  const bucketCounts = new Map<string, number>();
+  const blockingCounts = new Map<string, number>();
+  const riskCounts = new Map<string, number>();
+  const weakReasonCounts = new Map<string, number>();
+
+  for (const assessment of laneAssessments) {
+    const suitability = assessment.suitability;
+    incrementCount(bucketCounts, suitability.bucket);
+    incrementCount(advanceCounts, suitability.advance_recommendation);
+    incrementCount(blockingCounts, suitability.blocking_severity);
+    incrementCount(riskCounts, suitability.primary_risk);
+    for (const flag of suitability.risk_flags ?? []) incrementCount(riskCounts, flag);
+    for (const reason of suitability.why_not_higher ?? []) incrementCount(weakReasonCounts, reason);
+    for (const constraint of suitability.blocking_constraints ?? []) {
+      incrementCount(weakReasonCounts, constraint);
+    }
+  }
+
+  return JSON.stringify(
+    {
+      round: params.round,
+      returned_count: countLaneProfiles(params.profiles, params.round),
+      scored_count: laneAssessments.length,
+      quality_distribution: params.qualityDistribution ?? null,
+      bucket_counts: Object.fromEntries(bucketCounts.entries()),
+      advance_recommendation_counts: Object.fromEntries(advanceCounts.entries()),
+      blocking_severity_counts: Object.fromEntries(blockingCounts.entries()),
+      top_risks: topCounts(riskCounts),
+      top_weak_or_blocking_patterns: topCounts(weakReasonCounts),
+    },
+    null,
+    2,
+  );
+}
+
+function buildLaneAuditProfileSample(params: {
+  round: string;
+  profiles: BrightDataProfile[];
+  assessments: ScoredCandidateAssessment[] | undefined;
+}) {
+  const assessmentByIndex = new Map((params.assessments ?? []).map((assessment) => [assessment.index, assessment]));
+  const entries = params.profiles
+    .map((profile, index) => ({
+      profile,
+      index,
+      assessment: assessmentByIndex.get(index),
+    }))
+    .filter((entry) => getProfileRecallSource(entry.profile) === params.round);
+  if (entries.length === 0) return "No profiles returned for this lane.";
+
+  const sorted = [...entries].sort((left, right) => {
+    const rightScore = right.assessment?.suitability.quality_score ?? right.assessment?.suitability.match_score ?? 0;
+    const leftScore = left.assessment?.suitability.quality_score ?? left.assessment?.suitability.match_score ?? 0;
+    return rightScore - leftScore;
+  });
+  const selected = new Map<number, (typeof entries)[number]>();
+  for (const entry of sorted.slice(0, 8)) selected.set(entry.index, entry);
+  for (const entry of sorted.slice(-4)) selected.set(entry.index, entry);
+
+  return [...selected.values()]
+    .sort((left, right) => left.index - right.index)
+    .map((entry) => {
+      const assessment = entry.assessment;
+      const judgeLine = assessment
+        ? [
+            `bucket=${assessment.suitability.bucket}`,
+            `advance=${assessment.suitability.advance_recommendation}`,
+            `quality=${assessment.suitability.quality_score}`,
+            `risk=${assessment.suitability.primary_risk ?? "none"}`,
+          ].join("; ")
+        : "not scored";
+      return [
+        `### Profile index ${entry.index}`,
+        `Judge result: ${judgeLine}`,
+        safeTruncate(brightDataProfileToRichText(entry.profile, entry.index), 1400),
+      ].join("\n");
+    })
+    .join("\n\n");
+}
+
+function summarizeSingleLaneAudit(audit: LaneAuditResult) {
+  const working = audit.why_this_lane_is_working.trim();
+  const wrong = audit.why_this_lane_is_wrong.trim();
+  const summary = working || wrong || "Lane audited without additional narrative.";
+  return safeTruncate(summary, 220);
+}
+
+function shouldContinueExpansionForLane(audit: LaneAuditResult) {
+  return audit.decision === "expand" && (audit.quality_grade === "A" || audit.quality_grade === "B");
+}
+
+function summarizeLaneAudits(
+  audits: Array<{ lane: string; audit: LaneAuditResult | null; sampleCount: number }>,
+) {
+  const completed = audits.filter((entry) => entry.audit);
+  if (!completed.length) return "Lane audit could not be completed; inspect scheduler logs for lane audit failures.";
+  return completed
+    .map((entry) => {
+      const audit = entry.audit as LaneAuditResult;
+      return `${entry.lane}: ${audit.quality_grade}/${audit.decision}, ${entry.sampleCount} profiles, ${summarizeSingleLaneAudit(audit)}`;
+    })
+    .join(" | ")
+    .slice(0, 500);
+}
+
+async function auditHeadhunterRecallLanes(params: {
+  context: PipelineContext;
+  parsed: Record<string, unknown>;
+  recallSpec: RecallSpec;
+  profiles: BrightDataProfile[];
+  assessments: ScoredCandidateAssessment[] | undefined;
+  recallIterations: NonNullable<RecallMetadata["recall_iterations"]>;
+  roundDiagnostics: RecallRoundDiagnostics[];
+  helpers: SearchPipelineHelpers;
+}) {
+  if (params.recallIterations.length === 0) return null;
+
+  const {
+    generateLlmJson,
+    getLightweightLlmModel,
+    resolveDeepSeekThinkingMode,
+  } = await import("@/lib/llm-client");
+  const { LANE_AUDITOR_JSON_SCHEMA } = await import("@/lib/llm-schemas");
+  const { withTimeout } = await import("@/lib/search/concurrency");
+
+  const audits: Array<{ lane: string; audit: LaneAuditResult | null; sampleCount: number }> = [];
+  const updatedIterations: NonNullable<RecallMetadata["recall_iterations"]> = [];
+
+  for (const iteration of params.recallIterations) {
+    const laneKind = iteration.lane_kind ?? getHeadhunterLaneKindForRound(iteration.lane);
+    const lane = getSourcingLaneForRound(params.recallSpec, iteration.lane, laneKind);
+    const diagnostic = params.roundDiagnostics.find((round) => round.round === iteration.lane);
+    const sampleCount = countLaneProfiles(params.profiles, iteration.lane);
+    const profileSample = buildLaneAuditProfileSample({
+      round: iteration.lane,
+      profiles: params.profiles,
+      assessments: params.assessments,
+    });
+    const judgeSummary = buildLaneJudgeSummary({
+      round: iteration.lane,
+      profiles: params.profiles,
+      assessments: params.assessments,
+      qualityDistribution: diagnostic?.quality_distribution ?? null,
+    });
+
+    try {
+      const prompt = buildLaneAuditUserPrompt({
+        jdText: params.context.jdText,
+        headhunterBrief: params.parsed.headhunter_brief,
+        lane,
+        profileSample,
+        judgeSummary,
+      });
+      const { data } = await withTimeout(
+        (signal) => generateLlmJson<unknown>({
+          model: getLightweightLlmModel(),
+          prompt,
+          maxOutputTokens: 2200,
+          abortSignal: signal,
+          timeoutMs: 60000,
+          temperature: 0,
+          jsonSchema: LANE_AUDITOR_JSON_SCHEMA,
+          deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_LANE_AUDIT_THINKING", "disabled"),
+          usageEvent: {
+            searchId: params.context.searchId,
+            jobId: params.context.jobId,
+            userId: params.context.userId,
+            stage: "lane_audit",
+            batchSize: sampleCount,
+            metadata: {
+              lane: iteration.lane,
+              laneKind,
+            },
+          },
+        }),
+        60000,
+        `Lane audit ${iteration.lane}`,
+      );
+      const audit = normalizeLaneAuditResult(data);
+      const summary = summarizeSingleLaneAudit(audit);
+      const continueExpansion = shouldContinueExpansionForLane(audit);
+      audits.push({ lane: iteration.lane, audit, sampleCount });
+      updatedIterations.push({
+        ...iteration,
+        lane_kind: laneKind,
+        audit: {
+          decision: audit.decision,
+          quality_grade: audit.quality_grade,
+          summary,
+          why_this_lane_is_working: audit.why_this_lane_is_working,
+          why_this_lane_is_wrong: audit.why_this_lane_is_wrong,
+          wrong_profile_patterns: audit.wrong_profile_patterns,
+          next_lane_revision: audit.next_lane_revision,
+          audited_at: params.helpers.nowIso(),
+          sample_count: sampleCount,
+        },
+        continue_expansion: continueExpansion,
+      });
+      params.helpers.logSearchEvent("search_lane_audit_completed", {
+        search_id: params.context.searchId,
+        job_id: params.context.jobId,
+        lane: iteration.lane,
+        lane_kind: laneKind,
+        decision: audit.decision,
+        quality_grade: audit.quality_grade,
+        sample_count: sampleCount,
+        continue_expansion: continueExpansion,
+      });
+    } catch (error) {
+      audits.push({ lane: iteration.lane, audit: null, sampleCount });
+      updatedIterations.push({
+        ...iteration,
+        lane_kind: laneKind,
+        audit: null,
+        continue_expansion: null,
+      });
+      params.helpers.logSearchEvent("search_lane_audit_failed", {
+        search_id: params.context.searchId,
+        job_id: params.context.jobId,
+        lane: iteration.lane,
+        lane_kind: laneKind,
+        sample_count: sampleCount,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const stoppedLaneCount = updatedIterations.filter((iteration) =>
+    iteration.audit?.decision === "stop" || iteration.audit?.quality_grade === "D"
+  ).length;
+
+  return {
+    recallIterations: updatedIterations,
+    laneAuditSummary: summarizeLaneAudits(audits),
+    stoppedLaneCount,
+  };
 }
 
 export function buildSearchQualityDiagnosis(stats: {
@@ -1928,7 +2235,7 @@ async function buildBrightDataDatasetCandidates(
       requested_at: submittedAt,
       status: "submitted",
       filter_summary: filterSummary,
-      bright_profile_budget: totalProfileScanBudget,
+      bright_profile_budget: effectiveProfileScanBudget,
       bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       standard_recall_requested_at: submittedAt,
@@ -1957,7 +2264,7 @@ async function buildBrightDataDatasetCandidates(
     executionProfile,
     runtime,
     totalRequestedLimit,
-    totalProfileScanBudget,
+    effectiveProfileScanBudget,
   );
   const shouldKeepSnapshotProfileCache = forceSnapshotProfileCache || shouldReuseProfileCacheDespiteSnapshotDrift({
     hasSnapshotDrift,
@@ -1972,7 +2279,7 @@ async function buildBrightDataDatasetCandidates(
       snapshot_id: existingRecallMetadata?.snapshot_id,
       standard_profile_rows: existingStandardSnapshotRows?.length ?? 0,
       previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
-      next_budget: totalProfileScanBudget,
+      next_budget: effectiveProfileScanBudget,
       previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
       next_judge_mode: runtime.judgeMode,
       rerun_mode: forceSnapshotProfileCache ? SNAPSHOT_PROFILE_CACHE_RERUN_MODE : null,
@@ -1986,7 +2293,7 @@ async function buildBrightDataDatasetCandidates(
       previous_filter_summary: existingRecallMetadata?.filter_summary ?? null,
       next_filter_summary: filterSummary,
       previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
-      next_budget: totalProfileScanBudget,
+      next_budget: effectiveProfileScanBudget,
       previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
       next_judge_mode: runtime.judgeMode,
       job_id: context.jobId,
@@ -2016,7 +2323,7 @@ async function buildBrightDataDatasetCandidates(
       requested_at: new Date(requestedAt).toISOString(),
       status: "submitted",
       filter_summary: filterSummary,
-      bright_profile_budget: totalProfileScanBudget,
+      bright_profile_budget: effectiveProfileScanBudget,
       bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       recall_personas: recallPersonas,
@@ -2094,7 +2401,7 @@ async function buildBrightDataDatasetCandidates(
         requested_at: new Date(requestedAt).toISOString(),
         status: "submitted",
         filter_summary: filterSummary,
-        bright_profile_budget: totalProfileScanBudget,
+        bright_profile_budget: effectiveProfileScanBudget,
         bright_profiles_requested: totalRequestedLimit,
         judge_mode: runtime.judgeMode,
         recall_personas: recallPersonas,
@@ -2400,7 +2707,7 @@ async function buildBrightDataDatasetCandidates(
       requested_at: new Date(requestedAt).toISOString(),
       status: "polling",
       filter_summary: filterSummary,
-      bright_profile_budget: totalProfileScanBudget,
+      bright_profile_budget: effectiveProfileScanBudget,
       bright_profiles_requested: totalRequestedLimit,
       judge_mode: runtime.judgeMode,
       standard_recall_requested_at:
@@ -2517,7 +2824,7 @@ async function buildBrightDataDatasetCandidates(
         requested_at: new Date(requestedAt).toISOString(),
         status: "polling",
         filter_summary: filterSummary,
-        bright_profile_budget: totalProfileScanBudget,
+        bright_profile_budget: effectiveProfileScanBudget,
         bright_profiles_requested: totalRequestedLimit,
         judge_mode: runtime.judgeMode,
         standard_recall_requested_at:
@@ -2592,19 +2899,12 @@ async function buildBrightDataDatasetCandidates(
   const timeToStandardRecallReadyMs =
     helpers.elapsedSince(searchStartedAt, standardRecallReadyAt) ?? (Date.now() - requestedAt);
   parsed.recall_provider = "brightdata_dataset";
-  const laneKindForRound = (round: string) => {
-    if (round === "standard") return "primary_exact" as const;
-    if (round === "primary_relaxed") return "primary_relaxed" as const;
-    if (round === "company_target" || round.includes("company")) return "target_company_engineering" as const;
-    if (round.includes("exploration")) return "exploration" as const;
-    return "adjacent_authorized" as const;
-  };
   const recallIterations = recallStrategyMode === "headhunter_v1"
     ? [
       {
         iteration: 1,
         lane: "standard",
-        lane_kind: laneKindForRound("standard"),
+        lane_kind: getHeadhunterLaneKindForRound("standard"),
         budget: standardRound.request.recordsLimit,
         snapshot_id: activeSnapshotId,
         audit: null,
@@ -2613,7 +2913,7 @@ async function buildBrightDataDatasetCandidates(
       ...additionalSnapshotStates.map((round, index) => ({
         iteration: index + 2,
         lane: round.round,
-        lane_kind: laneKindForRound(round.round),
+        lane_kind: getHeadhunterLaneKindForRound(round.round),
         budget: round.recordsLimit,
         snapshot_id: round.snapshotId,
         audit: null,
@@ -2917,7 +3217,7 @@ async function buildBrightDataDatasetCandidates(
       cost_source: null,
       bright_balance_before: brightBalanceBefore,
       bright_balance_after: brightBalanceAfter,
-      bright_profile_budget: totalProfileScanBudget,
+      bright_profile_budget: effectiveProfileScanBudget,
       bright_profiles_requested: totalRequestedLimit,
       bright_profiles_returned: allProfiles.length,
       judge_mode: runtime.judgeMode,
@@ -3029,7 +3329,7 @@ async function buildBrightDataDatasetCandidates(
     cost_source: resolvedRecallCostSource,
     bright_balance_before: brightBalanceBefore,
     bright_balance_after: brightBalanceAfter,
-    bright_profile_budget: totalProfileScanBudget,
+    bright_profile_budget: effectiveProfileScanBudget,
     bright_profiles_requested: totalRequestedLimit,
     bright_profiles_returned: allProfiles.length,
     judge_mode: runtime.judgeMode,
@@ -3143,7 +3443,7 @@ async function buildBrightDataDatasetCandidates(
     deep_review_requested_count: allProfiles.length,
     deep_review_completed_count: 0,
     bright_snapshot_cost: resolvedRecallCost ?? undefined,
-    bright_profile_budget: totalProfileScanBudget,
+    bright_profile_budget: effectiveProfileScanBudget,
     bright_profiles_requested: totalRequestedLimit,
     judge_mode: runtime.judgeMode,
     time_to_ack_ms: 0,
@@ -3167,7 +3467,7 @@ async function buildBrightDataDatasetCandidates(
     {
       progressOffset: 0,
       onFirstVisibleCandidate: handleFirstVisibleCandidate,
-      totalProfileScanBudget,
+      totalProfileScanBudget: effectiveProfileScanBudget,
       totalProfilesRequested: totalRequestedLimit,
     },
   );
@@ -3176,19 +3476,36 @@ async function buildBrightDataDatasetCandidates(
     combinedResult.assessments,
     allProfiles,
   );
+  const roundDiagnosticsWithQuality = buildRoundDiagnostics({
+    standardReturned: standardProfileCount,
+    additionalReturned: additionalReturnedCounts,
+    qualityDistribution: qualityDistributionByRound,
+  });
+  const recallMetadataBeforeLaneAudit = helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
+    provider: "brightdata_dataset" as const,
+    snapshot_id: activeSnapshotId,
+  };
+  const laneAuditState = recallStrategyMode === "headhunter_v1"
+    ? await auditHeadhunterRecallLanes({
+      context,
+      parsed,
+      recallSpec,
+      profiles: allProfiles,
+      assessments: combinedResult.assessments,
+      recallIterations: recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations,
+      roundDiagnostics: roundDiagnosticsWithQuality,
+      helpers,
+    })
+    : null;
   parsed.recall_metadata = {
-    ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
-      provider: "brightdata_dataset" as const,
-      snapshot_id: activeSnapshotId,
-    }),
+    ...recallMetadataBeforeLaneAudit,
     provider: "brightdata_dataset",
     snapshot_id: activeSnapshotId,
+    ...(laneAuditState?.recallIterations
+      ? { recall_iterations: laneAuditState.recallIterations }
+      : {}),
     recall_personas: recallPersonas,
-    round_diagnostics: buildRoundDiagnostics({
-      standardReturned: standardProfileCount,
-      additionalReturned: additionalReturnedCounts,
-      qualityDistribution: qualityDistributionByRound,
-    }),
+    round_diagnostics: roundDiagnosticsWithQuality,
   };
 
   helpers.logSearchEvent("search_step_completed", {
@@ -3215,10 +3532,22 @@ async function buildBrightDataDatasetCandidates(
       ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
       ...combinedResult.displayStats,
       bright_snapshot_cost: resolvedRecallCost ?? undefined,
-      bright_profile_budget: totalProfileScanBudget,
+      bright_profile_budget: effectiveProfileScanBudget,
       bright_profiles_requested: totalRequestedLimit,
       bright_profiles_returned: allProfiles.length,
       judge_mode: runtime.judgeMode,
+      recall_strategy_mode: recallStrategyMode,
+      recall_iteration_count:
+        laneAuditState?.recallIterations.length ??
+        recallMetadataBeforeLaneAudit.recall_iterations?.length ??
+        recallIterations.length,
+      lane_audit_summary:
+        laneAuditState?.laneAuditSummary ??
+        (recallStrategyMode === "headhunter_v1"
+          ? "Lane audit could not be completed; inspect scheduler logs for lane audit failures."
+          : undefined),
+      actionable_candidate_count: combinedResult.displayStats.recommended_count,
+      stopped_lane_count: laneAuditState?.stoppedLaneCount,
     }),
   };
 }

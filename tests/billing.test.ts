@@ -128,7 +128,7 @@ test("plan status copy describes candidate pool actions for free and paid plans"
   assert.equal(freeCopy.title, "Free plan");
   assert.match(freeCopy.usageLabel, /targeted scans left/);
   assert.match(freeCopy.usageLabel, /client roles/);
-  assert.match(freeCopy.capabilityLabel, /250 targeted profile scans/);
+  assert.match(freeCopy.capabilityLabel, /calibrated sourcing probe/);
   assert.match(freeCopy.capabilityLabel, /ranked candidate pool/);
 
   const monthlyCopy = getPlanStatusCopy(makeBillingSummary("starter_monthly"));

@@ -17,6 +17,7 @@ import {
   buildRecallLocationFilter,
   buildStandardSkillFilter,
   isPlaceholderTitle,
+  normalizeRecallMetadata,
   normalizeRecallSpec,
   sanitizeHiringBrief,
 } from "@/lib/search-jobs";
@@ -182,6 +183,51 @@ test("lane auditor schema and normalizer keep decisions inside allowed enums", (
   assert.equal(result.decision, "revise");
   assert.equal(result.quality_grade, "C");
   assert.equal(result.next_lane_revision.lane_kind, "exploration");
+});
+
+test("recall metadata normalizer preserves lane audit details", () => {
+  const metadata = normalizeRecallMetadata({
+    provider: "brightdata_dataset",
+    snapshot_id: "snap_123",
+    recall_strategy_mode: "headhunter_v1",
+    recall_iterations: [
+      {
+        iteration: 1,
+        lane: "standard",
+        lane_kind: "primary_exact",
+        budget: 35,
+        snapshot_id: "snap_123",
+        audit: {
+          decision: "stop",
+          quality_grade: "D",
+          summary: "Wrong lane.",
+          why_this_lane_is_working: "",
+          why_this_lane_is_wrong: "Returned manager-only profiles.",
+          wrong_profile_patterns: ["manager only"],
+          next_lane_revision: {
+            name: "hands-on backend lane",
+            lane_kind: "primary_exact",
+            target_persona: "Hands-on backend engineers",
+            non_negotiables: ["backend engineering"],
+            relaxed_evidence: ["billing systems"],
+            exclusion_patterns: ["manager only"],
+            initial_budget: 25,
+            max_budget: 80,
+          },
+          audited_at: "2026-06-27T08:00:00.000Z",
+          sample_count: 12,
+        },
+        continue_expansion: false,
+      },
+    ],
+  });
+
+  const audit = metadata?.recall_iterations?.[0]?.audit;
+  assert.equal(audit?.decision, "stop");
+  assert.equal(audit?.quality_grade, "D");
+  assert.deepEqual(audit?.wrong_profile_patterns, ["manager only"]);
+  assert.equal(audit?.next_lane_revision?.target_persona, "Hands-on backend engineers");
+  assert.equal(audit?.sample_count, 12);
 });
 
 test("lane audit prompt includes JD, brief, lane contract, sample, and judge summary", () => {

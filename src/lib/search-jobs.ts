@@ -1671,6 +1671,22 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
         const auditGrade = audit
           ? normalizeEnumValue(audit.quality_grade, ["A", "B", "C", "D"] as const, "C")
           : null;
+        const nextLaneRevision = audit?.next_lane_revision && typeof audit.next_lane_revision === "object"
+          ? (audit.next_lane_revision as Record<string, unknown>)
+          : null;
+        const nextLaneKind = nextLaneRevision
+          ? normalizeEnumValue(
+            nextLaneRevision.lane_kind,
+            [
+              "primary_exact",
+              "primary_relaxed",
+              "target_company_engineering",
+              "adjacent_authorized",
+              "exploration",
+            ] as const,
+            "primary_exact",
+          )
+          : null;
         return {
           iteration:
             typeof iteration.iteration === "number" && Number.isFinite(iteration.iteration)
@@ -1688,6 +1704,36 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
               decision: auditDecision,
               quality_grade: auditGrade,
               summary: normalizeNullableString(audit?.summary),
+              why_this_lane_is_working: normalizeNullableString(audit?.why_this_lane_is_working),
+              why_this_lane_is_wrong: normalizeNullableString(audit?.why_this_lane_is_wrong),
+              wrong_profile_patterns: normalizeStringArray(audit?.wrong_profile_patterns, 8),
+              next_lane_revision: nextLaneRevision && nextLaneKind
+                ? {
+                  name: normalizeNullableString(nextLaneRevision.name) || "Revised lane",
+                  lane_kind: nextLaneKind,
+                  target_persona:
+                    normalizeNullableString(nextLaneRevision.target_persona) ||
+                    "Profiles matching the revised lane contract",
+                  non_negotiables: normalizeStringArray(nextLaneRevision.non_negotiables, 8),
+                  relaxed_evidence: normalizeStringArray(nextLaneRevision.relaxed_evidence, 8),
+                  exclusion_patterns: normalizeStringArray(nextLaneRevision.exclusion_patterns, 8),
+                  initial_budget:
+                    typeof nextLaneRevision.initial_budget === "number" &&
+                    Number.isFinite(nextLaneRevision.initial_budget)
+                      ? Math.max(1, Math.round(nextLaneRevision.initial_budget))
+                      : 25,
+                  max_budget:
+                    typeof nextLaneRevision.max_budget === "number" &&
+                    Number.isFinite(nextLaneRevision.max_budget)
+                      ? Math.max(1, Math.round(nextLaneRevision.max_budget))
+                      : 80,
+                }
+                : null,
+              audited_at: normalizeNullableString(audit?.audited_at),
+              sample_count:
+                typeof audit?.sample_count === "number" && Number.isFinite(audit.sample_count)
+                  ? Math.max(0, Math.round(audit.sample_count))
+                  : null,
             }
             : null,
           continue_expansion:

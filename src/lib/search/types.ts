@@ -476,6 +476,21 @@ export type RecallMetadata = {
       decision: "expand" | "revise" | "stop" | "escalate_adjacent";
       quality_grade: "A" | "B" | "C" | "D";
       summary?: string | null;
+      why_this_lane_is_working?: string | null;
+      why_this_lane_is_wrong?: string | null;
+      wrong_profile_patterns?: string[];
+      next_lane_revision?: {
+        name: string;
+        lane_kind: HeadhunterLaneKind;
+        target_persona: string;
+        non_negotiables: string[];
+        relaxed_evidence: string[];
+        exclusion_patterns: string[];
+        initial_budget: number;
+        max_budget: number;
+      } | null;
+      audited_at?: string | null;
+      sample_count?: number | null;
     } | null;
     continue_expansion?: boolean | null;
   }>;
