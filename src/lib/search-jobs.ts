@@ -1197,6 +1197,12 @@ function buildSearchDisplayStats(
     ...(typeof overrides.stopped_lane_count === "number"
       ? { stopped_lane_count: Math.max(0, Math.round(overrides.stopped_lane_count)) }
       : {}),
+    ...(typeof overrides.adaptive_recall_planned_budget === "number"
+      ? { adaptive_recall_planned_budget: Math.max(0, Math.round(overrides.adaptive_recall_planned_budget)) }
+      : {}),
+    ...(typeof overrides.adaptive_recall_remaining_budget === "number"
+      ? { adaptive_recall_remaining_budget: Math.max(0, Math.round(overrides.adaptive_recall_remaining_budget)) }
+      : {}),
     ...(typeof overrides.brief_ready_at === "string" &&
       overrides.brief_ready_at.length > 0
       ? { brief_ready_at: overrides.brief_ready_at }

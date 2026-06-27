@@ -174,6 +174,18 @@ test("underfilled recall fails after all submitted rounds are exhausted", () => 
   );
 });
 
+test("headhunter recall lets lane audit decide underfilled probe quality", () => {
+  assert.equal(
+    shouldFailUnderfilledRecallAfterSubmittedRounds({
+      availableProfileCount: 50,
+      deferredAdditionalRoundCount: 0,
+      requestedProfileCount: 250,
+      recallStrategyMode: "headhunter_v1",
+    }),
+    false,
+  );
+});
+
 test("additional rounds still matter when standard recall has no profiles", () => {
   assert.equal(
     shouldContinueScoringWithStandardRecall({

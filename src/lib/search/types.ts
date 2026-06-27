@@ -349,6 +349,8 @@ export type SearchDisplayStats = {
   lane_audit_summary?: string;
   actionable_candidate_count?: number;
   stopped_lane_count?: number;
+  adaptive_recall_planned_budget?: number;
+  adaptive_recall_remaining_budget?: number;
   brief_ready_at?: string;
   first_shortlist_candidate_at?: string;
   reviewable_at?: string;

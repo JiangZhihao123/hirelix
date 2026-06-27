@@ -1581,6 +1581,100 @@ export function buildBrightDataRecallFilter(
 	  };
 }
 
+export function buildBrightDataRecallFilterForLane(
+  parsed: Record<string, unknown>,
+  lane: SourcingLane,
+  recordsLimit: number,
+  options: {
+    normalizeRecallSpec: (
+      value: unknown,
+      requestedLimit: number,
+      options?: { recordLimitOverride?: number },
+    ) => RecallSpec;
+    sanitizeHiringBrief: (
+      value: unknown,
+      fallbackParsed: Record<string, unknown>,
+    ) => HiringBrief;
+    buildStandardSkillFilter: (
+      recallSpec: RecallSpec,
+      mode: RecallFilterMode,
+    ) => BrightDataFilterRule | null;
+    buildRecallLocationFilter: (
+      hiringBrief: HiringBrief,
+      recallSpec: RecallSpec,
+      countryCodes: string[],
+      mode: RecallFilterMode,
+    ) => BrightDataFilterRule | null;
+    isPlaceholderTitle: (title: string | null | undefined) => boolean;
+  },
+): BrightDataDatasetFilterRequest | null {
+  const datasetId =
+    process.env.BRIGHTDATA_RECALL_DATASET_ID ||
+    process.env.BRIGHTDATA_DATASET_ID;
+  if (!datasetId) return null;
+
+  const limit = Math.max(1, Math.round(recordsLimit));
+  const recallSpec = options.normalizeRecallSpec(parsed.recall_spec, limit, {
+    recordLimitOverride: limit,
+  });
+  const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const countryCodes = recallSpec.countries
+    .map((country) => normalizeCountryCode(country))
+    .filter((country): country is string => Boolean(country))
+    .slice(0, 4);
+  const titleTerms = buildEngineeringTitleTerms(
+    lane.title_terms.filter((term) => !options.isPlaceholderTitle(term)),
+    normalizeNullableString(parsed.title),
+  );
+  const titleFilter = buildTitleFilter(titleTerms, lane.strategy === "company" ? 18 : 14);
+  const skillFilter = buildProfileSignalFilter(lane.skill_terms, 10) ??
+    options.buildStandardSkillFilter(
+      {
+        ...recallSpec,
+        core_skill_terms: lane.skill_terms.length > 0 ? lane.skill_terms : recallSpec.core_skill_terms,
+        must_have_signals: lane.skill_terms.length > 0 ? lane.skill_terms : recallSpec.must_have_signals,
+      },
+      lane.lane_kind === "primary_relaxed" || lane.strategy === "skill" ? "relaxed" : "primary",
+    );
+  const companyFilter = buildCompanyFilter(lane.company_terms);
+  const countryFilter = buildCountryFilter(countryCodes);
+  const locationFilter = getRecallLocationMode(hiringBrief) === "location_filter"
+    ? options.buildRecallLocationFilter(
+      hiringBrief,
+      recallSpec,
+      countryCodes,
+      lane.lane_kind === "primary_relaxed" ? "relaxed" : "primary",
+    )
+    : null;
+  const filters: BrightDataFilterRule[] = [];
+
+  if (lane.strategy === "company" || lane.lane_kind === "target_company_engineering") {
+    if (!companyFilter) return null;
+    filters.push(companyFilter);
+    if (titleFilter) filters.push(titleFilter);
+    if (skillFilter) filters.push(skillFilter);
+  } else {
+    if (!titleFilter && !skillFilter) return null;
+    if (titleFilter && skillFilter) {
+      filters.push({ operator: "or", filters: [titleFilter, skillFilter] });
+    } else if (titleFilter) {
+      filters.push(titleFilter);
+    } else if (skillFilter) {
+      filters.push(skillFilter);
+    }
+  }
+
+  if (countryFilter) filters.push(countryFilter);
+  if (locationFilter) filters.push(locationFilter);
+  filters.push(...buildQualityFilters());
+
+  return {
+    datasetId,
+    recordsLimit: limit,
+    filter: filters.length === 1 ? filters[0] : { operator: "and", filters },
+  };
+}
+
 export function getTotalRecallRequestLimit(rounds: RecallRound[]) {
   return rounds.reduce((sum, round) => sum + Math.max(0, round.request.recordsLimit), 0);
 }

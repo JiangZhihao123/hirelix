@@ -1,0 +1,333 @@
+import type {
+  HeadhunterLaneKind,
+  RecallMetadata,
+  RecallRoundDiagnostics,
+  SearchDisplayStats,
+  SourcingLane,
+} from "@/lib/search/types";
+
+export type AdaptiveExpansionActionType =
+  | "expand_lane"
+  | "revise_lane"
+  | "stop_lane"
+  | "escalate_adjacent"
+  | "finish";
+
+export type AdaptiveExpansionAction = {
+  type: AdaptiveExpansionActionType;
+  lane: string;
+  lane_kind: HeadhunterLaneKind;
+  budget: number;
+  reason: string;
+  source_iteration?: number | null;
+  revised_lane?: SourcingLane | null;
+};
+
+export type AdaptiveExpansionPlan = {
+  should_continue: boolean;
+  stop_reason: string | null;
+  remaining_budget: number;
+  planned_budget: number;
+  actions: AdaptiveExpansionAction[];
+};
+
+const DEFAULT_FREE_ACTIONABLE_TARGET = 3;
+const DEFAULT_MAX_ADAPTIVE_BATCHES = 2;
+const DEFAULT_EXPANSION_BUDGET_BY_GRADE: Record<"A" | "B" | "C" | "D", number> = {
+  A: 50,
+  B: 30,
+  C: 20,
+  D: 0,
+};
+
+function clampBudget(value: number, remainingBudget: number, maxBudget?: number | null) {
+  const boundedByMax = typeof maxBudget === "number" && Number.isFinite(maxBudget)
+    ? Math.min(value, Math.max(1, Math.round(maxBudget)))
+    : value;
+  return Math.max(0, Math.min(Math.round(boundedByMax), Math.max(0, remainingBudget)));
+}
+
+function getUsedBudget(iterations: NonNullable<RecallMetadata["recall_iterations"]>) {
+  return iterations.reduce((sum, iteration) => sum + Math.max(0, Math.round(iteration.budget || 0)), 0);
+}
+
+function getAdaptiveBatchCount(iterations: NonNullable<RecallMetadata["recall_iterations"]>) {
+  const batches = new Set<string>();
+  for (const iteration of iterations) {
+    if (!/^adaptive_/.test(iteration.lane)) continue;
+    const match = /^adaptive_b(\d+)_/.exec(iteration.lane);
+    batches.add(match ? match[1] : iteration.lane);
+  }
+  return batches.size;
+}
+
+function getQualityDistribution(
+  diagnostics: RecallRoundDiagnostics[],
+  lane: string,
+) {
+  return diagnostics.find((round) => round.round === lane)?.quality_distribution ?? null;
+}
+
+function isAllowedAdjacentProfile(
+  parsed: Record<string, unknown>,
+) {
+  const brief = parsed.headhunter_brief && typeof parsed.headhunter_brief === "object"
+    ? (parsed.headhunter_brief as Record<string, unknown>)
+    : null;
+  return Array.isArray(brief?.allowed_adjacent_profiles) && brief.allowed_adjacent_profiles.length > 0;
+}
+
+function toSourcingLane(
+  value: unknown,
+  fallback: SourcingLane,
+): SourcingLane {
+  if (!value || typeof value !== "object") return fallback;
+  const record = value as Partial<SourcingLane>;
+  return {
+    ...fallback,
+    ...record,
+    name: typeof record.name === "string" && record.name.trim().length > 0
+      ? record.name.trim()
+      : fallback.name,
+    lane_kind: record.lane_kind ?? fallback.lane_kind,
+    title_terms: Array.isArray(record.title_terms) ? record.title_terms : fallback.title_terms,
+    skill_terms: Array.isArray(record.skill_terms) ? record.skill_terms : fallback.skill_terms,
+    company_terms: Array.isArray(record.company_terms) ? record.company_terms : fallback.company_terms,
+    avoid_terms: Array.isArray(record.avoid_terms) ? record.avoid_terms : fallback.avoid_terms,
+    budget_weight: typeof record.budget_weight === "number" ? record.budget_weight : fallback.budget_weight,
+  };
+}
+
+function getFallbackLane(
+  lane: string,
+  laneKind: HeadhunterLaneKind,
+  recallSpec: { sourcing_lanes?: SourcingLane[] } | null | undefined,
+) {
+  const byKind = recallSpec?.sourcing_lanes?.find((item) => item.lane_kind === laneKind);
+  if (byKind) return byKind;
+  const first = recallSpec?.sourcing_lanes?.[0];
+  if (first) return first;
+  return {
+    name: lane,
+    strategy: laneKind === "target_company_engineering" ? "company" : laneKind === "primary_exact" ? "title" : "skill",
+    lane_kind: laneKind,
+    title_terms: [],
+    skill_terms: [],
+    company_terms: [],
+    avoid_terms: [],
+    budget_weight: 1,
+  } satisfies SourcingLane;
+}
+
+function buildActionReason(params: {
+  grade: string;
+  decision: string;
+  summary?: string | null;
+  strongNow?: number;
+  doNotShow?: number;
+}) {
+  const pieces = [`audit ${params.grade}/${params.decision}`];
+  if (typeof params.strongNow === "number" || typeof params.doNotShow === "number") {
+    pieces.push(`quality strong=${params.strongNow ?? 0}, rejected=${params.doNotShow ?? 0}`);
+  }
+  if (params.summary) pieces.push(params.summary);
+  return pieces.join("; ").slice(0, 500);
+}
+
+export function planAdaptiveExpansion(params: {
+  parsed: Record<string, unknown>;
+  recallMetadata: RecallMetadata | null;
+  displayStats: SearchDisplayStats | null;
+  recallSpec?: { sourcing_lanes?: SourcingLane[] } | null;
+  totalBudget: number;
+  actionableTarget?: number;
+  maxAdaptiveBatches?: number;
+}): AdaptiveExpansionPlan {
+  const totalBudget = Math.max(0, Math.round(params.totalBudget));
+  const iterations = params.recallMetadata?.recall_iterations ?? [];
+  const usedBudget = getUsedBudget(iterations);
+  let remainingBudget = Math.max(0, totalBudget - usedBudget);
+  const actionableTarget = Math.max(1, Math.round(params.actionableTarget ?? DEFAULT_FREE_ACTIONABLE_TARGET));
+  const actionableCount =
+    params.displayStats?.recommended_count ??
+    params.displayStats?.actionable_candidate_count ??
+    params.displayStats?.worth_reviewing_count ??
+    0;
+
+  if (iterations.length === 0) {
+    return {
+      should_continue: false,
+      stop_reason: "no_recall_iterations",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: "No recall iterations to expand." }],
+    };
+  }
+
+  if (remainingBudget <= 0) {
+    return {
+      should_continue: false,
+      stop_reason: "budget_exhausted",
+      remaining_budget: 0,
+      planned_budget: 0,
+      actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: "No adaptive recall budget remains." }],
+    };
+  }
+
+  if (actionableCount >= actionableTarget) {
+    return {
+      should_continue: false,
+      stop_reason: "actionable_target_met",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: `Actionable candidate target met (${actionableCount}/${actionableTarget}).` }],
+    };
+  }
+
+  const maxAdaptiveBatches = Math.max(0, Math.round(params.maxAdaptiveBatches ?? DEFAULT_MAX_ADAPTIVE_BATCHES));
+  if (getAdaptiveBatchCount(iterations) >= maxAdaptiveBatches) {
+    return {
+      should_continue: false,
+      stop_reason: "adaptive_batch_limit_reached",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: `Adaptive batch limit reached (${maxAdaptiveBatches}).` }],
+    };
+  }
+
+  const actions: AdaptiveExpansionAction[] = [];
+  const diagnostics = params.recallMetadata?.round_diagnostics ?? [];
+  const completedAudits = iterations.filter((iteration) => iteration.audit);
+  if (completedAudits.length === 0) {
+    return {
+      should_continue: false,
+      stop_reason: "lane_audit_missing",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: "Lane audits are missing; not spending more Bright budget." }],
+    };
+  }
+
+  const candidates = [...completedAudits].sort((left, right) => {
+    const gradeRank = { A: 4, B: 3, C: 2, D: 1 } as const;
+    const leftGrade = left.audit?.quality_grade ?? "D";
+    const rightGrade = right.audit?.quality_grade ?? "D";
+    return gradeRank[rightGrade] - gradeRank[leftGrade];
+  });
+
+  for (const iteration of candidates) {
+    if (remainingBudget <= 0) break;
+    const audit = iteration.audit;
+    if (!audit) continue;
+    const laneKind = iteration.lane_kind ?? "primary_exact";
+    const quality = getQualityDistribution(diagnostics, iteration.lane);
+    const reason = buildActionReason({
+      grade: audit.quality_grade,
+      decision: audit.decision,
+      summary: audit.summary,
+      strongNow: quality?.strong_now,
+      doNotShow: quality?.do_not_show,
+    });
+
+    if (audit.decision === "stop" || audit.quality_grade === "D") {
+      actions.push({
+        type: "stop_lane",
+        lane: iteration.lane,
+        lane_kind: laneKind,
+        budget: 0,
+        reason,
+        source_iteration: iteration.iteration,
+      });
+      continue;
+    }
+
+    if (audit.decision === "escalate_adjacent") {
+      if (!isAllowedAdjacentProfile(params.parsed)) {
+        actions.push({
+          type: "stop_lane",
+          lane: iteration.lane,
+          lane_kind: laneKind,
+          budget: 0,
+          reason: `${reason}; adjacent escalation not authorized by headhunter brief`,
+          source_iteration: iteration.iteration,
+        });
+        continue;
+      }
+      const fallbackLane = getFallbackLane(iteration.lane, "adjacent_authorized", params.recallSpec);
+      const revisedLane = toSourcingLane(audit.next_lane_revision, {
+        ...fallbackLane,
+        lane_kind: "adjacent_authorized",
+      });
+      const budget = clampBudget(25, remainingBudget, revisedLane.max_budget);
+      remainingBudget -= budget;
+      actions.push({
+        type: "escalate_adjacent",
+        lane: iteration.lane,
+        lane_kind: "adjacent_authorized",
+        budget,
+        reason,
+        source_iteration: iteration.iteration,
+        revised_lane: revisedLane,
+      });
+      continue;
+    }
+
+    if (audit.decision === "revise" || audit.quality_grade === "C") {
+      const fallbackLane = getFallbackLane(iteration.lane, laneKind, params.recallSpec);
+      const revisedLane = toSourcingLane(audit.next_lane_revision, fallbackLane);
+      const baseBudget = DEFAULT_EXPANSION_BUDGET_BY_GRADE[audit.quality_grade];
+      const budget = clampBudget(baseBudget, remainingBudget, revisedLane.max_budget);
+      if (budget <= 0) continue;
+      remainingBudget -= budget;
+      actions.push({
+        type: "revise_lane",
+        lane: iteration.lane,
+        lane_kind: revisedLane.lane_kind ?? laneKind,
+        budget,
+        reason,
+        source_iteration: iteration.iteration,
+        revised_lane: revisedLane,
+      });
+      continue;
+    }
+
+    if (audit.decision === "expand") {
+      const fallbackLane = getFallbackLane(iteration.lane, laneKind, params.recallSpec);
+      const baseBudget = DEFAULT_EXPANSION_BUDGET_BY_GRADE[audit.quality_grade];
+      const budget = clampBudget(baseBudget, remainingBudget, fallbackLane.max_budget);
+      if (budget <= 0) continue;
+      remainingBudget -= budget;
+      actions.push({
+        type: "expand_lane",
+        lane: iteration.lane,
+        lane_kind: laneKind,
+        budget,
+        reason,
+        source_iteration: iteration.iteration,
+        revised_lane: fallbackLane,
+      });
+    }
+  }
+
+  const spendActions = actions.filter((action) => action.budget > 0);
+  const plannedBudget = spendActions.reduce((sum, action) => sum + action.budget, 0);
+  if (plannedBudget <= 0) {
+    return {
+      should_continue: false,
+      stop_reason: "no_expandable_lanes",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: actions.length > 0
+        ? actions
+        : [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: "No lane was safe to expand." }],
+    };
+  }
+
+  return {
+    should_continue: true,
+    stop_reason: null,
+    remaining_budget: remainingBudget,
+    planned_budget: plannedBudget,
+    actions,
+  };
+}

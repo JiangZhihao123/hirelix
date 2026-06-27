@@ -55,6 +55,7 @@ import {
 } from "@/lib/search/persistence";
 import {
   buildBrightDataCandidateRows,
+  buildBrightDataRecallFilterForLane,
   buildBrightDataRecallFilters,
   getRecallPersonas,
   getTotalRecallRequestLimit,
@@ -68,6 +69,10 @@ import {
 } from "@/lib/search/scoring-runtime";
 import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring";
 import { normalizeStoredSearchExpansionFeedback } from "@/lib/search-expansion";
+import {
+  planAdaptiveExpansion,
+  type AdaptiveExpansionPlan,
+} from "@/lib/search/adaptive-expansion";
 import {
   buildLaneAuditUserPrompt,
   normalizeLaneAuditResult,
@@ -359,9 +364,125 @@ type RecallFilterSummary = {
 };
 
 const SNAPSHOT_PROFILE_CACHE_RERUN_MODE = "snapshot_profile_cache";
+const ADAPTIVE_RECALL_MAX_NEW_ROUNDS_PER_RUN = 2;
 
 function isSnapshotProfileCacheRerun(parsed: Record<string, unknown>) {
   return parsed.rerun_mode === SNAPSHOT_PROFILE_CACHE_RERUN_MODE;
+}
+
+type AdaptiveRecallActionState = {
+  id: string;
+  type: string;
+  status: string;
+  lane: string;
+  laneKind: HeadhunterLaneKind;
+  budget: number;
+  revisedLane: SourcingLane | null;
+  snapshotId: string | null;
+};
+
+function readAdaptiveRecallState(parsed: Record<string, unknown>) {
+  return parsed.adaptive_recall && typeof parsed.adaptive_recall === "object"
+    ? (parsed.adaptive_recall as Record<string, unknown>)
+    : null;
+}
+
+function helpersNormalizeLaneKind(value: unknown): HeadhunterLaneKind {
+  return value === "primary_relaxed" ||
+    value === "target_company_engineering" ||
+    value === "adjacent_authorized" ||
+    value === "exploration" ||
+    value === "primary_exact"
+    ? value
+    : "primary_exact";
+}
+
+function normalizeAdaptiveRecallAction(
+  action: unknown,
+  index: number,
+): AdaptiveRecallActionState | null {
+  if (!action || typeof action !== "object") return null;
+  const item = action as Record<string, unknown>;
+  const id = typeof item.id === "string" && item.id.trim().length > 0
+    ? item.id.trim()
+    : `adaptive_${index + 1}`;
+  const status = typeof item.status === "string" && item.status.trim().length > 0
+    ? item.status.trim()
+    : "planned";
+  const budget = typeof item.budget === "number" && Number.isFinite(item.budget)
+    ? Math.max(0, Math.round(item.budget))
+    : 0;
+  const lane = typeof item.lane === "string" && item.lane.trim().length > 0
+    ? item.lane.trim()
+    : id;
+  const revisedLane = item.revised_lane && typeof item.revised_lane === "object"
+    ? (item.revised_lane as SourcingLane)
+    : null;
+  return {
+    id,
+    type: typeof item.type === "string" && item.type.trim().length > 0
+      ? item.type.trim()
+      : "expand_lane",
+    status,
+    lane,
+    laneKind: helpersNormalizeLaneKind(item.lane_kind),
+    budget,
+    revisedLane,
+    snapshotId: typeof item.snapshot_id === "string" && item.snapshot_id.trim().length > 0
+      ? item.snapshot_id.trim()
+      : null,
+  };
+}
+
+function getAdaptiveRecallActions(parsed: Record<string, unknown>) {
+  const state = readAdaptiveRecallState(parsed);
+  if (!state || !Array.isArray(state.actions)) {
+    return [];
+  }
+  return state.actions
+    .map(normalizeAdaptiveRecallAction)
+    .filter((action): action is NonNullable<typeof action> => Boolean(action))
+}
+
+function hasPlannedAdaptiveRecallActions(parsed: Record<string, unknown>) {
+  const state = readAdaptiveRecallState(parsed);
+  if (state?.phase !== "planned" || state.should_continue !== true) {
+    return false;
+  }
+  return getAdaptiveRecallActions(parsed)
+    .some((action) =>
+      action.budget > 0 &&
+      action.status !== "done" &&
+      action.status !== "recorded" &&
+      action.status !== "stopped" &&
+      action.status !== "failed"
+    );
+}
+
+function getAdaptiveRecallActionsForRounds(parsed: Record<string, unknown>) {
+  return getAdaptiveRecallActions(parsed)
+    .filter((action) =>
+      action.budget > 0 &&
+      action.revisedLane &&
+      action.status !== "recorded" &&
+      action.status !== "stopped" &&
+      action.status !== "failed"
+    );
+}
+
+function updateAdaptiveRecallAction(
+  parsed: Record<string, unknown>,
+  actionId: string,
+  patch: Record<string, unknown>,
+) {
+  const state = readAdaptiveRecallState(parsed);
+  if (!state || !Array.isArray(state.actions)) return;
+  state.actions = state.actions.map((action) => {
+    if (!action || typeof action !== "object") return action;
+    const item = action as Record<string, unknown>;
+    return item.id === actionId ? { ...item, ...patch } : item;
+  });
+  parsed.adaptive_recall = state;
 }
 
 export function canAdditionalRecallRoundsOwnEmptyStandardSnapshot(
@@ -469,10 +590,12 @@ export function shouldFailUnderfilledRecallAfterSubmittedRounds(params: {
   availableProfileCount: number;
   deferredAdditionalRoundCount: number;
   requestedProfileCount?: number | null;
+  recallStrategyMode?: "legacy" | "headhunter_v1";
 }) {
   if (params.availableProfileCount <= 0 || params.deferredAdditionalRoundCount > 0) {
     return false;
   }
+  if (params.recallStrategyMode === "headhunter_v1") return false;
   return params.availableProfileCount < getRecallReadyProfileThreshold(params.requestedProfileCount);
 }
 
@@ -857,6 +980,57 @@ async function auditHeadhunterRecallLanes(params: {
     laneAuditSummary: summarizeLaneAudits(audits),
     stoppedLaneCount,
   };
+}
+
+function toAdaptiveRecallState(params: {
+  plan: AdaptiveExpansionPlan;
+  plannedAt: string;
+  phase: "planned" | "not_needed";
+  batchIndex: number;
+  previousState?: Record<string, unknown> | null;
+}) {
+  const cleanIdPart = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48) || "lane";
+  const previousActions = Array.isArray(params.previousState?.actions)
+    ? params.previousState.actions
+    : [];
+  return {
+    strategy_mode: "headhunter_v1",
+    phase: params.phase,
+    planned_at: params.plannedAt,
+    batch_index: params.batchIndex,
+    should_continue: params.plan.should_continue,
+    stop_reason: params.plan.stop_reason,
+    remaining_budget: params.plan.remaining_budget,
+    planned_budget: params.plan.planned_budget,
+    actions: [
+      ...previousActions,
+      ...params.plan.actions.map((action, index) => ({
+        id: `adaptive_b${params.batchIndex}_${index + 1}_${cleanIdPart(action.type)}_${cleanIdPart(action.lane)}`,
+        type: action.type,
+        lane: action.lane,
+        lane_kind: action.lane_kind,
+        budget: action.budget,
+        reason: action.reason,
+        source_iteration: action.source_iteration ?? null,
+        revised_lane: action.revised_lane ?? null,
+        status: action.budget > 0 ? "planned" : "recorded",
+        snapshot_id: null,
+        submitted_at: null,
+        completed_at: null,
+        profiles_returned: null,
+        unique_added: null,
+      })),
+    ],
+  };
+}
+
+function getNextAdaptiveRecallBatchIndex(parsed: Record<string, unknown>) {
+  const current = readAdaptiveRecallState(parsed);
+  const value = typeof current?.batch_index === "number" && Number.isFinite(current.batch_index)
+    ? Math.max(0, Math.round(current.batch_index))
+    : 0;
+  return value + 1;
 }
 
 export function buildSearchQualityDiagnosis(stats: {
@@ -1991,9 +2165,77 @@ async function buildBrightDataDatasetCandidates(
   if (!standardRound) {
     return null;
   }
-  const additionalRounds = recallRounds.filter((round) => round.round !== "standard");
+  const adaptiveActionMap = new Map(
+    getAdaptiveRecallActions(parsed).map((action) => [action.id, action]),
+  );
+  let activeAdaptiveRoundCount = 0;
+  const adaptiveRounds = getAdaptiveRecallActionsForRounds(parsed).flatMap((action): RecallRound[] => {
+    if (action.status !== "done") {
+      activeAdaptiveRoundCount += 1;
+      if (activeAdaptiveRoundCount > ADAPTIVE_RECALL_MAX_NEW_ROUNDS_PER_RUN) return [];
+    }
+    const lane = action.revisedLane;
+    if (!lane) return [];
+    const request = buildBrightDataRecallFilterForLane(
+      parsed,
+      lane,
+      action.budget,
+      {
+        normalizeRecallSpec: helpers.normalizeRecallSpec,
+        sanitizeHiringBrief: helpers.sanitizeHiringBrief,
+        buildStandardSkillFilter: helpers.buildStandardSkillFilter,
+        buildRecallLocationFilter: helpers.buildRecallLocationFilter,
+        isPlaceholderTitle: helpers.isPlaceholderTitle,
+      },
+    );
+    if (!request) {
+      updateAdaptiveRecallAction(parsed, action.id, {
+        status: "failed",
+        failed_at: helpers.nowIso(),
+        failure_code: "filter_compile_failed",
+      });
+      helpers.logSearchEvent("search_adaptive_recall_filter_compile_failed", {
+        search_id: context.searchId,
+        job_id: context.jobId,
+        action_id: action.id,
+        lane: action.lane,
+        lane_kind: action.laneKind,
+      });
+      return [];
+    }
+    return [{
+      round: action.id,
+      request,
+      diagnostics: {
+        round: action.id,
+        requested_count: request.recordsLimit,
+        title_terms: lane.title_terms,
+        skill_signal_groups: {
+          search_domain: lane.skill_terms,
+          platform_engineering: lane.skill_terms,
+        },
+        location_mode: "country_only",
+        persona: {
+          id: action.id,
+          kind: action.laneKind === "target_company_engineering" ? "target_company" : "skill_depth",
+          label: `Adaptive ${action.type} from ${action.lane}`,
+          intent: lane.target_persona ?? action.lane,
+          round: action.id,
+          title_terms: lane.title_terms,
+          skill_terms: lane.skill_terms,
+          company_terms: lane.company_terms,
+        },
+      },
+    }];
+  });
+  const additionalRounds = [
+    ...recallRounds.filter((round) => round.round !== "standard"),
+    ...adaptiveRounds,
+  ];
   let recallRequest = standardRound.request;
-  const totalRequestedLimit = getTotalRecallRequestLimit(recallRounds);
+  const allRecallRounds = [standardRound, ...additionalRounds];
+  const totalRequestedLimit = getTotalRecallRequestLimit(allRecallRounds);
+  const baseRequestedLimit = getTotalRecallRequestLimit(recallRounds);
   const recallPersonas = getRecallPersonas(recallRounds);
   const totalProfileScanBudget =
     executionProfile.filterLimit + executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit;
@@ -2004,12 +2246,21 @@ async function buildBrightDataDatasetCandidates(
       : "legacy";
   const effectiveProfileScanBudget =
     recallStrategyMode === "headhunter_v1" ? totalRequestedLimit : totalProfileScanBudget;
+  const baseEffectiveProfileScanBudget =
+    recallStrategyMode === "headhunter_v1" ? baseRequestedLimit : totalProfileScanBudget;
   const persistedAdditionalSnapshots = new Map(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
   let additionalSnapshotRefs: RecallSnapshotRef[] = [];
   const markAdditionalRoundPending = (round: RecallRound, error: unknown, submittedAt: string) => {
     const message = error instanceof Error ? error.message : String(error);
+    if (round.round.startsWith("adaptive_")) {
+      updateAdaptiveRecallAction(parsed, round.round, {
+        status: "failed",
+        failed_at: submittedAt,
+        failure_code: message.slice(0, 180),
+      });
+    }
     persistedAdditionalSnapshots.set(
       round.round,
       helpers.buildAdditionalSnapshotMetadata({
@@ -2071,6 +2322,13 @@ async function buildBrightDataDatasetCandidates(
         snapshot_id: roundSnapshotId,
         records_limit: round.request.recordsLimit,
         job_id: context.jobId,
+      });
+    }
+    if (round.round.startsWith("adaptive_")) {
+      updateAdaptiveRecallAction(parsed, round.round, {
+        status: "submitted",
+        snapshot_id: roundSnapshotId,
+        submitted_at: submittedAt,
       });
     }
     const ref = {
@@ -2263,8 +2521,8 @@ async function buildBrightDataDatasetCandidates(
     filterSummary,
     executionProfile,
     runtime,
-    totalRequestedLimit,
-    effectiveProfileScanBudget,
+    baseRequestedLimit,
+    baseEffectiveProfileScanBudget,
   );
   const shouldKeepSnapshotProfileCache = forceSnapshotProfileCache || shouldReuseProfileCacheDespiteSnapshotDrift({
     hasSnapshotDrift,
@@ -2279,7 +2537,7 @@ async function buildBrightDataDatasetCandidates(
       snapshot_id: existingRecallMetadata?.snapshot_id,
       standard_profile_rows: existingStandardSnapshotRows?.length ?? 0,
       previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
-      next_budget: effectiveProfileScanBudget,
+      next_budget: baseEffectiveProfileScanBudget,
       previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
       next_judge_mode: runtime.judgeMode,
       rerun_mode: forceSnapshotProfileCache ? SNAPSHOT_PROFILE_CACHE_RERUN_MODE : null,
@@ -2293,7 +2551,7 @@ async function buildBrightDataDatasetCandidates(
       previous_filter_summary: existingRecallMetadata?.filter_summary ?? null,
       next_filter_summary: filterSummary,
       previous_budget: existingRecallMetadata?.bright_profile_budget ?? null,
-      next_budget: effectiveProfileScanBudget,
+      next_budget: baseEffectiveProfileScanBudget,
       previous_judge_mode: existingRecallMetadata?.judge_mode ?? null,
       next_judge_mode: runtime.judgeMode,
       job_id: context.jobId,
@@ -2913,9 +3171,9 @@ async function buildBrightDataDatasetCandidates(
       ...additionalSnapshotStates.map((round, index) => ({
         iteration: index + 2,
         lane: round.round,
-        lane_kind: getHeadhunterLaneKindForRound(round.round),
-        budget: round.recordsLimit,
-        snapshot_id: round.snapshotId,
+        lane_kind: adaptiveActionMap.get(round.round)?.laneKind ?? getHeadhunterLaneKindForRound(round.round),
+        budget: adaptiveActionMap.get(round.round)?.budget ?? round.recordsLimit,
+        snapshot_id: adaptiveActionMap.get(round.round)?.snapshotId ?? round.snapshotId,
         audit: null,
         continue_expansion: null,
       })),
@@ -3008,6 +3266,13 @@ async function buildBrightDataDatasetCandidates(
     for (const roundRef of additionalSnapshotStates) {
       const { round, snapshotId: roundSnapId, metadata: roundMeta } = roundRef;
       if (roundMeta.status !== "ready") {
+        if (round.startsWith("adaptive_") && roundMeta.status === "failed") {
+          updateAdaptiveRecallAction(parsed, round, {
+            status: "failed",
+            failed_at: helpers.nowIso(),
+            failure_code: String(roundMeta.warning_code ?? roundMeta.error_code ?? "snapshot_failed").slice(0, 180),
+          });
+        }
         helpers.logSearchEvent("search_multi_round_deferred", {
           search_id: context.searchId,
           round,
@@ -3058,10 +3323,18 @@ async function buildBrightDataDatasetCandidates(
                 profilesReturned: null,
               }),
             );
+            if (round.startsWith("adaptive_")) {
+              updateAdaptiveRecallAction(parsed, round, {
+                status: "failed",
+                failed_at: helpers.nowIso(),
+                failure_code: "cached_snapshot_download_unavailable",
+              });
+            }
             additionalReturnedCounts.set(round, 0);
             continue;
           }
           if (!helpers.isTransientSnapshotDownloadError(error)) {
+            const failureCode = error instanceof Error ? error.message.slice(0, 180) : String(error).slice(0, 180);
             persistedAdditionalSnapshots.set(
               round,
               helpers.buildAdditionalSnapshotMetadata({
@@ -3072,10 +3345,17 @@ async function buildBrightDataDatasetCandidates(
                 status: "failed",
                 submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
                 failedAt: helpers.nowIso(),
-                failureCode: error instanceof Error ? error.message.slice(0, 180) : String(error).slice(0, 180),
+                failureCode,
                 profilesReturned: null,
               }),
             );
+            if (round.startsWith("adaptive_")) {
+              updateAdaptiveRecallAction(parsed, round, {
+                status: "failed",
+                failed_at: helpers.nowIso(),
+                failure_code: failureCode,
+              });
+            }
             additionalReturnedCounts.set(round, 0);
             helpers.logSearchEvent("search_multi_round_download_failed_nonblocking", {
               search_id: context.searchId,
@@ -3137,6 +3417,14 @@ async function buildBrightDataDatasetCandidates(
       );
       additionalReturnedCounts.set(round, roundProfiles.length);
       if (roundProfiles.length === 0) {
+        if (round.startsWith("adaptive_")) {
+          updateAdaptiveRecallAction(parsed, round, {
+            status: "done",
+            completed_at: helpers.nowIso(),
+            profiles_returned: 0,
+            unique_added: 0,
+          });
+        }
         helpers.logSearchEvent("search_multi_round_empty", {
           search_id: context.searchId,
           round,
@@ -3170,6 +3458,14 @@ async function buildBrightDataDatasetCandidates(
         unique_added: addedCount,
         job_id: context.jobId,
       });
+      if (round.startsWith("adaptive_")) {
+        updateAdaptiveRecallAction(parsed, round, {
+          status: "done",
+          completed_at: helpers.nowIso(),
+          profiles_returned: roundProfiles.length,
+          unique_added: addedCount,
+        });
+      }
     }
   }
 
@@ -3497,16 +3793,117 @@ async function buildBrightDataDatasetCandidates(
       helpers,
     })
     : null;
+  const effectiveRecallIterations =
+    laneAuditState?.recallIterations ??
+    recallMetadataBeforeLaneAudit.recall_iterations ??
+    recallIterations;
+  const displayStatsBeforeAdaptive = helpers.buildSearchDisplayStats({
+    ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
+    ...combinedResult.displayStats,
+  });
+  const pendingAdaptiveActionsAfterScoring = hasPlannedAdaptiveRecallActions(parsed);
+  const adaptivePlan = recallStrategyMode === "headhunter_v1" && !pendingAdaptiveActionsAfterScoring
+    ? planAdaptiveExpansion({
+      parsed,
+      recallMetadata: {
+        ...recallMetadataBeforeLaneAudit,
+        recall_iterations: effectiveRecallIterations,
+        round_diagnostics: roundDiagnosticsWithQuality,
+      },
+      displayStats: displayStatsBeforeAdaptive,
+      recallSpec,
+      totalBudget: context.candidateCount,
+    })
+    : null;
+  const laneAuditSummary =
+    laneAuditState?.laneAuditSummary ??
+    (recallStrategyMode === "headhunter_v1"
+      ? "Lane audit could not be completed; inspect scheduler logs for lane audit failures."
+      : undefined);
+  const resultDisplayStats = helpers.buildSearchDisplayStats({
+    ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
+    ...combinedResult.displayStats,
+    bright_snapshot_cost: resolvedRecallCost ?? undefined,
+    bright_profile_budget: effectiveProfileScanBudget,
+    bright_profiles_requested: totalRequestedLimit,
+    bright_profiles_returned: allProfiles.length,
+    judge_mode: runtime.judgeMode,
+    recall_strategy_mode: recallStrategyMode,
+    recall_iteration_count: effectiveRecallIterations.length || recallIterations.length,
+    lane_audit_summary: laneAuditSummary,
+    actionable_candidate_count: combinedResult.displayStats.recommended_count,
+    stopped_lane_count: laneAuditState?.stoppedLaneCount,
+    adaptive_recall_planned_budget: adaptivePlan?.planned_budget,
+    adaptive_recall_remaining_budget: adaptivePlan?.remaining_budget,
+  });
+  const previousAdaptiveState = readAdaptiveRecallState(parsed);
+  if (adaptivePlan && adaptivePlan.should_continue && adaptivePlan.planned_budget > 0) {
+    const plannedAt = helpers.nowIso();
+    const batchIndex = getNextAdaptiveRecallBatchIndex(parsed);
+    parsed.adaptive_recall = toAdaptiveRecallState({
+      plan: adaptivePlan,
+      plannedAt,
+      phase: "planned",
+      batchIndex,
+      previousState: previousAdaptiveState,
+    });
+    helpers.logSearchEvent("search_adaptive_recall_planned", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      should_continue: adaptivePlan.should_continue,
+      stop_reason: adaptivePlan.stop_reason,
+      batch_index: batchIndex,
+      planned_budget: adaptivePlan.planned_budget,
+      remaining_budget: adaptivePlan.remaining_budget,
+      actions: adaptivePlan.actions.map((action) => ({
+        type: action.type,
+        lane: action.lane,
+        lane_kind: action.lane_kind,
+        budget: action.budget,
+      })),
+    });
+  } else if (adaptivePlan) {
+    parsed.adaptive_recall = toAdaptiveRecallState({
+      plan: adaptivePlan,
+      plannedAt: helpers.nowIso(),
+      phase: "not_needed",
+      batchIndex: typeof previousAdaptiveState?.batch_index === "number" && Number.isFinite(previousAdaptiveState.batch_index)
+        ? Math.max(0, Math.round(previousAdaptiveState.batch_index))
+        : 0,
+      previousState: previousAdaptiveState,
+    });
+  }
   parsed.recall_metadata = {
     ...recallMetadataBeforeLaneAudit,
     provider: "brightdata_dataset",
     snapshot_id: activeSnapshotId,
-    ...(laneAuditState?.recallIterations
-      ? { recall_iterations: laneAuditState.recallIterations }
-      : {}),
+    recall_iterations: effectiveRecallIterations,
     recall_personas: recallPersonas,
     round_diagnostics: roundDiagnosticsWithQuality,
   };
+  parsed.display_stats = resultDisplayStats;
+
+  if (adaptivePlan && adaptivePlan.should_continue && adaptivePlan.planned_budget > 0) {
+    await upsertCandidatesForSearch(context.searchId, combinedResult.finalRows, {
+      replaceMissing: false,
+    });
+    await updateSearchParsedRequirements(context.searchId, parsed);
+    await setSearchStatus(context.searchId, "deep_scoring", {
+      parsed_requirements: parsed,
+    });
+    helpers.logSearchEvent("search_adaptive_recall_requeued", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      planned_budget: adaptivePlan.planned_budget,
+      remaining_budget: adaptivePlan.remaining_budget,
+      current_profiles: allProfiles.length,
+      current_actionable_candidates: combinedResult.displayStats.recommended_count,
+    });
+    throw new DatasetRecallPendingError(
+      `Adaptive headhunter recall planned ${adaptivePlan.planned_budget} additional profile(s)`,
+      { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
+    );
+  }
 
   helpers.logSearchEvent("search_step_completed", {
     search_id: context.searchId,
@@ -3528,27 +3925,7 @@ async function buildBrightDataDatasetCandidates(
 
   return {
     ...combinedResult,
-    displayStats: helpers.buildSearchDisplayStats({
-      ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
-      ...combinedResult.displayStats,
-      bright_snapshot_cost: resolvedRecallCost ?? undefined,
-      bright_profile_budget: effectiveProfileScanBudget,
-      bright_profiles_requested: totalRequestedLimit,
-      bright_profiles_returned: allProfiles.length,
-      judge_mode: runtime.judgeMode,
-      recall_strategy_mode: recallStrategyMode,
-      recall_iteration_count:
-        laneAuditState?.recallIterations.length ??
-        recallMetadataBeforeLaneAudit.recall_iterations?.length ??
-        recallIterations.length,
-      lane_audit_summary:
-        laneAuditState?.laneAuditSummary ??
-        (recallStrategyMode === "headhunter_v1"
-          ? "Lane audit could not be completed; inspect scheduler logs for lane audit failures."
-          : undefined),
-      actionable_candidate_count: combinedResult.displayStats.recommended_count,
-      stopped_lane_count: laneAuditState?.stoppedLaneCount,
-    }),
+    displayStats: resultDisplayStats,
   };
 }
 
