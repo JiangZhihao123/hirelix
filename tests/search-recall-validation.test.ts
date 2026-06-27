@@ -196,6 +196,44 @@ test("validateRecallLanes downloads existing cache snapshots without resubmittin
   assert.equal(report.rounds[0]?.returned, 1);
 });
 
+test("validateRecallLanes reuses cached snapshot rows across source rounds", async () => {
+  let downloadCalls = 0;
+  let fallbackRequested = false;
+  const deps: RecallLaneValidationDependencies = {
+    lookupCachedSnapshot: async () => ({
+      snapshotId: "snapshot-cache",
+      datasetSize: 1,
+      cost: null,
+      expiresAt: "2026-07-01T00:00:00.000Z",
+    }),
+    loadCachedSnapshotProfiles: async (_snapshotId, sourceRound, options) => {
+      fallbackRequested = options?.fallbackAnyRound === true;
+      if (sourceRound === "adaptive_b2_1_revise_lane_standard" && options?.fallbackAnyRound) {
+        return [profileRow()];
+      }
+      return null;
+    },
+    downloadDatasetSnapshot: async () => {
+      downloadCalls += 1;
+      return [profileRow()];
+    },
+  };
+
+  const report = await validateRecallLanes(
+    [round("adaptive_b2_1_revise_lane_standard", 20)],
+    deps,
+    {
+      allowBright: true,
+      now: () => new Date("2026-06-20T00:00:00.000Z"),
+    },
+  );
+
+  assert.equal(fallbackRequested, true);
+  assert.equal(downloadCalls, 0);
+  assert.equal(report.rounds[0]?.status, "cache_hit");
+  assert.equal(report.rounds[0]?.returned, 1);
+});
+
 test("validateRecallLanes downloads historical snapshots without resubmitting Bright", async () => {
   let triggerCalls = 0;
   let downloadedSnapshotId: string | null = null;

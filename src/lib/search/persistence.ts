@@ -30,6 +30,7 @@ export type SnapshotCacheEntry = {
 export type SnapshotProfilePersistResult = {
   ok: boolean;
   rowCount: number;
+  reusedExisting?: boolean;
   error?: unknown;
 };
 
@@ -519,9 +520,10 @@ export async function expireCachedSnapshot(snapshotId: string): Promise<void> {
 export async function loadCachedSnapshotProfiles(
   snapshotId: string,
   sourceRound: string,
+  options?: { fallbackAnyRound?: boolean },
 ): Promise<Record<string, unknown>[] | null> {
   try {
-    const data = await db
+    let data = await db
       .select({ raw_data: hirelix_snapshot_profiles.raw_data })
       .from(hirelix_snapshot_profiles)
       .where(
@@ -534,6 +536,24 @@ export async function loadCachedSnapshotProfiles(
         sql`${hirelix_snapshot_profiles.record_index} ASC NULLS LAST`,
         asc(hirelix_snapshot_profiles.created_at),
       );
+    if ((!data || data.length === 0) && options?.fallbackAnyRound) {
+      data = await db
+        .select({ raw_data: hirelix_snapshot_profiles.raw_data })
+        .from(hirelix_snapshot_profiles)
+        .where(eq(hirelix_snapshot_profiles.snapshot_id, snapshotId))
+        .orderBy(
+          sql`${hirelix_snapshot_profiles.record_index} ASC NULLS LAST`,
+          asc(hirelix_snapshot_profiles.created_at),
+        );
+      if (data?.length) {
+        snapshotLogger.info({
+          event: "snapshot_profiles_load_fallback_hit",
+          snapshot_id: snapshotId,
+          source_round: sourceRound,
+          rows: data.length,
+        });
+      }
+    }
     if (!data || data.length === 0) return null;
     return data
       .map((row) => row.raw_data)
@@ -609,7 +629,35 @@ export async function persistSnapshotProfiles(
     for (let index = 0; index < rows.length; index += batchSize) {
       await db
         .insert(hirelix_snapshot_profiles)
-        .values(rows.slice(index, index + batchSize));
+        .values(rows.slice(index, index + batchSize))
+        .onConflictDoNothing();
+    }
+    const persisted = await db
+      .select({ id: hirelix_snapshot_profiles.id })
+      .from(hirelix_snapshot_profiles)
+      .where(
+        and(
+          eq(hirelix_snapshot_profiles.snapshot_id, params.snapshotId),
+          eq(hirelix_snapshot_profiles.source_round, params.sourceRound),
+        ),
+      );
+    const rowCount = persisted.length;
+    if (rowCount === 0) {
+      const existing = await db
+        .select({ id: hirelix_snapshot_profiles.id })
+        .from(hirelix_snapshot_profiles)
+        .where(eq(hirelix_snapshot_profiles.snapshot_id, params.snapshotId));
+      if (existing.length > 0) {
+        snapshotLogger.info({
+          event: "snapshot_profiles_reused_existing",
+          snapshot_id: params.snapshotId,
+          search_id: params.searchId,
+          job_id: params.jobId,
+          source_round: params.sourceRound,
+          row_count: existing.length,
+        });
+        return { ok: true, rowCount: existing.length, reusedExisting: true };
+      }
     }
 
     snapshotLogger.info({
@@ -618,9 +666,9 @@ export async function persistSnapshotProfiles(
       search_id: params.searchId,
       job_id: params.jobId,
       source_round: params.sourceRound,
-      row_count: rows.length,
+      row_count: rowCount,
     });
-    return { ok: true, rowCount: rows.length };
+    return { ok: true, rowCount };
   } catch (error) {
     snapshotLogger.error({
       event: "snapshot_profiles_persist_failed",

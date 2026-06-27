@@ -219,6 +219,7 @@ type SearchPipelineHelpers = {
     round: string;
     snapshotId?: string | null;
     recordsLimit?: number | null;
+    filterHash?: string | null;
     existing?: AdditionalRecallSnapshot | null;
     status?: AdditionalRecallSnapshot["status"];
     submittedAt?: string | null;
@@ -353,6 +354,8 @@ type RecallSnapshotRef = {
   cacheEntry?: SnapshotCacheEntry | null;
 };
 
+type RecallIteration = NonNullable<RecallMetadata["recall_iterations"]>[number];
+
 type RecallFilterSummary = {
   title_terms: string[];
   country_codes: string[];
@@ -483,6 +486,46 @@ function updateAdaptiveRecallAction(
     return item.id === actionId ? { ...item, ...patch } : item;
   });
   parsed.adaptive_recall = state;
+}
+
+function getRecallIterationMergeKeys(iteration: RecallIteration) {
+  const keys = [`lane:${iteration.lane}`];
+  if (iteration.filter_hash) {
+    keys.push(`filter:${iteration.filter_hash}`);
+    keys.push(`lane-filter:${iteration.lane}:${iteration.filter_hash}`);
+  }
+  if (iteration.snapshot_id) {
+    keys.push(`snapshot:${iteration.snapshot_id}`);
+    keys.push(`lane-snapshot:${iteration.lane}:${iteration.snapshot_id}`);
+  }
+  return keys;
+}
+
+export function mergeRecallIterations(
+  previous: RecallIteration[] | null | undefined,
+  next: RecallIteration[],
+): RecallIteration[] {
+  if (!previous?.length) return next;
+  const previousByKey = new Map<string, RecallIteration>();
+  for (const iteration of previous) {
+    for (const key of getRecallIterationMergeKeys(iteration)) {
+      previousByKey.set(key, iteration);
+    }
+  }
+  return next.map((iteration) => {
+    const previousMatch = getRecallIterationMergeKeys(iteration)
+      .map((key) => previousByKey.get(key))
+      .find(Boolean);
+    if (!previousMatch) return iteration;
+    return {
+      ...iteration,
+      audit: iteration.audit ?? previousMatch.audit ?? null,
+      continue_expansion:
+        typeof iteration.continue_expansion === "boolean"
+          ? iteration.continue_expansion
+          : previousMatch.continue_expansion ?? null,
+    };
+  });
 }
 
 export function canAdditionalRecallRoundsOwnEmptyStandardSnapshot(
@@ -2147,6 +2190,11 @@ async function buildBrightDataDatasetCandidates(
   }
   let snapshotId = existingRecallMetadata?.snapshot_id ?? null;
   let requestedAt = existingRecallMetadata?.requested_at ? Date.parse(existingRecallMetadata.requested_at) : Number.NaN;
+  const recallStrategyMode =
+    parsed.recall_strategy_mode === "headhunter_v1" ||
+    (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase() === "headhunter_v1"
+      ? "headhunter_v1"
+      : "legacy";
   const recallRounds = buildBrightDataRecallFilters(
     parsed,
     context.candidateCount,
@@ -2168,18 +2216,19 @@ async function buildBrightDataDatasetCandidates(
   const adaptiveActionMap = new Map(
     getAdaptiveRecallActions(parsed).map((action) => [action.id, action]),
   );
-  let activeAdaptiveRoundCount = 0;
-  const adaptiveRounds = getAdaptiveRecallActionsForRounds(parsed).flatMap((action): RecallRound[] => {
-    if (action.status !== "done") {
-      activeAdaptiveRoundCount += 1;
-      if (activeAdaptiveRoundCount > ADAPTIVE_RECALL_MAX_NEW_ROUNDS_PER_RUN) return [];
-    }
-    const lane = action.revisedLane;
-    if (!lane) return [];
-    const request = buildBrightDataRecallFilterForLane(
+  const usedRecallFilterHashes = new Set<string>();
+  const existingRoundDiagnostics = existingRecallMetadata?.round_diagnostics ?? [];
+  for (const diagnostic of existingRoundDiagnostics) {
+    if (diagnostic.filter_hash) usedRecallFilterHashes.add(diagnostic.filter_hash);
+  }
+  for (const round of recallRounds) {
+    usedRecallFilterHashes.add(computeFilterHash(round.request));
+  }
+  const buildAdaptiveRecallLaneRequest = (lane: SourcingLane, budget: number) =>
+    buildBrightDataRecallFilterForLane(
       parsed,
       lane,
-      action.budget,
+      budget,
       {
         normalizeRecallSpec: helpers.normalizeRecallSpec,
         sanitizeHiringBrief: helpers.sanitizeHiringBrief,
@@ -2188,6 +2237,15 @@ async function buildBrightDataDatasetCandidates(
         isPlaceholderTitle: helpers.isPlaceholderTitle,
       },
     );
+  let activeAdaptiveRoundCount = 0;
+  const adaptiveRounds = getAdaptiveRecallActionsForRounds(parsed).flatMap((action): RecallRound[] => {
+    if (action.status !== "done") {
+      activeAdaptiveRoundCount += 1;
+      if (activeAdaptiveRoundCount > ADAPTIVE_RECALL_MAX_NEW_ROUNDS_PER_RUN) return [];
+    }
+    const lane = action.revisedLane;
+    if (!lane) return [];
+    const request = buildAdaptiveRecallLaneRequest(lane, action.budget);
     if (!request) {
       updateAdaptiveRecallAction(parsed, action.id, {
         status: "failed",
@@ -2203,6 +2261,26 @@ async function buildBrightDataDatasetCandidates(
       });
       return [];
     }
+    const requestHash = computeFilterHash(request);
+    if (usedRecallFilterHashes.has(requestHash)) {
+      updateAdaptiveRecallAction(parsed, action.id, {
+        status: "recorded",
+        completed_at: helpers.nowIso(),
+        failure_code: "duplicate_revision_filter_hash",
+        profiles_returned: 0,
+        unique_added: 0,
+      });
+      helpers.logSearchEvent("search_adaptive_recall_duplicate_filter_skipped", {
+        search_id: context.searchId,
+        job_id: context.jobId,
+        action_id: action.id,
+        lane: action.lane,
+        lane_kind: action.laneKind,
+        filter_hash: requestHash,
+      });
+      return [];
+    }
+    usedRecallFilterHashes.add(requestHash);
     return [{
       round: action.id,
       request,
@@ -2239,11 +2317,6 @@ async function buildBrightDataDatasetCandidates(
   const recallPersonas = getRecallPersonas(recallRounds);
   const totalProfileScanBudget =
     executionProfile.filterLimit + executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit;
-  const recallStrategyMode =
-    parsed.recall_strategy_mode === "headhunter_v1" ||
-    (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase() === "headhunter_v1"
-      ? "headhunter_v1"
-      : "legacy";
   const effectiveProfileScanBudget =
     recallStrategyMode === "headhunter_v1" ? totalRequestedLimit : totalProfileScanBudget;
   const baseEffectiveProfileScanBudget =
@@ -2267,6 +2340,7 @@ async function buildBrightDataDatasetCandidates(
         round: round.round,
         snapshotId: null,
         recordsLimit: round.request.recordsLimit,
+        filterHash: computeFilterHash(round.request),
         existing: persistedAdditionalSnapshots.get(round.round) ?? null,
         status: "failed",
         submittedAt,
@@ -2347,6 +2421,7 @@ async function buildBrightDataDatasetCandidates(
         round: round.round,
         snapshotId: roundSnapshotId,
         recordsLimit: round.request.recordsLimit,
+        filterHash: roundHash,
         existing: persistedAdditionalSnapshots.get(round.round) ?? null,
         status: "submitted",
         submittedAt,
@@ -2363,6 +2438,7 @@ async function buildBrightDataDatasetCandidates(
           round: submitted.round,
           snapshotId: submitted.snapshotId,
           recordsLimit: submitted.recordsLimit,
+          filterHash: submitted.filterHash,
           existing: persistedAdditionalSnapshots.get(submitted.round) ?? null,
           status: "submitted",
           submittedAt: submitted.submittedAt,
@@ -2372,6 +2448,7 @@ async function buildBrightDataDatasetCandidates(
         round: round.round,
         snapshotId: null,
         recordsLimit: round.request.recordsLimit,
+        filterHash: computeFilterHash(round.request),
         existing: persistedAdditionalSnapshots.get(round.round) ?? null,
         status: persistedAdditionalSnapshots.get(round.round)?.status ?? "failed",
       });
@@ -2408,12 +2485,16 @@ async function buildBrightDataDatasetCandidates(
   };
   let standardCacheEntry: SnapshotCacheEntry | null = null;
   const preloadedSnapshotProfileRows = new Map<string, Record<string, unknown>[] | null>();
-  const getSnapshotProfileRows = async (targetSnapshotId: string, sourceRound: string) => {
-    const key = `${targetSnapshotId}:${sourceRound}`;
+  const getSnapshotProfileRows = async (
+    targetSnapshotId: string,
+    sourceRound: string,
+    options?: { fallbackAnyRound?: boolean },
+  ) => {
+    const key = `${targetSnapshotId}:${sourceRound}:${options?.fallbackAnyRound ? "fallback" : "exact"}`;
     if (preloadedSnapshotProfileRows.has(key)) {
       return preloadedSnapshotProfileRows.get(key) ?? null;
     }
-    const rows = await loadCachedSnapshotProfiles(targetSnapshotId, sourceRound);
+    const rows = await loadCachedSnapshotProfiles(targetSnapshotId, sourceRound, options);
     const cachedRows = rows?.length ? rows : null;
     preloadedSnapshotProfileRows.set(key, cachedRows);
     return cachedRows;
@@ -2786,7 +2867,9 @@ async function buildBrightDataDatasetCandidates(
 
   const additionalSnapshotStates = await Promise.all(
     additionalSnapshotRefs.map(async (round) => {
-      const cachedRoundRows = await getSnapshotProfileRows(round.snapshotId, round.round);
+      const cachedRoundRows = await getSnapshotProfileRows(round.snapshotId, round.round, {
+        fallbackAnyRound: Boolean(round.cacheEntry),
+      });
       if (cachedRoundRows?.length) {
         helpers.logSearchEvent("search_snapshot_profile_cache_hit", {
           search_id: context.searchId,
@@ -2884,6 +2967,7 @@ async function buildBrightDataDatasetCandidates(
         round: round.round,
         snapshotId: round.snapshotId,
         recordsLimit: round.recordsLimit,
+        filterHash: round.filterHash,
         existing: persistedAdditionalSnapshots.get(round.round) ?? null,
         status: helpers.mapSnapshotStatus(round.metadata),
         submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
@@ -2980,6 +3064,7 @@ async function buildBrightDataDatasetCandidates(
           round: round.round,
           snapshotId: round.snapshotId,
           recordsLimit: round.recordsLimit,
+          filterHash: round.filterHash,
           existing: persistedAdditionalSnapshots.get(round.round) ?? null,
           status: helpers.mapSnapshotStatus(round.metadata),
           submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
@@ -3157,7 +3242,11 @@ async function buildBrightDataDatasetCandidates(
   const timeToStandardRecallReadyMs =
     helpers.elapsedSince(searchStartedAt, standardRecallReadyAt) ?? (Date.now() - requestedAt);
   parsed.recall_provider = "brightdata_dataset";
-  const recallIterations = recallStrategyMode === "headhunter_v1"
+  const previousRecallIterations =
+    helpers.normalizeRecallMetadata(parsed.recall_metadata)?.recall_iterations ??
+    existingRecallMetadata?.recall_iterations ??
+    [];
+  const nextRecallIterations = recallStrategyMode === "headhunter_v1"
     ? [
       {
         iteration: 1,
@@ -3165,6 +3254,7 @@ async function buildBrightDataDatasetCandidates(
         lane_kind: getHeadhunterLaneKindForRound("standard"),
         budget: standardRound.request.recordsLimit,
         snapshot_id: activeSnapshotId,
+        filter_hash: computeFilterHash(standardRound.request),
         audit: null,
         continue_expansion: null,
       },
@@ -3174,10 +3264,14 @@ async function buildBrightDataDatasetCandidates(
         lane_kind: adaptiveActionMap.get(round.round)?.laneKind ?? getHeadhunterLaneKindForRound(round.round),
         budget: adaptiveActionMap.get(round.round)?.budget ?? round.recordsLimit,
         snapshot_id: adaptiveActionMap.get(round.round)?.snapshotId ?? round.snapshotId,
+        filter_hash: round.filterHash,
         audit: null,
         continue_expansion: null,
       })),
     ]
+    : [];
+  const recallIterations = recallStrategyMode === "headhunter_v1"
+    ? mergeRecallIterations(previousRecallIterations, nextRecallIterations)
     : [];
 
   parsed.recall_metadata = {
@@ -3204,6 +3298,7 @@ async function buildBrightDataDatasetCandidates(
         round: round.round,
         snapshotId: round.snapshotId,
         recordsLimit: round.recordsLimit,
+        filterHash: round.filterHash,
         existing: persistedAdditionalSnapshots.get(round.round) ?? null,
         status: helpers.mapSnapshotStatus(round.metadata),
         submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
@@ -3229,9 +3324,14 @@ async function buildBrightDataDatasetCandidates(
     recall_strategy_mode: recallStrategyMode,
     recall_iteration_count: recallIterations.length || recallRounds.length,
     lane_audit_summary:
-      recallStrategyMode === "headhunter_v1"
-        ? "Initial headhunter probe recalled primary exact and relaxed lanes; lane audit pending after scoring."
-        : undefined,
+      recallStrategyMode === "headhunter_v1" &&
+      typeof parsed.display_stats === "object" &&
+      parsed.display_stats &&
+      typeof (parsed.display_stats as Record<string, unknown>).lane_audit_summary === "string"
+        ? ((parsed.display_stats as Record<string, unknown>).lane_audit_summary as string)
+        : recallStrategyMode === "headhunter_v1"
+          ? "Initial headhunter probe recalled primary exact and relaxed lanes; lane audit pending after scoring."
+          : undefined,
     recall_profile_count: profiles.length,
     retrieval_count: profiles.length,
     deep_review_requested_count: profiles.length,
@@ -3315,6 +3415,7 @@ async function buildBrightDataDatasetCandidates(
                 round,
                 snapshotId: roundSnapId,
                 recordsLimit: roundRef.recordsLimit,
+                filterHash: roundRef.filterHash,
                 existing: persistedAdditionalSnapshots.get(round) ?? null,
                 status: "failed",
                 submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
@@ -3341,6 +3442,7 @@ async function buildBrightDataDatasetCandidates(
                 round,
                 snapshotId: roundSnapId,
                 recordsLimit: roundRef.recordsLimit,
+                filterHash: roundRef.filterHash,
                 existing: persistedAdditionalSnapshots.get(round) ?? null,
                 status: "failed",
                 submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
@@ -3372,6 +3474,7 @@ async function buildBrightDataDatasetCandidates(
               round,
               snapshotId: roundSnapId,
               recordsLimit: roundRef.recordsLimit,
+              filterHash: roundRef.filterHash,
               existing: persistedAdditionalSnapshots.get(round) ?? null,
               status: "ready",
               submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
@@ -3404,6 +3507,7 @@ async function buildBrightDataDatasetCandidates(
           round,
           snapshotId: roundSnapId,
           recordsLimit: roundRef.recordsLimit,
+          filterHash: roundRef.filterHash,
           existing: persistedAdditionalSnapshots.get(round) ?? null,
           status: "ready",
           submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
@@ -3535,6 +3639,7 @@ async function buildBrightDataDatasetCandidates(
           round: round.round,
           snapshotId: round.snapshotId,
           recordsLimit: round.recordsLimit,
+          filterHash: round.filterHash,
           existing: persistedAdditionalSnapshots.get(round.round) ?? null,
           status: persistedAdditionalSnapshots.get(round.round)?.status ?? "polling",
           submittedAt: round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
@@ -3607,6 +3712,7 @@ async function buildBrightDataDatasetCandidates(
       round: round.round,
       snapshotId: round.snapshotId,
       recordsLimit: round.recordsLimit,
+      filterHash: round.filterHash,
       existing: null,
       status: "ready",
       submittedAt: round.submittedAt ?? null,
@@ -3654,6 +3760,7 @@ async function buildBrightDataDatasetCandidates(
       availableProfileCount: allProfiles.length,
       deferredAdditionalRoundCount: deferredAdditionalRounds.length + downloadDeferredAdditionalRounds.length,
       requestedProfileCount: totalRequestedLimit,
+      recallStrategyMode,
     })
   ) {
     helpers.logSearchEvent("search_recall_underfilled_after_all_rounds", {
@@ -3813,6 +3920,11 @@ async function buildBrightDataDatasetCandidates(
       displayStats: displayStatsBeforeAdaptive,
       recallSpec,
       totalBudget: context.candidateCount,
+      isDuplicateRevision: ({ revised_lane: revisedLane, budget }) => {
+        const request = buildAdaptiveRecallLaneRequest(revisedLane, budget);
+        if (!request) return false;
+        return usedRecallFilterHashes.has(computeFilterHash(request));
+      },
     })
     : null;
   const laneAuditSummary =
@@ -3881,7 +3993,16 @@ async function buildBrightDataDatasetCandidates(
     recall_personas: recallPersonas,
     round_diagnostics: roundDiagnosticsWithQuality,
   };
-  parsed.display_stats = resultDisplayStats;
+  if (laneAuditState) {
+    parsed.display_stats = helpers.buildSearchDisplayStats({
+      ...resultDisplayStats,
+      lane_audit_summary: laneAuditState.laneAuditSummary,
+      stopped_lane_count: laneAuditState.stoppedLaneCount,
+    });
+  }
+  if (!laneAuditState) {
+    parsed.display_stats = resultDisplayStats;
+  }
 
   if (adaptivePlan && adaptivePlan.should_continue && adaptivePlan.planned_budget > 0) {
     await upsertCandidatesForSearch(context.searchId, combinedResult.finalRows, {

@@ -474,6 +474,7 @@ export type RecallMetadata = {
     lane_kind?: HeadhunterLaneKind | null;
     budget: number;
     snapshot_id?: string | null;
+    filter_hash?: string | null;
     audit?: {
       decision: "expand" | "revise" | "stop" | "escalate_adjacent";
       quality_grade: "A" | "B" | "C" | "D";

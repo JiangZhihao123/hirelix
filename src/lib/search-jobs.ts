@@ -1705,6 +1705,7 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
               ? Math.max(0, Math.round(iteration.budget))
               : 0,
           snapshot_id: normalizeNullableString(iteration.snapshot_id),
+          filter_hash: normalizeNullableString(iteration.filter_hash),
           audit: auditDecision && auditGrade
             ? {
               decision: auditDecision,
@@ -1789,6 +1790,7 @@ function buildAdditionalSnapshotMetadata(params: {
   round: string;
   snapshotId?: string | null;
   recordsLimit?: number | null;
+  filterHash?: string | null;
   existing?: AdditionalRecallSnapshot | null;
   status?: AdditionalRecallSnapshot["status"];
   submittedAt?: string | null;
@@ -1811,6 +1813,7 @@ function buildAdditionalSnapshotMetadata(params: {
     round: params.round,
     snapshot_id: params.snapshotId ?? existing?.snapshot_id ?? null,
     records_limit: params.recordsLimit ?? existing?.records_limit ?? null,
+    filter_hash: params.filterHash ?? existing?.filter_hash ?? null,
     requested_count: params.recordsLimit ?? existing?.requested_count ?? null,
     status: params.status ?? existing?.status,
     submitted_at: params.submittedAt ?? existing?.submitted_at ?? null,

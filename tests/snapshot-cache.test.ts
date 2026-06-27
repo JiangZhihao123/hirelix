@@ -4,6 +4,7 @@ import { getSnapshotCacheTtlDays } from "../src/lib/search/persistence";
 import {
   canAdditionalRecallRoundsOwnEmptyStandardSnapshot,
   getRecallReadyProfileThreshold,
+  mergeRecallIterations,
   shouldContinueScoringWithStandardRecall,
   shouldFailUnderfilledRecallAfterSubmittedRounds,
   shouldTimeoutAdditionalRecallBeforeScoring,
@@ -184,6 +185,67 @@ test("headhunter recall lets lane audit decide underfilled probe quality", () =>
     }),
     false,
   );
+});
+
+test("headhunter recall does not fail a 90 of 130 partial pool", () => {
+  assert.equal(
+    shouldFailUnderfilledRecallAfterSubmittedRounds({
+      availableProfileCount: 90,
+      deferredAdditionalRoundCount: 0,
+      requestedProfileCount: 130,
+      recallStrategyMode: "headhunter_v1",
+    }),
+    false,
+  );
+});
+
+test("legacy recall still fails a 90 of 130 underfilled pool", () => {
+  assert.equal(
+    shouldFailUnderfilledRecallAfterSubmittedRounds({
+      availableProfileCount: 90,
+      deferredAdditionalRoundCount: 0,
+      requestedProfileCount: 130,
+      recallStrategyMode: "legacy",
+    }),
+    true,
+  );
+});
+
+test("recall iteration merge preserves audit by filter hash", () => {
+  const merged = mergeRecallIterations(
+    [
+      {
+        iteration: 1,
+        lane: "adaptive_b1_1_revise_lane_standard",
+        lane_kind: "primary_exact",
+        budget: 20,
+        snapshot_id: "snap_adaptive",
+        filter_hash: "same-filter",
+        audit: {
+          decision: "revise",
+          quality_grade: "C",
+          summary: "Needs tighter backend evidence.",
+        },
+        continue_expansion: false,
+      },
+    ],
+    [
+      {
+        iteration: 2,
+        lane: "standard",
+        lane_kind: "primary_exact",
+        budget: 20,
+        snapshot_id: "snap_adaptive",
+        filter_hash: "same-filter",
+        audit: null,
+        continue_expansion: null,
+      },
+    ],
+  );
+
+  assert.equal(merged[0]?.audit?.decision, "revise");
+  assert.equal(merged[0]?.audit?.quality_grade, "C");
+  assert.equal(merged[0]?.continue_expansion, false);
 });
 
 test("additional rounds still matter when standard recall has no profiles", () => {

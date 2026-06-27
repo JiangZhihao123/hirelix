@@ -77,6 +77,7 @@ export type RecallLaneValidationDependencies = {
   loadCachedSnapshotProfiles: (
     snapshotId: string,
     sourceRound: string,
+    options?: { fallbackAnyRound?: boolean },
   ) => Promise<Record<string, unknown>[] | null>;
   triggerDatasetFilter?: (request: BrightDataDatasetFilterRequest) => Promise<string>;
   downloadDatasetSnapshot?: (snapshotId: string) => Promise<Record<string, unknown>[]>;
@@ -461,6 +462,7 @@ async function resolveRowsForRound(params: {
     const rows = await params.deps.loadCachedSnapshotProfiles(
       params.knownSnapshot.snapshotId,
       params.round.round,
+      { fallbackAnyRound: true },
     );
     if (rows?.length) {
       return {
@@ -496,7 +498,11 @@ async function resolveRowsForRound(params: {
 
   const cached = await params.deps.lookupCachedSnapshot(params.filterHash);
   if (cached) {
-    const rows = await params.deps.loadCachedSnapshotProfiles(cached.snapshotId, params.round.round);
+    const rows = await params.deps.loadCachedSnapshotProfiles(
+      cached.snapshotId,
+      params.round.round,
+      { fallbackAnyRound: true },
+    );
     if (rows?.length) {
       return {
         status: "cache_hit",

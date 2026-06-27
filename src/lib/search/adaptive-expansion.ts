@@ -11,6 +11,7 @@ export type AdaptiveExpansionActionType =
   | "revise_lane"
   | "stop_lane"
   | "escalate_adjacent"
+  | "reuse_snapshot"
   | "finish";
 
 export type AdaptiveExpansionAction = {
@@ -142,6 +143,12 @@ export function planAdaptiveExpansion(params: {
   totalBudget: number;
   actionableTarget?: number;
   maxAdaptiveBatches?: number;
+  isDuplicateRevision?: (action: {
+    lane: string;
+    lane_kind: HeadhunterLaneKind;
+    revised_lane: SourcingLane;
+    budget: number;
+  }) => boolean;
 }): AdaptiveExpansionPlan {
   const totalBudget = Math.max(0, Math.round(params.totalBudget));
   const iterations = params.recallMetadata?.recall_iterations ?? [];
@@ -278,6 +285,23 @@ export function planAdaptiveExpansion(params: {
       const baseBudget = DEFAULT_EXPANSION_BUDGET_BY_GRADE[audit.quality_grade];
       const budget = clampBudget(baseBudget, remainingBudget, revisedLane.max_budget);
       if (budget <= 0) continue;
+      if (params.isDuplicateRevision?.({
+        lane: iteration.lane,
+        lane_kind: revisedLane.lane_kind ?? laneKind,
+        revised_lane: revisedLane,
+        budget,
+      })) {
+        actions.push({
+          type: "reuse_snapshot",
+          lane: iteration.lane,
+          lane_kind: revisedLane.lane_kind ?? laneKind,
+          budget: 0,
+          reason: `${reason}; revised lane compiles to an already used Bright filter`,
+          source_iteration: iteration.iteration,
+          revised_lane: revisedLane,
+        });
+        continue;
+      }
       remainingBudget -= budget;
       actions.push({
         type: "revise_lane",

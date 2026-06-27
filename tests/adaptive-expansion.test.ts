@@ -181,6 +181,48 @@ test("adaptive planner revises C grade lanes with a small validation budget", ()
   assert.equal(action.revised_lane?.name, "hands-on API backend");
 });
 
+test("adaptive planner records duplicate revised filters without spending", () => {
+  const plan = planAdaptiveExpansion({
+    parsed: {},
+    recallMetadata: metadata({
+      recall_iterations: [
+        {
+          iteration: 1,
+          lane: "standard",
+          lane_kind: "primary_exact",
+          budget: 35,
+          audit: {
+            decision: "revise",
+            quality_grade: "C",
+            summary: "Direction is close but would repeat the same filter.",
+            next_lane_revision: {
+              name: "hands-on API backend",
+              lane_kind: "primary_exact",
+              target_persona: "Hands-on backend engineers",
+              non_negotiables: ["backend engineering"],
+              relaxed_evidence: ["billing systems"],
+              exclusion_patterns: ["manager only"],
+              initial_budget: 20,
+              max_budget: 40,
+            },
+          },
+          continue_expansion: false,
+        },
+      ],
+    }),
+    displayStats: displayStats({ recommended_count: 0 }),
+    recallSpec: { sourcing_lanes: [directLane] },
+    totalBudget: 250,
+    isDuplicateRevision: () => true,
+  });
+
+  assert.equal(plan.should_continue, false);
+  assert.equal(plan.stop_reason, "no_expandable_lanes");
+  assert.equal(plan.planned_budget, 0);
+  assert.equal(plan.actions[0]?.type, "reuse_snapshot");
+  assert.equal(plan.actions[0]?.budget, 0);
+});
+
 test("adaptive planner stops when actionable target is already met", () => {
   const plan = planAdaptiveExpansion({
     parsed: {},

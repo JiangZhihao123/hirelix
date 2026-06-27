@@ -197,6 +197,7 @@ test("recall metadata normalizer preserves lane audit details", () => {
         lane_kind: "primary_exact",
         budget: 35,
         snapshot_id: "snap_123",
+        filter_hash: "filter_123",
         audit: {
           decision: "stop",
           quality_grade: "D",
@@ -228,6 +229,7 @@ test("recall metadata normalizer preserves lane audit details", () => {
   assert.deepEqual(audit?.wrong_profile_patterns, ["manager only"]);
   assert.equal(audit?.next_lane_revision?.target_persona, "Hands-on backend engineers");
   assert.equal(audit?.sample_count, 12);
+  assert.equal(metadata?.recall_iterations?.[0]?.filter_hash, "filter_123");
 });
 
 test("lane audit prompt includes JD, brief, lane contract, sample, and judge summary", () => {
