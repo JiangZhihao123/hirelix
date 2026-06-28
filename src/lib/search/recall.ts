@@ -129,6 +129,26 @@ const API_BACKEND_KEYWORDS = [
   "grpc",
 ];
 
+const BACKEND_ROLE_TITLE_KEYWORDS = [
+  "backend",
+  "back end",
+  "software engineer",
+  "server",
+  "api",
+  "service",
+  "services",
+  "microservice",
+  "microservices",
+];
+
+const BACKEND_ROLE_EVIDENCE_KEYWORDS = [
+  ...API_BACKEND_KEYWORDS,
+  "server",
+  "server-side",
+  "server side",
+  "production backend",
+];
+
 const PRODUCTION_OWNERSHIP_KEYWORDS = [
   "production",
   "reliability",
@@ -141,6 +161,62 @@ const PRODUCTION_OWNERSHIP_KEYWORDS = [
   "distributed",
   "systems",
 ];
+
+const CONTRACT_DEPTH_KEYWORDS = [
+  ...DATABASE_BACKEND_KEYWORDS,
+  ...PRODUCTION_OWNERSHIP_KEYWORDS,
+  ...SEARCH_DOMAIN_KEYWORDS,
+  "payment",
+  "payments",
+  "billing",
+  "ledger",
+  "transaction",
+  "transactions",
+  "transaction systems",
+  "fintech",
+];
+
+const COMMON_ATOMIC_SEARCH_TERMS = [
+  ...BACKEND_ROLE_EVIDENCE_KEYWORDS,
+  ...DATABASE_BACKEND_KEYWORDS,
+  ...PRODUCTION_OWNERSHIP_KEYWORDS,
+  ...SEARCH_DOMAIN_KEYWORDS,
+  "golang",
+  "java",
+  "kotlin",
+  "rust",
+  "python",
+  "scala",
+  "typescript",
+  "node.js",
+  "postgresql",
+  "postgres",
+  "redis",
+  "kafka",
+  "aws",
+  "gcp",
+  "google cloud",
+  "kubernetes",
+  "payment",
+  "payments",
+  "billing",
+  "ledger",
+  "transaction",
+  "transactions",
+  "transaction systems",
+  "fintech",
+];
+
+const LOW_PRECISION_EXTRACTED_ATOMIC_TERMS = new Set([
+  "distributed",
+  "systems",
+  "platform",
+  "infrastructure",
+  "service",
+  "services",
+  "scale",
+  "scalability",
+]);
 
 const ENGINEERING_TITLE_KEYWORDS = [
   "software",
@@ -448,6 +524,23 @@ function buildEngineeringTitleTerms(titleTerms: string[], fallbackTitle: string 
     .slice(0, 8);
 }
 
+function buildLaneTitleTerms(
+  titleTerms: string[],
+  fallbackTitle: string | null,
+  limit = 12,
+) {
+  const candidates = compactTerms(
+    [
+      ...titleTerms,
+      fallbackTitle ?? "",
+    ],
+    limit,
+  );
+  return candidates
+    .filter((term) => includesAnyKeyword(term, ENGINEERING_TITLE_KEYWORDS))
+    .slice(0, limit);
+}
+
 export function buildRecallSkillSignalGroups(recallSpec: RecallSpec) {
   const searchableSignals = sanitizeRecallSignalTerms([
     ...recallSpec.differentiating_skill_terms,
@@ -549,6 +642,194 @@ function buildBroadRecallSkillFilter(
     ]),
     maxTerms,
   );
+}
+
+function getHeadhunterBrief(parsed: Record<string, unknown>) {
+  return parsed.headhunter_brief && typeof parsed.headhunter_brief === "object"
+    ? (parsed.headhunter_brief as Record<string, unknown>)
+    : null;
+}
+
+function getStringArrayField(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function isAtomicSearchTerm(term: string) {
+  const normalized = normalizeText(term);
+  if (normalized.length < 2) return false;
+  if (LOW_PRECISION_EXTRACTED_ATOMIC_TERMS.has(normalized)) return false;
+  if (COMMON_ATOMIC_SEARCH_TERMS.some((keyword) => normalized === keyword)) return true;
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  return wordCount <= 3 &&
+    !/\b(engineers?|candidates?|people|profiles?|ownership|backgrounds?|experience|equivalent|substitute|wording|systems can)\b/.test(normalized);
+}
+
+function extractAtomicSearchTerms(terms: string[], limit: number) {
+  const values: string[] = [];
+  for (const rawTerm of terms) {
+    const normalized = normalizeText(rawTerm);
+    if (!normalized) continue;
+    const phraseParts = normalized
+      .split(/\s*(?:,|;|\/|\bor\b|\band\b|\(|\))\s*/i)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const candidates = phraseParts.length > 1 ? phraseParts : [normalized];
+    for (const candidate of candidates) {
+      if (isAtomicSearchTerm(candidate)) {
+        values.push(candidate);
+      }
+      const embeddedKeywords = [...COMMON_ATOMIC_SEARCH_TERMS]
+        .filter((keyword) => !LOW_PRECISION_EXTRACTED_ATOMIC_TERMS.has(keyword))
+        .sort((left, right) => right.length - left.length);
+      for (const keyword of embeddedKeywords) {
+        if (candidate.includes(keyword)) {
+          values.push(keyword);
+        }
+      }
+    }
+  }
+  return compactTerms(values, limit);
+}
+
+function buildLaneContractTerms(
+  parsed: Record<string, unknown>,
+  recallSpec: RecallSpec,
+  lane: SourcingLane,
+) {
+  const brief = getHeadhunterBrief(parsed);
+  return extractAtomicSearchTerms(sanitizeRecallSignalTerms([
+    lane.target_persona ?? "",
+    ...(lane.non_negotiables ?? []),
+    ...(lane.relaxed_evidence ?? []),
+    ...lane.skill_terms,
+    ...recallSpec.differentiating_skill_terms,
+    ...recallSpec.must_have_signals,
+    ...recallSpec.domain_terms,
+    ...recallSpec.core_skill_terms,
+    ...getStringArrayField(brief?.equivalent_evidence),
+    ...getStringArrayField(brief?.ideal_candidate_backgrounds),
+  ], 36), 24);
+}
+
+function buildSameRoleFamilyTitleTerms(params: {
+  lane: SourcingLane;
+  recallSpec: RecallSpec;
+  parsedTitle: string | null;
+  fallbackTitleTerms: string[];
+}) {
+  const laneTerms = buildLaneTitleTerms(
+    params.lane.title_terms.filter(Boolean),
+    params.lane.lane_kind === "primary_relaxed" ? null : params.parsedTitle,
+    params.lane.lane_kind === "primary_relaxed" ? 14 : 10,
+  );
+  const baseTerms = laneTerms.length > 0
+    ? laneTerms
+    : buildLaneTitleTerms(params.fallbackTitleTerms, params.parsedTitle, 10);
+  const contractText = normalizeText([
+    params.lane.target_persona,
+    ...(params.lane.non_negotiables ?? []),
+    ...params.lane.skill_terms,
+    ...params.recallSpec.title_variants,
+    params.parsedTitle,
+  ].filter(Boolean).join(" "));
+  const backendRole = includesAnyKeyword(contractText, BACKEND_ROLE_TITLE_KEYWORDS) &&
+    !hasDataPlatformSignals(params.recallSpec);
+  if (!backendRole) return baseTerms;
+
+  const backendTerms = baseTerms.filter((term) =>
+    includesAnyKeyword(term, BACKEND_ROLE_TITLE_KEYWORDS)
+  );
+  if (backendTerms.length > 0) return backendTerms;
+
+  const softwareEngineerTerms = baseTerms.filter((term) => {
+    const normalized = normalizeText(term);
+    return normalized.includes("software engineer") &&
+      !includesAnyKeyword(normalized, [
+        "frontend",
+        "front end",
+        "mobile",
+        "data",
+        "machine learning",
+        "ml",
+        "site reliability",
+        "sre",
+        "devops",
+      ]);
+  });
+  return softwareEngineerTerms.length > 0 ? softwareEngineerTerms : baseTerms;
+}
+
+function buildHeadhunterLaneEvidenceFilter(params: {
+  parsed: Record<string, unknown>;
+  recallSpec: RecallSpec;
+  lane: SourcingLane;
+  signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>;
+}) {
+  if (hasDataPlatformSignals(params.recallSpec)) {
+    return buildProfileSignalFilter(
+      normalizeBrightSkillSignalTerms([
+        ...params.lane.skill_terms,
+        ...(params.lane.non_negotiables ?? []),
+        ...(params.lane.relaxed_evidence ?? []),
+      ]),
+      params.lane.lane_kind === "primary_relaxed" ? 8 : 10,
+    ) ?? buildDataPlatformSkillLaneFilter(params.recallSpec);
+  }
+
+  const contractTerms = buildLaneContractTerms(params.parsed, params.recallSpec, params.lane);
+  const backendAnchorTerms = compactTerms(
+    extractAtomicSearchTerms([
+      ...contractTerms.filter((term) => includesAnyKeyword(term, BACKEND_ROLE_EVIDENCE_KEYWORDS)),
+      ...params.signalGroups.api_backend,
+      "backend",
+      "api",
+      "microservices",
+    ], 12),
+    8,
+  );
+  const depthTerms = compactTerms(
+    extractAtomicSearchTerms([
+      ...contractTerms.filter((term) =>
+        includesAnyKeyword(term, CONTRACT_DEPTH_KEYWORDS)
+      ),
+      ...params.signalGroups.database_backend,
+      ...params.signalGroups.production_ownership,
+      ...params.signalGroups.search_domain,
+    ], 14),
+    10,
+  );
+  const explicitSkillTerms = compactTerms(
+    normalizeBrightSkillSignalTerms([
+      ...params.lane.skill_terms,
+      ...(params.lane.relaxed_evidence ?? []),
+      ...params.recallSpec.differentiating_skill_terms,
+    ]),
+    params.lane.lane_kind === "primary_relaxed" ? 8 : 10,
+  );
+
+  const contractEvidence = combineEvidenceFilters([
+    backendAnchorTerms.length > 0 && depthTerms.length > 0
+      ? buildHighIntentSignalPairFilter(backendAnchorTerms, depthTerms, 6)
+      : null,
+    params.lane.lane_kind === "primary_relaxed"
+      ? buildProfileSignalFilter([...backendAnchorTerms, ...explicitSkillTerms], 10)
+      : null,
+  ]);
+  if (contractEvidence) return contractEvidence;
+
+  const balancedSkillFilter = buildBalancedSkillFilter({
+    ...params.recallSpec,
+    core_skill_terms: explicitSkillTerms.length > 0 ? explicitSkillTerms : params.recallSpec.core_skill_terms,
+    baseline_skill_terms: params.signalGroups.api_backend.length > 0
+      ? params.signalGroups.api_backend
+      : params.recallSpec.baseline_skill_terms,
+    differentiating_skill_terms: params.recallSpec.differentiating_skill_terms,
+    domain_terms: params.recallSpec.domain_terms,
+    must_have_signals: params.recallSpec.must_have_signals,
+  });
+  return balancedSkillFilter ?? buildProfileSignalFilter(explicitSkillTerms, 8);
 }
 
 function buildProfileSignalLeaf(term: string, name: "about" | "position"): BrightDataFilterRule {
@@ -1182,7 +1463,8 @@ function buildLlmSupplementalRounds(params: {
       if (skillFilter && compactTerms(lane.skill_terms, 10).length >= 3) filters.push(skillFilter);
     } else {
       if (!titleFilter) return;
-      filters.push(skillFilter ? { operator: "or", filters: [titleFilter, skillFilter] } : titleFilter);
+      filters.push(titleFilter);
+      if (skillFilter) filters.push(skillFilter);
       if (params.countryFilter) filters.push(params.countryFilter);
       if (params.locationFilter) filters.push(params.locationFilter);
     }
@@ -1578,7 +1860,93 @@ export function buildBrightDataRecallFilter(
           operator: "and",
           filters: rootFilters,
         },
-	  };
+		  };
+}
+
+function buildHeadhunterLaneRecallRequest(
+  parsed: Record<string, unknown>,
+  recallSpec: RecallSpec,
+  hiringBrief: HiringBrief,
+  lane: SourcingLane,
+  recordsLimit: number,
+  options: {
+    buildRecallLocationFilter: (
+      hiringBrief: HiringBrief,
+      recallSpec: RecallSpec,
+      countryCodes: string[],
+      mode: RecallFilterMode,
+    ) => BrightDataFilterRule | null;
+    isPlaceholderTitle: (title: string | null | undefined) => boolean;
+  },
+): BrightDataDatasetFilterRequest | null {
+  const datasetId =
+    process.env.BRIGHTDATA_RECALL_DATASET_ID ||
+    process.env.BRIGHTDATA_DATASET_ID;
+  if (!datasetId) return null;
+
+  const limit = Math.max(1, Math.round(recordsLimit));
+  const parsedTitle = normalizeNullableString(parsed.title);
+  const fallbackTitleTerms = (recallSpec.title_variants.length > 0
+    ? recallSpec.title_variants
+    : [parsedTitle].filter((value): value is string => Boolean(value)))
+    .filter((term) => !options.isPlaceholderTitle(term));
+  const signalGroups = buildRecallSkillSignalGroups(recallSpec);
+  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const titleTerms = isDataPlatformRole
+    ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
+    : buildSameRoleFamilyTitleTerms({
+      lane,
+      recallSpec,
+      parsedTitle,
+      fallbackTitleTerms,
+    });
+  const titleFilter = buildTitleFilter(
+    titleTerms,
+    lane.lane_kind === "target_company_engineering" || lane.strategy === "company" ? 18 : 14,
+  );
+  const skillFilter = buildHeadhunterLaneEvidenceFilter({
+    parsed,
+    recallSpec,
+    lane,
+    signalGroups,
+  });
+  const countryCodes = recallSpec.countries
+    .map((country) => normalizeCountryCode(country))
+    .filter((country): country is string => Boolean(country))
+    .slice(0, 4);
+  const countryFilter = buildCountryFilter(countryCodes);
+  const locationMode = getRecallLocationMode(hiringBrief);
+  const mode = lane.lane_kind === "primary_relaxed" || lane.strategy === "skill"
+    ? "relaxed" as const
+    : "primary" as const;
+  const locationFilter = locationMode === "location_filter"
+    ? options.buildRecallLocationFilter(hiringBrief, recallSpec, countryCodes, mode)
+    : null;
+  const companyTerms = lane.company_terms.length > 0
+    ? lane.company_terms
+    : lane.lane_kind === "target_company_engineering"
+      ? recallSpec.target_companies
+      : [];
+  const companyFilter = buildCompanyFilter(companyTerms);
+  const filters: BrightDataFilterRule[] = [];
+
+  if (lane.strategy === "company" || lane.lane_kind === "target_company_engineering") {
+    if (!companyFilter || !titleFilter || !skillFilter) return null;
+    filters.push(companyFilter, titleFilter, skillFilter);
+  } else {
+    if (!titleFilter || !skillFilter) return null;
+    filters.push(titleFilter, skillFilter);
+  }
+
+  if (countryFilter) filters.push(countryFilter);
+  if (locationFilter) filters.push(locationFilter);
+  filters.push(...buildQualityFilters());
+
+  return {
+    datasetId,
+    recordsLimit: limit,
+    filter: filters.length === 1 ? filters[0] : { operator: "and", filters },
+  };
 }
 
 export function buildBrightDataRecallFilterForLane(
@@ -1618,6 +1986,19 @@ export function buildBrightDataRecallFilterForLane(
     recordLimitOverride: limit,
   });
   const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const headhunterRequest = buildHeadhunterLaneRecallRequest(
+    parsed,
+    recallSpec,
+    hiringBrief,
+    lane,
+    limit,
+    {
+      buildRecallLocationFilter: options.buildRecallLocationFilter,
+      isPlaceholderTitle: options.isPlaceholderTitle,
+    },
+  );
+  if (headhunterRequest) return headhunterRequest;
+
   const countryCodes = recallSpec.countries
     .map((country) => normalizeCountryCode(country))
     .filter((country): country is string => Boolean(country))
@@ -1656,7 +2037,7 @@ export function buildBrightDataRecallFilterForLane(
   } else {
     if (!titleFilter && !skillFilter) return null;
     if (titleFilter && skillFilter) {
-      filters.push({ operator: "or", filters: [titleFilter, skillFilter] });
+      filters.push(titleFilter, skillFilter);
     } else if (titleFilter) {
       filters.push(titleFilter);
     } else if (skillFilter) {
@@ -1994,10 +2375,35 @@ export function buildBrightDataRecallFilters(
   const headhunterBudgets = headhunterMode
     ? buildHeadhunterProbeBudgets(recallSpec, executionProfile)
     : null;
+  const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
+  const locationMode = getRecallLocationMode(hiringBrief);
+  const rawTitleTerms = recallSpec.title_variants.length > 0
+    ? recallSpec.title_variants
+    : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value));
+  const parsedTitle = normalizeNullableString(parsed.title);
+  const standardTitleTerms = buildEngineeringTitleTerms(rawTitleTerms, parsedTitle);
+  const signalGroups = buildRecallSkillSignalGroups(recallSpec);
+  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const primaryExactLane = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === "primary_exact");
+  const primaryRelaxedLane = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === "primary_relaxed");
   const standardExecutionProfile = headhunterBudgets
     ? { ...executionProfile, filterLimit: headhunterBudgets.primaryExact }
     : executionProfile;
-  const standardRequest = buildBrightDataRecallFilter(parsed, candidateCount, standardExecutionProfile, {
+  const standardRequest = (
+    headhunterMode && primaryExactLane
+      ? buildHeadhunterLaneRecallRequest(
+        parsed,
+        recallSpec,
+        hiringBrief,
+        primaryExactLane,
+        standardExecutionProfile.filterLimit,
+        {
+          buildRecallLocationFilter: options.buildRecallLocationFilter,
+          isPlaceholderTitle: options.isPlaceholderTitle,
+        },
+      )
+      : null
+  ) ?? buildBrightDataRecallFilter(parsed, candidateCount, standardExecutionProfile, {
     normalizeRecallSpec: options.normalizeRecallSpec,
     sanitizeHiringBrief: options.sanitizeHiringBrief,
     buildStandardSkillFilter: options.buildStandardSkillFilter,
@@ -2006,20 +2412,34 @@ export function buildBrightDataRecallFilters(
   });
   if (!standardRequest) return [];
 
-  const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
-  const locationMode = getRecallLocationMode(hiringBrief);
-  const rawTitleTerms = recallSpec.title_variants.length > 0
-    ? recallSpec.title_variants
-    : [normalizeNullableString(parsed.title)].filter((value): value is string => Boolean(value));
-  const standardTitleTerms = buildEngineeringTitleTerms(rawTitleTerms, normalizeNullableString(parsed.title));
-  const signalGroups = buildRecallSkillSignalGroups(recallSpec);
-  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
   const dataPlatformStandardTitleTerms = isDataPlatformRole
     ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
     : [];
+  const headhunterStandardTitleTerms =
+    headhunterMode && primaryExactLane && !isDataPlatformRole
+      ? buildSameRoleFamilyTitleTerms({
+        lane: primaryExactLane,
+        recallSpec,
+        parsedTitle,
+        fallbackTitleTerms: rawTitleTerms,
+      })
+      : [];
   const standardDiagnosticTitleTerms = dataPlatformStandardTitleTerms.length > 0
     ? dataPlatformStandardTitleTerms
+    : headhunterStandardTitleTerms.length > 0
+      ? headhunterStandardTitleTerms
     : standardTitleTerms;
+  const standardDiagnosticSkillTerms =
+    headhunterMode && primaryExactLane
+      ? compactTerms([
+        ...primaryExactLane.skill_terms,
+        ...(primaryExactLane.non_negotiables ?? []),
+        ...(primaryExactLane.relaxed_evidence ?? []),
+      ], 18)
+      : [
+        ...signalGroups.search_domain,
+        ...signalGroups.platform_engineering,
+      ];
   const rounds: RecallRound[] = [{
     round: "standard",
     request: standardRequest,
@@ -2036,17 +2456,28 @@ export function buildBrightDataRecallFilters(
         ? "Probe the most direct role-fit lane before spending more recall budget."
         : "Find the most direct title and role-fit profiles before exploring adjacent sourcing personas.",
       titleTerms: standardDiagnosticTitleTerms,
-      skillTerms: [
-        ...signalGroups.search_domain,
-        ...signalGroups.platform_engineering,
-      ],
+      skillTerms: standardDiagnosticSkillTerms,
     }),
   }];
 
   if (headhunterMode) {
     const relaxedLimit = headhunterBudgets?.primaryRelaxed ?? 0;
     if (relaxedLimit <= 0) return rounds;
-    const relaxedRequest = buildBrightDataRecallFilter(
+    const relaxedRequest = (
+      primaryRelaxedLane
+        ? buildHeadhunterLaneRecallRequest(
+          parsed,
+          recallSpec,
+          hiringBrief,
+          primaryRelaxedLane,
+          relaxedLimit,
+          {
+            buildRecallLocationFilter: options.buildRecallLocationFilter,
+            isPlaceholderTitle: options.isPlaceholderTitle,
+          },
+        )
+        : null
+    ) ?? buildBrightDataRecallFilter(
       parsed,
       candidateCount,
       { ...executionProfile, filterLimit: relaxedLimit },
@@ -2060,6 +2491,23 @@ export function buildBrightDataRecallFilters(
       },
     );
     if (!relaxedRequest) return rounds;
+    const relaxedDiagnosticTitleTerms =
+      primaryRelaxedLane && !isDataPlatformRole
+        ? buildSameRoleFamilyTitleTerms({
+          lane: primaryRelaxedLane,
+          recallSpec,
+          parsedTitle,
+          fallbackTitleTerms: rawTitleTerms,
+        })
+        : standardDiagnosticTitleTerms;
+    const relaxedDiagnosticSkillTerms =
+      primaryRelaxedLane
+        ? compactTerms([
+          ...primaryRelaxedLane.skill_terms,
+          ...(primaryRelaxedLane.non_negotiables ?? []),
+          ...(primaryRelaxedLane.relaxed_evidence ?? []),
+        ], 18)
+        : standardDiagnosticSkillTerms;
     return [
       ...rounds,
       {
@@ -2068,18 +2516,15 @@ export function buildBrightDataRecallFilters(
         diagnostics: withPersona({
           round: "primary_relaxed",
           requested_count: relaxedRequest.recordsLimit,
-          title_terms: standardDiagnosticTitleTerms,
+          title_terms: relaxedDiagnosticTitleTerms,
           skill_signal_groups: signalGroups,
           location_mode: locationMode,
         }, {
           kind: "skill_depth",
           label: "Primary relaxed headhunter lane",
           intent: "Probe same-role-family profiles that may use adjacent titles but still need equivalent evidence before expansion.",
-          titleTerms: standardDiagnosticTitleTerms,
-          skillTerms: [
-            ...signalGroups.search_domain,
-            ...signalGroups.platform_engineering,
-          ],
+          titleTerms: relaxedDiagnosticTitleTerms,
+          skillTerms: relaxedDiagnosticSkillTerms,
         }),
       },
     ];

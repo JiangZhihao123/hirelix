@@ -135,6 +135,30 @@ function buildActionReason(params: {
   return pieces.join("; ").slice(0, 500);
 }
 
+function resolveNoSpendStopReason(params: {
+  actions: AdaptiveExpansionAction[];
+  completedAudits: NonNullable<RecallMetadata["recall_iterations"]>;
+}) {
+  if (params.actions.some((action) => action.type === "reuse_snapshot")) {
+    return "duplicate_revision_filter_hash";
+  }
+  const audited = params.completedAudits.filter((iteration) => iteration.audit);
+  if (
+    audited.length > 0 &&
+    audited.every((iteration) => iteration.audit?.quality_grade === "D")
+  ) {
+    return "needs_human_calibration";
+  }
+  if (
+    audited.length > 0 &&
+    params.actions.length > 0 &&
+    params.actions.every((action) => action.type === "stop_lane")
+  ) {
+    return "all_lanes_stopped";
+  }
+  return "no_expandable_lanes";
+}
+
 export function planAdaptiveExpansion(params: {
   parsed: Record<string, unknown>;
   recallMetadata: RecallMetadata | null;
@@ -237,13 +261,23 @@ export function planAdaptiveExpansion(params: {
     });
 
     if (audit.decision === "stop" || audit.quality_grade === "D") {
+      const revisedLane =
+        audit.decision === "revise" && audit.next_lane_revision
+          ? toSourcingLane(
+            audit.next_lane_revision,
+            getFallbackLane(iteration.lane, laneKind, params.recallSpec),
+          )
+          : null;
       actions.push({
         type: "stop_lane",
         lane: iteration.lane,
         lane_kind: laneKind,
         budget: 0,
-        reason,
+        reason: audit.quality_grade === "D" && audit.decision === "revise"
+          ? `${reason}; quality grade D requires human calibration before another Bright spend`
+          : reason,
         source_iteration: iteration.iteration,
+        revised_lane: revisedLane,
       });
       continue;
     }
@@ -338,7 +372,7 @@ export function planAdaptiveExpansion(params: {
   if (plannedBudget <= 0) {
     return {
       should_continue: false,
-      stop_reason: "no_expandable_lanes",
+      stop_reason: resolveNoSpendStopReason({ actions, completedAudits }),
       remaining_budget: remainingBudget,
       planned_budget: 0,
       actions: actions.length > 0

@@ -217,10 +217,66 @@ test("adaptive planner records duplicate revised filters without spending", () =
   });
 
   assert.equal(plan.should_continue, false);
-  assert.equal(plan.stop_reason, "no_expandable_lanes");
+  assert.equal(plan.stop_reason, "duplicate_revision_filter_hash");
   assert.equal(plan.planned_budget, 0);
   assert.equal(plan.actions[0]?.type, "reuse_snapshot");
   assert.equal(plan.actions[0]?.budget, 0);
+});
+
+test("adaptive planner marks all D probe lanes as needing human calibration without spending", () => {
+  const plan = planAdaptiveExpansion({
+    parsed: {},
+    recallMetadata: metadata({
+      recall_iterations: [
+        {
+          iteration: 1,
+          lane: "standard",
+          lane_kind: "primary_exact",
+          budget: 35,
+          audit: {
+            decision: "stop",
+            quality_grade: "D",
+            summary: "Direct lane is data-platform polluted.",
+          },
+          continue_expansion: false,
+        },
+        {
+          iteration: 2,
+          lane: "primary_relaxed",
+          lane_kind: "primary_relaxed",
+          budget: 15,
+          audit: {
+            decision: "revise",
+            quality_grade: "D",
+            summary: "Relaxed lane has only data profiles.",
+            next_lane_revision: {
+              name: "payments backend revision",
+              lane_kind: "primary_exact",
+              target_persona: "Senior backend engineers with payments API ownership",
+              non_negotiables: ["backend engineering", "payments"],
+              relaxed_evidence: ["ledger systems"],
+              exclusion_patterns: ["data platform"],
+              initial_budget: 25,
+              max_budget: 80,
+            },
+          },
+          continue_expansion: false,
+        },
+      ],
+    }),
+    displayStats: displayStats({ recommended_count: 0 }),
+    recallSpec: { sourcing_lanes: [directLane, relaxedLane] },
+    totalBudget: 250,
+  });
+
+  assert.equal(plan.should_continue, false);
+  assert.equal(plan.stop_reason, "needs_human_calibration");
+  assert.equal(plan.planned_budget, 0);
+  assert.ok(plan.actions.every((action) => action.type === "stop_lane"));
+  const revisedStop = plan.actions.find((action) => action.lane === "primary_relaxed");
+  assert.equal(revisedStop?.budget, 0);
+  assert.equal(revisedStop?.revised_lane?.name, "payments backend revision");
+  assert.match(revisedStop?.reason ?? "", /human calibration/);
 });
 
 test("adaptive planner stops when actionable target is already met", () => {

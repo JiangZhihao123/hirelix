@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  computeFilterHash,
+  type BrightDataFilterRule,
+  type BrightDataDatasetFilterRequest,
+} from "@/lib/brightdata";
+import {
   JD_SEARCH_INTENT_JSON_SCHEMA,
   LANE_AUDITOR_JSON_SCHEMA,
 } from "@/lib/llm-schemas";
@@ -11,6 +16,7 @@ import {
 } from "@/lib/prompts";
 import { buildJudgeScorePrompt } from "@/lib/search/scoring";
 import {
+  buildBrightDataRecallFilterForLane,
   buildBrightDataRecallFilters,
 } from "@/lib/search/recall";
 import {
@@ -42,6 +48,44 @@ const freeExecutionProfile: SearchExecutionProfile = {
   lowCostMode: false,
   singleJudgeMode: false,
 };
+
+function flattenRules(rule: BrightDataFilterRule): BrightDataFilterRule[] {
+  if ("filters" in rule) {
+    return [rule, ...rule.filters.flatMap(flattenRules)];
+  }
+  return [rule];
+}
+
+function leafValues(rule: BrightDataFilterRule) {
+  return flattenRules(rule)
+    .filter((item): item is Extract<BrightDataFilterRule, { name: string }> => "name" in item)
+    .map((item) => String(item.value).toLowerCase());
+}
+
+function groupLeafValues(rule: BrightDataFilterRule) {
+  return "filters" in rule
+    ? rule.filters.map((child) => leafValues(child))
+    : [];
+}
+
+function assertRootAndContainsSeparateTitleAndEvidence(
+  request: BrightDataDatasetFilterRequest,
+  expectedTitle: string,
+  expectedEvidence: string,
+) {
+  const root = request.filter;
+  assert.ok("filters" in root);
+  assert.equal(root.operator, "and");
+  const childValues = groupLeafValues(root);
+  assert.ok(
+    childValues.some((values) => values.includes(expectedTitle)),
+    `expected root AND child to contain title ${expectedTitle}`,
+  );
+  assert.ok(
+    childValues.some((values) => values.includes(expectedEvidence)),
+    `expected root AND child to contain evidence ${expectedEvidence}`,
+  );
+}
 
 const parsed = {
   title: "Senior Backend Engineer",
@@ -154,6 +198,28 @@ test("headhunter recall strategy compiles free search into a 35 plus 15 probe", 
     assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 50);
     assert.ok(!rounds.some((round) => round.round === "hidden_gem" || round.round === "company_target"));
     assert.equal(rounds[0]?.diagnostics.persona?.label, "Primary exact headhunter lane");
+    assert.notEqual(
+      computeFilterHash(rounds[0].request),
+      computeFilterHash(rounds[1].request),
+      "primary_exact and primary_relaxed must not compile to the same Bright filter",
+    );
+
+    const standardValues = leafValues(rounds[0].request.filter);
+    assertRootAndContainsSeparateTitleAndEvidence(rounds[0].request, "senior backend engineer", "payments");
+    assert.ok(standardValues.includes("staff backend engineer"));
+    assert.ok(!standardValues.includes("backend engineers with payments api ownership"));
+    assert.ok(!standardValues.includes("senior platform engineer"));
+    assert.ok(!standardValues.includes("staff platform engineer"));
+    assert.ok(!standardValues.includes("data pipeline"));
+    assert.ok(!standardValues.includes("pipeline"));
+
+    const relaxedValues = leafValues(rounds[1].request.filter);
+    assertRootAndContainsSeparateTitleAndEvidence(rounds[1].request, "senior software engineer", "ledger");
+    assert.ok(!relaxedValues.includes("senior backend engineer"));
+    assert.ok(relaxedValues.includes("backend engineering"));
+    assert.ok(relaxedValues.includes("api"));
+    assert.ok(!relaxedValues.includes("backend engineers with equivalent transaction systems"));
+    assert.ok(!relaxedValues.includes("senior platform engineer"));
   } finally {
     if (previous == null) {
       delete process.env.SEARCH_RECALL_STRATEGY;
@@ -161,6 +227,48 @@ test("headhunter recall strategy compiles free search into a 35 plus 15 probe", 
       process.env.SEARCH_RECALL_STRATEGY = previous;
     }
   }
+});
+
+test("adaptive headhunter lane compiler keeps non-company revisions title AND evidence gated", () => {
+  const revisedLane = {
+    name: "revised payments backend",
+    strategy: "title" as const,
+    lane_kind: "primary_exact" as const,
+    target_persona: "Senior backend engineers with explicit payments API ownership",
+    non_negotiables: ["backend engineering", "payments", "PostgreSQL"],
+    relaxed_evidence: ["ledger", "billing"],
+    exclusion_patterns: ["data platform"],
+    initial_budget: 25,
+    max_budget: 80,
+    title_terms: ["Senior Backend Engineer", "Staff Backend Engineer"],
+    skill_terms: ["payments", "PostgreSQL", "API"],
+    company_terms: [],
+    avoid_terms: ["data platform"],
+    budget_weight: 1,
+  };
+
+  const request = buildBrightDataRecallFilterForLane(parsed, revisedLane, 25, {
+    normalizeRecallSpec,
+    sanitizeHiringBrief,
+    buildStandardSkillFilter,
+    buildRecallLocationFilter,
+    isPlaceholderTitle,
+  });
+  assert.ok(request);
+  assert.equal(request.recordsLimit, 25);
+  assertRootAndContainsSeparateTitleAndEvidence(request, "senior backend engineer", "payments");
+  const root = request.filter;
+  assert.ok("filters" in root);
+  assert.equal(root.operator, "and");
+  assert.ok(
+    !flattenRules(root).some((rule) =>
+      "filters" in rule &&
+      rule.operator === "or" &&
+      leafValues(rule).includes("senior backend engineer") &&
+      leafValues(rule).includes("payments")
+    ),
+    "adaptive revision must not compile title OR evidence as one loose branch",
+  );
 });
 
 test("lane auditor schema and normalizer keep decisions inside allowed enums", () => {
