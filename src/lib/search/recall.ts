@@ -809,12 +809,35 @@ function buildHeadhunterLaneEvidenceFilter(params: {
     params.lane.lane_kind === "primary_relaxed" ? 8 : 10,
   );
 
+  if (params.lane.lane_kind === "primary_relaxed") {
+    const boundaryTerms = compactTerms(
+      [
+        "backend engineering",
+        ...contractTerms.filter((term) => includesAnyKeyword(term, BACKEND_ROLE_EVIDENCE_KEYWORDS)),
+        ...backendAnchorTerms,
+      ],
+      4,
+    );
+    const specificEvidenceTerms = compactTerms(
+      [
+        ...explicitSkillTerms,
+        ...contractTerms.filter((term) =>
+          !includesAnyKeyword(term, BACKEND_ROLE_EVIDENCE_KEYWORDS)
+        ),
+        ...params.signalGroups.database_backend,
+        ...params.signalGroups.production_ownership,
+      ],
+      8,
+    );
+    return buildProfileSignalFilter([
+      ...specificEvidenceTerms,
+      ...boundaryTerms,
+    ], 10);
+  }
+
   const contractEvidence = combineEvidenceFilters([
     backendAnchorTerms.length > 0 && depthTerms.length > 0
-      ? buildHighIntentSignalPairFilter(backendAnchorTerms, depthTerms, 6)
-      : null,
-    params.lane.lane_kind === "primary_relaxed"
-      ? buildProfileSignalFilter([...backendAnchorTerms, ...explicitSkillTerms], 10)
+      ? buildHighIntentSignalPairFilter(backendAnchorTerms, depthTerms, 4)
       : null,
   ]);
   if (contractEvidence) return contractEvidence;
@@ -1412,6 +1435,23 @@ function buildHeadhunterProbeBudgets(
     ),
   );
   const probeBudget = Math.min(50, totalAvailable);
+  if (executionProfile.name === "bright_free_preview") {
+    if (probeBudget >= 50) {
+      return {
+        primaryExact: 35,
+        primaryRelaxed: 15,
+      };
+    }
+    const primaryExact = Math.max(
+      1,
+      Math.min(probeBudget - 1, Math.round(probeBudget * 35 / 50)),
+    );
+    return {
+      primaryExact,
+      primaryRelaxed: Math.max(0, probeBudget - primaryExact),
+    };
+  }
+
   const requestedPrimaryExact = getLaneInitialBudget(recallSpec, "primary_exact", 35);
   const requestedPrimaryRelaxed = getLaneInitialBudget(recallSpec, "primary_relaxed", 15);
   const requestedTotal = Math.max(1, requestedPrimaryExact + requestedPrimaryRelaxed);

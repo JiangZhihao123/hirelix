@@ -264,3 +264,59 @@ test("realistic recall filter shape (mirrors the production failure case)", () =
     `depth must be <= 3, got ${maxGroupDepth(result)}`,
   );
 });
+
+test("headhunter pair evidence filter is truncated instead of nested past Bright depth", () => {
+  const pairEvidence: BrightDataFilterRule = {
+    operator: "or",
+    filters: Array.from({ length: 6 }, (_, index) => ({
+      operator: "and" as const,
+      filters: [
+        {
+          name: index % 2 === 0 ? "position" : "about",
+          operator: "includes" as const,
+          value: "backend",
+        },
+        {
+          name: index % 3 === 0 ? "position" : "about",
+          operator: "includes" as const,
+          value: `payments-${index}`,
+        },
+      ],
+    })),
+  };
+  const root: BrightDataFilterRule = {
+    operator: "and",
+    filters: [
+      {
+        operator: "or",
+        filters: ["senior backend engineer", "staff backend engineer", "senior software engineer"].map((value) => ({
+          name: "position",
+          operator: "includes",
+          value,
+        })),
+      },
+      pairEvidence,
+      {
+        operator: "or",
+        filters: ["US", "CA", "GB", "DE"].map((value) => ({
+          name: "country_code",
+          operator: "=",
+          value,
+        })),
+      },
+      { name: "default_avatar", operator: "=", value: false },
+      { name: "connections", operator: ">=", value: 50 },
+    ],
+  };
+
+  const result = chunkBrightDataFilter(root);
+  assert.equal(maxGroupSize(result), 4);
+  assert.ok(
+    maxGroupDepth(result) <= 3,
+    `depth must be <= 3, got ${maxGroupDepth(result)}`,
+  );
+  assert.deepEqual(
+    flattenLeafValues(result).filter((value) => String(value).startsWith("payments-")).sort(),
+    ["payments-0", "payments-1", "payments-2", "payments-3"].sort(),
+  );
+});

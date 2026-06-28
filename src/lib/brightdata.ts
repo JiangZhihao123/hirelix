@@ -105,11 +105,42 @@ function chunkAtDepth(
     return { operator: filter.operator, filters: [] };
   }
 
+  if (depth >= maxDepth) {
+    return {
+      operator: filter.operator,
+      filters: flattenedChildren
+        .filter((child) => !isFilterGroup(child))
+        .slice(0, maxPerGroup),
+    };
+  }
+
   if (flattenedChildren.length <= maxPerGroup) {
     return { operator: filter.operator, filters: flattenedChildren };
   }
 
   const chunkingBudget = Math.max(0, maxDepth - depth);
+  const childCanMoveOneLevelDeeper = (child: BrightDataFilterRule) =>
+    !isFilterGroup(child) || getFilterGroupDepth(child) <= maxDepth - depth - 1;
+  const directChildren = flattenedChildren.filter((child) => !childCanMoveOneLevelDeeper(child));
+
+  if (directChildren.length > 0) {
+    const children: BrightDataFilterRule[] = directChildren.slice(0, maxPerGroup);
+    const remainingSlots = maxPerGroup - children.length;
+    const nestableChildren = flattenedChildren.filter(childCanMoveOneLevelDeeper);
+    if (remainingSlots > 0 && nestableChildren.length > 0) {
+      children.push(
+        ...packNestableChildren(
+          filter.operator,
+          nestableChildren,
+          remainingSlots,
+          maxPerGroup,
+          maxDepth,
+          depth + 1,
+        ),
+      );
+    }
+    return { operator: filter.operator, filters: children };
+  }
 
   // Preferred packing: bucket leaves together into a single sub-group, keeping
   // existing sub-groups at the current level. This avoids pushing entire
@@ -161,6 +192,41 @@ function chunkAtDepth(
     return current[0];
   }
   return { operator: filter.operator, filters: current };
+}
+
+function getFilterGroupDepth(filter: BrightDataFilterRule): number {
+  if (!isFilterGroup(filter)) return 0;
+  if (filter.filters.length === 0) return 1;
+  return 1 + filter.filters.reduce(
+    (max, child) => Math.max(max, getFilterGroupDepth(child)),
+    0,
+  );
+}
+
+function packNestableChildren(
+  operator: "and" | "or",
+  children: BrightDataFilterRule[],
+  slotCount: number,
+  maxPerGroup: number,
+  maxDepth: number,
+  depth: number,
+) {
+  if (slotCount <= 0) return [];
+  if (children.length <= slotCount) return children;
+
+  const buckets: BrightDataFilterRule[] = [];
+  const bucketSize = Math.ceil(children.length / slotCount);
+  for (let index = 0; index < children.length && buckets.length < slotCount; index += bucketSize) {
+    const slice = children.slice(index, index + bucketSize);
+    if (slice.length === 1) {
+      buckets.push(slice[0]);
+    } else {
+      buckets.push(
+        chunkAtDepth({ operator, filters: slice }, maxPerGroup, maxDepth, depth),
+      );
+    }
+  }
+  return buckets;
 }
 
 export type BrightDataSnapshotMetadata = {

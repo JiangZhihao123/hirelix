@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   computeFilterHash,
+  chunkBrightDataFilter,
   type BrightDataFilterRule,
   type BrightDataDatasetFilterRequest,
 } from "@/lib/brightdata";
@@ -66,6 +67,26 @@ function groupLeafValues(rule: BrightDataFilterRule) {
   return "filters" in rule
     ? rule.filters.map((child) => leafValues(child))
     : [];
+}
+
+function maxGroupDepth(rule: BrightDataFilterRule): number {
+  if (!("filters" in rule)) return 0;
+  if (rule.filters.length === 0) return 1;
+  return 1 + rule.filters.reduce((max, child) => Math.max(max, maxGroupDepth(child)), 0);
+}
+
+function maxGroupSize(rule: BrightDataFilterRule): number {
+  if (!("filters" in rule)) return 1;
+  return Math.max(
+    rule.filters.length,
+    ...rule.filters.map((child) => maxGroupSize(child)),
+  );
+}
+
+function assertBrightSafeFilter(request: BrightDataDatasetFilterRequest) {
+  const chunked = chunkBrightDataFilter(request.filter);
+  assert.ok(maxGroupDepth(chunked) <= 3, `Bright logical depth must be <= 3, got ${maxGroupDepth(chunked)}`);
+  assert.ok(maxGroupSize(chunked) <= 4, `Bright group size must be <= 4, got ${maxGroupSize(chunked)}`);
 }
 
 function assertRootAndContainsSeparateTitleAndEvidence(
@@ -195,6 +216,7 @@ test("headhunter recall strategy compiles free search into a 35 plus 15 probe", 
 
     assert.deepEqual(rounds.map((round) => round.round), ["standard", "primary_relaxed"]);
     assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [35, 15]);
+    rounds.forEach((round) => assertBrightSafeFilter(round.request));
     assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 50);
     assert.ok(!rounds.some((round) => round.round === "hidden_gem" || round.round === "company_target"));
     assert.equal(rounds[0]?.diagnostics.persona?.label, "Primary exact headhunter lane");
@@ -220,6 +242,42 @@ test("headhunter recall strategy compiles free search into a 35 plus 15 probe", 
     assert.ok(relaxedValues.includes("api"));
     assert.ok(!relaxedValues.includes("backend engineers with equivalent transaction systems"));
     assert.ok(!relaxedValues.includes("senior platform engineer"));
+  } finally {
+    if (previous == null) {
+      delete process.env.SEARCH_RECALL_STRATEGY;
+    } else {
+      process.env.SEARCH_RECALL_STRATEGY = previous;
+    }
+  }
+});
+
+test("headhunter free probe keeps 35 plus 15 when LLM gives equal lane budgets", () => {
+  const previous = process.env.SEARCH_RECALL_STRATEGY;
+  process.env.SEARCH_RECALL_STRATEGY = "headhunter_v1";
+  try {
+    const parsedWithEqualLaneBudgets = {
+      ...parsed,
+      recall_spec: {
+        ...parsed.recall_spec,
+        sourcing_lanes: (parsed.recall_spec.sourcing_lanes as Array<Record<string, unknown>>).map((lane) => ({
+          ...lane,
+          initial_budget: 35,
+        })),
+      },
+    };
+    const rounds = buildBrightDataRecallFilters(parsedWithEqualLaneBudgets, 5, freeExecutionProfile, {
+      normalizeRecallSpec,
+      sanitizeHiringBrief,
+      buildStandardSkillFilter,
+      buildRecallLocationFilter,
+      isPlaceholderTitle,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    });
+
+    assert.deepEqual(rounds.map((round) => round.round), ["standard", "primary_relaxed"]);
+    assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [35, 15]);
+    rounds.forEach((round) => assertBrightSafeFilter(round.request));
   } finally {
     if (previous == null) {
       delete process.env.SEARCH_RECALL_STRATEGY;
@@ -361,6 +419,7 @@ test("headhunter probe derives a safe relaxed lane when parsed plan omits primar
 
     assert.deepEqual(rounds.map((round) => round.round), ["standard", "primary_relaxed"]);
     assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [35, 15]);
+    rounds.forEach((round) => assertBrightSafeFilter(round.request));
     assert.notEqual(
       computeFilterHash(rounds[0].request),
       computeFilterHash(rounds[1].request),
