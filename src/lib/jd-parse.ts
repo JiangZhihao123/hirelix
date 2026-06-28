@@ -82,6 +82,8 @@ type ParseJobDescriptionOptions = {
   populateTargetCompanies?: boolean;
 };
 
+export const DEFAULT_JD_PARSE_MAX_OUTPUT_TOKENS = 6400;
+
 export type ParsedJobSummary = {
   title: string;
   requiredSkills: string[];
@@ -100,6 +102,13 @@ function normalizeNullableString(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+export function getJobDescriptionParseMaxOutputTokens() {
+  const raw = process.env.SEARCH_PARSE_MAX_OUTPUT_TOKENS;
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(parsed)) return DEFAULT_JD_PARSE_MAX_OUTPUT_TOKENS;
+  return Math.min(Math.max(parsed, 4000), 10000);
 }
 
 function normalizeStringArray(value: unknown, maxItems: number) {
@@ -697,7 +706,7 @@ export async function parseJobDescriptionToDraft(
     model: getDefaultLlmModel(),
     system: JD_SEARCH_INTENT_PROMPT,
     prompt: jdText,
-    maxOutputTokens: 3200,
+    maxOutputTokens: getJobDescriptionParseMaxOutputTokens(),
     temperature: 0,
     timeoutMs: 50000,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PARSE_THINKING", "disabled"),
