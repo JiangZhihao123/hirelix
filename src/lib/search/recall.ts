@@ -1428,6 +1428,55 @@ function buildHeadhunterProbeBudgets(
   };
 }
 
+function derivePrimaryRelaxedLane(
+  recallSpec: RecallSpec,
+  primaryExactLane: SourcingLane | undefined,
+): SourcingLane | null {
+  const existing = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === "primary_relaxed");
+  if (existing) return existing;
+
+  const source = primaryExactLane ??
+    recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === "primary_exact");
+  if (!source) return null;
+
+  const titleTerms = buildLaneTitleTerms(
+    [...source.title_terms, ...recallSpec.title_variants],
+    null,
+    8,
+  );
+  const relaxedSkills = extractAtomicSearchTerms([
+    ...source.skill_terms,
+    ...(source.non_negotiables ?? []),
+    ...(source.relaxed_evidence ?? []),
+    ...recallSpec.differentiating_skill_terms,
+    ...recallSpec.domain_terms,
+    ...recallSpec.must_have_signals,
+    ...recallSpec.core_skill_terms,
+  ], 12);
+
+  return {
+    ...source,
+    name: `${source.name || "primary"} relaxed`,
+    strategy: "skill",
+    lane_kind: "primary_relaxed",
+    target_persona: source.target_persona ?? "Same role-family candidates with equivalent evidence",
+    non_negotiables: source.non_negotiables ?? [],
+    relaxed_evidence: compactTerms([
+      ...(source.relaxed_evidence ?? []),
+      ...recallSpec.differentiating_skill_terms,
+      ...recallSpec.domain_terms,
+    ], 8),
+    exclusion_patterns: source.exclusion_patterns ?? [],
+    initial_budget: getLaneInitialBudget(recallSpec, "primary_relaxed", 15),
+    max_budget: Math.min(source.max_budget ?? 80, 80),
+    title_terms: titleTerms.length > 0 ? titleTerms : compactTerms(source.title_terms, 6),
+    skill_terms: relaxedSkills.length > 0 ? relaxedSkills : source.skill_terms,
+    company_terms: [],
+    avoid_terms: source.avoid_terms,
+    budget_weight: Math.max(0.25, source.budget_weight || 1),
+  };
+}
+
 function buildLlmSupplementalRounds(params: {
   datasetId: string;
   recallSpec: RecallSpec;
@@ -2385,7 +2434,7 @@ export function buildBrightDataRecallFilters(
   const signalGroups = buildRecallSkillSignalGroups(recallSpec);
   const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
   const primaryExactLane = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === "primary_exact");
-  const primaryRelaxedLane = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === "primary_relaxed");
+  const primaryRelaxedLane = derivePrimaryRelaxedLane(recallSpec, primaryExactLane);
   const standardExecutionProfile = headhunterBudgets
     ? { ...executionProfile, filterLimit: headhunterBudgets.primaryExact }
     : executionProfile;
@@ -2463,33 +2512,19 @@ export function buildBrightDataRecallFilters(
   if (headhunterMode) {
     const relaxedLimit = headhunterBudgets?.primaryRelaxed ?? 0;
     if (relaxedLimit <= 0) return rounds;
-    const relaxedRequest = (
-      primaryRelaxedLane
-        ? buildHeadhunterLaneRecallRequest(
-          parsed,
-          recallSpec,
-          hiringBrief,
-          primaryRelaxedLane,
-          relaxedLimit,
-          {
-            buildRecallLocationFilter: options.buildRecallLocationFilter,
-            isPlaceholderTitle: options.isPlaceholderTitle,
-          },
-        )
-        : null
-    ) ?? buildBrightDataRecallFilter(
-      parsed,
-      candidateCount,
-      { ...executionProfile, filterLimit: relaxedLimit },
-      {
-        normalizeRecallSpec: options.normalizeRecallSpec,
-        sanitizeHiringBrief: options.sanitizeHiringBrief,
-        buildStandardSkillFilter: options.buildStandardSkillFilter,
-        buildRecallLocationFilter: options.buildRecallLocationFilter,
-        isPlaceholderTitle: options.isPlaceholderTitle,
-        mode: "relaxed",
-      },
-    );
+    const relaxedRequest = primaryRelaxedLane
+      ? buildHeadhunterLaneRecallRequest(
+        parsed,
+        recallSpec,
+        hiringBrief,
+        primaryRelaxedLane,
+        relaxedLimit,
+        {
+          buildRecallLocationFilter: options.buildRecallLocationFilter,
+          isPlaceholderTitle: options.isPlaceholderTitle,
+        },
+      )
+      : null;
     if (!relaxedRequest) return rounds;
     const relaxedDiagnosticTitleTerms =
       primaryRelaxedLane && !isDataPlatformRole

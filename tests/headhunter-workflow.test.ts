@@ -271,6 +271,116 @@ test("adaptive headhunter lane compiler keeps non-company revisions title AND ev
   );
 });
 
+test("headhunter probe derives a safe relaxed lane when parsed plan omits primary_relaxed", () => {
+  const previous = process.env.SEARCH_RECALL_STRATEGY;
+  process.env.SEARCH_RECALL_STRATEGY = "headhunter_v1";
+  try {
+    const parsedWithoutRelaxed = {
+      ...parsed,
+      recall_spec: {
+        ...parsed.recall_spec,
+        title_variants: [
+          "Senior Backend Engineer",
+          "Staff Backend Engineer",
+          "Principal Backend Engineer",
+          "Senior Software Engineer",
+          "Staff Software Engineer",
+          "Senior Platform Engineer",
+        ],
+        core_skill_terms: [
+          "Go",
+          "Java",
+          "PostgreSQL",
+          "distributed systems",
+          "microservices",
+          "API",
+          "payments",
+        ],
+        differentiating_skill_terms: ["payments", "fintech", "ledger"],
+        domain_terms: ["payments", "fintech"],
+        must_have_signals: [
+          "backend engineering",
+          "go or java",
+          "postgresql",
+          "distributed systems",
+          "microservices",
+          "apis",
+        ],
+        sourcing_lanes: [
+          {
+            name: "Primary Backend Engineers",
+            strategy: "title",
+            lane_kind: "primary_exact",
+            target_persona: "Senior backend engineers with payments/fintech background",
+            non_negotiables: ["backend engineering role", "Go or Java or Kotlin or Rust", "PostgreSQL"],
+            relaxed_evidence: ["may not have explicit payments experience if strong distributed systems background"],
+            exclusion_patterns: ["frontend", "data scientist", "DevOps", "SRE", "manager"],
+            initial_budget: 35,
+            max_budget: 120,
+            title_terms: [
+              "Senior Backend Engineer",
+              "Staff Backend Engineer",
+              "Principal Backend Engineer",
+              "Senior Software Engineer",
+              "Staff Software Engineer",
+            ],
+            skill_terms: ["go", "java", "postgresql", "distributed systems", "payments"],
+            company_terms: [],
+            avoid_terms: ["frontend", "data", "DevOps", "SRE", "manager"],
+            budget_weight: 1,
+          },
+          {
+            name: "Target Companies",
+            strategy: "company",
+            lane_kind: "target_company_engineering",
+            target_persona: "Backend engineers at payments/fintech companies",
+            non_negotiables: ["engineering role at target company"],
+            relaxed_evidence: ["title may be 'Software Engineer' without 'backend'"],
+            exclusion_patterns: ["non-engineering roles"],
+            initial_budget: 35,
+            max_budget: 120,
+            title_terms: ["Software Engineer", "Backend Engineer", "Senior Software Engineer"],
+            skill_terms: ["go", "java", "postgresql"],
+            company_terms: ["Stripe", "Adyen", "PayPal"],
+            avoid_terms: ["frontend", "data", "DevOps", "SRE", "manager"],
+            budget_weight: 1,
+          },
+        ],
+      },
+    };
+
+    const rounds = buildBrightDataRecallFilters(parsedWithoutRelaxed, 5, freeExecutionProfile, {
+      normalizeRecallSpec,
+      sanitizeHiringBrief,
+      buildStandardSkillFilter,
+      buildRecallLocationFilter,
+      isPlaceholderTitle,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    });
+
+    assert.deepEqual(rounds.map((round) => round.round), ["standard", "primary_relaxed"]);
+    assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [35, 15]);
+    assert.notEqual(
+      computeFilterHash(rounds[0].request),
+      computeFilterHash(rounds[1].request),
+    );
+    const relaxedValues = leafValues(rounds[1].request.filter);
+    assertRootAndContainsSeparateTitleAndEvidence(rounds[1].request, "senior software engineer", "payments");
+    assert.ok(relaxedValues.includes("postgresql"));
+    assert.ok(relaxedValues.includes("backend engineering"));
+    assert.ok(!relaxedValues.includes("senior platform engineer"));
+    assert.ok(!relaxedValues.includes("data platform"));
+    assert.ok(!relaxedValues.includes("data pipeline"));
+  } finally {
+    if (previous == null) {
+      delete process.env.SEARCH_RECALL_STRATEGY;
+    } else {
+      process.env.SEARCH_RECALL_STRATEGY = previous;
+    }
+  }
+});
+
 test("lane auditor schema and normalizer keep decisions inside allowed enums", () => {
   assert.match(HEADHUNTER_LANE_AUDITOR_PROMPT, /Do not use keyword hit-counts as candidate-quality rules/);
   assert.ok(LANE_AUDITOR_JSON_SCHEMA.schema);
