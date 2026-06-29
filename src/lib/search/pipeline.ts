@@ -231,6 +231,9 @@ type SearchPipelineHelpers = {
     downloadStartedAt?: string | null;
     downloadCompletedAt?: string | null;
     profilesReturned?: number | null;
+    uniqueProfilesAdded?: number | null;
+    duplicateProfilesSeen?: number | null;
+    overlapRatio?: number | null;
     incrementPollAttempt?: boolean;
     incrementDownloadAttempt?: boolean;
   }) => AdditionalRecallSnapshot;
@@ -385,6 +388,8 @@ type AdaptiveRecallActionState = {
   submittedAt: string | null;
 };
 
+const DUPLICATE_MARKET_SLICE_OVERLAP_THRESHOLD = 0.7;
+
 function readAdaptiveRecallState(parsed: Record<string, unknown>) {
   return parsed.adaptive_recall && typeof parsed.adaptive_recall === "object"
     ? (parsed.adaptive_recall as Record<string, unknown>)
@@ -523,6 +528,11 @@ export function mergeRecallIterations(
     if (!previousMatch) return iteration;
     return {
       ...iteration,
+      raw_profiles_returned: iteration.raw_profiles_returned ?? previousMatch.raw_profiles_returned ?? null,
+      unique_profiles_added: iteration.unique_profiles_added ?? previousMatch.unique_profiles_added ?? null,
+      duplicate_profiles_seen: iteration.duplicate_profiles_seen ?? previousMatch.duplicate_profiles_seen ?? null,
+      overlap_ratio: iteration.overlap_ratio ?? previousMatch.overlap_ratio ?? null,
+      market_slice_status: iteration.market_slice_status ?? previousMatch.market_slice_status ?? null,
       audit: iteration.audit ?? previousMatch.audit ?? null,
       continue_expansion:
         typeof iteration.continue_expansion === "boolean"
@@ -1051,6 +1061,64 @@ async function auditHeadhunterRecallLanes(params: {
     const lane = getSourcingLaneForRound(params.recallSpec, iteration.lane, laneKind);
     const diagnostic = params.roundDiagnostics.find((round) => round.round === iteration.lane);
     const sampleCount = countLaneProfiles(params.profiles, iteration.lane);
+    if (
+      sampleCount === 0 &&
+      (iteration.raw_profiles_returned ?? diagnostic?.returned_count ?? 0) > 0 &&
+      (iteration.unique_profiles_added ?? diagnostic?.unique_added_count ?? 0) === 0
+    ) {
+      const duplicateAudit: LaneAuditResult = {
+        decision: "stop",
+        quality_grade: "D",
+        why_this_lane_is_working: "",
+        why_this_lane_is_wrong:
+          "Bright returned profiles for this lane, but they were all already present in the candidate pool. This is a duplicate market slice, not a fresh sourcing direction.",
+        wrong_profile_patterns: ["duplicate profiles already recalled"],
+        next_lane_revision: {
+          name: "New distinct sourcing thesis required",
+          lane_kind: laneKind,
+          target_persona: lane.target_persona ?? "A materially different candidate market slice",
+          non_negotiables: lane.non_negotiables ?? [],
+          relaxed_evidence: lane.relaxed_evidence ?? [],
+          exclusion_patterns: lane.exclusion_patterns ?? lane.avoid_terms ?? [],
+          initial_budget: lane.initial_budget ?? 20,
+          max_budget: lane.max_budget ?? 40,
+        },
+      };
+      const summary = summarizeSingleLaneAudit(duplicateAudit);
+      audits.push({ lane: iteration.lane, audit: duplicateAudit, sampleCount });
+      updatedIterations.push({
+        ...iteration,
+        lane_kind: laneKind,
+        market_slice_status: "duplicate_market_slice",
+        audit: {
+          decision: duplicateAudit.decision,
+          quality_grade: duplicateAudit.quality_grade,
+          summary,
+          why_this_lane_is_working: duplicateAudit.why_this_lane_is_working,
+          why_this_lane_is_wrong: duplicateAudit.why_this_lane_is_wrong,
+          wrong_profile_patterns: duplicateAudit.wrong_profile_patterns,
+          next_lane_revision: duplicateAudit.next_lane_revision,
+          audited_at: params.helpers.nowIso(),
+          sample_count: sampleCount,
+        },
+        continue_expansion: false,
+      });
+      params.helpers.logSearchEvent("search_lane_audit_completed", {
+        search_id: params.context.searchId,
+        job_id: params.context.jobId,
+        lane: iteration.lane,
+        lane_kind: laneKind,
+        decision: duplicateAudit.decision,
+        quality_grade: duplicateAudit.quality_grade,
+        sample_count: sampleCount,
+        raw_profiles_returned: iteration.raw_profiles_returned ?? diagnostic?.returned_count ?? null,
+        unique_profiles_added: iteration.unique_profiles_added ?? diagnostic?.unique_added_count ?? null,
+        overlap_ratio: iteration.overlap_ratio ?? diagnostic?.overlap_ratio ?? null,
+        market_slice_status: "duplicate_market_slice",
+        continue_expansion: false,
+      });
+      continue;
+    }
     const profileSample = buildLaneAuditProfileSample({
       round: iteration.lane,
       profiles: params.profiles,
@@ -2701,6 +2769,9 @@ async function buildBrightDataDatasetCandidates(
   const buildRoundDiagnostics = (params: {
     standardReturned?: number | null;
     additionalReturned?: Map<string, number>;
+    additionalUniqueAdded?: Map<string, number>;
+    additionalDuplicateCount?: Map<string, number>;
+    additionalOverlapRatio?: Map<string, number>;
     qualityDistribution?: Map<string, RecallRoundQualityDistribution>;
   } = {}): RecallRoundDiagnostics[] => {
     const roundsForDiagnostics = [
@@ -2719,6 +2790,15 @@ async function buildBrightDataDatasetCandidates(
         ...round.diagnostics,
         filter_hash: filterHash,
         returned_count: returnedCount ?? null,
+        unique_added_count: round.round === "standard"
+          ? returnedCount ?? null
+          : params.additionalUniqueAdded?.get(round.round) ?? null,
+        duplicate_count: round.round === "standard"
+          ? 0
+          : params.additionalDuplicateCount?.get(round.round) ?? null,
+        overlap_ratio: round.round === "standard"
+          ? 0
+          : params.additionalOverlapRatio?.get(round.round) ?? null,
         quality_distribution: params.qualityDistribution?.get(round.round) ?? null,
       };
     });
@@ -3460,6 +3540,11 @@ async function buildBrightDataDatasetCandidates(
         budget: standardRound.request.recordsLimit,
         snapshot_id: activeSnapshotId,
         filter_hash: computeFilterHash(standardRound.request),
+        raw_profiles_returned: profiles.length,
+        unique_profiles_added: profiles.length,
+        duplicate_profiles_seen: 0,
+        overlap_ratio: 0,
+        market_slice_status: profiles.length > 0 ? "fresh" as const : "empty" as const,
         audit: null,
         continue_expansion: null,
       },
@@ -3555,6 +3640,9 @@ async function buildBrightDataDatasetCandidates(
   const allProfiles = [...profiles];
   let totalRecallCost = getMetadataCost(metadata);
   const additionalReturnedCounts = new Map<string, number>();
+  const additionalUniqueAddedCounts = new Map<string, number>();
+  const additionalDuplicateCounts = new Map<string, number>();
+  const additionalOverlapRatios = new Map<string, number>();
   const downloadDeferredAdditionalRounds: Array<{
     round: string;
     snapshotId: string;
@@ -3638,6 +3726,9 @@ async function buildBrightDataDatasetCandidates(
               });
             }
             additionalReturnedCounts.set(round, 0);
+            additionalUniqueAddedCounts.set(round, 0);
+            additionalDuplicateCounts.set(round, 0);
+            additionalOverlapRatios.set(round, 0);
             continue;
           }
           if (!helpers.isTransientSnapshotDownloadError(error)) {
@@ -3665,6 +3756,9 @@ async function buildBrightDataDatasetCandidates(
               });
             }
             additionalReturnedCounts.set(round, 0);
+            additionalUniqueAddedCounts.set(round, 0);
+            additionalDuplicateCounts.set(round, 0);
+            additionalOverlapRatios.set(round, 0);
             helpers.logSearchEvent("search_multi_round_download_failed_nonblocking", {
               search_id: context.searchId,
               round,
@@ -3692,6 +3786,9 @@ async function buildBrightDataDatasetCandidates(
             }),
           );
           additionalReturnedCounts.set(round, 0);
+          additionalUniqueAddedCounts.set(round, 0);
+          additionalDuplicateCounts.set(round, 0);
+          additionalOverlapRatios.set(round, 0);
           downloadDeferredAdditionalRounds.push({
             round,
             snapshotId: roundSnapId,
@@ -3708,6 +3805,68 @@ async function buildBrightDataDatasetCandidates(
           continue;
         }
       }
+      additionalReturnedCounts.set(round, roundProfiles.length);
+      if (roundProfiles.length === 0) {
+        additionalUniqueAddedCounts.set(round, 0);
+        additionalDuplicateCounts.set(round, 0);
+        additionalOverlapRatios.set(round, 0);
+        persistedAdditionalSnapshots.set(
+          round,
+          helpers.buildAdditionalSnapshotMetadata({
+            round,
+            snapshotId: roundSnapId,
+            recordsLimit: roundRef.recordsLimit,
+            filterHash: roundRef.filterHash,
+            existing: persistedAdditionalSnapshots.get(round) ?? null,
+            status: "ready",
+            submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
+            readyAt: persistedAdditionalSnapshots.get(round)?.ready_at ?? helpers.nowIso(),
+            lastPolledAt: persistedAdditionalSnapshots.get(round)?.last_polled_at ?? helpers.nowIso(),
+            downloadStartedAt: roundDownloadStartedAt,
+            downloadCompletedAt: helpers.nowIso(),
+            profilesReturned: roundMeta?.dataset_size ?? roundProfiles.length,
+            uniqueProfilesAdded: 0,
+            duplicateProfilesSeen: 0,
+            overlapRatio: 0,
+            incrementDownloadAttempt: true,
+          }),
+        );
+        if (round.startsWith("adaptive_")) {
+          updateAdaptiveRecallAction(parsed, round, {
+            status: "done",
+            completed_at: helpers.nowIso(),
+            profiles_returned: 0,
+            unique_added: 0,
+            duplicate_profiles_seen: 0,
+            overlap_ratio: 0,
+            market_slice_status: "empty",
+          });
+        }
+        helpers.logSearchEvent("search_multi_round_empty", {
+          search_id: context.searchId,
+          round,
+          snapshot_id: roundSnapId,
+          job_id: context.jobId,
+        });
+        continue;
+      }
+      let addedCount = 0;
+      let duplicateCount = 0;
+      for (const profile of roundProfiles) {
+        const key = profile.linkedin_id || profile.url || profile.name;
+        if (key && seenIds.has(key)) {
+          duplicateCount += 1;
+          continue;
+        }
+        if (key) seenIds.add(key);
+        (profile as Record<string, unknown>).__recall_source = round;
+        allProfiles.push(profile);
+        addedCount += 1;
+      }
+      const overlapRatio = roundProfiles.length > 0 ? duplicateCount / roundProfiles.length : 0;
+      additionalUniqueAddedCounts.set(round, addedCount);
+      additionalDuplicateCounts.set(round, duplicateCount);
+      additionalOverlapRatios.set(round, overlapRatio);
       persistedAdditionalSnapshots.set(
         round,
         helpers.buildAdditionalSnapshotMetadata({
@@ -3723,36 +3882,12 @@ async function buildBrightDataDatasetCandidates(
           downloadStartedAt: roundDownloadStartedAt,
           downloadCompletedAt: helpers.nowIso(),
           profilesReturned: roundMeta?.dataset_size ?? roundProfiles.length,
+          uniqueProfilesAdded: addedCount,
+          duplicateProfilesSeen: duplicateCount,
+          overlapRatio,
           incrementDownloadAttempt: true,
         }),
       );
-      additionalReturnedCounts.set(round, roundProfiles.length);
-      if (roundProfiles.length === 0) {
-        if (round.startsWith("adaptive_")) {
-          updateAdaptiveRecallAction(parsed, round, {
-            status: "done",
-            completed_at: helpers.nowIso(),
-            profiles_returned: 0,
-            unique_added: 0,
-          });
-        }
-        helpers.logSearchEvent("search_multi_round_empty", {
-          search_id: context.searchId,
-          round,
-          snapshot_id: roundSnapId,
-          job_id: context.jobId,
-        });
-        continue;
-      }
-      let addedCount = 0;
-      for (const profile of roundProfiles) {
-        const key = profile.linkedin_id || profile.url || profile.name;
-        if (key && seenIds.has(key)) continue;
-        if (key) seenIds.add(key);
-        (profile as Record<string, unknown>).__recall_source = round;
-        allProfiles.push(profile);
-        addedCount += 1;
-      }
       const roundCost = getMetadataCost(roundMeta);
       if (roundCost != null) {
         totalRecallCost = (totalRecallCost ?? 0) + roundCost;
@@ -3767,6 +3902,11 @@ async function buildBrightDataDatasetCandidates(
         snapshot_id: roundSnapId,
         profiles_returned: roundProfiles.length,
         unique_added: addedCount,
+        duplicate_profiles_seen: duplicateCount,
+        overlap_ratio: overlapRatio,
+        market_slice_status: overlapRatio >= DUPLICATE_MARKET_SLICE_OVERLAP_THRESHOLD
+          ? "duplicate_market_slice"
+          : "fresh",
         job_id: context.jobId,
       });
       if (round.startsWith("adaptive_")) {
@@ -3775,6 +3915,11 @@ async function buildBrightDataDatasetCandidates(
           completed_at: helpers.nowIso(),
           profiles_returned: roundProfiles.length,
           unique_added: addedCount,
+          duplicate_profiles_seen: duplicateCount,
+          overlap_ratio: overlapRatio,
+          market_slice_status: overlapRatio >= DUPLICATE_MARKET_SLICE_OVERLAP_THRESHOLD
+            ? "duplicate_market_slice"
+            : "fresh",
         });
       }
     }
@@ -3797,6 +3942,46 @@ async function buildBrightDataDatasetCandidates(
       isAdaptiveRecallRoundName(round.round) &&
       (additionalReturnedCounts.get(round.round) ?? 0) > 0
     ).length;
+  const applyRoundRecallStatsToIterations = (
+    iterations: NonNullable<RecallMetadata["recall_iterations"]>,
+  ): NonNullable<RecallMetadata["recall_iterations"]> =>
+    iterations.map((iteration) => {
+      if (iteration.lane === "standard") {
+        return {
+          ...iteration,
+          raw_profiles_returned: standardProfileCount,
+          unique_profiles_added: standardProfileCount,
+          duplicate_profiles_seen: 0,
+          overlap_ratio: 0,
+          market_slice_status: standardProfileCount > 0 ? "fresh" : "empty",
+        };
+      }
+      const returned = additionalReturnedCounts.get(iteration.lane);
+      const uniqueAdded = additionalUniqueAddedCounts.get(iteration.lane);
+      const duplicates = additionalDuplicateCounts.get(iteration.lane);
+      const overlapRatio = additionalOverlapRatios.get(iteration.lane);
+      if (
+        returned == null &&
+        uniqueAdded == null &&
+        duplicates == null &&
+        overlapRatio == null
+      ) {
+        return iteration;
+      }
+      return {
+        ...iteration,
+        raw_profiles_returned: returned ?? iteration.raw_profiles_returned ?? null,
+        unique_profiles_added: uniqueAdded ?? iteration.unique_profiles_added ?? null,
+        duplicate_profiles_seen: duplicates ?? iteration.duplicate_profiles_seen ?? null,
+        overlap_ratio: overlapRatio ?? iteration.overlap_ratio ?? null,
+        market_slice_status:
+          returned === 0
+            ? "empty"
+            : (overlapRatio ?? iteration.overlap_ratio ?? 0) >= DUPLICATE_MARKET_SLICE_OVERLAP_THRESHOLD
+              ? "duplicate_market_slice"
+              : "fresh",
+      };
+    });
 
   if (
     shouldWaitForAdditionalRecallBeforeScoring({
@@ -3864,6 +4049,9 @@ async function buildBrightDataDatasetCandidates(
       round_diagnostics: buildRoundDiagnostics({
         standardReturned: standardProfileCount,
         additionalReturned: additionalReturnedCounts,
+        additionalUniqueAdded: additionalUniqueAddedCounts,
+        additionalDuplicateCount: additionalDuplicateCounts,
+        additionalOverlapRatio: additionalOverlapRatios,
       }),
       additional_snapshots: additionalSnapshotRefs.map((round) => ({
         ...helpers.buildAdditionalSnapshotMetadata({
@@ -3880,6 +4068,9 @@ async function buildBrightDataDatasetCandidates(
           downloadStartedAt: persistedAdditionalSnapshots.get(round.round)?.download_started_at ?? null,
           downloadCompletedAt: persistedAdditionalSnapshots.get(round.round)?.download_completed_at ?? null,
           profilesReturned: persistedAdditionalSnapshots.get(round.round)?.profiles_returned ?? null,
+          uniqueProfilesAdded: persistedAdditionalSnapshots.get(round.round)?.unique_profiles_added ?? null,
+          duplicateProfilesSeen: persistedAdditionalSnapshots.get(round.round)?.duplicate_profiles_seen ?? null,
+          overlapRatio: persistedAdditionalSnapshots.get(round.round)?.overlap_ratio ?? null,
         }),
       })),
       status: "polling",
@@ -3996,6 +4187,9 @@ async function buildBrightDataDatasetCandidates(
       : null;
   const scoringRecallReadyAt = helpers.nowIso();
   const allRecallCompletedAt = deferredAdditionalRounds.length === 0 ? scoringRecallReadyAt : null;
+  const recallIterationsWithRoundStats = recallStrategyMode === "headhunter_v1"
+    ? applyRoundRecallStatsToIterations(recallIterations)
+    : recallIterations;
   const persistedAdditionalSnapshotList = additionalSnapshotRefs.map((round) =>
     persistedAdditionalSnapshots.get(round.round) ??
     helpers.buildAdditionalSnapshotMetadata({
@@ -4034,9 +4228,15 @@ async function buildBrightDataDatasetCandidates(
     standard_download_completed_at: standardDownloadCompletedAt,
     all_recall_completed_at: allRecallCompletedAt,
     recall_personas: recallPersonas,
+    ...(recallIterationsWithRoundStats.length > 0
+      ? { recall_iterations: recallIterationsWithRoundStats }
+      : {}),
     round_diagnostics: buildRoundDiagnostics({
       standardReturned: standardProfileCount,
       additionalReturned: additionalReturnedCounts,
+      additionalUniqueAdded: additionalUniqueAddedCounts,
+      additionalDuplicateCount: additionalDuplicateCounts,
+      additionalOverlapRatio: additionalOverlapRatios,
     }),
     additional_snapshots: persistedAdditionalSnapshotList,
     status: "ready",
@@ -4077,6 +4277,9 @@ async function buildBrightDataDatasetCandidates(
     roundDiagnostics: buildRoundDiagnostics({
       standardReturned: standardProfileCount,
       additionalReturned: additionalReturnedCounts,
+      additionalUniqueAdded: additionalUniqueAddedCounts,
+      additionalDuplicateCount: additionalDuplicateCounts,
+      additionalOverlapRatio: additionalOverlapRatios,
     }),
     helpers,
   });
@@ -4172,12 +4375,18 @@ async function buildBrightDataDatasetCandidates(
   const roundDiagnosticsWithQuality = buildRoundDiagnostics({
     standardReturned: standardProfileCount,
     additionalReturned: additionalReturnedCounts,
+    additionalUniqueAdded: additionalUniqueAddedCounts,
+    additionalDuplicateCount: additionalDuplicateCounts,
+    additionalOverlapRatio: additionalOverlapRatios,
     qualityDistribution: qualityDistributionByRound,
   });
   const recallMetadataBeforeLaneAudit = helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
     provider: "brightdata_dataset" as const,
     snapshot_id: activeSnapshotId,
   };
+  const recallIterationsBeforeLaneAudit = recallStrategyMode === "headhunter_v1"
+    ? applyRoundRecallStatsToIterations(recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations)
+    : recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations;
   const laneAuditState = recallStrategyMode === "headhunter_v1"
     ? await auditHeadhunterRecallLanes({
       context,
@@ -4185,15 +4394,14 @@ async function buildBrightDataDatasetCandidates(
       recallSpec,
       profiles: allProfiles,
       assessments: combinedResult.assessments,
-      recallIterations: recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations,
+      recallIterations: recallIterationsBeforeLaneAudit,
       roundDiagnostics: roundDiagnosticsWithQuality,
       helpers,
     })
     : null;
   const effectiveRecallIterations =
     laneAuditState?.recallIterations ??
-    recallMetadataBeforeLaneAudit.recall_iterations ??
-    recallIterations;
+    recallIterationsBeforeLaneAudit;
   const displayStatsBeforeAdaptive = helpers.buildSearchDisplayStats({
     ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
     ...combinedResult.displayStats,

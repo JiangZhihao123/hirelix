@@ -1455,6 +1455,18 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
   const provider: RecallProvider = "brightdata_dataset";
   const snapshotId = normalizeNullableString(item.snapshot_id);
   if (!snapshotId) return null;
+  const normalizeMarketSliceStatus = (
+    status: unknown,
+  ): "fresh" | "duplicate_market_slice" | "empty" | null => {
+    if (
+      status === "fresh" ||
+      status === "duplicate_market_slice" ||
+      status === "empty"
+    ) {
+      return status;
+    }
+    return null;
+  };
 
   const status = normalizeNullableString(item.status);
   const dataset_size =
@@ -1537,6 +1549,18 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           typeof snapshot.profiles_returned === "number" && Number.isFinite(snapshot.profiles_returned)
             ? Math.max(0, Math.round(snapshot.profiles_returned))
             : null;
+        const unique_profiles_added =
+          typeof snapshot.unique_profiles_added === "number" && Number.isFinite(snapshot.unique_profiles_added)
+            ? Math.max(0, Math.round(snapshot.unique_profiles_added))
+            : null;
+        const duplicate_profiles_seen =
+          typeof snapshot.duplicate_profiles_seen === "number" && Number.isFinite(snapshot.duplicate_profiles_seen)
+            ? Math.max(0, Math.round(snapshot.duplicate_profiles_seen))
+            : null;
+        const overlap_ratio =
+          typeof snapshot.overlap_ratio === "number" && Number.isFinite(snapshot.overlap_ratio)
+            ? Math.max(0, Math.min(1, snapshot.overlap_ratio))
+            : null;
         const poll_attempt_count =
           typeof snapshot.poll_attempt_count === "number" && Number.isFinite(snapshot.poll_attempt_count)
             ? Math.max(0, Math.round(snapshot.poll_attempt_count))
@@ -1569,6 +1593,9 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           download_completed_at,
           completed_at,
           profiles_returned,
+          unique_profiles_added,
+          duplicate_profiles_seen,
+          overlap_ratio,
           poll_attempt_count,
           download_attempt_count,
           status: normalizedStatus,
@@ -1601,6 +1628,18 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
           returned_count:
             typeof diagnostic.returned_count === "number" && Number.isFinite(diagnostic.returned_count)
               ? Math.max(0, Math.round(diagnostic.returned_count))
+              : null,
+          unique_added_count:
+            typeof diagnostic.unique_added_count === "number" && Number.isFinite(diagnostic.unique_added_count)
+              ? Math.max(0, Math.round(diagnostic.unique_added_count))
+              : null,
+          duplicate_count:
+            typeof diagnostic.duplicate_count === "number" && Number.isFinite(diagnostic.duplicate_count)
+              ? Math.max(0, Math.round(diagnostic.duplicate_count))
+              : null,
+          overlap_ratio:
+            typeof diagnostic.overlap_ratio === "number" && Number.isFinite(diagnostic.overlap_ratio)
+              ? Math.max(0, Math.min(1, diagnostic.overlap_ratio))
               : null,
           filter_hash: normalizeNullableString(diagnostic.filter_hash),
           title_terms: normalizeStringArray(diagnostic.title_terms, 12),
@@ -1706,6 +1745,23 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
               : 0,
           snapshot_id: normalizeNullableString(iteration.snapshot_id),
           filter_hash: normalizeNullableString(iteration.filter_hash),
+          raw_profiles_returned:
+            typeof iteration.raw_profiles_returned === "number" && Number.isFinite(iteration.raw_profiles_returned)
+              ? Math.max(0, Math.round(iteration.raw_profiles_returned))
+              : null,
+          unique_profiles_added:
+            typeof iteration.unique_profiles_added === "number" && Number.isFinite(iteration.unique_profiles_added)
+              ? Math.max(0, Math.round(iteration.unique_profiles_added))
+              : null,
+          duplicate_profiles_seen:
+            typeof iteration.duplicate_profiles_seen === "number" && Number.isFinite(iteration.duplicate_profiles_seen)
+              ? Math.max(0, Math.round(iteration.duplicate_profiles_seen))
+              : null,
+          overlap_ratio:
+            typeof iteration.overlap_ratio === "number" && Number.isFinite(iteration.overlap_ratio)
+              ? Math.max(0, Math.min(1, iteration.overlap_ratio))
+              : null,
+          market_slice_status: normalizeMarketSliceStatus(iteration.market_slice_status),
           audit: auditDecision && auditGrade
             ? {
               decision: auditDecision,
@@ -1802,6 +1858,9 @@ function buildAdditionalSnapshotMetadata(params: {
   downloadStartedAt?: string | null;
   downloadCompletedAt?: string | null;
   profilesReturned?: number | null;
+  uniqueProfilesAdded?: number | null;
+  duplicateProfilesSeen?: number | null;
+  overlapRatio?: number | null;
   incrementPollAttempt?: boolean;
   incrementDownloadAttempt?: boolean;
 }) {
@@ -1830,6 +1889,9 @@ function buildAdditionalSnapshotMetadata(params: {
       existing?.completed_at ??
       null,
     profiles_returned: params.profilesReturned ?? existing?.profiles_returned ?? null,
+    unique_profiles_added: params.uniqueProfilesAdded ?? existing?.unique_profiles_added ?? null,
+    duplicate_profiles_seen: params.duplicateProfilesSeen ?? existing?.duplicate_profiles_seen ?? null,
+    overlap_ratio: params.overlapRatio ?? existing?.overlap_ratio ?? null,
     poll_attempt_count:
       (existing?.poll_attempt_count ?? 0) + (params.incrementPollAttempt ? 1 : 0),
     download_attempt_count:

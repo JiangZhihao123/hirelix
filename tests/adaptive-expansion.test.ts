@@ -223,6 +223,146 @@ test("adaptive planner records duplicate revised filters without spending", () =
   assert.equal(plan.actions[0]?.budget, 0);
 });
 
+test("adaptive planner stops high-overlap adaptive lanes without C-grade incremental spend", () => {
+  const plan = planAdaptiveExpansion({
+    parsed: {},
+    recallMetadata: metadata({
+      recall_iterations: [
+        {
+          iteration: 1,
+          lane: "standard",
+          lane_kind: "primary_exact",
+          budget: 35,
+          audit: {
+            decision: "revise",
+            quality_grade: "C",
+            summary: "Initial lane was broad but found a few useful people.",
+            next_lane_revision: {
+              name: "payments backend revision",
+              lane_kind: "primary_exact",
+              target_persona: "Payments backend engineers",
+              non_negotiables: ["backend engineering", "payments"],
+              relaxed_evidence: ["billing systems"],
+              exclusion_patterns: ["manager only"],
+              initial_budget: 20,
+              max_budget: 40,
+            },
+          },
+          continue_expansion: false,
+        },
+        {
+          iteration: 2,
+          lane: "adaptive_b1_1_revise_lane_standard",
+          lane_kind: "primary_exact",
+          budget: 20,
+          raw_profiles_returned: 19,
+          unique_profiles_added: 0,
+          duplicate_profiles_seen: 19,
+          overlap_ratio: 1,
+          market_slice_status: "duplicate_market_slice",
+          audit: {
+            decision: "revise",
+            quality_grade: "D",
+            summary: "Adaptive returned only already-seen candidates.",
+          },
+          continue_expansion: false,
+        },
+      ],
+      round_diagnostics: [
+        {
+          round: "standard",
+          requested_count: 35,
+          returned_count: 19,
+          unique_added_count: 19,
+          duplicate_count: 0,
+          overlap_ratio: 0,
+          title_terms: ["Senior Backend Engineer"],
+          skill_signal_groups: {
+            search_domain: ["payments"],
+            platform_engineering: ["backend"],
+          },
+          location_mode: "country_only",
+        },
+        {
+          round: "adaptive_b1_1_revise_lane_standard",
+          requested_count: 20,
+          returned_count: 19,
+          unique_added_count: 0,
+          duplicate_count: 19,
+          overlap_ratio: 1,
+          title_terms: ["Senior Backend Engineer"],
+          skill_signal_groups: {
+            search_domain: ["payments"],
+            platform_engineering: ["backend"],
+          },
+          location_mode: "country_only",
+        },
+      ],
+    }),
+    displayStats: displayStats({ recommended_count: 0 }),
+    recallSpec: { sourcing_lanes: [directLane] },
+    totalBudget: 250,
+  });
+
+  assert.equal(plan.should_continue, false);
+  assert.equal(plan.stop_reason, "duplicate_market_slice");
+  assert.equal(plan.planned_budget, 0);
+  assert.equal(plan.actions.find((action) => action.lane === "adaptive_b1_1_revise_lane_standard")?.type, "duplicate_market_slice");
+  assert.equal(plan.actions.find((action) => action.lane === "adaptive_b1_1_revise_lane_standard")?.budget, 0);
+  assert.equal(plan.actions.find((action) => action.lane === "standard")?.type, "stop_lane");
+});
+
+test("adaptive planner stops when every available lane is duplicate market slice", () => {
+  const plan = planAdaptiveExpansion({
+    parsed: {},
+    recallMetadata: metadata({
+      recall_iterations: [
+        {
+          iteration: 1,
+          lane: "adaptive_b1_1_revise_lane_standard",
+          lane_kind: "primary_exact",
+          budget: 20,
+          raw_profiles_returned: 19,
+          unique_profiles_added: 0,
+          duplicate_profiles_seen: 19,
+          overlap_ratio: 1,
+          market_slice_status: "duplicate_market_slice",
+          audit: {
+            decision: "revise",
+            quality_grade: "C",
+            summary: "Returned only candidates already recalled.",
+          },
+          continue_expansion: false,
+        },
+      ],
+      round_diagnostics: [
+        {
+          round: "adaptive_b1_1_revise_lane_standard",
+          requested_count: 20,
+          returned_count: 19,
+          unique_added_count: 0,
+          duplicate_count: 19,
+          overlap_ratio: 1,
+          title_terms: ["Senior Backend Engineer"],
+          skill_signal_groups: {
+            search_domain: ["payments"],
+            platform_engineering: ["backend"],
+          },
+          location_mode: "country_only",
+        },
+      ],
+    }),
+    displayStats: displayStats({ recommended_count: 0 }),
+    recallSpec: { sourcing_lanes: [directLane] },
+    totalBudget: 250,
+  });
+
+  assert.equal(plan.should_continue, false);
+  assert.equal(plan.stop_reason, "duplicate_market_slice");
+  assert.equal(plan.planned_budget, 0);
+  assert.equal(plan.actions[0]?.type, "duplicate_market_slice");
+});
+
 test("adaptive planner marks all D probe lanes as needing human calibration without spending", () => {
   const plan = planAdaptiveExpansion({
     parsed: {},

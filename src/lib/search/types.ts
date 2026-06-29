@@ -437,6 +437,9 @@ export type AdditionalRecallSnapshot = {
   download_completed_at?: string | null;
   completed_at?: string | null;
   profiles_returned?: number | null;
+  unique_profiles_added?: number | null;
+  duplicate_profiles_seen?: number | null;
+  overlap_ratio?: number | null;
   poll_attempt_count?: number | null;
   download_attempt_count?: number | null;
   quality_distribution?: RecallRoundQualityDistribution | null;
@@ -453,6 +456,9 @@ export type RecallRoundDiagnostics = {
   round: string;
   requested_count: number;
   returned_count?: number | null;
+  unique_added_count?: number | null;
+  duplicate_count?: number | null;
+  overlap_ratio?: number | null;
   filter_hash?: string | null;
   title_terms: string[];
   skill_signal_groups: {
@@ -475,6 +481,11 @@ export type RecallMetadata = {
     budget: number;
     snapshot_id?: string | null;
     filter_hash?: string | null;
+    raw_profiles_returned?: number | null;
+    unique_profiles_added?: number | null;
+    duplicate_profiles_seen?: number | null;
+    overlap_ratio?: number | null;
+    market_slice_status?: "fresh" | "duplicate_market_slice" | "empty" | null;
     audit?: {
       decision: "expand" | "revise" | "stop" | "escalate_adjacent";
       quality_grade: "A" | "B" | "C" | "D";

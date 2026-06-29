@@ -475,6 +475,11 @@ test("recall metadata normalizer preserves lane audit details", () => {
         budget: 35,
         snapshot_id: "snap_123",
         filter_hash: "filter_123",
+        raw_profiles_returned: 19,
+        unique_profiles_added: 0,
+        duplicate_profiles_seen: 19,
+        overlap_ratio: 1,
+        market_slice_status: "duplicate_market_slice",
         audit: {
           decision: "stop",
           quality_grade: "D",
@@ -498,6 +503,33 @@ test("recall metadata normalizer preserves lane audit details", () => {
         continue_expansion: false,
       },
     ],
+    additional_snapshots: [
+      {
+        round: "adaptive_b1_1_revise_lane_standard",
+        snapshot_id: "snap_adaptive",
+        records_limit: 20,
+        profiles_returned: 19,
+        unique_profiles_added: 0,
+        duplicate_profiles_seen: 19,
+        overlap_ratio: 1,
+      },
+    ],
+    round_diagnostics: [
+      {
+        round: "adaptive_b1_1_revise_lane_standard",
+        requested_count: 20,
+        returned_count: 19,
+        unique_added_count: 0,
+        duplicate_count: 19,
+        overlap_ratio: 1,
+        title_terms: ["Senior Backend Engineer"],
+        skill_signal_groups: {
+          search_domain: ["payments"],
+          platform_engineering: ["backend"],
+        },
+        location_mode: "country_only",
+      },
+    ],
   });
 
   const audit = metadata?.recall_iterations?.[0]?.audit;
@@ -507,6 +539,17 @@ test("recall metadata normalizer preserves lane audit details", () => {
   assert.equal(audit?.next_lane_revision?.target_persona, "Hands-on backend engineers");
   assert.equal(audit?.sample_count, 12);
   assert.equal(metadata?.recall_iterations?.[0]?.filter_hash, "filter_123");
+  assert.equal(metadata?.recall_iterations?.[0]?.raw_profiles_returned, 19);
+  assert.equal(metadata?.recall_iterations?.[0]?.unique_profiles_added, 0);
+  assert.equal(metadata?.recall_iterations?.[0]?.duplicate_profiles_seen, 19);
+  assert.equal(metadata?.recall_iterations?.[0]?.overlap_ratio, 1);
+  assert.equal(metadata?.recall_iterations?.[0]?.market_slice_status, "duplicate_market_slice");
+  assert.equal(metadata?.additional_snapshots?.[0]?.unique_profiles_added, 0);
+  assert.equal(metadata?.additional_snapshots?.[0]?.duplicate_profiles_seen, 19);
+  assert.equal(metadata?.additional_snapshots?.[0]?.overlap_ratio, 1);
+  assert.equal(metadata?.round_diagnostics?.[0]?.unique_added_count, 0);
+  assert.equal(metadata?.round_diagnostics?.[0]?.duplicate_count, 19);
+  assert.equal(metadata?.round_diagnostics?.[0]?.overlap_ratio, 1);
 });
 
 test("lane audit prompt includes JD, brief, lane contract, sample, and judge summary", () => {

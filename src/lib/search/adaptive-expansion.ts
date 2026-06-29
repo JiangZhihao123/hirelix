@@ -12,6 +12,7 @@ export type AdaptiveExpansionActionType =
   | "stop_lane"
   | "escalate_adjacent"
   | "reuse_snapshot"
+  | "duplicate_market_slice"
   | "finish";
 
 export type AdaptiveExpansionAction = {
@@ -40,6 +41,7 @@ const DEFAULT_EXPANSION_BUDGET_BY_GRADE: Record<"A" | "B" | "C" | "D", number> =
   C: 20,
   D: 0,
 };
+const DEFAULT_DUPLICATE_MARKET_SLICE_OVERLAP_THRESHOLD = 0.7;
 
 function clampBudget(value: number, remainingBudget: number, maxBudget?: number | null) {
   const boundedByMax = typeof maxBudget === "number" && Number.isFinite(maxBudget)
@@ -67,6 +69,13 @@ function getQualityDistribution(
   lane: string,
 ) {
   return diagnostics.find((round) => round.round === lane)?.quality_distribution ?? null;
+}
+
+function getRoundDiagnostics(
+  diagnostics: RecallRoundDiagnostics[],
+  lane: string,
+) {
+  return diagnostics.find((round) => round.round === lane) ?? null;
 }
 
 function isAllowedAdjacentProfile(
@@ -139,6 +148,9 @@ function resolveNoSpendStopReason(params: {
   actions: AdaptiveExpansionAction[];
   completedAudits: NonNullable<RecallMetadata["recall_iterations"]>;
 }) {
+  if (params.actions.some((action) => action.type === "duplicate_market_slice")) {
+    return "duplicate_market_slice";
+  }
   if (params.actions.some((action) => action.type === "reuse_snapshot")) {
     return "duplicate_revision_filter_hash";
   }
@@ -167,6 +179,28 @@ function hasWorkableAuditedLane(
     if (!audit) return false;
     return (audit.quality_grade === "A" || audit.quality_grade === "B") && audit.decision !== "stop";
   });
+}
+
+function isDuplicateMarketSliceIteration(
+  iteration: NonNullable<RecallMetadata["recall_iterations"]>[number],
+  diagnostics: RecallRoundDiagnostics[],
+) {
+  const diagnostic = getRoundDiagnostics(diagnostics, iteration.lane);
+  const rawReturned = iteration.raw_profiles_returned ?? diagnostic?.returned_count ?? null;
+  const uniqueAdded = iteration.unique_profiles_added ?? diagnostic?.unique_added_count ?? null;
+  const overlapRatio = iteration.overlap_ratio ?? diagnostic?.overlap_ratio ?? null;
+  return (
+    iteration.market_slice_status === "duplicate_market_slice" ||
+    (
+      rawReturned != null &&
+      rawReturned > 0 &&
+      uniqueAdded === 0
+    ) ||
+    (
+      overlapRatio != null &&
+      overlapRatio >= DEFAULT_DUPLICATE_MARKET_SLICE_OVERLAP_THRESHOLD
+    )
+  );
 }
 
 export function planAdaptiveExpansion(params: {
@@ -249,6 +283,28 @@ export function planAdaptiveExpansion(params: {
     };
   }
 
+  const duplicateMarketSliceAudits = completedAudits.filter((iteration) =>
+    isDuplicateMarketSliceIteration(iteration, diagnostics)
+  );
+  if (duplicateMarketSliceAudits.length > 0 && !hasWorkableAuditedLane(completedAudits)) {
+    return {
+      should_continue: false,
+      stop_reason: "duplicate_market_slice",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: completedAudits.map((iteration) => ({
+        type: duplicateMarketSliceAudits.includes(iteration) ? "duplicate_market_slice" : "stop_lane",
+        lane: iteration.lane,
+        lane_kind: iteration.lane_kind ?? "primary_exact",
+        budget: 0,
+        reason: duplicateMarketSliceAudits.includes(iteration)
+          ? "Duplicate market slice detected after adaptive recall; not spending more Bright budget without a materially different sourcing thesis."
+          : "Adaptive recall already hit a duplicate market slice and no A/B lane remains; stopping C/D micro-revisions to avoid incremental spend.",
+        source_iteration: iteration.iteration,
+      })),
+    };
+  }
+
   const candidates = [...completedAudits].sort((left, right) => {
     const gradeRank = { A: 4, B: 3, C: 2, D: 1 } as const;
     const leftGrade = left.audit?.quality_grade ?? "D";
@@ -261,7 +317,11 @@ export function planAdaptiveExpansion(params: {
     const audit = iteration.audit;
     if (!audit) continue;
     const laneKind = iteration.lane_kind ?? "primary_exact";
-    const quality = getQualityDistribution(diagnostics, iteration.lane);
+    const diagnostic = getRoundDiagnostics(diagnostics, iteration.lane);
+    const quality = diagnostic?.quality_distribution ?? getQualityDistribution(diagnostics, iteration.lane);
+    const overlapRatio = iteration.overlap_ratio ?? diagnostic?.overlap_ratio ?? null;
+    const uniqueAdded = iteration.unique_profiles_added ?? diagnostic?.unique_added_count ?? null;
+    const rawReturned = iteration.raw_profiles_returned ?? diagnostic?.returned_count ?? null;
     const reason = buildActionReason({
       grade: audit.quality_grade,
       decision: audit.decision,
@@ -269,6 +329,20 @@ export function planAdaptiveExpansion(params: {
       strongNow: quality?.strong_now,
       doNotShow: quality?.do_not_show,
     });
+
+    if (
+      isDuplicateMarketSliceIteration(iteration, diagnostics)
+    ) {
+      actions.push({
+        type: "duplicate_market_slice",
+        lane: iteration.lane,
+        lane_kind: laneKind,
+        budget: 0,
+        reason: `${reason}; duplicate market slice detected (returned=${rawReturned ?? "unknown"}, unique_added=${uniqueAdded ?? "unknown"}, overlap=${overlapRatio ?? "unknown"})`,
+        source_iteration: iteration.iteration,
+      });
+      continue;
+    }
 
     if (audit.decision === "stop" || audit.quality_grade === "D") {
       const revisedLane =
