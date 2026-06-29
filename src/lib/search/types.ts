@@ -80,7 +80,25 @@ export type HeadhunterLaneKind =
   | "adjacent_authorized"
   | "exploration";
 
+export type RoleFamily =
+  | "backend"
+  | "frontend"
+  | "fullstack"
+  | "data_engineering"
+  | "data_science_ml"
+  | "platform_infra_sre"
+  | "security"
+  | "mobile"
+  | "engineering_management"
+  | "other";
+
 export type HeadhunterBrief = {
+  role_family?: RoleFamily;
+  functional_core?: string;
+  must_not_drift_to?: string[];
+  same_work_proof?: string[];
+  acceptable_adjacency?: string[];
+  disallowed_adjacency?: string[];
   role_mission: string;
   ideal_candidate_backgrounds: string[];
   allowed_adjacent_profiles: string[];
@@ -344,10 +362,12 @@ export type SearchDisplayStats = {
   first_contact_confidence_count?: number;
   lower_priority_count?: number;
   recommended_count?: number;
-  recall_strategy_mode?: "legacy" | "headhunter_v1";
+  recall_strategy_mode?: "legacy" | "headhunter_v1" | "headhunter_v2";
   recall_iteration_count?: number;
   lane_audit_summary?: string;
   actionable_candidate_count?: number;
+  bright_raw_profiles_returned?: number;
+  unique_profiles_added?: number;
   stopped_lane_count?: number;
   adaptive_recall_planned_budget?: number;
   adaptive_recall_remaining_budget?: number;
@@ -398,7 +418,10 @@ export type SearchQualityDiagnosisCode =
   | "recall_quality_weak"
   | "missing_reach_first"
   | "review_pool_underfilled"
-  | "needs_search_calibration";
+  | "needs_search_calibration"
+  | "no_actionable_candidates"
+  | "role_family_drift"
+  | "market_slice_duplicate";
 
 export type SearchQualityDiagnosis = {
   status: "meets_bar" | "needs_calibration";
@@ -473,7 +496,8 @@ export type RecallRoundDiagnostics = {
 export type RecallMetadata = {
   provider: RecallProvider;
   snapshot_id: string;
-  recall_strategy_mode?: "legacy" | "headhunter_v1";
+  recall_strategy_mode?: "legacy" | "headhunter_v1" | "headhunter_v2";
+  compiled_filter_fidelity?: CompiledFilterFidelityResult[];
   recall_iterations?: Array<{
     iteration: number;
     lane: string;
@@ -539,6 +563,40 @@ export type RecallMetadata = {
     must_have_signals?: string[];
     avoid_profiles?: string[];
   } | null;
+};
+
+export type LaneContractReviewDecision = "approve" | "repair" | "reject";
+export type LaneRoleFamilyAlignment = "aligned" | "authorized_adjacent" | "drifted";
+
+export type LaneContractReviewItem = {
+  lane_index: number;
+  lane_name: string;
+  lane_kind: HeadhunterLaneKind;
+  decision: LaneContractReviewDecision;
+  role_family_alignment: LaneRoleFamilyAlignment;
+  drift_risks: string[];
+  reason: string;
+  repaired_lane?: SourcingLane | null;
+};
+
+export type LaneContractReviewResult = {
+  strategy_mode: "headhunter_v2";
+  status: "approved" | "needs_repair" | "rejected";
+  role_family: RoleFamily;
+  reviews: LaneContractReviewItem[];
+  approved_sourcing_lanes: SourcingLane[];
+  rejected_reason?: string | null;
+  reviewed_at?: string | null;
+};
+
+export type CompiledFilterFidelityResult = {
+  round: string;
+  lane_kind: HeadhunterLaneKind;
+  status: "pass" | "repair_required" | "blocked";
+  role_family_alignment: LaneRoleFamilyAlignment;
+  reasons: string[];
+  filter_hash?: string | null;
+  checked_at?: string | null;
 };
 
 export type SearchExecutionRuntime = {

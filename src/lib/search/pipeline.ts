@@ -57,6 +57,7 @@ import {
   buildBrightDataCandidateRows,
   buildBrightDataRecallFilterForLane,
   buildBrightDataRecallFilters,
+  getHeadhunterRecallStrategyMode,
   getRecallPersonas,
   getTotalRecallRequestLimit,
   type RecallRound,
@@ -78,6 +79,13 @@ import {
   normalizeLaneAuditResult,
   type LaneAuditResult,
 } from "@/lib/search/lane-auditor";
+import {
+  applyLaneContractReviewToParsed,
+  buildDeterministicLaneContractReview,
+  buildLaneContractCriticUserPrompt,
+  evaluateCompiledFilterFidelity,
+  normalizeLaneContractReviewResult,
+} from "@/lib/search/lane-contract-critic";
 import type {
   CandidateRowInput,
   AdditionalRecallSnapshot,
@@ -674,12 +682,12 @@ export function shouldFailUnderfilledRecallAfterSubmittedRounds(params: {
   availableProfileCount: number;
   deferredAdditionalRoundCount: number;
   requestedProfileCount?: number | null;
-  recallStrategyMode?: "legacy" | "headhunter_v1";
+  recallStrategyMode?: "legacy" | "headhunter_v1" | "headhunter_v2";
 }) {
   if (params.availableProfileCount <= 0 || params.deferredAdditionalRoundCount > 0) {
     return false;
   }
-  if (params.recallStrategyMode === "headhunter_v1") return false;
+  if (params.recallStrategyMode === "headhunter_v1" || params.recallStrategyMode === "headhunter_v2") return false;
   return params.availableProfileCount < getRecallReadyProfileThreshold(params.requestedProfileCount);
 }
 
@@ -701,7 +709,7 @@ export function shouldWaitForAdditionalRecallBeforeScoring(params: {
   metadataDeferredRoundCount: number;
   downloadDeferredRoundCount: number;
   requestedProfileCount?: number | null;
-  recallStrategyMode?: "legacy" | "headhunter_v1";
+  recallStrategyMode?: "legacy" | "headhunter_v1" | "headhunter_v2";
   pendingRoundNames?: string[];
   pendingRoundSubmittedAts?: Array<string | null | undefined>;
   completedAdaptiveRoundCount?: number;
@@ -746,7 +754,7 @@ export function shouldTimeoutAdditionalRecallBeforeScoring(params: {
   downloadDeferredRoundCount: number;
   elapsedMs: number;
   timeoutMs: number;
-  recallStrategyMode?: "legacy" | "headhunter_v1";
+  recallStrategyMode?: "legacy" | "headhunter_v1" | "headhunter_v2";
   availableProfileCount?: number;
   pendingRoundNames?: string[];
   pendingRoundSubmittedAts?: Array<string | null | undefined>;
@@ -769,7 +777,7 @@ export function shouldTimeoutAdditionalRecallBeforeScoring(params: {
     return false;
   }
   const effectiveElapsedMs =
-    params.recallStrategyMode === "headhunter_v1"
+    (params.recallStrategyMode === "headhunter_v1" || params.recallStrategyMode === "headhunter_v2")
       ? getPendingAdditionalRecallElapsedMs({
         fallbackElapsedMs: params.elapsedMs,
         pendingRoundSubmittedAts: params.pendingRoundSubmittedAts,
@@ -804,7 +812,7 @@ function getPendingAdditionalRecallElapsedMs(params: {
 }
 
 export function shouldContinueWithPartialHeadhunterRecall(params: {
-  recallStrategyMode?: "legacy" | "headhunter_v1";
+  recallStrategyMode?: "legacy" | "headhunter_v1" | "headhunter_v2";
   availableProfileCount: number;
   pendingRoundCount: number;
   pendingRoundNames?: string[];
@@ -813,7 +821,7 @@ export function shouldContinueWithPartialHeadhunterRecall(params: {
   elapsedMs?: number;
   timeoutMs?: number;
 }) {
-  if (params.recallStrategyMode !== "headhunter_v1") return false;
+  if (params.recallStrategyMode !== "headhunter_v1" && params.recallStrategyMode !== "headhunter_v2") return false;
   if (params.availableProfileCount <= 0 || params.pendingRoundCount <= 0) return false;
   const pendingRoundNames = params.pendingRoundNames ?? [];
   const allPendingAreAdaptive =
@@ -1229,6 +1237,7 @@ function toAdaptiveRecallState(params: {
   plannedAt: string;
   phase: "planned" | "not_needed";
   batchIndex: number;
+  strategyMode: "headhunter_v1" | "headhunter_v2";
   previousState?: Record<string, unknown> | null;
 }) {
   const cleanIdPart = (value: string) =>
@@ -1237,7 +1246,7 @@ function toAdaptiveRecallState(params: {
     ? params.previousState.actions
     : [];
   return {
-    strategy_mode: "headhunter_v1",
+    strategy_mode: params.strategyMode,
     phase: params.phase,
     planned_at: params.plannedAt,
     batch_index: params.batchIndex,
@@ -1256,6 +1265,7 @@ function toAdaptiveRecallState(params: {
         reason: action.reason,
         source_iteration: action.source_iteration ?? null,
         revised_lane: action.revised_lane ?? null,
+        thesis_rewrite: action.thesis_rewrite ?? null,
         status: action.budget > 0 ? "planned" : "recorded",
         snapshot_id: null,
         submitted_at: null,
@@ -1265,6 +1275,156 @@ function toAdaptiveRecallState(params: {
       })),
     ],
   };
+}
+
+async function reviewLaneContractsBeforeRecall(params: {
+  context: PipelineContext;
+  parsed: Record<string, unknown>;
+  recallSpec: RecallSpec;
+  helpers: SearchPipelineHelpers;
+}) {
+  const reviewedAt = params.helpers.nowIso();
+  const existingReview =
+    params.parsed.lane_contract_review &&
+    typeof params.parsed.lane_contract_review === "object"
+      ? normalizeLaneContractReviewResult({
+        value: params.parsed.lane_contract_review,
+        parsed: params.parsed,
+        recallSpec: params.recallSpec,
+        reviewedAt: null,
+      })
+      : null;
+  if (existingReview?.approved_sourcing_lanes.length) {
+    return applyLaneContractReviewToParsed(params.parsed, existingReview);
+  }
+
+  try {
+    const {
+      generateLlmJson,
+      getLightweightLlmModel,
+      resolveDeepSeekThinkingMode,
+    } = await import("@/lib/llm-client");
+    const { LANE_CONTRACT_CRITIC_JSON_SCHEMA } = await import("@/lib/llm-schemas");
+    const { withTimeout } = await import("@/lib/search/concurrency");
+    const prompt = buildLaneContractCriticUserPrompt({
+      jdText: params.context.jdText,
+      parsed: params.parsed,
+      recallSpec: params.recallSpec,
+    });
+    const { data } = await withTimeout(
+      (signal) => generateLlmJson<Record<string, unknown>>({
+        model: getLightweightLlmModel(),
+        prompt,
+        maxOutputTokens: 3600,
+        abortSignal: signal,
+        timeoutMs: 60000,
+        temperature: 0,
+        jsonSchema: LANE_CONTRACT_CRITIC_JSON_SCHEMA,
+        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_LANE_CONTRACT_CRITIC_THINKING", "disabled"),
+        usageEvent: {
+          searchId: params.context.searchId,
+          jobId: params.context.jobId,
+          userId: params.context.userId,
+          stage: "lane_contract_review",
+          metadata: {
+            lane_count: params.recallSpec.sourcing_lanes.length,
+          },
+        },
+      }),
+      60000,
+      "Lane contract critic",
+    );
+    const review = normalizeLaneContractReviewResult({
+      value: data,
+      parsed: params.parsed,
+      recallSpec: params.recallSpec,
+      reviewedAt,
+    });
+    params.helpers.logSearchEvent("search_lane_contract_review_completed", {
+      search_id: params.context.searchId,
+      job_id: params.context.jobId,
+      status: review.status,
+      role_family: review.role_family,
+      approved_lane_count: review.approved_sourcing_lanes.length,
+      rejected_lane_count: review.reviews.filter((item) => item.decision === "reject").length,
+      repaired_lane_count: review.reviews.filter((item) => item.decision === "repair").length,
+    });
+    return applyLaneContractReviewToParsed(params.parsed, review);
+  } catch (error) {
+    const review = buildDeterministicLaneContractReview({
+      parsed: params.parsed,
+      recallSpec: params.recallSpec,
+      reviewedAt,
+    });
+    params.helpers.logSearchEvent("search_lane_contract_review_fallback", {
+      search_id: params.context.searchId,
+      job_id: params.context.jobId,
+      status: review.status,
+      role_family: review.role_family,
+      approved_lane_count: review.approved_sourcing_lanes.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return applyLaneContractReviewToParsed(params.parsed, review);
+  }
+}
+
+function buildNeedsCalibrationResult(params: {
+  context: PipelineContext;
+  parsed: Record<string, unknown>;
+  executionProfile: SearchExecutionProfile;
+  helpers: SearchPipelineHelpers;
+  primaryIssue: SearchQualityDiagnosis["primary_issue"];
+  notes: string[];
+}) {
+  const stats = params.helpers.buildSearchDisplayStats({
+    ...(params.helpers.normalizeSearchDisplayStats(params.parsed.display_stats) ?? params.helpers.buildSearchDisplayStats({})),
+    retrieval_count: 0,
+    deep_review_requested_count: 0,
+    deep_review_completed_count: 0,
+    qualified_count: 0,
+    outreach_pool_count: 0,
+    shortlist_count: 0,
+    visible_candidate_count: 0,
+    delivered_candidate_count: 0,
+    recommended_count: 0,
+    actionable_candidate_count: 0,
+    recall_strategy_mode: getHeadhunterRecallStrategyMode(params.parsed),
+    search_quality_diagnosis: {
+      status: "needs_calibration",
+      primary_issue: params.primaryIssue,
+      requested_count: 0,
+      returned_count: 0,
+      strict_advance_count: 0,
+      reach_first_count: 0,
+      review_next_count: 0,
+      lower_priority_count: 0,
+      not_recommended_count: 0,
+      must_have_strong_count: 0,
+      must_have_unknown_count: 0,
+      recommended_count: 0,
+      target_requested_count: 0,
+      target_returned_count: 0,
+      target_strict_advance_count: 0,
+      target_reach_first_count: 0,
+      target_review_next_count: 0,
+      notes: params.notes,
+    },
+  });
+  params.parsed.display_stats = stats;
+  params.parsed.pipeline_step = "shortlist_ready";
+  params.parsed.warning_message = "Search needs calibration before spending Bright budget.";
+  params.parsed.execution_profile = params.executionProfile.name;
+  params.helpers.logSearchEvent("search_needs_calibration_before_recall", {
+    search_id: params.context.searchId,
+    job_id: params.context.jobId,
+    primary_issue: params.primaryIssue,
+    notes: params.notes,
+  });
+  return {
+    finalRows: [],
+    displayStats: stats,
+    assessments: [],
+  } satisfies SearchPipelineResult;
 }
 
 function getNextAdaptiveRecallBatchIndex(parsed: Record<string, unknown>) {
@@ -1534,10 +1694,7 @@ async function parseJobDescription(
   parsed.recall_provider = "brightdata_dataset";
   parsed.recall_spec = helpers.enrichRecallSpecFromJd(parsed, context.jdText, context.candidateCount);
   parsed.advancement_rubric = helpers.sanitizeAdvancementRubric(parsed.advancement_rubric, parsed);
-  const recallStrategyMode =
-    (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase() === "headhunter_v1"
-      ? "headhunter_v1"
-      : "legacy";
+  const recallStrategyMode = getHeadhunterRecallStrategyMode(parsed);
   parsed.recall_strategy_mode = recallStrategyMode;
   const { estimateSearchIntentCost, roundCurrency } = await import("@/lib/search/config");
   parsed.estimated_parse_llm_cost = roundCurrency(
@@ -1558,7 +1715,7 @@ async function parseJobDescription(
       currentStats.time_to_brief_ready_ms ?? helpers.elapsedSince(startedAt, parseCompletedAt),
     recall_strategy_mode: recallStrategyMode,
     recall_iteration_count:
-      recallStrategyMode === "headhunter_v1"
+      recallStrategyMode !== "legacy"
         ? currentStats.recall_iteration_count ?? 0
         : currentStats.recall_iteration_count,
   });
@@ -2332,9 +2489,10 @@ async function buildBrightDataDatasetCandidates(
   const brightDataToken = process.env.BRIGHTDATA_API_TOKEN;
   const runtime = getExecutionRuntime(executionProfile);
   const forceSnapshotProfileCache = isSnapshotProfileCacheRerun(parsed);
-  const recallSpec = helpers.normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
+  let recallSpec = helpers.normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
+  const recallStrategyMode = getHeadhunterRecallStrategyMode(parsed);
   if (!brightDataToken && !forceSnapshotProfileCache) {
     return null;
   }
@@ -2389,11 +2547,42 @@ async function buildBrightDataDatasetCandidates(
   }
   let snapshotId = existingRecallMetadata?.snapshot_id ?? null;
   let requestedAt = existingRecallMetadata?.requested_at ? Date.parse(existingRecallMetadata.requested_at) : Number.NaN;
-  const recallStrategyMode =
-    parsed.recall_strategy_mode === "headhunter_v1" ||
-    (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase() === "headhunter_v1"
-      ? "headhunter_v1"
-      : "legacy";
+  let compiledFilterFidelityForRun = existingRecallMetadata?.compiled_filter_fidelity ?? [];
+  if (recallStrategyMode === "headhunter_v2" && !existingRecallMetadata?.snapshot_id && !forceSnapshotProfileCache) {
+    const reviewedParsed = await reviewLaneContractsBeforeRecall({
+      context,
+      parsed,
+      recallSpec,
+      helpers,
+    });
+    Object.keys(parsed).forEach((key) => {
+      delete parsed[key];
+    });
+    Object.assign(parsed, reviewedParsed);
+    recallSpec = helpers.normalizeRecallSpec(parsed.recall_spec, context.candidateCount, {
+      recordLimitOverride: executionProfile.filterLimit,
+    });
+    await updateSearchParsedRequirements(context.searchId, parsed);
+    const review = parsed.lane_contract_review && typeof parsed.lane_contract_review === "object"
+      ? (parsed.lane_contract_review as Record<string, unknown>)
+      : null;
+    const hasApprovedPrimary = recallSpec.sourcing_lanes.some((lane) =>
+      lane.lane_kind === "primary_exact" || lane.lane_kind === "primary_relaxed"
+    );
+    if (!hasApprovedPrimary) {
+      return buildNeedsCalibrationResult({
+        context,
+        parsed,
+        executionProfile,
+        helpers,
+        primaryIssue: "role_family_drift",
+        notes: [
+          "Lane Contract Critic rejected all primary sourcing lanes before Bright spend.",
+          typeof review?.rejected_reason === "string" ? review.rejected_reason : "No approved primary lane remained after review.",
+        ],
+      });
+    }
+  }
   const recallRounds = buildBrightDataRecallFilters(
     parsed,
     context.candidateCount,
@@ -2408,8 +2597,67 @@ async function buildBrightDataDatasetCandidates(
       companyTargetLimit: BRIGHTDATA_COMPANY_TARGET_LIMIT,
     },
   );
+  if (recallStrategyMode === "headhunter_v2") {
+    const checkedAt = helpers.nowIso();
+    const compiledFilterFidelity = evaluateCompiledFilterFidelity({
+      parsed,
+      recallSpec,
+      rounds: recallRounds.map((round) => ({
+        round: round.round,
+        diagnostics: round.diagnostics,
+        filterHash: computeFilterHash(round.request),
+      })),
+      checkedAt,
+    });
+    compiledFilterFidelityForRun = compiledFilterFidelity;
+    parsed.recall_metadata = {
+      ...(parsed.recall_metadata && typeof parsed.recall_metadata === "object"
+        ? parsed.recall_metadata as Record<string, unknown>
+        : {}),
+      provider: "brightdata_dataset",
+      snapshot_id:
+        parsed.recall_metadata &&
+        typeof parsed.recall_metadata === "object" &&
+        typeof (parsed.recall_metadata as Record<string, unknown>).snapshot_id === "string"
+          ? (parsed.recall_metadata as Record<string, unknown>).snapshot_id
+          : null,
+      recall_strategy_mode: recallStrategyMode,
+      compiled_filter_fidelity: compiledFilterFidelity,
+    };
+    await updateSearchParsedRequirements(context.searchId, parsed);
+    const blockedFidelity = compiledFilterFidelity.filter((item) => item.status === "blocked");
+    if (blockedFidelity.length > 0) {
+      helpers.logSearchEvent("search_compiled_filter_fidelity_blocked", {
+        search_id: context.searchId,
+        job_id: context.jobId,
+        blocked_rounds: blockedFidelity.map((item) => item.round),
+        reasons: blockedFidelity.flatMap((item) => item.reasons).slice(0, 8),
+      });
+      return buildNeedsCalibrationResult({
+        context,
+        parsed,
+        executionProfile,
+        helpers,
+        primaryIssue: "role_family_drift",
+        notes: [
+          "Compiled Filter Fidelity Gate blocked Bright submission before spend.",
+          ...blockedFidelity.flatMap((item) => item.reasons).slice(0, 4),
+        ],
+      });
+    }
+  }
   const standardRound = recallRounds.find((round) => round.round === "standard");
   if (!standardRound) {
+    if (recallStrategyMode === "headhunter_v2") {
+      return buildNeedsCalibrationResult({
+        context,
+        parsed,
+        executionProfile,
+        helpers,
+        primaryIssue: "needs_search_calibration",
+        notes: ["No executable primary lane remained after critic and filter compilation."],
+      });
+    }
     return null;
   }
   const adaptiveActionMap = new Map(
@@ -2517,9 +2765,9 @@ async function buildBrightDataDatasetCandidates(
   const totalProfileScanBudget =
     executionProfile.filterLimit + executionProfile.hiddenGemLimit + executionProfile.companyTargetLimit;
   const effectiveProfileScanBudget =
-    recallStrategyMode === "headhunter_v1" ? totalRequestedLimit : totalProfileScanBudget;
+    recallStrategyMode !== "legacy" ? totalRequestedLimit : totalProfileScanBudget;
   const baseEffectiveProfileScanBudget =
-    recallStrategyMode === "headhunter_v1" ? baseRequestedLimit : totalProfileScanBudget;
+    recallStrategyMode !== "legacy" ? baseRequestedLimit : totalProfileScanBudget;
   const persistedAdditionalSnapshots = new Map(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
@@ -3531,7 +3779,7 @@ async function buildBrightDataDatasetCandidates(
     helpers.normalizeRecallMetadata(parsed.recall_metadata)?.recall_iterations ??
     existingRecallMetadata?.recall_iterations ??
     [];
-  const nextRecallIterations = recallStrategyMode === "headhunter_v1"
+  const nextRecallIterations = recallStrategyMode !== "legacy"
     ? [
       {
         iteration: 1,
@@ -3560,7 +3808,7 @@ async function buildBrightDataDatasetCandidates(
       })),
     ]
     : [];
-  const recallIterations = recallStrategyMode === "headhunter_v1"
+  const recallIterations = recallStrategyMode !== "legacy"
     ? mergeRecallIterations(previousRecallIterations, nextRecallIterations)
     : [];
 
@@ -3568,6 +3816,9 @@ async function buildBrightDataDatasetCandidates(
     provider: "brightdata_dataset",
     snapshot_id: activeSnapshotId,
     recall_strategy_mode: recallStrategyMode,
+    ...(compiledFilterFidelityForRun.length > 0
+      ? { compiled_filter_fidelity: compiledFilterFidelityForRun }
+      : {}),
     ...(recallIterations.length > 0 ? { recall_iterations: recallIterations } : {}),
     dataset_size: metadata.dataset_size ?? profiles.length,
     recall_latency_ms: Date.now() - requestedAt,
@@ -3602,6 +3853,9 @@ async function buildBrightDataDatasetCandidates(
       }),
     })),
     recall_personas: recallPersonas,
+    ...(compiledFilterFidelityForRun.length > 0
+      ? { compiled_filter_fidelity: compiledFilterFidelityForRun }
+      : {}),
     round_diagnostics: buildRoundDiagnostics({ standardReturned: profiles.length }),
     status: "ready",
     filter_summary: filterSummary,
@@ -3614,12 +3868,12 @@ async function buildBrightDataDatasetCandidates(
     recall_strategy_mode: recallStrategyMode,
     recall_iteration_count: recallIterations.length || recallRounds.length,
     lane_audit_summary:
-      recallStrategyMode === "headhunter_v1" &&
+      recallStrategyMode !== "legacy" &&
       typeof parsed.display_stats === "object" &&
       parsed.display_stats &&
       typeof (parsed.display_stats as Record<string, unknown>).lane_audit_summary === "string"
         ? ((parsed.display_stats as Record<string, unknown>).lane_audit_summary as string)
-        : recallStrategyMode === "headhunter_v1"
+        : recallStrategyMode !== "legacy"
           ? "Initial headhunter probe recalled primary exact and relaxed lanes; lane audit pending after scoring."
           : undefined,
     recall_profile_count: profiles.length,
@@ -4187,7 +4441,7 @@ async function buildBrightDataDatasetCandidates(
       : null;
   const scoringRecallReadyAt = helpers.nowIso();
   const allRecallCompletedAt = deferredAdditionalRounds.length === 0 ? scoringRecallReadyAt : null;
-  const recallIterationsWithRoundStats = recallStrategyMode === "headhunter_v1"
+  const recallIterationsWithRoundStats = recallStrategyMode !== "legacy"
     ? applyRoundRecallStatsToIterations(recallIterations)
     : recallIterations;
   const persistedAdditionalSnapshotList = additionalSnapshotRefs.map((round) =>
@@ -4228,6 +4482,9 @@ async function buildBrightDataDatasetCandidates(
     standard_download_completed_at: standardDownloadCompletedAt,
     all_recall_completed_at: allRecallCompletedAt,
     recall_personas: recallPersonas,
+    ...(compiledFilterFidelityForRun.length > 0
+      ? { compiled_filter_fidelity: compiledFilterFidelityForRun }
+      : {}),
     ...(recallIterationsWithRoundStats.length > 0
       ? { recall_iterations: recallIterationsWithRoundStats }
       : {}),
@@ -4384,10 +4641,10 @@ async function buildBrightDataDatasetCandidates(
     provider: "brightdata_dataset" as const,
     snapshot_id: activeSnapshotId,
   };
-  const recallIterationsBeforeLaneAudit = recallStrategyMode === "headhunter_v1"
+  const recallIterationsBeforeLaneAudit = recallStrategyMode !== "legacy"
     ? applyRoundRecallStatsToIterations(recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations)
     : recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations;
-  const laneAuditState = recallStrategyMode === "headhunter_v1"
+  const laneAuditState = recallStrategyMode !== "legacy"
     ? await auditHeadhunterRecallLanes({
       context,
       parsed,
@@ -4407,7 +4664,7 @@ async function buildBrightDataDatasetCandidates(
     ...combinedResult.displayStats,
   });
   const pendingAdaptiveActionsAfterScoring = hasPlannedAdaptiveRecallActions(parsed);
-  const adaptivePlan = recallStrategyMode === "headhunter_v1" && !pendingAdaptiveActionsAfterScoring
+  const adaptivePlan = recallStrategyMode !== "legacy" && !pendingAdaptiveActionsAfterScoring
     ? planAdaptiveExpansion({
       parsed,
       recallMetadata: {
@@ -4418,6 +4675,7 @@ async function buildBrightDataDatasetCandidates(
       displayStats: displayStatsBeforeAdaptive,
       recallSpec,
       totalBudget: context.candidateCount,
+      strategyMode: recallStrategyMode === "headhunter_v2" ? "headhunter_v2" : "headhunter_v1",
       isDuplicateRevision: ({ revised_lane: revisedLane, budget }) => {
         const request = buildAdaptiveRecallLaneRequest(revisedLane, budget);
         if (!request) return false;
@@ -4432,7 +4690,7 @@ async function buildBrightDataDatasetCandidates(
     : null;
   const laneAuditSummary =
     laneAuditState?.laneAuditSummary ??
-    (recallStrategyMode === "headhunter_v1"
+    (recallStrategyMode !== "legacy"
       ? "Lane audit could not be completed; inspect scheduler logs for lane audit failures."
       : undefined);
   const resultDisplayStats = helpers.buildSearchDisplayStats({
@@ -4460,6 +4718,7 @@ async function buildBrightDataDatasetCandidates(
       plannedAt,
       phase: "planned",
       batchIndex,
+      strategyMode: recallStrategyMode === "headhunter_v2" ? "headhunter_v2" : "headhunter_v1",
       previousState: previousAdaptiveState,
     });
     helpers.logSearchEvent("search_adaptive_recall_planned", {
@@ -4485,6 +4744,7 @@ async function buildBrightDataDatasetCandidates(
       batchIndex: typeof previousAdaptiveState?.batch_index === "number" && Number.isFinite(previousAdaptiveState.batch_index)
         ? Math.max(0, Math.round(previousAdaptiveState.batch_index))
         : 0,
+      strategyMode: recallStrategyMode === "headhunter_v2" ? "headhunter_v2" : "headhunter_v1",
       previousState: previousAdaptiveState,
     });
   }
@@ -4494,6 +4754,9 @@ async function buildBrightDataDatasetCandidates(
     snapshot_id: activeSnapshotId,
     recall_iterations: effectiveRecallIterations,
     recall_personas: recallPersonas,
+    ...(compiledFilterFidelityForRun.length > 0
+      ? { compiled_filter_fidelity: compiledFilterFidelityForRun }
+      : {}),
     round_diagnostics: roundDiagnosticsWithQuality,
   };
   if (laneAuditState) {

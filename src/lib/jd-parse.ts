@@ -5,6 +5,10 @@ import {
   resolveDeepSeekThinkingMode,
 } from "@/lib/llm-client";
 import { JD_SEARCH_INTENT_PROMPT } from "@/lib/prompts";
+import {
+  inferRoleFamilyFromText,
+  normalizeRoleFamily,
+} from "@/lib/search/lane-contract-critic";
 
 const COMMON_SKILLS = [
   "TypeScript",
@@ -236,7 +240,39 @@ function buildDefaultHeadhunterBrief(params: {
   const brief = params.rawBrief && typeof params.rawBrief === "object"
     ? (params.rawBrief as Record<string, unknown>)
     : {};
+  const roleFamily = normalizeRoleFamily(
+    brief.role_family,
+    inferRoleFamilyFromText([
+      params.title,
+      params.functionFocus,
+      params.requiredSkills,
+      params.mustHaveSignals,
+    ]),
+  );
+  const sameWorkProof = params.mustHaveSignals.length > 0
+    ? params.mustHaveSignals.map((signal) => `Recent profile evidence of ${signal}.`).slice(0, 6)
+    : [`Recent profile evidence shows day-to-day work comparable to ${params.title}.`];
+  const disallowedAdjacency = params.avoidProfiles.length > 0
+    ? params.avoidProfiles
+    : ["Profiles whose primary work is a different role family without equivalent same-work evidence."];
   return {
+    role_family: roleFamily,
+    functional_core:
+      normalizeNullableString(brief.functional_core) ||
+      params.functionFocus ||
+      `${params.title} role-family work`,
+    must_not_drift_to: normalizeStringArray(brief.must_not_drift_to, 8).length > 0
+      ? normalizeStringArray(brief.must_not_drift_to, 8)
+      : disallowedAdjacency,
+    same_work_proof: normalizeStringArray(brief.same_work_proof, 8).length > 0
+      ? normalizeStringArray(brief.same_work_proof, 8)
+      : sameWorkProof,
+    acceptable_adjacency: normalizeStringArray(brief.acceptable_adjacency, 8).length > 0
+      ? normalizeStringArray(brief.acceptable_adjacency, 8)
+      : params.lateralTitles.map((title) => `${title} only when profile evidence shows equivalent same-work scope`).slice(0, 6),
+    disallowed_adjacency: normalizeStringArray(brief.disallowed_adjacency, 8).length > 0
+      ? normalizeStringArray(brief.disallowed_adjacency, 8)
+      : disallowedAdjacency,
     role_mission:
       normalizeNullableString(brief.role_mission) ||
       params.functionFocus ||

@@ -891,6 +891,9 @@ export default function SearchResultPage() {
   const recommendedCount =
     positiveInt(rawDisplayStats?.recommended_count) ??
     recommendedCandidates.length;
+  const needsSearchCalibration =
+    rawDisplayStats?.search_quality_diagnosis?.status === "needs_calibration" &&
+    (positiveInt(rawDisplayStats?.actionable_candidate_count) ?? recommendedCount) === 0;
   const lowerPriorityCount =
     positiveInt(rawDisplayStats?.lower_priority_count) ??
     lowerPriorityCandidates.length;
@@ -1316,7 +1319,24 @@ export default function SearchResultPage() {
         </>
       )}
 
-      {isReviewable && allCandidates.length > 0 && (
+      {isReviewable && needsSearchCalibration && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-800">
+            Search needs calibration
+          </p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-950">
+            No outreach-ready candidates found
+          </h2>
+          <p className="mt-1 max-w-4xl text-sm text-amber-900">
+            Hirelix stopped further automatic sourcing because the current thesis did not produce actionable candidates.
+            {rawDisplayStats?.search_quality_diagnosis?.notes?.[0]
+              ? ` ${rawDisplayStats.search_quality_diagnosis.notes[0]}`
+              : ""}
+          </p>
+        </div>
+      )}
+
+      {isReviewable && allCandidates.length > 0 && !needsSearchCalibration && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">

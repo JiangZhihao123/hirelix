@@ -13,6 +13,7 @@ export type AdaptiveExpansionActionType =
   | "escalate_adjacent"
   | "reuse_snapshot"
   | "duplicate_market_slice"
+  | "rewrite_thesis"
   | "finish";
 
 export type AdaptiveExpansionAction = {
@@ -23,6 +24,12 @@ export type AdaptiveExpansionAction = {
   reason: string;
   source_iteration?: number | null;
   revised_lane?: SourcingLane | null;
+  thesis_rewrite?: {
+    failure_reason: string;
+    previous_drift_point: string;
+    new_lane_difference: string;
+    should_spend_bright: boolean;
+  } | null;
 };
 
 export type AdaptiveExpansionPlan = {
@@ -151,6 +158,9 @@ function resolveNoSpendStopReason(params: {
   if (params.actions.some((action) => action.type === "duplicate_market_slice")) {
     return "duplicate_market_slice";
   }
+  if (params.actions.some((action) => action.type === "rewrite_thesis")) {
+    return "needs_human_calibration";
+  }
   if (params.actions.some((action) => action.type === "reuse_snapshot")) {
     return "duplicate_revision_filter_hash";
   }
@@ -209,6 +219,7 @@ export function planAdaptiveExpansion(params: {
   displayStats: SearchDisplayStats | null;
   recallSpec?: { sourcing_lanes?: SourcingLane[] } | null;
   totalBudget: number;
+  strategyMode?: "headhunter_v1" | "headhunter_v2";
   actionableTarget?: number;
   maxAdaptiveBatches?: number;
   isDuplicateRevision?: (action: {
@@ -219,6 +230,7 @@ export function planAdaptiveExpansion(params: {
   }) => boolean;
 }): AdaptiveExpansionPlan {
   const totalBudget = Math.max(0, Math.round(params.totalBudget));
+  const strategyMode = params.strategyMode ?? "headhunter_v1";
   const iterations = params.recallMetadata?.recall_iterations ?? [];
   const usedBudget = getUsedBudget(iterations);
   let remainingBudget = Math.max(0, totalBudget - usedBudget);
@@ -270,6 +282,50 @@ export function planAdaptiveExpansion(params: {
       remaining_budget: remainingBudget,
       planned_budget: 0,
       actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: "Lane audits are missing; not spending more Bright budget." }],
+    };
+  }
+
+  const zeroActionableWithWeakAudit =
+    actionableCount <= 0 &&
+    completedAudits.length > 0 &&
+    completedAudits.every((iteration) => {
+      const grade = iteration.audit?.quality_grade ?? "D";
+      return grade === "C" || grade === "D" || iteration.audit?.decision === "revise" || iteration.audit?.decision === "stop";
+    });
+  const sparseNoActionablePool =
+    actionableCount <= 0 &&
+    completedAudits.some((iteration) => {
+      const diagnostic = getRoundDiagnostics(diagnostics, iteration.lane);
+      const uniqueAdded = iteration.unique_profiles_added ?? diagnostic?.unique_added_count ?? null;
+      return uniqueAdded != null && uniqueAdded < 3;
+    });
+  if (strategyMode === "headhunter_v2" && (zeroActionableWithWeakAudit || sparseNoActionablePool)) {
+    return {
+      should_continue: false,
+      stop_reason: "needs_human_calibration",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: [{
+        type: "rewrite_thesis",
+        lane: "all",
+        lane_kind: "primary_exact",
+        budget: 0,
+        reason: zeroActionableWithWeakAudit
+          ? "No actionable candidates and audited lanes are C/D or revision/stop; rewrite sourcing thesis instead of micro-tuning fields."
+          : "No actionable candidates and the market slice is too sparse; rewrite sourcing thesis before another Bright spend.",
+        thesis_rewrite: {
+          failure_reason: actionableCount <= 0
+            ? "No outreach-ready candidates were produced."
+            : "Current lane did not produce enough fresh profile evidence.",
+          previous_drift_point: completedAudits
+            .map((iteration) => iteration.audit?.why_this_lane_is_wrong || iteration.audit?.summary)
+            .filter((value): value is string => Boolean(value))
+            .join(" | ")
+            .slice(0, 500),
+          new_lane_difference: "A materially different lane must change the sourcing thesis and pass Lane Contract Critic before Bright spend.",
+          should_spend_bright: false,
+        },
+      }],
     };
   }
 

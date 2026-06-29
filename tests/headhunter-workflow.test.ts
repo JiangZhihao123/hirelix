@@ -9,11 +9,13 @@ import {
 } from "@/lib/brightdata";
 import {
   JD_SEARCH_INTENT_JSON_SCHEMA,
+  LANE_CONTRACT_CRITIC_JSON_SCHEMA,
   LANE_AUDITOR_JSON_SCHEMA,
 } from "@/lib/llm-schemas";
 import {
   HEADHUNTER_LANE_AUDITOR_PROMPT,
   JD_SEARCH_INTENT_PROMPT,
+  LANE_CONTRACT_CRITIC_PROMPT,
 } from "@/lib/prompts";
 import { buildJudgeScorePrompt } from "@/lib/search/scoring";
 import {
@@ -32,6 +34,10 @@ import {
   buildLaneAuditUserPrompt,
   normalizeLaneAuditResult,
 } from "@/lib/search/lane-auditor";
+import {
+  buildDeterministicLaneContractReview,
+  evaluateCompiledFilterFidelity,
+} from "@/lib/search/lane-contract-critic";
 import type { SearchExecutionProfile } from "@/lib/search-execution";
 
 process.env.BRIGHTDATA_DATASET_ID = process.env.BRIGHTDATA_DATASET_ID || "test_dataset";
@@ -128,6 +134,12 @@ const parsed = {
     constraint_reasoning: "US remote candidates are eligible.",
   },
   headhunter_brief: {
+    role_family: "backend",
+    functional_core: "Backend payments API ownership",
+    must_not_drift_to: ["data platform", "SRE-only", "frontend"],
+    same_work_proof: ["payments APIs", "ledger systems", "billing systems"],
+    acceptable_adjacency: ["Infrastructure engineers only with product API ownership"],
+    disallowed_adjacency: ["data platform engineers without payments/backend API ownership"],
     role_mission: "Find backend engineers who own reliable payments APIs.",
     ideal_candidate_backgrounds: ["Backend platform engineers at API-heavy fintech companies"],
     allowed_adjacent_profiles: ["Infrastructure engineers with product API ownership"],
@@ -196,8 +208,25 @@ test("JD parse schema and prompt require headhunter brief and lane contracts", (
   assert.ok(required.includes("headhunter_brief"));
   assert.ok(required.includes("sourcing_plan"));
   assert.match(JD_SEARCH_INTENT_PROMPT, /Headhunter brief/);
+  assert.match(JD_SEARCH_INTENT_PROMPT, /role_family/);
+  assert.match(JD_SEARCH_INTENT_PROMPT, /must_not_drift_to/);
+  assert.match(JD_SEARCH_INTENT_PROMPT, /same_work_proof/);
   assert.match(JD_SEARCH_INTENT_PROMPT, /primary_exact/);
   assert.match(JD_SEARCH_INTENT_PROMPT, /target_company_engineering/);
+  const briefSchema = (JD_SEARCH_INTENT_JSON_SCHEMA.schema.properties as Record<string, any>).headhunter_brief;
+  assert.ok(briefSchema.required.includes("role_family"));
+  assert.ok(briefSchema.required.includes("functional_core"));
+  assert.ok(briefSchema.required.includes("must_not_drift_to"));
+});
+
+test("lane contract critic schema exposes bounded decisions and role-family alignment", () => {
+  assert.match(LANE_CONTRACT_CRITIC_PROMPT, /BEFORE any Bright Data budget is spent/);
+  assert.ok(LANE_CONTRACT_CRITIC_JSON_SCHEMA.schema);
+  const properties = LANE_CONTRACT_CRITIC_JSON_SCHEMA.schema.properties as Record<string, any>;
+  assert.deepEqual(properties.status.enum, ["approved", "needs_repair", "rejected"]);
+  const reviewItem = properties.reviews.items.properties;
+  assert.deepEqual(reviewItem.decision.enum, ["approve", "repair", "reject"]);
+  assert.deepEqual(reviewItem.role_family_alignment.enum, ["aligned", "authorized_adjacent", "drifted"]);
 });
 
 test("headhunter recall strategy compiles free search into a 35 plus 15 probe", () => {
@@ -249,6 +278,173 @@ test("headhunter recall strategy compiles free search into a 35 plus 15 probe", 
       process.env.SEARCH_RECALL_STRATEGY = previous;
     }
   }
+});
+
+test("headhunter v2 free probe starts with sequential primary exact budget only", () => {
+  const previous = process.env.SEARCH_RECALL_STRATEGY;
+  process.env.SEARCH_RECALL_STRATEGY = "headhunter_v2";
+  try {
+    const rounds = buildBrightDataRecallFilters(parsed, 5, freeExecutionProfile, {
+      normalizeRecallSpec,
+      sanitizeHiringBrief,
+      buildStandardSkillFilter,
+      buildRecallLocationFilter,
+      isPlaceholderTitle,
+      hiddenGemLimit: 50,
+      companyTargetLimit: 50,
+    });
+
+    assert.deepEqual(rounds.map((round) => round.round), ["standard"]);
+    assert.deepEqual(rounds.map((round) => round.request.recordsLimit), [25]);
+    assertRootAndContainsSeparateTitleAndEvidence(rounds[0].request, "senior backend engineer", "payments");
+  } finally {
+    if (previous == null) {
+      delete process.env.SEARCH_RECALL_STRATEGY;
+    } else {
+      process.env.SEARCH_RECALL_STRATEGY = previous;
+    }
+  }
+});
+
+test("lane contract critic repairs backend primary lane that drifts into data platform family", () => {
+  const recallSpec = normalizeRecallSpec({
+    ...parsed.recall_spec,
+    sourcing_lanes: [
+      {
+        name: "streaming platform engineers",
+        strategy: "title",
+        lane_kind: "primary_exact",
+        target_persona: "Data platform engineers working on Kafka streaming platforms",
+        non_negotiables: ["data platform", "streaming platform"],
+        relaxed_evidence: ["Kafka"],
+        exclusion_patterns: [],
+        initial_budget: 25,
+        max_budget: 80,
+        title_terms: ["Staff Data Platform Engineer", "Senior Data Engineer"],
+        skill_terms: ["Kafka", "Flink"],
+        company_terms: [],
+        avoid_terms: [],
+        budget_weight: 1,
+      },
+    ],
+  }, 5);
+  const review = buildDeterministicLaneContractReview({
+    parsed,
+    recallSpec,
+    reviewedAt: "2026-06-29T00:00:00.000Z",
+  });
+  assert.equal(review.status, "needs_repair");
+  assert.equal(review.reviews[0]?.decision, "repair");
+  assert.equal(review.reviews[0]?.role_family_alignment, "drifted");
+  assert.equal(review.approved_sourcing_lanes[0]?.lane_kind, "primary_exact");
+  const repairedTitles = review.approved_sourcing_lanes[0]?.title_terms.map((term) => term.toLowerCase()) ?? [];
+  assert.ok(repairedTitles.some((term) => term.includes("backend") || term.includes("software engineer")));
+});
+
+test("lane contract critic does not treat exclusion patterns as positive drift", () => {
+  const recallSpec = normalizeRecallSpec({
+    ...parsed.recall_spec,
+    sourcing_lanes: [
+      {
+        name: "backend payments exact",
+        strategy: "title",
+        lane_kind: "primary_exact",
+        target_persona: "Backend engineers with payments API ownership",
+        non_negotiables: ["backend engineering", "payments APIs"],
+        relaxed_evidence: ["ledger systems"],
+        exclusion_patterns: ["data platform", "SRE-only", "frontend"],
+        initial_budget: 25,
+        max_budget: 80,
+        title_terms: ["Senior Backend Engineer", "Staff Backend Engineer"],
+        skill_terms: ["payments", "API"],
+        company_terms: [],
+        avoid_terms: ["data platform"],
+        budget_weight: 1,
+      },
+    ],
+  }, 5);
+  const review = buildDeterministicLaneContractReview({
+    parsed,
+    recallSpec,
+  });
+  assert.equal(review.status, "approved");
+  assert.equal(review.reviews[0]?.decision, "approve");
+});
+
+test("data platform role can keep data platform primary lane", () => {
+  const dataPlatformParsed = {
+    ...parsed,
+    title: "Senior Data Platform Engineer",
+    hiring_brief: {
+      ...parsed.hiring_brief,
+      role_core: {
+        ...parsed.hiring_brief.role_core,
+        title: "Senior Data Platform Engineer",
+        function_focus: "Own data platform and streaming infrastructure",
+      },
+    },
+    headhunter_brief: {
+      ...parsed.headhunter_brief,
+      role_family: "data_engineering",
+      functional_core: "Data platform engineering",
+      must_not_drift_to: ["backend payments API"],
+    },
+  };
+  const recallSpec = normalizeRecallSpec({
+    ...parsed.recall_spec,
+    title_variants: ["Senior Data Platform Engineer", "Staff Data Platform Engineer", "Senior Data Engineer"],
+    sourcing_lanes: [
+      {
+        name: "data platform exact",
+        strategy: "title",
+        lane_kind: "primary_exact",
+        target_persona: "Data platform engineers",
+        non_negotiables: ["data platform"],
+        relaxed_evidence: ["Kafka", "Spark"],
+        exclusion_patterns: [],
+        initial_budget: 25,
+        max_budget: 80,
+        title_terms: ["Senior Data Platform Engineer", "Staff Data Platform Engineer"],
+        skill_terms: ["Kafka", "Spark"],
+        company_terms: [],
+        avoid_terms: [],
+        budget_weight: 1,
+      },
+    ],
+  }, 5);
+  const review = buildDeterministicLaneContractReview({
+    parsed: dataPlatformParsed,
+    recallSpec,
+  });
+  assert.equal(review.status, "approved");
+  assert.equal(review.reviews[0]?.decision, "approve");
+});
+
+test("compiled filter fidelity blocks primary lane role-family drift", () => {
+  const recallSpec = normalizeRecallSpec(parsed.recall_spec, 5);
+  const fidelity = evaluateCompiledFilterFidelity({
+    parsed,
+    recallSpec,
+    rounds: [
+      {
+        round: "standard",
+        diagnostics: {
+          round: "standard",
+          requested_count: 25,
+          title_terms: ["Senior Data Platform Engineer"],
+          skill_signal_groups: {
+            search_domain: ["Kafka"],
+            platform_engineering: ["streaming platform"],
+          },
+          location_mode: "country_only",
+          persona: null,
+        },
+        filterHash: "hash_1",
+      },
+    ],
+  });
+  assert.equal(fidelity[0]?.status, "blocked");
+  assert.equal(fidelity[0]?.role_family_alignment, "drifted");
 });
 
 test("headhunter free probe keeps 35 plus 15 when LLM gives equal lane budgets", () => {

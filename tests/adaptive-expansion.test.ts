@@ -181,6 +181,50 @@ test("adaptive planner revises C grade lanes with a small validation budget", ()
   assert.equal(action.revised_lane?.name, "hands-on API backend");
 });
 
+test("headhunter v2 rewrites thesis instead of spending on weak zero-actionable C lanes", () => {
+  const plan = planAdaptiveExpansion({
+    parsed: {},
+    recallMetadata: metadata({
+      recall_strategy_mode: "headhunter_v2",
+      recall_iterations: [
+        {
+          iteration: 1,
+          lane: "standard",
+          lane_kind: "primary_exact",
+          budget: 25,
+          unique_profiles_added: 2,
+          audit: {
+            decision: "revise",
+            quality_grade: "C",
+            summary: "Wrong market direction.",
+            why_this_lane_is_wrong: "Returned adjacent platform profiles instead of backend payments engineers.",
+            next_lane_revision: {
+              name: "hands-on API backend",
+              lane_kind: "primary_exact",
+              target_persona: "Hands-on backend engineers",
+              non_negotiables: ["backend engineering"],
+              relaxed_evidence: ["billing systems"],
+              exclusion_patterns: ["manager only"],
+              initial_budget: 20,
+              max_budget: 40,
+            },
+          },
+          continue_expansion: false,
+        },
+      ],
+    }),
+    displayStats: displayStats({ recommended_count: 0, actionable_candidate_count: 0 }),
+    recallSpec: { sourcing_lanes: [directLane] },
+    totalBudget: 80,
+    strategyMode: "headhunter_v2",
+  });
+
+  assert.equal(plan.should_continue, false);
+  assert.equal(plan.stop_reason, "needs_human_calibration");
+  assert.equal(plan.actions[0]?.type, "rewrite_thesis");
+  assert.equal(plan.actions[0]?.thesis_rewrite?.should_spend_bright, false);
+});
+
 test("adaptive planner records duplicate revised filters without spending", () => {
   const plan = planAdaptiveExpansion({
     parsed: {},

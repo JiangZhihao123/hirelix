@@ -12,6 +12,7 @@ import {
   normalizeScrapedDescription,
   normalizeText,
 } from "@/lib/search/normalize";
+import { getParsedRoleFamily } from "@/lib/search/lane-contract-critic";
 import type { SearchExecutionProfile } from "@/lib/search-execution";
 import type {
   CandidateDeliveryBucket,
@@ -28,6 +29,7 @@ import type {
 } from "@/lib/search/types";
 
 export type RecallFilterMode = "primary" | "relaxed";
+export type HeadhunterRecallStrategyMode = "legacy" | "headhunter_v1" | "headhunter_v2";
 
 export type RecallRound = {
   round: string;
@@ -428,8 +430,27 @@ function hasDataPlatformSignals(recallSpec: RecallSpec) {
   return signals.some((signal) => includesAnyKeyword(signal, DATA_PLATFORM_KEYWORDS));
 }
 
-function buildHiddenGemTitleTerms(recallSpec: RecallSpec, hiringBrief?: HiringBrief) {
-  const dataPlatformRole = hasDataPlatformSignals(recallSpec);
+function isDataPlatformPrimaryRole(
+  parsed: Record<string, unknown>,
+  recallSpec: RecallSpec,
+  hiringBrief?: HiringBrief,
+) {
+  const roleFamily = getParsedRoleFamily(parsed, recallSpec);
+  if (roleFamily === "data_engineering") return true;
+  const primaryRoleText = normalizeText([
+    ...recallSpec.title_variants,
+    hiringBrief?.role_core.title,
+    hiringBrief?.role_core.function_focus,
+  ].filter(Boolean).join(" "));
+  return /\b(data platform|data infrastructure|data engineering|data engineer|streaming platform|big data)\b/.test(primaryRoleText);
+}
+
+function buildHiddenGemTitleTerms(
+  recallSpec: RecallSpec,
+  hiringBrief?: HiringBrief,
+  parsed: Record<string, unknown> = {},
+) {
+  const dataPlatformRole = isDataPlatformPrimaryRole(parsed, recallSpec, hiringBrief);
   const platformPrimaryRole = isPlatformPrimaryRole(recallSpec, hiringBrief);
   const reliabilityPrimaryRole = isReliabilityPrimaryRole(recallSpec, hiringBrief);
   return compactTerms([
@@ -718,6 +739,7 @@ function buildSameRoleFamilyTitleTerms(params: {
   recallSpec: RecallSpec;
   parsedTitle: string | null;
   fallbackTitleTerms: string[];
+  roleFamily?: string;
 }) {
   const laneTerms = buildLaneTitleTerms(
     params.lane.title_terms.filter(Boolean),
@@ -735,7 +757,7 @@ function buildSameRoleFamilyTitleTerms(params: {
     params.parsedTitle,
   ].filter(Boolean).join(" "));
   const backendRole = includesAnyKeyword(contractText, BACKEND_ROLE_TITLE_KEYWORDS) &&
-    !hasDataPlatformSignals(params.recallSpec);
+    params.roleFamily !== "data_engineering";
   if (!backendRole) return baseTerms;
 
   const backendTerms = baseTerms.filter((term) =>
@@ -767,7 +789,7 @@ function buildHeadhunterLaneEvidenceFilter(params: {
   lane: SourcingLane;
   signalGroups: ReturnType<typeof buildRecallSkillSignalGroups>;
 }) {
-  if (hasDataPlatformSignals(params.recallSpec)) {
+  if (isDataPlatformPrimaryRole(params.parsed, params.recallSpec)) {
     return buildProfileSignalFilter(
       normalizeBrightSkillSignalTerms([
         ...params.lane.skill_terms,
@@ -1401,14 +1423,22 @@ function rebalanceSupplementalRoundLimits(
   }));
 }
 
-function isHeadhunterRecallStrategy(parsed: Record<string, unknown>) {
+export function getHeadhunterRecallStrategyMode(parsed: Record<string, unknown>): HeadhunterRecallStrategyMode {
   const raw = (process.env.SEARCH_RECALL_STRATEGY || "").trim().toLowerCase();
-  if (raw === "headhunter_v1") return true;
-  if (parsed.recall_strategy_mode === "headhunter_v1") return true;
+  if (raw === "headhunter_v2") return "headhunter_v2";
+  if (raw === "headhunter_v1") return "headhunter_v1";
+  if (parsed.recall_strategy_mode === "headhunter_v2") return "headhunter_v2";
+  if (parsed.recall_strategy_mode === "headhunter_v1") return "headhunter_v1";
   const displayStats = parsed.display_stats && typeof parsed.display_stats === "object"
     ? (parsed.display_stats as Record<string, unknown>)
     : null;
-  return displayStats?.recall_strategy_mode === "headhunter_v1";
+  if (displayStats?.recall_strategy_mode === "headhunter_v2") return "headhunter_v2";
+  if (displayStats?.recall_strategy_mode === "headhunter_v1") return "headhunter_v1";
+  return "legacy";
+}
+
+function isHeadhunterRecallStrategy(parsed: Record<string, unknown>) {
+  return getHeadhunterRecallStrategyMode(parsed) !== "legacy";
 }
 
 function getLaneInitialBudget(
@@ -1425,6 +1455,7 @@ function getLaneInitialBudget(
 function buildHeadhunterProbeBudgets(
   recallSpec: RecallSpec,
   executionProfile: SearchExecutionProfile,
+  strategyMode: HeadhunterRecallStrategyMode,
 ) {
   const totalAvailable = Math.max(
     1,
@@ -1436,6 +1467,12 @@ function buildHeadhunterProbeBudgets(
   );
   const probeBudget = Math.min(50, totalAvailable);
   if (executionProfile.name === "bright_free_preview") {
+    if (strategyMode === "headhunter_v2") {
+      return {
+        primaryExact: Math.max(1, Math.min(25, probeBudget)),
+        primaryRelaxed: 0,
+      };
+    }
     if (probeBudget >= 50) {
       return {
         primaryExact: 35,
@@ -1897,7 +1934,7 @@ export function buildBrightDataRecallFilter(
 
   const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const locationMode = getRecallLocationMode(hiringBrief);
-  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const isDataPlatformRole = isDataPlatformPrimaryRole(parsed, recallSpec, hiringBrief);
   const signalGroups = buildRecallSkillSignalGroups(recallSpec);
   const effectiveTitleTerms = isDataPlatformRole
     ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
@@ -1980,7 +2017,8 @@ function buildHeadhunterLaneRecallRequest(
     : [parsedTitle].filter((value): value is string => Boolean(value)))
     .filter((term) => !options.isPlaceholderTitle(term));
   const signalGroups = buildRecallSkillSignalGroups(recallSpec);
-  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const isDataPlatformRole = isDataPlatformPrimaryRole(parsed, recallSpec, hiringBrief);
+  const roleFamily = getParsedRoleFamily(parsed, recallSpec);
   const titleTerms = isDataPlatformRole
     ? filterDataPlatformTitleTermsForSeniority(buildDataPlatformTitleTerms(recallSpec), hiringBrief)
     : buildSameRoleFamilyTitleTerms({
@@ -1988,6 +2026,7 @@ function buildHeadhunterLaneRecallRequest(
       recallSpec,
       parsedTitle,
       fallbackTitleTerms,
+      roleFamily,
     });
   const titleFilter = buildTitleFilter(
     titleTerms,
@@ -2460,9 +2499,10 @@ export function buildBrightDataRecallFilters(
   const recallSpec = options.normalizeRecallSpec(parsed.recall_spec, candidateCount, {
     recordLimitOverride: executionProfile.filterLimit,
   });
-  const headhunterMode = isHeadhunterRecallStrategy(parsed);
+  const headhunterStrategyMode = getHeadhunterRecallStrategyMode(parsed);
+  const headhunterMode = headhunterStrategyMode !== "legacy";
   const headhunterBudgets = headhunterMode
-    ? buildHeadhunterProbeBudgets(recallSpec, executionProfile)
+    ? buildHeadhunterProbeBudgets(recallSpec, executionProfile, headhunterStrategyMode)
     : null;
   const hiringBrief = options.sanitizeHiringBrief(parsed.hiring_brief, parsed);
   const locationMode = getRecallLocationMode(hiringBrief);
@@ -2472,7 +2512,8 @@ export function buildBrightDataRecallFilters(
   const parsedTitle = normalizeNullableString(parsed.title);
   const standardTitleTerms = buildEngineeringTitleTerms(rawTitleTerms, parsedTitle);
   const signalGroups = buildRecallSkillSignalGroups(recallSpec);
-  const isDataPlatformRole = hasDataPlatformSignals(recallSpec);
+  const isDataPlatformRole = isDataPlatformPrimaryRole(parsed, recallSpec, hiringBrief);
+  const roleFamily = getParsedRoleFamily(parsed, recallSpec);
   const primaryExactLane = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === "primary_exact");
   const primaryRelaxedLane = derivePrimaryRelaxedLane(recallSpec, primaryExactLane);
   const standardExecutionProfile = headhunterBudgets
@@ -2511,6 +2552,7 @@ export function buildBrightDataRecallFilters(
         recallSpec,
         parsedTitle,
         fallbackTitleTerms: rawTitleTerms,
+        roleFamily,
       })
       : [];
   const standardDiagnosticTitleTerms = dataPlatformStandardTitleTerms.length > 0
@@ -2573,6 +2615,7 @@ export function buildBrightDataRecallFilters(
           recallSpec,
           parsedTitle,
           fallbackTitleTerms: rawTitleTerms,
+          roleFamily,
         })
         : standardDiagnosticTitleTerms;
     const relaxedDiagnosticSkillTerms =

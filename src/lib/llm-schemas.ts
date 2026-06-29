@@ -21,6 +21,19 @@ function stringArraySchema(minItems?: number) {
   } as const;
 }
 
+const roleFamilySchema = enumSchema([
+  "backend",
+  "frontend",
+  "fullstack",
+  "data_engineering",
+  "data_science_ml",
+  "platform_infra_sre",
+  "security",
+  "mobile",
+  "engineering_management",
+  "other",
+]);
+
 const constraintVerdictsSchema = {
   type: "object",
   additionalProperties: false,
@@ -294,6 +307,12 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: LlmJsonSchemaConfig = {
         type: "object",
         additionalProperties: false,
         required: [
+          "role_family",
+          "functional_core",
+          "must_not_drift_to",
+          "same_work_proof",
+          "acceptable_adjacency",
+          "disallowed_adjacency",
           "role_mission",
           "ideal_candidate_backgrounds",
           "allowed_adjacent_profiles",
@@ -302,6 +321,12 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: LlmJsonSchemaConfig = {
           "verification_risks",
         ],
         properties: {
+          role_family: roleFamilySchema,
+          functional_core: { type: "string" },
+          must_not_drift_to: stringArraySchema(),
+          same_work_proof: stringArraySchema(),
+          acceptable_adjacency: stringArraySchema(),
+          disallowed_adjacency: stringArraySchema(),
           role_mission: { type: "string" },
           ideal_candidate_backgrounds: stringArraySchema(),
           allowed_adjacent_profiles: stringArraySchema(),
@@ -315,7 +340,7 @@ export const JD_SEARCH_INTENT_JSON_SCHEMA: LlmJsonSchemaConfig = {
         additionalProperties: false,
         required: ["strategy_mode", "first_probe_goal", "lanes", "early_stop_rules"],
         properties: {
-          strategy_mode: enumSchema(["headhunter_v1"]),
+          strategy_mode: enumSchema(["headhunter_v1", "headhunter_v2"]),
           first_probe_goal: { type: "string" },
           lanes: {
             type: "array",
@@ -518,6 +543,71 @@ export const RECALL_REACT_JSON_SCHEMA: LlmJsonSchemaConfig = {
         type: "array",
         items: sourcingLaneSchema,
       },
+    },
+  },
+};
+
+export const LANE_CONTRACT_CRITIC_JSON_SCHEMA: LlmJsonSchemaConfig = {
+  name: "lane_contract_critic",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "strategy_mode",
+      "status",
+      "role_family",
+      "reviews",
+      "approved_sourcing_lanes",
+      "rejected_reason",
+    ],
+    properties: {
+      strategy_mode: enumSchema(["headhunter_v2"]),
+      status: enumSchema(["approved", "needs_repair", "rejected"]),
+      role_family: roleFamilySchema,
+      reviews: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "lane_index",
+            "lane_name",
+            "lane_kind",
+            "decision",
+            "role_family_alignment",
+            "drift_risks",
+            "repaired_lane",
+            "reason",
+          ],
+          properties: {
+            lane_index: { type: "integer" },
+            lane_name: { type: "string" },
+            lane_kind: enumSchema([
+              "primary_exact",
+              "primary_relaxed",
+              "target_company_engineering",
+              "adjacent_authorized",
+              "exploration",
+            ]),
+            decision: enumSchema(["approve", "repair", "reject"]),
+            role_family_alignment: enumSchema(["aligned", "authorized_adjacent", "drifted"]),
+            drift_risks: stringArraySchema(),
+            repaired_lane: {
+              anyOf: [
+                sourcingLaneSchema,
+                { type: "null" },
+              ],
+            },
+            reason: { type: "string" },
+          },
+        },
+      },
+      approved_sourcing_lanes: {
+        type: "array",
+        items: sourcingLaneSchema,
+      },
+      rejected_reason: nullableStringSchema(),
     },
   },
 };

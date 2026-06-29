@@ -8,7 +8,7 @@ type TimelineMetrics = {
   recalledCount?: number | null;
   reviewedCount?: number | null;
   visibleCandidateCount?: number | null;
-  recallStrategyMode?: "legacy" | "headhunter_v1" | null;
+  recallStrategyMode?: "legacy" | "headhunter_v1" | "headhunter_v2" | null;
 };
 
 export function TaskTimelinePanel({
@@ -20,7 +20,7 @@ export function TaskTimelinePanel({
   };
   metrics?: TimelineMetrics;
 }) {
-  const headhunterMode = metrics?.recallStrategyMode === "headhunter_v1";
+  const headhunterMode = metrics?.recallStrategyMode === "headhunter_v1" || metrics?.recallStrategyMode === "headhunter_v2";
   const headhunterLabels = [
     "Reading role",
     "Testing first sourcing lane",

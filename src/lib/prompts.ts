@@ -49,6 +49,12 @@ Read the job description and identify:
 
 6. **Headhunter brief — the sourcing thesis**
 - Before writing filters, describe the role the way a human headhunter would explain it to another sourcer.
+- role_family: choose one of backend, frontend, fullstack, data_engineering, data_science_ml, platform_infra_sre, security, mobile, engineering_management, other.
+- functional_core: the core day-to-day work identity. This is the role's Job DNA, not a keyword list.
+- must_not_drift_to: adjacent-looking role families that would be wrong for this JD unless explicitly authorized.
+- same_work_proof: evidence that proves a candidate has actually done the same work, even if their title differs.
+- acceptable_adjacency: adjacent profiles that are allowed and why the day-to-day work is equivalent.
+- disallowed_adjacency: adjacent profiles that should not enter primary recall because they solve a different problem.
 - role_mission: what problem this hire is really solving for the company.
 - ideal_candidate_backgrounds: real candidate archetypes that probably did this work already.
 - allowed_adjacent_profiles: adjacent backgrounds that can be credible, with enough explanation to justify why they are adjacent.
@@ -72,6 +78,7 @@ Read the job description and identify:
   - exploration: tiny-budget exploration only; it must not consume the main budget.
 - Each lane must state target_persona, non_negotiables, relaxed_evidence, exclusion_patterns, initial_budget, and max_budget.
 - Free v1 starts with primary_exact=35 and primary_relaxed=15. Do not default-start company, hidden, adjacent, or exploration lanes unless the JD makes the exact lane necessary and the budget stays small.
+- Free v2 starts sequentially: primary_exact=25 first; primary_relaxed or approved alternatives run only after the first lane is calibrated.
 - Keep each lane small and practical. A human sourcer would run a lane, inspect results, then run the next.
 - Use terms that literally appear in LinkedIn titles, current positions, about sections, or company names.
 - For specialized engineering roles, the skill lane is usually more important than adding more title variants.
@@ -106,6 +113,12 @@ Return ONLY valid JSON with this structure:
     "constraint_reasoning": "brief explanation of how location/work model should affect search and ranking"
   },
   "headhunter_brief": {
+    "role_family": "backend | frontend | fullstack | data_engineering | data_science_ml | platform_infra_sre | security | mobile | engineering_management | other",
+    "functional_core": "the role's day-to-day work identity",
+    "must_not_drift_to": ["role families or profile patterns that would be wrong"],
+    "same_work_proof": ["evidence that proves the candidate has done the same work"],
+    "acceptable_adjacency": ["allowed adjacent profiles and why the work is equivalent"],
+    "disallowed_adjacency": ["adjacent-looking profiles that should be excluded"],
     "role_mission": "what problem this hire is really solving",
     "ideal_candidate_backgrounds": ["real candidate archetypes likely to have done similar work"],
     "allowed_adjacent_profiles": ["adjacent backgrounds that are credible and why"],
@@ -176,6 +189,79 @@ Return ONLY valid JSON with this structure:
 }`;
 
 export const JD_PARSE_PROMPT = JD_SEARCH_INTENT_PROMPT;
+
+export const LANE_CONTRACT_CRITIC_PROMPT = `You are an independent senior sourcing critic. Your job is to review sourcing lanes BEFORE any Bright Data budget is spent.
+
+You are not judging individual candidates. You are judging whether the sourcing lanes faithfully represent the JD's role identity.
+
+Inputs:
+- Original JD.
+- Headhunter brief with Role Identity / Job DNA.
+- Advancement rubric.
+- Sourcing plan.
+- Recall spec sourcing lanes.
+
+Rules:
+- primary_exact and primary_relaxed must be aligned to headhunter_brief.role_family.
+- primary_relaxed may relax evidence strength, but it may not change the professional role family.
+- adjacent_authorized is allowed only when it is explicitly traceable to headhunter_brief.acceptable_adjacency or allowed_adjacent_profiles.
+- target_company_engineering must preserve both target-company boundary and engineering role boundary.
+- Reject broad lanes that would pull a different occupation because a keyword overlaps with the JD.
+- Do not approve a lane because company, title, or skill keywords look prestigious. Approve only when the lane finds people whose day-to-day work plausibly matches the JD.
+- If a lane drifts, repair it once by restoring role-family boundaries and same-work proof. If repair cannot preserve the lane's purpose, reject it.
+
+Return ONLY valid JSON:
+{
+  "strategy_mode": "headhunter_v2",
+  "status": "approved | needs_repair | rejected",
+  "role_family": "backend | frontend | fullstack | data_engineering | data_science_ml | platform_infra_sre | security | mobile | engineering_management | other",
+  "reviews": [
+    {
+      "lane_index": 0,
+      "lane_name": "lane name",
+      "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+      "decision": "approve | repair | reject",
+      "role_family_alignment": "aligned | authorized_adjacent | drifted",
+      "drift_risks": ["why this lane could drift"],
+      "repaired_lane": {
+        "name": "repaired lane name",
+        "strategy": "title | skill | seniority | company",
+        "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+        "target_persona": "who this lane should find",
+        "non_negotiables": ["boundaries this lane must preserve"],
+        "relaxed_evidence": ["evidence this lane may relax"],
+        "exclusion_patterns": ["people this lane should exclude"],
+        "initial_budget": 25,
+        "max_budget": 80,
+        "title_terms": ["LinkedIn title terms"],
+        "skill_terms": ["profile evidence terms"],
+        "company_terms": ["target companies if any"],
+        "avoid_terms": ["avoid terms"],
+        "budget_weight": 1
+      },
+      "reason": "short human explanation"
+    }
+  ],
+  "approved_sourcing_lanes": [
+    {
+      "name": "approved lane name",
+      "strategy": "title | skill | seniority | company",
+      "lane_kind": "primary_exact | primary_relaxed | target_company_engineering | adjacent_authorized | exploration",
+      "target_persona": "who this lane should find",
+      "non_negotiables": ["boundaries this lane must preserve"],
+      "relaxed_evidence": ["evidence this lane may relax"],
+      "exclusion_patterns": ["people this lane should exclude"],
+      "initial_budget": 25,
+      "max_budget": 80,
+      "title_terms": ["LinkedIn title terms"],
+      "skill_terms": ["profile evidence terms"],
+      "company_terms": ["target companies if any"],
+      "avoid_terms": ["avoid terms"],
+      "budget_weight": 1
+    }
+  ],
+  "rejected_reason": "null or why no primary lane should spend Bright budget"
+}`;
 
 export const RECALL_REACT_PROMPT = `You are an expert technical sourcer running a ReAct-style LinkedIn recall loop.
 

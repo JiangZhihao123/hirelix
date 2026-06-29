@@ -1182,7 +1182,9 @@ function buildSearchDisplayStats(
     ...(typeof overrides.recommended_count === "number"
       ? { recommended_count: Math.max(0, Math.round(overrides.recommended_count)) }
       : {}),
-    ...(overrides.recall_strategy_mode === "headhunter_v1" || overrides.recall_strategy_mode === "legacy"
+    ...(overrides.recall_strategy_mode === "headhunter_v1" ||
+    overrides.recall_strategy_mode === "headhunter_v2" ||
+    overrides.recall_strategy_mode === "legacy"
       ? { recall_strategy_mode: overrides.recall_strategy_mode }
       : {}),
     ...(typeof overrides.recall_iteration_count === "number"
@@ -1193,6 +1195,12 @@ function buildSearchDisplayStats(
       : {}),
     ...(typeof overrides.actionable_candidate_count === "number"
       ? { actionable_candidate_count: Math.max(0, Math.round(overrides.actionable_candidate_count)) }
+      : {}),
+    ...(typeof overrides.bright_raw_profiles_returned === "number"
+      ? { bright_raw_profiles_returned: Math.max(0, Math.round(overrides.bright_raw_profiles_returned)) }
+      : {}),
+    ...(typeof overrides.unique_profiles_added === "number"
+      ? { unique_profiles_added: Math.max(0, Math.round(overrides.unique_profiles_added)) }
       : {}),
     ...(typeof overrides.stopped_lane_count === "number"
       ? { stopped_lane_count: Math.max(0, Math.round(overrides.stopped_lane_count)) }
@@ -1401,6 +1409,9 @@ function normalizeSearchQualityDiagnosis(value: unknown): SearchQualityDiagnosis
       "missing_reach_first",
       "review_pool_underfilled",
       "needs_search_calibration",
+      "no_actionable_candidates",
+      "role_family_drift",
+      "market_slice_duplicate",
     ] as const,
     "needs_search_calibration",
   );
@@ -1682,9 +1693,48 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
       ? item.judge_mode
       : null;
   const recall_strategy_mode =
-    item.recall_strategy_mode === "headhunter_v1" || item.recall_strategy_mode === "legacy"
+    item.recall_strategy_mode === "headhunter_v1" ||
+    item.recall_strategy_mode === "headhunter_v2" ||
+    item.recall_strategy_mode === "legacy"
       ? item.recall_strategy_mode
       : undefined;
+  const compiled_filter_fidelity = Array.isArray(item.compiled_filter_fidelity)
+    ? item.compiled_filter_fidelity
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const fidelity = entry as Record<string, unknown>;
+        const round = normalizeNullableString(fidelity.round);
+        if (!round) return null;
+        return {
+          round,
+          lane_kind: normalizeEnumValue(
+            fidelity.lane_kind,
+            [
+              "primary_exact",
+              "primary_relaxed",
+              "target_company_engineering",
+              "adjacent_authorized",
+              "exploration",
+            ] as const,
+            "primary_exact",
+          ),
+          status: normalizeEnumValue(
+            fidelity.status,
+            ["pass", "repair_required", "blocked"] as const,
+            "blocked",
+          ),
+          role_family_alignment: normalizeEnumValue(
+            fidelity.role_family_alignment,
+            ["aligned", "authorized_adjacent", "drifted"] as const,
+            "drifted",
+          ),
+          reasons: normalizeStringArray(fidelity.reasons, 10),
+          filter_hash: normalizeNullableString(fidelity.filter_hash),
+          checked_at: normalizeNullableString(fidelity.checked_at),
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    : [];
   const recall_iterations = Array.isArray(item.recall_iterations)
     ? item.recall_iterations
       .map((entry) => {
@@ -1812,6 +1862,7 @@ export function normalizeRecallMetadata(value: unknown): RecallMetadata | null {
     provider,
     snapshot_id: snapshotId,
     ...(recall_strategy_mode ? { recall_strategy_mode } : {}),
+    ...(compiled_filter_fidelity.length > 0 ? { compiled_filter_fidelity } : {}),
     ...(recall_iterations.length > 0 ? { recall_iterations } : {}),
     dataset_size,
     recall_latency_ms,
