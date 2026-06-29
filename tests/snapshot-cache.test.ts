@@ -4,7 +4,9 @@ import { getSnapshotCacheTtlDays } from "../src/lib/search/persistence";
 import {
   canAdditionalRecallRoundsOwnEmptyStandardSnapshot,
   getRecallReadyProfileThreshold,
+  isRecallFilterHashDuplicateForRound,
   mergeRecallIterations,
+  shouldCountAdaptiveActionAsNewRound,
   shouldContinueScoringWithStandardRecall,
   shouldFailUnderfilledRecallAfterSubmittedRounds,
   shouldTimeoutAdditionalRecallBeforeScoring,
@@ -246,6 +248,58 @@ test("recall iteration merge preserves audit by filter hash", () => {
   assert.equal(merged[0]?.audit?.decision, "revise");
   assert.equal(merged[0]?.audit?.quality_grade, "C");
   assert.equal(merged[0]?.continue_expansion, false);
+});
+
+test("adaptive retry does not treat its own submitted filter hash as duplicate", () => {
+  const usedHashes = new Map<string, string>([
+    ["base-standard", "standard"],
+    ["submitted-adaptive", "adaptive_b1_1_revise_lane_standard"],
+  ]);
+
+  assert.equal(
+    isRecallFilterHashDuplicateForRound(
+      usedHashes,
+      "submitted-adaptive",
+      "adaptive_b1_1_revise_lane_standard",
+    ),
+    false,
+  );
+  assert.equal(
+    isRecallFilterHashDuplicateForRound(
+      usedHashes,
+      "base-standard",
+      "adaptive_b1_2_revise_lane_primary_relaxed",
+    ),
+    true,
+  );
+  assert.equal(
+    isRecallFilterHashDuplicateForRound(usedHashes, "brand-new-adaptive"),
+    false,
+  );
+});
+
+test("submitted adaptive snapshot is tracked without consuming a new-round slot", () => {
+  assert.equal(
+    shouldCountAdaptiveActionAsNewRound({
+      status: "planned",
+      snapshotId: null,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldCountAdaptiveActionAsNewRound({
+      status: "submitted",
+      snapshotId: "snap_existing_adaptive",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldCountAdaptiveActionAsNewRound({
+      status: "done",
+      snapshotId: "snap_existing_adaptive",
+    }),
+    false,
+  );
 });
 
 test("additional rounds still matter when standard recall has no profiles", () => {

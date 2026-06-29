@@ -382,6 +382,7 @@ type AdaptiveRecallActionState = {
   budget: number;
   revisedLane: SourcingLane | null;
   snapshotId: string | null;
+  submittedAt: string | null;
 };
 
 function readAdaptiveRecallState(parsed: Record<string, unknown>) {
@@ -433,6 +434,9 @@ function normalizeAdaptiveRecallAction(
     revisedLane,
     snapshotId: typeof item.snapshot_id === "string" && item.snapshot_id.trim().length > 0
       ? item.snapshot_id.trim()
+      : null,
+    submittedAt: typeof item.submitted_at === "string" && item.submitted_at.trim().length > 0
+      ? item.submitted_at.trim()
       : null,
   };
 }
@@ -526,6 +530,33 @@ export function mergeRecallIterations(
           : previousMatch.continue_expansion ?? null,
     };
   });
+}
+
+export function isRecallFilterHashDuplicateForRound(
+  usedFilterHashes: Map<string, string>,
+  filterHash: string,
+  ownerRound?: string | null,
+) {
+  const existingOwner = usedFilterHashes.get(filterHash);
+  return Boolean(existingOwner && existingOwner !== ownerRound);
+}
+
+function rememberRecallFilterHash(
+  usedFilterHashes: Map<string, string>,
+  filterHash: string | null | undefined,
+  ownerRound: string,
+) {
+  if (!filterHash) return;
+  if (!usedFilterHashes.has(filterHash)) {
+    usedFilterHashes.set(filterHash, ownerRound);
+  }
+}
+
+export function shouldCountAdaptiveActionAsNewRound(action: {
+  status: string;
+  snapshotId?: string | null;
+}) {
+  return !action.snapshotId && action.status !== "done";
 }
 
 export function canAdditionalRecallRoundsOwnEmptyStandardSnapshot(
@@ -2216,13 +2247,13 @@ async function buildBrightDataDatasetCandidates(
   const adaptiveActionMap = new Map(
     getAdaptiveRecallActions(parsed).map((action) => [action.id, action]),
   );
-  const usedRecallFilterHashes = new Set<string>();
+  const usedRecallFilterHashes = new Map<string, string>();
   const existingRoundDiagnostics = existingRecallMetadata?.round_diagnostics ?? [];
   for (const diagnostic of existingRoundDiagnostics) {
-    if (diagnostic.filter_hash) usedRecallFilterHashes.add(diagnostic.filter_hash);
+    rememberRecallFilterHash(usedRecallFilterHashes, diagnostic.filter_hash, diagnostic.round);
   }
   for (const round of recallRounds) {
-    usedRecallFilterHashes.add(computeFilterHash(round.request));
+    rememberRecallFilterHash(usedRecallFilterHashes, computeFilterHash(round.request), round.round);
   }
   const buildAdaptiveRecallLaneRequest = (lane: SourcingLane, budget: number) =>
     buildBrightDataRecallFilterForLane(
@@ -2239,7 +2270,7 @@ async function buildBrightDataDatasetCandidates(
     );
   let activeAdaptiveRoundCount = 0;
   const adaptiveRounds = getAdaptiveRecallActionsForRounds(parsed).flatMap((action): RecallRound[] => {
-    if (action.status !== "done") {
+    if (shouldCountAdaptiveActionAsNewRound(action)) {
       activeAdaptiveRoundCount += 1;
       if (activeAdaptiveRoundCount > ADAPTIVE_RECALL_MAX_NEW_ROUNDS_PER_RUN) return [];
     }
@@ -2262,7 +2293,7 @@ async function buildBrightDataDatasetCandidates(
       return [];
     }
     const requestHash = computeFilterHash(request);
-    if (usedRecallFilterHashes.has(requestHash)) {
+    if (isRecallFilterHashDuplicateForRound(usedRecallFilterHashes, requestHash, action.id)) {
       updateAdaptiveRecallAction(parsed, action.id, {
         status: "recorded",
         completed_at: helpers.nowIso(),
@@ -2280,7 +2311,7 @@ async function buildBrightDataDatasetCandidates(
       });
       return [];
     }
-    usedRecallFilterHashes.add(requestHash);
+    rememberRecallFilterHash(usedRecallFilterHashes, requestHash, action.id);
     return [{
       round: action.id,
       request,
@@ -2325,6 +2356,7 @@ async function buildBrightDataDatasetCandidates(
     (existingRecallMetadata?.additional_snapshots ?? []).map((snapshot) => [snapshot.round, snapshot]),
   );
   let additionalSnapshotRefs: RecallSnapshotRef[] = [];
+  const skippedAdditionalRoundNames = new Set<string>();
   const markAdditionalRoundPending = (round: RecallRound, error: unknown, submittedAt: string) => {
     const message = error instanceof Error ? error.message : String(error);
     if (round.round.startsWith("adaptive_")) {
@@ -2359,6 +2391,72 @@ async function buildBrightDataDatasetCandidates(
   const submitAdditionalRoundSnapshot = async (round: RecallRound): Promise<RecallSnapshotRef | null> => {
     const submittedAt = helpers.nowIso();
     const roundHash = computeFilterHash(round.request);
+    const existingAdaptiveAction = round.round.startsWith("adaptive_")
+      ? adaptiveActionMap.get(round.round)
+      : null;
+    if (existingAdaptiveAction?.snapshotId) {
+      const existingSnapshot = persistedAdditionalSnapshots.get(round.round);
+      const existingSubmittedAt = existingAdaptiveAction.submittedAt ?? existingSnapshot?.submitted_at ?? submittedAt;
+      updateAdaptiveRecallAction(parsed, round.round, {
+        status: existingAdaptiveAction.status === "planned" ? "submitted" : existingAdaptiveAction.status,
+        snapshot_id: existingAdaptiveAction.snapshotId,
+        submitted_at: existingSubmittedAt,
+      });
+      const ref = {
+        round: round.round,
+        snapshotId: existingAdaptiveAction.snapshotId,
+        request: round.request,
+        recordsLimit: round.request.recordsLimit,
+        filterHash: roundHash,
+        diagnostics: round.diagnostics,
+        submittedAt: existingSubmittedAt,
+        cacheEntry: null,
+      };
+      persistedAdditionalSnapshots.set(
+        round.round,
+        helpers.buildAdditionalSnapshotMetadata({
+          round: round.round,
+          snapshotId: existingAdaptiveAction.snapshotId,
+          recordsLimit: round.request.recordsLimit,
+          filterHash: roundHash,
+          existing: existingSnapshot ?? null,
+          status: existingSnapshot?.status ?? "submitted",
+          submittedAt: existingSubmittedAt,
+          clearFailure: true,
+        }),
+      );
+      helpers.logSearchEvent("search_adaptive_recall_existing_snapshot_reused", {
+        search_id: context.searchId,
+        round: round.round,
+        snapshot_id: existingAdaptiveAction.snapshotId,
+        records_limit: round.request.recordsLimit,
+        job_id: context.jobId,
+      });
+      return ref;
+    }
+    if (isRecallFilterHashDuplicateForRound(usedRecallFilterHashes, roundHash, round.round)) {
+      if (round.round.startsWith("adaptive_")) {
+        updateAdaptiveRecallAction(parsed, round.round, {
+          status: "recorded",
+          completed_at: submittedAt,
+          failure_code: "duplicate_revision_filter_hash",
+          profiles_returned: 0,
+          unique_added: 0,
+        });
+        helpers.logSearchEvent("search_adaptive_recall_duplicate_filter_skipped", {
+          search_id: context.searchId,
+          job_id: context.jobId,
+          action_id: round.round,
+          lane: existingAdaptiveAction?.lane ?? round.round,
+          lane_kind: existingAdaptiveAction?.laneKind ?? getHeadhunterLaneKindForRound(round.round),
+          filter_hash: roundHash,
+        });
+        persistedAdditionalSnapshots.delete(round.round);
+        skippedAdditionalRoundNames.add(round.round);
+        return null;
+      }
+      return null;
+    }
     const cachedRoundEntry = await lookupCachedSnapshot(roundHash);
     let roundSnapshotId: string;
     let roundCacheEntry: SnapshotCacheEntry | null = null;
@@ -2431,7 +2529,7 @@ async function buildBrightDataDatasetCandidates(
     return ref;
   };
   const buildSubmittedAdditionalSnapshotMetadata = () =>
-    additionalRounds.map((round) => {
+    additionalRounds.filter((round) => !skippedAdditionalRoundNames.has(round.round)).map((round) => {
       const submitted = additionalSnapshotRefs.find((snapshot) => snapshot.round === round.round);
       if (submitted) {
         return helpers.buildAdditionalSnapshotMetadata({
@@ -2507,7 +2605,7 @@ async function buildBrightDataDatasetCandidates(
   } = {}): RecallRoundDiagnostics[] => {
     const roundsForDiagnostics = [
       ...(standardRound ? [standardRound] : []),
-      ...additionalRounds,
+      ...additionalRounds.filter((round) => !skippedAdditionalRoundNames.has(round.round)),
     ];
     return roundsForDiagnostics.map((round) => {
       const ref = round.round === "standard"
@@ -2670,7 +2768,10 @@ async function buildBrightDataDatasetCandidates(
       additional_snapshots: buildSubmittedAdditionalSnapshotMetadata(),
     } satisfies RecallMetadata;
     await updateSearchParsedRequirements(context.searchId, parsed);
-    if (additionalSnapshotRefs.length < additionalRounds.length) {
+    const expectedAdditionalRoundCount = additionalRounds.filter(
+      (round) => !skippedAdditionalRoundNames.has(round.round),
+    ).length;
+    if (additionalSnapshotRefs.length < expectedAdditionalRoundCount) {
       throw new DatasetRecallPendingError(
         "Bright Data additional recall round submission is incomplete; retrying missing rounds",
         { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
@@ -2722,6 +2823,7 @@ async function buildBrightDataDatasetCandidates(
     });
     const submittedRoundNames = new Set(additionalSnapshotRefs.map((round) => round.round));
     for (const round of additionalRounds) {
+      if (skippedAdditionalRoundNames.has(round.round)) continue;
       if (submittedRoundNames.has(round.round)) continue;
       const submitted = await submitAdditionalRoundSnapshot(round);
       if (submitted) {
@@ -2729,7 +2831,10 @@ async function buildBrightDataDatasetCandidates(
         submittedRoundNames.add(round.round);
       }
     }
-    if (additionalSnapshotRefs.length < additionalRounds.length) {
+    const expectedAdditionalRoundCount = additionalRounds.filter(
+      (round) => !skippedAdditionalRoundNames.has(round.round),
+    ).length;
+    if (additionalSnapshotRefs.length < expectedAdditionalRoundCount) {
       parsed.recall_metadata = {
         ...(helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
           provider: "brightdata_dataset" as const,
@@ -3923,7 +4028,12 @@ async function buildBrightDataDatasetCandidates(
       isDuplicateRevision: ({ revised_lane: revisedLane, budget }) => {
         const request = buildAdaptiveRecallLaneRequest(revisedLane, budget);
         if (!request) return false;
-        return usedRecallFilterHashes.has(computeFilterHash(request));
+        const requestHash = computeFilterHash(request);
+        if (isRecallFilterHashDuplicateForRound(usedRecallFilterHashes, requestHash)) {
+          return true;
+        }
+        rememberRecallFilterHash(usedRecallFilterHashes, requestHash, `planned:${requestHash}`);
+        return false;
       },
     })
     : null;
