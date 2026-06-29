@@ -691,10 +691,30 @@ export function shouldWaitForAdditionalRecallBeforeScoring(params: {
   metadataDeferredRoundCount: number;
   downloadDeferredRoundCount: number;
   requestedProfileCount?: number | null;
+  recallStrategyMode?: "legacy" | "headhunter_v1";
+  pendingRoundNames?: string[];
+  pendingRoundSubmittedAts?: Array<string | null | undefined>;
+  completedAdaptiveRoundCount?: number;
+  elapsedMs?: number;
+  timeoutMs?: number;
 }) {
   const totalDeferredRoundCount =
     params.metadataDeferredRoundCount + params.downloadDeferredRoundCount;
   if (totalDeferredRoundCount <= 0) return false;
+  if (
+    shouldContinueWithPartialHeadhunterRecall({
+      recallStrategyMode: params.recallStrategyMode,
+      availableProfileCount: params.availableProfileCount,
+      pendingRoundCount: totalDeferredRoundCount,
+      pendingRoundNames: params.pendingRoundNames,
+      pendingRoundSubmittedAts: params.pendingRoundSubmittedAts,
+      completedAdaptiveRoundCount: params.completedAdaptiveRoundCount,
+      elapsedMs: params.elapsedMs,
+      timeoutMs: params.timeoutMs,
+    })
+  ) {
+    return false;
+  }
   if (
     shouldWaitForAdditionalRecallBeforeZeroRecall({
       standardProfileCount: params.standardProfileCount,
@@ -716,13 +736,93 @@ export function shouldTimeoutAdditionalRecallBeforeScoring(params: {
   downloadDeferredRoundCount: number;
   elapsedMs: number;
   timeoutMs: number;
+  recallStrategyMode?: "legacy" | "headhunter_v1";
+  availableProfileCount?: number;
+  pendingRoundNames?: string[];
+  pendingRoundSubmittedAts?: Array<string | null | undefined>;
+  completedAdaptiveRoundCount?: number;
 }) {
   const totalDeferredRoundCount =
     params.metadataDeferredRoundCount + params.downloadDeferredRoundCount;
+  if (
+    shouldContinueWithPartialHeadhunterRecall({
+      recallStrategyMode: params.recallStrategyMode,
+      availableProfileCount: params.availableProfileCount ?? 0,
+      pendingRoundCount: totalDeferredRoundCount,
+      pendingRoundNames: params.pendingRoundNames,
+      pendingRoundSubmittedAts: params.pendingRoundSubmittedAts,
+      completedAdaptiveRoundCount: params.completedAdaptiveRoundCount,
+      elapsedMs: params.elapsedMs,
+      timeoutMs: params.timeoutMs,
+    })
+  ) {
+    return false;
+  }
+  const effectiveElapsedMs =
+    params.recallStrategyMode === "headhunter_v1"
+      ? getPendingAdditionalRecallElapsedMs({
+        fallbackElapsedMs: params.elapsedMs,
+        pendingRoundSubmittedAts: params.pendingRoundSubmittedAts,
+      })
+      : params.elapsedMs;
   return (
     totalDeferredRoundCount > 0 &&
-    params.elapsedMs >= params.timeoutMs
+    effectiveElapsedMs >= params.timeoutMs
   );
+}
+
+function isAdaptiveRecallRoundName(round: string | null | undefined) {
+  return typeof round === "string" && round.startsWith("adaptive_");
+}
+
+function getPendingAdditionalRecallElapsedMs(params: {
+  fallbackElapsedMs: number;
+  pendingRoundSubmittedAts?: Array<string | null | undefined>;
+  nowMs?: number;
+}) {
+  const nowMs = params.nowMs ?? Date.now();
+  const elapsedBySubmittedAt = (params.pendingRoundSubmittedAts ?? [])
+    .map((value) => {
+      const parsed = value ? Date.parse(value) : Number.NaN;
+      return Number.isFinite(parsed) ? Math.max(0, nowMs - parsed) : null;
+    })
+    .filter((value): value is number => typeof value === "number");
+  if (elapsedBySubmittedAt.length === 0) {
+    return params.fallbackElapsedMs;
+  }
+  return Math.max(...elapsedBySubmittedAt);
+}
+
+export function shouldContinueWithPartialHeadhunterRecall(params: {
+  recallStrategyMode?: "legacy" | "headhunter_v1";
+  availableProfileCount: number;
+  pendingRoundCount: number;
+  pendingRoundNames?: string[];
+  pendingRoundSubmittedAts?: Array<string | null | undefined>;
+  completedAdaptiveRoundCount?: number;
+  elapsedMs?: number;
+  timeoutMs?: number;
+}) {
+  if (params.recallStrategyMode !== "headhunter_v1") return false;
+  if (params.availableProfileCount <= 0 || params.pendingRoundCount <= 0) return false;
+  const pendingRoundNames = params.pendingRoundNames ?? [];
+  const allPendingAreAdaptive =
+    pendingRoundNames.length === params.pendingRoundCount &&
+    pendingRoundNames.every(isAdaptiveRecallRoundName);
+  if (allPendingAreAdaptive && (params.completedAdaptiveRoundCount ?? 0) > 0) {
+    return true;
+  }
+  if (
+    typeof params.elapsedMs === "number" &&
+    typeof params.timeoutMs === "number" &&
+    getPendingAdditionalRecallElapsedMs({
+      fallbackElapsedMs: params.elapsedMs,
+      pendingRoundSubmittedAts: params.pendingRoundSubmittedAts,
+    }) >= params.timeoutMs
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
@@ -3459,6 +3559,7 @@ async function buildBrightDataDatasetCandidates(
     round: string;
     snapshotId: string;
     status: BrightDataSnapshotMetadata["status"] | "polling";
+    submittedAt?: string | null;
   }> = [];
 
   if (additionalSnapshotRefs.length > 0) {
@@ -3595,6 +3696,7 @@ async function buildBrightDataDatasetCandidates(
             round,
             snapshotId: roundSnapId,
             status: "polling",
+            submittedAt: roundRef.submittedAt ?? persistedAdditionalSnapshots.get(round)?.submitted_at ?? null,
           });
           helpers.logSearchEvent("search_multi_round_download_deferred_nonblocking", {
             search_id: context.searchId,
@@ -3678,6 +3780,24 @@ async function buildBrightDataDatasetCandidates(
     }
   }
 
+  const getDeferredAdditionalRoundNames = () => [
+    ...deferredAdditionalRounds.map((round) => round.round),
+    ...downloadDeferredAdditionalRounds.map((round) => round.round),
+  ];
+  const getDeferredAdditionalSubmittedAts = () => [
+    ...deferredAdditionalRounds.map((round) =>
+      round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
+    ),
+    ...downloadDeferredAdditionalRounds.map((round) =>
+      round.submittedAt ?? persistedAdditionalSnapshots.get(round.round)?.submitted_at ?? null,
+    ),
+  ];
+  const getCompletedAdaptiveRoundCount = () =>
+    additionalSnapshotStates.filter((round) =>
+      isAdaptiveRecallRoundName(round.round) &&
+      (additionalReturnedCounts.get(round.round) ?? 0) > 0
+    ).length;
+
   if (
     shouldWaitForAdditionalRecallBeforeScoring({
       standardProfileCount,
@@ -3685,6 +3805,12 @@ async function buildBrightDataDatasetCandidates(
       metadataDeferredRoundCount: deferredAdditionalRounds.length,
       downloadDeferredRoundCount: downloadDeferredAdditionalRounds.length,
       requestedProfileCount: totalRequestedLimit,
+      recallStrategyMode,
+      pendingRoundNames: getDeferredAdditionalRoundNames(),
+      pendingRoundSubmittedAts: getDeferredAdditionalSubmittedAts(),
+      completedAdaptiveRoundCount: getCompletedAdaptiveRoundCount(),
+      elapsedMs: totalElapsedMs,
+      timeoutMs: BRIGHTDATA_FILTER_TIMEOUT_MS,
     })
   ) {
     const blockedAdditionalRounds = [
@@ -3766,6 +3892,11 @@ async function buildBrightDataDatasetCandidates(
         downloadDeferredRoundCount: downloadDeferredAdditionalRounds.length,
         elapsedMs: totalElapsedMs,
         timeoutMs: BRIGHTDATA_FILTER_TIMEOUT_MS,
+        recallStrategyMode,
+        availableProfileCount: allProfiles.length,
+        pendingRoundNames: getDeferredAdditionalRoundNames(),
+        pendingRoundSubmittedAts: getDeferredAdditionalSubmittedAts(),
+        completedAdaptiveRoundCount: getCompletedAdaptiveRoundCount(),
       })
     ) {
       helpers.logSearchEvent("search_additional_rounds_timeout_before_score", {
@@ -3785,6 +3916,60 @@ async function buildBrightDataDatasetCandidates(
       `Waiting for ${blockedAdditionalRounds.length} additional recall round(s) before scoring ${allProfiles.length} profiles`,
       { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
     );
+  }
+
+  const nonblockingDeferredRoundNames = getDeferredAdditionalRoundNames();
+  if (
+    shouldContinueWithPartialHeadhunterRecall({
+      recallStrategyMode,
+      availableProfileCount: allProfiles.length,
+      pendingRoundCount: nonblockingDeferredRoundNames.length,
+      pendingRoundNames: nonblockingDeferredRoundNames,
+      pendingRoundSubmittedAts: getDeferredAdditionalSubmittedAts(),
+      completedAdaptiveRoundCount: getCompletedAdaptiveRoundCount(),
+      elapsedMs: totalElapsedMs,
+      timeoutMs: BRIGHTDATA_FILTER_TIMEOUT_MS,
+    })
+  ) {
+    const stoppedAt = helpers.nowIso();
+    for (const round of nonblockingDeferredRoundNames) {
+      if (!isAdaptiveRecallRoundName(round)) continue;
+      updateAdaptiveRecallAction(parsed, round, {
+        status: "stopped",
+        completed_at: stoppedAt,
+        failure_code: "nonblocking_pending_recall_after_partial_delivery",
+        profiles_returned: null,
+        unique_added: 0,
+      });
+    }
+    const adaptiveState = readAdaptiveRecallState(parsed);
+    if (adaptiveState) {
+      parsed.adaptive_recall = {
+        ...adaptiveState,
+        phase: "not_needed",
+        should_continue: false,
+        stop_reason: "nonblocking_pending_adaptive_after_partial_delivery",
+      };
+    }
+    helpers.logSearchEvent("search_additional_rounds_nonblocking_after_partial_delivery", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      standard_profiles: standardProfileCount,
+      currently_available_profiles: allProfiles.length,
+      completed_adaptive_rounds: getCompletedAdaptiveRoundCount(),
+      deferred_rounds: [
+        ...deferredAdditionalRounds.map((round) => ({
+          round: round.round,
+          snapshot_id: round.snapshotId,
+          status: round.metadata.status,
+        })),
+        ...downloadDeferredAdditionalRounds.map((round) => ({
+          round: round.round,
+          snapshot_id: round.snapshotId,
+          status: round.status,
+        })),
+      ],
+    });
   }
 
   if (deferredAdditionalRounds.length > 0) {

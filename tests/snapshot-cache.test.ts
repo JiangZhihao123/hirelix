@@ -8,6 +8,7 @@ import {
   mergeRecallIterations,
   shouldCountAdaptiveActionAsNewRound,
   shouldContinueScoringWithStandardRecall,
+  shouldContinueWithPartialHeadhunterRecall,
   shouldFailUnderfilledRecallAfterSubmittedRounds,
   shouldTimeoutAdditionalRecallBeforeScoring,
   shouldWaitForAdditionalRecallBeforeScoring,
@@ -391,5 +392,133 @@ test("additional recall wait times out instead of polling forever", () => {
       timeoutMs: 900_000,
     }),
     false,
+  );
+});
+
+test("headhunter recall does not block delivery on pending second adaptive batch", () => {
+  assert.equal(
+    shouldContinueWithPartialHeadhunterRecall({
+      recallStrategyMode: "headhunter_v1",
+      availableProfileCount: 43,
+      pendingRoundCount: 2,
+      pendingRoundNames: [
+        "adaptive_b2_1_revise_lane_standard",
+        "adaptive_b2_2_revise_lane_primary_relaxed",
+      ],
+      completedAdaptiveRoundCount: 1,
+      elapsedMs: 901_844,
+      timeoutMs: 900_000,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeScoring({
+      standardProfileCount: 8,
+      availableProfileCount: 43,
+      metadataDeferredRoundCount: 2,
+      downloadDeferredRoundCount: 0,
+      requestedProfileCount: 110,
+      recallStrategyMode: "headhunter_v1",
+      pendingRoundNames: [
+        "adaptive_b2_1_revise_lane_standard",
+        "adaptive_b2_2_revise_lane_primary_relaxed",
+      ],
+      completedAdaptiveRoundCount: 1,
+      elapsedMs: 901_844,
+      timeoutMs: 900_000,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldTimeoutAdditionalRecallBeforeScoring({
+      metadataDeferredRoundCount: 2,
+      downloadDeferredRoundCount: 0,
+      elapsedMs: 901_844,
+      timeoutMs: 900_000,
+      recallStrategyMode: "headhunter_v1",
+      availableProfileCount: 43,
+      pendingRoundNames: [
+        "adaptive_b2_1_revise_lane_standard",
+        "adaptive_b2_2_revise_lane_primary_relaxed",
+      ],
+      completedAdaptiveRoundCount: 1,
+    }),
+    false,
+  );
+});
+
+test("legacy recall still blocks on the same pending second adaptive shape", () => {
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeScoring({
+      standardProfileCount: 8,
+      availableProfileCount: 43,
+      metadataDeferredRoundCount: 2,
+      downloadDeferredRoundCount: 0,
+      requestedProfileCount: 110,
+      recallStrategyMode: "legacy",
+      pendingRoundNames: [
+        "adaptive_b2_1_revise_lane_standard",
+        "adaptive_b2_2_revise_lane_primary_relaxed",
+      ],
+      completedAdaptiveRoundCount: 1,
+      elapsedMs: 901_844,
+      timeoutMs: 900_000,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldTimeoutAdditionalRecallBeforeScoring({
+      metadataDeferredRoundCount: 2,
+      downloadDeferredRoundCount: 0,
+      elapsedMs: 901_844,
+      timeoutMs: 900_000,
+      recallStrategyMode: "legacy",
+      availableProfileCount: 43,
+      pendingRoundNames: [
+        "adaptive_b2_1_revise_lane_standard",
+        "adaptive_b2_2_revise_lane_primary_relaxed",
+      ],
+      completedAdaptiveRoundCount: 1,
+    }),
+    true,
+  );
+});
+
+test("headhunter adaptive timeout uses pending round submitted_at before global elapsed", () => {
+  const recentlySubmitted = new Date(Date.now() - 60_000).toISOString();
+
+  assert.equal(
+    shouldTimeoutAdditionalRecallBeforeScoring({
+      metadataDeferredRoundCount: 1,
+      downloadDeferredRoundCount: 0,
+      elapsedMs: 901_844,
+      timeoutMs: 900_000,
+      recallStrategyMode: "headhunter_v1",
+      availableProfileCount: 0,
+      pendingRoundNames: ["adaptive_b1_1_revise_lane_standard"],
+      pendingRoundSubmittedAts: [recentlySubmitted],
+      completedAdaptiveRoundCount: 0,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldWaitForAdditionalRecallBeforeScoring({
+      standardProfileCount: 8,
+      availableProfileCount: 8,
+      metadataDeferredRoundCount: 1,
+      downloadDeferredRoundCount: 0,
+      requestedProfileCount: 70,
+      recallStrategyMode: "headhunter_v1",
+      pendingRoundNames: ["adaptive_b1_1_revise_lane_standard"],
+      pendingRoundSubmittedAts: [recentlySubmitted],
+      completedAdaptiveRoundCount: 0,
+      elapsedMs: 901_844,
+      timeoutMs: 900_000,
+    }),
+    true,
   );
 });
