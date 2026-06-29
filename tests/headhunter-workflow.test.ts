@@ -37,6 +37,7 @@ import {
 import {
   buildDeterministicLaneContractReview,
   evaluateCompiledFilterFidelity,
+  getParsedRoleFamily,
 } from "@/lib/search/lane-contract-critic";
 import type { SearchExecutionProfile } from "@/lib/search-execution";
 
@@ -227,6 +228,158 @@ test("lane contract critic schema exposes bounded decisions and role-family alig
   const reviewItem = properties.reviews.items.properties;
   assert.deepEqual(reviewItem.decision.enum, ["approve", "repair", "reject"]);
   assert.deepEqual(reviewItem.role_family_alignment.enum, ["aligned", "authorized_adjacent", "drifted"]);
+});
+
+test("role-family fallback treats platform wording in backend work as evidence, not the job family", () => {
+  const legacyParsed = {
+    ...parsed,
+    headhunter_brief: {
+      ...parsed.headhunter_brief,
+      role_family: undefined,
+      functional_core: undefined,
+      must_not_drift_to: undefined,
+    },
+    hiring_brief: {
+      ...parsed.hiring_brief,
+      role_core: {
+        ...parsed.hiring_brief.role_core,
+        title: "Senior Backend Engineer",
+        function_focus: "Payments platform and ledger infrastructure",
+      },
+    },
+    recall_spec: {
+      ...parsed.recall_spec,
+      title_variants: [
+        "Senior Backend Engineer",
+        "Senior Software Engineer",
+        "Staff Backend Engineer",
+        "Staff Software Engineer",
+        "Principal Backend Engineer",
+        "Lead Backend Engineer",
+        "Senior Platform Engineer",
+        "Senior Infrastructure Engineer",
+      ],
+      sourcing_lanes: [
+        {
+          name: "Primary Backend + Payments",
+          strategy: "title",
+          lane_kind: "primary_exact",
+          target_persona: "Senior Backend Engineers with payments domain experience",
+          non_negotiables: ["payments", "distributed systems", "Go or Java or Kotlin or Rust"],
+          relaxed_evidence: ["may relax specific language if strong payments and distributed systems"],
+          exclusion_patterns: ["frontend-heavy profiles", "data science", "machine learning"],
+          initial_budget: 35,
+          max_budget: 120,
+          title_terms: [
+            "Senior Backend Engineer",
+            "Senior Software Engineer",
+            "Staff Backend Engineer",
+            "Staff Software Engineer",
+            "Principal Backend Engineer",
+            "Lead Backend Engineer",
+          ],
+          skill_terms: ["payments", "ledger", "distributed systems", "go", "java", "kotlin", "rust"],
+          company_terms: [],
+          avoid_terms: ["frontend", "data scientist", "machine learning", "mobile"],
+          budget_weight: 1,
+        },
+      ],
+    },
+  };
+  const recallSpec = normalizeRecallSpec(legacyParsed.recall_spec, 5);
+  assert.equal(getParsedRoleFamily(legacyParsed, recallSpec), "backend");
+});
+
+test("role-family fallback still identifies true data platform roles", () => {
+  const dataPlatformParsed = {
+    ...parsed,
+    title: "Senior Data Platform Engineer",
+    headhunter_brief: {
+      ...parsed.headhunter_brief,
+      role_family: undefined,
+      functional_core: undefined,
+      must_not_drift_to: undefined,
+    },
+    hiring_brief: {
+      ...parsed.hiring_brief,
+      role_core: {
+        ...parsed.hiring_brief.role_core,
+        title: "Senior Data Platform Engineer",
+        function_focus: "Own data platform and streaming infrastructure",
+      },
+    },
+    recall_spec: {
+      ...parsed.recall_spec,
+      title_variants: ["Senior Data Platform Engineer", "Staff Data Platform Engineer", "Senior Data Engineer"],
+      sourcing_lanes: [
+        {
+          name: "data platform exact",
+          strategy: "title",
+          lane_kind: "primary_exact",
+          target_persona: "Data platform engineers",
+          non_negotiables: ["data platform"],
+          relaxed_evidence: ["Kafka", "Spark"],
+          exclusion_patterns: [],
+          initial_budget: 25,
+          max_budget: 80,
+          title_terms: ["Senior Data Platform Engineer", "Staff Data Platform Engineer"],
+          skill_terms: ["Kafka", "Spark"],
+          company_terms: [],
+          avoid_terms: [],
+          budget_weight: 1,
+        },
+      ],
+    },
+  };
+  const recallSpec = normalizeRecallSpec(dataPlatformParsed.recall_spec, 5);
+  assert.equal(getParsedRoleFamily(dataPlatformParsed, recallSpec), "data_engineering");
+});
+
+test("lane contract critic keeps target-company engineering alignment distinct from primary role drift", () => {
+  const recallSpec = normalizeRecallSpec({
+    ...parsed.recall_spec,
+    sourcing_lanes: [
+      {
+        name: "direct backend payments",
+        strategy: "title",
+        lane_kind: "primary_exact",
+        target_persona: "Backend engineers with payments API ownership",
+        non_negotiables: ["backend engineering", "payments APIs"],
+        relaxed_evidence: ["ledger systems"],
+        exclusion_patterns: ["frontend only"],
+        initial_budget: 25,
+        max_budget: 80,
+        title_terms: ["Senior Backend Engineer", "Staff Backend Engineer"],
+        skill_terms: ["payments", "API"],
+        company_terms: [],
+        avoid_terms: ["frontend"],
+        budget_weight: 1,
+      },
+      {
+        name: "target fintech engineering",
+        strategy: "company",
+        lane_kind: "target_company_engineering",
+        target_persona: "Backend engineers at payments companies",
+        non_negotiables: ["engineering role", "payments domain"],
+        relaxed_evidence: ["platform title is acceptable only inside target-company engineering"],
+        exclusion_patterns: ["non-engineering roles"],
+        initial_budget: 20,
+        max_budget: 40,
+        title_terms: ["Software Engineer", "Backend Engineer", "Platform Engineer"],
+        skill_terms: [],
+        company_terms: ["Stripe", "Adyen"],
+        avoid_terms: ["frontend", "data science"],
+        budget_weight: 1,
+      },
+    ],
+  }, 5);
+  const review = buildDeterministicLaneContractReview({
+    parsed,
+    recallSpec,
+  });
+  assert.equal(review.status, "approved");
+  assert.equal(review.reviews[1]?.decision, "approve");
+  assert.equal(review.reviews[1]?.role_family_alignment, "aligned");
 });
 
 test("headhunter recall strategy compiles free search into a 35 plus 15 probe", () => {

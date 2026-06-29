@@ -42,9 +42,9 @@ const ROLE_PATTERNS: Array<[RoleFamily, RegExp]> = [
   ["security", /\b(security|appsec|application security|cloud security|product security)\b/],
   ["data_science_ml", /\b(machine learning|ml engineer|ai engineer|data scientist|applied scientist|research scientist|deep learning|nlp|computer vision)\b/],
   ["data_engineering", /\b(data engineer|data engineering|data platform|data infrastructure|analytics engineer|etl|elt|warehouse|lakehouse|big data|streaming platform)\b/],
-  ["platform_infra_sre", /\b(platform engineer|infrastructure|site reliability|sre|devops|cloud engineer|production engineer|kubernetes platform)\b/],
+  ["platform_infra_sre", /\b(platform engineer|platform engineering|infrastructure engineer|infrastructure engineering|site reliability|sre|devops|cloud engineer|production engineer|kubernetes platform)\b/],
   ["fullstack", /\b(fullstack|full stack|product engineer)\b/],
-  ["backend", /\b(backend|back end|back-end|server|api|microservice|services|software engineer|distributed systems)\b/],
+  ["backend", /\b(backend|back end|back-end|server|api|microservice|microservices|services)\b/],
 ];
 
 const ROLE_DRIFT_TERMS: Record<RoleFamily, string[]> = {
@@ -91,22 +91,50 @@ export function inferRoleFamilyFromText(values: Array<unknown>): RoleFamily {
   return "other";
 }
 
+function getRoleCore(parsed: Record<string, unknown>) {
+  const hiringBrief = parsed.hiring_brief && typeof parsed.hiring_brief === "object"
+    ? (parsed.hiring_brief as Record<string, unknown>)
+    : {};
+  return hiringBrief.role_core && typeof hiringBrief.role_core === "object"
+    ? (hiringBrief.role_core as Record<string, unknown>)
+    : {};
+}
+
+function getPrimaryLaneRoleFamily(recallSpec?: RecallSpec): RoleFamily {
+  const primaryLanes = (recallSpec?.sourcing_lanes ?? []).filter((lane) =>
+    lane.lane_kind === "primary_exact" || lane.lane_kind === "primary_relaxed"
+  );
+  return inferRoleFamilyFromText(primaryLanes.flatMap((lane) => [
+    lane.name,
+    lane.target_persona,
+    lane.non_negotiables,
+    lane.title_terms,
+  ]));
+}
+
 export function getParsedRoleFamily(parsed: Record<string, unknown>, recallSpec?: RecallSpec): RoleFamily {
   const brief = parsed.headhunter_brief && typeof parsed.headhunter_brief === "object"
     ? (parsed.headhunter_brief as Record<string, unknown>)
     : {};
   const explicit = normalizeRoleFamily(brief.role_family, "other");
   if (explicit !== "other") return explicit;
-  const hiringBrief = parsed.hiring_brief && typeof parsed.hiring_brief === "object"
-    ? (parsed.hiring_brief as Record<string, unknown>)
-    : {};
-  const roleCore = hiringBrief.role_core && typeof hiringBrief.role_core === "object"
-    ? (hiringBrief.role_core as Record<string, unknown>)
-    : {};
+  const roleCore = getRoleCore(parsed);
+  const titleFamily = inferRoleFamilyFromText([
+    parsed.title,
+    roleCore.title,
+  ]);
+  if (titleFamily !== "other") return titleFamily;
+  const primaryLaneFamily = getPrimaryLaneRoleFamily(recallSpec);
+  if (primaryLaneFamily !== "other") return primaryLaneFamily;
+  const functionalFamily = inferRoleFamilyFromText([
+    brief.functional_core,
+    roleCore.function_focus,
+  ]);
+  if (functionalFamily !== "other") return functionalFamily;
   return inferRoleFamilyFromText([
     parsed.title,
-    brief.functional_core,
     roleCore.title,
+    brief.functional_core,
     roleCore.function_focus,
     recallSpec?.title_variants,
   ]);
@@ -265,12 +293,13 @@ function reviewLaneDeterministically(params: {
     ...normalizeStringArray(params.brief.allowed_adjacent_profiles, 10),
   ].length > 0;
 
+  const isPrimaryLane = laneKind === "primary_exact" || laneKind === "primary_relaxed";
   let roleFamilyAlignment: LaneRoleFamilyAlignment =
-    genericDrift || explicitDrift || roleSpecificDrift ? "drifted" : "aligned";
+    explicitDrift || roleSpecificDrift || (isPrimaryLane && genericDrift) ? "drifted" : "aligned";
   let decision: "approve" | "repair" | "reject" = "approve";
   const driftRisks: string[] = [];
 
-  if (laneKind === "primary_exact" || laneKind === "primary_relaxed") {
+  if (isPrimaryLane) {
     if (roleFamilyAlignment === "drifted") {
       decision = "repair";
       driftRisks.push("Primary lane changes role family instead of only changing evidence strength.");
