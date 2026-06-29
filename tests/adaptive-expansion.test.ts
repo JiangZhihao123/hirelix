@@ -293,6 +293,111 @@ test("adaptive planner stops when actionable target is already met", () => {
   assert.equal(plan.planned_budget, 0);
 });
 
+test("adaptive planner does not let actionable target short-circuit weak C revise lanes", () => {
+  const plan = planAdaptiveExpansion({
+    parsed: {},
+    recallMetadata: metadata({
+      recall_iterations: [
+        {
+          iteration: 1,
+          lane: "standard",
+          lane_kind: "primary_exact",
+          budget: 35,
+          audit: {
+            decision: "revise",
+            quality_grade: "C",
+            summary: "Exact lane contains a few usable profiles but the direction is too broad.",
+            next_lane_revision: {
+              name: "transaction backend revision",
+              lane_kind: "primary_exact",
+              target_persona: "Backend engineers with transaction system ownership",
+              non_negotiables: ["backend engineering", "transactional systems"],
+              relaxed_evidence: ["billing APIs", "ledger services"],
+              exclusion_patterns: ["data platform only"],
+              initial_budget: 20,
+              max_budget: 40,
+            },
+          },
+          continue_expansion: false,
+        },
+        {
+          iteration: 2,
+          lane: "primary_relaxed",
+          lane_kind: "primary_relaxed",
+          budget: 15,
+          audit: {
+            decision: "revise",
+            quality_grade: "C",
+            summary: "Relaxed lane also needs tighter engineering evidence.",
+            next_lane_revision: {
+              name: "hands-on backend relaxed revision",
+              lane_kind: "primary_relaxed",
+              target_persona: "Senior software engineers with hands-on backend delivery",
+              non_negotiables: ["hands-on engineering"],
+              relaxed_evidence: ["API ownership", "distributed systems"],
+              exclusion_patterns: ["manager-only profiles"],
+              initial_budget: 20,
+              max_budget: 40,
+            },
+          },
+          continue_expansion: false,
+        },
+      ],
+    }),
+    displayStats: displayStats({ recommended_count: 4 }),
+    recallSpec: { sourcing_lanes: [directLane, relaxedLane] },
+    totalBudget: 250,
+  });
+
+  assert.equal(plan.should_continue, true);
+  assert.equal(plan.stop_reason, null);
+  assert.equal(plan.planned_budget, 40);
+  assert.equal(plan.actions.length, 2);
+  assert.deepEqual(plan.actions.map((action) => action.type), ["revise_lane", "revise_lane"]);
+  assert.ok(plan.actions.every((action) => action.budget === 20));
+});
+
+test("adaptive planner records duplicate weak revisions even when actionable target is met", () => {
+  const plan = planAdaptiveExpansion({
+    parsed: {},
+    recallMetadata: metadata({
+      recall_iterations: [
+        {
+          iteration: 1,
+          lane: "standard",
+          lane_kind: "primary_exact",
+          budget: 35,
+          audit: {
+            decision: "revise",
+            quality_grade: "C",
+            summary: "Revision would compile back to the same exact filter.",
+            next_lane_revision: {
+              name: "same backend revision",
+              lane_kind: "primary_exact",
+              target_persona: "Hands-on backend engineers",
+              non_negotiables: ["backend engineering"],
+              relaxed_evidence: ["transaction systems"],
+              exclusion_patterns: ["manager only"],
+              initial_budget: 20,
+              max_budget: 40,
+            },
+          },
+          continue_expansion: false,
+        },
+      ],
+    }),
+    displayStats: displayStats({ recommended_count: 4 }),
+    recallSpec: { sourcing_lanes: [directLane] },
+    totalBudget: 250,
+    isDuplicateRevision: () => true,
+  });
+
+  assert.equal(plan.should_continue, false);
+  assert.equal(plan.stop_reason, "duplicate_revision_filter_hash");
+  assert.equal(plan.planned_budget, 0);
+  assert.equal(plan.actions[0]?.type, "reuse_snapshot");
+});
+
 test("adaptive planner refuses to spend without lane audits", () => {
   const plan = planAdaptiveExpansion({
     parsed: {},

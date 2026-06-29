@@ -159,6 +159,16 @@ function resolveNoSpendStopReason(params: {
   return "no_expandable_lanes";
 }
 
+function hasWorkableAuditedLane(
+  iterations: NonNullable<RecallMetadata["recall_iterations"]>,
+) {
+  return iterations.some((iteration) => {
+    const audit = iteration.audit;
+    if (!audit) return false;
+    return (audit.quality_grade === "A" || audit.quality_grade === "B") && audit.decision !== "stop";
+  });
+}
+
 export function planAdaptiveExpansion(params: {
   parsed: Record<string, unknown>;
   recallMetadata: RecallMetadata | null;
@@ -205,16 +215,6 @@ export function planAdaptiveExpansion(params: {
     };
   }
 
-  if (actionableCount >= actionableTarget) {
-    return {
-      should_continue: false,
-      stop_reason: "actionable_target_met",
-      remaining_budget: remainingBudget,
-      planned_budget: 0,
-      actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: `Actionable candidate target met (${actionableCount}/${actionableTarget}).` }],
-    };
-  }
-
   const maxAdaptiveBatches = Math.max(0, Math.round(params.maxAdaptiveBatches ?? DEFAULT_MAX_ADAPTIVE_BATCHES));
   if (getAdaptiveBatchCount(iterations) >= maxAdaptiveBatches) {
     return {
@@ -236,6 +236,16 @@ export function planAdaptiveExpansion(params: {
       remaining_budget: remainingBudget,
       planned_budget: 0,
       actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: "Lane audits are missing; not spending more Bright budget." }],
+    };
+  }
+
+  if (actionableCount >= actionableTarget && hasWorkableAuditedLane(completedAudits)) {
+    return {
+      should_continue: false,
+      stop_reason: "actionable_target_met",
+      remaining_budget: remainingBudget,
+      planned_budget: 0,
+      actions: [{ type: "finish", lane: "all", lane_kind: "primary_exact", budget: 0, reason: `Actionable candidate target met (${actionableCount}/${actionableTarget}) with at least one workable audited lane.` }],
     };
   }
 
