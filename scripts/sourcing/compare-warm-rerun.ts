@@ -43,6 +43,8 @@ type LlmCacheStats = {
   total_latency_ms: number;
 };
 
+type ExternalIndexVerdict = "not_tested" | "no_savings_observed" | "possible_savings";
+
 function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     coldDir: null,
@@ -165,7 +167,8 @@ function buildComparison(params: {
       llm_latency_ms: warmLlmCache.total_latency_ms - coldLlmCache.total_latency_ms,
     },
     runs,
-    interpretation: buildInterpretation(coldLlmCache, warmLlmCache, coldTotals, warmTotals),
+    verdict: buildVerdict(params.cold, params.warm, coldLlmCache, warmLlmCache, coldTotals, warmTotals),
+    interpretation: buildInterpretation(params.cold, params.warm, coldLlmCache, warmLlmCache, coldTotals, warmTotals),
   };
 }
 
@@ -209,17 +212,25 @@ function collectLlmCacheStats(summary: BenchmarkSummary): LlmCacheStats {
 }
 
 function buildInterpretation(
+  cold: BenchmarkSummary,
+  warm: BenchmarkSummary,
   coldLlm: LlmCacheStats,
   warmLlm: LlmCacheStats,
   coldTotals: ReturnType<typeof normalizeTotals>,
   warmTotals: ReturnType<typeof normalizeTotals>,
 ) {
   const notes: string[] = [];
+  if (cold.mode !== "live" || warm.mode !== "live") {
+    notes.push("this comparison is not a live provider benchmark; it can validate LLM cache behavior, not external sourcing economics.");
+  }
   if (warmLlm.cache_hits > coldLlm.cache_hits) {
     notes.push("warm rerun hit more LLM cache, so repeated parsing/screening cost and latency should drop.");
   }
   if (warmTotals.actual_cost_usd >= coldTotals.actual_cost_usd && warmTotals.candidate_cards > 0) {
     notes.push("external provider cost did not drop; current prototype has LLM cache, not a reusable provider/profile index.");
+  }
+  if (warmTotals.actual_cost_usd === 0 && warmTotals.candidate_cards === 0) {
+    notes.push("zero external cost with zero candidate cards means this is dry-run planning evidence, not proof that a warm profile index can satisfy a JD.");
   }
   if (warmTotals.contact_worthy_candidates < coldTotals.contact_worthy_candidates) {
     notes.push("warm run produced fewer contact-worthy candidates; inspect provider variance before treating warm index as stable.");
@@ -228,6 +239,33 @@ function buildInterpretation(
     notes.push("comparison is structurally valid, but there is not enough live candidate data to infer warm-index value.");
   }
   return notes;
+}
+
+function buildVerdict(
+  cold: BenchmarkSummary,
+  warm: BenchmarkSummary,
+  coldLlm: LlmCacheStats,
+  warmLlm: LlmCacheStats,
+  coldTotals: ReturnType<typeof normalizeTotals>,
+  warmTotals: ReturnType<typeof normalizeTotals>,
+) {
+  const llmCacheUseful = warmLlm.cache_hits > coldLlm.cache_hits ||
+    warmLlm.total_latency_ms < coldLlm.total_latency_ms;
+  const externalIndex: ExternalIndexVerdict = cold.mode !== "live" || warm.mode !== "live"
+    ? "not_tested"
+    : warmTotals.actual_cost_usd < coldTotals.actual_cost_usd && warmTotals.candidate_cards >= coldTotals.candidate_cards
+      ? "possible_savings"
+      : "no_savings_observed";
+  return {
+    llm_cache_useful: llmCacheUseful,
+    external_profile_index_value: externalIndex,
+    can_claim_warm_index_validated: externalIndex === "possible_savings",
+    summary: externalIndex === "possible_savings"
+      ? "warm run suggests a reusable external/profile index may reduce cost without hurting candidate volume."
+      : llmCacheUseful
+        ? "current evidence validates LLM cache only; provider/profile index value remains unproven."
+        : "current evidence is insufficient to validate either LLM cache value or provider/profile index value.",
+  };
 }
 
 function buildMarkdownReport(comparison: ReturnType<typeof buildComparison>) {
@@ -249,6 +287,13 @@ function buildMarkdownReport(comparison: ReturnType<typeof buildComparison>) {
     `| Contact-worthy candidates | ${comparison.cold.totals.contact_worthy_candidates} | ${comparison.warm.totals.contact_worthy_candidates} | ${comparison.delta.contact_worthy_candidates} |`,
     `| LLM cache hits | ${comparison.cold.llm_cache.cache_hits} | ${comparison.warm.llm_cache.cache_hits} | ${comparison.delta.llm_cache_hits} |`,
     `| LLM latency | ${comparison.cold.llm_cache.total_latency_ms} ms | ${comparison.warm.llm_cache.total_latency_ms} ms | ${comparison.delta.llm_latency_ms} ms |`,
+    "",
+    "## Verdict",
+    "",
+    `- LLM cache useful: ${comparison.verdict.llm_cache_useful ? "yes" : "no"}`,
+    `- External profile/provider index value: ${comparison.verdict.external_profile_index_value}`,
+    `- Can claim warm index validated: ${comparison.verdict.can_claim_warm_index_validated ? "yes" : "no"}`,
+    `- Summary: ${comparison.verdict.summary}`,
     "",
     "## JD Rows",
     "",

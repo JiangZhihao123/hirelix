@@ -1,0 +1,96 @@
+{
+  "cold": {
+    "benchmark_id": "benchmark-2026-07-05T16-14-23-480Z-4ef5b995",
+    "dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-14-23-480Z-4ef5b995",
+    "mode": "dry-run",
+    "providers": [
+      "serper",
+      "exa",
+      "firecrawl",
+      "github"
+    ],
+    "totals": {
+      "actual_cost_usd": 0,
+      "estimated_cost_usd": 0.008,
+      "candidate_cards": 0,
+      "reviewable_candidates": 0,
+      "contact_worthy_candidates": 0,
+      "yes": 0,
+      "maybe": 0,
+      "no": 0
+    },
+    "llm_cache": {
+      "files": 2,
+      "cache_hits": 0,
+      "cache_misses": 2,
+      "total_latency_ms": 9256
+    }
+  },
+  "warm": {
+    "benchmark_id": "benchmark-2026-07-05T16-14-41-450Z-b1a25a0a",
+    "dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-14-41-450Z-b1a25a0a",
+    "mode": "dry-run",
+    "providers": [
+      "serper",
+      "exa",
+      "firecrawl",
+      "github"
+    ],
+    "totals": {
+      "actual_cost_usd": 0,
+      "estimated_cost_usd": 0.008,
+      "candidate_cards": 0,
+      "reviewable_candidates": 0,
+      "contact_worthy_candidates": 0,
+      "yes": 0,
+      "maybe": 0,
+      "no": 0
+    },
+    "llm_cache": {
+      "files": 2,
+      "cache_hits": 2,
+      "cache_misses": 0,
+      "total_latency_ms": 0
+    }
+  },
+  "delta": {
+    "actual_cost_usd": 0,
+    "estimated_cost_usd": 0,
+    "candidate_cards": 0,
+    "reviewable_candidates": 0,
+    "contact_worthy_candidates": 0,
+    "llm_cache_hits": 2,
+    "llm_latency_ms": -9256
+  },
+  "runs": [
+    {
+      "jd_id": "JD-01",
+      "title": "普通技术岗：Backend Platform Engineer",
+      "cold_status": "planned",
+      "warm_status": "planned",
+      "cold_cards": 0,
+      "warm_cards": 0,
+      "cards_delta": 0,
+      "cold_contact_worthy": 0,
+      "warm_contact_worthy": 0,
+      "contact_worthy_delta": 0,
+      "cold_reviewable": 0,
+      "warm_reviewable": 0,
+      "reviewable_delta": 0,
+      "cold_actual_cost_usd": 0,
+      "warm_actual_cost_usd": 0,
+      "actual_cost_delta_usd": 0
+    }
+  ],
+  "verdict": {
+    "llm_cache_useful": true,
+    "external_profile_index_value": "not_tested",
+    "can_claim_warm_index_validated": false,
+    "summary": "current evidence validates LLM cache only; provider/profile index value remains unproven."
+  },
+  "interpretation": [
+    "this comparison is not a live provider benchmark; it can validate LLM cache behavior, not external sourcing economics.",
+    "warm rerun hit more LLM cache, so repeated parsing/screening cost and latency should drop.",
+    "zero external cost with zero candidate cards means this is dry-run planning evidence, not proof that a warm profile index can satisfy a JD."
+  ]
+}

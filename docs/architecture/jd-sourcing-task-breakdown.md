@@ -32,7 +32,7 @@
 - `S4-5` 已完成基础版：light screen 后导出 `review-samples.csv`，并可通过 `scripts/sourcing/build-calibration-samples.ts` 聚合成 benchmark 级校准表。
 - `S5-1` 已完成基础版：2 个 JD live smoke 已跑通，报告记录在 `docs/architecture/jd-sourcing-smoke-report.md`。
 - `S5-2` 已完成：`scripts/sourcing/run-benchmark.ts` 可批量解析 `benchmark-jds.md` 并执行 cold/live benchmark；10 JD dry benchmark 和 10 JD live benchmark 均已通过。
-- `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。当前只证明 LLM cache，不等于 profile/provider index。
+- `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。tracked 报告见 `docs/architecture/jd-sourcing-warm-comparison.md`。当前只证明 LLM cache，不等于 profile/provider index。
 - `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本。
 - `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
 - Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
@@ -168,7 +168,7 @@
 | P0 | 跑完整 10 JD live benchmark，不启用 Bright | 已完成；实际外部成本 `$0.145` | 10 个 JD 全部 completed，已生成 provider/lane 质量归因表 |
 | P0 | 人工抽查 yes/maybe 样本 | 校准表已生成，不花钱 | 填写 `jd-sourcing-calibration-samples.csv` 的 `reviewer_decision`，确认 snippet-only 没有误判为 contact-worthy |
 | P0 | 生成正式决策报告 | 否 | `jd-sourcing-benchmark-report.md` 从“不能决策”更新为基于 10 JD live 数据的结论 |
-| P1 | 用 shared LLM cache 做 cold/warm 对比 | 否 | `warm-comparison.md` 明确区分 LLM cache 收益和 provider/profile index 缺口 |
+| P1 | 用 shared LLM cache 做 cold/warm 对比 | 已完成；不花钱 | `jd-sourcing-warm-comparison.md` 明确区分 LLM cache 收益和 provider/profile index 缺口 |
 | P1 | Bright/Profile dry probe plan | 已完成；不花钱 | 选出 2 个 JD、10 个 LinkedIn snippet-only 候选，预计真实 Bright 成本 `$0.1500`，计划见 `jd-sourcing-bright-probe-plan.md` |
 | P1 | Bright 极小真实 probe 对照 | 是，必须单独确认；当前余额约 `$9` | 默认只按 dry plan 执行；首轮建议 cap `$1`，验证 Bright URL/Profile completion 和 Dataset Filter 对照，不验证泛语义召回 |
 | P2 | 根据结果决定是否做临时 profile/evidence index | 否 | 只有当外部 sourcing 产出稳定 contact-worthy，才进入 Milestone 6 |
@@ -201,6 +201,16 @@
 - 预计 Dataset Filter 对照成本：`$0.1250`。
 - 预计总 Bright 成本：`$0.1500`，低于建议首轮 cap `$1`。
 - 解释：这不是 Bright 召回扩量计划，而是验证 Bright 能否把 Serper/Google 摘要型候选补成可判断 profile 的最小实验。
+
+## Cold/Warm 对比结论
+
+- 脚本：`npm run sourcing:compare-warm`
+- 产物：`docs/architecture/jd-sourcing-warm-comparison.md` 和 `docs/architecture/jd-sourcing-warm-comparison.json`
+- 当前对比：1 个 JD dry-run cold/warm 配对。
+- LLM cache hits：0 -> 2。
+- LLM latency：9256ms -> 0ms。
+- 外部 provider 成本：`$0` -> `$0`，候选卡片：0 -> 0。
+- 结论：当前证据只证明 LLM cache 对重复解析/筛选有用，不能证明 warm profile index 或 provider result cache 已经能降低外部 sourcing 成本，也不能证明本地索引能满足 JD。
 
 关键风险：
 
