@@ -28,3 +28,21 @@ npm run sourcing:decision-report -- --benchmark-dir=runs/sourcing-benchmark/benc
 ```
 
 报告会输出人工确认后的样本 contact-worthy rate、LLM yes precision、投影 contact-worthy 数和投影单个可联系人成本。
+
+## Assistant Strict Baseline
+
+仓库同时保留一份模型辅助的严格校准表：
+
+`docs/architecture/jd-sourcing-calibration-assistant-strict.csv`
+
+它不是人工确认结果，只用于缩小人工复核范围。当前结果显示：
+
+- 已审样本：56 / 56
+- `contact_worthy`：7
+- `research_more`：35
+- `reject`：14
+- LLM yes precision：26.9%
+- 投影 contact-worthy 数：13
+- 投影 cost per contact-worthy：`$0.0112`
+
+这个结果说明 LLM light screen 明显偏乐观，尤其是 Serper/LinkedIn snippet-only 候选。下一步应优先人工复核 assistant_strict 标为 `contact_worthy` 的 7 行，再抽查 `research_more` 中的 Serper 行，判断是否需要 Bright/Profile 补全。

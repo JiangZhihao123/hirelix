@@ -57,6 +57,7 @@ type BenchmarkSummary = {
 
 type CalibrationSummary = {
   path: string;
+  review_mode: "manual" | "assistant_strict" | "mixed" | "unreviewed";
   total_rows: number;
   reviewed_rows: number;
   confirmed_contact_worthy: number;
@@ -208,6 +209,7 @@ function buildReport(params: {
     `| provider error rate | ${pct(metrics.provider_error_rate)} |`,
     ...(params.calibration ? [
       `| reviewed calibration rows | ${params.calibration.reviewed_rows} / ${params.calibration.total_rows} |`,
+      `| calibration review mode | ${params.calibration.review_mode} |`,
       `| manually confirmed contact-worthy | ${params.calibration.confirmed_contact_worthy} |`,
       `| manual contact-worthy rate on reviewed rows | ${pct(params.calibration.reviewed_contact_worthy_rate)} |`,
       `| manual yes precision on reviewed yes | ${pct(params.calibration.reviewed_yes_precision)} |`,
@@ -232,6 +234,7 @@ function buildReport(params: {
       "## 人工校准",
       "",
       `- 校准文件：\`${params.calibration.path}\``,
+      `- 校准方式：${params.calibration.review_mode}`,
       `- 已审样本：${params.calibration.reviewed_rows} / ${params.calibration.total_rows}`,
       `- 人工确认 contact-worthy：${params.calibration.confirmed_contact_worthy}`,
       `- 人工确认 reviewable：${params.calibration.confirmed_reviewable}`,
@@ -373,6 +376,14 @@ function summarizeCalibration(filePath: string, summary: BenchmarkSummary): Cali
   const rows = parseCsv(fs.readFileSync(filePath, "utf8"));
   const totalRows = rows.length;
   const reviewed = rows.filter((row) => normalizeReviewerDecision(row.reviewer_decision));
+  const assistantRows = reviewed.filter((row) => (row.reviewer_notes || "").toLowerCase().includes("assistant_strict"));
+  const reviewMode = reviewed.length === 0
+    ? "unreviewed"
+    : assistantRows.length === reviewed.length
+      ? "assistant_strict"
+      : assistantRows.length > 0
+        ? "mixed"
+        : "manual";
   const confirmedContact = reviewed.filter((row) => normalizeReviewerDecision(row.reviewer_decision) === "contact_worthy").length;
   const confirmedReviewable = reviewed.filter((row) => {
     const decision = normalizeReviewerDecision(row.reviewer_decision);
@@ -394,6 +405,7 @@ function summarizeCalibration(filePath: string, summary: BenchmarkSummary): Cali
       );
   return {
     path: filePath,
+    review_mode: reviewMode,
     total_rows: totalRows,
     reviewed_rows: reviewed.length,
     confirmed_contact_worthy: confirmedContact,
@@ -460,7 +472,26 @@ function decide(
     };
   }
 
-  if (!options.manualReviewDone || !calibration || calibration.reviewed_rows === 0) {
+  if (!options.manualReviewDone || !calibration || calibration.reviewed_rows === 0 || calibration.review_mode === "assistant_strict") {
+    if (calibration?.review_mode === "assistant_strict" && calibration.reviewed_rows > 0) {
+      const projectedCost = calibration.projected_cost_per_contact_worthy_usd == null
+        ? "N/A"
+        : `$${calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`;
+      return {
+        verdict: "需要人工复核",
+        next_action: "用 assistant_strict 结果缩小人工校准范围，不进入产品化",
+        reasons: [
+          `assistant_strict 已审 ${calibration.reviewed_rows} 条，样本 contact-worthy rate 为 ${pct(calibration.reviewed_contact_worthy_rate)}。`,
+          `投影 cost per contact-worthy 为 ${projectedCost}。`,
+          "该结果是模型辅助校准，不是真实猎头确认，不能直接作为 PMF 证据。",
+        ],
+        tasks: [
+          "优先人工复核 assistant_strict 标为 contact_worthy 的行。",
+          "抽查 assistant_strict 标为 research_more 的 Serper snippet-only 行，确认是否需要 Bright/Profile 补全。",
+          "人工复核后重新生成报告，并传入 --manual-review-done。",
+        ],
+      };
+    }
     return {
       verdict: "需要人工校准",
       next_action: "先抽查 yes/maybe，再决定是否进入 UI 原型",

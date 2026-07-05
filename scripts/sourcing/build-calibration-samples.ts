@@ -10,6 +10,7 @@ type CliOptions = {
   maybePerJd: number;
   noPerJd: number;
   allReviewable: boolean;
+  assistantStrict: boolean;
 };
 
 type BenchmarkSummary = {
@@ -55,6 +56,7 @@ function parseArgs(argv: string[]): CliOptions {
     maybePerJd: 2,
     noPerJd: 1,
     allReviewable: false,
+    assistantStrict: false,
   };
 
   for (const arg of argv) {
@@ -80,6 +82,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--all-reviewable") {
       options.allReviewable = true;
+      continue;
+    }
+    if (arg === "--assistant-strict") {
+      options.assistantStrict = true;
       continue;
     }
     throw new Error(`Unknown argument: ${arg}`);
@@ -128,6 +134,7 @@ function buildRows(summary: BenchmarkSummary, options: CliOptions): CalibrationR
         card,
         decision,
         leads: cardLeads,
+        assistantStrict: options.assistantStrict,
       }));
     }
   }
@@ -156,6 +163,7 @@ function buildRow(params: {
   card: CandidateCard;
   decision: LightScreenDecision;
   leads: CandidateLead[];
+  assistantStrict: boolean;
 }): CalibrationRow {
   const providers = unique([
     ...params.card.source_mix,
@@ -163,6 +171,15 @@ function buildRow(params: {
   ]);
   const laneIds = unique(params.leads.map((lead) => lead.lane_id));
   const sourceTypes = unique(params.leads.map((lead) => lead.source_type));
+  const assistantReview = params.assistantStrict
+    ? strictAssistantReview({
+        decision: params.decision,
+        leads: params.leads,
+        evidenceSummary: params.card.evidence_summary,
+        missingEvidence: params.decision.missing_evidence,
+        sourceTypes,
+      })
+    : null;
   return {
     benchmark_id: params.benchmarkId,
     jd_id: params.jdId,
@@ -183,9 +200,9 @@ function buildRow(params: {
     llm_reason: oneLine(params.decision.reason),
     missing_evidence: params.decision.missing_evidence.map(oneLine).join("; "),
     evidence_summary: oneLine(params.card.evidence_summary),
-    reviewer_decision: "",
-    reviewer_reason: "",
-    reviewer_notes: "",
+    reviewer_decision: assistantReview?.decision || "",
+    reviewer_reason: assistantReview?.reason || "",
+    reviewer_notes: assistantReview?.notes || "",
   };
 }
 
@@ -199,6 +216,56 @@ function hasSnippetOnlyRisk(leads: CandidateLead[]) {
     );
     return !hasExtractedEvidence;
   });
+}
+
+function strictAssistantReview(params: {
+  decision: LightScreenDecision;
+  leads: CandidateLead[];
+  evidenceSummary: string;
+  missingEvidence: string[];
+  sourceTypes: string[];
+}) {
+  const evidence = params.evidenceSummary.toLowerCase();
+  const missing = params.missingEvidence.join(" ").toLowerCase();
+  const snippetOnly = hasSnippetOnlyRisk(params.leads);
+  const hasDirectRoleEvidence = /\b(engineer|developer|architect|manager|scientist|data|platform|backend|full stack|full-stack|infrastructure|ml|machine learning|solutions)\b/i.test(evidence);
+  const hasExperienceEvidence = /\b(\d\+?\s*years|staff|principal|senior|manager|lead|ex-|@| at )\b/i.test(evidence);
+  const githubOnly = params.sourceTypes.length > 0 && params.sourceTypes.every((type) => type === "github");
+  const noEvidence = evidence.trim().length < 80 || /no evidence|only name|all must-haves/i.test(`${params.decision.reason} ${missing}`);
+
+  if (params.decision.would_advance === "no" || noEvidence) {
+    return {
+      decision: "reject",
+      reason: "证据不足或 LLM 已拒绝，真实猎头不会联系。",
+      notes: "assistant_strict",
+    };
+  }
+  if (githubOnly) {
+    return {
+      decision: "research_more",
+      reason: "只有 GitHub 项目证据，不能证明职业经历和岗位匹配，需要补 Profile。",
+      notes: "assistant_strict",
+    };
+  }
+  if (params.decision.would_advance === "maybe") {
+    return {
+      decision: "research_more",
+      reason: "方向可能相关，但 LLM 已标记证据不足，需补全后再判断。",
+      notes: "assistant_strict",
+    };
+  }
+  if (snippetOnly && (!hasDirectRoleEvidence || !hasExperienceEvidence || missing.length > 40)) {
+    return {
+      decision: "research_more",
+      reason: "主要依赖搜索摘要，仍缺关键经验或技能证据，不能直接 outreach。",
+      notes: "assistant_strict",
+    };
+  }
+  return {
+    decision: "contact_worthy",
+    reason: "摘要中已有直接岗位、技能和经验信号，按严格猎头初筛可进入联系池。",
+    notes: "assistant_strict",
+  };
 }
 
 function buildCsv(rows: CalibrationRow[]) {

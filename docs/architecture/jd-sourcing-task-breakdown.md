@@ -36,7 +36,7 @@
 - `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本。
 - `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
 
-尚未完成：填写 yes/maybe 人工校准结果、基于人工确认结果更新 contact-worthy 成本、Bright 极小 probe 对照。
+尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、Bright 极小 probe 对照。
 
 ## 执行边界
 
@@ -182,10 +182,15 @@
 - LLM yes / maybe / no：50 / 53 / 65
 - LLM contact-worthy rate：29.8%
 - cost per LLM-contact-worthy：`$0.0029`
+- assistant_strict 校准样本：56 条
+- assistant_strict contact-worthy：7 条，research_more：35 条，reject：14 条
+- assistant_strict LLM yes precision：26.9%
+- assistant_strict 投影 cost per contact-worthy：`$0.0112`
 
 关键风险：
 
 - 当前 contact-worthy 是 LLM light screen 结果，不是人工确认结果。
+- assistant_strict 显示 LLM yes 明显偏乐观，必须真人复核后才能决定是否进入产品化。
 - Serper 贡献 47/50 个 LLM contact-worthy，路线高度依赖 Google-style discovery；必须人工确认这些不是搜索摘要误判。
 - Exa 当前 contact-worthy rate 只有 3.5%，更像补充发现源，不像主数据源。
 - Firecrawl 当前只做 evidence extraction，不直接产生候选；它的价值要看人工校准后是否提升确认率。

@@ -4,17 +4,18 @@
 
 ## 结论
 
-- 判断：**需要人工校准**
-- 建议动作：**先抽查 yes/maybe，再决定是否进入 UI 原型**
+- 判断：**需要人工复核**
+- 建议动作：**用 assistant_strict 结果缩小人工校准范围，不进入产品化**
 
 核心理由：
-- 10 JD live benchmark 已跑通，但 contact-worthy 仍是 LLM light screen 结果，不是人工确认结果。
-- LLM contact-worthy rate 为 29.8%，足够支持继续验证，但不能直接当作 PMF 证据。
-- 已提供校准 CSV，但 reviewer_decision 尚未填写，不能计算人工确认率。
+- assistant_strict 已审 56 条，样本 contact-worthy rate 为 12.5%。
+- 投影 cost per contact-worthy 为 $0.0112。
+- 该结果是模型辅助校准，不是真实猎头确认，不能直接作为 PMF 证据。
 
 ## 风险标记
 
 - 人工校准尚未完成；当前 yes/maybe 只能代表 LLM 评审，不代表真实猎头愿意联系。
+- 已审 LLM yes precision 只有 26.9%，说明 LLM 对 contact-worthy 的判断偏乐观。
 - serper 贡献了 94.0% 的 contact-worthy；数据源路线高度依赖单一 discovery 来源，需要人工确认它不是搜索摘要误判。
 - Exa contact-worthy rate 只有 3.5%，当前更像补充发现源，不像主数据源。
 - Firecrawl 当前只做补全文本，不直接归因 candidate；后续要判断它是否提升人工确认率，而不是只看 provider 表里的 0。
@@ -43,11 +44,12 @@
 | contact-worthy rate | 29.8% |
 | cost per contact-worthy | $0.0029 |
 | provider error rate | 2.9% |
-| reviewed calibration rows | 0 / 56 |
-| manually confirmed contact-worthy | 0 |
-| manual contact-worthy rate on reviewed rows | 0.0% |
-| manual yes precision on reviewed yes | 0.0% |
-| projected cost per manual contact-worthy | N/A |
+| reviewed calibration rows | 56 / 56 |
+| calibration review mode | assistant_strict |
+| manually confirmed contact-worthy | 7 |
+| manual contact-worthy rate on reviewed rows | 12.5% |
+| manual yes precision on reviewed yes | 26.9% |
+| projected cost per manual contact-worthy | $0.0112 |
 
 ## 单 JD 结果
 
@@ -66,15 +68,16 @@
 
 ## 人工校准
 
-- 校准文件：`/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-calibration-samples.csv`
-- 已审样本：0 / 56
-- 人工确认 contact-worthy：0
-- 人工确认 reviewable：0
-- 人工 reject：0
-- 已审样本 contact-worthy rate：0.0%
-- 已审 LLM yes precision：0.0%
-- 投影 contact-worthy 数：N/A
-- 投影 cost per contact-worthy：N/A
+- 校准文件：`/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-calibration-assistant-strict.csv`
+- 校准方式：assistant_strict
+- 已审样本：56 / 56
+- 人工确认 contact-worthy：7
+- 人工确认 reviewable：42
+- 人工 reject：14
+- 已审样本 contact-worthy rate：12.5%
+- 已审 LLM yes precision：26.9%
+- 投影 contact-worthy 数：13
+- 投影 cost per contact-worthy：$0.0112
 
 ## Provider 贡献
 
@@ -87,9 +90,9 @@
 
 ## 下一步
 
-- 填写 docs/architecture/jd-sourcing-calibration-samples.csv 的 reviewer_decision。
-- 重点检查 LinkedIn/Google snippet-only 候选是否被过度判 yes。
-- 用人工确认后的 contact-worthy rate 重新生成报告，传入 --calibration-csv 和 --manual-review-done。
+- 优先人工复核 assistant_strict 标为 contact_worthy 的行。
+- 抽查 assistant_strict 标为 research_more 的 Serper snippet-only 行，确认是否需要 Bright/Profile 补全。
+- 人工复核后重新生成报告，并传入 --manual-review-done。
 
 ## 判定阈值
 
