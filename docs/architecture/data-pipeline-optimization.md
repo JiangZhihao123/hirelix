@@ -37,6 +37,8 @@ Hirelix 的核心不是把另一个招聘 SaaS 包一层，也不是只做简历
 
 Bright 仍然可以用，但它的角色必须明确：Bright 是低成本结构化 profile 原料和 LinkedIn URL 补全工具，不是 JD 语义召回大脑。召回策略、语义理解、排序、成本控制和长期索引必须由 Hirelix 自己掌握。
 
+当前 Bright 余额只有约 `$9`，这会直接改变首轮验证策略：Bright 不能被设计成 benchmark 的主要消耗池，只能作为极小样本对照组、结构化 profile probe 和高潜 URL 补全验证。首轮不默认充值，不把 Bright 扩量当成解决召回质量的办法。
+
 ## 目标用户体验
 
 零基设计下，第一目标不是把现有搜索链路修顺，而是让招聘用户觉得“这就是一个能帮我找人的产品”。一个 JD 进来后，理想体验应该是：
@@ -523,7 +525,7 @@ JD 来了以后，不是让 LLM 在全库里“看一遍”，而是先用检索
 Bright Filter API 适合结构化拉取 LinkedIn profile 数据。目标系统里它应该用于：
 
 - 根据 JD 派生出的 title、skill、company、location 小额取数。
-- 为每条 lane 拉取 100 到 1,000 条 profile。
+- 在余额足够、单条 lane 已通过质量门禁后，才为少数 lane 拉取 100 到 1,000 条 profile。
 - 将返回结果入库，后续复用。
 - 做 target company、title family、skill evidence 的结构化召回。
 
@@ -546,9 +548,10 @@ Bright Filter API 适合结构化拉取 LinkedIn profile 数据。目标系统�
 
 Bright 的使用必须遵守 probe-then-expand：
 
-1. 每条 lane 先小额 probe，例如 50 到 200 条。
+0. 首轮 benchmark 在当前 `$9` 余额下，Bright 子预算硬上限建议为 `$5`，保留约 `$4` 给误差、权限验证和后续确认；超过这个上限必须单独确认。
+1. 每条 lane 先小额 probe，例如 25 到 100 条；首轮 10 个 JD benchmark 里，单个 JD 的 Bright 请求量原则上不超过 100 到 200 条。
 2. 轻筛判断返回 profile 的 role-family 匹配率、重复率、完整度和来源新鲜度。
-3. 只有质量达标的 lane 才扩大到 300 到 1,000 条。
+3. 只有质量达标且预算允许的 lane 才扩大到 300 到 1,000 条；余额不足时不扩量，只记录“Bright probe 质量”。
 4. 低质量、重复率高或漂移的 lane 立即停止。
 
 这样可以避免两个极端：严格过滤导致 0 召回，宽泛过滤导致花钱买噪声。
@@ -805,15 +808,15 @@ llm_cost =
 | 场景 | 外部预算 | 策略 |
 | --- | ---: | --- |
 | 免费/试用搜索 | 0 到 1 美元 | 优先本地缓存、小额 SERP、极小 Bright probe |
-| 标准付费搜索 | 3 到 8 美元 | Bright 多 lane + SERP + 少量 URL 补全 |
+| 标准付费搜索 | 3 到 8 美元 | 多源 discovery + 少量 Bright/URL 补全；不能默认 Bright 多 lane 扩量 |
 | 高价值扩展搜索 | 10 到 20 美元 | 增加 Exa/Firecrawl/target company exploration |
-| 首轮内部 benchmark | 总预算 `$50` 硬上限 | 优先免费额度、小额 SERP/Exa/Firecrawl，Bright 只做极小 probe |
+| 首轮内部 benchmark | 总预算 `$50` 硬上限；Bright 子预算建议 `$5` 硬上限 | 优先免费额度、小额 SERP/Exa/Firecrawl，Bright 只做极小 probe 和对照组 |
 
 Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额分 lane。SERP 查询通常便宜，但返回的是 URL，不是可评分 profile。URL 补全和第三方 LinkedIn API 要只用于高潜 leads。
 
 LLM 预算要和外部数据预算分开看。外部数据预算决定“能不能找到更多人”；LLM 预算主要决定“能不能更好地理解、筛选和解释已经找到的人”。不要因为 LLM 便宜就放松外部数据源质量，也不要因为外部数据贵就把召回问题推给 LLM。
 
-首轮内部验证不是正式产品成本模型，目标是用 `$50` 以内判断路线是否值得继续。这个预算下如果完全无法产出 reviewable profiles，应该优先判定数据源/召回路线有问题，而不是直接加预算掩盖问题。
+首轮内部验证不是正式产品成本模型，目标是用 `$50` 以内判断路线是否值得继续。由于当前 Bright 余额约 `$9`，首轮不能把 `$50` 理解成 Bright 可用预算；Bright 消耗要单独设为约 `$5` 上限，并在每次真实调用前先做只读余额检查。这个预算下如果完全无法产出 reviewable profiles，应该优先判定数据源/召回路线有问题，而不是直接加预算掩盖问题。
 
 ### 预算分配器
 
@@ -942,7 +945,7 @@ provider_value =
 | 服务 | 用途 | 环境变量 | 当前本机状态 | 首轮是否必需 | 获取方式 / 责任 |
 | --- | --- | --- | --- | --- | --- |
 | DeepSeek | JD parsing、lane generation、light screen、统一评审预评 | `DEEPSEEK_API_KEY` | `.env` 已配置 | 必需 | 已有，可直接用于原型；如生产部署再同步到对应环境 |
-| Bright Dataset Filter | LinkedIn structured profile 小额 probe | `BRIGHTDATA_API_TOKEN`、`BRIGHTDATA_DATASET_ID` | `.env` 已配置；`.env.local` 有 token | 可选但建议验证 | 已有；使用前先查余额和 dataset 权限，避免误触发大额任务 |
+| Bright Dataset Filter | LinkedIn structured profile 小额 probe | `BRIGHTDATA_API_TOKEN`、`BRIGHTDATA_DATASET_ID` | `.env` 已配置；`.env.local` 有 token；余额约 `$9` | 可选但建议验证 | 已有；使用前先查余额和 dataset 权限；首轮 Bright 子预算建议 `$5` 硬上限，避免误触发大额任务 |
 | Serper | Google SERP / X-ray discovery | `SERPER_API_KEY` | `.env` 已配置 | 必需，首轮 SERP 优先 | 已有；原型优先使用免费/低成本额度 |
 | GitHub API | 技术证据、repo/user 信息补充 | `GITHUB_TOKEN` | `.env.local` 已配置 | 建议启用 | 已有；作为 evidence source，不作为主召回 |
 | Exa | 语义网页发现、hidden gem、公开证据 | `EXA_API_KEY` | 已提供并写入本地 `.env` / `.env.local` | 建议启用 | 已有；只用于小额语义网页发现 |
@@ -965,7 +968,7 @@ provider_value =
 1. `EXA_API_KEY`
 2. `FIRECRAWL_API_KEY`
 
-如果预算严格卡在 `$50`，优先不要新开有最低充值的平台。DataForSEO 这类低单价但有 minimum payment 的服务，应等 Serper 免费/低成本额度不足时再启用。
+如果预算严格卡在 `$50`，优先不要新开有最低充值的平台。DataForSEO 这类低单价但有 minimum payment 的服务，应等 Serper 免费/低成本额度不足时再启用。Bright 当前余额只有约 `$9`，所以首轮不能靠 Bright 扩量补召回，只能用极小 probe 判断它是否值得后续充值或替换。
 
 ## 关键风险和规避策略
 
@@ -1187,6 +1190,7 @@ Benchmark 必须避免数据泄漏：
 | 冷启动可评估候选池 | 10 个 JD 中至少 8 个能产生 20 个以上 reviewable profiles |
 | contact-worthy | 10 个 JD 中至少 6 个能产生 3 到 5 个 contact-worthy candidates |
 | 成本 | 首轮 10 个 JD 外部总预算不超过 `$50`；单个 JD 允许不均匀分配，但必须记录 |
+| Bright 消耗 | 当前余额约 `$9`；首轮 Bright 子预算建议不超过 `$5`，超过必须单独确认 |
 | 速度 | 3 分钟内出现前 5 个 reviewable profiles，8 分钟内形成首批候选池 |
 | 失败可解释性 | 失败 JD 必须能说明是数据源覆盖、query/lane、预算、地点还是岗位稀缺问题 |
 
