@@ -1,0 +1,540 @@
+{
+  "generated_at": "2026-07-05T17:23:32.223Z",
+  "source_calibration_csv": "/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-calibration-assistant-strict.csv",
+  "mode": "dry_plan_only",
+  "guardrails": {
+    "does_not_call_bright": true,
+    "requires_explicit_authorization_for_real_probe": true,
+    "bright_balance_assumption_usd": 9,
+    "bright_record_unit_cost_usd": 0.0025,
+    "bright_budget_cap_usd": 1
+  },
+  "selection_policy": {
+    "reviewer_decision": "research_more",
+    "snippet_only_risk": "yes",
+    "preferred_sources": [
+      "serper + linkedin",
+      "exa + linkedin"
+    ],
+    "max_jds": 2,
+    "max_candidates_per_jd": 5,
+    "bright_records_per_jd": 25
+  },
+  "totals": {
+    "calibration_rows": 56,
+    "eligible_rows": 33,
+    "selected_jds": 2,
+    "selected_candidates": 10,
+    "linkedin_url_candidates": 10,
+    "estimated_profile_completion_cost_usd": 0.025,
+    "estimated_filter_probe_cost_usd": 0.125,
+    "estimated_total_cost_usd": 0.15,
+    "within_budget_cap": true
+  },
+  "jd_plans": [
+    {
+      "jd_id": "JD-01",
+      "jd_title": "普通技术岗：Backend Platform Engineer",
+      "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-01/sourcing-2026-07-05T16-41-40-499Z-7f65d1df",
+      "selected_candidates": [
+        {
+          "jd_id": "JD-01",
+          "jd_title": "普通技术岗：Backend Platform Engineer",
+          "candidate_id": "candidate-001",
+          "name": "Raul Murguia",
+          "headline": "Raul Murguia - Senior Backend / Platform Engineer - LinkedIn",
+          "llm_decision": "yes",
+          "reviewer_decision": "research_more",
+          "source_confidence": "medium",
+          "profile_completeness": "medium",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://www.linkedin.com/in/raulmurguia"
+          ],
+          "linkedin_urls": [
+            "https://www.linkedin.com/in/raulmurguia"
+          ],
+          "evidence_summary": "Raul Murguia - Senior Backend / Platform Engineer - LinkedIn Senior Backend / Platform Engineer | Distributed Systems | AI-Enabled Data Platforms ... js (App Router), TypeScript, Prisma, and PostgreSQL. Built a batch ...",
+          "missing_evidence": [
+            "Redis/queues/event-driven systems",
+            "AWS/GCP/Kubernetes"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-01/sourcing-2026-07-05T16-41-40-499Z-7f65d1df",
+          "probe_action": "bright_url_completion",
+          "priority_score": 101,
+          "priority_reasons": [
+            "LLM 原判 yes，但严格校准认为证据不足",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：Redis/queues/event-driven systems; AWS/GCP/Kubernetes"
+          ]
+        },
+        {
+          "jd_id": "JD-01",
+          "jd_title": "普通技术岗：Backend Platform Engineer",
+          "candidate_id": "candidate-002",
+          "name": "Suraj kumar",
+          "headline": "Suraj kumar | Node.js , Kafka, PostgreSQL, Mongodb , AWS | LinkedIn",
+          "llm_decision": "yes",
+          "reviewer_decision": "research_more",
+          "source_confidence": "medium",
+          "profile_completeness": "medium",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://in.linkedin.com/in/suraj-kumar-605aa2108"
+          ],
+          "linkedin_urls": [
+            "https://in.linkedin.com/in/suraj-kumar-605aa2108"
+          ],
+          "evidence_summary": "Suraj kumar | Node.js , Kafka, PostgreSQL, Mongodb , AWS | LinkedIn Senior Backend / Platform Engineer with 6+ years of experience building scalable, high-availability backend systems and event-driven platforms.",
+          "missing_evidence": [
+            "Redis or queues (Kafka is event-driven, acceptable)",
+            "TypeScript not explicitly mentioned but Node.js implies"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-01/sourcing-2026-07-05T16-41-40-499Z-7f65d1df",
+          "probe_action": "bright_url_completion",
+          "priority_score": 101,
+          "priority_reasons": [
+            "LLM 原判 yes，但严格校准认为证据不足",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：Redis or queues (Kafka is event-driven, acceptable); TypeScript not explicitly mentioned but Node.js implies"
+          ]
+        },
+        {
+          "jd_id": "JD-01",
+          "jd_title": "普通技术岗：Backend Platform Engineer",
+          "candidate_id": "candidate-003",
+          "name": "Azhar Ahmad",
+          "headline": "Azhar Ahmad - Backend/Platform Engineer (TypeScript, gRPC ...",
+          "llm_decision": "yes",
+          "reviewer_decision": "research_more",
+          "source_confidence": "medium",
+          "profile_completeness": "medium",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://in.linkedin.com/in/azhar-ahmad-bb0661149"
+          ],
+          "linkedin_urls": [
+            "https://in.linkedin.com/in/azhar-ahmad-bb0661149"
+          ],
+          "evidence_summary": "Azhar Ahmad - Backend/Platform Engineer (TypeScript, gRPC ... Azhar Ahmad. Backend/Platform Engineer (TypeScript, gRPC, WebRTC) • AWS/Azure, Terraform • Built distributed multi‑tenant backends, AI Orchestration ...",
+          "missing_evidence": [
+            "PostgreSQL/MySQL",
+            "Redis/queues/event-driven"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-01/sourcing-2026-07-05T16-41-40-499Z-7f65d1df",
+          "probe_action": "bright_url_completion",
+          "priority_score": 101,
+          "priority_reasons": [
+            "LLM 原判 yes，但严格校准认为证据不足",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：PostgreSQL/MySQL; Redis/queues/event-driven"
+          ]
+        },
+        {
+          "jd_id": "JD-01",
+          "jd_title": "普通技术岗：Backend Platform Engineer",
+          "candidate_id": "candidate-005",
+          "name": "Daniel Chen",
+          "headline": "Daniel Chen - Backend / Platform Engineer | Java, AWS, Kubernetes",
+          "llm_decision": "maybe",
+          "reviewer_decision": "research_more",
+          "source_confidence": "medium",
+          "profile_completeness": "low",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://my.linkedin.com/in/daniel-chen-qr"
+          ],
+          "linkedin_urls": [
+            "https://my.linkedin.com/in/daniel-chen-qr"
+          ],
+          "evidence_summary": "Daniel Chen - Backend / Platform Engineer | Java, AWS, Kubernetes Backend / Platform Engineer building distributed systems, payment infrastructure, and production-grade cloud services. I specialize in secure API design, ...",
+          "missing_evidence": [
+            "TypeScript/Node.js",
+            "PostgreSQL/MySQL",
+            "Redis/queues/event-driven"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-01/sourcing-2026-07-05T16-41-40-499Z-7f65d1df",
+          "probe_action": "bright_url_completion",
+          "priority_score": 80,
+          "priority_reasons": [
+            "LLM 原判 maybe，适合验证补全能否转正或排除",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：TypeScript/Node.js; PostgreSQL/MySQL"
+          ]
+        },
+        {
+          "jd_id": "JD-01",
+          "jd_title": "普通技术岗：Backend Platform Engineer",
+          "candidate_id": "candidate-006",
+          "name": "Stephanye Blakely",
+          "headline": "Stephanye Blakely - AWS Software Engineer | React, Java, Node.js",
+          "llm_decision": "maybe",
+          "reviewer_decision": "research_more",
+          "source_confidence": "low",
+          "profile_completeness": "low",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://www.linkedin.com/in/stephanye-blakely"
+          ],
+          "linkedin_urls": [
+            "https://www.linkedin.com/in/stephanye-blakely"
+          ],
+          "evidence_summary": "Stephanye Blakely - AWS Software Engineer | React, Java, Node.js AWS Software Engineer | Technical Support & Platform Engineer | React, Java, Node.js. Amazon Web Services (AWS) Per Scholas. Covina, California, United States.",
+          "missing_evidence": [
+            "4+ years backend experience",
+            "PostgreSQL/MySQL",
+            "Redis/queues/event-driven"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-01/sourcing-2026-07-05T16-41-40-499Z-7f65d1df",
+          "probe_action": "bright_url_completion",
+          "priority_score": 74,
+          "priority_reasons": [
+            "LLM 原判 maybe，适合验证补全能否转正或排除",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：4+ years backend experience; PostgreSQL/MySQL"
+          ]
+        }
+      ],
+      "bright_dataset_filter_probe": {
+        "enabled": true,
+        "reason": "按该 JD 的高优先级 lane 做一个极小 Bright Dataset Filter 对照，只验证结构化过滤能否补到同类人。",
+        "records_limit": 25,
+        "estimated_cost_usd": 0.0625,
+        "lane_id": "lane-1",
+        "lane_goal": "Find candidates with exact or similar title 'Backend Platform Engineer' or 'Platform Engineer' at B2B SaaS companies",
+        "query": "site:linkedin.com/in \"Backend Platform Engineer\" (TypeScript OR Node.js) (PostgreSQL OR MySQL) (AWS OR GCP OR Kubernetes)",
+        "filter": {
+          "operator": "or",
+          "filters": [
+            {
+              "name": "position",
+              "operator": "includes",
+              "value": "backend platform engineer"
+            }
+          ]
+        }
+      },
+      "estimated_profile_completion_cost_usd": 0.0125,
+      "estimated_total_cost_usd": 0.075
+    },
+    {
+      "jd_id": "JD-08",
+      "jd_title": "Location 严格：Senior Backend Engineer, NYC Onsite",
+      "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-08/sourcing-2026-07-05T16-46-08-733Z-791e2457",
+      "selected_candidates": [
+        {
+          "jd_id": "JD-08",
+          "jd_title": "Location 严格：Senior Backend Engineer, NYC Onsite",
+          "candidate_id": "candidate-005",
+          "name": "Lucas Chaufournier",
+          "headline": "Lucas Chaufournier - Senior Backend Engineer | ex-Block (Square)",
+          "llm_decision": "yes",
+          "reviewer_decision": "research_more",
+          "source_confidence": "high",
+          "profile_completeness": "medium",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://www.linkedin.com/in/lucas-ch"
+          ],
+          "linkedin_urls": [
+            "https://www.linkedin.com/in/lucas-ch"
+          ],
+          "evidence_summary": "Lucas Chaufournier - Senior Backend Engineer | ex-Block (Square) I'm a senior backend engineer who builds high-scale platform systems that power real-world commerce and marketplaces. Most recently at Block (Square), ...",
+          "missing_evidence": [
+            "Python or Go",
+            "PostgreSQL",
+            "distributed systems",
+            "location in NYC"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-08/sourcing-2026-07-05T16-46-08-733Z-791e2457",
+          "probe_action": "bright_url_completion",
+          "priority_score": 95,
+          "priority_reasons": [
+            "LLM 原判 yes，但严格校准认为证据不足",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：Python or Go; PostgreSQL"
+          ]
+        },
+        {
+          "jd_id": "JD-08",
+          "jd_title": "Location 严格：Senior Backend Engineer, NYC Onsite",
+          "candidate_id": "candidate-006",
+          "name": "Oskar W.",
+          "headline": "Oskar W. - Senior Backend Engineer (FinTech/Payments) - LinkedIn",
+          "llm_decision": "yes",
+          "reviewer_decision": "research_more",
+          "source_confidence": "high",
+          "profile_completeness": "medium",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://www.linkedin.com/in/oskarwong"
+          ],
+          "linkedin_urls": [
+            "https://www.linkedin.com/in/oskarwong"
+          ],
+          "evidence_summary": "Oskar W. - Senior Backend Engineer (FinTech/Payments) - LinkedIn I'm a Senior Backend Engineer with 15+ years of experience building secure, high-availability systems in FinTech/payments and e-commerce. I specialize in ...",
+          "missing_evidence": [
+            "Python or Go",
+            "PostgreSQL",
+            "distributed systems",
+            "location in NYC"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-08/sourcing-2026-07-05T16-46-08-733Z-791e2457",
+          "probe_action": "bright_url_completion",
+          "priority_score": 95,
+          "priority_reasons": [
+            "LLM 原判 yes，但严格校准认为证据不足",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：Python or Go; PostgreSQL"
+          ]
+        },
+        {
+          "jd_id": "JD-08",
+          "jd_title": "Location 严格：Senior Backend Engineer, NYC Onsite",
+          "candidate_id": "candidate-002",
+          "name": "Ambareesh Pandit, MS",
+          "headline": "Ambareesh Pandit, MS - Senior Backend Engineer | FinTech ...",
+          "llm_decision": "yes",
+          "reviewer_decision": "research_more",
+          "source_confidence": "high",
+          "profile_completeness": "medium",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://www.linkedin.com/in/ambareeshpandit"
+          ],
+          "linkedin_urls": [
+            "https://www.linkedin.com/in/ambareeshpandit"
+          ],
+          "evidence_summary": "Ambareesh Pandit, MS - Senior Backend Engineer | FinTech ... Ambareesh Pandit, MS. Senior Backend Engineer | FinTech | Compliance & Risk. New York City Metropolitan Area. 512 followers 404 connections.",
+          "missing_evidence": [
+            "Python or Go",
+            "PostgreSQL",
+            "distributed systems"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-08/sourcing-2026-07-05T16-46-08-733Z-791e2457",
+          "probe_action": "bright_url_completion",
+          "priority_score": 94,
+          "priority_reasons": [
+            "LLM 原判 yes，但严格校准认为证据不足",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：Python or Go; PostgreSQL"
+          ]
+        },
+        {
+          "jd_id": "JD-08",
+          "jd_title": "Location 严格：Senior Backend Engineer, NYC Onsite",
+          "candidate_id": "candidate-001",
+          "name": "Daniel Lanoff",
+          "headline": "Daniel Lanoff - Senior Software Engineer | Data-Intensive Systems",
+          "llm_decision": "maybe",
+          "reviewer_decision": "research_more",
+          "source_confidence": "medium",
+          "profile_completeness": "low",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://www.linkedin.com/in/daniellanoff"
+          ],
+          "linkedin_urls": [
+            "https://www.linkedin.com/in/daniellanoff"
+          ],
+          "evidence_summary": "Daniel Lanoff - Senior Software Engineer | Data-Intensive Systems Since then, I've worked as a Senior Backend Engineer across fintech and e-commerce, focusing on scalable, data-intensive systems and analytics tooling. My ...",
+          "missing_evidence": [
+            "Python or Go",
+            "PostgreSQL",
+            "distributed systems",
+            "financial domain",
+            "location in NYC"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-08/sourcing-2026-07-05T16-46-08-733Z-791e2457",
+          "probe_action": "bright_url_completion",
+          "priority_score": 81,
+          "priority_reasons": [
+            "LLM 原判 maybe，适合验证补全能否转正或排除",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：Python or Go; PostgreSQL"
+          ]
+        },
+        {
+          "jd_id": "JD-08",
+          "jd_title": "Location 严格：Senior Backend Engineer, NYC Onsite",
+          "candidate_id": "candidate-003",
+          "name": "Stephen Jude",
+          "headline": "Stephen Jude - Senior Backend Engineer | Cross-border & Fintech ...",
+          "llm_decision": "maybe",
+          "reviewer_decision": "research_more",
+          "source_confidence": "medium",
+          "profile_completeness": "low",
+          "provider_mix": [
+            "serper"
+          ],
+          "lane_ids": [
+            "lane-1"
+          ],
+          "source_types": [
+            "linkedin"
+          ],
+          "snippet_only_risk": true,
+          "profile_urls": [
+            "https://ng.linkedin.com/in/stephenjudeso"
+          ],
+          "linkedin_urls": [
+            "https://ng.linkedin.com/in/stephenjudeso"
+          ],
+          "evidence_summary": "Stephen Jude - Senior Backend Engineer | Cross-border & Fintech ... Stephen Jude. Senior Backend Engineer | Cross-border & Fintech Infra | Distributed Systems. Cauridor Johnbosco Institution of Technology ...",
+          "missing_evidence": [
+            "location in NYC",
+            "Python or Go",
+            "PostgreSQL"
+          ],
+          "run_dir": "/Users/noah/projects/hirelix/runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc/runs/JD-08/sourcing-2026-07-05T16-46-08-733Z-791e2457",
+          "probe_action": "bright_url_completion",
+          "priority_score": 80,
+          "priority_reasons": [
+            "LLM 原判 maybe，适合验证补全能否转正或排除",
+            "来自 Serper/Google discovery，需验证摘要是否误判",
+            "已有 LinkedIn URL，适合 Bright URL/Profile completion",
+            "缺失证据：location in NYC; Python or Go"
+          ]
+        }
+      ],
+      "bright_dataset_filter_probe": {
+        "enabled": true,
+        "reason": "按该 JD 的高优先级 lane 做一个极小 Bright Dataset Filter 对照，只验证结构化过滤能否补到同类人。",
+        "records_limit": 25,
+        "estimated_cost_usd": 0.0625,
+        "lane_id": "lane-1",
+        "lane_goal": "Find senior backend engineers with fintech experience in NYC via LinkedIn X-ray",
+        "query": "site:linkedin.com/in \"Senior Backend Engineer\" fintech NYC",
+        "filter": {
+          "operator": "and",
+          "filters": [
+            {
+              "operator": "or",
+              "filters": [
+                {
+                  "name": "position",
+                  "operator": "includes",
+                  "value": "senior backend engineer"
+                }
+              ]
+            },
+            {
+              "name": "country_code",
+              "operator": "=",
+              "value": "US"
+            },
+            {
+              "name": "location",
+              "operator": "includes",
+              "value": "New York"
+            }
+          ]
+        }
+      },
+      "estimated_profile_completion_cost_usd": 0.0125,
+      "estimated_total_cost_usd": 0.075
+    }
+  ],
+  "excluded_summary": {
+    "no_linkedin_url": 0,
+    "not_research_more": 21,
+    "not_snippet_only": 2,
+    "not_preferred_source": 0
+  },
+  "next_steps": [
+    "先人工复核本计划中的 selected_candidates，确认这些 LinkedIn URL 真值得花钱补全。",
+    "如果要真实调用 Bright，先把实际预算 cap 写清楚；建议第一轮不超过 $1。",
+    "真实 probe 后只评估两件事：Bright URL/profile completion 是否补足关键证据；Bright Dataset Filter 是否能补到同类候选。",
+    "不要把 Bright Dataset Filter 结果当 JD 语义召回成功；它只能作为结构化对照组。"
+  ]
+}

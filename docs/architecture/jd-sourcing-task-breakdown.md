@@ -35,8 +35,9 @@
 - `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。当前只证明 LLM cache，不等于 profile/provider index。
 - `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本。
 - `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
+- Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
 
-尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、Bright 极小 probe 对照。
+尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、执行真实 Bright 极小 probe 对照。
 
 ## 执行边界
 
@@ -168,7 +169,8 @@
 | P0 | 人工抽查 yes/maybe 样本 | 校准表已生成，不花钱 | 填写 `jd-sourcing-calibration-samples.csv` 的 `reviewer_decision`，确认 snippet-only 没有误判为 contact-worthy |
 | P0 | 生成正式决策报告 | 否 | `jd-sourcing-benchmark-report.md` 从“不能决策”更新为基于 10 JD live 数据的结论 |
 | P1 | 用 shared LLM cache 做 cold/warm 对比 | 否 | `warm-comparison.md` 明确区分 LLM cache 收益和 provider/profile index 缺口 |
-| P1 | Bright 极小 probe 对照 | 是，必须单独确认；当前余额约 `$9` | 只选 1 到 2 个 JD、hard cap 25 records，验证 Bright 是否能补结构化 LinkedIn profile |
+| P1 | Bright/Profile dry probe plan | 已完成；不花钱 | 选出 2 个 JD、10 个 LinkedIn snippet-only 候选，预计真实 Bright 成本 `$0.1500`，计划见 `jd-sourcing-bright-probe-plan.md` |
+| P1 | Bright 极小真实 probe 对照 | 是，必须单独确认；当前余额约 `$9` | 默认只按 dry plan 执行；首轮建议 cap `$1`，验证 Bright URL/Profile completion 和 Dataset Filter 对照，不验证泛语义召回 |
 | P2 | 根据结果决定是否做临时 profile/evidence index | 否 | 只有当外部 sourcing 产出稳定 contact-worthy，才进入 Milestone 6 |
 
 ## 最新 10 JD Live Benchmark 结果
@@ -186,6 +188,19 @@
 - assistant_strict contact-worthy：7 条，research_more：35 条，reject：14 条
 - assistant_strict LLM yes precision：26.9%
 - assistant_strict 投影 cost per contact-worthy：`$0.0112`
+
+## Bright/Profile Dry Probe Plan
+
+- 脚本：`npm run sourcing:bright-probe-plan`
+- 产物：`docs/architecture/jd-sourcing-bright-probe-plan.md` 和 `docs/architecture/jd-sourcing-bright-probe-plan.json`
+- 模式：dry plan only，不调用 Bright，不创建 snapshot。
+- 输入：`docs/architecture/jd-sourcing-calibration-assistant-strict.csv`
+- 选择口径：`reviewer_decision=research_more`、`snippet_only_risk=yes`、优先 LinkedIn URL、优先 Serper/Exa discovery。
+- 当前选中：2 个 JD、10 个候选人。
+- 预计 URL/Profile completion 成本：`$0.0250`。
+- 预计 Dataset Filter 对照成本：`$0.1250`。
+- 预计总 Bright 成本：`$0.1500`，低于建议首轮 cap `$1`。
+- 解释：这不是 Bright 召回扩量计划，而是验证 Bright 能否把 Serper/Google 摘要型候选补成可判断 profile 的最小实验。
 
 关键风险：
 
