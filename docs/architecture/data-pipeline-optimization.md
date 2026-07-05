@@ -581,11 +581,11 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 | Deep score | 30 到 80 | 形成可交付解释 | JD-aware judge、risk flags、outreach angles |
 | Human QA / eval | 抽样或 beta 阶段 | 校准质量 | 人工检查 top 20 和 rejected samples |
 
-不要让 LLM 做全库搜索，但也不要过度节省 LLM。LLM 的作用是在检索后的候选池里做判断、解释、排序、lane 诊断和 profile 标准化。
+不要让 LLM 做全库搜索，但也不要过度节省 LLM。LLM 的作用是在检索后的候选池里做判断、解释、排序、lane 诊断和 profile 标准化。只要召回候选池进入了合理范围，DeepSeek v4 flash 应该按质量优先使用，而不是为了节省几美分过早压缩判断规模。
 
 ### LLM 使用策略
 
-默认模型按 DeepSeek v4 flash 设计，并假设 profile、JD 解析、rubric 和 light-screen prompt 有较高缓存命中率。这个前提下，LLM 不应被当成稀缺资源，而应作为质量层积极使用。
+默认模型按 DeepSeek v4 flash 设计，并假设 profile、JD 解析、rubric 和 light-screen prompt 有较高缓存命中率。DeepSeek 在 [V4 Preview Release](https://api-docs.deepseek.com/news/news260424) 中把 V4 Flash 定位为 fast、efficient、economical，并且 V4 API 支持 1M context。这个前提下，LLM 不应被当成稀缺资源，而应作为质量层积极使用。产品策略应该是：外部数据和召回覆盖精打细算，LLM 判断层质量优先。
 
 适合大量使用 LLM 的环节：
 
@@ -606,6 +606,25 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 - 数据源是否继续扩张的唯一依据。
 
 因此，LLM 成本不是当前最应该恐惧的点。真正的边界是：先用索引和 provider 把候选人召回来，再让 DeepSeek v4 flash 低成本、大批量地做判断和解释。
+
+### LLM 并发和调度判断
+
+按 2026-07-05 [DeepSeek 官方 Rate Limit & Isolation 文档](https://api-docs.deepseek.com/quick_start/rate_limit)，账号级默认并发为：
+
+| 模型 | 官方默认并发 |
+| --- | ---: |
+| `deepseek-v4-flash` | `2500` |
+| `deepseek-v4-pro` | `500` |
+
+官方文档还说明，如果业务需要更高并发，可以提交 capacity expansion request，DeepSeek 会按实际业务需求匹配并发，扩容没有额外费用。这个限制是账号级别隔离，不是简单靠多建 API key 绕开。
+
+这意味着 Hirelix 的 LLM 策略可以按质量优先设计：
+
+- `deepseek-v4-flash` 可以承担大批量 light screen、normalization、lane diagnosis。
+- `deepseek-v4-pro` 只用于少量 conflict review / arbiter。
+- 系统内部仍要保留队列、重试、429 处理和 per-user 调度隔离，但这主要是可靠性工程，不是成本或并发能力不足。
+- 对美国招聘用户的实时搜索，不应该因为担心 DeepSeek 成本或并发而过早压缩候选池；更应该优先保证 top-k 质量。
+- 默认阈值可以更激进：标准搜索 light screen 300 人不应被视为奢侈，高价值搜索扩大到 500 到 1,000 人也应先看延迟和交付质量，而不是先看 token 账单。
 
 ### LLM 价格预估
 
@@ -647,6 +666,8 @@ llm_cost =
 | 激进标准搜索 | JD 解析 + 300 新 profile normalize + 500 light screen + 100 deep score + 20 pro arbiter | `$0.32` 左右 | 仍低于多数外部数据成本 |
 | 高召回验证搜索 | JD 解析 + 500 新 profile normalize + 1000 light screen + 150 deep score + 40 pro arbiter | `$0.58` 左右 | 适合 benchmark 或高价值搜索 |
 
+这些数字说明，DeepSeek 这一层不应该按“省钱优先”设计。哪怕高召回验证搜索的 LLM 成本接近 `$0.58/search`，它仍然很可能低于外部 profile 数据、SERP、URL 抓取、人工校验或失败搜索带来的真实成本。对 Hirelix 这种质量敏感的招聘产品，LLM 的角色应该是提高候选池可用率，而不是成为候选池规模的第一道刹车。
+
 如果某些请求不得不落在 DeepSeek 峰值加价窗口，可以做 2x 敏感性估算：
 
 | 场景 | 原价估算 | 峰值 2x 敏感性 |
@@ -663,7 +684,7 @@ llm_cost =
 - 面向美国招聘用户的实时流量大概率落在北京时间非峰值窗口，峰值加价对产品常规使用影响有限。
 - 后台批处理和 benchmark 应支持按北京时间非峰值窗口调度，避免不必要的峰值成本。
 - 仍然不能让 LLM 替代索引和召回，因为 LLM 只能判断已经进入候选池的人。
-- 真正需要控制的是 deep score 的规模、并发延迟、缓存命中率和 profile 输入长度。
+- 真正需要控制的是 deep score 的规模、并发延迟、缓存命中率和 profile 输入长度；这些控制目标是稳定性和质量，不是简单压低 token 支出。
 - 产品成本核算里，LLM 和外部数据必须分账：`llm_cost_per_search`、`external_data_cost_per_search`、`cost_per_contact_worthy_candidate` 分开看。
 
 ## 第 7 步：自适应扩展
