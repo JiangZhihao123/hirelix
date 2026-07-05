@@ -1,0 +1,438 @@
+import fs from "node:fs";
+import path from "node:path";
+
+type CliOptions = {
+  benchmarkDir: string | null;
+  outPath: string;
+  minJds: number;
+  minContactWorthyRate: number;
+  maxCostPerContactWorthyUsd: number;
+  maxProviderErrorRate: number;
+};
+
+type BenchmarkSummary = {
+  benchmark_id?: string;
+  mode?: string;
+  providers?: string[];
+  run_count?: number;
+  completed_count?: number;
+  planned_count?: number;
+  error_count?: number;
+  totals?: {
+    actual_cost_usd?: number;
+    estimated_cost_usd?: number;
+    raw_leads?: number;
+    enriched_leads?: number;
+    deduped_leads?: number;
+    candidate_cards?: number;
+    yes?: number;
+    maybe?: number;
+    no?: number;
+    reviewable_candidates?: number;
+    contact_worthy_candidates?: number;
+  };
+  runs?: Array<{
+    jd_id: string;
+    title?: string;
+    status?: string;
+    candidate_cards?: number;
+    yes?: number;
+    maybe?: number;
+    no?: number;
+    actual_cost_usd?: number;
+    provider_stats?: Record<string, {
+      success?: number;
+      error?: number;
+      blocked?: number;
+      returned?: number;
+      actual_cost_usd?: number;
+      candidate_cards?: number;
+      reviewable_candidates?: number;
+      contact_worthy_candidates?: number;
+    }>;
+  }>;
+};
+
+function parseArgs(argv: string[]): CliOptions {
+  const options: CliOptions = {
+    benchmarkDir: null,
+    outPath: "docs/architecture/jd-sourcing-benchmark-report.md",
+    minJds: 10,
+    minContactWorthyRate: 0.12,
+    maxCostPerContactWorthyUsd: 5,
+    maxProviderErrorRate: 0.2,
+  };
+
+  for (const arg of argv) {
+    if (arg.startsWith("--benchmark-dir=")) {
+      options.benchmarkDir = arg.slice("--benchmark-dir=".length);
+      continue;
+    }
+    if (arg.startsWith("--out=")) {
+      options.outPath = arg.slice("--out=".length);
+      continue;
+    }
+    if (arg.startsWith("--min-jds=")) {
+      options.minJds = positiveInt(arg.split("=")[1], options.minJds);
+      continue;
+    }
+    if (arg.startsWith("--min-contact-worthy-rate=")) {
+      options.minContactWorthyRate = positiveNumber(arg.split("=")[1], options.minContactWorthyRate);
+      continue;
+    }
+    if (arg.startsWith("--max-cost-per-contact-worthy-usd=")) {
+      options.maxCostPerContactWorthyUsd = positiveNumber(
+        arg.split("=")[1],
+        options.maxCostPerContactWorthyUsd,
+      );
+      continue;
+    }
+    if (arg.startsWith("--max-provider-error-rate=")) {
+      options.maxProviderErrorRate = positiveNumber(arg.split("=")[1], options.maxProviderErrorRate);
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  if (!options.benchmarkDir) {
+    throw new Error(
+      "Usage: npx tsx scripts/sourcing/build-benchmark-decision-report.ts --benchmark-dir=<benchmark-dir> [--out=docs/architecture/jd-sourcing-benchmark-report.md]",
+    );
+  }
+
+  return options;
+}
+
+function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const benchmarkDir = path.resolve(options.benchmarkDir!);
+  const summary = readJson(path.join(benchmarkDir, "benchmark-summary.json")) as BenchmarkSummary;
+  const report = buildReport({ benchmarkDir, summary, options });
+  const outPath = path.resolve(options.outPath);
+  writeText(outPath, report);
+  console.log(`Benchmark decision report written: ${outPath}`);
+}
+
+function buildReport(params: {
+  benchmarkDir: string;
+  summary: BenchmarkSummary;
+  options: CliOptions;
+}) {
+  const metrics = buildMetrics(params.summary);
+  const providerRows = buildProviderRows(params.summary);
+  const decision = decide(metrics, params.options);
+  const runRows = (params.summary.runs || []).map((run) => ({
+    jd_id: run.jd_id,
+    title: run.title || "",
+    status: run.status || "",
+    cards: numeric(run.candidate_cards),
+    yes: numeric(run.yes),
+    maybe: numeric(run.maybe),
+    no: numeric(run.no),
+    cost: money(run.actual_cost_usd),
+  }));
+
+  const lines = [
+    "# JD Sourcing Benchmark Decision Report",
+    "",
+    "本报告由 benchmark 产物生成，用于判断 Hirelix 的 JD-to-candidate 数据源路线是否足够进入下一阶段。它不是人工背书；如果样本量不足或不是 live run，结论必须保持为不可决策。",
+    "",
+    "## 结论",
+    "",
+    `- 判断：**${decision.verdict}**`,
+    `- 建议动作：**${decision.next_action}**`,
+    "",
+    "核心理由：",
+    ...decision.reasons.map((reason) => `- ${reason}`),
+    "",
+    "## Benchmark 输入",
+    "",
+    `- Benchmark：\`${params.summary.benchmark_id || "unknown"}\``,
+    `- 目录：\`${params.benchmarkDir}\``,
+    `- 模式：\`${params.summary.mode || "unknown"}\``,
+    `- Providers：\`${(params.summary.providers || []).join(",")}\``,
+    `- JD 数量：${metrics.jd_count}`,
+    `- 完成：${metrics.completed_count}，planned：${metrics.planned_count}，error：${metrics.error_count}`,
+    "",
+    "## 总体指标",
+    "",
+    "| 指标 | 数值 |",
+    "| --- | ---: |",
+    `| actual cost | $${metrics.actual_cost_usd.toFixed(4)} |`,
+    `| estimated cost | $${metrics.estimated_cost_usd.toFixed(4)} |`,
+    `| raw leads | ${metrics.raw_leads} |`,
+    `| deduped leads | ${metrics.deduped_leads} |`,
+    `| candidate cards | ${metrics.candidate_cards} |`,
+    `| reviewable candidates | ${metrics.reviewable_candidates} |`,
+    `| contact-worthy candidates | ${metrics.contact_worthy_candidates} |`,
+    `| reviewable rate | ${pct(metrics.reviewable_rate)} |`,
+    `| contact-worthy rate | ${pct(metrics.contact_worthy_rate)} |`,
+    `| cost per contact-worthy | ${metrics.cost_per_contact_worthy_usd == null ? "N/A" : `$${metrics.cost_per_contact_worthy_usd.toFixed(4)}`} |`,
+    `| provider error rate | ${pct(metrics.provider_error_rate)} |`,
+    "",
+    "## 单 JD 结果",
+    "",
+    "| JD | Status | Cards | Yes | Maybe | No | Actual cost |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+  ];
+
+  for (const row of runRows) {
+    lines.push(
+      `| ${row.jd_id} ${escapePipe(row.title)} | ${row.status} | ${row.cards} | ${row.yes} | ${row.maybe} | ${row.no} | $${row.cost.toFixed(4)} |`,
+    );
+  }
+
+  lines.push(
+    "",
+    "## Provider 贡献",
+    "",
+    "| Provider | Calls | Returned | Errors | Blocked | Cards | Reviewable | Contact-worthy | Actual cost | Cost/contact-worthy |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+  );
+  for (const row of providerRows) {
+    lines.push(
+      `| ${row.provider} | ${row.calls} | ${row.returned} | ${row.errors} | ${row.blocked} | ${row.has_candidate_attribution ? row.cards : "N/A"} | ${row.has_candidate_attribution ? row.reviewable : "N/A"} | ${row.has_candidate_attribution ? row.contact_worthy : "N/A"} | $${row.cost.toFixed(4)} | ${row.cost_per_contact_worthy == null ? "N/A" : `$${row.cost_per_contact_worthy.toFixed(4)}`} |`,
+    );
+  }
+  if (providerRows.some((row) => !row.has_candidate_attribution)) {
+    lines.push(
+      "",
+      "说明：当前 benchmark 产物缺少 provider-level candidate attribution；需要用当前 runner 重新跑 live benchmark，才能填充 provider/lane 到 candidate quality 的贡献。",
+    );
+  }
+
+  lines.push(
+    "",
+    "## 下一步",
+    "",
+    ...decision.tasks.map((task) => `- ${task}`),
+    "",
+    "## 判定阈值",
+    "",
+    `- 最小 live JD 数：${params.options.minJds}`,
+    `- 最小 contact-worthy rate：${pct(params.options.minContactWorthyRate)}`,
+    `- 最大 cost per contact-worthy：$${params.options.maxCostPerContactWorthyUsd.toFixed(2)}`,
+    `- 最大 provider error rate：${pct(params.options.maxProviderErrorRate)}`,
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
+function buildMetrics(summary: BenchmarkSummary) {
+  const totals = summary.totals || {};
+  const yes = numeric(totals.yes);
+  const maybe = numeric(totals.maybe);
+  const contactWorthy = numeric(totals.contact_worthy_candidates) || yes;
+  const reviewable = numeric(totals.reviewable_candidates) || yes + maybe;
+  const cards = numeric(totals.candidate_cards);
+  const provider = buildProviderErrorMetrics(summary);
+  const actualCost = money(totals.actual_cost_usd);
+  return {
+    mode: summary.mode || "unknown",
+    jd_count: numeric(summary.run_count) || (summary.runs || []).length,
+    completed_count: numeric(summary.completed_count),
+    planned_count: numeric(summary.planned_count),
+    error_count: numeric(summary.error_count),
+    actual_cost_usd: actualCost,
+    estimated_cost_usd: money(totals.estimated_cost_usd),
+    raw_leads: numeric(totals.raw_leads),
+    deduped_leads: numeric(totals.deduped_leads),
+    candidate_cards: cards,
+    reviewable_candidates: reviewable,
+    contact_worthy_candidates: contactWorthy,
+    reviewable_rate: ratio(reviewable, cards),
+    contact_worthy_rate: ratio(contactWorthy, cards),
+    cost_per_contact_worthy_usd: contactWorthy > 0 ? money(actualCost / contactWorthy) : null,
+    provider_error_rate: ratio(provider.errors, provider.calls),
+  };
+}
+
+function buildProviderRows(summary: BenchmarkSummary) {
+  const merged = new Map<string, {
+    provider: string;
+    calls: number;
+    returned: number;
+    errors: number;
+    blocked: number;
+    cards: number;
+    reviewable: number;
+    contact_worthy: number;
+    cost: number;
+    has_candidate_attribution: boolean;
+  }>();
+  for (const run of summary.runs || []) {
+    for (const [provider, stats] of Object.entries(run.provider_stats || {})) {
+      const item = merged.get(provider) || {
+        provider,
+        calls: 0,
+        returned: 0,
+        errors: 0,
+        blocked: 0,
+        cards: 0,
+        reviewable: 0,
+        contact_worthy: 0,
+        cost: 0,
+        has_candidate_attribution: false,
+      };
+      item.calls += numeric(stats.success) + numeric(stats.error) + numeric(stats.blocked);
+      item.returned += numeric(stats.returned);
+      item.errors += numeric(stats.error);
+      item.blocked += numeric(stats.blocked);
+      if (typeof stats.candidate_cards === "number") {
+        item.has_candidate_attribution = true;
+        item.cards += numeric(stats.candidate_cards);
+        item.reviewable += numeric(stats.reviewable_candidates);
+        item.contact_worthy += numeric(stats.contact_worthy_candidates);
+      }
+      item.cost += money(stats.actual_cost_usd);
+      merged.set(provider, item);
+    }
+  }
+  return Array.from(merged.values())
+    .map((row) => ({
+      ...row,
+      cost: money(row.cost),
+      cost_per_contact_worthy: row.has_candidate_attribution && row.contact_worthy > 0
+        ? money(row.cost / row.contact_worthy)
+        : null,
+    }))
+    .sort((a, b) => a.provider.localeCompare(b.provider));
+}
+
+function buildProviderErrorMetrics(summary: BenchmarkSummary) {
+  const rows = buildProviderRows(summary);
+  return {
+    calls: rows.reduce((sum, row) => sum + row.calls, 0),
+    errors: rows.reduce((sum, row) => sum + row.errors + row.blocked, 0),
+  };
+}
+
+function decide(metrics: ReturnType<typeof buildMetrics>, options: CliOptions) {
+  const reasons: string[] = [];
+  const tasks: string[] = [];
+
+  if (metrics.mode !== "live") {
+    reasons.push("当前不是 live benchmark，不能回答真实 provider 返回质量和真实成本。");
+  }
+  if (metrics.jd_count < options.minJds) {
+    reasons.push(`当前只有 ${metrics.jd_count} 个 JD，低于 ${options.minJds} 个 JD 的最小决策样本。`);
+  }
+  if (metrics.error_count > 0) {
+    reasons.push(`benchmark run 有 ${metrics.error_count} 个错误，质量和成本统计会失真。`);
+  }
+  if (metrics.contact_worthy_candidates === 0) {
+    reasons.push("contact-worthy candidate 为 0，无法计算真实单个可联系人成本。");
+  }
+
+  const enoughToDecide =
+    metrics.mode === "live" &&
+    metrics.jd_count >= options.minJds &&
+    metrics.error_count === 0 &&
+    metrics.contact_worthy_candidates > 0;
+
+  if (!enoughToDecide) {
+    tasks.push("先跑完整 10 JD live benchmark，默认不启用 Bright，保持单 JD 和总预算上限。");
+    tasks.push("抽查 yes/maybe 样本，确认 LLM light screen 没有把搜索摘要误判成可联系候选人。");
+    tasks.push("用 provider-lane-value-table.csv 找到高产 lane，再决定是否做 Bright 极小 probe。");
+    return {
+      verdict: "不能决策",
+      next_action: "进入完整 10 JD live benchmark 前，不改变产品方向",
+      reasons,
+      tasks,
+    };
+  }
+
+  if (
+    metrics.contact_worthy_rate >= options.minContactWorthyRate &&
+    metrics.cost_per_contact_worthy_usd != null &&
+    metrics.cost_per_contact_worthy_usd <= options.maxCostPerContactWorthyUsd &&
+    metrics.provider_error_rate <= options.maxProviderErrorRate
+  ) {
+    return {
+      verdict: "可以继续外部 sourcing",
+      next_action: "把有效 provider/lane 固化进冷启动原型，并开始小规模 UI 验证",
+      reasons: [
+        `contact-worthy rate 达到 ${pct(metrics.contact_worthy_rate)}。`,
+        `cost per contact-worthy 为 $${metrics.cost_per_contact_worthy_usd.toFixed(4)}，低于阈值。`,
+        `provider error rate 为 ${pct(metrics.provider_error_rate)}，没有明显可用性阻塞。`,
+      ],
+      tasks: [
+        "保留高产 provider/lane，砍掉低产且高成本 lane。",
+        "加入候选人解释和证据不足提示，进入小范围产品化原型。",
+        "再做 Bright 极小 probe，对比结构化 profile 是否能显著提升 contact-worthy rate。",
+      ],
+    };
+  }
+
+  if (metrics.reviewable_rate >= options.minContactWorthyRate && metrics.contact_worthy_rate < options.minContactWorthyRate) {
+    return {
+      verdict: "需要重大修改",
+      next_action: "优先改补全和 rerank，不直接扩 provider",
+      reasons: [
+        `reviewable rate 为 ${pct(metrics.reviewable_rate)}，说明 discovery 有信号。`,
+        `contact-worthy rate 只有 ${pct(metrics.contact_worthy_rate)}，说明证据补全或判断口径不足。`,
+      ],
+      tasks: [
+        "把 yes 的证据门槛调严，避免 snippet-only 误判。",
+        "对 maybe 样本做补全实验，确认是数据不足还是候选本身不合格。",
+        "按 lane 分析低质量来源，砍掉 broad SERP query。",
+      ],
+    };
+  }
+
+  return {
+    verdict: "方向仍未证明",
+    next_action: "先调 provider/lane 或砍 sourcing 范围",
+    reasons: [
+      `contact-worthy rate 为 ${pct(metrics.contact_worthy_rate)}，低于阈值。`,
+      `cost per contact-worthy 为 ${metrics.cost_per_contact_worthy_usd == null ? "N/A" : `$${metrics.cost_per_contact_worthy_usd.toFixed(4)}`}。`,
+      `provider error rate 为 ${pct(metrics.provider_error_rate)}。`,
+    ],
+    tasks: [
+      "回到 provider-lane-value-table.csv，保留每个 JD 至少一条高意图 lane。",
+      "把太宽泛的 query 改成目标公司、技能证据、公开作品组合。",
+      "如果 2 轮后仍没有稳定 contact-worthy 产出，停止做泛 sourcing，转窄场景或混合定位。",
+    ],
+  };
+}
+
+function readJson(filePath: string) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+}
+
+function writeText(filePath: string, value: string) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, value);
+}
+
+function positiveInt(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function positiveNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function numeric(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function money(value: unknown) {
+  return Math.round(numeric(value) * 10000) / 10000;
+}
+
+function ratio(numerator: number, denominator: number) {
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+function pct(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function escapePipe(value: string) {
+  return value.replace(/\|/g, "\\|");
+}
+
+main();

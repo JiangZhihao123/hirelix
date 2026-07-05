@@ -67,6 +67,7 @@ type CliOptions = {
   brightRecordsLimit: number;
   skipScreen: boolean;
   noLlmCache: boolean;
+  llmCacheDir: string | null;
 };
 
 function parseArgs(argv: string[]): CliOptions {
@@ -84,6 +85,7 @@ function parseArgs(argv: string[]): CliOptions {
     brightRecordsLimit: 25,
     skipScreen: false,
     noLlmCache: false,
+    llmCacheDir: null,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -111,6 +113,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--no-llm-cache") {
       options.noLlmCache = true;
+      continue;
+    }
+    if (arg.startsWith("--llm-cache-dir=")) {
+      options.llmCacheDir = arg.slice("--llm-cache-dir=".length);
       continue;
     }
     if (arg.startsWith("--out-dir=")) {
@@ -213,11 +219,14 @@ async function main() {
       maxFirecrawlUrls: options.maxFirecrawlUrls,
       brightRecordsLimit: options.brightRecordsLimit,
       llmCache: !options.noLlmCache,
+      llmCacheDir: options.llmCacheDir ? path.resolve(options.llmCacheDir) : null,
     },
   });
   writeText(path.join(runDir, "jd.txt"), jdText);
 
-  const cacheDir = options.noLlmCache ? null : path.resolve(options.outDir, ".llm-cache");
+  const cacheDir = options.noLlmCache
+    ? null
+    : path.resolve(options.llmCacheDir || path.join(options.outDir, ".llm-cache"));
   const parseResult = await parseJdWithLlm(jdText, { cacheDir });
   const intent = normalizeIntent(parseResult.data);
   writeJson(path.join(runDir, "parsed-intent.json"), {

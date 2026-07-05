@@ -28,9 +28,11 @@
 - `S4-5` 已完成基础版：light screen 后导出 `review-samples.csv` 供人工校准。
 - `S5-1` 已完成基础版：2 个 JD live smoke 已跑通，报告记录在 `docs/architecture/jd-sourcing-smoke-report.md`。
 - `S5-2` 已完成 runner 基础版：`scripts/sourcing/run-benchmark.ts` 可批量解析 `benchmark-jds.md` 并执行 cold benchmark；10 JD dry benchmark 已通过，完整 10 JD live benchmark 尚未执行。
-- `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv`，当前包含 provider 成本、成功/错误、返回数和平均延迟。
+- `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。当前只证明 LLM cache，不等于 profile/provider index。
+- `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本。
+- `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 2 JD smoke 的结论是“不能决策”，必须等 10 JD live benchmark。
 
-尚未完成：完整 10 个 JD live benchmark、warm index 对比、reviewable/contact-worthy 成本细分和最终 benchmark 决策报告。
+尚未完成：完整 10 个 JD live benchmark、yes/maybe 人工抽样校准、基于当前 runner 的 provider/lane 质量归因实测、Bright 极小 probe 对照。
 
 ## 执行边界
 
@@ -151,6 +153,19 @@
 7. 做 S5-1，跑 2 个 JD smoke。
 8. 修正明显问题后跑 S5-2 到 S5-5。
 9. 只有 benchmark 通过，再进入 Milestone 6。
+
+## 下一批任务拆分
+
+当前不要再扩工程设施，下一批只做验证路线的最小闭环：
+
+| 优先级 | 任务 | 是否付费 | 验收标准 |
+| --- | --- | --- | --- |
+| P0 | 跑完整 10 JD live benchmark，不启用 Bright | 是，低成本；建议先把总预算控制在 `$1` 以内 | 10 个 JD 全部 completed，生成 provider/lane 质量归因表 |
+| P0 | 人工抽查 yes/maybe 样本 | 否 | 至少抽查每个 JD 的 top yes/maybe，确认 snippet-only 没有误判为 contact-worthy |
+| P0 | 生成正式决策报告 | 否 | `jd-sourcing-benchmark-report.md` 从“不能决策”更新为基于 10 JD live 数据的结论 |
+| P1 | 用 shared LLM cache 做 cold/warm 对比 | 否 | `warm-comparison.md` 明确区分 LLM cache 收益和 provider/profile index 缺口 |
+| P1 | Bright 极小 probe 对照 | 是，必须单独确认；当前余额约 `$9` | 只选 1 到 2 个 JD、hard cap 25 records，验证 Bright 是否能补结构化 LinkedIn profile |
+| P2 | 根据结果决定是否做临时 profile/evidence index | 否 | 只有当外部 sourcing 产出稳定 contact-worthy，才进入 Milestone 6 |
 
 ## 第一批应该立刻开始的任务
 

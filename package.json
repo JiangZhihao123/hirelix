@@ -12,6 +12,8 @@
     "test:unit": "tsx --test tests/*.test.ts",
     "sourcing:typecheck": "tsc --project scripts/sourcing/tsconfig.json",
     "sourcing:benchmark": "tsx scripts/sourcing/run-benchmark.ts",
+    "sourcing:compare-warm": "tsx scripts/sourcing/compare-warm-rerun.ts",
+    "sourcing:decision-report": "tsx scripts/sourcing/build-benchmark-decision-report.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"

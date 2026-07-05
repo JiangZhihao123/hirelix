@@ -69,6 +69,7 @@ GitHub adapter 已通过单独 smoke，可对 GitHub repo URL 拉取公开用户
 1. 选择是否做 10 个 JD 的低成本 live benchmark，建议先不启用 Bright。
 2. 把 provider value table 扩展为按 JD、provider、lane 的 reviewable/contact-worthy 成本视图。
 3. 做人工抽样校准，重点看 `yes` 和 `maybe`。
+4. 用 `npm run sourcing:decision-report` 基于完整 benchmark 生成路线判断；当前 2 JD smoke 只能证明链路可跑，不能证明数据源路线成立。
 
 ## 10 JD Dry Benchmark
 

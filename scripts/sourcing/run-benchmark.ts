@@ -5,7 +5,7 @@ import path from "node:path";
 import { loadLocalEnv, parseBoolean, parseNonNegativeNumber, parsePositiveInt, parsePositiveNumber } from "./env";
 import { createRunId, ensureDir, readTextFile, writeJson, writeText } from "./io";
 import { isProviderName } from "./providers";
-import type { CostLedgerEntry, LightScreenDecision, ProviderName } from "./types";
+import type { CandidateCard, CandidateLead, CostLedgerEntry, LightScreenDecision, ProviderName } from "./types";
 
 type BenchmarkJd = {
   id: string;
@@ -32,6 +32,8 @@ type CliOptions = {
   maxFirecrawlUrls: number;
   brightRecordsLimit: number;
   skipScreen: boolean;
+  noLlmCache: boolean;
+  llmCacheDir: string | null;
 };
 
 type RunAggregate = {
@@ -51,6 +53,7 @@ type RunAggregate = {
   actual_cost_usd: number;
   estimated_cost_usd: number;
   provider_stats: Record<string, ProviderStats>;
+  provider_lane_stats: ProviderLaneStats[];
 };
 
 type ProviderStats = {
@@ -61,6 +64,19 @@ type ProviderStats = {
   returned: number;
   actual_cost_usd: number;
   latency_ms: number;
+  candidate_cards: number;
+  reviewable_candidates: number;
+  contact_worthy_candidates: number;
+  rejected_candidates: number;
+};
+
+type ProviderLaneStats = ProviderStats & {
+  jd_id: string;
+  title: string;
+  category: string;
+  provider: string;
+  lane_id: string;
+  failure_modes: string[];
 };
 
 function parseArgs(argv: string[]): CliOptions {
@@ -80,6 +96,8 @@ function parseArgs(argv: string[]): CliOptions {
     maxFirecrawlUrls: 2,
     brightRecordsLimit: 25,
     skipScreen: false,
+    noLlmCache: false,
+    llmCacheDir: null,
   };
 
   for (const arg of argv) {
@@ -103,6 +121,10 @@ function parseArgs(argv: string[]): CliOptions {
       options.skipScreen = true;
       continue;
     }
+    if (arg === "--no-llm-cache") {
+      options.noLlmCache = true;
+      continue;
+    }
     if (arg === "--include-bright") {
       if (!options.providers.includes("bright")) options.providers.push("bright");
       continue;
@@ -113,6 +135,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg.startsWith("--out-dir=")) {
       options.outDir = arg.slice("--out-dir=".length);
+      continue;
+    }
+    if (arg.startsWith("--llm-cache-dir=")) {
+      options.llmCacheDir = arg.slice("--llm-cache-dir=".length);
       continue;
     }
     if (arg.startsWith("--ids=")) {
@@ -206,6 +232,7 @@ async function main() {
     aggregates.push(aggregate);
     writeJson(path.join(benchmarkDir, "benchmark-summary.json"), buildSummary(benchmarkId, options, aggregates));
     writeText(path.join(benchmarkDir, "provider-value-table.csv"), buildProviderValueCsv(aggregates));
+    writeText(path.join(benchmarkDir, "provider-lane-value-table.csv"), buildProviderLaneValueCsv(aggregates));
     writeText(path.join(benchmarkDir, "benchmark-report.md"), buildMarkdownReport(benchmarkId, options, aggregates));
   }
 
@@ -235,6 +262,10 @@ function runOneJd(params: {
     `--bright-records-limit=${params.options.brightRecordsLimit}`,
     ...(params.options.allowPaid ? ["--allow-paid"] : []),
     ...(params.options.skipScreen ? ["--skip-screen"] : []),
+    ...(params.options.noLlmCache ? ["--no-llm-cache"] : []),
+    ...(!params.options.noLlmCache ? [
+      `--llm-cache-dir=${path.resolve(params.options.llmCacheDir || path.join(params.benchmarkDir, ".llm-cache"))}`,
+    ] : []),
   ];
 
   const result = spawnSync(path.resolve("node_modules/.bin/tsx"), args.slice(1), {
@@ -297,6 +328,12 @@ function aggregateRun(jd: BenchmarkJd, runDir: string): RunAggregate {
   const summary = readJson<Record<string, unknown>>(path.join(runDir, "summary.json"));
   const providerPlan = readJson<Record<string, unknown>>(path.join(runDir, "provider-plan.json"));
   const ledger = readJsonl<CostLedgerEntry>(path.join(runDir, "cost-ledger.jsonl"));
+  const leads = fs.existsSync(path.join(runDir, "candidate-leads.json"))
+    ? readJson<{ leads?: CandidateLead[] }>(path.join(runDir, "candidate-leads.json")).leads ?? []
+    : [];
+  const cards = fs.existsSync(path.join(runDir, "candidate-cards.json"))
+    ? readJson<{ cards?: CandidateCard[] }>(path.join(runDir, "candidate-cards.json")).cards ?? []
+    : [];
   const decisions = fs.existsSync(path.join(runDir, "light-screen.json"))
     ? readJson<{ decisions?: LightScreenDecision[] }>(path.join(runDir, "light-screen.json")).decisions ?? []
     : [];
@@ -317,7 +354,8 @@ function aggregateRun(jd: BenchmarkJd, runDir: string): RunAggregate {
     no: decisions.filter((decision) => decision.would_advance === "no").length,
     actual_cost_usd: sumActualCost(ledger),
     estimated_cost_usd: numeric(providerPlan.estimated_total_usd),
-    provider_stats: aggregateProviderStats(ledger),
+    provider_stats: aggregateProviderStats(ledger, cards, leads, decisions),
+    provider_lane_stats: aggregateProviderLaneStats(jd, ledger, cards, leads, decisions),
   };
 }
 
@@ -339,21 +377,19 @@ function emptyAggregate(jd: BenchmarkJd, runDir: string | null, error: string): 
     actual_cost_usd: 0,
     estimated_cost_usd: 0,
     provider_stats: {},
+    provider_lane_stats: [],
   };
 }
 
-function aggregateProviderStats(ledger: CostLedgerEntry[]) {
+function aggregateProviderStats(
+  ledger: CostLedgerEntry[],
+  cards: CandidateCard[],
+  leads: CandidateLead[],
+  decisions: LightScreenDecision[],
+) {
   const stats: Record<string, ProviderStats> = {};
   for (const entry of ledger) {
-    const item = stats[entry.provider] || {
-      planned: 0,
-      success: 0,
-      error: 0,
-      blocked: 0,
-      returned: 0,
-      actual_cost_usd: 0,
-      latency_ms: 0,
-    };
+    const item = stats[entry.provider] || emptyProviderStats();
     if (entry.status === "planned") item.planned += 1;
     if (entry.status === "success") item.success += 1;
     if (entry.status === "error") item.error += 1;
@@ -363,7 +399,131 @@ function aggregateProviderStats(ledger: CostLedgerEntry[]) {
     item.latency_ms += entry.latency_ms ?? 0;
     stats[entry.provider] = item;
   }
+  for (const attribution of buildCandidateAttribution(cards, leads, decisions)) {
+    const item = stats[attribution.provider] || emptyProviderStats();
+    addCandidateValue(item, attribution);
+    stats[attribution.provider] = item;
+  }
   return stats;
+}
+
+function aggregateProviderLaneStats(
+  jd: BenchmarkJd,
+  ledger: CostLedgerEntry[],
+  cards: CandidateCard[],
+  leads: CandidateLead[],
+  decisions: LightScreenDecision[],
+) {
+  const stats: Record<string, ProviderLaneStats> = {};
+  const getItem = (provider: string, laneId: string) => {
+    const key = `${provider}\t${laneId}`;
+    if (!stats[key]) {
+      stats[key] = {
+        ...emptyProviderStats(),
+        jd_id: jd.id,
+        title: jd.title,
+        category: jd.category,
+        provider,
+        lane_id: laneId,
+        failure_modes: [],
+      };
+    }
+    return stats[key];
+  };
+
+  for (const entry of ledger) {
+    const item = getItem(entry.provider, entry.lane_id || "benchmark-level");
+    if (entry.status === "planned") item.planned += 1;
+    if (entry.status === "success") item.success += 1;
+    if (entry.status === "error") item.error += 1;
+    if (entry.status === "blocked") item.blocked += 1;
+    item.returned += entry.returned_count ?? 0;
+    item.actual_cost_usd += entry.actual_cost_usd ?? 0;
+    item.latency_ms += entry.latency_ms ?? 0;
+    if ((entry.status === "error" || entry.status === "blocked") && entry.message) {
+      item.failure_modes.push(entry.message);
+    }
+  }
+
+  for (const attribution of buildCandidateAttribution(cards, leads, decisions)) {
+    const item = getItem(attribution.provider, attribution.lane_id);
+    addCandidateValue(item, attribution);
+  }
+
+  return Object.values(stats).sort((a, b) =>
+    a.jd_id.localeCompare(b.jd_id) ||
+    a.provider.localeCompare(b.provider) ||
+    a.lane_id.localeCompare(b.lane_id),
+  );
+}
+
+function emptyProviderStats(): ProviderStats {
+  return {
+    planned: 0,
+    success: 0,
+    error: 0,
+    blocked: 0,
+    returned: 0,
+    actual_cost_usd: 0,
+    latency_ms: 0,
+    candidate_cards: 0,
+    reviewable_candidates: 0,
+    contact_worthy_candidates: 0,
+    rejected_candidates: 0,
+  };
+}
+
+function buildCandidateAttribution(
+  cards: CandidateCard[],
+  leads: CandidateLead[],
+  decisions: LightScreenDecision[],
+) {
+  const leadsById = new Map(leads.map((lead) => [lead.lead_id, lead]));
+  const decisionsById = new Map(decisions.map((decision) => [decision.candidate_id, decision]));
+  const rows: Array<{
+    provider: string;
+    lane_id: string;
+    decision: LightScreenDecision["would_advance"] | "unreviewed";
+  }> = [];
+
+  for (const card of cards) {
+    const pairs = new Map<string, { provider: string; lane_id: string }>();
+    for (const leadId of card.lead_ids) {
+      const lead = leadsById.get(leadId);
+      if (!lead) continue;
+      pairs.set(`${lead.provider}\t${lead.lane_id}`, {
+        provider: lead.provider,
+        lane_id: lead.lane_id,
+      });
+    }
+    if (pairs.size === 0) {
+      for (const provider of card.source_mix) {
+        pairs.set(`${provider}\tunknown`, { provider, lane_id: "unknown" });
+      }
+    }
+    const decision = decisionsById.get(card.candidate_id)?.would_advance ?? "unreviewed";
+    for (const pair of pairs.values()) {
+      rows.push({ ...pair, decision });
+    }
+  }
+
+  return rows;
+}
+
+function addCandidateValue(
+  stats: ProviderStats,
+  attribution: { decision: LightScreenDecision["would_advance"] | "unreviewed" },
+) {
+  stats.candidate_cards += 1;
+  if (attribution.decision === "yes" || attribution.decision === "maybe") {
+    stats.reviewable_candidates += 1;
+  }
+  if (attribution.decision === "yes") {
+    stats.contact_worthy_candidates += 1;
+  }
+  if (attribution.decision === "no") {
+    stats.rejected_candidates += 1;
+  }
 }
 
 function buildSummary(benchmarkId: string, options: CliOptions, runs: RunAggregate[]) {
@@ -385,6 +545,8 @@ function buildSummary(benchmarkId: string, options: CliOptions, runs: RunAggrega
       yes: runs.reduce((sum, run) => sum + run.yes, 0),
       maybe: runs.reduce((sum, run) => sum + run.maybe, 0),
       no: runs.reduce((sum, run) => sum + run.no, 0),
+      reviewable_candidates: runs.reduce((sum, run) => sum + run.yes + run.maybe, 0),
+      contact_worthy_candidates: runs.reduce((sum, run) => sum + run.yes, 0),
     },
     runs,
   };
@@ -392,20 +554,29 @@ function buildSummary(benchmarkId: string, options: CliOptions, runs: RunAggrega
 
 function buildProviderValueCsv(runs: RunAggregate[]) {
   const rows = [
-    ["provider", "planned", "success", "error", "blocked", "returned", "actual_cost_usd", "avg_latency_ms"],
+    [
+      "provider",
+      "planned",
+      "success",
+      "error",
+      "blocked",
+      "returned",
+      "actual_cost_usd",
+      "avg_latency_ms",
+      "candidate_cards",
+      "reviewable_candidates",
+      "contact_worthy_candidates",
+      "rejected_candidates",
+      "reviewable_rate",
+      "contact_worthy_rate",
+      "cost_per_reviewable_usd",
+      "cost_per_contact_worthy_usd",
+    ],
   ];
   const merged: Record<string, ProviderStats> = {};
   for (const run of runs) {
     for (const [provider, stats] of Object.entries(run.provider_stats)) {
-      const item = merged[provider] || {
-        planned: 0,
-        success: 0,
-        error: 0,
-        blocked: 0,
-        returned: 0,
-        actual_cost_usd: 0,
-        latency_ms: 0,
-      };
+      const item = merged[provider] || emptyProviderStats();
       item.planned += stats.planned;
       item.success += stats.success;
       item.error += stats.error;
@@ -413,6 +584,10 @@ function buildProviderValueCsv(runs: RunAggregate[]) {
       item.returned += stats.returned;
       item.actual_cost_usd += stats.actual_cost_usd;
       item.latency_ms += stats.latency_ms;
+      item.candidate_cards += stats.candidate_cards;
+      item.reviewable_candidates += stats.reviewable_candidates;
+      item.contact_worthy_candidates += stats.contact_worthy_candidates;
+      item.rejected_candidates += stats.rejected_candidates;
       merged[provider] = item;
     }
   }
@@ -426,6 +601,68 @@ function buildProviderValueCsv(runs: RunAggregate[]) {
       String(stats.returned),
       roundMoney(stats.actual_cost_usd).toFixed(4),
       stats.success > 0 ? Math.round(stats.latency_ms / stats.success).toString() : "0",
+      String(stats.candidate_cards),
+      String(stats.reviewable_candidates),
+      String(stats.contact_worthy_candidates),
+      String(stats.rejected_candidates),
+      rate(stats.reviewable_candidates, stats.candidate_cards),
+      rate(stats.contact_worthy_candidates, stats.candidate_cards),
+      costPer(stats.actual_cost_usd, stats.reviewable_candidates),
+      costPer(stats.actual_cost_usd, stats.contact_worthy_candidates),
+    ]);
+  }
+  return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+}
+
+function buildProviderLaneValueCsv(runs: RunAggregate[]) {
+  const rows = [
+    [
+      "jd_id",
+      "title",
+      "category",
+      "provider",
+      "lane_id",
+      "planned",
+      "success",
+      "error",
+      "blocked",
+      "returned",
+      "actual_cost_usd",
+      "avg_latency_ms",
+      "candidate_cards",
+      "reviewable_candidates",
+      "contact_worthy_candidates",
+      "rejected_candidates",
+      "reviewable_rate",
+      "contact_worthy_rate",
+      "cost_per_reviewable_usd",
+      "cost_per_contact_worthy_usd",
+      "failure_modes",
+    ],
+  ];
+  for (const stats of runs.flatMap((run) => run.provider_lane_stats)) {
+    rows.push([
+      stats.jd_id,
+      stats.title,
+      stats.category,
+      stats.provider,
+      stats.lane_id,
+      String(stats.planned),
+      String(stats.success),
+      String(stats.error),
+      String(stats.blocked),
+      String(stats.returned),
+      roundMoney(stats.actual_cost_usd).toFixed(4),
+      stats.success > 0 ? Math.round(stats.latency_ms / stats.success).toString() : "0",
+      String(stats.candidate_cards),
+      String(stats.reviewable_candidates),
+      String(stats.contact_worthy_candidates),
+      String(stats.rejected_candidates),
+      rate(stats.reviewable_candidates, stats.candidate_cards),
+      rate(stats.contact_worthy_candidates, stats.candidate_cards),
+      costPer(stats.actual_cost_usd, stats.reviewable_candidates),
+      costPer(stats.actual_cost_usd, stats.contact_worthy_candidates),
+      uniqueStrings(stats.failure_modes).slice(0, 3).join(" | "),
     ]);
   }
   return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
@@ -444,6 +681,8 @@ function buildMarkdownReport(benchmarkId: string, options: CliOptions, runs: Run
     `- Estimated cost: $${summary.totals.estimated_cost_usd.toFixed(4)}`,
     `- Leads: raw ${summary.totals.raw_leads}, enriched ${summary.totals.enriched_leads}, deduped ${summary.totals.deduped_leads}, cards ${summary.totals.candidate_cards}`,
     `- Light screen: yes ${summary.totals.yes}, maybe ${summary.totals.maybe}, no ${summary.totals.no}`,
+    `- Reviewable rate: ${rate(summary.totals.reviewable_candidates, summary.totals.candidate_cards)}, contact-worthy rate: ${rate(summary.totals.contact_worthy_candidates, summary.totals.candidate_cards)}`,
+    `- Cost per contact-worthy: ${costPer(summary.totals.actual_cost_usd, summary.totals.contact_worthy_candidates)}`,
     "",
     "## Runs",
     "",
@@ -481,6 +720,20 @@ function numeric(value: unknown) {
 
 function roundMoney(value: number) {
   return Math.round(value * 10000) / 10000;
+}
+
+function rate(numerator: number, denominator: number) {
+  if (denominator <= 0) return "0.0%";
+  return `${((numerator / denominator) * 100).toFixed(1)}%`;
+}
+
+function costPer(costUsd: number, count: number) {
+  if (count <= 0) return "";
+  return roundMoney(costUsd / count).toFixed(4);
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function csvCell(value: string) {
