@@ -46,3 +46,26 @@ npm run sourcing:decision-report -- --benchmark-dir=runs/sourcing-benchmark/benc
 - 投影 cost per contact-worthy：`$0.0112`
 
 这个结果说明 LLM light screen 明显偏乐观，尤其是 Serper/LinkedIn snippet-only 候选。下一步应优先人工复核 assistant_strict 标为 `contact_worthy` 的 7 行，再抽查 `research_more` 中的 Serper 行，判断是否需要 Bright/Profile 补全。
+
+## Human Review Queue
+
+为避免 56 条样本从头人工扫一遍，当前已经生成最小复核队列：
+
+- Markdown：`docs/architecture/jd-sourcing-human-review-queue.md`
+- CSV：`docs/architecture/jd-sourcing-human-review-queue.csv`
+- 生成命令：`npm run sourcing:human-review-queue`
+
+队列共 24 行，按以下 bucket 排序：
+
+- `confirm_assistant_contact_worthy`：7 行，先确认 assistant_strict 认为可联系的正例。
+- `bright_probe_gate`：8 行，真实 Bright probe 前的花钱门控。
+- `serper_snippet_risk`：5 行，检查 Serper/Google 摘要误判。
+- `github_profile_needed`：2 行，判断 GitHub 证据是否值得继续找职业 profile。
+- `negative_control`：2 行，少量负例对照。
+
+使用方式：
+
+1. 填写 `jd-sourcing-human-review-queue.csv` 中的 `human_decision`、`human_reason`、`human_notes`。
+2. 先完成 P0 bucket，尤其是 `confirm_assistant_contact_worthy` 和 `bright_probe_gate`。
+3. 如果 `bright_probe_gate` 没有人审通过，不执行真实 Bright probe。
+4. 人审完成后，再把结果合并回 benchmark 决策报告。

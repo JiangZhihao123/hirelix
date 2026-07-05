@@ -35,6 +35,7 @@
 - `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。tracked 报告见 `docs/architecture/jd-sourcing-warm-comparison.md`。当前只证明 LLM cache，不等于 profile/provider index。
 - `S5-4` 已完成：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本；tracked 归因报告见 `docs/architecture/jd-sourcing-provider-value-report.md`。
 - `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
+- Human review queue 已完成：`scripts/sourcing/build-human-review-queue.ts` 会把 assistant_strict 样本缩成 24 行人工/猎头复核队列，产物见 `docs/architecture/jd-sourcing-human-review-queue.md` 和 `.csv`。
 - Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
 
 尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、执行真实 Bright 极小 probe 对照。
@@ -166,7 +167,7 @@
 | 优先级 | 任务 | 是否付费 | 验收标准 |
 | --- | --- | --- | --- |
 | P0 | 跑完整 10 JD live benchmark，不启用 Bright | 已完成；实际外部成本 `$0.145` | 10 个 JD 全部 completed，已生成 provider/lane 质量归因表 |
-| P0 | 人工抽查 yes/maybe 样本 | 校准表已生成，不花钱 | 填写 `jd-sourcing-calibration-samples.csv` 的 `reviewer_decision`，确认 snippet-only 没有误判为 contact-worthy |
+| P0 | 人工抽查 yes/maybe 样本 | review queue 已生成，不花钱 | 填写 `jd-sourcing-human-review-queue.csv` 的 `human_decision`，先完成 P0 bucket，确认 snippet-only 没有误判为 contact-worthy |
 | P0 | 生成正式决策报告 | 否 | `jd-sourcing-benchmark-report.md` 从“不能决策”更新为基于 10 JD live 数据的结论 |
 | P1 | 用 shared LLM cache 做 cold/warm 对比 | 已完成；不花钱 | `jd-sourcing-warm-comparison.md` 明确区分 LLM cache 收益和 provider/profile index 缺口 |
 | P1 | Bright/Profile dry probe plan | 已完成；不花钱 | 选出 2 个 JD、10 个 LinkedIn snippet-only 候选，预计真实 Bright 成本 `$0.1500`，计划见 `jd-sourcing-bright-probe-plan.md` |
@@ -221,6 +222,16 @@
 - Firecrawl：花费 `$0.0400`，当前作为 extraction/evidence 层；价值要看是否把 `research_more` 升级成可判断，而不是独立候选归因。
 - GitHub：当前 2 个 provider error，直接候选归因为 0，应作为技术证据补充。
 - 校准覆盖：assistant_strict yes precision 26.9%，因此 provider raw yield 不能直接当作真实 outreach yield。
+
+## Human Review Queue
+
+- 脚本：`npm run sourcing:human-review-queue`
+- 产物：`docs/architecture/jd-sourcing-human-review-queue.md` 和 `docs/architecture/jd-sourcing-human-review-queue.csv`
+- 队列行数：24。
+- P0：7 条 `confirm_assistant_contact_worthy`，8 条 `bright_probe_gate`。
+- P1：5 条 `serper_snippet_risk`，2 条 `github_profile_needed`。
+- P2：2 条 `negative_control`。
+- 规则：真实 Bright probe 前必须先完成人审 `bright_probe_gate`；如果没有人审通过，不花 Bright 钱。
 
 关键风险：
 
