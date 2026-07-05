@@ -61,6 +61,30 @@ Bright 仍然可以用，但它的角色必须明确：Bright 是低成本结构
    - 用户上传 ATS、CSV、简历库后，系统应该把自有候选人和外部候选人放进同一个 JD-aware ranking。
    - 但不能把“请先上传你的候选人库”作为外部 sourcing 做不好的解释。
 
+### 首版 UX contract
+
+首版产品体验必须先定义清楚，否则工程很容易先做索引、表结构和 provider 抽象，却没有证明用户真的能用它找人。
+
+| 时间点 | 用户应该看到什么 | 系统必须做到什么 |
+| --- | --- | --- |
+| 提交后 10 秒内 | JD 摘要、目标人群、硬约束、可放宽项、预计 sourcing lanes | 完成 JD parsing，展示可编辑 search brief |
+| 提交后 30 到 60 秒 | 已启动的数据源、每条 lane 的目标、预算和状态 | 开始小额 discovery probe，不让用户面对空白等待 |
+| 1 到 3 分钟 | 第一批 `ready to review` / `needs evidence` 候选人 | 先交付可评估候选池，不等所有 provider 完成 |
+| 3 到 8 分钟 | 候选人质量解释、风险、来源、扩展建议 | 完成 light screen、dedupe、lane diagnosis |
+| 结果不足时 | 明确说明不足原因和下一步成本 | 区分数据源覆盖不足、lane 太窄、预算不足、location 太严、JD 过窄 |
+
+候选人卡片的最小信息：
+
+- name、current title、current company、location。
+- source mix：来自 Bright、SERP、Exa、用户内部数据或其他来源。
+- match reason：为什么和当前 JD 匹配。
+- risk flags：title 相邻、domain 不足、location 不确定、profile 过期、证据不足等。
+- evidence links：LinkedIn、GitHub、个人网站、博客、team page、论文等。
+- confidence：身份置信度、profile 完整度、来源新鲜度。
+- next action：review、save、reject、request research、expand similar candidates。
+
+首版不能只做“搜索完成后一次性交付”。应该允许 progressive delivery：先把可评估候选人交出来，同时继续跑低优先级 discovery / evidence enrichment。
+
 ## 必须先钉死的系统边界
 
 这套方案最容易返工的地方，不是向量库或供应商选择，而是系统边界没有提前定义。目标架构必须先固定以下约束：
@@ -822,13 +846,16 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 | --- | --- |
 | `recall_profile_count` | 是否有足够可评估候选人 |
 | `unique_profile_count` | 去重后是否仍足够 |
+| `reviewable_profile_count` | 招聘者能认真看的候选人数 |
 | `advance_rate` | LLM 判断可推进比例 |
 | `contact_worthy_count` | 招聘者真正可能联系的人数 |
 | `top_20_precision` | 前 20 个候选人的人工质量 |
 | `lane_duplicate_rate` | lane 之间是否高度重复 |
 | `lane_drift_rate` | 是否偏离 role family |
+| `cost_per_reviewable_profile` | 单个可评估候选人成本 |
 | `cost_per_contact_worthy_candidate` | 单个可联系候选人成本 |
 | `time_to_first_pool` | 首批候选人可用时间 |
+| `time_to_first_5_reviewable` | 前 5 个可评估候选人出现时间 |
 
 早期 PMF 验证的底线不是“返回 100 人”，而是：
 
@@ -864,6 +891,46 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 | 用户 ATS/CSV/简历 | 内部候选人资产 | rediscovery、低成本评估 | 替代外部 sourcing | 高 |
 | 招聘 SaaS 竞品 | 不作为上游 | 竞品研究 | 作为供应商 | 排除 |
 
+这里的“优先级”只表示首轮验证顺序，不表示最终架构权重。尤其是 Bright Dataset Filter：它是高优先级验证对象，因为它便宜且结构化，但它不是默认主召回引擎。
+
+### Provider 实测矩阵
+
+在进入正式开发前，必须把 provider 从“理论角色”变成“可采购、可预算、可比较”的实测表。每个候选 provider 至少要跑 3 到 5 个代表性 JD 的小额实验，记录这些字段：
+
+| 字段 | 含义 | 为什么重要 |
+| --- | --- | --- |
+| `minimum_commit` | 最低充值、最低月费或最小套餐 | 防止试错成本过高 |
+| `unit_price` | 每次 query、每条 record、每次 scrape 或每 1,000 records 成本 | 判断是否能进入常规产品成本 |
+| `free_trial_quota` | 免费试用额度和限制 | 判断是否能低成本验证 |
+| `time_to_first_result` | 从调用到首批可用结果的时间 | 直接影响用户等待体验 |
+| `reviewable_profile_rate` | 返回结果里可评分 profile 比例 | 比 raw record count 更重要 |
+| `contact_worthy_rate` | 返回结果里招聘者愿意联系比例 | 核心质量指标 |
+| `dedupe_rate` | 与其他 lane/provider 或已有索引重复比例 | 判断是否只是重复买同一批人 |
+| `profile_completeness` | title、company、location、experience、URL 完整度 | 决定是否需要额外补全 |
+| `identity_confidence` | 是否能稳定确定同一个人 | 决定能否入 canonical profile |
+| `failure_modes` | 0 召回、过宽、限流、超时、脏数据、重复 | 决定是否可运营 |
+
+首轮必须至少比较这些组合：
+
+| 组合 | 要回答的问题 |
+| --- | --- |
+| Bright Dataset Filter only | 结构化 LinkedIn profile 取数能否独立产生可联系人 |
+| SERP/DataForSEO X-ray + LinkedIn URL 补全 | Google 风格发现 + 补全是否比 Bright filter 更准 |
+| Exa + Firecrawl | 语义网页发现能否带来 hidden gem，还是只能补证据 |
+| GitHub/evidence only | 技术证据源能否贡献候选人，还是只适合 candidate research |
+| Hybrid | 多源组合是否显著提高 contact-worthy 数量 |
+
+实测表的最终判断不看“返回多少条”，而看：
+
+```text
+provider_value =
+  contact_worthy_count
+  / external_spend
+  / time_to_first_reviewable_pool
+```
+
+如果某个 provider 便宜但 `reviewable_profile_rate` 很低，它不能进入主链路；如果某个 provider 贵但能稳定产生高质量候选人，可以进入高价值搜索或付费扩展。
+
 ## 关键风险和规避策略
 
 | 风险 | 会造成什么问题 | 规避策略 |
@@ -897,26 +964,25 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 
 实施路线不需要兼容当前未上线系统。每个阶段都可以选择重建 schema、API 和 UI，只要能让最终 JD-to-candidate 体验更清晰、更稳定、更可卖。现有实现最多作为参考样例，不作为验收标准。
 
-### Phase 0：定义端到端体验和目标数据契约
+### Phase 0：定义冷启动原型和实验协议
 
-目标：先确定用户看到的 JD-to-candidate 流程、候选人交付形态、质量门槛和稳定数据契约，而不是先复刻当前实现。
+目标：先确定用户看到的 JD-to-candidate 流程、候选人交付形态、质量门槛和 benchmark 协议，并只建设能支持实验的最小数据账本。这个阶段不是完整建设 profile index。
 
 动作：
 
 - 定义 JD 输入后用户能看到的 brief、sourcing plan、候选人卡片、来源解释、扩展建议。
 - 定义 `CandidateLead`、`CanonicalProfile`、`ProfileSource`、`ProfileIdentity`、`ProfileEvidence`、`SearchCandidate`。
-- 设计长期 profile index 的第一版 schema，例如 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_identities`、`hirelix_profile_experiences`、`hirelix_profile_evidence`、`hirelix_profile_embeddings`。
-- 明确 identity merge 规则：LinkedIn URL、email、GitHub URL、姓名+公司、个人网站等的置信度。
-- 明确 `search_document` 的生成规则。
-- 明确 embedding kinds：profile summary、experience evidence、public evidence。
-- 明确 cost ledger 和 quality stats 的字段。
+- 定义冷启动 benchmark 的 10 个 JD、预算、provider 组合和人工评审表。
+- 建设最小实验账本：`search_id`、JD、lane、provider、query、cost、latency、raw result、normalized lead、LLM decision、human review。
+- 明确 identity merge 的临时规则：强身份自动合并，弱身份只聚类，不在实验阶段做复杂全局合并。
+- 明确哪些结果可以进入临时 reusable cache，哪些只保留为 benchmark 证据。
 
 验收标准：
 
 - 用户体验上能完整描述从 JD 到首批候选人交付的每一步。
 - 数据契约能同时表达内部私有 profile、外部公开 profile、未确认 lead、某次搜索 candidate。
-- 任意 profile 能追溯到所有来源和合并依据。
-- 能明确删除、拆分、刷新、降权的行为。
+- 每个 provider 的成本、速度、返回数、可评分数、contact-worthy 数都能被记录。
+- 实验结果可以复盘到原始 query、raw payload、LLM 判断和人工评审。
 
 ### Phase 1：打通冷启动外部 sourcing 闭环
 
@@ -1010,7 +1076,22 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 
 ## 需要立刻验证的 benchmark
 
-下一步应该拿 10 个真实 JD 做固定预算 benchmark，而不是继续抽象讨论。
+下一步应该拿 10 个真实 JD 做固定预算 benchmark，而不是继续抽象讨论。Benchmark 的目标不是证明架构优雅，而是回答一个硬问题：
+
+> 在没有现成内部候选人库的冷启动状态下，Hirelix 能不能用可接受成本找到招聘者愿意联系的人？
+
+### JD 样本分层
+
+10 个 JD 不能都选容易岗位，必须覆盖难度层级：
+
+| 类型 | 数量 | 目的 |
+| --- | ---: | --- |
+| 普通技术岗 | 3 | 验证主流岗位是否能稳定召回 |
+| 高级/基础架构岗 | 2 | 验证 seniority 和 scope 判断 |
+| 极窄行业或技能岗 | 2 | 验证系统如何处理稀缺岗位和不足解释 |
+| location 严格岗位 | 1 | 验证地点过滤和放宽策略 |
+| ML / research / data-heavy 岗 | 1 | 验证 GitHub、论文、公开证据源价值 |
+| 非典型相邻背景岗位 | 1 | 验证 adjacent lane 是否会漂移 |
 
 每个 JD 记录：
 
@@ -1026,9 +1107,27 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 - 去重后数量。
 - 前 20 质量。
 - contact-worthy 数量。
+- cost per reviewable profile。
 - 每个 contact-worthy candidate 成本。
-- 首批结果耗时。
+- time to first 5 reviewable profiles。
+- time to first pool。
 - 是否产生可复用本地资产。
+
+### 人工评审表
+
+每个进入 top 20 的候选人都必须按同一个表评审：
+
+| 字段 | 取值 |
+| --- | --- |
+| `would_contact` | yes / no / maybe |
+| `reason` | 为什么值得或不值得联系 |
+| `deal_breaker` | location、seniority、domain、skill、title、evidence、other |
+| `missing_evidence` | 缺 LinkedIn、缺经历、缺项目证据、缺联系方式、信息过期 |
+| `source_confidence` | high / medium / low |
+| `profile_completeness` | high / medium / low |
+| `suggested_next_action` | contact、research_more、reject、expand_similar |
+
+`contact-worthy` 的定义必须收紧：不是“看起来相关”，而是招聘者在真实工作中愿意把它加入 outreach / shortlist 的人。`maybe` 不能算入 contact-worthy，只能算 reviewable。
 
 Benchmark 必须避免数据泄漏：
 
@@ -1037,6 +1136,20 @@ Benchmark 必须避免数据泄漏：
 - 同一批 JD 使用相同预算上限。
 - 人工评审者不要知道候选人来自哪个 provider。
 - 记录失败样本，而不是只记录成功案例。
+- 每个 provider 独立实验时，不允许复用其他 provider 找到的 LinkedIn URL 或 enrichment 结果。
+- rejected samples 必须保留，至少抽查每条 lane 的前 10 个 rejected profile。
+
+### 成功阈值
+
+首轮 benchmark 的最低通过线：
+
+| 指标 | 通过线 |
+| --- | --- |
+| 冷启动可评估候选池 | 10 个 JD 中至少 8 个能产生 20 个以上 reviewable profiles |
+| contact-worthy | 10 个 JD 中至少 6 个能产生 3 到 5 个 contact-worthy candidates |
+| 成本 | 标准搜索外部成本优先控制在 `$3` 到 `$8`，高价值验证可到 `$20` |
+| 速度 | 3 分钟内出现前 5 个 reviewable profiles，8 分钟内形成首批候选池 |
+| 失败可解释性 | 失败 JD 必须能说明是数据源覆盖、query/lane、预算、地点还是岗位稀缺问题 |
 
 如果在明确预算下，外部 sourcing 不能稳定产生 3 到 5 个招聘者愿意联系的人，那么产品必须转为混合定位：外部 sourcing + 用户自有候选池 + JD-aware 评估排序。反过来，如果 benchmark 能证明稳定产出，就继续强化外部 sourcing 和本地候选人索引。
 
@@ -1053,3 +1166,5 @@ Hirelix 的可行路线不是买一个完整人才库，也不是放弃外部 so
 7. 用 lane-level 质量和成本指标决定是否继续扩展。
 
 这条路线短期不等于 Juicebox/hireEZ 的全量人才库，但它是早期最现实的路线：用可控成本做出可交付结果，同时把每次外部支出转化为 Hirelix 自己的数据资产。
+
+下一步不应该继续扩写架构，也不应该先建设完整 profile index。下一步应该做冷启动 sourcing 原型：输入 JD，生成 lanes，跑 2 到 3 个 provider，小额补全 top leads，用 DeepSeek 做 light screen，输出候选人卡片、成本账本和人工评审表。只有这个原型跑完 10 个 JD，才能决定数据源路线是否成立。
