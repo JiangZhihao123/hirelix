@@ -806,12 +806,14 @@ llm_cost =
 | --- | ---: | --- |
 | 免费/试用搜索 | 0 到 1 美元 | 优先本地缓存、小额 SERP、极小 Bright probe |
 | 标准付费搜索 | 3 到 8 美元 | Bright 多 lane + SERP + 少量 URL 补全 |
-| 高价值人工验证搜索 | 10 到 20 美元 | 增加 Exa/Firecrawl/target company exploration |
-| 内部 benchmark | 单 JD 明确预算上限 | 只为验证供应商效果，不混入常规产品成本 |
+| 高价值扩展搜索 | 10 到 20 美元 | 增加 Exa/Firecrawl/target company exploration |
+| 首轮内部 benchmark | 总预算 `$50` 硬上限 | 优先免费额度、小额 SERP/Exa/Firecrawl，Bright 只做极小 probe |
 
 Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额分 lane。SERP 查询通常便宜，但返回的是 URL，不是可评分 profile。URL 补全和第三方 LinkedIn API 要只用于高潜 leads。
 
 LLM 预算要和外部数据预算分开看。外部数据预算决定“能不能找到更多人”；LLM 预算主要决定“能不能更好地理解、筛选和解释已经找到的人”。不要因为 LLM 便宜就放松外部数据源质量，也不要因为外部数据贵就把召回问题推给 LLM。
+
+首轮内部验证不是正式产品成本模型，目标是用 `$50` 以内判断路线是否值得继续。这个预算下如果完全无法产出 reviewable profiles，应该优先判定数据源/召回路线有问题，而不是直接加预算掩盖问题。
 
 ### 预算分配器
 
@@ -972,7 +974,7 @@ provider_value =
 
 - 定义 JD 输入后用户能看到的 brief、sourcing plan、候选人卡片、来源解释、扩展建议。
 - 定义 `CandidateLead`、`CanonicalProfile`、`ProfileSource`、`ProfileIdentity`、`ProfileEvidence`、`SearchCandidate`。
-- 定义冷启动 benchmark 的 10 个 JD、预算、provider 组合和人工评审表。
+- 定义冷启动 benchmark 的 10 个 JD、预算、provider 组合和统一评审表。
 - 建设最小实验账本：`search_id`、JD、lane、provider、query、cost、latency、raw result、normalized lead、LLM decision、human review。
 - 明确 identity merge 的临时规则：强身份自动合并，弱身份只聚类，不在实验阶段做复杂全局合并。
 - 明确哪些结果可以进入临时 reusable cache，哪些只保留为 benchmark 证据。
@@ -1113,18 +1115,21 @@ provider_value =
 - time to first pool。
 - 是否产生可复用本地资产。
 
-### 人工评审表
+### 统一评审表
 
-每个进入 top 20 的候选人都必须按同一个表评审：
+每个进入 top 20 的候选人都必须按同一个标准评审。这里不拆“猎头标准”和“招聘方标准”：两者最终都在回答同一个问题，即这个人对当前 JD 是否值得推进。差异只体现在风险说明和外联角度，不应该形成两套不同的 yes/no 判断。
+
+首轮可以先由 LLM 按统一 rubric 做预评，再由人工抽样校准。人工校准重点看 `yes` 和 `maybe` 样本，防止 LLM 把“看起来相关”误判成“值得联系”。
 
 | 字段 | 取值 |
 | --- | --- |
-| `would_contact` | yes / no / maybe |
+| `would_advance` | yes / no / maybe |
 | `reason` | 为什么值得或不值得联系 |
 | `deal_breaker` | location、seniority、domain、skill、title、evidence、other |
 | `missing_evidence` | 缺 LinkedIn、缺经历、缺项目证据、缺联系方式、信息过期 |
 | `source_confidence` | high / medium / low |
 | `profile_completeness` | high / medium / low |
+| `outreach_angle` | 如果推进，应该用什么角度联系 |
 | `suggested_next_action` | contact、research_more、reject、expand_similar |
 
 `contact-worthy` 的定义必须收紧：不是“看起来相关”，而是招聘者在真实工作中愿意把它加入 outreach / shortlist 的人。`maybe` 不能算入 contact-worthy，只能算 reviewable。
@@ -1134,7 +1139,7 @@ Benchmark 必须避免数据泄漏：
 - 每个 JD 先跑 cold index，再跑 warm index，分别记录效果。
 - 不允许前一个 provider 的结果污染后一个 provider 的独立评测。
 - 同一批 JD 使用相同预算上限。
-- 人工评审者不要知道候选人来自哪个 provider。
+- 人工抽样校准时不要知道候选人来自哪个 provider。
 - 记录失败样本，而不是只记录成功案例。
 - 每个 provider 独立实验时，不允许复用其他 provider 找到的 LinkedIn URL 或 enrichment 结果。
 - rejected samples 必须保留，至少抽查每条 lane 的前 10 个 rejected profile。
@@ -1147,7 +1152,7 @@ Benchmark 必须避免数据泄漏：
 | --- | --- |
 | 冷启动可评估候选池 | 10 个 JD 中至少 8 个能产生 20 个以上 reviewable profiles |
 | contact-worthy | 10 个 JD 中至少 6 个能产生 3 到 5 个 contact-worthy candidates |
-| 成本 | 标准搜索外部成本优先控制在 `$3` 到 `$8`，高价值验证可到 `$20` |
+| 成本 | 首轮 10 个 JD 外部总预算不超过 `$50`；单个 JD 允许不均匀分配，但必须记录 |
 | 速度 | 3 分钟内出现前 5 个 reviewable profiles，8 分钟内形成首批候选池 |
 | 失败可解释性 | 失败 JD 必须能说明是数据源覆盖、query/lane、预算、地点还是岗位稀缺问题 |
 
@@ -1167,4 +1172,4 @@ Hirelix 的可行路线不是买一个完整人才库，也不是放弃外部 so
 
 这条路线短期不等于 Juicebox/hireEZ 的全量人才库，但它是早期最现实的路线：用可控成本做出可交付结果，同时把每次外部支出转化为 Hirelix 自己的数据资产。
 
-下一步不应该继续扩写架构，也不应该先建设完整 profile index。下一步应该做冷启动 sourcing 原型：输入 JD，生成 lanes，跑 2 到 3 个 provider，小额补全 top leads，用 DeepSeek 做 light screen，输出候选人卡片、成本账本和人工评审表。只有这个原型跑完 10 个 JD，才能决定数据源路线是否成立。
+下一步不应该继续扩写架构，也不应该先建设完整 profile index。下一步应该做冷启动 sourcing 原型：输入 JD，生成 lanes，跑 2 到 3 个 provider，小额补全 top leads，用 DeepSeek 做 light screen，输出候选人卡片、成本账本和统一评审表。只有这个原型跑完 10 个 JD，才能决定数据源路线是否成立。
