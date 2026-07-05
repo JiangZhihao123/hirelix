@@ -607,6 +607,65 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 
 因此，LLM 成本不是当前最应该恐惧的点。真正的边界是：先用索引和 provider 把候选人召回来，再让 DeepSeek v4 flash 低成本、大批量地做判断和解释。
 
+### LLM 价格预估
+
+按 2026-07-05 [DeepSeek 官方 API 价格页](https://api-docs.deepseek.com/quick_start/pricing)估算：
+
+| 模型 | Cache hit input | Cache miss input | Output |
+| --- | ---: | ---: | ---: |
+| `deepseek-v4-flash` | `$0.0028 / 1M tokens` | `$0.14 / 1M tokens` | `$0.28 / 1M tokens` |
+| `deepseek-v4-pro` | `$0.003625 / 1M tokens` | `$0.435 / 1M tokens` | `$0.87 / 1M tokens` |
+
+这个估算按当前官方价格/非峰值原价计算。即使 DeepSeek 对北京时间峰值时段加价，Hirelix 面向美国招聘用户的主要实时使用时段大概率落在北京时间夜间或清晨：
+
+- 美国东部工作日 9:00-17:00，大约对应北京时间 21:00-05:00。
+- 美国西部工作日 9:00-17:00，大约对应北京时间 00:00-08:00。
+
+因此，美国用户实时搜索大概率不受北京时间白天峰值加价影响。真正需要控制的是后台批处理、benchmark、批量 re-index、批量 profile normalization，不要默认排在北京时间 9:00-12:00 或 14:00-18:00 这类峰值窗口。
+
+成本公式：
+
+```text
+llm_cost =
+  cached_input_tokens / 1_000_000 * cache_hit_price
++ cache_miss_input_tokens / 1_000_000 * cache_miss_price
++ output_tokens / 1_000_000 * output_price
+```
+
+估算前提：
+
+- 主要模型使用 `deepseek-v4-flash`。
+- `deepseek-v4-pro` 只用于少量 arbiter / conflict review。
+- JD 解析 prompt、rubric、light-screen system prompt、profile schema 有稳定缓存命中。
+- profile 内容本身通常是 cache miss，所以 profile 越长，成本越接近 miss input 价格。
+- 以下估算只算 LLM，不包含 Bright、SERP、URL scraper、数据库和队列成本。
+
+| 场景 | 典型 LLM 工作量 | 估算成本 / search | 判断 |
+| --- | --- | ---: | --- |
+| Internal-only 小搜索 | JD 解析 + 150 light screen + 30 deep score | `$0.04` 左右 | 几乎不是成本瓶颈 |
+| 标准混合搜索 | JD 解析 + 100 新 profile normalize + 300 light screen + 60 deep score + lane diagnosis | `$0.12` 左右 | 可以大胆使用 |
+| 激进标准搜索 | JD 解析 + 300 新 profile normalize + 500 light screen + 100 deep score + 20 pro arbiter | `$0.32` 左右 | 仍低于多数外部数据成本 |
+| 高召回验证搜索 | JD 解析 + 500 新 profile normalize + 1000 light screen + 150 deep score + 40 pro arbiter | `$0.58` 左右 | 适合 benchmark 或高价值搜索 |
+
+如果某些请求不得不落在 DeepSeek 峰值加价窗口，可以做 2x 敏感性估算：
+
+| 场景 | 原价估算 | 峰值 2x 敏感性 |
+| --- | ---: | ---: |
+| Internal-only 小搜索 | `$0.04` | `$0.08` |
+| 标准混合搜索 | `$0.12` | `$0.24` |
+| 激进标准搜索 | `$0.32` | `$0.64` |
+| 高召回验证搜索 | `$0.58` | `$1.16` |
+
+结论：
+
+- LLM 成本不是当前主瓶颈；外部数据源、URL/profile 补全和召回覆盖更关键。
+- 可以把 DeepSeek v4 flash 用得更积极，尤其是 light screen、profile normalization、lane diagnosis、解释生成。
+- 面向美国招聘用户的实时流量大概率落在北京时间非峰值窗口，峰值加价对产品常规使用影响有限。
+- 后台批处理和 benchmark 应支持按北京时间非峰值窗口调度，避免不必要的峰值成本。
+- 仍然不能让 LLM 替代索引和召回，因为 LLM 只能判断已经进入候选池的人。
+- 真正需要控制的是 deep score 的规模、并发延迟、缓存命中率和 profile 输入长度。
+- 产品成本核算里，LLM 和外部数据必须分账：`llm_cost_per_search`、`external_data_cost_per_search`、`cost_per_contact_worthy_candidate` 分开看。
+
 ## 第 7 步：自适应扩展
 
 第一次召回后，要做 lane-level 诊断，而不是简单判断“候选人少”：
