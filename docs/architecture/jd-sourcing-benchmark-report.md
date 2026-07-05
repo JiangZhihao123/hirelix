@@ -10,7 +10,7 @@
 核心理由：
 - 10 JD live benchmark 已跑通，但 contact-worthy 仍是 LLM light screen 结果，不是人工确认结果。
 - LLM contact-worthy rate 为 29.8%，足够支持继续验证，但不能直接当作 PMF 证据。
-- cost per LLM-contact-worthy 为 $0.0029，说明成本压力暂时不是主瓶颈。
+- 已提供校准 CSV，但 reviewer_decision 尚未填写，不能计算人工确认率。
 
 ## 风险标记
 
@@ -43,6 +43,11 @@
 | contact-worthy rate | 29.8% |
 | cost per contact-worthy | $0.0029 |
 | provider error rate | 2.9% |
+| reviewed calibration rows | 0 / 56 |
+| manually confirmed contact-worthy | 0 |
+| manual contact-worthy rate on reviewed rows | 0.0% |
+| manual yes precision on reviewed yes | 0.0% |
+| projected cost per manual contact-worthy | N/A |
 
 ## 单 JD 结果
 
@@ -59,6 +64,18 @@
 | JD-09 ML / Research：ML Infrastructure Engineer | completed | 20 | 8 | 5 | 7 | $0.0160 |
 | JD-10 非典型相邻背景：Technical Solutions Engineer to Product Engineer | completed | 20 | 10 | 4 | 6 | $0.0160 |
 
+## 人工校准
+
+- 校准文件：`/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-calibration-samples.csv`
+- 已审样本：0 / 56
+- 人工确认 contact-worthy：0
+- 人工确认 reviewable：0
+- 人工 reject：0
+- 已审样本 contact-worthy rate：0.0%
+- 已审 LLM yes precision：0.0%
+- 投影 contact-worthy 数：N/A
+- 投影 cost per contact-worthy：N/A
+
 ## Provider 贡献
 
 | Provider | Calls | Returned | Errors | Blocked | Cards | Reviewable | Contact-worthy | Actual cost | Cost/contact-worthy |
@@ -70,9 +87,9 @@
 
 ## 下一步
 
-- 从 review-samples.csv 抽查每个 JD 的 yes 和 maybe，标注人工是否真的会联系。
+- 填写 docs/architecture/jd-sourcing-calibration-samples.csv 的 reviewer_decision。
 - 重点检查 LinkedIn/Google snippet-only 候选是否被过度判 yes。
-- 用人工确认后的 contact-worthy rate 重新生成报告，传入 --manual-review-done。
+- 用人工确认后的 contact-worthy rate 重新生成报告，传入 --calibration-csv 和 --manual-review-done。
 
 ## 判定阈值
 

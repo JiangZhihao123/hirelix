@@ -13,6 +13,7 @@
     "sourcing:typecheck": "tsc --project scripts/sourcing/tsconfig.json",
     "sourcing:benchmark": "tsx scripts/sourcing/run-benchmark.ts",
     "sourcing:compare-warm": "tsx scripts/sourcing/compare-warm-rerun.ts",
+    "sourcing:calibration-samples": "tsx scripts/sourcing/build-calibration-samples.ts",
     "sourcing:decision-report": "tsx scripts/sourcing/build-benchmark-decision-report.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

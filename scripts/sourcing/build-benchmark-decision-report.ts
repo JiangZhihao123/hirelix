@@ -4,6 +4,7 @@ import path from "node:path";
 type CliOptions = {
   benchmarkDir: string | null;
   outPath: string;
+  calibrationCsvPath: string | null;
   minJds: number;
   minContactWorthyRate: number;
   maxCostPerContactWorthyUsd: number;
@@ -54,10 +55,27 @@ type BenchmarkSummary = {
   }>;
 };
 
+type CalibrationSummary = {
+  path: string;
+  total_rows: number;
+  reviewed_rows: number;
+  confirmed_contact_worthy: number;
+  confirmed_reviewable: number;
+  rejected_rows: number;
+  reviewed_yes_rows: number;
+  confirmed_yes_rows: number;
+  reviewed_contact_worthy_rate: number;
+  reviewed_reviewable_rate: number;
+  reviewed_yes_precision: number;
+  projected_contact_worthy_count: number | null;
+  projected_cost_per_contact_worthy_usd: number | null;
+};
+
 function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     benchmarkDir: null,
     outPath: "docs/architecture/jd-sourcing-benchmark-report.md",
+    calibrationCsvPath: null,
     minJds: 10,
     minContactWorthyRate: 0.12,
     maxCostPerContactWorthyUsd: 5,
@@ -72,6 +90,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg.startsWith("--out=")) {
       options.outPath = arg.slice("--out=".length);
+      continue;
+    }
+    if (arg.startsWith("--calibration-csv=")) {
+      options.calibrationCsvPath = arg.slice("--calibration-csv=".length);
       continue;
     }
     if (arg.startsWith("--min-jds=")) {
@@ -113,7 +135,10 @@ function main() {
   const options = parseArgs(process.argv.slice(2));
   const benchmarkDir = path.resolve(options.benchmarkDir!);
   const summary = readJson(path.join(benchmarkDir, "benchmark-summary.json")) as BenchmarkSummary;
-  const report = buildReport({ benchmarkDir, summary, options });
+  const calibration = options.calibrationCsvPath
+    ? summarizeCalibration(path.resolve(options.calibrationCsvPath), summary)
+    : null;
+  const report = buildReport({ benchmarkDir, summary, options, calibration });
   const outPath = path.resolve(options.outPath);
   writeText(outPath, report);
   console.log(`Benchmark decision report written: ${outPath}`);
@@ -123,10 +148,11 @@ function buildReport(params: {
   benchmarkDir: string;
   summary: BenchmarkSummary;
   options: CliOptions;
+  calibration: CalibrationSummary | null;
 }) {
   const metrics = buildMetrics(params.summary);
   const providerRows = buildProviderRows(params.summary);
-  const decision = decide(metrics, params.options);
+  const decision = decide(metrics, params.options, params.calibration);
   const dominantProvider = findDominantContactProvider(providerRows);
   const runRows = (params.summary.runs || []).map((run) => ({
     jd_id: run.jd_id,
@@ -154,7 +180,7 @@ function buildReport(params: {
     "",
     "## 风险标记",
     "",
-    ...buildRiskNotes({ metrics, providerRows, dominantProvider, options: params.options }).map((note) => `- ${note}`),
+    ...buildRiskNotes({ metrics, providerRows, dominantProvider, options: params.options, calibration: params.calibration }).map((note) => `- ${note}`),
     "",
     "## Benchmark 输入",
     "",
@@ -180,6 +206,13 @@ function buildReport(params: {
     `| contact-worthy rate | ${pct(metrics.contact_worthy_rate)} |`,
     `| cost per contact-worthy | ${metrics.cost_per_contact_worthy_usd == null ? "N/A" : `$${metrics.cost_per_contact_worthy_usd.toFixed(4)}`} |`,
     `| provider error rate | ${pct(metrics.provider_error_rate)} |`,
+    ...(params.calibration ? [
+      `| reviewed calibration rows | ${params.calibration.reviewed_rows} / ${params.calibration.total_rows} |`,
+      `| manually confirmed contact-worthy | ${params.calibration.confirmed_contact_worthy} |`,
+      `| manual contact-worthy rate on reviewed rows | ${pct(params.calibration.reviewed_contact_worthy_rate)} |`,
+      `| manual yes precision on reviewed yes | ${pct(params.calibration.reviewed_yes_precision)} |`,
+      `| projected cost per manual contact-worthy | ${params.calibration.projected_cost_per_contact_worthy_usd == null ? "N/A" : `$${params.calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`} |`,
+    ] : []),
     "",
     "## 单 JD 结果",
     "",
@@ -190,6 +223,23 @@ function buildReport(params: {
   for (const row of runRows) {
     lines.push(
       `| ${row.jd_id} ${escapePipe(row.title)} | ${row.status} | ${row.cards} | ${row.yes} | ${row.maybe} | ${row.no} | $${row.cost.toFixed(4)} |`,
+    );
+  }
+
+  if (params.calibration) {
+    lines.push(
+      "",
+      "## 人工校准",
+      "",
+      `- 校准文件：\`${params.calibration.path}\``,
+      `- 已审样本：${params.calibration.reviewed_rows} / ${params.calibration.total_rows}`,
+      `- 人工确认 contact-worthy：${params.calibration.confirmed_contact_worthy}`,
+      `- 人工确认 reviewable：${params.calibration.confirmed_reviewable}`,
+      `- 人工 reject：${params.calibration.rejected_rows}`,
+      `- 已审样本 contact-worthy rate：${pct(params.calibration.reviewed_contact_worthy_rate)}`,
+      `- 已审 LLM yes precision：${pct(params.calibration.reviewed_yes_precision)}`,
+      `- 投影 contact-worthy 数：${params.calibration.projected_contact_worthy_count == null ? "N/A" : params.calibration.projected_contact_worthy_count}`,
+      `- 投影 cost per contact-worthy：${params.calibration.projected_cost_per_contact_worthy_usd == null ? "N/A" : `$${params.calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`}`,
     );
   }
 
@@ -319,7 +369,63 @@ function buildProviderErrorMetrics(summary: BenchmarkSummary) {
   };
 }
 
-function decide(metrics: ReturnType<typeof buildMetrics>, options: CliOptions) {
+function summarizeCalibration(filePath: string, summary: BenchmarkSummary): CalibrationSummary {
+  const rows = parseCsv(fs.readFileSync(filePath, "utf8"));
+  const totalRows = rows.length;
+  const reviewed = rows.filter((row) => normalizeReviewerDecision(row.reviewer_decision));
+  const confirmedContact = reviewed.filter((row) => normalizeReviewerDecision(row.reviewer_decision) === "contact_worthy").length;
+  const confirmedReviewable = reviewed.filter((row) => {
+    const decision = normalizeReviewerDecision(row.reviewer_decision);
+    return decision === "contact_worthy" || decision === "research_more";
+  }).length;
+  const rejected = reviewed.filter((row) => normalizeReviewerDecision(row.reviewer_decision) === "reject").length;
+  const reviewedYes = reviewed.filter((row) => row.llm_decision === "yes");
+  const confirmedYes = reviewedYes.filter((row) => normalizeReviewerDecision(row.reviewer_decision) === "contact_worthy").length;
+  const reviewedMaybe = reviewed.filter((row) => row.llm_decision === "maybe");
+  const confirmedMaybe = reviewedMaybe.filter((row) => normalizeReviewerDecision(row.reviewer_decision) === "contact_worthy").length;
+  const totals = summary.totals || {};
+  const yesRate = reviewedYes.length > 0 ? confirmedYes / reviewedYes.length : null;
+  const maybeRate = reviewedMaybe.length > 0 ? confirmedMaybe / reviewedMaybe.length : null;
+  const projectedContact = yesRate == null && maybeRate == null
+    ? null
+    : Math.round(
+        numeric(totals.yes) * (yesRate ?? 0) +
+        numeric(totals.maybe) * (maybeRate ?? 0),
+      );
+  return {
+    path: filePath,
+    total_rows: totalRows,
+    reviewed_rows: reviewed.length,
+    confirmed_contact_worthy: confirmedContact,
+    confirmed_reviewable: confirmedReviewable,
+    rejected_rows: rejected,
+    reviewed_yes_rows: reviewedYes.length,
+    confirmed_yes_rows: confirmedYes,
+    reviewed_contact_worthy_rate: ratio(confirmedContact, reviewed.length),
+    reviewed_reviewable_rate: ratio(confirmedReviewable, reviewed.length),
+    reviewed_yes_precision: ratio(confirmedYes, reviewedYes.length),
+    projected_contact_worthy_count: projectedContact,
+    projected_cost_per_contact_worthy_usd:
+      projectedContact && projectedContact > 0
+        ? money(numeric(totals.actual_cost_usd) / projectedContact)
+        : null,
+  };
+}
+
+function normalizeReviewerDecision(value: string | undefined) {
+  const normalized = (value || "").trim().toLowerCase();
+  if (["contact_worthy", "contact-worthy", "contact", "yes"].includes(normalized)) return "contact_worthy";
+  if (["research_more", "research-more", "reviewable", "maybe"].includes(normalized)) return "research_more";
+  if (["reject", "no"].includes(normalized)) return "reject";
+  if (["uncertain", "unknown"].includes(normalized)) return "uncertain";
+  return null;
+}
+
+function decide(
+  metrics: ReturnType<typeof buildMetrics>,
+  options: CliOptions,
+  calibration: CalibrationSummary | null,
+) {
   const reasons: string[] = [];
   const tasks: string[] = [];
 
@@ -354,35 +460,37 @@ function decide(metrics: ReturnType<typeof buildMetrics>, options: CliOptions) {
     };
   }
 
-  if (!options.manualReviewDone) {
+  if (!options.manualReviewDone || !calibration || calibration.reviewed_rows === 0) {
     return {
       verdict: "需要人工校准",
       next_action: "先抽查 yes/maybe，再决定是否进入 UI 原型",
       reasons: [
         "10 JD live benchmark 已跑通，但 contact-worthy 仍是 LLM light screen 结果，不是人工确认结果。",
         `LLM contact-worthy rate 为 ${pct(metrics.contact_worthy_rate)}，足够支持继续验证，但不能直接当作 PMF 证据。`,
-        `cost per LLM-contact-worthy 为 $${metrics.cost_per_contact_worthy_usd?.toFixed(4) || "N/A"}，说明成本压力暂时不是主瓶颈。`,
+        calibration && calibration.reviewed_rows === 0
+          ? "已提供校准 CSV，但 reviewer_decision 尚未填写，不能计算人工确认率。"
+          : `cost per LLM-contact-worthy 为 $${metrics.cost_per_contact_worthy_usd?.toFixed(4) || "N/A"}，说明成本压力暂时不是主瓶颈。`,
       ],
       tasks: [
-        "从 review-samples.csv 抽查每个 JD 的 yes 和 maybe，标注人工是否真的会联系。",
+        "填写 docs/architecture/jd-sourcing-calibration-samples.csv 的 reviewer_decision。",
         "重点检查 LinkedIn/Google snippet-only 候选是否被过度判 yes。",
-        "用人工确认后的 contact-worthy rate 重新生成报告，传入 --manual-review-done。",
+        "用人工确认后的 contact-worthy rate 重新生成报告，传入 --calibration-csv 和 --manual-review-done。",
       ],
     };
   }
 
   if (
-    metrics.contact_worthy_rate >= options.minContactWorthyRate &&
-    metrics.cost_per_contact_worthy_usd != null &&
-    metrics.cost_per_contact_worthy_usd <= options.maxCostPerContactWorthyUsd &&
+    calibration.reviewed_contact_worthy_rate >= options.minContactWorthyRate &&
+    calibration.projected_cost_per_contact_worthy_usd != null &&
+    calibration.projected_cost_per_contact_worthy_usd <= options.maxCostPerContactWorthyUsd &&
     metrics.provider_error_rate <= options.maxProviderErrorRate
   ) {
     return {
       verdict: "可以继续外部 sourcing",
       next_action: "把有效 provider/lane 固化进冷启动原型，并开始小规模 UI 验证",
       reasons: [
-        `contact-worthy rate 达到 ${pct(metrics.contact_worthy_rate)}。`,
-        `cost per contact-worthy 为 $${metrics.cost_per_contact_worthy_usd.toFixed(4)}，低于阈值。`,
+        `人工校准样本 contact-worthy rate 达到 ${pct(calibration.reviewed_contact_worthy_rate)}。`,
+        `投影 cost per contact-worthy 为 $${calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}，低于阈值。`,
         `provider error rate 为 ${pct(metrics.provider_error_rate)}，没有明显可用性阻塞。`,
       ],
       tasks: [
@@ -393,13 +501,16 @@ function decide(metrics: ReturnType<typeof buildMetrics>, options: CliOptions) {
     };
   }
 
-  if (metrics.reviewable_rate >= options.minContactWorthyRate && metrics.contact_worthy_rate < options.minContactWorthyRate) {
+  if (
+    calibration.reviewed_reviewable_rate >= options.minContactWorthyRate &&
+    calibration.reviewed_contact_worthy_rate < options.minContactWorthyRate
+  ) {
     return {
       verdict: "需要重大修改",
       next_action: "优先改补全和 rerank，不直接扩 provider",
       reasons: [
-        `reviewable rate 为 ${pct(metrics.reviewable_rate)}，说明 discovery 有信号。`,
-        `contact-worthy rate 只有 ${pct(metrics.contact_worthy_rate)}，说明证据补全或判断口径不足。`,
+        `人工校准样本 reviewable rate 为 ${pct(calibration.reviewed_reviewable_rate)}，说明 discovery 有信号。`,
+        `人工校准样本 contact-worthy rate 只有 ${pct(calibration.reviewed_contact_worthy_rate)}，说明证据补全或判断口径不足。`,
       ],
       tasks: [
         "把 yes 的证据门槛调严，避免 snippet-only 误判。",
@@ -413,8 +524,8 @@ function decide(metrics: ReturnType<typeof buildMetrics>, options: CliOptions) {
     verdict: "方向仍未证明",
     next_action: "先调 provider/lane 或砍 sourcing 范围",
     reasons: [
-      `contact-worthy rate 为 ${pct(metrics.contact_worthy_rate)}，低于阈值。`,
-      `cost per contact-worthy 为 ${metrics.cost_per_contact_worthy_usd == null ? "N/A" : `$${metrics.cost_per_contact_worthy_usd.toFixed(4)}`}。`,
+      `人工校准样本 contact-worthy rate 为 ${pct(calibration.reviewed_contact_worthy_rate)}，低于阈值。`,
+      `投影 cost per contact-worthy 为 ${calibration.projected_cost_per_contact_worthy_usd == null ? "N/A" : `$${calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`}。`,
       `provider error rate 为 ${pct(metrics.provider_error_rate)}。`,
     ],
     tasks: [
@@ -443,10 +554,14 @@ function buildRiskNotes(params: {
   providerRows: ReturnType<typeof buildProviderRows>;
   dominantProvider: ReturnType<typeof findDominantContactProvider>;
   options: CliOptions;
+  calibration: CalibrationSummary | null;
 }) {
   const notes: string[] = [];
-  if (!params.options.manualReviewDone) {
+  if (!params.options.manualReviewDone || !params.calibration || params.calibration.reviewed_rows === 0) {
     notes.push("人工校准尚未完成；当前 yes/maybe 只能代表 LLM 评审，不代表真实猎头愿意联系。");
+  }
+  if (params.calibration && params.calibration.reviewed_rows > 0 && params.calibration.reviewed_yes_precision < 0.5) {
+    notes.push(`已审 LLM yes precision 只有 ${pct(params.calibration.reviewed_yes_precision)}，说明 LLM 对 contact-worthy 的判断偏乐观。`);
   }
   if (params.dominantProvider && params.dominantProvider.share >= 0.7) {
     notes.push(
@@ -472,6 +587,58 @@ function buildRiskNotes(params: {
 
 function readJson(filePath: string) {
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+}
+
+function parseCsv(value: string) {
+  const matrix: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    const next = value[index + 1];
+    if (quoted) {
+      if (char === "\"" && next === "\"") {
+        cell += "\"";
+        index += 1;
+      } else if (char === "\"") {
+        quoted = false;
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+    if (char === "\"") {
+      quoted = true;
+      continue;
+    }
+    if (char === ",") {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+    if (char === "\n") {
+      row.push(cell);
+      if (row.some((item) => item.length > 0)) matrix.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+    if (char !== "\r") cell += char;
+  }
+  row.push(cell);
+  if (row.some((item) => item.length > 0)) matrix.push(row);
+
+  const [headers, ...rows] = matrix;
+  if (!headers) return [];
+  return rows.map((items) => {
+    const record: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      record[header] = items[index] || "";
+    });
+    return record;
+  });
 }
 
 function writeText(filePath: string, value: string) {

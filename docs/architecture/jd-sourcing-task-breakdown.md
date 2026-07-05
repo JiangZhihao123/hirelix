@@ -11,7 +11,7 @@
 截至当前原型提交，已完成第一批可执行闭环：
 
 - `S0-1` 已完成：10 个固定 benchmark JD 记录在 `docs/architecture/benchmark-jds.md`。
-- `S0-2` 已部分完成：统一 light-screen rubric 已进入 `scripts/sourcing/llm.ts`；正式人工校准表仍待导出。
+- `S0-2` 已完成基础版：统一 light-screen rubric 已进入 `scripts/sourcing/llm.ts`，人工校准样本表记录在 `docs/architecture/jd-sourcing-calibration-samples.csv`。
 - `S0-3` 已部分完成：实验账本先用 `cost-ledger.jsonl` 和 run directory 表达；还未建设 benchmark 聚合表。
 - `S0-4` 已完成基础版：`--allow-paid`、总预算和 Bright 子预算 guardrail 已进入 CLI。
 - `S0-5` 已完成：`scripts/sourcing/check-provider-readiness.ts` 可只读检查 provider key，并可通过 `--network` 查询 Bright 余额。
@@ -25,14 +25,14 @@
 - `S4-1` 已完成基础版：DeepSeek light screen 输出统一 `would_advance` rubric，并明确 snippet-only 证据不足时不能轻易给 `yes`。
 - `S4-2` 已完成基础版：lane diagnosis 可按 lane 解释 query、provider、预算和覆盖问题。
 - `S4-4` 已完成基础版：LLM 本地 cache 写入 `runs/sourcing/.llm-cache`，重复 dry-run 可命中缓存。
-- `S4-5` 已完成基础版：light screen 后导出 `review-samples.csv` 供人工校准。
+- `S4-5` 已完成基础版：light screen 后导出 `review-samples.csv`，并可通过 `scripts/sourcing/build-calibration-samples.ts` 聚合成 benchmark 级校准表。
 - `S5-1` 已完成基础版：2 个 JD live smoke 已跑通，报告记录在 `docs/architecture/jd-sourcing-smoke-report.md`。
 - `S5-2` 已完成：`scripts/sourcing/run-benchmark.ts` 可批量解析 `benchmark-jds.md` 并执行 cold/live benchmark；10 JD dry benchmark 和 10 JD live benchmark 均已通过。
 - `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。当前只证明 LLM cache，不等于 profile/provider index。
 - `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本。
 - `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
 
-尚未完成：yes/maybe 人工抽样校准、基于人工确认结果更新 contact-worthy 成本、Bright 极小 probe 对照。
+尚未完成：填写 yes/maybe 人工校准结果、基于人工确认结果更新 contact-worthy 成本、Bright 极小 probe 对照。
 
 ## 执行边界
 
@@ -161,7 +161,7 @@
 | 优先级 | 任务 | 是否付费 | 验收标准 |
 | --- | --- | --- | --- |
 | P0 | 跑完整 10 JD live benchmark，不启用 Bright | 已完成；实际外部成本 `$0.145` | 10 个 JD 全部 completed，已生成 provider/lane 质量归因表 |
-| P0 | 人工抽查 yes/maybe 样本 | 否 | 至少抽查每个 JD 的 top yes/maybe，确认 snippet-only 没有误判为 contact-worthy |
+| P0 | 人工抽查 yes/maybe 样本 | 校准表已生成，不花钱 | 填写 `jd-sourcing-calibration-samples.csv` 的 `reviewer_decision`，确认 snippet-only 没有误判为 contact-worthy |
 | P0 | 生成正式决策报告 | 否 | `jd-sourcing-benchmark-report.md` 从“不能决策”更新为基于 10 JD live 数据的结论 |
 | P1 | 用 shared LLM cache 做 cold/warm 对比 | 否 | `warm-comparison.md` 明确区分 LLM cache 收益和 provider/profile index 缺口 |
 | P1 | Bright 极小 probe 对照 | 是，必须单独确认；当前余额约 `$9` | 只选 1 到 2 个 JD、hard cap 25 records，验证 Bright 是否能补结构化 LinkedIn profile |
