@@ -37,6 +37,30 @@ Hirelix 的核心不是把另一个招聘 SaaS 包一层，也不是只做简历
 
 Bright 仍然可以用，但它的角色必须明确：Bright 是低成本结构化 profile 原料和 LinkedIn URL 补全工具，不是 JD 语义召回大脑。召回策略、语义理解、排序、成本控制和长期索引必须由 Hirelix 自己掌握。
 
+## 目标用户体验
+
+零基设计下，第一目标不是把现有搜索链路修顺，而是让招聘用户觉得“这就是一个能帮我找人的产品”。一个 JD 进来后，理想体验应该是：
+
+1. **快速形成搜索策略**
+   - 用户粘贴 JD 后，系统先返回 hiring brief、目标人群、硬约束、可放宽项和计划使用的数据源。
+   - 用户不需要理解 Bright、SERP、Exa、vector index，只需要看到系统准备怎么找人。
+
+2. **冷启动也能工作**
+   - 即使本地索引为空、用户还没有上传 ATS，系统也必须能通过外部 discovery 做第一批候选人。
+   - 本地索引是资产沉淀和加速层，不是产品可用性的前置条件。
+
+3. **首批结果可解释**
+   - 候选人卡片要说明为什么匹配、有哪些风险、来自哪些来源、是否需要补充验证。
+   - 结果页必须区分 `ready to review`、`needs evidence`、`external expansion running`、`insufficient coverage`。
+
+4. **搜索不足时给出下一步**
+   - 如果结果不够，系统要说明是数据源覆盖不足、lane 太窄、预算不足、地点限制过严，还是 JD 本身过于稀缺。
+   - 用户应该看到“当前预算下最佳结果 + 继续扩展预计会增加什么”，而不是只看到空列表。
+
+5. **内部数据是增强体验，不是兜底借口**
+   - 用户上传 ATS、CSV、简历库后，系统应该把自有候选人和外部候选人放进同一个 JD-aware ranking。
+   - 但不能把“请先上传你的候选人库”作为外部 sourcing 做不好的解释。
+
 ## 必须先钉死的系统边界
 
 这套方案最容易返工的地方，不是向量库或供应商选择，而是系统边界没有提前定义。目标架构必须先固定以下约束：
@@ -87,11 +111,12 @@ Bright 仍然可以用，但它的角色必须明确：Bright 是低成本结构
 ```mermaid
 flowchart TD
   A["JD 输入"] --> B["JD 解析与招聘意图建模"]
-  B --> C["本地候选人索引优先检索"]
+  B --> C["已有资产检索: 本地索引 / 用户数据"]
+  B --> E["生成多条 sourcing lanes"]
   C --> D{"覆盖是否足够"}
   D -- "足够" --> H["JD-aware 筛选与深度评分"]
-  D -- "不足" --> E["生成多条 sourcing lanes"]
-  E --> F["多源发现候选线索"]
+  D -- "不足" --> F["多源发现候选线索"]
+  E --> F
   F --> G["结构化补全、去重、入库"]
   G --> H
   H --> I["候选人池交付"]
@@ -101,6 +126,8 @@ flowchart TD
 ```
 
 这个流程有一个重要原则：每一次外部调用都应该沉淀为本地资产。哪怕这次 JD 只交付 20 个候选人，外部拉回来的 profile、URL、来源、lane 质量和评分结果也要进入本地索引，为下一次相似 JD 降低成本。
+
+但流程不能要求“先有本地索引，产品才可用”。冷启动时，本地检索可能为空，这时系统必须快速进入外部 discovery；warm index 只是让搜索越来越快、越来越便宜、越来越稳。
 
 ## 第 1 步：JD 解析与招聘意图建模
 
@@ -125,9 +152,9 @@ JD 进来后，第一步不是搜索，而是形成结构化招聘意图。目�
 
 输出不是一个关键词列表，而是一套 sourcing thesis。后续所有数据源调用都必须服务于这套 thesis。
 
-## 第 2 步：本地索引优先
+## 第 2 步：已有资产检索和冷启动判断
 
-外部 sourcing 不能每次从零开始烧钱。目标系统应该先查 Hirelix 自己的长期 profile index：
+外部 sourcing 不能每次都像第一次一样从零烧钱，但零基产品也不能假设一开始就有足够本地数据。目标系统应该快速检查 Hirelix 自己的长期 profile index 和用户自有数据，并同时判断是否需要冷启动外部 discovery：
 
 - 外部来源沉淀的 profile：Bright、SERP、Exa、Firecrawl、GitHub、论文、专利等。
 - 用户内部资产：ATS、CSV、简历库、用户手动粘贴的 LinkedIn URL。
@@ -135,7 +162,7 @@ JD 进来后，第一步不是搜索，而是形成结构化招聘意图。目�
 - 证据资产：GitHub、博客、论文、项目、专利、个人网站、recruiter notes。
 - 质量资产：每个 profile 在不同 JD 下的评分、用户动作、拒绝原因和联系结果。
 
-本地优先的目的不是省一点 API 钱，而是形成产品壁垒。竞品能做大规模 sourcing，本质上不是每次实时搜全网，而是维护了长期候选人图谱和可检索索引。
+已有资产优先的目的不是省一点 API 钱，而是形成产品壁垒。竞品能做大规模 sourcing，本质上不是每次实时搜全网，而是维护了长期候选人图谱和可检索索引。
 
 本地检索应该至少支持：
 
@@ -144,7 +171,7 @@ JD 进来后，第一步不是搜索，而是形成结构化招聘意图。目�
 - 证据检索：GitHub、论文、项目、专利、个人网站、公开 profile 中的具体证据。
 - 去重：LinkedIn URL、姓名+公司、公开链接、邮箱、GitHub、个人网站等。
 
-如果本地已经能返回足够的候选人，外部调用应该减少或跳过。
+如果已有资产已经能返回足够的候选人，外部调用应该减少或跳过；如果已有资产为空或明显不足，系统不应该停在“无结果”，而应该进入外部 sourcing。
 
 ## 本地索引如何建立
 
@@ -153,7 +180,7 @@ JD 进来后，第一步不是搜索，而是形成结构化招聘意图。目�
 - 搜索结果表天然绑定某个 JD，不适合作为长期人才库主表。
 - 原始缓存表适合重放和审计，但没有 canonical identity、跨来源去重、向量检索和长期质量信号。
 
-因此需要新增一层长期 profile index。早期技术方案应该优先选自托管 PostgreSQL 17，而不是立刻引入外部向量数据库或搜索 SaaS。原因很简单：数据量早期不会大到必须拆出去，Postgres 能同时承载结构化过滤、JSONB、全文检索、pgvector、事务和成本账本，复杂度最低。
+因此需要建立一层长期 profile index。早期技术方案应该优先选自托管 PostgreSQL 17，而不是立刻引入外部向量数据库或搜索 SaaS。原因很简单：数据量早期不会大到必须拆出去，Postgres 能同时承载结构化过滤、JSONB、全文检索、pgvector、事务和成本账本，复杂度最低。
 
 推荐架构：
 
@@ -311,13 +338,20 @@ JD 进来后，本地检索不应该只跑一个 query。目标算法应按多�
 | 来源新鲜度 | top 50 中过期或低置信来源不超过 40% |
 | 外部预算 | 没超过当前 plan/search 的预算上限 |
 
-如果本地检索达不到这些门槛，再进入外部扩展。外部扩展也不是一次性全开，而是按 lane 小额 probe，只有 probe 结果质量足够时才扩大。
+如果已有资产检索达不到这些门槛，再进入外部扩展。外部扩展也不是一次性全开，而是按 lane 小额 probe，只有 probe 结果质量足够时才扩大。冷启动时已有资产可能为 0，这不是异常路径，而是产品必须支持的默认场景之一。
 
-## 纯内部数据场景：JD 如何直接拿到 Profile
+## 内部数据能力：增强 JD-to-candidate 体验
 
-如果完全不做外部召回，只使用客户已有 ATS、CSV、简历库、历史候选人、手动 LinkedIn URL，那么产品仍然可以成立，但定位会变成：
+用户自有数据是重要来源，但不是主产品的替代品。零基口径下，它应该服务两个体验目标：
+
+1. 让用户已有 ATS、CSV、简历库、历史候选人、手动 LinkedIn URL 可以被 JD 重新发现。
+2. 让外部 sourcing 和内部 rediscovery 进入同一个候选人池、同一套评分和同一套解释。
+
+如果完全不做外部召回，只使用客户已有数据，那么产品会退化成：
 
 > JD-aware candidate rediscovery and evaluation，而不是完整外部 sourcing。
+
+这个模式可以作为一个可用场景，但不能作为 Hirelix 的主定位。主定位仍然应该是：JD 驱动的外部 sourcing + 用户自有数据增强 + JD-aware 评估排序。
 
 这个模式的流程是：
 
@@ -383,9 +417,9 @@ JD 来了以后，不是让 LLM 在全库里“看一遍”，而是先用检索
 
 不能把“内部库无候选人”包装成模型能力不足。
 
-### 内部索引的最小可行版本
+### 内部数据能力的最小可行版本
 
-MVP 不需要一开始做复杂人才图谱。可以分三步：
+内部数据能力不需要一开始做复杂人才图谱。可以分三步：
 
 1. **Profile ingestion**
    - 支持 CSV、简历文本、LinkedIn URL、ATS export。
@@ -399,9 +433,11 @@ MVP 不需要一开始做复杂人才图谱。可以分三步：
 
 3. **JD-aware scoring**
    - 使用 JD 解析出的 `headhunter_brief`、`advancement_rubric` 和统一 scoring pipeline。
-   - 把内部召回 profile 转成和 Bright profile 相同的 candidate input。
+   - 把内部召回 profile 转成和外部 sourced profile 相同的 candidate input。
 
 这样就能实现：用户上传 5,000 到 50,000 个内部候选人后，给一个 JD，系统在几十秒内返回最相关的一批 profile，并解释为什么匹配或不匹配。
+
+但验收时不能只测内部数据模式。必须同时测冷启动外部 sourcing，否则产品会被误导成“上传简历后帮你排序”的工具。
 
 ### 内部导入的坑
 
@@ -755,7 +791,7 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 
 ### 预算分配器
 
-目标系统应该有统一 `SearchBudgetAllocator`，不能让各 provider 自己决定花多少钱。
+目标系统应该有统一 `SearchBudgetAllocator`，不能让各 provider 自己决定花多少钱。这个分配器属于产品策略层，不应绑定某个当前 API route 或旧任务状态。
 
 预算分配顺序：
 
@@ -855,19 +891,21 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 5. **JD-aware Scoring**：基于当前 JD 的筛选、评分、风险解释和外联角度。
 6. **Cost and Quality Ledger**：按 provider、lane、search、profile 记录成本、质量、重复率和用户反馈。
 
-这六个模块里，最先要建的是 Profile Index 和 Internal Ingestion。没有本地 profile index，外部 sourcing 拉回来的数据也无法变成长期资产。
+这六个模块都服务同一个体验目标：让一个 JD 在冷启动和 warm index 两种状态下都能拿到可评估候选人。Profile Index 很关键，但它是资产沉淀层和检索基础设施，不是产品启动的唯一前置条件；External Discovery 必须从第一版就进入主链路。
 
 ## 实施路线
 
 实施路线不需要兼容当前未上线系统。每个阶段都可以选择重建 schema、API 和 UI，只要能让最终 JD-to-candidate 体验更清晰、更稳定、更可卖。现有实现最多作为参考样例，不作为验收标准。
 
-### Phase 0：定义目标数据模型
+### Phase 0：定义端到端体验和目标数据契约
 
-目标：先确定长期 profile index 的表结构、身份归并规则、检索文档和 embedding 策略。
+目标：先确定用户看到的 JD-to-candidate 流程、候选人交付形态、质量门槛和稳定数据契约，而不是先复刻当前实现。
 
 动作：
 
-- 设计 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_identities`、`hirelix_profile_experiences`、`hirelix_profile_evidence`、`hirelix_profile_embeddings`。
+- 定义 JD 输入后用户能看到的 brief、sourcing plan、候选人卡片、来源解释、扩展建议。
+- 定义 `CandidateLead`、`CanonicalProfile`、`ProfileSource`、`ProfileIdentity`、`ProfileEvidence`、`SearchCandidate`。
+- 设计长期 profile index 的第一版 schema，例如 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_identities`、`hirelix_profile_experiences`、`hirelix_profile_evidence`、`hirelix_profile_embeddings`。
 - 明确 identity merge 规则：LinkedIn URL、email、GitHub URL、姓名+公司、个人网站等的置信度。
 - 明确 `search_document` 的生成规则。
 - 明确 embedding kinds：profile summary、experience evidence、public evidence。
@@ -875,49 +913,51 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 
 验收标准：
 
-- 数据模型能同时表达内部私有 profile、外部公开 profile、未确认 lead、某次搜索 candidate。
+- 用户体验上能完整描述从 JD 到首批候选人交付的每一步。
+- 数据契约能同时表达内部私有 profile、外部公开 profile、未确认 lead、某次搜索 candidate。
 - 任意 profile 能追溯到所有来源和合并依据。
 - 能明确删除、拆分、刷新、降权的行为。
 
-### Phase 1：建设内部候选人索引 MVP
+### Phase 1：打通冷启动外部 sourcing 闭环
 
-目标：让用户已有 ATS、CSV、简历、LinkedIn URL 能直接被 JD 检索出来。
+目标：在本地索引为空的情况下，用户给一个 JD，系统也能通过外部 discovery 产生可评估候选人池。
 
 动作：
 
-- 增加 `pgvector`、`pg_trgm` 和全文检索相关 migration。
-- 实现 CSV/简历/LinkedIn URL 导入后的 profile normalizer。
-- 将导入数据写入 canonical profile index。
-- 实现 `internal_profile_retrieval`：结构化过滤 + `tsvector` + pgvector。
-- 将内部 profile 转成 scoring pipeline 可消费的 candidate input。
-- 在搜索结果中区分 `internal_match` 和 `external_sourced`。
+- 实现 JD parsing、sourcing lanes、provider-specific queries。
+- 第一批接入 Bright Dataset Filter、Serper/DataForSEO、Exa、Firecrawl 中至少两类：一个结构化 profile 来源，一个 URL/evidence discovery 来源。
+- 对每条 lane 做 50 到 200 条 probe，记录 returned、deduped、light-screen pass、cost、latency。
+- 只对高潜 leads 做结构化补全，并写入 canonical profile index。
+- 用 DeepSeek v4 flash 做 light screen、lane diagnosis、候选人短解释。
+- 交付首批 `ready to review` 候选人，同时展示 `needs evidence` 和 `external expansion recommended`。
 
 验收标准：
 
+- 对 10 个真实 JD，冷启动状态下能稳定产生可评估候选池。
+- 至少一部分 JD 能达到 3 到 5 个招聘者愿意联系的人。
+- 系统能解释每个候选人来自哪个 lane、为什么匹配、主要风险是什么。
+- 系统能解释某条 lane 为什么扩展、停止或失败。
+- 所有外部支出都进入 cost and quality ledger。
+
+### Phase 2：建设 profile index 和内部数据增强
+
+目标：把 Phase 1 拉回来的外部 profile 和用户上传的内部数据沉淀成可复用索引，让下一次搜索更快、更便宜、更准。
+
+动作：
+
+- 建设 Postgres `pgvector`、`pg_trgm`、全文检索和 source/evidence 表。
+- 实现 profile normalizer、identity resolver、source freshness 和可回滚合并。
+- 支持 ATS、CSV、简历、LinkedIn URL 导入。
+- 将外部 sourced profile 和内部 profile 写入同一个 canonical profile index，但保留 visibility scope。
+- 实现 hybrid retrieval：结构化过滤 + 全文 + 向量 + evidence retrieval。
+
+验收标准：
+
+- Phase 1 外部发现的 profile 能被下一次相似 JD 本地命中。
 - 导入 5,000 到 50,000 条内部 profile 后，可以在几十秒内完成 JD 检索和初筛。
 - 同一候选人重复导入不会生成多个 canonical profile。
+- 内部私有数据不会进入全局公共候选池。
 - top 20 能给出可解释匹配理由和风险。
-- 明确返回“内部库无足够候选人”而不是伪造结果。
-
-### Phase 2：接入外部发现层 provider
-
-目标：把候选发现从内部 rediscovery 扩展为多源 lead generation。
-
-动作：
-
-- 新增 `DiscoveryProvider` 抽象。
-- 第一批接入 Bright、Serper/DataForSEO、Exa、Firecrawl。
-- 输出统一 `CandidateLead`：name、profile_url、source_url、source_type、snippet、confidence、lane。
-- 只对高潜 leads 做结构化补全。
-- 将外部补全结果写入 canonical profile index，而不是只服务当次搜索。
-- 每个 provider 都有预算上限和失败降级。
-
-验收标准：
-
-- 每个 provider 的调用都有成本、延迟、返回数、入库数、重复数、质量统计。
-- 低质量 lane 会自动停止，不会继续烧预算。
-- 外部发现的 profile 能被下一次相似 JD 本地命中。
-- provider 故障时不会阻塞已有内部检索和评分。
 
 ### Phase 3：多源统一检索和评分
 
@@ -925,8 +965,8 @@ LLM 预算要和外部数据预算分开看。外部数据预算决定“能不�
 
 动作：
 
-- 搜索开始先跑本地 hybrid retrieval。
-- 覆盖不足时按 sourcing lanes 调外部 provider。
+- 搜索开始编排已有资产 retrieval 和外部 sourcing lanes，冷启动时外部 discovery 直接进入主链路。
+- 已有资产覆盖不足时按 sourcing lanes 调外部 provider；覆盖足够时减少或跳过外部调用。
 - 外部结果补全后立即写入本地 index。
 - 合并内部和外部候选池后统一 LLM scoring。
 - 对每个候选人标记来源：internal、external、mixed。
@@ -1005,10 +1045,10 @@ Benchmark 必须避免数据泄漏：
 Hirelix 的可行路线不是买一个完整人才库，也不是放弃外部 sourcing，而是：
 
 1. JD 先转成 headhunter sourcing thesis。
-2. 先查本地候选人索引。
-3. 不足时按 sourcing lanes 小额调用多源发现。
+2. 同时评估已有资产覆盖和冷启动外部 discovery 需求。
+3. 按 sourcing lanes 小额调用多源发现，不能依赖单一 Bright filter。
 4. 只补全高潜 leads。
-5. 所有结果入库、去重、向量化、复用。
+5. 所有结果入库、去重、向量化、复用，让 cold start 逐步变成 warm index。
 6. 用 JD-aware LLM scoring 判断候选人，不用关键词 patch。
 7. 用 lane-level 质量和成本指标决定是否继续扩展。
 
