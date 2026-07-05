@@ -26,8 +26,11 @@
 - `S4-2` 已完成基础版：lane diagnosis 可按 lane 解释 query、provider、预算和覆盖问题。
 - `S4-4` 已完成基础版：LLM 本地 cache 写入 `runs/sourcing/.llm-cache`，重复 dry-run 可命中缓存。
 - `S4-5` 已完成基础版：light screen 后导出 `review-samples.csv` 供人工校准。
+- `S5-1` 已完成基础版：2 个 JD live smoke 已跑通，报告记录在 `docs/architecture/jd-sourcing-smoke-report.md`。
+- `S5-2` 已完成 runner 基础版：`scripts/sourcing/run-benchmark.ts` 可批量解析 `benchmark-jds.md` 并执行 cold benchmark；10 JD dry benchmark 已通过，完整 10 JD live benchmark 尚未执行。
+- `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv`，当前包含 provider 成本、成功/错误、返回数和平均延迟。
 
-尚未完成：2 个 JD smoke 报告、10 个 JD benchmark runner、warm index 对比、provider value table 和最终 benchmark 决策报告。
+尚未完成：完整 10 个 JD live benchmark、warm index 对比、reviewable/contact-worthy 成本细分和最终 benchmark 决策报告。
 
 ## 执行边界
 

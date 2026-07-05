@@ -11,6 +11,7 @@
     "scheduler:dev": "dotenv -e .env.local -- tsx --tsconfig scheduler/tsconfig.json scheduler/index.ts",
     "test:unit": "tsx --test tests/*.test.ts",
     "sourcing:typecheck": "tsc --project scripts/sourcing/tsconfig.json",
+    "sourcing:benchmark": "tsx scripts/sourcing/run-benchmark.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
