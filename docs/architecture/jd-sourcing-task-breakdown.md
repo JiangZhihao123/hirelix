@@ -30,7 +30,7 @@
 - `S5-2` 已完成：`scripts/sourcing/run-benchmark.ts` 可批量解析 `benchmark-jds.md` 并执行 cold/live benchmark；10 JD dry benchmark 和 10 JD live benchmark 均已通过。
 - `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。当前只证明 LLM cache，不等于 profile/provider index。
 - `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本。
-- `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 2 JD smoke 的结论是“不能决策”，必须等 10 JD live benchmark。
+- `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
 
 尚未完成：yes/maybe 人工抽样校准、基于人工确认结果更新 contact-worthy 成本、Bright 极小 probe 对照。
 
