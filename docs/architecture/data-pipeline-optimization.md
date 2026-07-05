@@ -25,6 +25,51 @@ Hirelix 的核心不是把另一个招聘 SaaS 包一层，也不是只做简历
 
 Bright 仍然可以用，但它的角色必须明确：Bright 是低成本结构化 profile 原料和 LinkedIn URL 补全工具，不是 JD 语义召回大脑。召回策略、语义理解、排序、成本控制和长期索引必须由 Hirelix 自己掌握。
 
+## 必须先钉死的系统边界
+
+这套方案最容易返工的地方，不是向量库或供应商选择，而是系统边界没有提前定义。目标架构必须先固定以下约束：
+
+1. **内部数据和外部数据分开管理**
+   - 用户 ATS、CSV、简历、recruiter notes 属于租户私有数据，默认只能服务该租户。
+   - 外部公开来源沉淀的 profile 可以进入 Hirelix 公共候选人索引，但必须保留来源、抓取时间、刷新时间和可用范围。
+   - 内部数据不能因为参与过一次搜索就被提升为全局共享资产。
+
+2. **Lead、Profile、Candidate 三层概念分开**
+   - `CandidateLead`：还没有确认身份的线索，例如 LinkedIn URL、姓名+公司、GitHub URL、team page 上的人名。
+   - `CanonicalProfile`：经过身份归并后的长期候选人档案。
+   - `SearchCandidate`：某个 profile 在某个 JD 下形成的候选结果和评分。
+   - 不能把一次 search 的 candidate 当成长期 profile，也不能把未确认 lead 直接当 profile。
+
+3. **召回够不够必须有门槛**
+   - 不能只看返回数量。
+   - “覆盖足够”至少要同时满足去重数量、profile 完整度、role-family 匹配率、top-k 质量、来源新鲜度和预算上限。
+   - 不满足门槛时才允许外部扩展；满足门槛时应先评分交付。
+
+4. **评分永远是 JD-specific**
+   - 不存在全局“好候选人”标签。
+   - 历史行为可以作为参考信号，但必须按 role family、seniority、domain、location 等上下文使用。
+   - 同一个 profile 可以对一个 JD advance，对另一个 JD reject。
+
+5. **每一次外部调用都要可审计**
+   - 记录 provider、query、lane、budget、returned、inserted、deduped、scored、contact-worthy。
+   - 记录失败、超时、空召回和低质量召回。
+   - 没有成本和质量账本，就无法判断某个来源是否值得继续用。
+
+## 核心数据契约
+
+为了避免后续模块反复返工，目标系统需要先定义稳定的数据契约：
+
+| 对象 | 含义 | 关键字段 |
+| --- | --- | --- |
+| `CandidateLead` | 发现层产生的候选线索，身份可能未确认 | source_type、source_url、name、company、title、snippet、lane、confidence、raw_payload |
+| `CanonicalProfile` | 长期候选人主档案 | profile_id、tenant_scope、visibility_scope、name、current_title、current_company、location、skills、summary、freshness、completeness |
+| `ProfileSource` | 某个 profile 的来源记录 | profile_id、provider、source_type、source_url、raw_data、fetched_at、source_confidence、cost_estimate、rights_scope |
+| `ProfileIdentity` | 身份归并依据 | profile_id、identity_type、identity_value、confidence、verified_at |
+| `ProfileEvidence` | 公开或内部证据 | profile_id、source_url、evidence_type、summary、identity_confidence、relevance_tags、created_at |
+| `SearchCandidate` | 某个 JD 下的候选结果 | search_id、profile_id、source_mix、retrieval_scores、llm_score、decision、reasons、risks |
+
+这些对象要比数据库表更稳定。表结构可以演进，但模块之间传递的数据对象不能频繁变。
+
 ## 端到端流程
 
 ```mermaid
@@ -123,15 +168,56 @@ flowchart TD
 
 | 表 | 作用 | 关键字段 |
 | --- | --- | --- |
-| `hirelix_profiles` | canonical candidate profile | name、current_title、current_company、location、country、seniority、canonical_profile_url、profile_summary、skills、experience_years、last_seen_at、updated_at |
-| `hirelix_profile_sources` | 每个 profile 的来源记录 | profile_id、source_type、source_url、provider、raw_data、source_confidence、fetched_at、cost_estimate |
+| `hirelix_profiles` | canonical candidate profile | tenant_scope、visibility_scope、name、current_title、current_company、location、country、seniority、canonical_profile_url、profile_summary、skills、experience_years、freshness_score、completeness_score、last_seen_at、updated_at、deleted_at |
+| `hirelix_profile_sources` | 每个 profile 的来源记录 | profile_id、source_type、source_url、provider、raw_data、source_confidence、rights_scope、pii_level、fetched_at、cost_estimate |
 | `hirelix_profile_identities` | 跨来源身份归并 | profile_id、identity_type、identity_value、confidence，例如 linkedin_url、linkedin_id、email、github_url、personal_site |
 | `hirelix_profile_experiences` | 结构化履历 | profile_id、company、title、start_date、end_date、description、normalized_company、normalized_title |
 | `hirelix_profile_evidence` | 公开证据 | profile_id、source_type、source_url、summary、evidence_strength、relevance_tags、identity_confidence |
 | `hirelix_profile_embeddings` | 向量索引 | profile_id、embedding_kind、embedding、model、text_hash、updated_at |
 | `hirelix_profile_search_stats` | 质量反馈 | profile_id、search_id、lane、score、decision、user_action、created_at |
+| `hirelix_search_source_runs` | 每次 provider/lane 调用账本 | search_id、provider、lane、query_hash、budget_limit、requested、returned、inserted、duplicates、cost_estimate、latency_ms、status |
 
 这些表里最关键的是 `hirelix_profiles` 和 `hirelix_profile_sources`。前者是“这个人是谁”，后者是“我们为什么认为这些信息可靠，来自哪里，花了多少钱，什么时候更新过”。
+
+### 租户隔离和可见性
+
+索引必须从第一天支持可见性范围，否则内部数据和外部数据会混在一起，后面很难拆。
+
+| 范围 | 含义 | 使用规则 |
+| --- | --- | --- |
+| `tenant_private` | 客户内部 ATS、CSV、简历、notes | 只能该租户检索和评分，不能进入全局池 |
+| `workspace_shared` | 同一团队/工作区共享候选人 | 只在该团队内复用 |
+| `global_public` | 外部公开来源 profile | 可进入 Hirelix 公共索引，但必须保留来源和刷新状态 |
+| `restricted` | 来源或字段存在限制 | 只允许审计、补全或特定流程使用 |
+
+PII 字段要单独标记，例如 email、phone、私人地址。候选人 profile 可以进入检索索引，不代表所有联系方式都可以进入默认展示或全局复用。
+
+### 身份归并规则
+
+身份合并是本地索引最大的工程坑之一。错误合并会比漏合并更严重，因为它会污染候选人档案和评分结果。
+
+归并策略：
+
+1. **强身份直接合并**
+   - 同一 LinkedIn URL / LinkedIn ID。
+   - 同一 verified email。
+   - 同一 GitHub URL 且 profile 与姓名/公司/个人网站互相印证。
+
+2. **弱身份只进入候选 cluster**
+   - 姓名 + 当前公司。
+   - 姓名 + title + location。
+   - 个人网站与社交链接互相引用但姓名不完全一致。
+
+3. **禁止自动合并**
+   - 仅凭姓名。
+   - 仅凭姓名 + 模糊公司名。
+   - 仅凭 LLM 判断“看起来像同一个人”。
+
+4. **合并必须可回滚**
+   - 保留 source records。
+   - 保留 identity evidence。
+   - 支持拆分 profile。
+   - 搜索评分使用 merge 后 profile，但审计时能追溯到原始来源。
 
 ### 索引技术选择
 
@@ -165,6 +251,55 @@ flowchart TD
    - 旧数据不能直接删除，但要降权或触发刷新。
 
 这不是“向量搜索替代数据库”。正确做法是 hybrid retrieval：结构化过滤 + 全文检索 + 向量召回 + LLM rerank。
+
+### Hybrid retrieval 的目标算法
+
+JD 进来后，本地检索不应该只跑一个 query。目标算法应按多路召回合并：
+
+1. **Hard filter**
+   - 租户范围、可见性、删除状态、基础地点、工作模式、明显 seniority。
+   - 只处理确定性约束；技能和 title 不应该全部硬 AND。
+
+2. **Lexical retrieval**
+   - title variants、company terms、domain terms、must-have terms 走 `tsvector` / trigram。
+   - 解决“profile 明确写了这个词”的候选人。
+
+3. **Semantic retrieval**
+   - `role_mission`、`same_work_proof`、`equivalent_evidence` 生成 query embedding。
+   - 解决 title 不完全一致但工作内容相似的人。
+
+4. **Evidence retrieval**
+   - 针对 GitHub、论文、博客、专利、个人网站 evidence 单独召回。
+   - 只作为候选补强或 hidden-gem 来源，不直接替代主 profile。
+
+5. **Merge and dedupe**
+   - 每路取 top 100 到 300。
+   - 合并后按 profile_id 去重。
+   - 保留每一路的命中原因，供 LLM 判断和 UI 解释。
+
+6. **Pre-rank**
+   - 用结构化分、全文分、向量分、证据分、freshness、source confidence、completeness 合成初筛分。
+   - DeepSeek v4 flash 和缓存命中后，LLM 轻筛可以更积极，默认送入 top 100 到 300；高价值搜索可以扩大到 500。
+   - 深度评分仍应聚焦 top 30 到 80，因为深评不只是 token 成本，还涉及延迟、解释质量和 UI 可读性。
+
+这个分层很重要。不是因为 LLM 一定贵，而是因为 LLM 不能替代召回和索引：如果检索没有把人召回来，LLM 看不到；如果候选池过大，主要问题会变成延迟、上下文压缩、重复 profile、脏数据和解释质量。
+
+### 覆盖是否足够的判定
+
+端到端流程里的“覆盖是否足够”必须是一个质量门，而不是人工感觉。
+
+建议默认门槛：
+
+| 维度 | 早期建议门槛 |
+| --- | --- |
+| 去重 profile 数 | 至少 80 到 150 个可评估 profile |
+| 完整度 | 至少 60% profile 有 current title、company、location、experience summary |
+| role-family 初筛通过率 | top 100 中至少 35% 通过轻筛 |
+| contact-worthy 预估 | top 30 中至少 5 个可能值得联系 |
+| 来源新鲜度 | top 50 中过期或低置信来源不超过 40% |
+| 外部预算 | 没超过当前 plan/search 的预算上限 |
+
+如果本地检索达不到这些门槛，再进入外部扩展。外部扩展也不是一次性全开，而是按 lane 小额 probe，只有 probe 结果质量足够时才扩大。
 
 ## 纯内部数据场景：JD 如何直接拿到 Profile
 
@@ -256,6 +391,29 @@ MVP 不需要一开始做复杂人才图谱。可以分三步：
 
 这样就能实现：用户上传 5,000 到 50,000 个内部候选人后，给一个 JD，系统在几十秒内返回最相关的一批 profile，并解释为什么匹配或不匹配。
 
+### 内部导入的坑
+
+内部数据不是天然干净的数据源。ATS、CSV 和简历库通常会有大量重复、过期、字段缺失和历史状态噪声。
+
+必须处理这些问题：
+
+- **重复候选人**：同一个人在多个 ATS 导出、CSV、简历版本和 LinkedIn URL 中重复出现。
+- **过期履历**：内部简历可能停留在几年前，需要通过 source freshness 降权。
+- **字段缺失**：很多简历没有标准 skills、location、current company，需要 normalizer 补齐。
+- **历史状态污染**：某个候选人曾被某客户拒绝，不代表对另一个 JD 不合适。
+- **租户私有备注**：recruiter notes 只能在该租户内使用，不能进入全局 profile。
+- **联系方式治理**：email/phone 等 PII 不能因为检索命中就默认展示或跨租户复用。
+
+因此内部 ingestion 必须是幂等、可重跑、可回滚的 pipeline：
+
+1. 原始文件入库，计算 file hash。
+2. 每条记录计算 source record hash。
+3. normalize 成 `CandidateLead`。
+4. identity resolution 归并到 `CanonicalProfile`。
+5. 生成 `search_document` 和 embeddings。
+6. 写入 source、identity、evidence、embedding、audit logs。
+7. 支持删除、重导入和字段刷新。
+
 ## 第 3 步：生成 sourcing lanes
 
 不能让 Bright 或 Google 承担 JD 理解。Hirelix 应该把一个 JD 拆成 4 到 8 条 sourcing lanes，每条 lane 都有独立目标、预算、放宽规则和停止条件。
@@ -313,6 +471,15 @@ Bright Filter API 适合结构化拉取 LinkedIn profile 数据。目标系统�
 - Bright record 到 canonical profile index 的写入。
 
 设计重点是：Bright 结果不应该只服务当前 search job，而应该进入长期候选人索引。
+
+Bright 的使用必须遵守 probe-then-expand：
+
+1. 每条 lane 先小额 probe，例如 50 到 200 条。
+2. 轻筛判断返回 profile 的 role-family 匹配率、重复率、完整度和来源新鲜度。
+3. 只有质量达标的 lane 才扩大到 300 到 1,000 条。
+4. 低质量、重复率高或漂移的 lane 立即停止。
+
+这样可以避免两个极端：严格过滤导致 0 召回，宽泛过滤导致花钱买噪声。
 
 ### SERP / X-ray 搜索
 
@@ -405,6 +572,41 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 
 候选人质量不能靠硬编码 title/company/keyword patch 来修。确定候选人是否 advance，应该放在 prompt、schema、rubric、eval fixtures 和 scorer 中。
 
+评分也必须分层：
+
+| 阶段 | 输入规模 | 目标 | 方法 |
+| --- | ---: | --- | --- |
+| Pre-rank | 300 到 2,000 | 降低候选池规模 | 结构化分、全文分、向量分、freshness、source confidence |
+| Light screen | 100 到 300，必要时 500 | 排除明显不相关 | DeepSeek v4 flash + 缓存 + 短上下文判断 |
+| Deep score | 30 到 80 | 形成可交付解释 | JD-aware judge、risk flags、outreach angles |
+| Human QA / eval | 抽样或 beta 阶段 | 校准质量 | 人工检查 top 20 和 rejected samples |
+
+不要让 LLM 做全库搜索，但也不要过度节省 LLM。LLM 的作用是在检索后的候选池里做判断、解释、排序、lane 诊断和 profile 标准化。
+
+### LLM 使用策略
+
+默认模型按 DeepSeek v4 flash 设计，并假设 profile、JD 解析、rubric 和 light-screen prompt 有较高缓存命中率。这个前提下，LLM 不应被当成稀缺资源，而应作为质量层积极使用。
+
+适合大量使用 LLM 的环节：
+
+- JD 解析：生成 `hiring_brief`、`headhunter_brief`、`sourcing_plan`、`advancement_rubric`。
+- Query/lane 生成：把 JD 转成多条 sourcing lanes 和 provider-specific queries。
+- Profile normalization：把简历、CSV、Bright record、公开网页整理成 canonical profile。
+- Light screen：对 top 100 到 300 候选人做快速 JD-aware 判断。
+- Lane diagnosis：判断某条 lane 是太窄、太宽、漂移、重复还是质量不足。
+- Explanation：为 top candidates 生成短理由、风险和 outreach angle。
+
+不适合交给 LLM 的环节：
+
+- 全库扫描。
+- 身份强合并的唯一依据。
+- 预算控制。
+- 租户可见性判断。
+- PII 展示权限判断。
+- 数据源是否继续扩张的唯一依据。
+
+因此，LLM 成本不是当前最应该恐惧的点。真正的边界是：先用索引和 provider 把候选人召回来，再让 DeepSeek v4 flash 低成本、大批量地做判断和解释。
+
 ## 第 7 步：自适应扩展
 
 第一次召回后，要做 lane-level 诊断，而不是简单判断“候选人少”：
@@ -428,7 +630,7 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 
 ## 成本控制原则
 
-成本控制必须从产品设计开始，而不是等账单出来再补救。
+成本控制必须从产品设计开始，而不是等账单出来再补救。这里的“成本”主要指外部数据源成本和补全成本；LLM 成本在 DeepSeek v4 flash + 缓存前提下可以更积极使用，但仍然要记录延迟、调用量和缓存命中率。
 
 每次搜索都应记录：
 
@@ -442,6 +644,9 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 - `candidates_scored`
 - `contact_worthy_candidates`
 - `cost_per_contact_worthy_candidate`
+- `llm_calls_by_stage`
+- `llm_cache_hit_rate`
+- `llm_latency_ms_by_stage`
 
 建议的早期预算模型：
 
@@ -453,6 +658,33 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 | 内部 benchmark | 单 JD 明确预算上限 | 只为验证供应商效果，不混入常规产品成本 |
 
 Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额分 lane。SERP 查询通常便宜，但返回的是 URL，不是可评分 profile。URL 补全和第三方 LinkedIn API 要只用于高潜 leads。
+
+LLM 预算要和外部数据预算分开看。外部数据预算决定“能不能找到更多人”；LLM 预算主要决定“能不能更好地理解、筛选和解释已经找到的人”。不要因为 LLM 便宜就放松外部数据源质量，也不要因为外部数据贵就把召回问题推给 LLM。
+
+### 预算分配器
+
+目标系统应该有统一 `SearchBudgetAllocator`，不能让各 provider 自己决定花多少钱。
+
+预算分配顺序：
+
+1. **免费/沉没成本优先**
+   - 本地 profile index。
+   - 用户内部数据。
+   - 已有 source/evidence cache。
+
+2. **低成本发现**
+   - SERP / DataForSEO / Serper 小额 URL discovery。
+   - GitHub / OpenAlex / Semantic Scholar 等低成本证据源。
+
+3. **结构化 profile 拉取**
+   - Bright Dataset Filter 按 lane probe。
+   - 只扩大质量达标的 lane。
+
+4. **高成本补全**
+   - LinkedIn URL scraper、LinkdAPI、Apify actors。
+   - 只处理 top leads，不做全量补全。
+
+每个 search 都要有硬预算上限；每个 lane 也要有硬预算上限。超过预算时系统应该返回“当前预算下的最佳结果 + 是否建议继续扩展”，而不是静默继续花钱。
 
 ## 质量门禁
 
@@ -476,6 +708,17 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 
 如果这个指标不稳定，说明数据源和召回策略还没有真正解决。
 
+质量门禁必须同时看 accepted 和 rejected 样本。只看 top candidates 会掩盖召回过宽的问题；只看 rejected 又会误判系统没有价值。
+
+每次 beta 搜索至少抽查：
+
+- top 20 候选人。
+- light screen 通过但 deep score 未入选的 20 人。
+- 被 hard filter 或 light screen 拒绝的 20 人。
+- 每条 lane 的前 10 人。
+
+这样才能判断问题到底在数据源、检索、身份合并、评分 prompt，还是 JD 解析。
+
 ## 数据源角色表
 
 | 来源 | 角色 | 适合 | 不适合 | 早期优先级 |
@@ -492,6 +735,22 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 | USPTO / patents | 发明证据源 | 深科技、算法、芯片、系统方向 | 普通岗位 | 低 |
 | 用户 ATS/CSV/简历 | 内部候选人资产 | rediscovery、低成本评估 | 替代外部 sourcing | 高 |
 | 招聘 SaaS 竞品 | 不作为上游 | 竞品研究 | 作为供应商 | 排除 |
+
+## 关键风险和规避策略
+
+| 风险 | 会造成什么问题 | 规避策略 |
+| --- | --- | --- |
+| 内部数据和外部数据混用 | 客户数据泄露、信任崩盘 | 从第一天做 `tenant_scope` / `visibility_scope`，内部数据默认私有 |
+| 身份误合并 | profile 被污染，评分失真 | 强身份自动合并，弱身份只进 cluster，所有合并可回滚 |
+| 向量召回过度依赖 | 语义相似但岗位不匹配 | hybrid retrieval，结构化硬约束和 LLM judge 兜底 |
+| Bright lane 过宽 | 花钱买噪声 | probe-then-expand，低质量 lane 自动停止 |
+| Bright lane 过窄 | 0 召回 | 多 lane 小额探索，避免技能/title 全部 AND |
+| SERP 结果不可评分 | 只有 URL，没有 profile | SERP 只做 discovery，高潜 lead 才补全 |
+| LLM 深评过多候选人 | 延迟、上下文压缩和解释质量失控 | DeepSeek v4 flash 可扩大 light screen，但 deep score 仍分层 |
+| 历史用户行为污染 | 某 JD 的拒绝影响另一个 JD | 所有质量标签都按 JD / role family / context 存储 |
+| benchmark 数据泄漏 | 误判供应商或 warm index 效果 | cold/warm 分开测，provider 结果隔离，盲评 top candidates |
+| 数据过期 | 搜到的人已经换岗或信息失效 | freshness score、last_seen_at、source refresh、过期降权 |
+| PII 展示不当 | 合规和信任风险 | PII 单独标记，按权限展示，不随 profile 默认全局复用 |
 
 ## 目标建设模块
 
@@ -520,6 +779,12 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 明确 embedding kinds：profile summary、experience evidence、public evidence。
 - 明确 cost ledger 和 quality stats 的字段。
 
+验收标准：
+
+- 数据模型能同时表达内部私有 profile、外部公开 profile、未确认 lead、某次搜索 candidate。
+- 任意 profile 能追溯到所有来源和合并依据。
+- 能明确删除、拆分、刷新、降权的行为。
+
 ### Phase 1：建设内部候选人索引 MVP
 
 目标：让用户已有 ATS、CSV、简历、LinkedIn URL 能直接被 JD 检索出来。
@@ -532,6 +797,13 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 实现 `internal_profile_retrieval`：结构化过滤 + `tsvector` + pgvector。
 - 将内部 profile 转成 scoring pipeline 可消费的 candidate input。
 - 在搜索结果中区分 `internal_match` 和 `external_sourced`。
+
+验收标准：
+
+- 导入 5,000 到 50,000 条内部 profile 后，可以在几十秒内完成 JD 检索和初筛。
+- 同一候选人重复导入不会生成多个 canonical profile。
+- top 20 能给出可解释匹配理由和风险。
+- 明确返回“内部库无足够候选人”而不是伪造结果。
 
 ### Phase 2：接入外部发现层 provider
 
@@ -546,6 +818,13 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 将外部补全结果写入 canonical profile index，而不是只服务当次搜索。
 - 每个 provider 都有预算上限和失败降级。
 
+验收标准：
+
+- 每个 provider 的调用都有成本、延迟、返回数、入库数、重复数、质量统计。
+- 低质量 lane 会自动停止，不会继续烧预算。
+- 外部发现的 profile 能被下一次相似 JD 本地命中。
+- provider 故障时不会阻塞已有内部检索和评分。
+
 ### Phase 3：多源统一检索和评分
 
 目标：把内部 profile、外部 profile、公开证据放进同一个 JD-aware retrieval 和 scoring 流程。
@@ -558,6 +837,13 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 合并内部和外部候选池后统一 LLM scoring。
 - 对每个候选人标记来源：internal、external、mixed。
 
+验收标准：
+
+- 同一 JD 能同时展示 internal、external、mixed 候选人，并解释来源。
+- 系统能说明为什么触发或没有触发外部扩展。
+- 对 10 个真实 JD，稳定产生至少 3 到 5 个招聘者愿意联系的人。
+- 每个 contact-worthy candidate 的外部成本在目标预算内。
+
 ### Phase 4：自增长 market map
 
 目标：从单次搜索变成持续增长的人才图谱。
@@ -569,6 +855,13 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 记录哪些 source 对哪些岗位有效。
 - 让用户行为反哺排序：starred、contacted、replied、submitted、rejected。
 - 把数据源选择变成可学习策略，而不是固定规则。
+
+验收标准：
+
+- 相似 JD 的外部调用次数逐月下降。
+- warm index 搜索质量优于 cold index。
+- 能按 role family / location / company cluster 解释覆盖强弱。
+- source mix 能根据历史质量自动调整预算。
 
 ## 明确不做
 
@@ -585,11 +878,11 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 
 每个 JD 记录：
 
-- Bright-only 结果。
-- Bright + Serper 结果。
-- Bright + DataForSEO 结果。
-- Bright + Exa/Firecrawl 结果。
-- 本地缓存命中结果。
+- Internal-only 结果：只用用户内部数据或导入样本。
+- Bright-only 结果：只用 Bright lane。
+- SERP discovery + Bright URL/profile 补全结果。
+- Exa/Firecrawl public evidence discovery 结果。
+- Hybrid 结果：internal + Bright + SERP + evidence。
 
 每种组合比较：
 
@@ -600,6 +893,14 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 每个 contact-worthy candidate 成本。
 - 首批结果耗时。
 - 是否产生可复用本地资产。
+
+Benchmark 必须避免数据泄漏：
+
+- 每个 JD 先跑 cold index，再跑 warm index，分别记录效果。
+- 不允许前一个 provider 的结果污染后一个 provider 的独立评测。
+- 同一批 JD 使用相同预算上限。
+- 人工评审者不要知道候选人来自哪个 provider。
+- 记录失败样本，而不是只记录成功案例。
 
 如果在明确预算下，外部 sourcing 不能稳定产生 3 到 5 个招聘者愿意联系的人，那么产品必须转为混合定位：外部 sourcing + 用户自有候选池 + JD-aware 评估排序。反过来，如果 benchmark 能证明稳定产出，就继续强化外部 sourcing 和本地候选人索引。
 
