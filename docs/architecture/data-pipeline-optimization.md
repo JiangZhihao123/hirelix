@@ -79,6 +79,173 @@ JD 进来后，第一步不是搜索，而是形成结构化招聘意图。当�
 
 如果本地已经能返回足够的候选人，外部调用应该减少或跳过。
 
+## 本地索引如何建立
+
+本地索引不能直接等同于 `hirelix_candidates` 或 `hirelix_snapshot_profiles`。
+
+- `hirelix_candidates` 是某一次 search 的交付结果，天然绑定 JD，不适合作为长期人才库主表。
+- `hirelix_snapshot_profiles` 是 Bright snapshot 的原始缓存，适合重放和调试，但没有 canonical identity、跨来源去重、向量检索和长期质量信号。
+
+因此需要新增一层长期 profile index。早期技术方案应该优先用现有 PostgreSQL 17，而不是立刻引入外部向量数据库或搜索 SaaS。原因很简单：数据量早期不会大到必须拆出去，Postgres 能同时承载结构化过滤、JSONB、全文检索、pgvector、事务和成本账本，复杂度最低。
+
+推荐架构：
+
+```mermaid
+flowchart TD
+  A["Raw Sources: Bright / SERP / ATS / CSV / URL / GitHub"] --> B["Profile Normalizer"]
+  B --> C["Identity Resolver"]
+  C --> D["hirelix_profiles canonical profile"]
+  C --> E["hirelix_profile_sources source records"]
+  D --> F["Structured indexes"]
+  D --> G["Postgres full-text search"]
+  D --> H["pgvector embeddings"]
+  E --> I["Evidence and freshness signals"]
+  F --> J["Hybrid Retrieval"]
+  G --> J
+  H --> J
+  I --> J
+  J --> K["JD-aware LLM rerank"]
+```
+
+### 建议表结构
+
+核心不是建一张“大 JSON 表”，而是把候选人的稳定身份、来源记录、可检索文本和证据拆开。
+
+| 表 | 作用 | 关键字段 |
+| --- | --- | --- |
+| `hirelix_profiles` | canonical candidate profile | name、current_title、current_company、location、country、seniority、canonical_profile_url、profile_summary、skills、experience_years、last_seen_at、updated_at |
+| `hirelix_profile_sources` | 每个 profile 的来源记录 | profile_id、source_type、source_url、provider、raw_data、source_confidence、fetched_at、cost_estimate |
+| `hirelix_profile_identities` | 跨来源身份归并 | profile_id、identity_type、identity_value、confidence，例如 linkedin_url、linkedin_id、email、github_url、personal_site |
+| `hirelix_profile_experiences` | 结构化履历 | profile_id、company、title、start_date、end_date、description、normalized_company、normalized_title |
+| `hirelix_profile_evidence` | 公开证据 | profile_id、source_type、source_url、summary、evidence_strength、relevance_tags、identity_confidence |
+| `hirelix_profile_embeddings` | 向量索引 | profile_id、embedding_kind、embedding、model、text_hash、updated_at |
+| `hirelix_profile_search_stats` | 质量反馈 | profile_id、search_id、lane、score、decision、user_action、created_at |
+
+这些表里最关键的是 `hirelix_profiles` 和 `hirelix_profile_sources`。前者是“这个人是谁”，后者是“我们为什么认为这些信息可靠，来自哪里，花了多少钱，什么时候更新过”。
+
+### 索引技术选择
+
+早期推荐用 Postgres 做 hybrid retrieval：
+
+0. **数据库扩展**
+   - `pgvector`：profile embedding 检索。
+   - `pg_trgm`：姓名、公司、title 的模糊匹配和去重辅助。
+   - Postgres 内置全文检索：`tsvector` / `tsquery` / `ts_rank`。
+
+1. **结构化索引**
+   - B-tree：country、current_company、current_title、last_seen_at。
+   - GIN：skills array、JSONB metadata。
+   - trigram：姓名、公司、title 模糊匹配。
+
+2. **全文检索**
+   - 用 Postgres `tsvector` 建 `search_document`。
+   - 内容包括 headline、current title、experience titles、company names、skills、profile summary、evidence summary。
+   - 用 `ts_rank` 做关键词召回，解决 title/skill/company 的硬匹配。
+
+3. **向量检索**
+   - 用 `pgvector` 存 embedding。
+   - 至少三类 embedding：
+     - `profile_summary`：整个人的职业画像。
+     - `experience_evidence`：经历和项目证据。
+     - `public_evidence`：GitHub、论文、博客、专利等公开证据。
+   - 用 HNSW 或 ivfflat 索引，早期优先 HNSW，便于增量写入和查询。
+
+4. **质量和新鲜度排序**
+   - 不只看相似度，还要加 freshness、source confidence、profile completeness、historical recruiter action。
+   - 旧数据不能直接删除，但要降权或触发刷新。
+
+这不是“向量搜索替代数据库”。正确做法是 hybrid retrieval：结构化过滤 + 全文检索 + 向量召回 + LLM rerank。
+
+## 纯内部数据场景：JD 如何直接拿到 Profile
+
+如果完全不做外部召回，只使用客户已有 ATS、CSV、简历库、历史候选人、手动 LinkedIn URL，那么产品仍然可以成立，但定位会变成：
+
+> JD-aware candidate rediscovery and evaluation，而不是完整外部 sourcing。
+
+这个模式的流程是：
+
+```mermaid
+flowchart TD
+  A["客户内部数据导入"] --> B["解析和标准化 profile"]
+  B --> C["canonical identity 去重"]
+  C --> D["本地 profile index"]
+  E["新 JD"] --> F["JD 解析为 search intent"]
+  F --> G["结构化硬过滤"]
+  F --> H["全文召回"]
+  F --> I["向量召回"]
+  G --> J["候选池合并去重"]
+  H --> J
+  I --> J
+  J --> K["LLM 深度评分和解释"]
+  K --> L["交付可联系候选人"]
+```
+
+内部数据导入后，每个 profile 都要生成一个用于检索的标准文本，例如：
+
+```text
+Name: ...
+Current title: ...
+Current company: ...
+Location: ...
+Seniority: ...
+Skills: ...
+Experience:
+- Company / title / scope / projects / domain
+Evidence:
+- GitHub / publications / notes / recruiter tags
+```
+
+JD 来了以后，不是让 LLM 在全库里“看一遍”，而是先用检索拿候选池：
+
+1. **硬过滤**
+   - 地点、远程/onsite、当前或历史公司、明显 seniority、排除行业。
+   - 硬过滤只能用于确定性约束，不能把技能关键词全部 AND 起来。
+
+2. **全文召回**
+   - 用 JD 中的 title variants、core skills、domain terms、target companies 生成 tsquery。
+   - 适合找字面上写了相关 title/skill/company 的人。
+
+3. **向量召回**
+   - 用 `headhunter_brief.role_mission`、`same_work_proof`、`equivalent_evidence` 生成 query embedding。
+   - 适合找 title 不完全一样但工作本质相似的人。
+
+4. **多路合并**
+   - 每一路取 top 100 到 300。
+   - union 去重后得到 300 到 800 个候选人。
+   - 用轻量模型/规则做第一轮筛选，再用 judge 做深度评分。
+
+5. **LLM rerank**
+   - LLM 不负责全库搜索，只负责对检索后的候选池做 JD-aware 判断。
+   - 输出 advance/reject、原因、风险和外联角度。
+
+内部数据模式的关键优势是成本低、速度快、可控；关键弱点是覆盖完全取决于客户已有数据。如果客户库里没有这类人，再强的索引也找不到。产品上必须清楚显示：
+
+- `Internal matches found`
+- `External expansion recommended`
+- `No matching profiles in your current database`
+
+不能把“内部库无候选人”包装成模型能力不足。
+
+### 内部索引的最小可行版本
+
+MVP 不需要一开始做复杂人才图谱。可以分三步：
+
+1. **Profile ingestion**
+   - 支持 CSV、简历文本、LinkedIn URL、ATS export。
+   - 标准化成 canonical profile。
+   - 做基础去重。
+
+2. **Hybrid retrieval**
+   - Postgres structured filters。
+   - Postgres full-text search。
+   - pgvector embedding search。
+
+3. **JD-aware scoring**
+   - 复用现有 `headhunter_brief`、`advancement_rubric`、scoring pipeline。
+   - 把内部召回 profile 转成和 Bright profile 相同的 candidate input。
+
+这样就能实现：用户上传 5,000 到 50,000 个内部候选人后，给一个 JD，系统在几十秒内返回最相关的一批 profile，并解释为什么匹配或不匹配。
+
 ## 第 3 步：生成 sourcing lanes
 
 不能让 Bright 或 Google 承担 JD 理解。Hirelix 应该把一个 JD 拆成 4 到 8 条 sourcing lanes，每条 lane 都有独立目标、预算、放宽规则和停止条件。
@@ -333,6 +500,7 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 3. **缺 URL lead 到 profile 的分层补全策略**：现在 Bright recall 和 candidate research 更强，lead enrichment pipeline 还不完整。
 4. **缺供应商 benchmark**：需要用同一批真实 JD 比较不同 source mix 的成本和质量。
 5. **缺成本账本**：需要把外部调用成本统一落到 search、lane、provider、candidate 维度。
+6. **缺内部 profile hybrid index**：当前 schema 没有 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_embeddings`，也没有 `pgvector` / `tsvector` 检索链路。
 
 ## 实施路线
 
@@ -359,7 +527,20 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 只对高潜 leads 做结构化补全。
 - 每个 provider 都有预算上限和失败降级。
 
-### Phase 2：建设统一候选人索引
+### Phase 2：建设内部候选人索引 MVP
+
+目标：让用户已有 ATS、CSV、简历、LinkedIn URL 能直接被 JD 检索出来。
+
+动作：
+
+- 增加 `pgvector`、`pg_trgm` 和全文检索相关 migration。
+- 新增 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_identities`、`hirelix_profile_embeddings`。
+- 实现 CSV/简历/LinkedIn URL 导入后的 profile normalizer。
+- 实现 `internal_profile_retrieval`：结构化过滤 + `tsvector` + pgvector。
+- 将内部 profile 转成现有 scoring pipeline 可消费的 `CandidateRowInput`。
+- 在搜索结果中区分 `internal_match` 和 `external_sourced`。
+
+### Phase 3：建设统一候选人索引
 
 目标：让每次外部搜索都沉淀为本地可检索资产。
 
@@ -371,7 +552,7 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 - 支持本地 hybrid retrieval。
 - 让 JD 搜索先查本地，再决定是否外部扩展。
 
-### Phase 3：自增长 market map
+### Phase 4：自增长 market map
 
 目标：从单次搜索变成持续增长的人才图谱。
 
