@@ -933,6 +933,40 @@ provider_value =
 
 如果某个 provider 便宜但 `reviewable_profile_rate` 很低，它不能进入主链路；如果某个 provider 贵但能稳定产生高质量候选人，可以进入高价值搜索或付费扩展。
 
+### API key 和账号准备
+
+冷启动原型需要先把外部服务账号边界说清楚。原则是：文档可以记录“需要什么、谁负责、当前是否已配置”，但不要把真实 secret 写进文档或 Git。即使当前仓库是私人仓库，也应避免新增明文 token，防止未来推送、分享、日志或脚本复制时泄露。
+
+当前本地环境检查结果：
+
+| 服务 | 用途 | 环境变量 | 当前本机状态 | 首轮是否必需 | 获取方式 / 责任 |
+| --- | --- | --- | --- | --- | --- |
+| DeepSeek | JD parsing、lane generation、light screen、统一评审预评 | `DEEPSEEK_API_KEY` | `.env` 已配置 | 必需 | 已有，可直接用于原型；如生产部署再同步到对应环境 |
+| Bright Dataset Filter | LinkedIn structured profile 小额 probe | `BRIGHTDATA_API_TOKEN`、`BRIGHTDATA_DATASET_ID` | `.env` 已配置；`.env.local` 有 token | 可选但建议验证 | 已有；使用前先查余额和 dataset 权限，避免误触发大额任务 |
+| Serper | Google SERP / X-ray discovery | `SERPER_API_KEY` | `.env` 已配置 | 必需，首轮 SERP 优先 | 已有；原型优先使用免费/低成本额度 |
+| GitHub API | 技术证据、repo/user 信息补充 | `GITHUB_TOKEN` | `.env.local` 已配置 | 建议启用 | 已有；作为 evidence source，不作为主召回 |
+| Exa | 语义网页发现、hidden gem、公开证据 | `EXA_API_KEY` | 未发现 | 建议启用 | 需要注册或由用户提供；如果首轮不注册，可先用 Serper + Firecrawl 替代 |
+| Firecrawl | 已知 URL 页面抽取 | `FIRECRAWL_API_KEY` | 未发现 | 建议启用 | 需要注册或由用户提供；只抽取 top URLs |
+| DataForSEO | 批量 SERP 备选 | `DATAFORSEO_LOGIN`、`DATAFORSEO_PASSWORD` 或等价 API 凭据 | 未发现 | 非首轮必需 | 有最低充值时先不作为第一选择；Serper 不够再注册 |
+| Bright LinkedIn Scraper / URL enrichment | 高潜 LinkedIn URL 结构化补全 | 复用 Bright 或单独 enrichment provider key | 未单独确认 | 非首轮必需 | 首轮只补 top leads；如 Bright 当前权限不支持再决定替代 |
+| Hunter | 邮箱/contact enrichment | `HUNTER_API_KEY` | `.env` 已配置 | 非首轮必需 | 已有；首轮不建议做联系人补全，避免偏离 sourcing 验证 |
+| OpenRouter | DeepSeek fallback | `OPENROUTER_API_KEY` | `.env` 已配置 | 非首轮必需 | 已有；只作为 fallback |
+| OpenAlex / Semantic Scholar / USPTO | 学术/专利公开证据 | 通常可无 key 或低门槛 key | 未配置 | 非首轮必需 | 特殊 JD 再接入 |
+
+首轮推荐最小 key 组合：
+
+1. `DEEPSEEK_API_KEY`
+2. `SERPER_API_KEY`
+3. `BRIGHTDATA_API_TOKEN` + `BRIGHTDATA_DATASET_ID`
+4. `GITHUB_TOKEN`
+
+首轮如果要覆盖语义网页和页面抽取，再补：
+
+1. `EXA_API_KEY`
+2. `FIRECRAWL_API_KEY`
+
+如果预算严格卡在 `$50`，优先不要新开有最低充值的平台。DataForSEO 这类低单价但有 minimum payment 的服务，应等 Serper 免费/低成本额度不足时再启用。
+
 ## 关键风险和规避策略
 
 | 风险 | 会造成什么问题 | 规避策略 |
