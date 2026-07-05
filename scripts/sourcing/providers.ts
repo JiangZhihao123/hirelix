@@ -135,6 +135,7 @@ export async function serperSearch(params: {
   const key = readEnv("SERPER_API_KEY");
   if (!key) throw new Error("SERPER_API_KEY is missing");
 
+  const timeout = createTimeoutSignal(params.signal, 15000);
   const response = await fetch("https://google.serper.dev/search", {
     method: "POST",
     headers: {
@@ -145,8 +146,8 @@ export async function serperSearch(params: {
       q: params.query,
       num: params.num ?? 10,
     }),
-    signal: params.signal,
-  });
+    signal: timeout.signal,
+  }).finally(timeout.cleanup);
 
   if (!response.ok) {
     const text = await response.text();
@@ -200,6 +201,7 @@ export async function firecrawlExtractUrl(params: {
   const key = readEnv("FIRECRAWL_API_KEY");
   if (!key) throw new Error("FIRECRAWL_API_KEY is missing");
 
+  const timeout = createTimeoutSignal(params.signal, 30000);
   const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
     method: "POST",
     headers: {
@@ -211,8 +213,8 @@ export async function firecrawlExtractUrl(params: {
       formats: params.formats ?? ["markdown"],
       onlyMainContent: true,
     }),
-    signal: params.signal,
-  });
+    signal: timeout.signal,
+  }).finally(timeout.cleanup);
 
   if (!response.ok) {
     const text = await response.text();
@@ -230,6 +232,7 @@ export async function exaSearch(params: {
   const key = readEnv("EXA_API_KEY");
   if (!key) throw new Error("EXA_API_KEY is missing");
 
+  const timeout = createTimeoutSignal(params.signal, 15000);
   const response = await fetch("https://api.exa.ai/search", {
     method: "POST",
     headers: {
@@ -241,8 +244,8 @@ export async function exaSearch(params: {
       numResults: params.numResults ?? 10,
       useAutoprompt: true,
     }),
-    signal: params.signal,
-  });
+    signal: timeout.signal,
+  }).finally(timeout.cleanup);
 
   if (!response.ok) {
     const text = await response.text();
@@ -524,7 +527,11 @@ function classifyUrl(url: string): CandidateLead["source_type"] {
 }
 
 async function githubJson(url: string, init: RequestInit) {
-  const response = await fetch(url, init);
+  const timeout = createTimeoutSignal(init.signal || undefined, 15000);
+  const response = await fetch(url, {
+    ...init,
+    signal: timeout.signal,
+  }).finally(timeout.cleanup);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`GitHub API failed (${response.status}): ${text.slice(0, 300)}`);
@@ -628,6 +635,24 @@ function stableId(value: string) {
     hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
   }
   return Math.abs(hash).toString(36);
+}
+
+function createTimeoutSignal(parent: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`Request timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  if (parent) {
+    if (parent.aborted) {
+      controller.abort(parent.reason);
+    } else {
+      parent.addEventListener("abort", () => controller.abort(parent.reason), { once: true });
+    }
+  }
+  return {
+    signal: controller.signal,
+    cleanup: () => clearTimeout(timeout),
+  };
 }
 
 export function isProviderName(value: string): value is ProviderName {

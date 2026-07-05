@@ -34,6 +34,7 @@ type CliOptions = {
   skipScreen: boolean;
   noLlmCache: boolean;
   llmCacheDir: string | null;
+  perJdTimeoutMs: number;
 };
 
 type RunAggregate = {
@@ -98,6 +99,7 @@ function parseArgs(argv: string[]): CliOptions {
     skipScreen: false,
     noLlmCache: false,
     llmCacheDir: null,
+    perJdTimeoutMs: 180000,
   };
 
   for (const arg of argv) {
@@ -139,6 +141,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg.startsWith("--llm-cache-dir=")) {
       options.llmCacheDir = arg.slice("--llm-cache-dir=".length);
+      continue;
+    }
+    if (arg.startsWith("--per-jd-timeout-ms=")) {
+      options.perJdTimeoutMs = parsePositiveInt(arg.split("=")[1], options.perJdTimeoutMs);
       continue;
     }
     if (arg.startsWith("--ids=")) {
@@ -272,13 +278,14 @@ function runOneJd(params: {
     cwd: process.cwd(),
     encoding: "utf8",
     maxBuffer: 20 * 1024 * 1024,
+    timeout: params.options.perJdTimeoutMs,
   });
 
   const stdout = result.stdout || "";
   const stderr = result.stderr || "";
   const runDir = parseRunDir(stdout);
   if (result.status !== 0 || !runDir) {
-    return emptyAggregate(params.jd, runDir, stderr || stdout || `run-cold-start exited with ${result.status}`);
+    return emptyAggregate(params.jd, runDir, stderr || stdout || runErrorMessage(result.status, result.signal));
   }
 
   return aggregateRun(params.jd, runDir);
@@ -322,6 +329,11 @@ function selectJds(jds: BenchmarkJd[], options: CliOptions) {
 function parseRunDir(stdout: string) {
   const match = stdout.match(/(?:Dry|Live) run complete:\s*(.+)\s*$/m);
   return match?.[1]?.trim() || null;
+}
+
+function runErrorMessage(status: number | null, signal: NodeJS.Signals | null) {
+  if (signal) return `run-cold-start terminated by ${signal}`;
+  return `run-cold-start exited with ${status}`;
 }
 
 function aggregateRun(jd: BenchmarkJd, runDir: string): RunAggregate {

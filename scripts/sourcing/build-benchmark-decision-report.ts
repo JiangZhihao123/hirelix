@@ -8,6 +8,7 @@ type CliOptions = {
   minContactWorthyRate: number;
   maxCostPerContactWorthyUsd: number;
   maxProviderErrorRate: number;
+  manualReviewDone: boolean;
 };
 
 type BenchmarkSummary = {
@@ -61,6 +62,7 @@ function parseArgs(argv: string[]): CliOptions {
     minContactWorthyRate: 0.12,
     maxCostPerContactWorthyUsd: 5,
     maxProviderErrorRate: 0.2,
+    manualReviewDone: false,
   };
 
   for (const arg of argv) {
@@ -89,6 +91,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg.startsWith("--max-provider-error-rate=")) {
       options.maxProviderErrorRate = positiveNumber(arg.split("=")[1], options.maxProviderErrorRate);
+      continue;
+    }
+    if (arg === "--manual-review-done") {
+      options.manualReviewDone = true;
       continue;
     }
     throw new Error(`Unknown argument: ${arg}`);
@@ -121,6 +127,7 @@ function buildReport(params: {
   const metrics = buildMetrics(params.summary);
   const providerRows = buildProviderRows(params.summary);
   const decision = decide(metrics, params.options);
+  const dominantProvider = findDominantContactProvider(providerRows);
   const runRows = (params.summary.runs || []).map((run) => ({
     jd_id: run.jd_id,
     title: run.title || "",
@@ -144,6 +151,10 @@ function buildReport(params: {
     "",
     "核心理由：",
     ...decision.reasons.map((reason) => `- ${reason}`),
+    "",
+    "## 风险标记",
+    "",
+    ...buildRiskNotes({ metrics, providerRows, dominantProvider, options: params.options }).map((note) => `- ${note}`),
     "",
     "## Benchmark 输入",
     "",
@@ -213,6 +224,7 @@ function buildReport(params: {
     `- 最小 contact-worthy rate：${pct(params.options.minContactWorthyRate)}`,
     `- 最大 cost per contact-worthy：$${params.options.maxCostPerContactWorthyUsd.toFixed(2)}`,
     `- 最大 provider error rate：${pct(params.options.maxProviderErrorRate)}`,
+    `- 人工校准完成：${params.options.manualReviewDone ? "yes" : "no"}`,
   );
 
   return `${lines.join("\n")}\n`;
@@ -342,6 +354,23 @@ function decide(metrics: ReturnType<typeof buildMetrics>, options: CliOptions) {
     };
   }
 
+  if (!options.manualReviewDone) {
+    return {
+      verdict: "需要人工校准",
+      next_action: "先抽查 yes/maybe，再决定是否进入 UI 原型",
+      reasons: [
+        "10 JD live benchmark 已跑通，但 contact-worthy 仍是 LLM light screen 结果，不是人工确认结果。",
+        `LLM contact-worthy rate 为 ${pct(metrics.contact_worthy_rate)}，足够支持继续验证，但不能直接当作 PMF 证据。`,
+        `cost per LLM-contact-worthy 为 $${metrics.cost_per_contact_worthy_usd?.toFixed(4) || "N/A"}，说明成本压力暂时不是主瓶颈。`,
+      ],
+      tasks: [
+        "从 review-samples.csv 抽查每个 JD 的 yes 和 maybe，标注人工是否真的会联系。",
+        "重点检查 LinkedIn/Google snippet-only 候选是否被过度判 yes。",
+        "用人工确认后的 contact-worthy rate 重新生成报告，传入 --manual-review-done。",
+      ],
+    };
+  }
+
   if (
     metrics.contact_worthy_rate >= options.minContactWorthyRate &&
     metrics.cost_per_contact_worthy_usd != null &&
@@ -394,6 +423,51 @@ function decide(metrics: ReturnType<typeof buildMetrics>, options: CliOptions) {
       "如果 2 轮后仍没有稳定 contact-worthy 产出，停止做泛 sourcing，转窄场景或混合定位。",
     ],
   };
+}
+
+function findDominantContactProvider(providerRows: ReturnType<typeof buildProviderRows>) {
+  const total = providerRows.reduce((sum, row) => sum + row.contact_worthy, 0);
+  if (total <= 0) return null;
+  const sorted = [...providerRows].sort((a, b) => b.contact_worthy - a.contact_worthy);
+  const top = sorted[0];
+  if (!top) return null;
+  return {
+    provider: top.provider,
+    contact_worthy: top.contact_worthy,
+    share: top.contact_worthy / total,
+  };
+}
+
+function buildRiskNotes(params: {
+  metrics: ReturnType<typeof buildMetrics>;
+  providerRows: ReturnType<typeof buildProviderRows>;
+  dominantProvider: ReturnType<typeof findDominantContactProvider>;
+  options: CliOptions;
+}) {
+  const notes: string[] = [];
+  if (!params.options.manualReviewDone) {
+    notes.push("人工校准尚未完成；当前 yes/maybe 只能代表 LLM 评审，不代表真实猎头愿意联系。");
+  }
+  if (params.dominantProvider && params.dominantProvider.share >= 0.7) {
+    notes.push(
+      `${params.dominantProvider.provider} 贡献了 ${pct(params.dominantProvider.share)} 的 contact-worthy；数据源路线高度依赖单一 discovery 来源，需要人工确认它不是搜索摘要误判。`,
+    );
+  }
+  const exa = params.providerRows.find((row) => row.provider === "exa");
+  if (exa && exa.cards > 0 && exa.contact_worthy / exa.cards < 0.08) {
+    notes.push(`Exa contact-worthy rate 只有 ${pct(exa.contact_worthy / exa.cards)}，当前更像补充发现源，不像主数据源。`);
+  }
+  const firecrawl = params.providerRows.find((row) => row.provider === "firecrawl");
+  if (firecrawl && firecrawl.cost > 0 && firecrawl.contact_worthy === 0) {
+    notes.push("Firecrawl 当前只做补全文本，不直接归因 candidate；后续要判断它是否提升人工确认率，而不是只看 provider 表里的 0。");
+  }
+  if (params.metrics.contact_worthy_candidates === 0) {
+    notes.push("没有 contact-worthy 候选，当前路线不能进入产品化。");
+  }
+  if (notes.length === 0) {
+    notes.push("未发现硬性阻塞，但仍需保留按 JD/provider/lane 的复盘。");
+  }
+  return notes;
 }
 
 function readJson(filePath: string) {

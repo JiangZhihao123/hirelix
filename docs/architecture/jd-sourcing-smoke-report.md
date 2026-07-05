@@ -97,3 +97,17 @@ npm run sourcing:benchmark -- --dry-run --providers=serper,exa,firecrawl,github,
 | planned Bright probes | 14 |
 
 结论：10 个固定 JD 都能进入 benchmark runner；下一步才是低成本 live benchmark 和人工质量校准。
+
+## 10 JD Live Benchmark
+
+已完成一轮不启用 Bright 的 10 JD live benchmark：
+
+- Benchmark run：`runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc`
+- Providers：`serper,exa,firecrawl,github`
+- Bright：未启用
+- actual external cost：`$0.1450`
+- completed / error：10 / 0
+- candidate cards：168
+- LLM yes / maybe / no：50 / 53 / 65
+
+该结果说明低成本外部 discovery 技术链路可跑通，但不能直接证明产品路线成立。当前 contact-worthy 主要来自 Serper，且仍是 LLM 判断，下一步必须人工抽查 yes/maybe，确认搜索摘要没有被过度判为可联系候选人。

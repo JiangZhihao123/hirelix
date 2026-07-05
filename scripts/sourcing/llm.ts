@@ -61,6 +61,7 @@ export async function generateLocalDeepSeekJson<T>(params: {
   if (cached) return cached;
 
   const startedAt = Date.now();
+  const timeout = createTimeoutSignal(params.signal, 45000);
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -79,8 +80,8 @@ export async function generateLocalDeepSeekJson<T>(params: {
       temperature: params.temperature ?? 0,
       thinking: { type: "disabled" },
     }),
-    signal: params.signal,
-  });
+    signal: timeout.signal,
+  }).finally(timeout.cleanup);
 
   const raw = await response.json().catch(() => null) as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -96,11 +97,30 @@ export async function generateLocalDeepSeekJson<T>(params: {
 
   const rawText = raw?.choices?.[0]?.message?.content?.trim() || "";
   if (!rawText) throw new Error("DeepSeek returned an empty response");
+  const usage = normalizeUsage(raw?.usage);
+  let parsedData: T;
+  let finalRawText = rawText;
+  let finalUsage = usage;
+  try {
+    parsedData = JSON.parse(extractJsonText(rawText)) as T;
+  } catch (error) {
+    const repaired = await repairJsonText({
+      apiKey,
+      baseUrl,
+      model,
+      rawText,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      signal: params.signal,
+    });
+    finalRawText = repaired.rawText;
+    finalUsage = addUsage(usage, repaired.usage);
+    parsedData = JSON.parse(extractJsonText(repaired.rawText)) as T;
+  }
 
   const result: LocalLlmResult<T> = {
-    data: JSON.parse(extractJsonText(rawText)) as T,
-    rawText,
-    usage: normalizeUsage(raw?.usage),
+    data: parsedData,
+    rawText: finalRawText,
+    usage: finalUsage,
     latencyMs: Date.now() - startedAt,
     cacheHit: false,
   };
@@ -234,7 +254,7 @@ export async function lightScreenCandidatesWithLlm(params: {
       "Candidate cards:",
       JSON.stringify(params.cards, null, 2),
     ].join("\n"),
-    maxOutputTokens: 3200,
+    maxOutputTokens: 6000,
     cacheDir: params.cacheDir,
   });
 }
@@ -321,6 +341,82 @@ function normalizeUsage(usage: Record<string, unknown> | undefined): LocalLlmUsa
   };
 }
 
+async function repairJsonText(params: {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  rawText: string;
+  errorMessage: string;
+  signal?: AbortSignal;
+}) {
+  const timeout = createTimeoutSignal(params.signal, 45000);
+  const response = await fetch(`${params.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${params.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: params.model,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You repair malformed JSON for a recruiting sourcing pipeline.",
+            "Return valid JSON only. Do not include markdown.",
+            "Preserve the original schema and substantive values as much as possible.",
+          ].join("\n"),
+        },
+        {
+          role: "user",
+          content: [
+            "The JSON below failed to parse.",
+            `Parse error: ${params.errorMessage}`,
+            "Repair it into valid JSON.",
+            "",
+            params.rawText,
+          ].join("\n"),
+        },
+      ],
+      stream: false,
+      max_tokens: 6000,
+      response_format: { type: "json_object" },
+      temperature: 0,
+      thinking: { type: "disabled" },
+    }),
+    signal: timeout.signal,
+  }).finally(timeout.cleanup);
+
+  const raw = await response.json().catch(() => null) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    usage?: Record<string, unknown>;
+    error?: { message?: string };
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(
+      `DeepSeek JSON repair error ${response.status}: ${raw?.error?.message || response.statusText}`,
+    );
+  }
+
+  const rawText = raw?.choices?.[0]?.message?.content?.trim() || "";
+  if (!rawText) throw new Error("DeepSeek JSON repair returned an empty response");
+  return {
+    rawText,
+    usage: normalizeUsage(raw?.usage),
+  };
+}
+
+function addUsage(a: LocalLlmUsage, b: LocalLlmUsage): LocalLlmUsage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    totalTokens: a.totalTokens + b.totalTokens,
+    cachedInputTokens: a.cachedInputTokens + b.cachedInputTokens,
+    cacheMissInputTokens: a.cacheMissInputTokens + b.cacheMissInputTokens,
+  };
+}
+
 function numeric(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -353,4 +449,22 @@ function writeCachedResult<T>(
   if (!cacheDir) return;
   fs.mkdirSync(cacheDir, { recursive: true });
   fs.writeFileSync(path.join(cacheDir, `${cacheKey}.json`), `${JSON.stringify(result, null, 2)}\n`);
+}
+
+function createTimeoutSignal(parent: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error(`Request timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  if (parent) {
+    if (parent.aborted) {
+      controller.abort(parent.reason);
+    } else {
+      parent.addEventListener("abort", () => controller.abort(parent.reason), { once: true });
+    }
+  }
+  return {
+    signal: controller.signal,
+    cleanup: () => clearTimeout(timeout),
+  };
 }
