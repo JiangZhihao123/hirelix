@@ -16,6 +16,7 @@
     "sourcing:calibration-samples": "tsx scripts/sourcing/build-calibration-samples.ts",
     "sourcing:decision-report": "tsx scripts/sourcing/build-benchmark-decision-report.ts",
     "sourcing:bright-probe-plan": "tsx scripts/sourcing/build-bright-probe-plan.ts",
+    "sourcing:provider-value-report": "tsx scripts/sourcing/build-provider-value-report.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"

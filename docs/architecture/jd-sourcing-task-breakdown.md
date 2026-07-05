@@ -33,7 +33,7 @@
 - `S5-1` 已完成基础版：2 个 JD live smoke 已跑通，报告记录在 `docs/architecture/jd-sourcing-smoke-report.md`。
 - `S5-2` 已完成：`scripts/sourcing/run-benchmark.ts` 可批量解析 `benchmark-jds.md` 并执行 cold/live benchmark；10 JD dry benchmark 和 10 JD live benchmark 均已通过。
 - `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。tracked 报告见 `docs/architecture/jd-sourcing-warm-comparison.md`。当前只证明 LLM cache，不等于 profile/provider index。
-- `S5-4` 已完成基础版：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本。
+- `S5-4` 已完成：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本；tracked 归因报告见 `docs/architecture/jd-sourcing-provider-value-report.md`。
 - `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
 - Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
 
@@ -211,6 +211,16 @@
 - LLM latency：9256ms -> 0ms。
 - 外部 provider 成本：`$0` -> `$0`，候选卡片：0 -> 0。
 - 结论：当前证据只证明 LLM cache 对重复解析/筛选有用，不能证明 warm profile index 或 provider result cache 已经能降低外部 sourcing 成本，也不能证明本地索引能满足 JD。
+
+## Provider/Lane 价值归因
+
+- 脚本：`npm run sourcing:provider-value-report`
+- 产物：`docs/architecture/jd-sourcing-provider-value-report.md` 和 `docs/architecture/jd-sourcing-provider-value-report.json`
+- Serper：91 returned、83 cards、47 raw LLM contact-worthy，raw share 94.0%，说明当前发现层高度依赖 Google/X-ray。
+- Exa：85 cards、3 raw LLM contact-worthy，当前更像补充发现源，不像主 lane。
+- Firecrawl：花费 `$0.0400`，当前作为 extraction/evidence 层；价值要看是否把 `research_more` 升级成可判断，而不是独立候选归因。
+- GitHub：当前 2 个 provider error，直接候选归因为 0，应作为技术证据补充。
+- 校准覆盖：assistant_strict yes precision 26.9%，因此 provider raw yield 不能直接当作真实 outreach yield。
 
 关键风险：
 
