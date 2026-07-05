@@ -109,3 +109,27 @@ npm run sourcing:human-review-readiness -- --out-md=docs/architecture/jd-sourcin
 - Bright probe allowed：no
 
 只有报告里 `Bright probe allowed: yes` 时，才允许进入真实 Bright probe。默认要求全部 P0 行完成；`--allow-partial-p0` 只能用于局部检查，不能作为完整人工校准依据。
+
+## Bright Probe Runner
+
+dry-run 预检命令：
+
+```bash
+npm run sourcing:bright-probe -- --dry-run --out-md=docs/architecture/jd-sourcing-bright-probe-run-report.md --out-json=docs/architecture/jd-sourcing-bright-probe-run-report.json
+```
+
+当前 dry-run 结果：
+
+- Status：blocked
+- URL completion count：0
+- Dataset filter count：2
+- Estimated total cost：`$0.1250`
+- Block reason：P0 未完成、Bright gate 未完成、没有人审批准的 LinkedIn URL
+
+真实执行必须显式使用：
+
+```bash
+npm run sourcing:bright-probe -- --live --allow-paid --max-budget-usd=1
+```
+
+只有 readiness report 放行后才允许运行该命令。

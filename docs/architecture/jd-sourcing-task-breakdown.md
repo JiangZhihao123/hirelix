@@ -39,6 +39,7 @@
 - Human review merge 已完成：`scripts/sourcing/merge-human-review-queue.ts` 会把 `jd-sourcing-human-review-queue.csv` 中已填写的 `human_decision` 合并成 `docs/architecture/jd-sourcing-calibration-human-reviewed.csv`，供 benchmark 决策报告使用。
 - Human review readiness gate 已完成：`scripts/sourcing/check-human-review-readiness.ts` 会检查 P0 人审完成度和 Bright probe 开闸条件，产物见 `docs/architecture/jd-sourcing-human-review-readiness.md` 和 `.json`。
 - Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
+- Bright guarded runner 已完成 dry-run：`scripts/sourcing/run-bright-probe.ts` 会读取 Bright plan 和 readiness gate，默认 `--dry-run`，只有 readiness 通过、`--live --allow-paid` 且预算未超限时才允许真实调用 Bright。当前 dry-run 报告见 `docs/architecture/jd-sourcing-bright-probe-run-report.md`。
 
 尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、执行真实 Bright 极小 probe 对照。
 
@@ -252,6 +253,17 @@
 - 当前结论：`Bright probe allowed: no`。
 - 阻塞原因：P0 review incomplete、Bright gate review incomplete、没有人审批准的 Bright gate candidate。
 - 规则：只有 readiness 报告为 `Bright probe allowed: yes` 时，才允许执行真实 Bright probe。
+
+## Bright Guarded Runner
+
+- 脚本：`npm run sourcing:bright-probe`
+- 当前报告：`docs/architecture/jd-sourcing-bright-probe-run-report.md` 和 `docs/architecture/jd-sourcing-bright-probe-run-report.json`
+- 当前模式：dry-run。
+- 当前状态：blocked。
+- 当前计划：0 个 URL completion，2 个 Dataset Filter 对照，估算 `$0.1250`。
+- 当前阻塞：readiness 不通过、P0 未完成、Bright gate 未完成、没有人审批准的 LinkedIn URL。
+- 真实执行条件：必须同时满足 `Bright probe allowed: yes`、`--live`、`--allow-paid`、`--max-budget-usd` 未超限。
+- 注意：runner 就绪不等于 Bright 验证完成；当前没有触发任何真实 Bright 调用。
 
 关键风险：
 

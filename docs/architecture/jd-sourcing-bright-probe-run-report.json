@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-07-05T17:54:01.042Z",
+  "mode": "dry-run",
+  "status": "blocked",
+  "guardrails": {
+    "readiness_allowed": false,
+    "allow_paid": false,
+    "max_budget_usd": 1,
+    "estimated_total_cost_usd": 0.125,
+    "within_budget": true,
+    "include_url_completion": true,
+    "include_dataset_filter": true
+  },
+  "block_reasons": [
+    "P0 review incomplete: 0/15",
+    "Bright gate review incomplete: 0/8",
+    "No Bright gate candidates approved by human review",
+    "Human review readiness does not allow Bright probe",
+    "No approved LinkedIn URLs for Bright completion"
+  ],
+  "planned": {
+    "url_completion_count": 0,
+    "dataset_filter_count": 2,
+    "linkedin_urls": [],
+    "dataset_filters": [
+      {
+        "jd_id": "JD-01",
+        "jd_title": "普通技术岗：Backend Platform Engineer",
+        "lane_id": "lane-1",
+        "records_limit": 25,
+        "estimated_cost_usd": 0.0625,
+        "query": "site:linkedin.com/in \"Backend Platform Engineer\" (TypeScript OR Node.js) (PostgreSQL OR MySQL) (AWS OR GCP OR Kubernetes)",
+        "filter": {
+          "operator": "or",
+          "filters": [
+            {
+              "name": "position",
+              "operator": "includes",
+              "value": "backend platform engineer"
+            }
+          ]
+        }
+      },
+      {
+        "jd_id": "JD-08",
+        "jd_title": "Location 严格：Senior Backend Engineer, NYC Onsite",
+        "lane_id": "lane-1",
+        "records_limit": 25,
+        "estimated_cost_usd": 0.0625,
+        "query": "site:linkedin.com/in \"Senior Backend Engineer\" fintech NYC",
+        "filter": {
+          "operator": "and",
+          "filters": [
+            {
+              "operator": "or",
+              "filters": [
+                {
+                  "name": "position",
+                  "operator": "includes",
+                  "value": "senior backend engineer"
+                }
+              ]
+            },
+            {
+              "name": "country_code",
+              "operator": "=",
+              "value": "US"
+            },
+            {
+              "name": "location",
+              "operator": "includes",
+              "value": "New York"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

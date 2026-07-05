@@ -20,6 +20,7 @@
     "sourcing:human-review-queue": "tsx scripts/sourcing/build-human-review-queue.ts",
     "sourcing:merge-human-review": "tsx scripts/sourcing/merge-human-review-queue.ts",
     "sourcing:human-review-readiness": "tsx scripts/sourcing/check-human-review-readiness.ts",
+    "sourcing:bright-probe": "tsx scripts/sourcing/run-bright-probe.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
