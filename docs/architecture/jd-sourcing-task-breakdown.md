@@ -17,10 +17,17 @@
 - `S0-5` 已完成：`scripts/sourcing/check-provider-readiness.ts` 可只读检查 provider key，并可通过 `--network` 查询 Bright 余额。
 - `S1-1` 到 `S1-6` 已完成基础版：`scripts/sourcing/run-cold-start.ts` 支持 JD 输入、run directory、LLM parsing、lane generation、provider plan 和成本账本。
 - `S2-1` 已完成基础版：Serper discovery adapter 可执行 X-ray URL discovery，并把结果转成 `CandidateLead`。
-- `S3-1` 和 `S3-4` 已完成基础版：支持 URL lead 归一化、URL 去重和候选人卡片。
+- `S2-2` 已完成基础版：Exa semantic discovery adapter 可执行语义网页发现，并把结果转成 `CandidateLead`。
+- `S2-3` 已完成基础版：Firecrawl 作为 top URL extraction 层接入，只抽 discovery 后的非 LinkedIn top leads。
+- `S2-4` 已完成基础版：GitHub evidence adapter 可对 GitHub user/repo URL 拉取公开用户和 repo 证据，不作为主召回。
+- `S2-5` 已完成 adapter 基础版：Bright probe 可生成保守 Dataset Filter，并受 `brightBudgetUsd`、`brightRecordsLimit` 和 `--allow-paid` 保护；尚未在本轮触发真实 Bright snapshot。
+- `S3-1`、`S3-3`、`S3-4` 已完成基础版：支持 URL lead 归一化、URL 去重、Firecrawl evidence pack 和候选人卡片。
 - `S4-1` 已完成基础版：DeepSeek light screen 输出统一 `would_advance` rubric，并明确 snippet-only 证据不足时不能轻易给 `yes`。
+- `S4-2` 已完成基础版：lane diagnosis 可按 lane 解释 query、provider、预算和覆盖问题。
+- `S4-4` 已完成基础版：LLM 本地 cache 写入 `runs/sourcing/.llm-cache`，重复 dry-run 可命中缓存。
+- `S4-5` 已完成基础版：light screen 后导出 `review-samples.csv` 供人工校准。
 
-尚未完成：Exa/Firecrawl 正式编排、Bright probe adapter、GitHub evidence adapter、lane diagnosis、LLM cache、review CSV 导出、2 个 JD smoke 报告和 10 个 JD benchmark 报告。
+尚未完成：2 个 JD smoke 报告、10 个 JD benchmark runner、warm index 对比、provider value table 和最终 benchmark 决策报告。
 
 ## 执行边界
 

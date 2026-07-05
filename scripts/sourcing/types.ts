@@ -40,6 +40,12 @@ export type CostLedgerEntry = {
   metadata?: Record<string, unknown>;
 };
 
+export type ProviderOperation =
+  | "search"
+  | "semantic_search"
+  | "extract_url"
+  | "bright_filter_probe";
+
 export type ParsedSearchIntent = {
   role_family: string;
   target_title: string;
@@ -109,6 +115,23 @@ export type LightScreenDecision = {
   suggested_next_action: "contact" | "research_more" | "reject" | "expand_similar";
 };
 
+export type LaneDiagnosis = {
+  lane_id: string;
+  status: "expand" | "stop" | "revise_query" | "needs_more_evidence";
+  failure_reason:
+    | "none"
+    | "query_too_narrow"
+    | "query_too_broad"
+    | "provider_coverage"
+    | "budget_blocked"
+    | "location_too_strict"
+    | "jd_too_rare"
+    | "provider_error"
+    | "needs_enrichment";
+  reason: string;
+  recommended_change: string | null;
+};
+
 export type RunManifest = {
   run_id: string;
   created_at: string;
@@ -116,4 +139,5 @@ export type RunManifest = {
   jd_path: string;
   budget: SearchBudget;
   providers: ProviderName[];
+  options?: Record<string, unknown>;
 };

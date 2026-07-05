@@ -1,6 +1,11 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
 import { readEnv } from "./env";
 import type {
   CandidateCard,
+  LaneDiagnosis,
   LightScreenDecision,
   ParsedSearchIntent,
   SourcingLane,
@@ -19,6 +24,7 @@ export type LocalLlmResult<T> = {
   rawText: string;
   usage: LocalLlmUsage;
   latencyMs: number;
+  cacheHit: boolean;
 };
 
 export function getSourcingLlmModel() {
@@ -36,6 +42,7 @@ export async function generateLocalDeepSeekJson<T>(params: {
   prompt: string;
   maxOutputTokens?: number;
   temperature?: number;
+  cacheDir?: string | null;
   signal?: AbortSignal;
 }): Promise<LocalLlmResult<T>> {
   const apiKey = readEnv("DEEPSEEK_API_KEY");
@@ -43,6 +50,16 @@ export async function generateLocalDeepSeekJson<T>(params: {
 
   const baseUrl = (readEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com").replace(/\/$/, "");
   const model = getSourcingLlmModel();
+  const cacheKey = buildCacheKey({
+    model,
+    system: params.system,
+    prompt: params.prompt,
+    maxOutputTokens: params.maxOutputTokens ?? 1600,
+    temperature: params.temperature ?? 0,
+  });
+  const cached = readCachedResult<T>(params.cacheDir, cacheKey);
+  if (cached) return cached;
+
   const startedAt = Date.now();
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -80,15 +97,18 @@ export async function generateLocalDeepSeekJson<T>(params: {
   const rawText = raw?.choices?.[0]?.message?.content?.trim() || "";
   if (!rawText) throw new Error("DeepSeek returned an empty response");
 
-  return {
+  const result: LocalLlmResult<T> = {
     data: JSON.parse(extractJsonText(rawText)) as T,
     rawText,
     usage: normalizeUsage(raw?.usage),
     latencyMs: Date.now() - startedAt,
+    cacheHit: false,
   };
+  writeCachedResult(params.cacheDir, cacheKey, result);
+  return result;
 }
 
-export async function parseJdWithLlm(jdText: string) {
+export async function parseJdWithLlm(jdText: string, options: { cacheDir?: string | null } = {}) {
   return generateLocalDeepSeekJson<ParsedSearchIntent>({
     system: [
       "You are a strict recruiting sourcing strategist.",
@@ -114,12 +134,14 @@ export async function parseJdWithLlm(jdText: string) {
       jdText,
     ].join("\n"),
     maxOutputTokens: 1200,
+    cacheDir: options.cacheDir,
   });
 }
 
 export async function generateSourcingLanesWithLlm(params: {
   jdText: string;
   intent: ParsedSearchIntent;
+  cacheDir?: string | null;
 }) {
   return generateLocalDeepSeekJson<{ lanes: SourcingLane[] }>({
     system: [
@@ -158,6 +180,7 @@ export async function generateSourcingLanesWithLlm(params: {
       params.jdText,
     ].join("\n"),
     maxOutputTokens: 2600,
+    cacheDir: params.cacheDir,
   });
 }
 
@@ -165,6 +188,7 @@ export async function lightScreenCandidatesWithLlm(params: {
   jdText: string;
   intent: ParsedSearchIntent;
   cards: CandidateCard[];
+  cacheDir?: string | null;
 }) {
   return generateLocalDeepSeekJson<{ decisions: LightScreenDecision[] }>({
     system: [
@@ -211,6 +235,63 @@ export async function lightScreenCandidatesWithLlm(params: {
       JSON.stringify(params.cards, null, 2),
     ].join("\n"),
     maxOutputTokens: 3200,
+    cacheDir: params.cacheDir,
+  });
+}
+
+export async function diagnoseLanesWithLlm(params: {
+  jdText: string;
+  intent: ParsedSearchIntent;
+  lanes: SourcingLane[];
+  laneStats: Array<{
+    lane_id: string;
+    provider: string;
+    planned_queries: number;
+    success_count: number;
+    error_count: number;
+    returned_count: number;
+    lead_count: number;
+    sample_queries: string[];
+    sample_errors: string[];
+  }>;
+  cacheDir?: string | null;
+}) {
+  return generateLocalDeepSeekJson<{ diagnoses: LaneDiagnosis[] }>({
+    system: [
+      "You diagnose recruiting sourcing lanes.",
+      "Use provider stats and sample queries to decide whether each lane should expand, stop, revise query, or get more evidence.",
+      "Be direct. Do not hide data-source failures behind generic advice.",
+      "Return JSON only.",
+    ].join("\n"),
+    prompt: [
+      "Diagnose each lane for this JD sourcing run.",
+      "Use this exact shape:",
+      JSON.stringify({
+        diagnoses: [
+          {
+            lane_id: "string",
+            status: "expand | stop | revise_query | needs_more_evidence",
+            failure_reason: "none | query_too_narrow | query_too_broad | provider_coverage | budget_blocked | location_too_strict | jd_too_rare | provider_error | needs_enrichment",
+            reason: "string",
+            recommended_change: "string or null",
+          },
+        ],
+      }),
+      "",
+      "Intent:",
+      JSON.stringify(params.intent, null, 2),
+      "",
+      "Lanes:",
+      JSON.stringify(params.lanes, null, 2),
+      "",
+      "Lane stats:",
+      JSON.stringify(params.laneStats, null, 2),
+      "",
+      "JD:",
+      params.jdText,
+    ].join("\n"),
+    maxOutputTokens: 2200,
+    cacheDir: params.cacheDir,
   });
 }
 
@@ -242,4 +323,34 @@ function normalizeUsage(usage: Record<string, unknown> | undefined): LocalLlmUsa
 
 function numeric(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function buildCacheKey(value: unknown) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function readCachedResult<T>(cacheDir: string | null | undefined, cacheKey: string) {
+  if (!cacheDir) return null;
+  const filePath = path.join(cacheDir, `${cacheKey}.json`);
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as LocalLlmResult<T>;
+    return {
+      ...raw,
+      latencyMs: 0,
+      cacheHit: true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedResult<T>(
+  cacheDir: string | null | undefined,
+  cacheKey: string,
+  result: LocalLlmResult<T>,
+) {
+  if (!cacheDir) return;
+  fs.mkdirSync(cacheDir, { recursive: true });
+  fs.writeFileSync(path.join(cacheDir, `${cacheKey}.json`), `${JSON.stringify(result, null, 2)}\n`);
 }

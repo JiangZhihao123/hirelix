@@ -23,14 +23,24 @@ import {
   writeText,
 } from "./io";
 import {
+  diagnoseLanesWithLlm,
   generateSourcingLanesWithLlm,
   lightScreenCandidatesWithLlm,
   parseJdWithLlm,
 } from "./llm";
 import { buildCandidateCards, dedupeLeadsByUrl } from "./normalize";
 import {
+  buildBrightProbeFilter,
+  exaSearch,
+  fetchGithubEvidence,
+  firecrawlExtractUrl,
   isProviderName,
+  mapBrightProfilesToLeads,
+  mapExaResultsToLeads,
+  mapFirecrawlExtractionToLead,
+  mapGithubEvidenceToLead,
   mapSerperResultsToLeads,
+  runBrightProbe,
   serperSearch,
 } from "./providers";
 import type {
@@ -53,7 +63,10 @@ type CliOptions = {
   providers: ProviderName[];
   maxQueriesPerProvider: number;
   maxResultsPerQuery: number;
+  maxFirecrawlUrls: number;
+  brightRecordsLimit: number;
   skipScreen: boolean;
+  noLlmCache: boolean;
 };
 
 function parseArgs(argv: string[]): CliOptions {
@@ -67,7 +80,10 @@ function parseArgs(argv: string[]): CliOptions {
     providers: ["serper"],
     maxQueriesPerProvider: 6,
     maxResultsPerQuery: 10,
+    maxFirecrawlUrls: 3,
+    brightRecordsLimit: 25,
     skipScreen: false,
+    noLlmCache: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -91,6 +107,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--skip-screen") {
       options.skipScreen = true;
+      continue;
+    }
+    if (arg === "--no-llm-cache") {
+      options.noLlmCache = true;
       continue;
     }
     if (arg.startsWith("--out-dir=")) {
@@ -124,6 +144,20 @@ function parseArgs(argv: string[]): CliOptions {
       options.maxResultsPerQuery = parsePositiveInt(
         arg.split("=")[1],
         options.maxResultsPerQuery,
+      );
+      continue;
+    }
+    if (arg.startsWith("--max-firecrawl-urls=")) {
+      options.maxFirecrawlUrls = parsePositiveInt(
+        arg.split("=")[1],
+        options.maxFirecrawlUrls,
+      );
+      continue;
+    }
+    if (arg.startsWith("--bright-records-limit=")) {
+      options.brightRecordsLimit = Math.min(
+        100,
+        parsePositiveInt(arg.split("=")[1], options.brightRecordsLimit),
       );
       continue;
     }
@@ -173,31 +207,46 @@ async function main() {
     jd_path: jdPath,
     budget,
     providers: options.providers,
+    options: {
+      maxQueriesPerProvider: options.maxQueriesPerProvider,
+      maxResultsPerQuery: options.maxResultsPerQuery,
+      maxFirecrawlUrls: options.maxFirecrawlUrls,
+      brightRecordsLimit: options.brightRecordsLimit,
+      llmCache: !options.noLlmCache,
+    },
   });
   writeText(path.join(runDir, "jd.txt"), jdText);
 
-  const parseResult = await parseJdWithLlm(jdText);
+  const cacheDir = options.noLlmCache ? null : path.resolve(options.outDir, ".llm-cache");
+  const parseResult = await parseJdWithLlm(jdText, { cacheDir });
   const intent = normalizeIntent(parseResult.data);
   writeJson(path.join(runDir, "parsed-intent.json"), {
     intent,
     usage: parseResult.usage,
     latency_ms: parseResult.latencyMs,
+    cache_hit: parseResult.cacheHit,
   });
 
-  const laneResult = await generateSourcingLanesWithLlm({ jdText, intent });
+  const laneResult = await generateSourcingLanesWithLlm({ jdText, intent, cacheDir });
   const lanes = normalizeLanes(laneResult.data.lanes, options.providers);
   writeJson(path.join(runDir, "sourcing-lanes.json"), {
     lanes,
     usage: laneResult.usage,
     latency_ms: laneResult.latencyMs,
+    cache_hit: laneResult.cacheHit,
   });
 
   const planned = planProviderCalls({
     runId,
     lanes,
+    intent,
+    mode: options.mode,
     budget,
+    providers: options.providers,
     maxQueriesPerProvider: options.maxQueriesPerProvider,
     maxResultsPerQuery: options.maxResultsPerQuery,
+    maxFirecrawlUrls: options.maxFirecrawlUrls,
+    brightRecordsLimit: options.brightRecordsLimit,
   });
   writeJson(path.join(runDir, "provider-plan.json"), planned);
   for (const entry of planned.ledger) appendLedger(runDir, entry);
@@ -213,15 +262,45 @@ async function main() {
     return;
   }
 
-  const leads = await executeProviderPlan({
+  const discovery = await executeProviderPlan({
     runDir,
+    intent,
+    lanes,
     budget,
     planned: planned.ledger,
     maxResultsPerQuery: options.maxResultsPerQuery,
+    brightRecordsLimit: options.brightRecordsLimit,
   });
-  const dedupedLeads = dedupeLeadsByUrl(leads);
+  const leads = discovery.leads;
+  const enrichedLeads = options.providers.includes("firecrawl")
+    ? await extractTopUrlEvidence({
+        runId,
+        runDir,
+        budget,
+        leads,
+        maxUrls: options.maxFirecrawlUrls,
+        spentUsd: discovery.spentUsd,
+        brightSpentUsd: discovery.brightSpentUsd,
+      })
+    : leads;
+  const githubEnrichedLeads = options.providers.includes("github")
+    ? await enrichGithubEvidence({
+        runId,
+        runDir,
+        budget,
+        leads: enrichedLeads,
+        spentUsd: discovery.spentUsd,
+        brightSpentUsd: discovery.brightSpentUsd,
+      })
+    : enrichedLeads;
+  const dedupedLeads = dedupeLeadsByUrl(githubEnrichedLeads);
   const cards = buildCandidateCards(dedupedLeads, 30);
-  writeJson(path.join(runDir, "candidate-leads.json"), { leads, deduped_count: dedupedLeads.length });
+  writeJson(path.join(runDir, "candidate-leads.json"), {
+    leads: githubEnrichedLeads,
+    raw_count: leads.length,
+    enriched_count: githubEnrichedLeads.length,
+    deduped_count: dedupedLeads.length,
+  });
   writeJson(path.join(runDir, "candidate-cards.json"), { cards });
 
   if (!options.skipScreen && cards.length > 0) {
@@ -229,13 +308,33 @@ async function main() {
       jdText,
       intent,
       cards: cards.slice(0, 20),
+      cacheDir,
     });
     writeJson(path.join(runDir, "light-screen.json"), {
       decisions: screenResult.data.decisions,
       usage: screenResult.usage,
       latency_ms: screenResult.latencyMs,
+      cache_hit: screenResult.cacheHit,
     });
+    writeText(
+      path.join(runDir, "review-samples.csv"),
+      buildReviewCsv(cards, screenResult.data.decisions),
+    );
   }
+
+  const laneDiagnosis = await diagnoseLanesWithLlm({
+    jdText,
+    intent,
+    lanes,
+    laneStats: buildLaneStats(planned.ledger, githubEnrichedLeads),
+    cacheDir,
+  });
+  writeJson(path.join(runDir, "lane-diagnosis.json"), {
+    diagnoses: laneDiagnosis.data.diagnoses,
+    usage: laneDiagnosis.usage,
+    latency_ms: laneDiagnosis.latencyMs,
+    cache_hit: laneDiagnosis.cacheHit,
+  });
 
   writeJson(path.join(runDir, "summary.json"), {
     status: "completed",
@@ -243,6 +342,7 @@ async function main() {
     run_dir: runDir,
     lanes: lanes.length,
     raw_leads: leads.length,
+    enriched_leads: githubEnrichedLeads.length,
     deduped_leads: dedupedLeads.length,
     candidate_cards: cards.length,
   });
@@ -252,27 +352,38 @@ async function main() {
 function planProviderCalls(params: {
   runId: string;
   lanes: SourcingLane[];
+  intent: ParsedSearchIntent;
+  mode: SourcingRunMode;
   budget: SearchBudget;
+  providers: ProviderName[];
   maxQueriesPerProvider: number;
   maxResultsPerQuery: number;
+  maxFirecrawlUrls: number;
+  brightRecordsLimit: number;
 }) {
   const ledger: CostLedgerEntry[] = [];
   let spentUsd = 0;
   let brightSpentUsd = 0;
   const queryCountByProvider = new Map<ProviderName, number>();
+  const planningBudget = params.mode === "dry-run"
+    ? { ...params.budget, allowPaid: true }
+    : params.budget;
 
   for (const lane of params.lanes) {
     for (const query of lane.queries) {
-      if (query.provider !== "serper") continue;
+      if (!["serper", "exa", "bright"].includes(query.provider)) continue;
       const currentCount = queryCountByProvider.get(query.provider) ?? 0;
       if (currentCount >= params.maxQueriesPerProvider) continue;
 
-      const estimatedCostUsd = estimateProviderCost(query.provider, params.maxResultsPerQuery);
+      const maxResults = query.provider === "bright"
+        ? params.brightRecordsLimit
+        : params.maxResultsPerQuery;
+      const estimatedCostUsd = estimateProviderCost(query.provider, maxResults);
       try {
         assertBudgetAllowsCall({
           provider: query.provider,
           estimatedCostUsd,
-          budget: params.budget,
+          budget: planningBudget,
           spentUsd,
           brightSpentUsd,
         });
@@ -283,11 +394,18 @@ function planProviderCalls(params: {
           plannedLedgerEntry({
             runId: params.runId,
             provider: query.provider,
-            operation: "search",
+            operation: operationForProvider(query.provider),
             laneId: lane.lane_id,
             query: query.query,
             estimatedCostUsd,
-            metadata: { maxResults: params.maxResultsPerQuery },
+            metadata: {
+              maxResults,
+              ...(query.provider === "bright"
+                ? {
+                    brightFilter: buildBrightProbeFilter({ lane, intent: params.intent, query: query.query }),
+                  }
+                : {}),
+            },
           }),
         );
       } catch (error) {
@@ -295,7 +413,7 @@ function planProviderCalls(params: {
           plannedLedgerEntry({
             runId: params.runId,
             provider: query.provider,
-            operation: "search",
+            operation: operationForProvider(query.provider),
             laneId: lane.lane_id,
             query: query.query,
             estimatedCostUsd,
@@ -307,6 +425,41 @@ function planProviderCalls(params: {
     }
   }
 
+  if (params.providers.includes("firecrawl") && params.maxFirecrawlUrls > 0) {
+    const estimatedCostUsd = estimateProviderCost("firecrawl", params.maxFirecrawlUrls);
+    try {
+      assertBudgetAllowsCall({
+        provider: "firecrawl",
+        estimatedCostUsd,
+        budget: planningBudget,
+        spentUsd,
+        brightSpentUsd,
+      });
+      spentUsd += estimatedCostUsd;
+      ledger.push(
+        plannedLedgerEntry({
+          runId: params.runId,
+          provider: "firecrawl",
+          operation: "extract_url",
+          estimatedCostUsd,
+          metadata: { maxUrls: params.maxFirecrawlUrls, execution: "post_discovery_top_urls" },
+        }),
+      );
+    } catch (error) {
+      ledger.push(
+        plannedLedgerEntry({
+          runId: params.runId,
+          provider: "firecrawl",
+          operation: "extract_url",
+          estimatedCostUsd,
+          status: "blocked",
+          message: error instanceof Error ? error.message : String(error),
+          metadata: { maxUrls: params.maxFirecrawlUrls, execution: "post_discovery_top_urls" },
+        }),
+      );
+    }
+  }
+
   return {
     estimated_total_usd: spentUsd,
     estimated_bright_usd: brightSpentUsd,
@@ -314,11 +467,20 @@ function planProviderCalls(params: {
   };
 }
 
+function operationForProvider(provider: ProviderName) {
+  if (provider === "exa") return "semantic_search";
+  if (provider === "bright") return "bright_filter_probe";
+  return "search";
+}
+
 async function executeProviderPlan(params: {
   runDir: string;
+  intent: ParsedSearchIntent;
+  lanes: SourcingLane[];
   budget: SearchBudget;
   planned: CostLedgerEntry[];
   maxResultsPerQuery: number;
+  brightRecordsLimit: number;
 }) {
   const leads: CandidateLead[] = [];
   let spentUsd = 0;
@@ -326,6 +488,7 @@ async function executeProviderPlan(params: {
 
   for (const entry of params.planned) {
     if (entry.status === "blocked") continue;
+    if (entry.provider === "firecrawl") continue;
     try {
       assertBudgetAllowsCall({
         provider: entry.provider,
@@ -335,24 +498,23 @@ async function executeProviderPlan(params: {
         brightSpentUsd,
       });
       const startedAt = Date.now();
-      if (entry.provider !== "serper") continue;
-      const results = await serperSearch({
-        query: entry.query || "",
-        num: params.maxResultsPerQuery,
-      });
-      const mapped = mapSerperResultsToLeads({
-        laneId: entry.lane_id || "unknown",
-        results,
+      const mapped = await executeDiscoveryEntry({
+        entry,
+        intent: params.intent,
+        lanes: params.lanes,
+        maxResultsPerQuery: params.maxResultsPerQuery,
+        brightRecordsLimit: params.brightRecordsLimit,
       });
       leads.push(...mapped);
       spentUsd += entry.estimated_cost_usd;
+      if (entry.provider === "bright") brightSpentUsd += entry.estimated_cost_usd;
       appendLedger(
         params.runDir,
         completedLedgerEntry(entry, {
           status: "success",
           actual_cost_usd: entry.estimated_cost_usd,
           latency_ms: Date.now() - startedAt,
-          returned_count: results.length,
+          returned_count: mapped.length,
         }),
       );
     } catch (error) {
@@ -366,14 +528,187 @@ async function executeProviderPlan(params: {
     }
   }
 
-  return leads;
+  return { leads, spentUsd, brightSpentUsd };
+}
+
+async function executeDiscoveryEntry(params: {
+  entry: CostLedgerEntry;
+  intent: ParsedSearchIntent;
+  lanes: SourcingLane[];
+  maxResultsPerQuery: number;
+  brightRecordsLimit: number;
+}) {
+  if (params.entry.provider === "serper") {
+    const results = await serperSearch({
+      query: params.entry.query || "",
+      num: params.maxResultsPerQuery,
+    });
+    return mapSerperResultsToLeads({
+      laneId: params.entry.lane_id || "unknown",
+      results,
+    });
+  }
+
+  if (params.entry.provider === "exa") {
+    const payload = await exaSearch({
+      query: params.entry.query || "",
+      numResults: params.maxResultsPerQuery,
+    });
+    return mapExaResultsToLeads({
+      laneId: params.entry.lane_id || "unknown",
+      payload,
+    });
+  }
+
+  if (params.entry.provider === "bright") {
+    const lane = params.lanes.find((item) => item.lane_id === params.entry.lane_id);
+    if (!lane) throw new Error(`Bright lane not found: ${params.entry.lane_id}`);
+    const result = await runBrightProbe({
+      lane,
+      intent: params.intent,
+      query: params.entry.query || "",
+      recordsLimit: Math.min(100, params.brightRecordsLimit),
+    });
+    return mapBrightProfilesToLeads({
+      laneId: params.entry.lane_id || "unknown",
+      profiles: result.profiles,
+    });
+  }
+
+  return [];
+}
+
+async function extractTopUrlEvidence(params: {
+  runId: string;
+  runDir: string;
+  budget: SearchBudget;
+  leads: CandidateLead[];
+  maxUrls: number;
+  spentUsd: number;
+  brightSpentUsd: number;
+}) {
+  const selected = dedupeLeadsByUrl(params.leads)
+    .filter((lead) => lead.source_type !== "linkedin")
+    .slice(0, params.maxUrls);
+  if (selected.length === 0) return params.leads;
+
+  const enriched = new Map(params.leads.map((lead) => [lead.lead_id, lead]));
+  const evidence: Array<{ lead_id: string; url: string; status: string; error?: string | null }> = [];
+  let spentUsd = params.spentUsd;
+  let brightSpentUsd = params.brightSpentUsd;
+
+  for (const lead of selected) {
+    const estimatedCostUsd = estimateProviderCost("firecrawl", 1);
+    const planned = plannedLedgerEntry({
+      runId: params.runId,
+      provider: "firecrawl",
+      operation: "extract_url",
+      query: lead.url,
+      laneId: lead.lane_id,
+      estimatedCostUsd,
+    });
+    appendLedger(params.runDir, planned);
+    try {
+      assertBudgetAllowsCall({
+        provider: "firecrawl",
+        estimatedCostUsd,
+        budget: params.budget,
+        spentUsd,
+        brightSpentUsd,
+      });
+      const startedAt = Date.now();
+      const payload = await firecrawlExtractUrl({ url: lead.url });
+      const updated = mapFirecrawlExtractionToLead({ sourceLead: lead, payload });
+      enriched.set(lead.lead_id, updated);
+      spentUsd += estimatedCostUsd;
+      appendLedger(params.runDir, completedLedgerEntry(planned, {
+        status: "success",
+        actual_cost_usd: estimatedCostUsd,
+        latency_ms: Date.now() - startedAt,
+        returned_count: 1,
+      }));
+      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "success" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      appendLedger(params.runDir, completedLedgerEntry(planned, {
+        status: "error",
+        message,
+      }));
+      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "error", error: message });
+    }
+  }
+
+  writeJson(path.join(params.runDir, "extracted-evidence.json"), evidence);
+  return Array.from(enriched.values());
+}
+
+async function enrichGithubEvidence(params: {
+  runId: string;
+  runDir: string;
+  budget: SearchBudget;
+  leads: CandidateLead[];
+  spentUsd: number;
+  brightSpentUsd: number;
+}) {
+  const selected = dedupeLeadsByUrl(params.leads)
+    .filter((lead) => lead.source_type === "github")
+    .slice(0, 5);
+  if (selected.length === 0) return params.leads;
+
+  const enriched = new Map(params.leads.map((lead) => [lead.lead_id, lead]));
+  const evidence: Array<{ lead_id: string; url: string; status: string; error?: string | null }> = [];
+  let spentUsd = params.spentUsd;
+
+  for (const lead of selected) {
+    const estimatedCostUsd = estimateProviderCost("github", 1);
+    const planned = plannedLedgerEntry({
+      runId: params.runId,
+      provider: "github",
+      operation: "extract_url",
+      query: lead.url,
+      laneId: lead.lane_id,
+      estimatedCostUsd,
+    });
+    appendLedger(params.runDir, planned);
+    try {
+      assertBudgetAllowsCall({
+        provider: "github",
+        estimatedCostUsd,
+        budget: params.budget,
+        spentUsd,
+        brightSpentUsd: params.brightSpentUsd,
+      });
+      const startedAt = Date.now();
+      const payload = await fetchGithubEvidence({ url: lead.url });
+      const updated = mapGithubEvidenceToLead({ sourceLead: lead, payload });
+      enriched.set(lead.lead_id, updated);
+      spentUsd += estimatedCostUsd;
+      appendLedger(params.runDir, completedLedgerEntry(planned, {
+        status: "success",
+        actual_cost_usd: estimatedCostUsd,
+        latency_ms: Date.now() - startedAt,
+        returned_count: 1,
+      }));
+      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "success" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      appendLedger(params.runDir, completedLedgerEntry(planned, {
+        status: "error",
+        message,
+      }));
+      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "error", error: message });
+    }
+  }
+
+  writeJson(path.join(params.runDir, "github-evidence.json"), evidence);
+  return Array.from(enriched.values());
 }
 
 function estimateProviderCost(provider: ProviderName, maxResults: number) {
   if (provider === "serper") return 0.001 * Math.max(1, Math.ceil(maxResults / 10));
   if (provider === "bright") return 0.0025 * maxResults;
-  if (provider === "exa") return 0.005;
-  if (provider === "firecrawl") return 0.002;
+  if (provider === "exa") return 0.005 * Math.max(1, Math.ceil(maxResults / 10));
+  if (provider === "firecrawl") return 0.002 * Math.max(1, maxResults);
   return 0;
 }
 
@@ -405,6 +740,82 @@ function normalizeLanes(lanes: SourcingLane[], allowedProviders: ProviderName[])
     .filter((lane) => lane.queries.length > 0);
 }
 
+function buildReviewCsv(
+  cards: Array<{ candidate_id: string; name: string | null; headline: string | null; profile_urls: string[]; evidence_summary: string }>,
+  decisions: Array<{
+    candidate_id: string;
+    would_advance: string;
+    reason: string;
+    deal_breaker: string | null;
+    missing_evidence: string[];
+    source_confidence: string;
+    profile_completeness: string;
+    suggested_next_action: string;
+  }>,
+) {
+  const decisionsById = new Map(decisions.map((decision) => [decision.candidate_id, decision]));
+  const rows = [
+    [
+      "candidate_id",
+      "would_advance",
+      "suggested_next_action",
+      "source_confidence",
+      "profile_completeness",
+      "name",
+      "headline",
+      "profile_urls",
+      "reason",
+      "deal_breaker",
+      "missing_evidence",
+      "evidence_summary",
+    ],
+  ];
+  for (const card of cards) {
+    const decision = decisionsById.get(card.candidate_id);
+    rows.push([
+      card.candidate_id,
+      decision?.would_advance ?? "",
+      decision?.suggested_next_action ?? "",
+      decision?.source_confidence ?? "",
+      decision?.profile_completeness ?? "",
+      card.name ?? "",
+      card.headline ?? "",
+      card.profile_urls.join(" "),
+      decision?.reason ?? "",
+      decision?.deal_breaker ?? "",
+      decision?.missing_evidence.join("; ") ?? "",
+      card.evidence_summary,
+    ]);
+  }
+  return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+}
+
+function buildLaneStats(ledger: CostLedgerEntry[], leads: CandidateLead[]) {
+  const laneIds = new Set<string>();
+  for (const entry of ledger) {
+    if (entry.lane_id) laneIds.add(entry.lane_id);
+  }
+  for (const lead of leads) {
+    laneIds.add(lead.lane_id);
+  }
+
+  return Array.from(laneIds).map((laneId) => {
+    const entries = ledger.filter((entry) => entry.lane_id === laneId);
+    const laneLeads = leads.filter((lead) => lead.lane_id === laneId);
+    return {
+      lane_id: laneId,
+      provider: Array.from(new Set(entries.map((entry) => entry.provider))).join(","),
+      planned_queries: entries.length,
+      success_count: entries.filter((entry) => entry.status === "success").length,
+      error_count: entries.filter((entry) => entry.status === "error").length,
+      returned_count: entries.reduce((sum, entry) => sum + (entry.returned_count ?? 0), 0),
+      lead_count: laneLeads.length,
+      sample_queries: entries.map((entry) => entry.query).filter((value): value is string => Boolean(value)).slice(0, 3),
+      sample_errors: entries.map((entry) => entry.message).filter((value): value is string => Boolean(value)).slice(0, 3),
+    };
+  });
+}
+
 function asString(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
@@ -416,6 +827,10 @@ function asStringArray(value: unknown) {
         .map((item) => item.trim())
         .filter(Boolean)
     : [];
+}
+
+function csvCell(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
 main().catch((error) => {
