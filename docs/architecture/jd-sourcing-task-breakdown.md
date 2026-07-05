@@ -6,6 +6,22 @@
 
 首轮工作只服务冷启动 sourcing 原型和 10 个 JD benchmark。正式 UI、完整索引、用户级权限、生产调度和复杂 billing 都放到 benchmark 证明路线成立之后。
 
+## 当前实现状态
+
+截至当前原型提交，已完成第一批可执行闭环：
+
+- `S0-1` 已完成：10 个固定 benchmark JD 记录在 `docs/architecture/benchmark-jds.md`。
+- `S0-2` 已部分完成：统一 light-screen rubric 已进入 `scripts/sourcing/llm.ts`；正式人工校准表仍待导出。
+- `S0-3` 已部分完成：实验账本先用 `cost-ledger.jsonl` 和 run directory 表达；还未建设 benchmark 聚合表。
+- `S0-4` 已完成基础版：`--allow-paid`、总预算和 Bright 子预算 guardrail 已进入 CLI。
+- `S0-5` 已完成：`scripts/sourcing/check-provider-readiness.ts` 可只读检查 provider key，并可通过 `--network` 查询 Bright 余额。
+- `S1-1` 到 `S1-6` 已完成基础版：`scripts/sourcing/run-cold-start.ts` 支持 JD 输入、run directory、LLM parsing、lane generation、provider plan 和成本账本。
+- `S2-1` 已完成基础版：Serper discovery adapter 可执行 X-ray URL discovery，并把结果转成 `CandidateLead`。
+- `S3-1` 和 `S3-4` 已完成基础版：支持 URL lead 归一化、URL 去重和候选人卡片。
+- `S4-1` 已完成基础版：DeepSeek light screen 输出统一 `would_advance` rubric，并明确 snippet-only 证据不足时不能轻易给 `yes`。
+
+尚未完成：Exa/Firecrawl 正式编排、Bright probe adapter、GitHub evidence adapter、lane diagnosis、LLM cache、review CSV 导出、2 个 JD smoke 报告和 10 个 JD benchmark 报告。
+
 ## 执行边界
 
 - 外部总预算：10 个 JD benchmark 不超过 `$50`。
