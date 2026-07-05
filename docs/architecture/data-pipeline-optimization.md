@@ -4,6 +4,14 @@
 **状态**：产品核心架构方案
 **适用范围**：外部 sourcing、内部简历/ATS 导入、候选人评估和 Candidate Research
 
+## 本文口径
+
+本文讨论的是 Hirelix **要建设的目标方案**，不是对现有实现的说明。现有数据库表、Bright 缓存和搜索链路只作为迁移约束，不是目标架构本身。
+
+目标系统要解决的问题是：
+
+> 任意一个 JD 进来后，Hirelix 如何从外部数据源和用户内部数据中找到可评估 profile，并用可解释、可控成本、可持续复用的方式交付候选人。
+
 ## 核心判断
 
 Hirelix 的核心不是把另一个招聘 SaaS 包一层，也不是只做简历评分工具。核心能力应该是：
@@ -39,11 +47,13 @@ flowchart TD
 
 ## 第 1 步：JD 解析与招聘意图建模
 
-JD 进来后，第一步不是搜索，而是形成结构化招聘意图。当前代码已经有这条主线：
+JD 进来后，第一步不是搜索，而是形成结构化招聘意图。目标系统必须把 JD 转成以下稳定结构：
 
-- `src/lib/prompts.ts`：把 JD 解析成 headhunter 视角的 sourcing intelligence。
-- `src/lib/llm-schemas.ts`：约束 `hiring_brief`、`headhunter_brief`、`sourcing_plan`、`recall_spec`、`advancement_rubric` 等结构。
-- `src/lib/search-jobs.ts` 和 `src/lib/search/pipeline.ts`：执行搜索、筛选、评分、落库。
+- `hiring_brief`：岗位核心、硬约束、地理限制、工作模式。
+- `headhunter_brief`：猎头视角的 sourcing thesis、相邻背景、误召风险。
+- `sourcing_plan`：要跑哪些 sourcing lanes，每条 lane 的目标和预算。
+- `recall_spec`：可用于搜索和过滤的 title、skills、company、location、domain terms。
+- `advancement_rubric`：候选人是否值得推进的 JD-specific 评判标准。
 
 解析产物必须回答这些问题：
 
@@ -60,13 +70,13 @@ JD 进来后，第一步不是搜索，而是形成结构化招聘意图。当�
 
 ## 第 2 步：本地索引优先
 
-外部 sourcing 不能每次从零开始烧钱。JD 解析完成后，应该先查 Hirelix 本地资产：
+外部 sourcing 不能每次从零开始烧钱。目标系统应该先查 Hirelix 自己的长期 profile index：
 
-- 历史 Bright snapshot profiles：当前主要在 `hirelix_snapshot_profiles`。
-- 历史搜索候选人：`hirelix_candidates`。
-- Snapshot 元数据与复用状态：`hirelix_dataset_snapshots`。
-- 未来应接入的用户资产：ATS、CSV、简历库、用户手动粘贴的 LinkedIn URL。
-- 未来应建设的统一候选人索引：标准化 profile、来源、embedding、更新时间、证据质量和召回历史。
+- 外部来源沉淀的 profile：Bright、SERP、Exa、Firecrawl、GitHub、论文、专利等。
+- 用户内部资产：ATS、CSV、简历库、用户手动粘贴的 LinkedIn URL。
+- 历史搜索资产：曾经召回、评分、被用户操作过的候选人。
+- 证据资产：GitHub、博客、论文、项目、专利、个人网站、recruiter notes。
+- 质量资产：每个 profile 在不同 JD 下的评分、用户动作、拒绝原因和联系结果。
 
 本地优先的目的不是省一点 API 钱，而是形成产品壁垒。竞品能做大规模 sourcing，本质上不是每次实时搜全网，而是维护了长期候选人图谱和可检索索引。
 
@@ -81,12 +91,12 @@ JD 进来后，第一步不是搜索，而是形成结构化招聘意图。当�
 
 ## 本地索引如何建立
 
-本地索引不能直接等同于 `hirelix_candidates` 或 `hirelix_snapshot_profiles`。
+本地索引不能设计成“某次搜索结果表”，也不能只是“外部原始数据缓存表”。
 
-- `hirelix_candidates` 是某一次 search 的交付结果，天然绑定 JD，不适合作为长期人才库主表。
-- `hirelix_snapshot_profiles` 是 Bright snapshot 的原始缓存，适合重放和调试，但没有 canonical identity、跨来源去重、向量检索和长期质量信号。
+- 搜索结果表天然绑定某个 JD，不适合作为长期人才库主表。
+- 原始缓存表适合重放和审计，但没有 canonical identity、跨来源去重、向量检索和长期质量信号。
 
-因此需要新增一层长期 profile index。早期技术方案应该优先用现有 PostgreSQL 17，而不是立刻引入外部向量数据库或搜索 SaaS。原因很简单：数据量早期不会大到必须拆出去，Postgres 能同时承载结构化过滤、JSONB、全文检索、pgvector、事务和成本账本，复杂度最低。
+因此需要新增一层长期 profile index。早期技术方案应该优先选自托管 PostgreSQL 17，而不是立刻引入外部向量数据库或搜索 SaaS。原因很简单：数据量早期不会大到必须拆出去，Postgres 能同时承载结构化过滤、JSONB、全文检索、pgvector、事务和成本账本，复杂度最低。
 
 推荐架构：
 
@@ -241,7 +251,7 @@ MVP 不需要一开始做复杂人才图谱。可以分三步：
    - pgvector embedding search。
 
 3. **JD-aware scoring**
-   - 复用现有 `headhunter_brief`、`advancement_rubric`、scoring pipeline。
+   - 使用 JD 解析出的 `headhunter_brief`、`advancement_rubric` 和统一 scoring pipeline。
    - 把内部召回 profile 转成和 Bright profile 相同的 candidate input。
 
 这样就能实现：用户上传 5,000 到 50,000 个内部候选人后，给一个 JD，系统在几十秒内返回最相关的一批 profile，并解释为什么匹配或不匹配。
@@ -280,7 +290,7 @@ MVP 不需要一开始做复杂人才图谱。可以分三步：
 
 ### Bright Dataset Filter
 
-Bright Filter API 适合结构化拉取 LinkedIn profile 数据。它应该用于：
+Bright Filter API 适合结构化拉取 LinkedIn profile 数据。目标系统里它应该用于：
 
 - 根据 JD 派生出的 title、skill、company、location 小额取数。
 - 为每条 lane 拉取 100 到 1,000 条 profile。
@@ -294,14 +304,15 @@ Bright Filter API 适合结构化拉取 LinkedIn profile 数据。它应该用�
 - 用一个极宽过滤器随机拉人。
 - 用一组过严 AND 条件期待直接命中最终候选人。
 
-当前实现已经有这些基础：
+目标系统需要具备这些能力：
 
-- `src/lib/brightdata.ts`：Dataset Filter、snapshot 下载、LinkedIn URL scraper。
-- `src/lib/search/recall.ts`：Bright recall filters、headhunter lanes、filter chunking。
-- `src/lib/search/persistence.ts`：snapshot cache、profiles 持久化。
-- `src/lib/search/pipeline.ts`：recall、polling、scoring、adaptive recall。
+- Dataset Filter 调用、snapshot 下载、失败重试。
+- LinkedIn URL scraper，用于高潜 URL 的结构化补全。
+- Filter hash 和 snapshot cache，用于复用相同或相似拉取。
+- Lane-level budget、returned、duplicates、quality 记录。
+- Bright record 到 canonical profile index 的写入。
 
-需要改造的重点是：Bright 结果不应该只服务当前 search job，而应该进入长期候选人索引。
+设计重点是：Bright 结果不应该只服务当前 search job，而应该进入长期候选人索引。
 
 ### SERP / X-ray 搜索
 
@@ -312,7 +323,7 @@ Serper、DataForSEO、SearchAPI、SerpApi 这类工具不是候选人数据库�
 - 找公司 team page、工程博客作者、会议讲者。
 - 用低成本补 Bright 覆盖不到或过滤器不自然表达的搜索。
 
-当前已有 Serper 作为 GitHub identity fallback，但还没有把 SERP 当成独立候选发现层来使用。下一步应抽象出 `DiscoveryProvider`，让 Serper/DataForSEO 可以返回 candidate leads，而不是只服务 GitHub 补证。
+目标系统应抽象出 `DiscoveryProvider`，让 Serper/DataForSEO 可以返回 candidate leads，而不是只服务 GitHub 补证。
 
 ### Exa / 语义网页搜索
 
@@ -392,7 +403,7 @@ Bright LinkedIn URL scraper、LinkdAPI、Apify actors 这类工具只能作为�
 - 明确风险，例如 title 相邻但 domain 不足、公司匹配但工作内容不匹配。
 - 给出 recruiter 能看懂的 short reasons、risk flags、outreach angles。
 
-这和 `AGENTS.md` 中的候选人质量原则一致：不要用硬编码 title/company/keyword patch 来修质量。确定候选人是否 advance，应该放在 prompt、schema、rubric、eval fixtures 和 scorer 中。
+候选人质量不能靠硬编码 title/company/keyword patch 来修。确定候选人是否 advance，应该放在 prompt、schema、rubric、eval fixtures 和 scorer 中。
 
 ## 第 7 步：自适应扩展
 
@@ -482,75 +493,70 @@ Bright Dataset Filter 可以低成本拉结构化 records，但仍必须小额�
 | 用户 ATS/CSV/简历 | 内部候选人资产 | rediscovery、低成本评估 | 替代外部 sourcing | 高 |
 | 招聘 SaaS 竞品 | 不作为上游 | 竞品研究 | 作为供应商 | 排除 |
 
-## 当前实现与目标差距
+## 目标建设模块
 
-当前已经具备：
+目标方案拆成六个模块：
 
-- JD 解析为 headhunter brief、recall spec、sourcing lanes。
-- Bright Dataset Filter recall。
-- Bright snapshot cache 和 snapshot profile 持久化。
-- Lane audit、round diagnostics、adaptive recall 的雏形。
-- Candidate Research 按需补公开证据。
-- GitHub / Serper 在技术证据和 identity discovery 上的局部能力。
+1. **Profile Index**：长期候选人主索引，承载 canonical profile、来源、身份、经历、证据和 embedding。
+2. **Internal Ingestion**：ATS、CSV、简历、LinkedIn URL、recruiter notes 的导入和标准化。
+3. **Hybrid Retrieval**：结构化过滤、全文检索、向量检索、多路合并去重。
+4. **External Discovery**：Bright、SERP、Exa、Firecrawl、GitHub、论文/专利等外部发现和补全。
+5. **JD-aware Scoring**：基于当前 JD 的筛选、评分、风险解释和外联角度。
+6. **Cost and Quality Ledger**：按 provider、lane、search、profile 记录成本、质量、重复率和用户反馈。
 
-主要缺口：
-
-1. **缺统一候选人索引**：Bright snapshot profiles 仍偏搜索过程缓存，不是长期 candidate graph。
-2. **缺独立发现层**：Serper/DataForSEO/Exa/Firecrawl 还没有作为候选发现 provider 统一接入。
-3. **缺 URL lead 到 profile 的分层补全策略**：现在 Bright recall 和 candidate research 更强，lead enrichment pipeline 还不完整。
-4. **缺供应商 benchmark**：需要用同一批真实 JD 比较不同 source mix 的成本和质量。
-5. **缺成本账本**：需要把外部调用成本统一落到 search、lane、provider、candidate 维度。
-6. **缺内部 profile hybrid index**：当前 schema 没有 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_embeddings`，也没有 `pgvector` / `tsvector` 检索链路。
+这六个模块里，最先要建的是 Profile Index 和 Internal Ingestion。没有本地 profile index，外部 sourcing 拉回来的数据也无法变成长期资产。
 
 ## 实施路线
 
-### Phase 0：稳定当前 Bright 召回
+### Phase 0：定义目标数据模型
 
-目标：把 Bright 从“实时单次召回”改造成“可复用数据资产输入”。
-
-动作：
-
-- 所有 Bright filter 都必须记录 `filter_hash`、lane、budget、returned、duplicates、quality。
-- 确保 snapshot profiles 持久化和复用路径稳定。
-- 继续维护 Bright guardrail：真实调用会花钱，回归优先 read-only replay。
-- 对 10 个真实 JD 跑只读复盘，确认不同 lane 的质量分布。
-
-### Phase 1：接入发现层 provider
-
-目标：把候选发现从 Bright 单源扩展为多源 lead generation。
+目标：先确定长期 profile index 的表结构、身份归并规则、检索文档和 embedding 策略。
 
 动作：
 
-- 新增 `DiscoveryProvider` 抽象。
-- 第一批接入 Serper、DataForSEO、Exa、Firecrawl。
-- 输出统一 `CandidateLead`：name、profile_url、source_url、source_type、snippet、confidence、lane。
-- 只对高潜 leads 做结构化补全。
-- 每个 provider 都有预算上限和失败降级。
+- 设计 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_identities`、`hirelix_profile_experiences`、`hirelix_profile_evidence`、`hirelix_profile_embeddings`。
+- 明确 identity merge 规则：LinkedIn URL、email、GitHub URL、姓名+公司、个人网站等的置信度。
+- 明确 `search_document` 的生成规则。
+- 明确 embedding kinds：profile summary、experience evidence、public evidence。
+- 明确 cost ledger 和 quality stats 的字段。
 
-### Phase 2：建设内部候选人索引 MVP
+### Phase 1：建设内部候选人索引 MVP
 
 目标：让用户已有 ATS、CSV、简历、LinkedIn URL 能直接被 JD 检索出来。
 
 动作：
 
 - 增加 `pgvector`、`pg_trgm` 和全文检索相关 migration。
-- 新增 `hirelix_profiles`、`hirelix_profile_sources`、`hirelix_profile_identities`、`hirelix_profile_embeddings`。
 - 实现 CSV/简历/LinkedIn URL 导入后的 profile normalizer。
+- 将导入数据写入 canonical profile index。
 - 实现 `internal_profile_retrieval`：结构化过滤 + `tsvector` + pgvector。
-- 将内部 profile 转成现有 scoring pipeline 可消费的 `CandidateRowInput`。
+- 将内部 profile 转成 scoring pipeline 可消费的 candidate input。
 - 在搜索结果中区分 `internal_match` 和 `external_sourced`。
 
-### Phase 3：建设统一候选人索引
+### Phase 2：接入外部发现层 provider
 
-目标：让每次外部搜索都沉淀为本地可检索资产。
+目标：把候选发现从内部 rediscovery 扩展为多源 lead generation。
 
 动作：
 
-- 新增或重构长期 profile index 表。
-- 建立 canonical identity 和 cross-source dedupe。
-- 为 profile、experience、evidence 建 embedding。
-- 支持本地 hybrid retrieval。
-- 让 JD 搜索先查本地，再决定是否外部扩展。
+- 新增 `DiscoveryProvider` 抽象。
+- 第一批接入 Bright、Serper/DataForSEO、Exa、Firecrawl。
+- 输出统一 `CandidateLead`：name、profile_url、source_url、source_type、snippet、confidence、lane。
+- 只对高潜 leads 做结构化补全。
+- 将外部补全结果写入 canonical profile index，而不是只服务当次搜索。
+- 每个 provider 都有预算上限和失败降级。
+
+### Phase 3：多源统一检索和评分
+
+目标：把内部 profile、外部 profile、公开证据放进同一个 JD-aware retrieval 和 scoring 流程。
+
+动作：
+
+- 搜索开始先跑本地 hybrid retrieval。
+- 覆盖不足时按 sourcing lanes 调外部 provider。
+- 外部结果补全后立即写入本地 index。
+- 合并内部和外部候选池后统一 LLM scoring。
+- 对每个候选人标记来源：internal、external、mixed。
 
 ### Phase 4：自增长 market map
 
