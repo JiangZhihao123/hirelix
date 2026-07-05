@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 
 import {
@@ -22,6 +24,7 @@ import {
   writeManifest,
   writeText,
 } from "./io";
+import { classifyProviderFailure } from "./failures";
 import {
   diagnoseLanesWithLlm,
   generateSourcingLanesWithLlm,
@@ -68,6 +71,7 @@ type CliOptions = {
   skipScreen: boolean;
   noLlmCache: boolean;
   llmCacheDir: string | null;
+  noEvidenceCache: boolean;
 };
 
 function parseArgs(argv: string[]): CliOptions {
@@ -86,6 +90,7 @@ function parseArgs(argv: string[]): CliOptions {
     skipScreen: false,
     noLlmCache: false,
     llmCacheDir: null,
+    noEvidenceCache: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -113,6 +118,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--no-llm-cache") {
       options.noLlmCache = true;
+      continue;
+    }
+    if (arg === "--no-evidence-cache") {
+      options.noEvidenceCache = true;
       continue;
     }
     if (arg.startsWith("--llm-cache-dir=")) {
@@ -220,6 +229,7 @@ async function main() {
       brightRecordsLimit: options.brightRecordsLimit,
       llmCache: !options.noLlmCache,
       llmCacheDir: options.llmCacheDir ? path.resolve(options.llmCacheDir) : null,
+      evidenceCache: !options.noEvidenceCache,
     },
   });
   writeText(path.join(runDir, "jd.txt"), jdText);
@@ -227,6 +237,9 @@ async function main() {
   const cacheDir = options.noLlmCache
     ? null
     : path.resolve(options.llmCacheDir || path.join(options.outDir, ".llm-cache"));
+  const evidenceCacheDir = options.noEvidenceCache
+    ? null
+    : path.resolve(options.outDir, ".evidence-cache");
   const parseResult = await parseJdWithLlm(jdText, { cacheDir });
   const intent = normalizeIntent(parseResult.data);
   writeJson(path.join(runDir, "parsed-intent.json"), {
@@ -290,6 +303,7 @@ async function main() {
         maxUrls: options.maxFirecrawlUrls,
         spentUsd: discovery.spentUsd,
         brightSpentUsd: discovery.brightSpentUsd,
+        cacheDir: evidenceCacheDir,
       })
     : leads;
   const githubEnrichedLeads = options.providers.includes("github")
@@ -300,6 +314,7 @@ async function main() {
         leads: enrichedLeads,
         spentUsd: discovery.spentUsd,
         brightSpentUsd: discovery.brightSpentUsd,
+        cacheDir: evidenceCacheDir,
       })
     : enrichedLeads;
   const dedupedLeads = dedupeLeadsByUrl(githubEnrichedLeads);
@@ -328,6 +343,10 @@ async function main() {
     writeText(
       path.join(runDir, "review-samples.csv"),
       buildReviewCsv(cards, screenResult.data.decisions),
+    );
+    writeText(
+      path.join(runDir, "candidate-explanations.md"),
+      buildCandidateExplanationsMarkdown(cards, screenResult.data.decisions),
     );
   }
 
@@ -428,6 +447,7 @@ function planProviderCalls(params: {
             estimatedCostUsd,
             status: "blocked",
             message: error instanceof Error ? error.message : String(error),
+            metadata: { failure_type: classifyProviderFailure(error) },
           }),
         );
       }
@@ -463,7 +483,11 @@ function planProviderCalls(params: {
           estimatedCostUsd,
           status: "blocked",
           message: error instanceof Error ? error.message : String(error),
-          metadata: { maxUrls: params.maxFirecrawlUrls, execution: "post_discovery_top_urls" },
+          metadata: {
+            maxUrls: params.maxFirecrawlUrls,
+            execution: "post_discovery_top_urls",
+            failure_type: classifyProviderFailure(error),
+          },
         }),
       );
     }
@@ -532,6 +556,10 @@ async function executeProviderPlan(params: {
         completedLedgerEntry(entry, {
           status: "error",
           message: error instanceof Error ? error.message : String(error),
+          metadata: {
+            ...entry.metadata,
+            failure_type: classifyProviderFailure(error),
+          },
         }),
       );
     }
@@ -595,6 +623,7 @@ async function extractTopUrlEvidence(params: {
   maxUrls: number;
   spentUsd: number;
   brightSpentUsd: number;
+  cacheDir: string | null;
 }) {
   const selected = dedupeLeadsByUrl(params.leads)
     .filter((lead) => lead.source_type !== "linkedin")
@@ -618,30 +647,42 @@ async function extractTopUrlEvidence(params: {
     });
     appendLedger(params.runDir, planned);
     try {
-      assertBudgetAllowsCall({
+      const startedAt = Date.now();
+      const cachedPayload = readEvidenceCache(params.cacheDir, "firecrawl", lead.url);
+      const payload = cachedPayload || await runWithBudgetAndCache({
         provider: "firecrawl",
         estimatedCostUsd,
         budget: params.budget,
         spentUsd,
         brightSpentUsd,
+        cacheDir: params.cacheDir,
+        cacheNamespace: "firecrawl",
+        cacheKey: lead.url,
+        fn: () => firecrawlExtractUrl({ url: lead.url }),
       });
-      const startedAt = Date.now();
-      const payload = await firecrawlExtractUrl({ url: lead.url });
       const updated = mapFirecrawlExtractionToLead({ sourceLead: lead, payload });
       enriched.set(lead.lead_id, updated);
-      spentUsd += estimatedCostUsd;
+      if (!cachedPayload) spentUsd += estimatedCostUsd;
       appendLedger(params.runDir, completedLedgerEntry(planned, {
         status: "success",
-        actual_cost_usd: estimatedCostUsd,
+        actual_cost_usd: cachedPayload ? 0 : estimatedCostUsd,
         latency_ms: Date.now() - startedAt,
         returned_count: 1,
+        metadata: {
+          ...planned.metadata,
+          cache_hit: Boolean(cachedPayload),
+        },
       }));
-      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "success" });
+      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "success", error: cachedPayload ? "cache_hit" : null });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       appendLedger(params.runDir, completedLedgerEntry(planned, {
         status: "error",
         message,
+        metadata: {
+          ...planned.metadata,
+          failure_type: classifyProviderFailure(error),
+        },
       }));
       evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "error", error: message });
     }
@@ -658,6 +699,7 @@ async function enrichGithubEvidence(params: {
   leads: CandidateLead[];
   spentUsd: number;
   brightSpentUsd: number;
+  cacheDir: string | null;
 }) {
   const selected = dedupeLeadsByUrl(params.leads)
     .filter((lead) => lead.source_type === "github")
@@ -680,30 +722,42 @@ async function enrichGithubEvidence(params: {
     });
     appendLedger(params.runDir, planned);
     try {
-      assertBudgetAllowsCall({
+      const startedAt = Date.now();
+      const cachedPayload = readEvidenceCache(params.cacheDir, "github", lead.url);
+      const payload = cachedPayload || await runWithBudgetAndCache({
         provider: "github",
         estimatedCostUsd,
         budget: params.budget,
         spentUsd,
         brightSpentUsd: params.brightSpentUsd,
+        cacheDir: params.cacheDir,
+        cacheNamespace: "github",
+        cacheKey: lead.url,
+        fn: () => fetchGithubEvidence({ url: lead.url }),
       });
-      const startedAt = Date.now();
-      const payload = await fetchGithubEvidence({ url: lead.url });
       const updated = mapGithubEvidenceToLead({ sourceLead: lead, payload });
       enriched.set(lead.lead_id, updated);
-      spentUsd += estimatedCostUsd;
+      if (!cachedPayload) spentUsd += estimatedCostUsd;
       appendLedger(params.runDir, completedLedgerEntry(planned, {
         status: "success",
-        actual_cost_usd: estimatedCostUsd,
+        actual_cost_usd: cachedPayload ? 0 : estimatedCostUsd,
         latency_ms: Date.now() - startedAt,
         returned_count: 1,
+        metadata: {
+          ...planned.metadata,
+          cache_hit: Boolean(cachedPayload),
+        },
       }));
-      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "success" });
+      evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "success", error: cachedPayload ? "cache_hit" : null });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       appendLedger(params.runDir, completedLedgerEntry(planned, {
         status: "error",
         message,
+        metadata: {
+          ...planned.metadata,
+          failure_type: classifyProviderFailure(error),
+        },
       }));
       evidence.push({ lead_id: lead.lead_id, url: lead.url, status: "error", error: message });
     }
@@ -719,6 +773,52 @@ function estimateProviderCost(provider: ProviderName, maxResults: number) {
   if (provider === "exa") return 0.005 * Math.max(1, Math.ceil(maxResults / 10));
   if (provider === "firecrawl") return 0.002 * Math.max(1, maxResults);
   return 0;
+}
+
+async function runWithBudgetAndCache<T>(params: {
+  provider: ProviderName;
+  estimatedCostUsd: number;
+  budget: SearchBudget;
+  spentUsd: number;
+  brightSpentUsd: number;
+  cacheDir: string | null;
+  cacheNamespace: string;
+  cacheKey: string;
+  fn: () => Promise<T>;
+}) {
+  assertBudgetAllowsCall({
+    provider: params.provider,
+    estimatedCostUsd: params.estimatedCostUsd,
+    budget: params.budget,
+    spentUsd: params.spentUsd,
+    brightSpentUsd: params.brightSpentUsd,
+  });
+  const payload = await params.fn();
+  writeEvidenceCache(params.cacheDir, params.cacheNamespace, params.cacheKey, payload);
+  return payload;
+}
+
+function readEvidenceCache(cacheDir: string | null, namespace: string, cacheKey: string) {
+  if (!cacheDir) return null;
+  const filePath = evidenceCachePath(cacheDir, namespace, cacheKey);
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function writeEvidenceCache(cacheDir: string | null, namespace: string, cacheKey: string, payload: unknown) {
+  if (!cacheDir) return;
+  const filePath = evidenceCachePath(cacheDir, namespace, cacheKey);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function evidenceCachePath(cacheDir: string, namespace: string, cacheKey: string) {
+  const hash = createHash("sha256").update(`${namespace}:${cacheKey}`).digest("hex");
+  return path.join(cacheDir, namespace, `${hash}.json`);
 }
 
 function normalizeIntent(value: ParsedSearchIntent): ParsedSearchIntent {
@@ -797,6 +897,50 @@ function buildReviewCsv(
     ]);
   }
   return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+}
+
+function buildCandidateExplanationsMarkdown(
+  cards: Array<{
+    candidate_id: string;
+    name: string | null;
+    headline: string | null;
+    profile_urls: string[];
+    evidence_summary: string;
+    source_mix: ProviderName[];
+  }>,
+  decisions: Array<{
+    candidate_id: string;
+    would_advance: string;
+    reason: string;
+    deal_breaker: string | null;
+    missing_evidence: string[];
+    outreach_angle?: string | null;
+    suggested_next_action: string;
+  }>,
+) {
+  const decisionsById = new Map(decisions.map((decision) => [decision.candidate_id, decision]));
+  const lines = ["# Candidate Explanations", ""];
+  for (const card of cards) {
+    const decision = decisionsById.get(card.candidate_id);
+    lines.push(
+      `## ${card.candidate_id} ${card.name || card.headline || "Unknown"}`,
+      "",
+      `- Decision: ${decision?.would_advance || "unreviewed"}`,
+      `- Next action: ${decision?.suggested_next_action || ""}`,
+      `- Sources: ${card.source_mix.join(", ")}`,
+      `- URLs: ${card.profile_urls.join(" ")}`,
+      `- Reason: ${decision?.reason || ""}`,
+      `- Outreach angle: ${decision?.outreach_angle || ""}`,
+      `- Missing evidence: ${decision?.missing_evidence.join("; ") || ""}`,
+      `- Deal breaker: ${decision?.deal_breaker || ""}`,
+      "",
+      "Evidence:",
+      "",
+      card.evidence_summary || "",
+      "",
+    );
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function buildLaneStats(ledger: CostLedgerEntry[], leads: CandidateLead[]) {

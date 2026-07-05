@@ -21,9 +21,13 @@
 - `S2-3` 已完成基础版：Firecrawl 作为 top URL extraction 层接入，只抽 discovery 后的非 LinkedIn top leads。
 - `S2-4` 已完成基础版：GitHub evidence adapter 可对 GitHub user/repo URL 拉取公开用户和 repo 证据，不作为主召回。
 - `S2-5` 已完成 adapter 基础版：Bright probe 可生成保守 Dataset Filter，并受 `brightBudgetUsd`、`brightRecordsLimit` 和 `--allow-paid` 保护；尚未在本轮触发真实 Bright snapshot。
+- `S2-6` 已完成基础版：provider error/blocked ledger 会记录 `failure_type`，区分 auth、rate limit、timeout、bad query、budget blocked、no result 和 provider error。
 - `S3-1`、`S3-3`、`S3-4` 已完成基础版：支持 URL lead 归一化、URL 去重、Firecrawl evidence pack 和候选人卡片。
+- `S3-2` 已完成基础版：候选卡片按 LinkedIn/GitHub URL 强合并，按姓名+标题弱合并，并保留 `identity_key` 和 `identity_confidence`。
+- `S3-5` 已完成基础版：Firecrawl/GitHub evidence 支持 URL cache，可用 `--no-evidence-cache` 关闭。
 - `S4-1` 已完成基础版：DeepSeek light screen 输出统一 `would_advance` rubric，并明确 snippet-only 证据不足时不能轻易给 `yes`。
 - `S4-2` 已完成基础版：lane diagnosis 可按 lane 解释 query、provider、预算和覆盖问题。
+- `S4-3` 已完成基础版：light screen 后会导出 `candidate-explanations.md`，给出招聘人员可读的推进理由、风险和缺失证据。
 - `S4-4` 已完成基础版：LLM 本地 cache 写入 `runs/sourcing/.llm-cache`，重复 dry-run 可命中缓存。
 - `S4-5` 已完成基础版：light screen 后导出 `review-samples.csv`，并可通过 `scripts/sourcing/build-calibration-samples.ts` 聚合成 benchmark 级校准表。
 - `S5-1` 已完成基础版：2 个 JD live smoke 已跑通，报告记录在 `docs/architecture/jd-sourcing-smoke-report.md`。

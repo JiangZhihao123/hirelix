@@ -453,7 +453,10 @@ function aggregateProviderLaneStats(
     item.actual_cost_usd += entry.actual_cost_usd ?? 0;
     item.latency_ms += entry.latency_ms ?? 0;
     if ((entry.status === "error" || entry.status === "blocked") && entry.message) {
-      item.failure_modes.push(entry.message);
+      const failureType = typeof entry.metadata?.failure_type === "string"
+        ? entry.metadata.failure_type
+        : null;
+      item.failure_modes.push(failureType ? `${failureType}: ${entry.message}` : entry.message);
     }
   }
 

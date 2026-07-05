@@ -94,6 +94,8 @@ export type CandidateLead = {
 
 export type CandidateCard = {
   candidate_id: string;
+  identity_key?: string;
+  identity_confidence?: "strong" | "weak" | "single_source";
   name: string | null;
   headline: string | null;
   location: string | null;
