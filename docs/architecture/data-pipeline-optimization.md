@@ -945,8 +945,8 @@ provider_value =
 | Bright Dataset Filter | LinkedIn structured profile 小额 probe | `BRIGHTDATA_API_TOKEN`、`BRIGHTDATA_DATASET_ID` | `.env` 已配置；`.env.local` 有 token | 可选但建议验证 | 已有；使用前先查余额和 dataset 权限，避免误触发大额任务 |
 | Serper | Google SERP / X-ray discovery | `SERPER_API_KEY` | `.env` 已配置 | 必需，首轮 SERP 优先 | 已有；原型优先使用免费/低成本额度 |
 | GitHub API | 技术证据、repo/user 信息补充 | `GITHUB_TOKEN` | `.env.local` 已配置 | 建议启用 | 已有；作为 evidence source，不作为主召回 |
-| Exa | 语义网页发现、hidden gem、公开证据 | `EXA_API_KEY` | 未发现 | 建议启用 | 需要注册或由用户提供；如果首轮不注册，可先用 Serper + Firecrawl 替代 |
-| Firecrawl | 已知 URL 页面抽取 | `FIRECRAWL_API_KEY` | 未发现 | 建议启用 | 需要注册或由用户提供；只抽取 top URLs |
+| Exa | 语义网页发现、hidden gem、公开证据 | `EXA_API_KEY` | 已提供并写入本地 `.env` / `.env.local` | 建议启用 | 已有；只用于小额语义网页发现 |
+| Firecrawl | 已知 URL 页面抽取 | `FIRECRAWL_API_KEY` | 已提供并写入本地 `.env` / `.env.local` | 建议启用 | 已有；只抽取 top URLs |
 | DataForSEO | 批量 SERP 备选 | `DATAFORSEO_LOGIN`、`DATAFORSEO_PASSWORD` 或等价 API 凭据 | 未发现 | 非首轮必需 | 有最低充值时先不作为第一选择；Serper 不够再注册 |
 | Bright LinkedIn Scraper / URL enrichment | 高潜 LinkedIn URL 结构化补全 | 复用 Bright 或单独 enrichment provider key | 未单独确认 | 非首轮必需 | 首轮只补 top leads；如 Bright 当前权限不支持再决定替代 |
 | Hunter | 邮箱/contact enrichment | `HUNTER_API_KEY` | `.env` 已配置 | 非首轮必需 | 已有；首轮不建议做联系人补全，避免偏离 sourcing 验证 |
