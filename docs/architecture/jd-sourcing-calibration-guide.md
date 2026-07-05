@@ -92,3 +92,20 @@ npm run sourcing:merge-human-review
 ```bash
 npm run sourcing:decision-report -- --benchmark-dir=runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc --calibration-csv=docs/architecture/jd-sourcing-calibration-human-reviewed.csv --manual-review-done --out=docs/architecture/jd-sourcing-benchmark-report.md
 ```
+
+## Readiness Check
+
+真实 Bright probe 前必须跑 readiness check：
+
+```bash
+npm run sourcing:human-review-readiness -- --out-md=docs/architecture/jd-sourcing-human-review-readiness.md --out-json=docs/architecture/jd-sourcing-human-review-readiness.json
+```
+
+当前状态：
+
+- Reviewed rows：0 / 24
+- P0 reviewed：0 / 15
+- Bright gate reviewed：0 / 8
+- Bright probe allowed：no
+
+只有报告里 `Bright probe allowed: yes` 时，才允许进入真实 Bright probe。默认要求全部 P0 行完成；`--allow-partial-p0` 只能用于局部检查，不能作为完整人工校准依据。

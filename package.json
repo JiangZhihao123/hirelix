@@ -19,6 +19,7 @@
     "sourcing:provider-value-report": "tsx scripts/sourcing/build-provider-value-report.ts",
     "sourcing:human-review-queue": "tsx scripts/sourcing/build-human-review-queue.ts",
     "sourcing:merge-human-review": "tsx scripts/sourcing/merge-human-review-queue.ts",
+    "sourcing:human-review-readiness": "tsx scripts/sourcing/check-human-review-readiness.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
