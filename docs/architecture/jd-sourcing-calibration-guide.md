@@ -69,3 +69,26 @@ npm run sourcing:decision-report -- --benchmark-dir=runs/sourcing-benchmark/benc
 2. 先完成 P0 bucket，尤其是 `confirm_assistant_contact_worthy` 和 `bright_probe_gate`。
 3. 如果 `bright_probe_gate` 没有人审通过，不执行真实 Bright probe。
 4. 人审完成后，再把结果合并回 benchmark 决策报告。
+
+合并命令：
+
+```bash
+npm run sourcing:merge-human-review
+```
+
+默认会读取：
+
+- `docs/architecture/jd-sourcing-calibration-samples.csv`
+- `docs/architecture/jd-sourcing-human-review-queue.csv`
+
+并输出：
+
+- `docs/architecture/jd-sourcing-calibration-human-reviewed.csv`
+
+注意：默认只合并 `human_decision` 已填写的行，未人工填写的行会保持空白，不会把 `assistant_strict` 当成人工结果。如果确实要把未人工复核的 assistant_strict 一起带入报告，需要显式加 `--include-unreviewed-assistant-strict`，但该模式不能作为真实人工校准。
+
+人审合并后生成决策报告：
+
+```bash
+npm run sourcing:decision-report -- --benchmark-dir=runs/sourcing-benchmark/benchmark-2026-07-05T16-41-40-341Z-d05df7cc --calibration-csv=docs/architecture/jd-sourcing-calibration-human-reviewed.csv --manual-review-done --out=docs/architecture/jd-sourcing-benchmark-report.md
+```

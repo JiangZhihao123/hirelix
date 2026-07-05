@@ -36,6 +36,7 @@
 - `S5-4` 已完成：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本；tracked 归因报告见 `docs/architecture/jd-sourcing-provider-value-report.md`。
 - `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
 - Human review queue 已完成：`scripts/sourcing/build-human-review-queue.ts` 会把 assistant_strict 样本缩成 24 行人工/猎头复核队列，产物见 `docs/architecture/jd-sourcing-human-review-queue.md` 和 `.csv`。
+- Human review merge 已完成：`scripts/sourcing/merge-human-review-queue.ts` 会把 `jd-sourcing-human-review-queue.csv` 中已填写的 `human_decision` 合并成 `docs/architecture/jd-sourcing-calibration-human-reviewed.csv`，供 benchmark 决策报告使用。
 - Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
 
 尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、执行真实 Bright 极小 probe 对照。
@@ -232,6 +233,14 @@
 - P1：5 条 `serper_snippet_risk`，2 条 `github_profile_needed`。
 - P2：2 条 `negative_control`。
 - 规则：真实 Bright probe 前必须先完成人审 `bright_probe_gate`；如果没有人审通过，不花 Bright 钱。
+
+## Human Review Merge
+
+- 脚本：`npm run sourcing:merge-human-review`
+- 产物：`docs/architecture/jd-sourcing-calibration-human-reviewed.csv`
+- 默认行为：只合并 `human_decision` 已填写的行，未填写行保持空白。
+- 验证结果：当前人审队列尚未填写，生成的 human-reviewed calibration 有 56 行、0 条 reviewed，决策报告识别为 `unreviewed`。
+- 用途：人审完成后，把 human-reviewed calibration 传给 `npm run sourcing:decision-report -- --manual-review-done`，再更新 benchmark 决策报告。
 
 关键风险：
 

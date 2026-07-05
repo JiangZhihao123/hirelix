@@ -18,6 +18,7 @@
     "sourcing:bright-probe-plan": "tsx scripts/sourcing/build-bright-probe-plan.ts",
     "sourcing:provider-value-report": "tsx scripts/sourcing/build-provider-value-report.ts",
     "sourcing:human-review-queue": "tsx scripts/sourcing/build-human-review-queue.ts",
+    "sourcing:merge-human-review": "tsx scripts/sourcing/merge-human-review-queue.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
