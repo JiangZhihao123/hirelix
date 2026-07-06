@@ -156,7 +156,8 @@ npm run sourcing:bright-probe -- --dry-run --out-md=docs/architecture/jd-sourcin
 - Estimated total cost：`$0.1425`
 - Provider readiness checked：yes
 - Provider readiness OK：yes
-- Bright network checked：no
+- Bright network checked：yes
+- Bright balance：`$8.96`
 - Block reason：无 dry-run 阻塞；当前仍是 dry-run，`Allow paid: no`，没有真实 Bright 调用。
 
 真实执行必须显式使用：

@@ -9,7 +9,7 @@
 - Readiness allowed：yes
 - Provider readiness checked：yes
 - Provider readiness OK：yes
-- Bright network checked：no
+- Bright network checked：yes
 - Allow paid：no
 - Estimated total cost：$0.1425
 - Max budget：$1.00

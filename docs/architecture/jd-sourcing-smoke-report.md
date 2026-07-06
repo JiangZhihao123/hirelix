@@ -62,7 +62,7 @@ GitHub adapter 已通过单独 smoke，可对 GitHub repo URL 拉取公开用户
 - 低成本 SERP + Exa + Firecrawl 组合能形成候选卡片和统一 light screen 输出。
 - 本次样本太小，不能作为数据源路线结论；它只证明实验链路可跑。
 - `yes` 样本需要人工抽查校准，避免 LLM 在公开证据不足时过度乐观。
-- Bright 没有被调用；后续如测试 Bright，只能使用极小 probe，并受当前 `$8.96` 左右余额和 `$5` 子预算约束。
+- Bright 没有被调用；后续如测试 Bright，只能使用极小 probe，并受当前 `$8.96` 左右余额和 `$1` 子预算约束。
 
 ## 下一步
 

@@ -4,7 +4,7 @@
 
 ## Summary
 
-- Network checked：no
+- Network checked：yes
 - Providers：6
 - Ready：6
 - Warning：0
@@ -23,4 +23,4 @@
 | exa | no | yes | ready | EXA_API_KEY is configured |
 | firecrawl | no | yes | ready | FIRECRAWL_API_KEY is configured |
 | github | no | yes | ready | GITHUB_TOKEN is configured |
-| bright | no | yes | ready | Bright env is configured; balance not checked because --network was not passed |
+| bright | no | yes | ready | Bright balance is $8.96 |

@@ -49,7 +49,7 @@
 ## 执行边界
 
 - 外部总预算：10 个 JD benchmark 不超过 `$50`。
-- Bright 约束：当前余额约 `$9`，首轮 Bright 子预算建议不超过 `$5`，超过必须单独确认。
+- Bright 约束：当前只读查询余额为 `$8.96`，首轮 Bright 子预算建议不超过 `$1`，超过必须单独确认。
 - 不做真实付费调用前，先打印预计 provider、query、record 数和最大花费。
 - DeepSeek v4 flash 可以积极使用，质量优先，不因为省 token 降低候选人判断质量。
 - 内部 ATS/CSV/简历库只作为增强项，不作为外部 sourcing 做不好的解释。
@@ -180,7 +180,7 @@
 | T1 | P0 | 生成专家复核包和决策校验 | `jd-sourcing-human-review-queue.csv` | 把 P0/P1 样本按 JD、bucket、候选人证据整理成可审阅包；增加 decision 值和 reason 必填校验 | `jd-sourcing-human-review-pack.md`，review validator 脚本 | P0 15 行都能在一个文档里快速审；非法 decision 或缺 reason 会失败 | 不花钱 |
 | T2 | P0 | 完成 P0 可信复核 | T1 复核包 | 按猎头视角判断 `contact_worthy` / `research_more` / `reject` / `uncertain`，先完成 7 条 contact-worthy 校准和 8 条 Bright gate | 更新 `jd-sourcing-human-review-queue.csv` | `sourcing:human-review-readiness` 显示 P0 complete；Bright gate complete；至少明确哪些 URL 值得补全 | 不花钱 |
 | T3 | P0 | 更新校准和决策报告 | T2 已填复核队列 | merge review queue，重算 benchmark 决策报告 | `jd-sourcing-calibration-human-reviewed.csv`，`jd-sourcing-benchmark-report.md` | 报告从 “unreviewed / 不能决策” 变成基于可信复核的结论；给出真实 contact-worthy rate 和 cost/contact-worthy | 不花钱 |
-| T4 | P0 | Bright 只读网络 readiness | Provider readiness 脚本、当前 Bright 余额约 `$9` | 只读查 key 和余额，不创建 snapshot | `jd-sourcing-provider-readiness.md/json` 网络版 | Bright network checked=yes；余额和权限写入报告 | 只读，不花钱 |
+| T4 | P0 | Bright 只读网络 readiness | Provider readiness 脚本、当前 Bright 余额 `$8.96` | 只读查 key 和余额，不创建 snapshot | `jd-sourcing-provider-readiness.md/json` 网络版 | Bright network checked=yes；余额和权限写入报告 | 已完成，只读不花钱 |
 | T5 | P1 | Bright 极小真实 profile probe | T2 通过的 Bright gate URLs、Bright dry plan | 只跑被批准 URL 的 profile completion；Dataset Filter 对照默认保留 25 records/JD hard cap | Bright probe run report 和 run directory | 总预算 cap `$1`；实际执行前报告 estimated cost；证明 Bright 是补全源还是无效源 | 付费，必须显式确认；当前计划约 `$0.15` |
 | T6 | P1 | Bright 结果质量评估 | T5 结果、T2 原始 snippet 判断 | 比较补全前后是否把 `research_more` 转成 `contact_worthy/reject`，并统计单个有效 profile 成本 | Bright probe evaluation report | 给出 Bright 对 Serper snippet-only 样本的增益：转正数、排除数、无效数、成本 | 不再新增 Bright 调用 |
 | T7 | P1 | 根据复核结果修正召回/筛选策略 | T3/T6 的误判样本 | 调整 lane/query 生成、LLM rubric 或 provider 权重；避免硬编码具体人名/公司 | 脚本和 prompt 小改动、误判原因表 | Serper snippet-only 误判下降；不会靠特殊关键词补丁解决质量 | 可能触发小额 Serper/Exa，执行前打印预算 |
@@ -190,7 +190,7 @@
 
 ## 任务执行规则
 
-- `T1`、`T2`、`T3` 已完成 Codex 猎头视角版本。当前下一步是 `T4` Bright 只读网络 readiness，或等待用户明确授权后进入 `T5` 真实 Bright 极小 probe。
+- `T1`、`T2`、`T3` 已完成 Codex 猎头视角版本，`T4` 已完成只读网络 readiness。当前下一步只能是等待用户明确授权后进入 `T5` 真实 Bright 极小 probe，或先停在 dry-run 继续做非付费分析。
 - `T2` 可以由真人猎头完成，也可以先由 Codex 按猎头视角完成一版；如果是 Codex 标注，必须在报告里写清楚 `reviewer_type=codex_headhunter`。
 - `T5` 是唯一会消耗 Bright 的任务。即使 readiness 通过，也必须收到“执行付费 Bright probe”的明确确认后才能运行。
 - 如果 `T3` 显示可信 contact-worthy rate 很低，优先修正召回/筛选策略，不进入 Bright 付费验证。
@@ -285,19 +285,19 @@
 - 当前模式：dry-run。
 - 当前状态：planned。
 - 当前计划：7 个 URL completion，2 个 Dataset Filter 对照，估算 `$0.1425`。
-- Provider readiness：已检查，required provider 可用；Bright env configured，但余额未网络检查。
+- Provider readiness：已网络检查，required provider 可用；Bright balance `$8.96`。
 - 当前阻塞：无 dry-run 阻塞；但 `mode=dry-run`、`allow_paid=false`，没有触发真实 Bright 调用。
 - 真实执行条件：必须同时满足 `Bright probe allowed: yes`、provider readiness 通过、`--live`、`--allow-paid`、`--max-budget-usd` 未超限。
 - 注意：runner 就绪不等于 Bright 验证完成；当前没有触发任何真实 Bright 调用。
 
 ## Provider Readiness
 
-- 脚本：`npx tsx scripts/sourcing/check-provider-readiness.ts --out-md=docs/architecture/jd-sourcing-provider-readiness.md --out-json=docs/architecture/jd-sourcing-provider-readiness.json`
+- 脚本：`npx tsx scripts/sourcing/check-provider-readiness.ts --network --out-md=docs/architecture/jd-sourcing-provider-readiness.md --out-json=docs/architecture/jd-sourcing-provider-readiness.json`
 - 当前报告：`docs/architecture/jd-sourcing-provider-readiness.md` 和 `docs/architecture/jd-sourcing-provider-readiness.json`
-- 当前模式：非网络检查，没有访问外部服务。
+- 当前模式：网络只读检查；只访问 Bright 余额接口，不创建 snapshot，不执行付费召回。
 - 当前结果：6 个 provider 全部 ready；DeepSeek 和 Serper 这两个 required provider 均 usable。
-- Bright：env configured，但余额未在本报告中检查。
-- 真实 Bright probe 前建议重新运行 `npx tsx scripts/sourcing/check-provider-readiness.ts --network --out-md=... --out-json=...`，该路径只读查询 Bright 余额，不创建 snapshot。
+- Bright：网络 readiness 已完成，只读余额 `$8.96`，没有创建 snapshot。
+- 真实 Bright probe 前仍建议重新运行 `npx tsx scripts/sourcing/check-provider-readiness.ts --network --out-md=... --out-json=...`，该路径只读查询 Bright 余额，不创建 snapshot。
 
 关键风险：
 

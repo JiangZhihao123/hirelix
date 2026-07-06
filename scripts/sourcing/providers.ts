@@ -102,7 +102,7 @@ export async function checkProviderReadiness(options: {
           : "Bright balance endpoint succeeded but did not expose a numeric balance",
         details: {
           balance,
-          brightBudgetRecommendedCapUsd: 5,
+          brightBudgetRecommendedCapUsd: 1,
         },
       });
     } catch (error) {

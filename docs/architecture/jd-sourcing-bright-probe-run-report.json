@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-07-06T00:44:05.932Z",
+  "generated_at": "2026-07-06T00:51:55.365Z",
   "mode": "dry-run",
   "status": "planned",
   "guardrails": {
     "readiness_allowed": true,
     "provider_readiness_checked": true,
     "provider_readiness_ok": true,
-    "bright_network_checked": false,
+    "bright_network_checked": true,
     "allow_paid": false,
     "max_budget_usd": 1,
     "estimated_total_cost_usd": 0.1425,

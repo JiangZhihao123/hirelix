@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-05T17:59:07.253Z",
-  "network_checked": false,
+  "generated_at": "2026-07-06T00:51:40.839Z",
+  "network_checked": true,
   "summary": {
     "total": 6,
     "ready": 6,
@@ -10,7 +10,7 @@
     "required_failures": 0,
     "optional_unusable": 0,
     "usable_for_no_bright_benchmark": true,
-    "bright_network_checked": false
+    "bright_network_checked": true
   },
   "readiness": [
     {
@@ -59,9 +59,10 @@
       "configured": true,
       "usable": true,
       "status": "ready",
-      "message": "Bright env is configured; balance not checked because --network was not passed",
+      "message": "Bright balance is $8.96",
       "details": {
-        "balanceChecked": false
+        "balance": 8.96,
+        "brightBudgetRecommendedCapUsd": 1
       }
     }
   ],
