@@ -78,6 +78,7 @@ function mergeRows(calibrationRows: CsvRow[], reviewRows: CsvRow[], options: Cli
           `human_review_queue:${review.review_id || "unknown"}`,
           review.bucket ? `bucket=${review.bucket}` : "",
           review.priority ? `priority=${review.priority}` : "",
+          review.reviewer_type ? `reviewer_type=${review.reviewer_type}` : "",
           review.human_notes ? `notes=${review.human_notes}` : "",
         ].filter(Boolean).join("; "),
       };

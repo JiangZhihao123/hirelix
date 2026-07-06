@@ -41,6 +41,7 @@
 - Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
 - Bright guarded runner 已完成 dry-run：`scripts/sourcing/run-bright-probe.ts` 会读取 Bright plan 和 readiness gate，默认 `--dry-run`，只有 readiness 通过、`--live --allow-paid` 且预算未超限时才允许真实调用 Bright。当前 dry-run 报告见 `docs/architecture/jd-sourcing-bright-probe-run-report.md`。
 - Provider readiness 报告已完成：`scripts/sourcing/check-provider-readiness.ts` 支持 `--out-md` / `--out-json`，当前非网络报告见 `docs/architecture/jd-sourcing-provider-readiness.md` 和 `.json`。
+- Human review pack 和 validator 已完成：`scripts/sourcing/build-human-review-pack.ts` 会生成 P0/P1 专家复核包，`scripts/sourcing/validate-human-review-queue.ts` 会校验 `human_decision`、`reviewer_type` 和 `human_reason`。
 
 尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、执行真实 Bright 极小 probe 对照。
 
@@ -188,7 +189,7 @@
 
 ## 任务执行规则
 
-- 当前下一步只做 `T1`。在 `T1` 完成前，不跑真实 Bright，不重跑 10 JD benchmark。
+- `T1` 已完成。当前下一步只做 `T2`：完成 P0 可信复核；在 `T2` 完成前，不跑真实 Bright，不重跑 10 JD benchmark。
 - `T2` 可以由真人猎头完成，也可以先由 Codex 按猎头视角完成一版；如果是 Codex 标注，必须在报告里写清楚 `reviewer_type=codex_headhunter`。
 - `T5` 是唯一会消耗 Bright 的任务。即使 readiness 通过，也必须收到“执行付费 Bright probe”的明确确认后才能运行。
 - 如果 `T3` 显示可信 contact-worthy rate 很低，优先修正召回/筛选策略，不进入 Bright 付费验证。
@@ -247,10 +248,14 @@
 
 - 脚本：`npm run sourcing:human-review-queue`
 - 产物：`docs/architecture/jd-sourcing-human-review-queue.md` 和 `docs/architecture/jd-sourcing-human-review-queue.csv`
+- 复核包：`npm run sourcing:human-review-pack`，产物 `docs/architecture/jd-sourcing-human-review-pack.md`
+- 校验脚本：`npm run sourcing:validate-human-review`，产物 `docs/architecture/jd-sourcing-human-review-validation.md` 和 `.json`
 - 队列行数：24。
 - P0：7 条 `confirm_assistant_contact_worthy`，8 条 `bright_probe_gate`。
 - P1：5 条 `serper_snippet_risk`，2 条 `github_profile_needed`。
 - P2：2 条 `negative_control`。
+- 当前校验：字段格式 valid，0 / 24 reviewed，0 / 15 P0 reviewed；`--require-p0-complete` 会失败，符合预期。
+- 复核字段：`human_decision`、`reviewer_type`、`human_reason`、`human_notes`。
 - 规则：真实 Bright probe 前必须先完成人审 `bright_probe_gate`；如果没有人审通过，不花 Bright 钱。
 
 ## Human Review Merge

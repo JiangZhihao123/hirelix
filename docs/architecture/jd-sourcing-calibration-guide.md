@@ -65,10 +65,38 @@ npm run sourcing:decision-report -- --benchmark-dir=runs/sourcing-benchmark/benc
 
 使用方式：
 
-1. 填写 `jd-sourcing-human-review-queue.csv` 中的 `human_decision`、`human_reason`、`human_notes`。
-2. 先完成 P0 bucket，尤其是 `confirm_assistant_contact_worthy` 和 `bright_probe_gate`。
-3. 如果 `bright_probe_gate` 没有人审通过，不执行真实 Bright probe。
-4. 人审完成后，再把结果合并回 benchmark 决策报告。
+1. 先阅读 `docs/architecture/jd-sourcing-human-review-pack.md`，它按 JD 展开了 P0/P1 候选证据。
+2. 填写 `jd-sourcing-human-review-queue.csv` 中的 `human_decision`、`reviewer_type`、`human_reason`、`human_notes`。
+3. `reviewer_type` 必须写清楚来源，例如 `human_headhunter`、`human_recruiter`、`codex_headhunter`。
+4. 先完成 P0 bucket，尤其是 `confirm_assistant_contact_worthy` 和 `bright_probe_gate`。
+5. 如果 `bright_probe_gate` 没有人审通过，不执行真实 Bright probe。
+6. 人审完成后，再把结果合并回 benchmark 决策报告。
+
+复核包生成命令：
+
+```bash
+npm run sourcing:human-review-pack
+```
+
+复核字段校验命令：
+
+```bash
+npm run sourcing:validate-human-review -- --out-md=docs/architecture/jd-sourcing-human-review-validation.md --out-json=docs/architecture/jd-sourcing-human-review-validation.json
+```
+
+强制检查 P0 是否全部完成：
+
+```bash
+npm run sourcing:validate-human-review -- --require-p0-complete
+```
+
+当前校验状态：
+
+- Validation status：valid
+- Reviewed rows：0 / 24
+- P0 reviewed：0 / 15
+- Bright gate reviewed：0 / 8
+- 强制 P0 校验：失败，符合预期，因为还没有进入可信复核阶段。
 
 合并命令：
 

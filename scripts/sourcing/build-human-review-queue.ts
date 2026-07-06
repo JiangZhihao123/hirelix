@@ -53,6 +53,7 @@ type ReviewRow = {
   bright_probe_candidate: string;
   priority_score: number;
   human_decision: string;
+  reviewer_type: string;
   human_reason: string;
   human_notes: string;
 };
@@ -264,6 +265,7 @@ function buildReviewRow(row: CalibrationRow, params: {
       : "no",
     priority_score: params.priorityScore,
     human_decision: "",
+    reviewer_type: "",
     human_reason: "",
     human_notes: "",
   };
@@ -321,7 +323,7 @@ function renderMarkdown(rows: ReviewRow[], options: CliOptions) {
     "",
     "## How To Use",
     "",
-    "1. 填写 CSV 里的 `human_decision`、`human_reason`、`human_notes`。",
+    "1. 填写 CSV 里的 `human_decision`、`reviewer_type`、`human_reason`、`human_notes`。",
     "2. 先完成 P0 行，再看 P1；P2 只做少量边界校准。",
     "3. 如果 `bright_probe_gate` 行没有人工通过，不要执行真实 Bright probe。",
     "4. 人审完成后，再用人工结果更新 benchmark decision report。",
@@ -357,6 +359,7 @@ function buildCsv(rows: ReviewRow[]) {
     "bright_probe_candidate",
     "priority_score",
     "human_decision",
+    "reviewer_type",
     "human_reason",
     "human_notes",
   ];
