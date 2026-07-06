@@ -14,6 +14,7 @@ import { readEnv } from "./env";
 type CliOptions = {
   brightPlanJsonPath: string;
   readinessJsonPath: string;
+  providerReadinessJsonPath: string | null;
   outDir: string;
   outMdPath: string | null;
   outJsonPath: string | null;
@@ -64,12 +65,29 @@ type Readiness = {
   };
 };
 
+type ProviderReadinessReport = {
+  summary?: {
+    required_failures?: number;
+    bright_network_checked?: boolean;
+  };
+  readiness?: Array<{
+    provider: string;
+    usable: boolean;
+    required: boolean;
+    status: string;
+    message: string;
+  }>;
+};
+
 type ProbeReport = {
   generated_at: string;
   mode: "dry-run" | "live";
   status: "blocked" | "planned" | "completed" | "error";
   guardrails: {
     readiness_allowed: boolean;
+    provider_readiness_checked: boolean;
+    provider_readiness_ok: boolean;
+    bright_network_checked: boolean;
     allow_paid: boolean;
     max_budget_usd: number;
     estimated_total_cost_usd: number;
@@ -107,6 +125,7 @@ function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     brightPlanJsonPath: "docs/architecture/jd-sourcing-bright-probe-plan.json",
     readinessJsonPath: "docs/architecture/jd-sourcing-human-review-readiness.json",
+    providerReadinessJsonPath: "docs/architecture/jd-sourcing-provider-readiness.json",
     outDir: "runs/sourcing-bright-probe",
     outMdPath: null,
     outJsonPath: null,
@@ -136,6 +155,14 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg.startsWith("--readiness-json=")) {
       options.readinessJsonPath = arg.slice("--readiness-json=".length);
+      continue;
+    }
+    if (arg.startsWith("--provider-readiness-json=")) {
+      options.providerReadinessJsonPath = arg.slice("--provider-readiness-json=".length);
+      continue;
+    }
+    if (arg === "--no-provider-readiness") {
+      options.providerReadinessJsonPath = null;
       continue;
     }
     if (arg.startsWith("--out-dir=")) {
@@ -173,7 +200,10 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const plan = readJson<BrightPlan>(path.resolve(options.brightPlanJsonPath));
   const readiness = readJson<Readiness>(path.resolve(options.readinessJsonPath));
-  const report = await buildAndMaybeRunProbe(plan, readiness, options);
+  const providerReadiness = options.providerReadinessJsonPath && fs.existsSync(path.resolve(options.providerReadinessJsonPath))
+    ? readJson<ProviderReadinessReport>(path.resolve(options.providerReadinessJsonPath))
+    : null;
+  const report = await buildAndMaybeRunProbe(plan, readiness, providerReadiness, options);
   const runDir = createRunDir(options.outDir);
   const jsonPath = path.resolve(options.outJsonPath || path.join(runDir, "bright-probe-report.json"));
   const mdPath = path.resolve(options.outMdPath || path.join(runDir, "bright-probe-report.md"));
@@ -186,16 +216,25 @@ async function main() {
   }
 }
 
-async function buildAndMaybeRunProbe(plan: BrightPlan, readiness: Readiness, options: CliOptions): Promise<ProbeReport> {
+async function buildAndMaybeRunProbe(
+  plan: BrightPlan,
+  readiness: Readiness,
+  providerReadiness: ProviderReadinessReport | null,
+  options: CliOptions,
+): Promise<ProbeReport> {
   const planned = buildPlannedProbe(plan, readiness, options);
   const estimatedTotal = estimateTotalCost(planned);
-  const blockReasons = buildBlockReasons({ readiness, options, estimatedTotal, planned });
+  const blockReasons = buildBlockReasons({ readiness, providerReadiness, options, estimatedTotal, planned });
+  const providerStatus = providerReadinessStatus(providerReadiness);
   const base: ProbeReport = {
     generated_at: new Date().toISOString(),
     mode: options.mode,
     status: blockReasons.length > 0 ? "blocked" : "planned",
     guardrails: {
       readiness_allowed: Boolean(readiness.gates?.bright_probe_allowed),
+      provider_readiness_checked: Boolean(providerReadiness),
+      provider_readiness_ok: providerStatus.ok,
+      bright_network_checked: Boolean(providerReadiness?.summary?.bright_network_checked),
       allow_paid: options.allowPaid,
       max_budget_usd: options.maxBudgetUsd,
       estimated_total_cost_usd: estimatedTotal,
@@ -306,13 +345,21 @@ function buildPlannedProbe(plan: BrightPlan, readiness: Readiness, options: CliO
 
 function buildBlockReasons(params: {
   readiness: Readiness;
+  providerReadiness: ProviderReadinessReport | null;
   options: CliOptions;
   estimatedTotal: number;
   planned: ProbeReport["planned"];
 }) {
   const reasons = [...(params.readiness.gates?.block_reasons || [])];
+  const providerStatus = providerReadinessStatus(params.providerReadiness);
   if (!params.readiness.gates?.bright_probe_allowed) {
     reasons.push("Human review readiness does not allow Bright probe");
+  }
+  if (!providerStatus.ok) {
+    reasons.push(...providerStatus.reasons);
+  }
+  if (params.options.mode === "live" && !params.providerReadiness) {
+    reasons.push("Live mode requires provider readiness report");
   }
   if (params.options.mode === "live" && !params.options.allowPaid) {
     reasons.push("Live mode requires --allow-paid");
@@ -327,6 +374,23 @@ function buildBlockReasons(params: {
     reasons.push("Both URL completion and dataset filter probes are disabled");
   }
   return Array.from(new Set(reasons));
+}
+
+function providerReadinessStatus(report: ProviderReadinessReport | null) {
+  if (!report) return { ok: true, reasons: [] as string[] };
+  const reasons: string[] = [];
+  const requiredFailures = report.summary?.required_failures || 0;
+  if (requiredFailures > 0) {
+    reasons.push(`Provider readiness has ${requiredFailures} required failure(s)`);
+  }
+  const bright = report.readiness?.find((item) => item.provider === "bright");
+  if (bright && !bright.usable) {
+    reasons.push(`Bright provider is not usable: ${bright.message}`);
+  }
+  return {
+    ok: reasons.length === 0,
+    reasons,
+  };
 }
 
 function estimateTotalCost(planned: ProbeReport["planned"]) {
@@ -346,6 +410,9 @@ function renderMarkdown(report: ProbeReport) {
     `- Mode：${report.mode}`,
     `- Status：${report.status}`,
     `- Readiness allowed：${report.guardrails.readiness_allowed ? "yes" : "no"}`,
+    `- Provider readiness checked：${report.guardrails.provider_readiness_checked ? "yes" : "no"}`,
+    `- Provider readiness OK：${report.guardrails.provider_readiness_ok ? "yes" : "no"}`,
+    `- Bright network checked：${report.guardrails.bright_network_checked ? "yes" : "no"}`,
     `- Allow paid：${report.guardrails.allow_paid ? "yes" : "no"}`,
     `- Estimated total cost：$${report.guardrails.estimated_total_cost_usd.toFixed(4)}`,
     `- Max budget：$${report.guardrails.max_budget_usd.toFixed(2)}`,

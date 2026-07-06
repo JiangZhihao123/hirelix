@@ -40,6 +40,7 @@
 - Human review readiness gate 已完成：`scripts/sourcing/check-human-review-readiness.ts` 会检查 P0 人审完成度和 Bright probe 开闸条件，产物见 `docs/architecture/jd-sourcing-human-review-readiness.md` 和 `.json`。
 - Bright/Profile dry probe plan 已完成：`scripts/sourcing/build-bright-probe-plan.ts` 会从 assistant_strict 校准结果中选择最值得补全的 LinkedIn snippet-only 样本，并生成 `docs/architecture/jd-sourcing-bright-probe-plan.md` / `.json`。该脚本只读本地 benchmark 产物，不调用 Bright，不创建 snapshot。
 - Bright guarded runner 已完成 dry-run：`scripts/sourcing/run-bright-probe.ts` 会读取 Bright plan 和 readiness gate，默认 `--dry-run`，只有 readiness 通过、`--live --allow-paid` 且预算未超限时才允许真实调用 Bright。当前 dry-run 报告见 `docs/architecture/jd-sourcing-bright-probe-run-report.md`。
+- Provider readiness 报告已完成：`scripts/sourcing/check-provider-readiness.ts` 支持 `--out-md` / `--out-json`，当前非网络报告见 `docs/architecture/jd-sourcing-provider-readiness.md` 和 `.json`。
 
 尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、执行真实 Bright 极小 probe 对照。
 
@@ -261,9 +262,19 @@
 - 当前模式：dry-run。
 - 当前状态：blocked。
 - 当前计划：0 个 URL completion，2 个 Dataset Filter 对照，估算 `$0.1250`。
+- Provider readiness：已检查，required provider 可用；Bright env configured，但余额未网络检查。
 - 当前阻塞：readiness 不通过、P0 未完成、Bright gate 未完成、没有人审批准的 LinkedIn URL。
-- 真实执行条件：必须同时满足 `Bright probe allowed: yes`、`--live`、`--allow-paid`、`--max-budget-usd` 未超限。
+- 真实执行条件：必须同时满足 `Bright probe allowed: yes`、provider readiness 通过、`--live`、`--allow-paid`、`--max-budget-usd` 未超限。
 - 注意：runner 就绪不等于 Bright 验证完成；当前没有触发任何真实 Bright 调用。
+
+## Provider Readiness
+
+- 脚本：`npx tsx scripts/sourcing/check-provider-readiness.ts --out-md=docs/architecture/jd-sourcing-provider-readiness.md --out-json=docs/architecture/jd-sourcing-provider-readiness.json`
+- 当前报告：`docs/architecture/jd-sourcing-provider-readiness.md` 和 `docs/architecture/jd-sourcing-provider-readiness.json`
+- 当前模式：非网络检查，没有访问外部服务。
+- 当前结果：6 个 provider 全部 ready；DeepSeek 和 Serper 这两个 required provider 均 usable。
+- Bright：env configured，但余额未在本报告中检查。
+- 真实 Bright probe 前建议重新运行 `npx tsx scripts/sourcing/check-provider-readiness.ts --network --out-md=... --out-json=...`，该路径只读查询 Bright 余额，不创建 snapshot。
 
 关键风险：
 

@@ -124,6 +124,9 @@ npm run sourcing:bright-probe -- --dry-run --out-md=docs/architecture/jd-sourcin
 - URL completion count：0
 - Dataset filter count：2
 - Estimated total cost：`$0.1250`
+- Provider readiness checked：yes
+- Provider readiness OK：yes
+- Bright network checked：no
 - Block reason：P0 未完成、Bright gate 未完成、没有人审批准的 LinkedIn URL
 
 真实执行必须显式使用：
@@ -133,3 +136,11 @@ npm run sourcing:bright-probe -- --live --allow-paid --max-budget-usd=1
 ```
 
 只有 readiness report 放行后才允许运行该命令。
+
+真实执行前还应重新生成 provider readiness 网络报告：
+
+```bash
+npx tsx scripts/sourcing/check-provider-readiness.ts --network --out-md=docs/architecture/jd-sourcing-provider-readiness.md --out-json=docs/architecture/jd-sourcing-provider-readiness.json
+```
+
+该命令只读查询 Bright 余额，不创建 snapshot。

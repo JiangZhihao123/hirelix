@@ -7,6 +7,9 @@
 - Mode：dry-run
 - Status：blocked
 - Readiness allowed：no
+- Provider readiness checked：yes
+- Provider readiness OK：yes
+- Bright network checked：no
 - Allow paid：no
 - Estimated total cost：$0.1250
 - Max budget：$1.00
