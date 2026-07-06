@@ -1,0 +1,174 @@
+{
+  "generated_at": "2026-07-06T00:39:52.389Z",
+  "reviewer_type": "codex_headhunter",
+  "source": {
+    "review_queue_csv": "/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-human-review-queue.csv",
+    "out_csv": "/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-human-review-queue.csv"
+  },
+  "summary": {
+    "applied_rows": 15,
+    "skipped_rows": 0,
+    "p0_rows": 15,
+    "p0_reviewed_rows": 15,
+    "bright_gate_rows": 8,
+    "bright_gate_approved_rows": 7,
+    "decision_counts": {
+      "contact_worthy": 7,
+      "research_more": 7,
+      "reject": 1
+    }
+  },
+  "skipped": [],
+  "reviewed_rows": [
+    {
+      "review_id": "HR-001",
+      "bucket": "confirm_assistant_contact_worthy",
+      "jd_id": "JD-03",
+      "candidate_id": "candidate-001",
+      "name": "Divyansh Mishra",
+      "decision": "contact_worthy",
+      "reason": "Data Engineer profile directly shows 4+ years plus Python, SQL, Snowflake, dbt, and Airflow, matching the JD core requirements.",
+      "notes": "Snippet-only evidence, but the stack and seniority evidence are specific enough for outreach calibration."
+    },
+    {
+      "review_id": "HR-002",
+      "bucket": "confirm_assistant_contact_worthy",
+      "jd_id": "JD-03",
+      "candidate_id": "candidate-003",
+      "name": "Chaithra Chandru",
+      "decision": "contact_worthy",
+      "reason": "Data Engineer profile shows 4+ years plus ETL/ELT, Python, SQL, PySpark, Airflow, Databricks, dbt, and AWS.",
+      "notes": "Snippet-only evidence, but it directly covers the JD's data engineering stack."
+    },
+    {
+      "review_id": "HR-003",
+      "bucket": "confirm_assistant_contact_worthy",
+      "jd_id": "JD-05",
+      "candidate_id": "candidate-002",
+      "name": "Tim Hwang",
+      "decision": "contact_worthy",
+      "reason": "Engineering Manager, Backend at Fubo leading seven backend engineers directly matches the JD's backend management scope.",
+      "notes": "Architecture depth still needs confirmation, but this is outreach-worthy for a platform EM search."
+    },
+    {
+      "review_id": "HR-004",
+      "bucket": "confirm_assistant_contact_worthy",
+      "jd_id": "JD-05",
+      "candidate_id": "candidate-008",
+      "name": "Masudur Rahman",
+      "decision": "contact_worthy",
+      "reason": "Engineering Manager, Platform focused on shared services and APIs aligns with a platform team manager role.",
+      "notes": "Exact team size is missing, but the platform/API management signal is strong enough for outreach."
+    },
+    {
+      "review_id": "HR-005",
+      "bucket": "confirm_assistant_contact_worthy",
+      "jd_id": "JD-09",
+      "candidate_id": "candidate-004",
+      "name": "Ekaterina (Katya) Gonina",
+      "decision": "contact_worthy",
+      "reason": "AI/ML Infrastructure Engineer with Google/DeepMind, Twitter, and Berkeley EECS PhD signals direct fit for ML infrastructure outreach.",
+      "notes": "Specific framework and serving evidence should be checked later, but the role/title and background clear the outreach bar."
+    },
+    {
+      "review_id": "HR-006",
+      "bucket": "confirm_assistant_contact_worthy",
+      "jd_id": "JD-10",
+      "candidate_id": "candidate-002",
+      "name": "Emmanuel Nkasi",
+      "decision": "research_more",
+      "reason": "Strong Product Engineer coding stack, but current evidence does not show customer-facing workflow or customer integration ownership.",
+      "notes": "Do not count as contact-worthy yet for the Technical Solutions to Product Engineer JD."
+    },
+    {
+      "review_id": "HR-007",
+      "bucket": "confirm_assistant_contact_worthy",
+      "jd_id": "JD-10",
+      "candidate_id": "candidate-003",
+      "name": "Aviral Malik",
+      "decision": "contact_worthy",
+      "reason": "AI Product Engineer with React, NestJS, Python, TypeScript, SaaS product building, and 4 years of software experience fits the product engineer target.",
+      "notes": "Customer-facing workflow evidence is still thin, but product engineering and AI/SaaS signals are enough for initial outreach."
+    },
+    {
+      "review_id": "HR-008",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-01",
+      "candidate_id": "candidate-001",
+      "name": "Raul Murguia",
+      "decision": "research_more",
+      "reason": "Backend/platform profile has TypeScript, Prisma, PostgreSQL, distributed systems, and AI data platform signals, but cloud and queue evidence is missing.",
+      "notes": "Approve Bright completion because added profile detail can decide contact versus reject."
+    },
+    {
+      "review_id": "HR-009",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-01",
+      "candidate_id": "candidate-002",
+      "name": "Suraj kumar",
+      "decision": "contact_worthy",
+      "reason": "6+ years backend/platform experience with Node.js, Kafka, PostgreSQL, MongoDB, AWS, and event-driven systems directly matches the backend platform JD.",
+      "notes": "Approve Bright completion mainly to confirm profile freshness and fill structured fields."
+    },
+    {
+      "review_id": "HR-010",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-01",
+      "candidate_id": "candidate-003",
+      "name": "Azhar Ahmad",
+      "decision": "research_more",
+      "reason": "Backend/platform evidence includes TypeScript, gRPC, AWS/Azure, Terraform, and distributed multi-tenant systems, but database and queue evidence is incomplete.",
+      "notes": "Approve Bright completion because the missing details are exactly what profile completion may resolve."
+    },
+    {
+      "review_id": "HR-011",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-08",
+      "candidate_id": "candidate-005",
+      "name": "Lucas Chaufournier",
+      "decision": "research_more",
+      "reason": "Senior backend ex-Block profile has strong fintech-adjacent platform signal, but NYC location, Python/Go, and PostgreSQL evidence are missing.",
+      "notes": "Approve Bright completion to verify location and stack before treating as contact-worthy."
+    },
+    {
+      "review_id": "HR-012",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-08",
+      "candidate_id": "candidate-006",
+      "name": "Oskar W.",
+      "decision": "research_more",
+      "reason": "Senior backend fintech/payments profile has strong domain and seniority signal, but NYC location and Python/Go/PostgreSQL evidence are missing.",
+      "notes": "Approve Bright completion because the profile could become contact-worthy if location and stack check out."
+    },
+    {
+      "review_id": "HR-013",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-08",
+      "candidate_id": "candidate-002",
+      "name": "Ambareesh Pandit, MS",
+      "decision": "research_more",
+      "reason": "Senior backend fintech/compliance profile is in the NYC metro area, but stack and distributed systems evidence are incomplete.",
+      "notes": "Approve Bright completion because location and domain are strong enough to justify one profile lookup."
+    },
+    {
+      "review_id": "HR-014",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-08",
+      "candidate_id": "candidate-001",
+      "name": "Daniel Lanoff",
+      "decision": "research_more",
+      "reason": "Backend/data-intensive systems evidence is directionally relevant, but stack, location, and financial infrastructure evidence are still too thin.",
+      "notes": "Approve Bright completion as a lower-confidence probe sample; do not count as contact-worthy before completion."
+    },
+    {
+      "review_id": "HR-015",
+      "bucket": "bright_probe_gate",
+      "jd_id": "JD-01",
+      "candidate_id": "candidate-005",
+      "name": "Daniel Chen",
+      "decision": "reject",
+      "reason": "Current evidence points to Java/AWS/Kubernetes backend work and misses the JD's TypeScript/Node.js, PostgreSQL/MySQL, and queue requirements.",
+      "notes": "Do not spend Bright on this row in the first probe; the core stack mismatch is too large."
+    }
+  ]
+}

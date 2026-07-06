@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-07-06T00:33:10.747Z",
+  "generated_at": "2026-07-06T00:44:05.376Z",
   "source": {
     "review_queue_csv": "/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-human-review-queue.csv"
   },
   "status": "valid",
   "summary": {
     "total_rows": 24,
-    "reviewed_rows": 0,
+    "reviewed_rows": 15,
     "p0_rows": 15,
-    "p0_reviewed_rows": 0,
+    "p0_reviewed_rows": 15,
     "bright_gate_rows": 8,
-    "bright_gate_reviewed_rows": 0,
+    "bright_gate_reviewed_rows": 8,
     "errors": 0,
-    "warnings": 0,
+    "warnings": 7,
     "require_p0_complete": false,
     "require_bright_gate_complete": false
   },
@@ -31,193 +31,50 @@
       "codex_recruiter"
     ]
   },
-  "issues": [],
-  "missing_p0": [
+  "issues": [
     {
+      "severity": "warning",
       "review_id": "HR-001",
-      "priority": "P0",
-      "bucket": "confirm_assistant_contact_worthy",
-      "jd_id": "JD-03",
-      "candidate_id": "candidate-001",
-      "name": "Divyansh Mishra"
+      "field": "human_decision",
+      "message": "contact_worthy on snippet-only evidence needs especially strong human_reason"
     },
     {
+      "severity": "warning",
       "review_id": "HR-002",
-      "priority": "P0",
-      "bucket": "confirm_assistant_contact_worthy",
-      "jd_id": "JD-03",
-      "candidate_id": "candidate-003",
-      "name": "Chaithra Chandru"
+      "field": "human_decision",
+      "message": "contact_worthy on snippet-only evidence needs especially strong human_reason"
     },
     {
+      "severity": "warning",
       "review_id": "HR-003",
-      "priority": "P0",
-      "bucket": "confirm_assistant_contact_worthy",
-      "jd_id": "JD-05",
-      "candidate_id": "candidate-002",
-      "name": "Tim Hwang"
+      "field": "human_decision",
+      "message": "contact_worthy on snippet-only evidence needs especially strong human_reason"
     },
     {
+      "severity": "warning",
       "review_id": "HR-004",
-      "priority": "P0",
-      "bucket": "confirm_assistant_contact_worthy",
-      "jd_id": "JD-05",
-      "candidate_id": "candidate-008",
-      "name": "Masudur Rahman"
+      "field": "human_decision",
+      "message": "contact_worthy on snippet-only evidence needs especially strong human_reason"
     },
     {
+      "severity": "warning",
       "review_id": "HR-005",
-      "priority": "P0",
-      "bucket": "confirm_assistant_contact_worthy",
-      "jd_id": "JD-09",
-      "candidate_id": "candidate-004",
-      "name": "Ekaterina (Katya) Gonina"
+      "field": "human_decision",
+      "message": "contact_worthy on snippet-only evidence needs especially strong human_reason"
     },
     {
-      "review_id": "HR-006",
-      "priority": "P0",
-      "bucket": "confirm_assistant_contact_worthy",
-      "jd_id": "JD-10",
-      "candidate_id": "candidate-002",
-      "name": "Emmanuel Nkasi"
-    },
-    {
+      "severity": "warning",
       "review_id": "HR-007",
-      "priority": "P0",
-      "bucket": "confirm_assistant_contact_worthy",
-      "jd_id": "JD-10",
-      "candidate_id": "candidate-003",
-      "name": "Aviral Malik"
+      "field": "human_decision",
+      "message": "contact_worthy on snippet-only evidence needs especially strong human_reason"
     },
     {
-      "review_id": "HR-008",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-001",
-      "name": "Raul Murguia"
-    },
-    {
+      "severity": "warning",
       "review_id": "HR-009",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-002",
-      "name": "Suraj kumar"
-    },
-    {
-      "review_id": "HR-010",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-003",
-      "name": "Azhar Ahmad"
-    },
-    {
-      "review_id": "HR-011",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-005",
-      "name": "Lucas Chaufournier"
-    },
-    {
-      "review_id": "HR-012",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-006",
-      "name": "Oskar W."
-    },
-    {
-      "review_id": "HR-013",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-002",
-      "name": "Ambareesh Pandit, MS"
-    },
-    {
-      "review_id": "HR-014",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-001",
-      "name": "Daniel Lanoff"
-    },
-    {
-      "review_id": "HR-015",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-005",
-      "name": "Daniel Chen"
+      "field": "human_decision",
+      "message": "contact_worthy on snippet-only evidence needs especially strong human_reason"
     }
   ],
-  "missing_bright_gate": [
-    {
-      "review_id": "HR-008",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-001",
-      "name": "Raul Murguia"
-    },
-    {
-      "review_id": "HR-009",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-002",
-      "name": "Suraj kumar"
-    },
-    {
-      "review_id": "HR-010",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-003",
-      "name": "Azhar Ahmad"
-    },
-    {
-      "review_id": "HR-011",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-005",
-      "name": "Lucas Chaufournier"
-    },
-    {
-      "review_id": "HR-012",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-006",
-      "name": "Oskar W."
-    },
-    {
-      "review_id": "HR-013",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-002",
-      "name": "Ambareesh Pandit, MS"
-    },
-    {
-      "review_id": "HR-014",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-08",
-      "candidate_id": "candidate-001",
-      "name": "Daniel Lanoff"
-    },
-    {
-      "review_id": "HR-015",
-      "priority": "P0",
-      "bucket": "bright_probe_gate",
-      "jd_id": "JD-01",
-      "candidate_id": "candidate-005",
-      "name": "Daniel Chen"
-    }
-  ]
+  "missing_p0": [],
+  "missing_bright_gate": []
 }

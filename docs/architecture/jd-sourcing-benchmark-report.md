@@ -1,21 +1,20 @@
 # JD Sourcing Benchmark Decision Report
 
-本报告由 benchmark 产物生成，用于判断 Hirelix 的 JD-to-candidate 数据源路线是否足够进入下一阶段。它不是人工背书；如果样本量不足或不是 live run，结论必须保持为不可决策。
+本报告由 benchmark 产物生成，用于判断 Hirelix 的 JD-to-candidate 数据源路线是否足够进入下一阶段。它不是人工背书；如果样本量不足、不是 live run，或复核来源不是真人猎头，结论必须保持为继续验证。
 
 ## 结论
 
-- 判断：**需要人工复核**
-- 建议动作：**用 assistant_strict 结果缩小人工校准范围，不进入产品化**
+- 判断：**可以进入下一步验证**
+- 建议动作：**先做 Bright 极小 dry/live probe 或真人猎头复核，不进入产品化**
 
 核心理由：
-- assistant_strict 已审 56 条，样本 contact-worthy rate 为 12.5%。
-- 投影 cost per contact-worthy 为 $0.0112。
-- 该结果是模型辅助校准，不是真实猎头确认，不能直接作为 PMF 证据。
+- Codex 猎头视角已审 15 条，样本 contact-worthy rate 为 46.7%。
+- 投影 cost per contact-worthy 为 $0.0054，说明低成本 discovery 有继续验证价值。
+- 复核来源是 codex_headhunter，不是真人猎头或真实招聘方反馈，不能直接作为 PMF 证据。
 
 ## 风险标记
 
-- 人工校准尚未完成；当前 yes/maybe 只能代表 LLM 评审，不代表真实猎头愿意联系。
-- 已审 LLM yes precision 只有 26.9%，说明 LLM 对 contact-worthy 的判断偏乐观。
+- 当前复核来源是 codex_headhunter，不是真人猎头或真实招聘方反馈；只能作为下一步验证信号，不能作为 PMF 证据。
 - serper 贡献了 94.0% 的 contact-worthy；数据源路线高度依赖单一 discovery 来源，需要人工确认它不是搜索摘要误判。
 - Exa contact-worthy rate 只有 3.5%，当前更像补充发现源，不像主数据源。
 - Firecrawl 当前只做补全文本，不直接归因 candidate；后续要判断它是否提升人工确认率，而不是只看 provider 表里的 0。
@@ -44,12 +43,13 @@
 | contact-worthy rate | 29.8% |
 | cost per contact-worthy | $0.0029 |
 | provider error rate | 2.9% |
-| reviewed calibration rows | 56 / 56 |
-| calibration review mode | assistant_strict |
-| manually confirmed contact-worthy | 7 |
-| manual contact-worthy rate on reviewed rows | 12.5% |
-| manual yes precision on reviewed yes | 26.9% |
-| projected cost per manual contact-worthy | $0.0112 |
+| reviewed calibration rows | 15 / 56 |
+| calibration review mode | codex_headhunter |
+| reviewer types | codex_headhunter=15 |
+| reviewed contact-worthy | 7 |
+| reviewed contact-worthy rate | 46.7% |
+| reviewed yes precision | 53.8% |
+| projected cost per reviewed contact-worthy | $0.0054 |
 
 ## 单 JD 结果
 
@@ -66,18 +66,19 @@
 | JD-09 ML / Research：ML Infrastructure Engineer | completed | 20 | 8 | 5 | 7 | $0.0160 |
 | JD-10 非典型相邻背景：Technical Solutions Engineer to Product Engineer | completed | 20 | 10 | 4 | 6 | $0.0160 |
 
-## 人工校准
+## 可信复核
 
-- 校准文件：`/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-calibration-assistant-strict.csv`
-- 校准方式：assistant_strict
-- 已审样本：56 / 56
-- 人工确认 contact-worthy：7
-- 人工确认 reviewable：42
-- 人工 reject：14
-- 已审样本 contact-worthy rate：12.5%
-- 已审 LLM yes precision：26.9%
-- 投影 contact-worthy 数：13
-- 投影 cost per contact-worthy：$0.0112
+- 校准文件：`/Users/noah/projects/hirelix/docs/architecture/jd-sourcing-calibration-human-reviewed.csv`
+- 校准方式：codex_headhunter
+- 复核来源：codex_headhunter=15
+- 已审样本：15 / 56
+- 复核确认 contact-worthy：7
+- 复核确认 reviewable：14
+- 复核 reject：1
+- 已审样本 contact-worthy rate：46.7%
+- 已审 LLM yes precision：53.8%
+- 投影 contact-worthy 数：27
+- 投影 cost per contact-worthy：$0.0054
 
 ## Provider 贡献
 
@@ -90,9 +91,9 @@
 
 ## 下一步
 
-- 优先人工复核 assistant_strict 标为 contact_worthy 的行。
-- 抽查 assistant_strict 标为 research_more 的 Serper snippet-only 行，确认是否需要 Bright/Profile 补全。
-- 人工复核后重新生成报告，并传入 --manual-review-done。
+- 保持 Bright 只做 profile completion/小样本对照，不把 Bright 当 JD 语义召回引擎。
+- 如果要花 Bright 钱，先做只读 provider readiness 网络检查，再用 --live --allow-paid --max-budget-usd=1 执行极小 probe。
+- 在 Bright probe 结果出来后，再判断是修 prompt/lane、进入二轮 benchmark，还是找真人猎头复核。
 
 ## 判定阈值
 
@@ -100,4 +101,4 @@
 - 最小 contact-worthy rate：12.0%
 - 最大 cost per contact-worthy：$5.00
 - 最大 provider error rate：20.0%
-- 人工校准完成：no
+- 复核完成：yes

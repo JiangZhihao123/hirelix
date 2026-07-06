@@ -34,7 +34,7 @@
 - `S5-2` 已完成：`scripts/sourcing/run-benchmark.ts` 可批量解析 `benchmark-jds.md` 并执行 cold/live benchmark；10 JD dry benchmark 和 10 JD live benchmark 均已通过。
 - `S5-3` 已完成基础版：`scripts/sourcing/compare-warm-rerun.ts` 可对比 cold/warm benchmark 目录；`--llm-cache-dir` 支持跨 benchmark 复用 LLM cache。tracked 报告见 `docs/architecture/jd-sourcing-warm-comparison.md`。当前只证明 LLM cache，不等于 profile/provider index。
 - `S5-4` 已完成：benchmark runner 会输出 `provider-value-table.csv` 和 `provider-lane-value-table.csv`，包含 provider/lane 成本、成功/错误、返回数、平均延迟、reviewable/contact-worthy 和单个可联系人成本；tracked 归因报告见 `docs/architecture/jd-sourcing-provider-value-report.md`。
-- `S5-5` 已完成报告骨架：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 10 JD live benchmark 的结论是“需要人工校准”，不能直接进入产品化。
+- `S5-5` 已完成报告骨架并补充 reviewer_type 识别：`scripts/sourcing/build-benchmark-decision-report.ts` 可生成 `docs/architecture/jd-sourcing-benchmark-report.md`；当前基于 Codex 猎头视角 P0 复核的结论是“可以进入下一步验证”，不能直接进入产品化。
 - Human review queue 已完成：`scripts/sourcing/build-human-review-queue.ts` 会把 assistant_strict 样本缩成 24 行人工/猎头复核队列，产物见 `docs/architecture/jd-sourcing-human-review-queue.md` 和 `.csv`。
 - Human review merge 已完成：`scripts/sourcing/merge-human-review-queue.ts` 会把 `jd-sourcing-human-review-queue.csv` 中已填写的 `human_decision` 合并成 `docs/architecture/jd-sourcing-calibration-human-reviewed.csv`，供 benchmark 决策报告使用。
 - Human review readiness gate 已完成：`scripts/sourcing/check-human-review-readiness.ts` 会检查 P0 人审完成度和 Bright probe 开闸条件，产物见 `docs/architecture/jd-sourcing-human-review-readiness.md` 和 `.json`。
@@ -42,8 +42,9 @@
 - Bright guarded runner 已完成 dry-run：`scripts/sourcing/run-bright-probe.ts` 会读取 Bright plan 和 readiness gate，默认 `--dry-run`，只有 readiness 通过、`--live --allow-paid` 且预算未超限时才允许真实调用 Bright。当前 dry-run 报告见 `docs/architecture/jd-sourcing-bright-probe-run-report.md`。
 - Provider readiness 报告已完成：`scripts/sourcing/check-provider-readiness.ts` 支持 `--out-md` / `--out-json`，当前非网络报告见 `docs/architecture/jd-sourcing-provider-readiness.md` 和 `.json`。
 - Human review pack 和 validator 已完成：`scripts/sourcing/build-human-review-pack.ts` 会生成 P0/P1 专家复核包，`scripts/sourcing/validate-human-review-queue.ts` 会校验 `human_decision`、`reviewer_type` 和 `human_reason`。
+- Codex P0 复核已完成：`scripts/sourcing/apply-codex-p0-review.ts` 已按 `reviewer_type=codex_headhunter` 填写 15 条 P0，报告见 `docs/architecture/jd-sourcing-codex-p0-review.md`。这不是真人猎头反馈，只能作为下一步验证信号。
 
-尚未完成：真人复核 assistant_strict 校准结果、基于真人确认结果更新 contact-worthy 成本、执行真实 Bright 极小 probe 对照。
+尚未完成：真人复核 assistant_strict 校准结果、执行 Bright 只读网络 readiness、执行真实 Bright 极小 probe 对照。
 
 ## 执行边界
 
@@ -189,7 +190,7 @@
 
 ## 任务执行规则
 
-- `T1` 已完成。当前下一步只做 `T2`：完成 P0 可信复核；在 `T2` 完成前，不跑真实 Bright，不重跑 10 JD benchmark。
+- `T1`、`T2`、`T3` 已完成 Codex 猎头视角版本。当前下一步是 `T4` Bright 只读网络 readiness，或等待用户明确授权后进入 `T5` 真实 Bright 极小 probe。
 - `T2` 可以由真人猎头完成，也可以先由 Codex 按猎头视角完成一版；如果是 Codex 标注，必须在报告里写清楚 `reviewer_type=codex_headhunter`。
 - `T5` 是唯一会消耗 Bright 的任务。即使 readiness 通过，也必须收到“执行付费 Bright probe”的明确确认后才能运行。
 - 如果 `T3` 显示可信 contact-worthy rate 很低，优先修正召回/筛选策略，不进入 Bright 付费验证。
@@ -222,6 +223,7 @@
 - 预计 URL/Profile completion 成本：`$0.0250`。
 - 预计 Dataset Filter 对照成本：`$0.1250`。
 - 预计总 Bright 成本：`$0.1500`，低于建议首轮 cap `$1`。
+- Codex P0 gate 后批准 7 个 URL，当前 guarded runner dry-run 估算为 `$0.1425`。
 - 解释：这不是 Bright 召回扩量计划，而是验证 Bright 能否把 Serper/Google 摘要型候选补成可判断 profile 的最小实验。
 
 ## Cold/Warm 对比结论
@@ -254,7 +256,7 @@
 - P0：7 条 `confirm_assistant_contact_worthy`，8 条 `bright_probe_gate`。
 - P1：5 条 `serper_snippet_risk`，2 条 `github_profile_needed`。
 - P2：2 条 `negative_control`。
-- 当前校验：字段格式 valid，0 / 24 reviewed，0 / 15 P0 reviewed；`--require-p0-complete` 会失败，符合预期。
+- 当前校验：字段格式 valid，15 / 24 reviewed，15 / 15 P0 reviewed；7 条 contact_worthy、7 条 research_more、1 条 reject。7 条 snippet-only contact_worthy 会保留 warning，提醒需要更强证据或补全。
 - 复核字段：`human_decision`、`reviewer_type`、`human_reason`、`human_notes`。
 - 规则：真实 Bright probe 前必须先完成人审 `bright_probe_gate`；如果没有人审通过，不花 Bright 钱。
 
@@ -263,17 +265,17 @@
 - 脚本：`npm run sourcing:merge-human-review`
 - 产物：`docs/architecture/jd-sourcing-calibration-human-reviewed.csv`
 - 默认行为：只合并 `human_decision` 已填写的行，未填写行保持空白。
-- 验证结果：当前人审队列尚未填写，生成的 human-reviewed calibration 有 56 行、0 条 reviewed，决策报告识别为 `unreviewed`。
+- 验证结果：当前 Codex P0 复核已合并，human-reviewed calibration 有 56 行、15 条 reviewed，决策报告识别为 `codex_headhunter`。
 - 用途：人审完成后，把 human-reviewed calibration 传给 `npm run sourcing:decision-report -- --manual-review-done`，再更新 benchmark 决策报告。
 
 ## Human Review Readiness Gate
 
 - 脚本：`npm run sourcing:human-review-readiness`
 - 产物：`docs/architecture/jd-sourcing-human-review-readiness.md` 和 `docs/architecture/jd-sourcing-human-review-readiness.json`
-- 当前状态：0 / 24 rows reviewed，0 / 15 P0 reviewed。
-- Bright gate：0 / 8 reviewed，0 approved。
-- 当前结论：`Bright probe allowed: no`。
-- 阻塞原因：P0 review incomplete、Bright gate review incomplete、没有人审批准的 Bright gate candidate。
+- 当前状态：15 / 24 rows reviewed，15 / 15 P0 reviewed。
+- Bright gate：8 / 8 reviewed，7 approved，1 reject。
+- 当前结论：`Bright probe allowed: yes`，但来源是 Codex 猎头视角复核，不是真人猎头反馈。
+- 阻塞原因：无 readiness 阻塞；真实 Bright 仍必须单独显式确认。
 - 规则：只有 readiness 报告为 `Bright probe allowed: yes` 时，才允许执行真实 Bright probe。
 
 ## Bright Guarded Runner
@@ -281,10 +283,10 @@
 - 脚本：`npm run sourcing:bright-probe`
 - 当前报告：`docs/architecture/jd-sourcing-bright-probe-run-report.md` 和 `docs/architecture/jd-sourcing-bright-probe-run-report.json`
 - 当前模式：dry-run。
-- 当前状态：blocked。
-- 当前计划：0 个 URL completion，2 个 Dataset Filter 对照，估算 `$0.1250`。
+- 当前状态：planned。
+- 当前计划：7 个 URL completion，2 个 Dataset Filter 对照，估算 `$0.1425`。
 - Provider readiness：已检查，required provider 可用；Bright env configured，但余额未网络检查。
-- 当前阻塞：readiness 不通过、P0 未完成、Bright gate 未完成、没有人审批准的 LinkedIn URL。
+- 当前阻塞：无 dry-run 阻塞；但 `mode=dry-run`、`allow_paid=false`，没有触发真实 Bright 调用。
 - 真实执行条件：必须同时满足 `Bright probe allowed: yes`、provider readiness 通过、`--live`、`--allow-paid`、`--max-budget-usd` 未超限。
 - 注意：runner 就绪不等于 Bright 验证完成；当前没有触发任何真实 Bright 调用。
 

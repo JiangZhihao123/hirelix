@@ -1,30 +1,32 @@
 {
-  "generated_at": "2026-07-05T18:01:49.604Z",
+  "generated_at": "2026-07-06T00:44:05.932Z",
   "mode": "dry-run",
-  "status": "blocked",
+  "status": "planned",
   "guardrails": {
-    "readiness_allowed": false,
+    "readiness_allowed": true,
     "provider_readiness_checked": true,
     "provider_readiness_ok": true,
     "bright_network_checked": false,
     "allow_paid": false,
     "max_budget_usd": 1,
-    "estimated_total_cost_usd": 0.125,
+    "estimated_total_cost_usd": 0.1425,
     "within_budget": true,
     "include_url_completion": true,
     "include_dataset_filter": true
   },
-  "block_reasons": [
-    "P0 review incomplete: 0/15",
-    "Bright gate review incomplete: 0/8",
-    "No Bright gate candidates approved by human review",
-    "Human review readiness does not allow Bright probe",
-    "No approved LinkedIn URLs for Bright completion"
-  ],
+  "block_reasons": [],
   "planned": {
-    "url_completion_count": 0,
+    "url_completion_count": 7,
     "dataset_filter_count": 2,
-    "linkedin_urls": [],
+    "linkedin_urls": [
+      "https://www.linkedin.com/in/raulmurguia",
+      "https://in.linkedin.com/in/suraj-kumar-605aa2108",
+      "https://in.linkedin.com/in/azhar-ahmad-bb0661149",
+      "https://www.linkedin.com/in/lucas-ch",
+      "https://www.linkedin.com/in/oskarwong",
+      "https://www.linkedin.com/in/ambareeshpandit",
+      "https://www.linkedin.com/in/daniellanoff"
+    ],
     "dataset_filters": [
       {
         "jd_id": "JD-01",

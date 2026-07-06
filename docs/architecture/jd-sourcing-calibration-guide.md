@@ -93,10 +93,11 @@ npm run sourcing:validate-human-review -- --require-p0-complete
 当前校验状态：
 
 - Validation status：valid
-- Reviewed rows：0 / 24
-- P0 reviewed：0 / 15
-- Bright gate reviewed：0 / 8
-- 强制 P0 校验：失败，符合预期，因为还没有进入可信复核阶段。
+- Reviewed rows：15 / 24
+- P0 reviewed：15 / 15
+- Bright gate reviewed：8 / 8
+- Warnings：7 条 snippet-only `contact_worthy`，需要后续 profile completion 或真人猎头复核确认。
+- 当前 P0 复核来源：`codex_headhunter`，不是真人猎头或真实招聘方反馈。
 
 合并命令：
 
@@ -131,10 +132,11 @@ npm run sourcing:human-review-readiness -- --out-md=docs/architecture/jd-sourcin
 
 当前状态：
 
-- Reviewed rows：0 / 24
-- P0 reviewed：0 / 15
-- Bright gate reviewed：0 / 8
-- Bright probe allowed：no
+- Reviewed rows：15 / 24
+- P0 reviewed：15 / 15
+- Bright gate reviewed：8 / 8
+- Bright probe allowed：yes
+- Approved Bright candidates：7
 
 只有报告里 `Bright probe allowed: yes` 时，才允许进入真实 Bright probe。默认要求全部 P0 行完成；`--allow-partial-p0` 只能用于局部检查，不能作为完整人工校准依据。
 
@@ -148,14 +150,14 @@ npm run sourcing:bright-probe -- --dry-run --out-md=docs/architecture/jd-sourcin
 
 当前 dry-run 结果：
 
-- Status：blocked
-- URL completion count：0
+- Status：planned
+- URL completion count：7
 - Dataset filter count：2
-- Estimated total cost：`$0.1250`
+- Estimated total cost：`$0.1425`
 - Provider readiness checked：yes
 - Provider readiness OK：yes
 - Bright network checked：no
-- Block reason：P0 未完成、Bright gate 未完成、没有人审批准的 LinkedIn URL
+- Block reason：无 dry-run 阻塞；当前仍是 dry-run，`Allow paid: no`，没有真实 Bright 调用。
 
 真实执行必须显式使用：
 

@@ -5,28 +5,27 @@
 ## Summary
 
 - Mode：dry-run
-- Status：blocked
-- Readiness allowed：no
+- Status：planned
+- Readiness allowed：yes
 - Provider readiness checked：yes
 - Provider readiness OK：yes
 - Bright network checked：no
 - Allow paid：no
-- Estimated total cost：$0.1250
+- Estimated total cost：$0.1425
 - Max budget：$1.00
 - Within budget：yes
-- URL completion count：0
+- URL completion count：7
 - Dataset filter count：2
-
-## Block Reasons
-
-- P0 review incomplete: 0/15
-- Bright gate review incomplete: 0/8
-- No Bright gate candidates approved by human review
-- Human review readiness does not allow Bright probe
-- No approved LinkedIn URLs for Bright completion
 
 ## Planned URL Completion
 
+- https://www.linkedin.com/in/raulmurguia
+- https://in.linkedin.com/in/suraj-kumar-605aa2108
+- https://in.linkedin.com/in/azhar-ahmad-bb0661149
+- https://www.linkedin.com/in/lucas-ch
+- https://www.linkedin.com/in/oskarwong
+- https://www.linkedin.com/in/ambareeshpandit
+- https://www.linkedin.com/in/daniellanoff
 
 ## Planned Dataset Filters
 

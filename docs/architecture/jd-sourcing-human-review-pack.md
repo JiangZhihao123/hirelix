@@ -61,10 +61,10 @@
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: contact_worthy
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Data Engineer profile directly shows 4+ years plus Python, SQL, Snowflake, dbt, and Airflow, matching the JD core requirements.
+- `human_notes`: Snippet-only evidence, but the stack and seniority evidence are specific enough for outreach calibration.
 
 ### HR-002 P0 confirm_assistant_contact_worthy
 
@@ -87,10 +87,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: contact_worthy
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Data Engineer profile shows 4+ years plus ETL/ELT, Python, SQL, PySpark, Airflow, Databricks, dbt, and AWS.
+- `human_notes`: Snippet-only evidence, but it directly covers the JD's data engineering stack.
 
 ### HR-017 P1 serper_snippet_risk
 
@@ -142,10 +142,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: contact_worthy
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Engineering Manager, Backend at Fubo leading seven backend engineers directly matches the JD's backend management scope.
+- `human_notes`: Architecture depth still needs confirmation, but this is outreach-worthy for a platform EM search.
 
 ### HR-004 P0 confirm_assistant_contact_worthy
 
@@ -168,10 +168,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: contact_worthy
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Engineering Manager, Platform focused on shared services and APIs aligns with a platform team manager role.
+- `human_notes`: Exact team size is missing, but the platform/API management signal is strong enough for outreach.
 
 
 ## JD-09 ML / Research：ML Infrastructure Engineer
@@ -197,10 +197,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: contact_worthy
+- `reviewer_type`: codex_headhunter
+- `human_reason`: AI/ML Infrastructure Engineer with Google/DeepMind, Twitter, and Berkeley EECS PhD signals direct fit for ML infrastructure outreach.
+- `human_notes`: Specific framework and serving evidence should be checked later, but the role/title and background clear the outreach bar.
 
 ### HR-020 P1 serper_snippet_risk
 
@@ -252,10 +252,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: research_more
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Strong Product Engineer coding stack, but current evidence does not show customer-facing workflow or customer integration ownership.
+- `human_notes`: Do not count as contact-worthy yet for the Technical Solutions to Product Engineer JD.
 
 ### HR-007 P0 confirm_assistant_contact_worthy
 
@@ -278,10 +278,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: contact_worthy
+- `reviewer_type`: codex_headhunter
+- `human_reason`: AI Product Engineer with React, NestJS, Python, TypeScript, SaaS product building, and 4 years of software experience fits the product engineer target.
+- `human_notes`: Customer-facing workflow evidence is still thin, but product engineering and AI/SaaS signals are enough for initial outreach.
 
 
 ## JD-01 普通技术岗：Backend Platform Engineer
@@ -307,10 +307,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: research_more
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Backend/platform profile has TypeScript, Prisma, PostgreSQL, distributed systems, and AI data platform signals, but cloud and queue evidence is missing.
+- `human_notes`: Approve Bright completion because added profile detail can decide contact versus reject.
 
 ### HR-009 P0 bright_probe_gate
 
@@ -333,10 +333,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: contact_worthy
+- `reviewer_type`: codex_headhunter
+- `human_reason`: 6+ years backend/platform experience with Node.js, Kafka, PostgreSQL, MongoDB, AWS, and event-driven systems directly matches the backend platform JD.
+- `human_notes`: Approve Bright completion mainly to confirm profile freshness and fill structured fields.
 
 ### HR-010 P0 bright_probe_gate
 
@@ -359,10 +359,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: research_more
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Backend/platform evidence includes TypeScript, gRPC, AWS/Azure, Terraform, and distributed multi-tenant systems, but database and queue evidence is incomplete.
+- `human_notes`: Approve Bright completion because the missing details are exactly what profile completion may resolve.
 
 ### HR-015 P0 bright_probe_gate
 
@@ -385,10 +385,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: reject
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Current evidence points to Java/AWS/Kubernetes backend work and misses the JD's TypeScript/Node.js, PostgreSQL/MySQL, and queue requirements.
+- `human_notes`: Do not spend Bright on this row in the first probe; the core stack mismatch is too large.
 
 
 ## JD-08 Location 严格：Senior Backend Engineer, NYC Onsite
@@ -414,10 +414,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: research_more
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Senior backend ex-Block profile has strong fintech-adjacent platform signal, but NYC location, Python/Go, and PostgreSQL evidence are missing.
+- `human_notes`: Approve Bright completion to verify location and stack before treating as contact-worthy.
 
 ### HR-012 P0 bright_probe_gate
 
@@ -440,10 +440,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: research_more
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Senior backend fintech/payments profile has strong domain and seniority signal, but NYC location and Python/Go/PostgreSQL evidence are missing.
+- `human_notes`: Approve Bright completion because the profile could become contact-worthy if location and stack check out.
 
 ### HR-013 P0 bright_probe_gate
 
@@ -466,10 +466,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: research_more
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Senior backend fintech/compliance profile is in the NYC metro area, but stack and distributed systems evidence are incomplete.
+- `human_notes`: Approve Bright completion because location and domain are strong enough to justify one profile lookup.
 
 ### HR-014 P0 bright_probe_gate
 
@@ -492,10 +492,10 @@ Decision fields to fill:
 
 Decision fields to fill:
 
-- `human_decision`: 
-- `reviewer_type`: 
-- `human_reason`: 
-- `human_notes`: 
+- `human_decision`: research_more
+- `reviewer_type`: codex_headhunter
+- `human_reason`: Backend/data-intensive systems evidence is directionally relevant, but stack, location, and financial infrastructure evidence are still too thin.
+- `human_notes`: Approve Bright completion as a lower-confidence probe sample; do not count as contact-worthy before completion.
 
 
 ## JD-02 普通技术岗：Full-Stack Product Engineer

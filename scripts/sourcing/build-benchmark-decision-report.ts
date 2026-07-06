@@ -57,7 +57,8 @@ type BenchmarkSummary = {
 
 type CalibrationSummary = {
   path: string;
-  review_mode: "manual" | "assistant_strict" | "mixed" | "unreviewed";
+  review_mode: "human" | "codex_headhunter" | "assistant_strict" | "mixed" | "unreviewed";
+  reviewer_types: Record<string, number>;
   total_rows: number;
   reviewed_rows: number;
   confirmed_contact_worthy: number;
@@ -169,7 +170,7 @@ function buildReport(params: {
   const lines = [
     "# JD Sourcing Benchmark Decision Report",
     "",
-    "本报告由 benchmark 产物生成，用于判断 Hirelix 的 JD-to-candidate 数据源路线是否足够进入下一阶段。它不是人工背书；如果样本量不足或不是 live run，结论必须保持为不可决策。",
+    "本报告由 benchmark 产物生成，用于判断 Hirelix 的 JD-to-candidate 数据源路线是否足够进入下一阶段。它不是人工背书；如果样本量不足、不是 live run，或复核来源不是真人猎头，结论必须保持为继续验证。",
     "",
     "## 结论",
     "",
@@ -210,10 +211,11 @@ function buildReport(params: {
     ...(params.calibration ? [
       `| reviewed calibration rows | ${params.calibration.reviewed_rows} / ${params.calibration.total_rows} |`,
       `| calibration review mode | ${params.calibration.review_mode} |`,
-      `| manually confirmed contact-worthy | ${params.calibration.confirmed_contact_worthy} |`,
-      `| manual contact-worthy rate on reviewed rows | ${pct(params.calibration.reviewed_contact_worthy_rate)} |`,
-      `| manual yes precision on reviewed yes | ${pct(params.calibration.reviewed_yes_precision)} |`,
-      `| projected cost per manual contact-worthy | ${params.calibration.projected_cost_per_contact_worthy_usd == null ? "N/A" : `$${params.calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`} |`,
+      `| reviewer types | ${formatCounts(params.calibration.reviewer_types)} |`,
+      `| reviewed contact-worthy | ${params.calibration.confirmed_contact_worthy} |`,
+      `| reviewed contact-worthy rate | ${pct(params.calibration.reviewed_contact_worthy_rate)} |`,
+      `| reviewed yes precision | ${pct(params.calibration.reviewed_yes_precision)} |`,
+      `| projected cost per reviewed contact-worthy | ${params.calibration.projected_cost_per_contact_worthy_usd == null ? "N/A" : `$${params.calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`} |`,
     ] : []),
     "",
     "## 单 JD 结果",
@@ -231,14 +233,15 @@ function buildReport(params: {
   if (params.calibration) {
     lines.push(
       "",
-      "## 人工校准",
+      "## 可信复核",
       "",
       `- 校准文件：\`${params.calibration.path}\``,
       `- 校准方式：${params.calibration.review_mode}`,
+      `- 复核来源：${formatCounts(params.calibration.reviewer_types)}`,
       `- 已审样本：${params.calibration.reviewed_rows} / ${params.calibration.total_rows}`,
-      `- 人工确认 contact-worthy：${params.calibration.confirmed_contact_worthy}`,
-      `- 人工确认 reviewable：${params.calibration.confirmed_reviewable}`,
-      `- 人工 reject：${params.calibration.rejected_rows}`,
+      `- 复核确认 contact-worthy：${params.calibration.confirmed_contact_worthy}`,
+      `- 复核确认 reviewable：${params.calibration.confirmed_reviewable}`,
+      `- 复核 reject：${params.calibration.rejected_rows}`,
       `- 已审样本 contact-worthy rate：${pct(params.calibration.reviewed_contact_worthy_rate)}`,
       `- 已审 LLM yes precision：${pct(params.calibration.reviewed_yes_precision)}`,
       `- 投影 contact-worthy 数：${params.calibration.projected_contact_worthy_count == null ? "N/A" : params.calibration.projected_contact_worthy_count}`,
@@ -277,7 +280,7 @@ function buildReport(params: {
     `- 最小 contact-worthy rate：${pct(params.options.minContactWorthyRate)}`,
     `- 最大 cost per contact-worthy：$${params.options.maxCostPerContactWorthyUsd.toFixed(2)}`,
     `- 最大 provider error rate：${pct(params.options.maxProviderErrorRate)}`,
-    `- 人工校准完成：${params.options.manualReviewDone ? "yes" : "no"}`,
+    `- 复核完成：${params.options.manualReviewDone ? "yes" : "no"}`,
   );
 
   return `${lines.join("\n")}\n`;
@@ -377,13 +380,21 @@ function summarizeCalibration(filePath: string, summary: BenchmarkSummary): Cali
   const totalRows = rows.length;
   const reviewed = rows.filter((row) => normalizeReviewerDecision(row.reviewer_decision));
   const assistantRows = reviewed.filter((row) => (row.reviewer_notes || "").toLowerCase().includes("assistant_strict"));
+  const reviewerTypes = countReviewerTypes(reviewed);
+  const hasAssistant = assistantRows.length > 0;
+  const hasCodex = Object.keys(reviewerTypes).some((type) => type.startsWith("codex_"));
+  const hasHuman = Object.keys(reviewerTypes).some((type) => type.startsWith("human_"));
   const reviewMode = reviewed.length === 0
     ? "unreviewed"
-    : assistantRows.length === reviewed.length
+    : hasAssistant && assistantRows.length === reviewed.length
       ? "assistant_strict"
-      : assistantRows.length > 0
+      : hasHuman && !hasCodex && !hasAssistant
+        ? "human"
+      : hasCodex && !hasHuman && !hasAssistant
+        ? "codex_headhunter"
+      : hasAssistant || hasCodex || hasHuman
         ? "mixed"
-        : "manual";
+        : "mixed";
   const confirmedContact = reviewed.filter((row) => normalizeReviewerDecision(row.reviewer_decision) === "contact_worthy").length;
   const confirmedReviewable = reviewed.filter((row) => {
     const decision = normalizeReviewerDecision(row.reviewer_decision);
@@ -406,6 +417,7 @@ function summarizeCalibration(filePath: string, summary: BenchmarkSummary): Cali
   return {
     path: filePath,
     review_mode: reviewMode,
+    reviewer_types: reviewerTypes,
     total_rows: totalRows,
     reviewed_rows: reviewed.length,
     confirmed_contact_worthy: confirmedContact,
@@ -431,6 +443,20 @@ function normalizeReviewerDecision(value: string | undefined) {
   if (["reject", "no"].includes(normalized)) return "reject";
   if (["uncertain", "unknown"].includes(normalized)) return "uncertain";
   return null;
+}
+
+function countReviewerTypes(rows: Array<Record<string, string>>) {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    const type = extractReviewerType(row.reviewer_notes) || "unknown";
+    counts[type] = (counts[type] || 0) + 1;
+  }
+  return counts;
+}
+
+function extractReviewerType(notes: string | undefined) {
+  const match = (notes || "").match(/(?:^|;\s*)reviewer_type=([^;]+)/);
+  return match?.[1]?.trim().toLowerCase() || null;
 }
 
 function decide(
@@ -510,6 +536,26 @@ function decide(
     };
   }
 
+  if (calibration.review_mode === "codex_headhunter") {
+    const projectedCost = calibration.projected_cost_per_contact_worthy_usd == null
+      ? "N/A"
+      : `$${calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`;
+    return {
+      verdict: "可以进入下一步验证",
+      next_action: "先做 Bright 极小 dry/live probe 或真人猎头复核，不进入产品化",
+      reasons: [
+        `Codex 猎头视角已审 ${calibration.reviewed_rows} 条，样本 contact-worthy rate 为 ${pct(calibration.reviewed_contact_worthy_rate)}。`,
+        `投影 cost per contact-worthy 为 ${projectedCost}，说明低成本 discovery 有继续验证价值。`,
+        "复核来源是 codex_headhunter，不是真人猎头或真实招聘方反馈，不能直接作为 PMF 证据。",
+      ],
+      tasks: [
+        "保持 Bright 只做 profile completion/小样本对照，不把 Bright 当 JD 语义召回引擎。",
+        "如果要花 Bright 钱，先做只读 provider readiness 网络检查，再用 --live --allow-paid --max-budget-usd=1 执行极小 probe。",
+        "在 Bright probe 结果出来后，再判断是修 prompt/lane、进入二轮 benchmark，还是找真人猎头复核。",
+      ],
+    };
+  }
+
   if (
     calibration.reviewed_contact_worthy_rate >= options.minContactWorthyRate &&
     calibration.projected_cost_per_contact_worthy_usd != null &&
@@ -520,7 +566,7 @@ function decide(
       verdict: "可以继续外部 sourcing",
       next_action: "把有效 provider/lane 固化进冷启动原型，并开始小规模 UI 验证",
       reasons: [
-        `人工校准样本 contact-worthy rate 达到 ${pct(calibration.reviewed_contact_worthy_rate)}。`,
+        `可信复核样本 contact-worthy rate 达到 ${pct(calibration.reviewed_contact_worthy_rate)}。`,
         `投影 cost per contact-worthy 为 $${calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}，低于阈值。`,
         `provider error rate 为 ${pct(metrics.provider_error_rate)}，没有明显可用性阻塞。`,
       ],
@@ -540,8 +586,8 @@ function decide(
       verdict: "需要重大修改",
       next_action: "优先改补全和 rerank，不直接扩 provider",
       reasons: [
-        `人工校准样本 reviewable rate 为 ${pct(calibration.reviewed_reviewable_rate)}，说明 discovery 有信号。`,
-        `人工校准样本 contact-worthy rate 只有 ${pct(calibration.reviewed_contact_worthy_rate)}，说明证据补全或判断口径不足。`,
+        `可信复核样本 reviewable rate 为 ${pct(calibration.reviewed_reviewable_rate)}，说明 discovery 有信号。`,
+        `可信复核样本 contact-worthy rate 只有 ${pct(calibration.reviewed_contact_worthy_rate)}，说明证据补全或判断口径不足。`,
       ],
       tasks: [
         "把 yes 的证据门槛调严，避免 snippet-only 误判。",
@@ -555,7 +601,7 @@ function decide(
     verdict: "方向仍未证明",
     next_action: "先调 provider/lane 或砍 sourcing 范围",
     reasons: [
-      `人工校准样本 contact-worthy rate 为 ${pct(calibration.reviewed_contact_worthy_rate)}，低于阈值。`,
+      `可信复核样本 contact-worthy rate 为 ${pct(calibration.reviewed_contact_worthy_rate)}，低于阈值。`,
       `投影 cost per contact-worthy 为 ${calibration.projected_cost_per_contact_worthy_usd == null ? "N/A" : `$${calibration.projected_cost_per_contact_worthy_usd.toFixed(4)}`}。`,
       `provider error rate 为 ${pct(metrics.provider_error_rate)}。`,
     ],
@@ -589,7 +635,10 @@ function buildRiskNotes(params: {
 }) {
   const notes: string[] = [];
   if (!params.options.manualReviewDone || !params.calibration || params.calibration.reviewed_rows === 0) {
-    notes.push("人工校准尚未完成；当前 yes/maybe 只能代表 LLM 评审，不代表真实猎头愿意联系。");
+    notes.push("可信复核尚未完成；当前 yes/maybe 只能代表 LLM 评审，不代表真实猎头愿意联系。");
+  }
+  if (params.calibration?.review_mode === "codex_headhunter") {
+    notes.push("当前复核来源是 codex_headhunter，不是真人猎头或真实招聘方反馈；只能作为下一步验证信号，不能作为 PMF 证据。");
   }
   if (params.calibration && params.calibration.reviewed_rows > 0 && params.calibration.reviewed_yes_precision < 0.5) {
     notes.push(`已审 LLM yes precision 只有 ${pct(params.calibration.reviewed_yes_precision)}，说明 LLM 对 contact-worthy 的判断偏乐观。`);
@@ -701,6 +750,12 @@ function ratio(numerator: number, denominator: number) {
 
 function pct(value: number) {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatCounts(counts: Record<string, number>) {
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return "none";
+  return entries.map(([key, value]) => `${key}=${value}`).join(", ");
 }
 
 function escapePipe(value: string) {

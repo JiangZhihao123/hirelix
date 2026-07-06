@@ -111,10 +111,10 @@ function renderMarkdown(rows: ReviewRow[], options: CliOptions) {
         "",
         "Decision fields to fill:",
         "",
-        "- `human_decision`: ",
-        "- `reviewer_type`: ",
-        "- `human_reason`: ",
-        "- `human_notes`: ",
+        `- \`human_decision\`: ${row.human_decision || ""}`,
+        `- \`reviewer_type\`: ${row.reviewer_type || ""}`,
+        `- \`human_reason\`: ${row.human_reason || ""}`,
+        `- \`human_notes\`: ${row.human_notes || ""}`,
         "",
       );
     }
