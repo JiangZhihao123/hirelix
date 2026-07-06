@@ -164,19 +164,35 @@
 8. 修正明显问题后跑 S5-2 到 S5-5。
 9. 只有 benchmark 通过，再进入 Milestone 6。
 
-## 下一批任务拆分
+## 当前可执行任务队列
 
-当前不要再扩工程设施，下一批只做验证路线的最小闭环：
+当前不要再扩工程设施，也不要直接做产品化页面。下一步只围绕一个问题推进：
 
-| 优先级 | 任务 | 是否付费 | 验收标准 |
-| --- | --- | --- | --- |
-| P0 | 跑完整 10 JD live benchmark，不启用 Bright | 已完成；实际外部成本 `$0.145` | 10 个 JD 全部 completed，已生成 provider/lane 质量归因表 |
-| P0 | 人工抽查 yes/maybe 样本 | review queue 已生成，不花钱 | 填写 `jd-sourcing-human-review-queue.csv` 的 `human_decision`，先完成 P0 bucket，确认 snippet-only 没有误判为 contact-worthy |
-| P0 | 生成正式决策报告 | 否 | `jd-sourcing-benchmark-report.md` 从“不能决策”更新为基于 10 JD live 数据的结论 |
-| P1 | 用 shared LLM cache 做 cold/warm 对比 | 已完成；不花钱 | `jd-sourcing-warm-comparison.md` 明确区分 LLM cache 收益和 provider/profile index 缺口 |
-| P1 | Bright/Profile dry probe plan | 已完成；不花钱 | 选出 2 个 JD、10 个 LinkedIn snippet-only 候选，预计真实 Bright 成本 `$0.1500`，计划见 `jd-sourcing-bright-probe-plan.md` |
-| P1 | Bright 极小真实 probe 对照 | 是，必须单独确认；当前余额约 `$9` | 默认只按 dry plan 执行；首轮建议 cap `$1`，验证 Bright URL/Profile completion 和 Dataset Filter 对照，不验证泛语义召回 |
-| P2 | 根据结果决定是否做临时 profile/evidence index | 否 | 只有当外部 sourcing 产出稳定 contact-worthy，才进入 Milestone 6 |
+> 现有低成本 discovery 结果，经过可信复核和少量 profile completion 后，能不能稳定变成值得联系的人？
+
+这里的 `human_decision` 是脚本字段名，实际含义应理解为“可信专家复核结果”。复核可以由真人猎头完成，也可以先由 Codex 按猎头视角做第一轮标注；但报告里必须标明来源，不能把 Codex 复核包装成真实用户反馈。
+
+| ID | 优先级 | 任务 | 输入 | 动作 | 产出 | 验收标准 | 成本闸门 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| T0 | P0 | 固定当前基线 | 10 JD live benchmark、provider value report、warm comparison、Bright dry plan | 不再重跑，不改历史口径，只把当前基线作为后续对照 | 当前文档和 tracked 报告 | 明确记录 Bright 未启用、外部成本 `$0.145`、LLM yes precision 仅 26.9% | 已完成，不新增成本 |
+| T1 | P0 | 生成专家复核包和决策校验 | `jd-sourcing-human-review-queue.csv` | 把 P0/P1 样本按 JD、bucket、候选人证据整理成可审阅包；增加 decision 值和 reason 必填校验 | `jd-sourcing-human-review-pack.md`，review validator 脚本 | P0 15 行都能在一个文档里快速审；非法 decision 或缺 reason 会失败 | 不花钱 |
+| T2 | P0 | 完成 P0 可信复核 | T1 复核包 | 按猎头视角判断 `contact_worthy` / `research_more` / `reject` / `uncertain`，先完成 7 条 contact-worthy 校准和 8 条 Bright gate | 更新 `jd-sourcing-human-review-queue.csv` | `sourcing:human-review-readiness` 显示 P0 complete；Bright gate complete；至少明确哪些 URL 值得补全 | 不花钱 |
+| T3 | P0 | 更新校准和决策报告 | T2 已填复核队列 | merge review queue，重算 benchmark 决策报告 | `jd-sourcing-calibration-human-reviewed.csv`，`jd-sourcing-benchmark-report.md` | 报告从 “unreviewed / 不能决策” 变成基于可信复核的结论；给出真实 contact-worthy rate 和 cost/contact-worthy | 不花钱 |
+| T4 | P0 | Bright 只读网络 readiness | Provider readiness 脚本、当前 Bright 余额约 `$9` | 只读查 key 和余额，不创建 snapshot | `jd-sourcing-provider-readiness.md/json` 网络版 | Bright network checked=yes；余额和权限写入报告 | 只读，不花钱 |
+| T5 | P1 | Bright 极小真实 profile probe | T2 通过的 Bright gate URLs、Bright dry plan | 只跑被批准 URL 的 profile completion；Dataset Filter 对照默认保留 25 records/JD hard cap | Bright probe run report 和 run directory | 总预算 cap `$1`；实际执行前报告 estimated cost；证明 Bright 是补全源还是无效源 | 付费，必须显式确认；当前计划约 `$0.15` |
+| T6 | P1 | Bright 结果质量评估 | T5 结果、T2 原始 snippet 判断 | 比较补全前后是否把 `research_more` 转成 `contact_worthy/reject`，并统计单个有效 profile 成本 | Bright probe evaluation report | 给出 Bright 对 Serper snippet-only 样本的增益：转正数、排除数、无效数、成本 | 不再新增 Bright 调用 |
+| T7 | P1 | 根据复核结果修正召回/筛选策略 | T3/T6 的误判样本 | 调整 lane/query 生成、LLM rubric 或 provider 权重；避免硬编码具体人名/公司 | 脚本和 prompt 小改动、误判原因表 | Serper snippet-only 误判下降；不会靠特殊关键词补丁解决质量 | 可能触发小额 Serper/Exa，执行前打印预算 |
+| T8 | P1 | 二轮 10 JD benchmark | T7 新策略 | 用同一 10 JD 重跑 no-Bright benchmark；必要时再跑 hybrid 小样本 | 新 benchmark run、provider value report、decision report | 与 T0 对比：contact-worthy rate、cost/contact-worthy、速度、provider error rate 都有改善或明确失败 | 目标 <$5，不启用 Bright 除非单独确认 |
+| T9 | P0 | 数据源路线决策 | T0 到 T8 全部报告 | 明确选择：SERP+补全 hybrid、继续找 provider、砍外部 sourcing、转内部库增强，或进入产品化 | 更新 `data-pipeline-optimization.md` 和决策报告 | 结论必须回答质量、价格、速度；不能只说“继续优化” | 不花钱 |
+| T10 | P2 | 临时 profile/evidence index | 只有 T8/T9 证明路线成立后 | 再设计 `pgvector` / `pg_trgm` / evidence cache / profile schema | Milestone 6 工程任务 | 不作为当前启动前置条件 | 不在路线证明前投入 |
+
+## 任务执行规则
+
+- 当前下一步只做 `T1`。在 `T1` 完成前，不跑真实 Bright，不重跑 10 JD benchmark。
+- `T2` 可以由真人猎头完成，也可以先由 Codex 按猎头视角完成一版；如果是 Codex 标注，必须在报告里写清楚 `reviewer_type=codex_headhunter`。
+- `T5` 是唯一会消耗 Bright 的任务。即使 readiness 通过，也必须收到“执行付费 Bright probe”的明确确认后才能运行。
+- 如果 `T3` 显示可信 contact-worthy rate 很低，优先修正召回/筛选策略，不进入 Bright 付费验证。
+- 如果 `T6` 显示 Bright 不能有效补全 Serper 摘要型候选，Bright 只能保留为极低优先级补充源，不能作为主数据源。
 
 ## 最新 10 JD Live Benchmark 结果
 
