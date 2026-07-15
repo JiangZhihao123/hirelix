@@ -3,7 +3,8 @@ import test from "node:test";
 
 import type { BrightDataProfile } from "@/lib/brightdata";
 import { buildExperienceSearchDocument, normalizeBrightProfile } from "@/lib/candidate-index/profile";
-import { validateProfileRepresentation } from "@/lib/candidate-index/representation";
+import { PROFILE_REPRESENTATION_SCHEMA, validateProfileRepresentation } from "@/lib/candidate-index/representation";
+import { COMPARISON_SCHEMA, FINAL_SCHEMA, QUALIFICATION_SCHEMA } from "@/lib/candidate-index/judgment";
 
 function profile(): BrightDataProfile {
   return {
@@ -46,4 +47,13 @@ test("profile representation rejects evidence that cannot point to a real experi
     skills: ["Python"], domains: [], capabilities: [], summary: "", experiences: [],
     evidence: [{ claim: "Built ML", experience_ref: "missing", detail: "No source" }],
   }, normalized), /unknown experience/);
+});
+
+test("candidate index LLM calls use strict named JSON schemas", () => {
+  for (const schema of [PROFILE_REPRESENTATION_SCHEMA, QUALIFICATION_SCHEMA, COMPARISON_SCHEMA, FINAL_SCHEMA]) {
+    assert.equal(schema.strict, true);
+    assert.equal(schema.schema.type, "object");
+    assert.equal(schema.schema.additionalProperties, false);
+    assert.ok(schema.name.length > 0);
+  }
 });

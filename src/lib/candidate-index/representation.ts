@@ -24,12 +24,14 @@ export type ProfileRepresentation = {
   }>;
 };
 
-const PROFILE_REPRESENTATION_SCHEMA = {
+export const PROFILE_REPRESENTATION_SCHEMA = {
   name: "candidate_profile_representation",
-  type: "object",
-  additionalProperties: false,
-  required: ["role_families", "adjacent_roles", "seniority", "skills", "domains", "capabilities", "summary", "evidence", "experiences"],
-  properties: {
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["role_families", "adjacent_roles", "seniority", "skills", "domains", "capabilities", "summary", "evidence", "experiences"],
+    properties: {
     role_families: { type: "array", maxItems: 6, items: { type: "string" } },
     adjacent_roles: { type: "array", maxItems: 6, items: { type: "string" } },
     seniority: { type: "string" },
@@ -65,6 +67,7 @@ const PROFILE_REPRESENTATION_SCHEMA = {
           technologies: { type: "array", maxItems: 15, items: { type: "string" } },
         },
       },
+    },
     },
   },
 } as const;

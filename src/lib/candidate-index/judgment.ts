@@ -32,46 +32,55 @@ export type FinalJudgment = {
   recommendedNextAction: string;
 };
 
-const QUALIFICATION_SCHEMA = {
+export const QUALIFICATION_SCHEMA = {
   name: "candidate_qualification",
-  type: "object",
-  additionalProperties: false,
-  required: ["decision", "supporting_evidence", "missing_information", "rejection_reasons"],
-  properties: {
-    decision: { type: "string", enum: ["advance", "maybe", "reject"] },
-    supporting_evidence: { type: "array", maxItems: 10, items: { type: "string" } },
-    missing_information: { type: "array", maxItems: 10, items: { type: "string" } },
-    rejection_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["decision", "supporting_evidence", "missing_information", "rejection_reasons"],
+    properties: {
+      decision: { type: "string", enum: ["advance", "maybe", "reject"] },
+      supporting_evidence: { type: "array", maxItems: 10, items: { type: "string" } },
+      missing_information: { type: "array", maxItems: 10, items: { type: "string" } },
+      rejection_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
+    },
   },
 } as const;
 
-const COMPARISON_SCHEMA = {
+export const COMPARISON_SCHEMA = {
   name: "candidate_pairwise_comparison",
-  type: "object",
-  additionalProperties: false,
-  required: ["decision", "decisive_dimensions", "reason", "evidence", "risks", "qualification_review_candidate"],
-  properties: {
-    decision: { type: "string", enum: ["candidate_a", "candidate_b", "tie", "qualification_review_required"] },
-    decisive_dimensions: { type: "array", maxItems: 8, items: { type: "string" } },
-    reason: { type: "string" },
-    evidence: { type: "array", maxItems: 12, items: { type: "string" } },
-    risks: { type: "array", maxItems: 8, items: { type: "string" } },
-    qualification_review_candidate: { type: ["string", "null"], enum: ["candidate_a", "candidate_b", null] },
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["decision", "decisive_dimensions", "reason", "evidence", "risks", "qualification_review_candidate"],
+    properties: {
+      decision: { type: "string", enum: ["candidate_a", "candidate_b", "tie", "qualification_review_required"] },
+      decisive_dimensions: { type: "array", maxItems: 8, items: { type: "string" } },
+      reason: { type: "string" },
+      evidence: { type: "array", maxItems: 12, items: { type: "string" } },
+      risks: { type: "array", maxItems: 8, items: { type: "string" } },
+      qualification_review_candidate: { type: ["string", "null"], enum: ["candidate_a", "candidate_b", null] },
+    },
   },
 } as const;
 
-const FINAL_SCHEMA = {
+export const FINAL_SCHEMA = {
   name: "candidate_final_judgment",
-  type: "object",
-  additionalProperties: false,
-  required: ["decision", "match_reasons", "evidence", "risks", "missing_information", "recommended_next_action"],
-  properties: {
-    decision: { type: "string", enum: ["contact", "review", "hold", "reject"] },
-    match_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
-    evidence: { type: "array", maxItems: 12, items: { type: "string" } },
-    risks: { type: "array", maxItems: 8, items: { type: "string" } },
-    missing_information: { type: "array", maxItems: 8, items: { type: "string" } },
-    recommended_next_action: { type: "string" },
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["decision", "match_reasons", "evidence", "risks", "missing_information", "recommended_next_action"],
+    properties: {
+      decision: { type: "string", enum: ["contact", "review", "hold", "reject"] },
+      match_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
+      evidence: { type: "array", maxItems: 12, items: { type: "string" } },
+      risks: { type: "array", maxItems: 8, items: { type: "string" } },
+      missing_information: { type: "array", maxItems: 8, items: { type: "string" } },
+      recommended_next_action: { type: "string" },
+    },
   },
 } as const;
 
