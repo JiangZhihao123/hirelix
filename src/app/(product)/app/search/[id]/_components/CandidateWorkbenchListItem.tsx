@@ -72,7 +72,13 @@ export function CandidateWorkbenchListItem({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-sm font-semibold text-slate-950">{displayName}</p>
-            <ScoreBadge score={overallScore} />
+            {typeof candidate.final_rank === "number" ? (
+              <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700">
+                #{candidate.final_rank}
+              </span>
+            ) : (
+              <ScoreBadge score={overallScore} />
+            )}
             {recommendationLabel && (
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${recommendationClass}`}>
                 {recommendationLabel}

@@ -1,0 +1,16 @@
+{
+  "fixture_id": "zillow-p749437-2",
+  "company": "Zillow",
+  "title": "Machine Learning Engineer, Agentic AI",
+  "job_requisition_id": "P749437",
+  "job_posting_id": "Machine-Learning-Engineer--Agentic-AI_P749437-2",
+  "location": "Remote-USA",
+  "country_code": "US",
+  "remote_type": "Remote",
+  "source_url": "https://zillow.wd5.myworkdayjobs.com/en-US/Zillow_Group_External/job/Machine-Learning-Engineer--Agentic-AI_P749437-2",
+  "source_api_url": "https://zillow.wd5.myworkdayjobs.com/wday/cxs/zillow/Zillow_Group_External/job/Machine-Learning-Engineer--Agentic-AI_P749437-2",
+  "source_start_date": "2026-06-24",
+  "fetched_at": "2026-07-15T00:00:00.000Z",
+  "content_sha256": "c2504e16101b9ff070b61b0a3e9160fc98780ab0e45282117e759085dc97a903",
+  "jd_text": "About the team\n\nThe Agentic AI team at Zillow is transforming the real estate industry by helping millions of people navigate one of the most important decisions of their lives with AI powered guidance. The Applied Reasoning team advances the reasoning depth, quality, and domain intelligence of Zillow's AI agents. It builds agentic capabilities requiring multi-step reasoning, structured synthesis, tool-grounded execution, and rigorous quality evaluation in live customer experiences.\n\nAbout the role\n\nZillow is seeking a Machine Learning Engineer to join the Applied Reasoning team within the Agentic AI organization. The engineer will design, build, and productionize domain-specialized AI capabilities for Zillow's next generation real estate experiences. The role focuses on multi-step reasoning, structured synthesis, and tool-grounded intelligence operating reliably at scale.\n\nResponsibilities\n\n- Design and build scalable AI infrastructure and services for agentic AI applications.\n- Develop advanced reasoning and agentic capabilities that operate autonomously and adaptively in dynamic real-world environments.\n- Implement monitoring, evaluation, and optimization for production reliability and responsiveness.\n- Bring emerging agentic AI techniques into practical product applications.\n- Translate experimental prototypes into robust production systems with applied scientists, engineers, and product teams.\n- Contribute to distributed ML systems, scalable architecture, and responsible AI deployment.\n\nLocation\n\nRemote employees may work from an identified physical location in any of the 50 United States, with limited exceptions.\n\nQualifications\n\n- Bachelor's or Master's degree in Computer Science or a related field.\n- 2+ years building production ML systems and services.\n- Experience with AI agent frameworks, orchestration, or multi-step reasoning applications.\n- Strong Python programming and experience with ML/AI frameworks such as TensorFlow, PyTorch, LangChain, and LangGraph.\n- Experience designing and operating scalable cloud-based ML infrastructure.\n- Ability to work cross-functionally to ship impactful AI-driven features."
+}

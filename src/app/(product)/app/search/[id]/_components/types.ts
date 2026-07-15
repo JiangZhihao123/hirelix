@@ -75,6 +75,7 @@ export type CandidateSuitability = {
 
 export type CandidateRow = {
   id: string;
+  profile_id?: string | null;
   name: string;
   headline: string | null;
   location: string | null;
@@ -87,6 +88,31 @@ export type CandidateRow = {
   email: string | null;
   outreach_draft: string | null;
   status: string;
+  retrieval_channels?: Record<string, unknown> | null;
+  retrieval_rank?: number | null;
+  qualification_decision?: "advance" | "maybe" | "reject" | null;
+  qualification_evidence?: {
+    supporting_evidence?: string[];
+    missing_information?: string[];
+    rejection_reasons?: string[];
+  } | null;
+  davidson_score?: string | number | null;
+  rank_low?: number | null;
+  rank_high?: number | null;
+  final_rank?: number | null;
+  final_decision?: "contact" | "review" | "hold" | "reject" | null;
+  evidence_pack?: {
+    retrieval?: Record<string, unknown>;
+    qualification?: Record<string, unknown>;
+    relative_ranking?: Record<string, unknown> | null;
+    final_judgment?: {
+      matchReasons?: string[];
+      evidence?: string[];
+      risks?: string[];
+      missingInformation?: string[];
+      recommendedNextAction?: string;
+    } | null;
+  } | null;
   metadata: {
     work_history?: WorkHistoryItem[];
     education?: EducationItem[];

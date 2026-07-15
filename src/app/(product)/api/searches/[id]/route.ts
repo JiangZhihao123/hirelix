@@ -68,6 +68,7 @@ export async function GET(
     .from(hirelix_candidates)
     .where(eq(hirelix_candidates.search_id, id))
     .orderBy(
+      sql`${hirelix_candidates.final_rank} ASC NULLS LAST`,
       candidateDeliveryPrioritySql,
       sql`${candidateQualityScoreSql} DESC NULLS LAST`,
       sql`${candidateAdvanceScoreSql} DESC NULLS LAST`,

@@ -362,7 +362,16 @@ export function CandidateWorkbenchDetail({
                     {deliveryBucketLabel}
                   </span>
                   <ActionabilityBadge candidate={localCandidate} />
-                  <ScoreBadge score={overallScore} />
+                  {typeof localCandidate.final_rank === "number" ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      Rank #{localCandidate.final_rank}
+                      {typeof localCandidate.rank_low === "number" && typeof localCandidate.rank_high === "number"
+                        ? ` · likely ${localCandidate.rank_low}-${localCandidate.rank_high}`
+                        : ""}
+                    </span>
+                  ) : (
+                    <ScoreBadge score={overallScore} />
+                  )}
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 {currentRole}
@@ -399,6 +408,29 @@ export function CandidateWorkbenchDetail({
             </select>
           </div>
         </div>
+
+        {localCandidate.evidence_pack?.final_judgment && (
+          <div className="mt-4 grid gap-3 border-y border-slate-200 py-4 md:grid-cols-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase text-slate-500">Decision</p>
+              <p className="mt-1 text-sm font-semibold capitalize text-slate-950">
+                {localCandidate.final_decision || "hold"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase text-slate-500">Evidence</p>
+              <p className="mt-1 text-sm leading-5 text-slate-700">
+                {localCandidate.evidence_pack.final_judgment.evidence?.[0] || localCandidate.match_reasons[0] || "Evidence pending"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase text-slate-500">Risk to verify</p>
+              <p className="mt-1 text-sm leading-5 text-slate-700">
+                {localCandidate.evidence_pack.final_judgment.risks?.[0] || localCandidate.evidence_pack.final_judgment.missingInformation?.[0] || "No material risk recorded"}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 border-b border-slate-200">
           <div className="flex flex-wrap gap-1">

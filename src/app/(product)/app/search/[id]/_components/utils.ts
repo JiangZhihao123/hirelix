@@ -227,10 +227,13 @@ function candidateDeliveryPriority(candidate: CandidateRow) {
 }
 
 export function compareCandidatesForRecruiterRanking(left: CandidateRow, right: CandidateRow) {
+  const leftFinalRank = typeof left.final_rank === "number" ? left.final_rank : Number.POSITIVE_INFINITY;
+  const rightFinalRank = typeof right.final_rank === "number" ? right.final_rank : Number.POSITIVE_INFINITY;
   const leftRank = typeof left.metadata?.scored_rank === "number" ? left.metadata.scored_rank : Number.POSITIVE_INFINITY;
   const rightRank = typeof right.metadata?.scored_rank === "number" ? right.metadata.scored_rank : Number.POSITIVE_INFINITY;
 
   return (
+    leftFinalRank - rightFinalRank ||
     candidateDeliveryPriority(left) - candidateDeliveryPriority(right) ||
     candidateQualityScore(right) - candidateQualityScore(left) ||
     candidateAdvanceScore(right) - candidateAdvanceScore(left) ||
