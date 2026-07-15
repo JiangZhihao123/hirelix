@@ -105,12 +105,12 @@ function stringArray(value: unknown, limit = 12) {
 
 async function withJudgmentRetry<T>(operation: () => Promise<T>) {
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       return await operation();
     } catch (error) {
       lastError = error;
-      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500));
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
   throw lastError;
@@ -226,8 +226,8 @@ export async function qualifyCandidate(
       jd,
       candidate: candidatePrompt(bundle),
     }),
-    maxOutputTokens: 1800,
-    timeoutMs: 60_000,
+    maxOutputTokens: 2400,
+    timeoutMs: 90_000,
     temperature: 0,
     jsonSchema: QUALIFICATION_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_QUALIFICATION_THINKING", "disabled"),
@@ -274,8 +274,8 @@ async function compareCandidates(
     model,
     system: "Return JSON matching output_contract. Both candidates already passed a minimum qualification gate. If a recruiter can contact only one first for this JD, choose the candidate with stronger concrete JD-relevant evidence. Allow tie. Do not output a numeric score or confidence. Use qualification_review_required only when profile evidence reveals a clear minimum-qualification problem missed by the gate.",
     prompt: JSON.stringify(payload),
-    maxOutputTokens: 1800,
-    timeoutMs: 60_000,
+    maxOutputTokens: 3000,
+    timeoutMs: 90_000,
     temperature: 0,
     jsonSchema: COMPARISON_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PAIRWISE_THINKING", "disabled"),
@@ -478,8 +478,8 @@ export async function judgeFinalCandidate(
       qualification,
       relative_ranking: ranking,
     }),
-    maxOutputTokens: 2200,
-    timeoutMs: 60_000,
+    maxOutputTokens: 4000,
+    timeoutMs: 90_000,
     temperature: 0,
     jsonSchema: FINAL_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_FINAL_JUDGMENT_THINKING", "enabled"),
