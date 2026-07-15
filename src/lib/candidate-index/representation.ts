@@ -104,13 +104,24 @@ export function validateProfileRepresentation(value: unknown, profile: Normalize
       technologies: strings(row.technologies, 15),
     };
   }) : [];
-  const skills = strings(record.skills, 30);
-  const domains = strings(record.domains, 12);
-  const capabilities = strings(record.capabilities, 20);
   const evidenceText = evidence.map((item) => `${item.claim} ${item.detail}`.toLowerCase()).join("\n");
-  for (const claim of [...skills, ...domains, ...capabilities]) {
-    if (!evidenceText.includes(claim.toLowerCase())) {
-      throw new Error(`Representation claim has no evidence: ${claim}`);
+  const keepGrounded = (claims: string[]) =>
+    claims.filter((claim) => evidenceText.includes(claim.toLowerCase()));
+  const skills = keepGrounded(strings(record.skills, 30));
+  const domains = keepGrounded(strings(record.domains, 12));
+  const capabilities = keepGrounded(strings(record.capabilities, 20));
+  const sourceCharacters =
+    (profile.rawProfile.about?.length || 0) +
+    profile.experiences.reduce((sum, experience) => sum + (experience.description?.length || 0), 0);
+  if (sourceCharacters >= 200) {
+    if (strings(record.role_families, 6).length === 0) {
+      throw new Error("Substantive profile representation has no role family");
+    }
+    if (skills.length + capabilities.length === 0) {
+      throw new Error("Substantive profile representation has no skills or capabilities");
+    }
+    if (evidence.length === 0) {
+      throw new Error("Substantive profile representation has no evidence");
     }
   }
   return {
@@ -131,7 +142,7 @@ export async function generateProfileRepresentation(
   usage?: { searchId?: string; jobId?: string; userId?: string },
 ) {
   const model = process.env.SEARCH_LIGHT_MODEL || getLightweightLlmModel();
-  const prompt = JSON.stringify({
+  const profilePayload = {
     name: profile.name,
     current_title: profile.currentTitle,
     about: profile.rawProfile.about,
@@ -143,19 +154,34 @@ export async function generateProfileRepresentation(
       period: [item.startDate, item.isCurrent ? "Present" : item.endDate],
       description: item.description,
     })),
-  });
-  const { data } = await generateLlmJson<ProfileRepresentation>({
-    model,
-    system: SYSTEM_PROMPT,
-    prompt,
-    maxOutputTokens: 4000,
-    timeoutMs: 60_000,
-    temperature: 0,
-    jsonSchema: PROFILE_REPRESENTATION_SCHEMA,
-    deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PROFILE_REPRESENTATION_THINKING", "disabled"),
-    usageEvent: { ...usage, stage: "profile_representation" },
-  });
-  return { representation: validateProfileRepresentation(data, profile), model };
+  };
+  let repairReason: string | null = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const { data } = await generateLlmJson<ProfileRepresentation>({
+      model,
+      system: SYSTEM_PROMPT,
+      prompt: JSON.stringify({
+        output_contract: PROFILE_REPRESENTATION_SCHEMA.schema,
+        ...profilePayload,
+        ...(repairReason ? {
+          repair_instruction: `The previous output failed validation: ${repairReason}. Re-read the supplied evidence and return a complete grounded representation.`,
+        } : {}),
+      }),
+      maxOutputTokens: 4000,
+      timeoutMs: 60_000,
+      temperature: 0,
+      jsonSchema: PROFILE_REPRESENTATION_SCHEMA,
+      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PROFILE_REPRESENTATION_THINKING", "disabled"),
+      usageEvent: { ...usage, stage: attempt === 1 ? "profile_representation" : "profile_representation_repair" },
+    });
+    try {
+      return { representation: validateProfileRepresentation(data, profile), model };
+    } catch (error) {
+      repairReason = error instanceof Error ? error.message : String(error);
+      if (attempt === 2) throw error;
+    }
+  }
+  throw new Error("Profile representation repair exhausted");
 }
 
 export function buildProfileSearchDocument(profile: NormalizedProfile, representation: ProfileRepresentation) {

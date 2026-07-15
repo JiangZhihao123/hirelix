@@ -161,7 +161,11 @@ export async function qualifyCandidate(
   const { data } = await generateLlmJson<Record<string, unknown>>({
     model,
     system: "Judge only whether the candidate clears the minimum contact threshold for this JD. Use concrete profile evidence. Unknown information is not rejection evidence. Employer or school prestige and title similarity are never sufficient. Return reject only for a supported mismatch; maybe means plausible but insufficient evidence.",
-    prompt: JSON.stringify({ jd, candidate: candidatePrompt(bundle) }),
+    prompt: JSON.stringify({
+      output_contract: QUALIFICATION_SCHEMA.schema,
+      jd,
+      candidate: candidatePrompt(bundle),
+    }),
     maxOutputTokens: 1800,
     timeoutMs: 60_000,
     temperature: 0,
@@ -199,7 +203,12 @@ async function compareCandidates(
   usage: { searchId: string; jobId: string; userId: string },
 ): Promise<ComparisonResult> {
   const model = process.env.SEARCH_JUDGE_MODEL || getDefaultLlmModel();
-  const payload = { jd, candidate_a: candidatePrompt(first), candidate_b: candidatePrompt(second) };
+  const payload = {
+    output_contract: COMPARISON_SCHEMA.schema,
+    jd,
+    candidate_a: candidatePrompt(first),
+    candidate_b: candidatePrompt(second),
+  };
   const requestHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   const { data } = await generateLlmJson<Record<string, unknown>>({
     model,
@@ -402,7 +411,13 @@ export async function judgeFinalCandidate(
   const { data } = await generateLlmJson<Record<string, unknown>>({
     model,
     system: "Make the final recruiter-facing decision for this JD from the complete profile and evidence pack. Every positive claim must point to concrete work evidence. Do not convert missing information into a rejection unless the JD explicitly makes it mandatory.",
-    prompt: JSON.stringify({ jd, candidate: candidatePrompt(bundle), qualification, relative_ranking: ranking }),
+    prompt: JSON.stringify({
+      output_contract: FINAL_SCHEMA.schema,
+      jd,
+      candidate: candidatePrompt(bundle),
+      qualification,
+      relative_ranking: ranking,
+    }),
     maxOutputTokens: 2200,
     timeoutMs: 60_000,
     temperature: 0,

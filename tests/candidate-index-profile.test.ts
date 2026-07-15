@@ -49,13 +49,24 @@ test("profile representation rejects evidence that cannot point to a real experi
   }, normalized), /unknown experience/);
 });
 
-test("profile representation rejects semantic claims without supporting evidence", () => {
+test("profile representation drops semantic claims without supporting evidence", () => {
   const normalized = normalizeBrightProfile(profile());
-  assert.throws(() => validateProfileRepresentation({
+  const representation = validateProfileRepresentation({
     role_families: ["machine_learning"], adjacent_roles: [], seniority: "senior",
     skills: ["Kubernetes"], domains: [], capabilities: [], summary: "", experiences: [],
     evidence: [{ claim: "Built ML services", experience_ref: "exp-0", detail: "Deployed inference services" }],
-  }, normalized), /claim has no evidence: Kubernetes/);
+  }, normalized);
+  assert.deepEqual(representation.skills, []);
+});
+
+test("substantive profiles cannot silently produce an empty representation", () => {
+  const source = profile();
+  source.about = "Production machine learning systems and platform ownership. ".repeat(6);
+  const normalized = normalizeBrightProfile(source);
+  assert.throws(() => validateProfileRepresentation({
+    role_families: [], adjacent_roles: [], seniority: "unknown",
+    skills: [], domains: [], capabilities: [], summary: "", experiences: [], evidence: [],
+  }, normalized), /no role family/);
 });
 
 test("candidate index LLM calls use strict named JSON schemas", () => {
