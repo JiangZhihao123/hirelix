@@ -410,7 +410,7 @@ LLM 必须输出支持证据、缺失信息和拒绝原因。`unknown` 不能自
 
 ### 12.3 排名汇总
 
-首版可用 Elo 快速实现，但正式汇总采用 Bradley-Terry 模型：
+首版直接使用 Bradley-Terry 模型汇总成对比较结果：
 
 - 输入所有成对胜负和置信度。
 - 估计每个候选人在当前 JD 下的相对胜出概率。
@@ -571,7 +571,7 @@ Bradley-Terry 排名只决定合格候选人的优先顺序，不替代绝对合
 - 多来源身份归并。
 - Elasticsearch、OpenSearch、Pinecone、Milvus、Weaviate、Qdrant。
 - 全局候选人好坏分数。
-- 跨 JD 复用 Elo 或 Bradley-Terry 排名。
+- 跨 JD 复用 Bradley-Terry 排名。
 - 在 benchmark 通过前建设大规模产品 UI 和复杂调度系统。
 
 ## 17. 最终结论
