@@ -21,6 +21,8 @@ import {
   hirelix_user_settings,
 } from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
+import { countEligibleProfiles } from "@/lib/candidate-index/retrieval";
+import { buildCandidateIndexSearchIntent, runCandidateIndexWorkflow } from "@/lib/candidate-index/workflow";
 import {
   BRIGHTDATA_COMPANY_TARGET_LIMIT,
   BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
@@ -126,6 +128,10 @@ export class DatasetRecallPendingError extends Error {
     this.retryImmediately = options?.retryImmediately ?? true;
     this.retryDelayMs = Math.max(1000, options?.retryDelayMs ?? BRIGHTDATA_FILTER_POLL_INTERVAL_MS);
   }
+}
+
+function candidateIndexPipelineIsActive(): boolean {
+  return true;
 }
 
 export class ZeroRecallError extends Error {
@@ -4610,6 +4616,36 @@ async function buildBrightDataDatasetCandidates(
   if (allProfiles.length === 0) {
     throw new ZeroRecallError(activeSnapshotId);
   }
+  if (candidateIndexPipelineIsActive()) {
+    const candidateIndexResult = await runCandidateIndexWorkflow({
+    context,
+    parsed,
+    profiles: allProfiles,
+    snapshotId: activeSnapshotId,
+    brightCost: resolvedRecallCost ?? undefined,
+    brightRequested: totalRequestedLimit,
+  });
+    parsed.candidate_index_metrics = {
+      ...candidateIndexResult.metrics,
+      local_eligible_count: null,
+      bright_supplemented: true,
+    };
+    parsed.display_stats = helpers.buildSearchDisplayStats({
+      ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
+      ...candidateIndexResult.displayStats,
+    });
+    await updateSearchParsedRequirements(context.searchId, parsed);
+    helpers.logSearchEvent("candidate_index_pipeline_completed", {
+      search_id: context.searchId,
+      job_id: context.jobId,
+      ...candidateIndexResult.metrics,
+    });
+    return {
+      finalRows: candidateIndexResult.finalRows,
+      displayStats: parsed.display_stats as SearchDisplayStats,
+    };
+  }
+
   const combinedResult = await scoreBrightDataProfiles(
     context,
     parsed,
@@ -4929,6 +4965,53 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
     planCode,
     displayCount: context.candidateCount,
   });
+
+  if (phase1Parsed.candidate_index_force_bright !== true) {
+    const { intent } = buildCandidateIndexSearchIntent(context.jdText, phase1Parsed);
+    const localEligibleCount = await countEligibleProfiles(intent);
+    if (localEligibleCount >= 300) {
+      await setSearchStatus(context.searchId, "searching", { parsed_requirements: phase1Parsed });
+      const localResult = await runCandidateIndexWorkflow({
+        context,
+        parsed: phase1Parsed,
+        profiles: [],
+        snapshotId: null,
+        brightRequested: 0,
+      });
+      phase1Parsed.candidate_index_metrics = {
+        ...localResult.metrics,
+        local_eligible_count: localEligibleCount,
+        bright_supplemented: false,
+      };
+      await completeSearch(
+        context,
+        phase1Parsed,
+        localResult.finalRows,
+        helpers.buildSearchDisplayStats(localResult.displayStats),
+        {
+          nowIso: helpers.nowIso,
+          getSearchStartedAt: helpers.getSearchStartedAt,
+          elapsedSince: helpers.elapsedSince,
+          buildSearchDisplayStats: helpers.buildSearchDisplayStats,
+          generateOutreachDraftsForRows: helpers.generateOutreachDraftsForRows,
+          getExecutionRuntime: (executionProfile) =>
+            getExecutionRuntime(executionProfile as SearchExecutionProfile),
+          getSearchExecutionProfile: (name) =>
+            getSearchExecutionProfile(name as Parameters<typeof getSearchExecutionProfile>[0]),
+          upsertCandidatesForSearch,
+          withDisplayStats: helpers.withDisplayStats,
+          setSearchStatus,
+          updateSearchUsageEventMetadata,
+          logSearchEvent: helpers.logSearchEvent,
+        },
+        {
+          replaceMissingCandidates: true,
+          runtime: getExecutionRuntime(initialExecutionProfileWithBudget),
+        },
+      );
+      return;
+    }
+  }
 
   const isFreshExpandRun = phase1Parsed.expand_recall_mode === "fresh_snapshot";
   const phase1Result = await buildBrightDataDatasetCandidates(

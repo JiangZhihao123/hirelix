@@ -23,6 +23,19 @@ export type HybridSearchIntent = {
   requiredDegree?: string | null;
 };
 
+export async function countEligibleProfiles(intent: HybridSearchIntent) {
+  const countries = (intent.allowedCountries || []).map((item) => item.toUpperCase());
+  const result = rows<{ count: number | string }>(await db.execute(sql`
+    SELECT count(*) AS count
+    FROM hirelix_profiles p
+    WHERE p.processing_status = 'ready'
+      AND (${countries.length === 0} OR p.country_code = ANY(${countries}))
+      AND (${intent.minimumYearsExperience == null} OR p.years_experience >= ${intent.minimumYearsExperience ?? 0})
+      AND (${intent.requiredDegree == null} OR p.highest_degree = ${intent.requiredDegree})
+  `));
+  return Number(result[0]?.count || 0);
+}
+
 function rows<T>(result: unknown) {
   return result as T[];
 }

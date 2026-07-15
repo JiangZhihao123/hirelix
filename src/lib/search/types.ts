@@ -37,6 +37,7 @@ export type SearchRow = {
 };
 
 export type CandidateRowInput = {
+  profile_id?: string | null;
   name: string;
   headline: string | null;
   location: string | null;
@@ -49,6 +50,16 @@ export type CandidateRowInput = {
   email: string | null;
   outreach_draft: string | null;
   metadata: Record<string, unknown>;
+  retrieval_channels?: Record<string, unknown> | null;
+  retrieval_rank?: number | null;
+  qualification_decision?: "advance" | "maybe" | "reject" | null;
+  qualification_evidence?: Record<string, unknown> | null;
+  davidson_score?: number | null;
+  rank_low?: number | null;
+  rank_high?: number | null;
+  final_rank?: number | null;
+  final_decision?: "contact" | "review" | "hold" | "reject" | null;
+  evidence_pack?: Record<string, unknown> | null;
 };
 
 export type RecallSpec = {

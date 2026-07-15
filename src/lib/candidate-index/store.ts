@@ -6,6 +6,7 @@ import type { BrightDataProfile } from "@/lib/brightdata";
 import { generateEmbeddings } from "@/lib/candidate-index/embedding";
 import { buildExperienceSearchDocument, normalizeBrightProfile } from "@/lib/candidate-index/profile";
 import { buildProfileSearchDocument, generateProfileRepresentation } from "@/lib/candidate-index/representation";
+import { runWithConcurrency } from "@/lib/search/concurrency";
 
 export type IndexProfilesResult = {
   indexedProfileIds: string[];
@@ -131,15 +132,22 @@ export async function indexBrightProfiles(
   options: { snapshotId: string | null; searchId?: string; jobId?: string; userId?: string },
 ): Promise<IndexProfilesResult> {
   const result: IndexProfilesResult = { indexedProfileIds: [], reused: 0, rejected: [] };
-  for (const [index, profile] of profiles.entries()) {
+  const concurrency = Math.max(1, Math.min(6, Number(process.env.SEARCH_PROFILE_INDEX_CONCURRENCY || 4)));
+  const indexedRows = await runWithConcurrency(profiles.map((profile, index) => ({ profile, index })), concurrency, async ({ profile, index }) => {
     try {
-      const indexed = await indexOne(profile, options);
+      return { index, indexed: await indexOne(profile, options), error: null };
+    } catch (error) {
+      return { index, indexed: null, error };
+    }
+  });
+  for (const row of indexedRows) {
+    if (row.indexed) {
+      const indexed = row.indexed;
       result.indexedProfileIds.push(indexed.profileId);
       if (indexed.reused) result.reused += 1;
-    } catch (error) {
-      result.rejected.push({ index, reason: error instanceof Error ? error.message : String(error) });
+    } else {
+      result.rejected.push({ index: row.index, reason: row.error instanceof Error ? row.error.message : String(row.error) });
     }
   }
   return result;
 }
-

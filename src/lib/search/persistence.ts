@@ -53,6 +53,7 @@ export function getSnapshotCacheTtlDays() {
 function buildCandidatePayload(searchId: string, row: CandidateRowInput) {
   return {
     search_id: searchId,
+    profile_id: row.profile_id ?? null,
     name: row.name,
     headline: row.headline,
     location: row.location,
@@ -65,6 +66,16 @@ function buildCandidatePayload(searchId: string, row: CandidateRowInput) {
     email: row.email,
     outreach_draft: row.outreach_draft,
     metadata: toJsonbSafeRecord(row.metadata),
+    retrieval_channels: row.retrieval_channels ? toJsonbSafeRecord(row.retrieval_channels) : null,
+    retrieval_rank: row.retrieval_rank ?? null,
+    qualification_decision: row.qualification_decision ?? null,
+    qualification_evidence: row.qualification_evidence ? toJsonbSafeRecord(row.qualification_evidence) : null,
+    davidson_score: row.davidson_score == null ? null : String(row.davidson_score),
+    rank_low: row.rank_low ?? null,
+    rank_high: row.rank_high ?? null,
+    final_rank: row.final_rank ?? null,
+    final_decision: row.final_decision ?? null,
+    evidence_pack: row.evidence_pack ? toJsonbSafeRecord(row.evidence_pack) : null,
   };
 }
 
