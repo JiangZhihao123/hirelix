@@ -49,6 +49,15 @@ test("profile representation rejects evidence that cannot point to a real experi
   }, normalized), /unknown experience/);
 });
 
+test("profile representation rejects semantic claims without supporting evidence", () => {
+  const normalized = normalizeBrightProfile(profile());
+  assert.throws(() => validateProfileRepresentation({
+    role_families: ["machine_learning"], adjacent_roles: [], seniority: "senior",
+    skills: ["Kubernetes"], domains: [], capabilities: [], summary: "", experiences: [],
+    evidence: [{ claim: "Built ML services", experience_ref: "exp-0", detail: "Deployed inference services" }],
+  }, normalized), /claim has no evidence: Kubernetes/);
+});
+
 test("candidate index LLM calls use strict named JSON schemas", () => {
   for (const schema of [PROFILE_REPRESENTATION_SCHEMA, QUALIFICATION_SCHEMA, COMPARISON_SCHEMA, FINAL_SCHEMA]) {
     assert.equal(schema.strict, true);

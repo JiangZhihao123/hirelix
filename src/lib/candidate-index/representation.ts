@@ -73,7 +73,7 @@ export const PROFILE_REPRESENTATION_SCHEMA = {
 } as const;
 
 const SYSTEM_PROMPT = `You extract reusable recruiting evidence from a LinkedIn profile.
-Return only schema-valid JSON. Every skill, domain, and capability must be supported by profile text and tied to a supplied experience_ref in evidence.
+Return only schema-valid JSON. Every skill, domain, and capability must be supported by profile text and tied to a supplied experience_ref in evidence. Repeat the exact skill, domain, or capability label in the related evidence claim or detail.
 Do not infer responsibilities from title, employer prestige, or school prestige. Distinguish production ownership from brief exposure. Missing information is unknown, not negative.
 This is not a candidate quality judgment and must not contain a JD match score.`;
 
@@ -104,13 +104,22 @@ export function validateProfileRepresentation(value: unknown, profile: Normalize
       technologies: strings(row.technologies, 15),
     };
   }) : [];
+  const skills = strings(record.skills, 30);
+  const domains = strings(record.domains, 12);
+  const capabilities = strings(record.capabilities, 20);
+  const evidenceText = evidence.map((item) => `${item.claim} ${item.detail}`.toLowerCase()).join("\n");
+  for (const claim of [...skills, ...domains, ...capabilities]) {
+    if (!evidenceText.includes(claim.toLowerCase())) {
+      throw new Error(`Representation claim has no evidence: ${claim}`);
+    }
+  }
   return {
     role_families: strings(record.role_families, 6),
     adjacent_roles: strings(record.adjacent_roles, 6),
     seniority: typeof record.seniority === "string" ? record.seniority.trim() : "unknown",
-    skills: strings(record.skills, 30),
-    domains: strings(record.domains, 12),
-    capabilities: strings(record.capabilities, 20),
+    skills,
+    domains,
+    capabilities,
     summary: typeof record.summary === "string" ? record.summary.trim() : "",
     evidence,
     experiences,
