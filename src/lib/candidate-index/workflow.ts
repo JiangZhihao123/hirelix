@@ -219,7 +219,7 @@ export async function runCandidateIndexWorkflow(params: {
   const orderedIds = [...advancedOrdered, ...remainingOrdered];
   const finalRankById = new Map(orderedIds.map((id, index) => [id, index + 1]));
   const topBundles = orderedIds.slice(0, 20).map((id) => bundles.find((bundle) => bundle.profile.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
-  const finalJudgments = await runWithConcurrency(topBundles, 12, (bundle) =>
+  const finalJudgments = await runWithConcurrency(topBundles, 8, (bundle) =>
     judgeFinalCandidate(judgmentInput, bundle, qualificationById.get(bundle.profile.id)!, rankingById.get(bundle.profile.id) || null, usage),
   );
   const finalById = new Map(finalJudgments.map((item) => [item.profileId, item]));
