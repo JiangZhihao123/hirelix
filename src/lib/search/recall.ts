@@ -48,6 +48,10 @@ const MAX_BRIGHT_OR_FILTERS = 20;
 const MAX_LLM_SOURCING_LANES = 4;
 const MIN_LLM_SUPPLEMENTAL_RECORDS = 3;
 
+function useBrightExperienceFilters() {
+  return process.env.BRIGHTDATA_USE_EXPERIENCE_FILTERS === "true";
+}
+
 const GENERIC_SENIORITY_TITLE_TERMS = new Set([
   "staff",
   "principal",
@@ -613,17 +617,19 @@ export function buildRecallSkillSignalGroups(recallSpec: RecallSpec) {
 function buildProfileSignalFilter(terms: string[], maxTerms = 8): BrightDataFilterRule | null {
   const normalizedTerms = compactTerms(terms, maxTerms);
   if (normalizedTerms.length === 0) return null;
+  const descriptionField = useBrightExperienceFilters() ? "experience:description" : "about";
+  const titleField = useBrightExperienceFilters() ? "experience:title" : "position";
 
   return {
     operator: "or",
     filters: [
       ...normalizedTerms.map((term) => ({
-        name: "experience:description",
+        name: descriptionField,
         operator: "includes" as const,
         value: term,
       })),
       ...normalizedTerms.map((term) => ({
-        name: "experience:title",
+        name: titleField,
         operator: "includes" as const,
         value: term,
       })),
@@ -884,7 +890,9 @@ function buildHeadhunterLaneEvidenceFilter(params: {
 
 function buildProfileSignalLeaf(term: string, name: "about" | "position"): BrightDataFilterRule {
   return {
-    name: name === "position" ? "experience:title" : name,
+    name: name === "position"
+      ? (useBrightExperienceFilters() ? "experience:title" : "position")
+      : (useBrightExperienceFilters() ? "experience:description" : "about"),
     operator: "includes",
     value: term,
   };
@@ -1191,20 +1199,16 @@ function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRul
     (term) => !GENERIC_SENIORITY_TITLE_TERMS.has(term),
   );
   if (terms.length === 0) return null;
+  const titleFields = useBrightExperienceFilters()
+    ? ["current_company:title", "experience:title"]
+    : ["position"];
   return {
     operator: "or",
-    filters: [
-      ...terms.map((term) => ({
-        name: "current_company:title",
-        operator: "includes" as const,
-        value: term,
-      })),
-      ...terms.map((term) => ({
-        name: "experience:title",
-        operator: "includes" as const,
-        value: term,
-      })),
-    ].slice(0, MAX_BRIGHT_OR_FILTERS),
+    filters: titleFields.flatMap((field) => terms.map((term) => ({
+      name: field,
+      operator: "includes" as const,
+      value: term,
+    }))).slice(0, MAX_BRIGHT_OR_FILTERS),
   };
 }
 
@@ -2372,18 +2376,14 @@ function buildDeterministicExpansionRounds(params: {
         const hiddenGemFilters: BrightDataFilterRule[] = [
           {
             operator: "or",
-            filters: [
-              ...lateralTitles.map((term) => ({
-                name: "current_company:title",
-                operator: "includes" as const,
-                value: term,
-              })),
-              ...lateralTitles.map((term) => ({
-                name: "experience:title",
-                operator: "includes" as const,
-                value: term,
-              })),
-            ].slice(0, MAX_BRIGHT_OR_FILTERS),
+            filters: (useBrightExperienceFilters()
+              ? ["current_company:title", "experience:title"]
+              : ["position"]
+            ).flatMap((field) => lateralTitles.map((term) => ({
+              name: field,
+              operator: "includes" as const,
+              value: term,
+            }))).slice(0, MAX_BRIGHT_OR_FILTERS),
           },
         ];
       if (params.countryFilter) hiddenGemFilters.push(params.countryFilter);

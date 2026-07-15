@@ -14,6 +14,7 @@ import { normalizeRecallSpec } from "@/lib/search-jobs";
 import type { SearchExecutionProfile } from "@/lib/search-execution";
 
 process.env.BRIGHTDATA_DATASET_ID = process.env.BRIGHTDATA_DATASET_ID || "test_dataset";
+process.env.BRIGHTDATA_USE_EXPERIENCE_FILTERS = "true";
 
 const executionProfile: SearchExecutionProfile = {
   name: "bright_test_full",
