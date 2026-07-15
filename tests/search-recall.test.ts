@@ -230,6 +230,105 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
   );
 });
 
+test("headhunter v2 distributes the full cold-start budget across four configured lanes", () => {
+  const previousStrategy = process.env.SEARCH_RECALL_STRATEGY;
+  process.env.SEARCH_RECALL_STRATEGY = "headhunter_v2";
+  try {
+    const lanes = [
+      {
+        name: "core title",
+        strategy: "title" as const,
+        lane_kind: "primary_exact" as const,
+        target_persona: "Core ML engineers",
+        non_negotiables: ["production ML systems"],
+        relaxed_evidence: [],
+        exclusion_patterns: [],
+        initial_budget: 40,
+        max_budget: 100,
+        title_terms: ["Machine Learning Engineer"],
+        skill_terms: ["production ML systems"],
+        company_terms: [],
+        avoid_terms: [],
+        budget_weight: 4,
+      },
+      {
+        name: "equivalent title",
+        strategy: "skill" as const,
+        lane_kind: "adjacent_authorized" as const,
+        target_persona: "Applied AI engineers",
+        non_negotiables: ["agentic AI"],
+        relaxed_evidence: [],
+        exclusion_patterns: [],
+        initial_budget: 25,
+        max_budget: 100,
+        title_terms: ["Applied Scientist", "AI Engineer"],
+        skill_terms: ["agentic AI", "multi-step reasoning"],
+        company_terms: [],
+        avoid_terms: [],
+        budget_weight: 2.5,
+      },
+      {
+        name: "strong employed operators",
+        strategy: "title" as const,
+        lane_kind: "primary_relaxed" as const,
+        target_persona: "Senior ML platform engineers",
+        non_negotiables: ["cloud ML infrastructure"],
+        relaxed_evidence: [],
+        exclusion_patterns: [],
+        initial_budget: 20,
+        max_budget: 100,
+        title_terms: ["ML Platform Engineer", "AI Infrastructure Engineer"],
+        skill_terms: ["cloud ML infrastructure"],
+        company_terms: [],
+        avoid_terms: [],
+        budget_weight: 2,
+      },
+      {
+        name: "target company lane",
+        strategy: "company" as const,
+        lane_kind: "target_company_engineering" as const,
+        target_persona: "AI engineers at relevant companies",
+        non_negotiables: ["production ML systems"],
+        relaxed_evidence: [],
+        exclusion_patterns: [],
+        initial_budget: 15,
+        max_budget: 100,
+        title_terms: ["Machine Learning Engineer", "AI Engineer"],
+        skill_terms: ["production ML systems"],
+        company_terms: ["Zillow"],
+        avoid_terms: [],
+        budget_weight: 1.5,
+      },
+    ];
+    const rounds = buildBrightDataRecallFilters(
+      {
+        title: "Machine Learning Engineer",
+        recall_spec: { ...recallSpec, sourcing_lanes: lanes, recall_strategy: "multi_round" },
+        hiring_brief: hiringBrief,
+      },
+      100,
+      { ...executionProfile, filterLimit: 40, hiddenGemLimit: 35, companyTargetLimit: 25 },
+      {
+        normalizeRecallSpec: (value) => value as RecallSpec,
+        sanitizeHiringBrief: () => hiringBrief,
+        buildStandardSkillFilter: () => null,
+        buildRecallLocationFilter: () => null,
+        isPlaceholderTitle: (title) => !title,
+        hiddenGemLimit: 35,
+        companyTargetLimit: 25,
+      },
+    );
+
+    assert.deepEqual(rounds.map((round) => round.round), ["standard", "lane_2", "lane_3", "lane_4"]);
+    assert.equal(rounds.reduce((sum, round) => sum + round.request.recordsLimit, 0), 100);
+    assert.ok(rounds.every((round) => round.request.recordsLimit > 0));
+    assert.equal(rounds[0].diagnostics.persona?.label, "Core ML engineers");
+  } finally {
+    if (previousStrategy == null) delete process.env.SEARCH_RECALL_STRATEGY;
+    else process.env.SEARCH_RECALL_STRATEGY = previousStrategy;
+  }
+});
+
 test("buildBrightDataRecallFilters uses exact company matching for short target names", () => {
   const rounds = buildBrightDataRecallFilters(
     {

@@ -1465,7 +1465,12 @@ function buildHeadhunterProbeBudgets(
       executionProfile.companyTargetLimit,
     ),
   );
-  const probeBudget = Math.min(50, totalAvailable);
+  // v2 is the paid, multi-lane cold-start path: spend the configured batch
+  // budget across all approved lanes in parallel. v1 keeps the small probe so
+  // its adaptive audit can decide whether to expand.
+  const probeBudget = strategyMode === "headhunter_v2"
+    ? totalAvailable
+    : Math.min(50, totalAvailable);
   if (executionProfile.name === "bright_free_preview") {
     if (strategyMode === "headhunter_v2") {
       return {
@@ -2590,6 +2595,72 @@ export function buildBrightDataRecallFilters(
       skillTerms: standardDiagnosticSkillTerms,
     }),
   }];
+
+  if (headhunterStrategyMode === "headhunter_v2") {
+    const configuredLanes = recallSpec.sourcing_lanes
+      .filter((lane) => lane.lane_kind !== "exploration")
+      .slice(0, 4);
+    const primaryLane = configuredLanes.find((lane) => lane.lane_kind === "primary_exact");
+    const lanes = primaryLane
+      ? [primaryLane, ...configuredLanes.filter((lane) => lane !== primaryLane)]
+      : configuredLanes;
+    const totalBudget = Math.max(
+      1,
+      Math.round(
+        executionProfile.filterLimit +
+        executionProfile.hiddenGemLimit +
+        executionProfile.companyTargetLimit,
+      ),
+    );
+    const laneLimits = allocateWeightedLimits(
+      lanes.map((lane, index) => ({
+        index,
+        weight:
+          typeof lane.initial_budget === "number" && Number.isFinite(lane.initial_budget)
+            ? lane.initial_budget
+            : typeof lane.budget_weight === "number" && Number.isFinite(lane.budget_weight)
+              ? lane.budget_weight
+              : 1,
+      })),
+      totalBudget,
+    );
+    const laneRounds = lanes.flatMap((lane, index): RecallRound[] => {
+      const limit = laneLimits.get(index) ?? 0;
+      if (limit <= 0) return [];
+      const request = buildHeadhunterLaneRecallRequest(
+        parsed,
+        recallSpec,
+        hiringBrief,
+        lane,
+        limit,
+        {
+          buildRecallLocationFilter: options.buildRecallLocationFilter,
+          isPlaceholderTitle: options.isPlaceholderTitle,
+        },
+      );
+      if (!request) return [];
+      const isPrimary = index === 0;
+      const round = isPrimary ? "standard" : `lane_${index + 1}`;
+      return [{
+        round,
+        request,
+        diagnostics: withPersona({
+          round,
+          requested_count: request.recordsLimit,
+          title_terms: lane.title_terms,
+          skill_signal_groups: signalGroups,
+          location_mode: locationMode,
+        }, {
+          kind: lane.lane_kind === "target_company_engineering" ? "target_company" : "skill_depth",
+          label: lane.target_persona || `Headhunter lane ${index + 1}`,
+          intent: lane.target_persona || "Find candidates in an approved sourcing lane.",
+          titleTerms: lane.title_terms,
+          skillTerms: lane.skill_terms,
+        }),
+      }];
+    });
+    if (laneRounds.length > 0) return laneRounds;
+  }
 
   if (headhunterMode) {
     const relaxedLimit = headhunterBudgets?.primaryRelaxed ?? 0;
