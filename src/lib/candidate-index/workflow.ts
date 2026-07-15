@@ -187,7 +187,7 @@ export async function runCandidateIndexWorkflow(params: {
   }]));
   const bundles = await loadCandidateBundles(retrieval.map((item) => item.profileId), evidenceByProfile);
   const usage = { searchId: context.searchId, jobId: context.jobId, userId: context.userId };
-  const qualificationConcurrency = Math.max(1, Math.min(24, Number(process.env.SEARCH_QUALIFICATION_CONCURRENCY || 16)));
+  const qualificationConcurrency = Math.max(1, Math.min(48, Number(process.env.SEARCH_QUALIFICATION_CONCURRENCY || 32)));
   const qualifications = await runWithConcurrency(bundles, qualificationConcurrency, (bundle) =>
     qualifyCandidate(judgmentInput, bundle, usage),
   );
@@ -219,7 +219,7 @@ export async function runCandidateIndexWorkflow(params: {
   const orderedIds = [...advancedOrdered, ...remainingOrdered];
   const finalRankById = new Map(orderedIds.map((id, index) => [id, index + 1]));
   const topBundles = orderedIds.slice(0, 20).map((id) => bundles.find((bundle) => bundle.profile.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
-  const finalJudgments = await runWithConcurrency(topBundles, 8, (bundle) =>
+  const finalJudgments = await runWithConcurrency(topBundles, 12, (bundle) =>
     judgeFinalCandidate(judgmentInput, bundle, qualificationById.get(bundle.profile.id)!, rankingById.get(bundle.profile.id) || null, usage),
   );
   const finalById = new Map(finalJudgments.map((item) => [item.profileId, item]));

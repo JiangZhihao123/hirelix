@@ -387,7 +387,7 @@ export async function runPairwiseRanking(
   const pairs = buildConnectedComparisonPairs([...byId.keys()], { seed: usage.searchId });
   let unstableCount = 0;
   const outcomes: ComparisonOutcome[] = [];
-  const concurrency = Math.max(1, Math.min(16, Number(process.env.SEARCH_PAIRWISE_CONCURRENCY || 12)));
+  const concurrency = Math.max(1, Math.min(32, Number(process.env.SEARCH_PAIRWISE_CONCURRENCY || 24)));
   const results = await runWithConcurrency(pairs, concurrency, async (pair) => {
     const first = await compareCandidates(jd, byId.get(pair.a)!, byId.get(pair.b)!, usage);
     if (!first.outcome) {

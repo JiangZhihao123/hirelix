@@ -132,7 +132,7 @@ export async function indexBrightProfiles(
   options: { snapshotId: string | null; searchId?: string; jobId?: string; userId?: string },
 ): Promise<IndexProfilesResult> {
   const result: IndexProfilesResult = { indexedProfileIds: [], reused: 0, rejected: [] };
-  const concurrency = Math.max(1, Math.min(16, Number(process.env.SEARCH_PROFILE_INDEX_CONCURRENCY || 12)));
+  const concurrency = Math.max(1, Math.min(32, Number(process.env.SEARCH_PROFILE_INDEX_CONCURRENCY || 24)));
   const indexedRows = await runWithConcurrency(profiles.map((profile, index) => ({ profile, index })), concurrency, async ({ profile, index }) => {
     try {
       return { index, indexed: await indexOne(profile, options), error: null };
