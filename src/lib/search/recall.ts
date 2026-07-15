@@ -618,12 +618,17 @@ function buildProfileSignalFilter(terms: string[], maxTerms = 8): BrightDataFilt
     operator: "or",
     filters: [
       ...normalizedTerms.map((term) => ({
-        name: "about",
+        name: "experience:description",
         operator: "includes" as const,
         value: term,
       })),
       ...normalizedTerms.map((term) => ({
-        name: "position",
+        name: "experience:title",
+        operator: "includes" as const,
+        value: term,
+      })),
+      ...normalizedTerms.map((term) => ({
+        name: "about",
         operator: "includes" as const,
         value: term,
       })),
@@ -879,7 +884,7 @@ function buildHeadhunterLaneEvidenceFilter(params: {
 
 function buildProfileSignalLeaf(term: string, name: "about" | "position"): BrightDataFilterRule {
   return {
-    name,
+    name: name === "position" ? "experience:title" : name,
     operator: "includes",
     value: term,
   };
@@ -1188,11 +1193,18 @@ function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRul
   if (terms.length === 0) return null;
   return {
     operator: "or",
-    filters: terms.map((term) => ({
-      name: "position",
-      operator: "includes",
-      value: term,
-    })),
+    filters: [
+      ...terms.map((term) => ({
+        name: "current_company:title",
+        operator: "includes" as const,
+        value: term,
+      })),
+      ...terms.map((term) => ({
+        name: "experience:title",
+        operator: "includes" as const,
+        value: term,
+      })),
+    ].slice(0, MAX_BRIGHT_OR_FILTERS),
   };
 }
 
@@ -2357,16 +2369,23 @@ function buildDeterministicExpansionRounds(params: {
         must_have_signals: params.signalGroups.search_domain,
       });
     if (hiddenSignalFilter) {
-      const hiddenGemFilters: BrightDataFilterRule[] = [
-        {
-          operator: "or",
-          filters: lateralTitles.map((term) => ({
-            name: "position",
-            operator: "includes",
-            value: term,
-          })),
-        },
-      ];
+        const hiddenGemFilters: BrightDataFilterRule[] = [
+          {
+            operator: "or",
+            filters: [
+              ...lateralTitles.map((term) => ({
+                name: "current_company:title",
+                operator: "includes" as const,
+                value: term,
+              })),
+              ...lateralTitles.map((term) => ({
+                name: "experience:title",
+                operator: "includes" as const,
+                value: term,
+              })),
+            ].slice(0, MAX_BRIGHT_OR_FILTERS),
+          },
+        ];
       if (params.countryFilter) hiddenGemFilters.push(params.countryFilter);
       hiddenGemFilters.push(hiddenSignalFilter);
       if (params.locationFilter) hiddenGemFilters.push(params.locationFilter);

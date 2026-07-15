@@ -215,7 +215,7 @@ test("buildBrightDataRecallFilters builds balanced fixed-budget sourcing rounds"
 
   const companyRules = flattenRules(rounds[2].request.filter);
   assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "current_company_name"));
-  assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "position"));
+  assert.ok(companyRules.some((rule) => "name" in rule && rule.name === "current_company:title"));
   assert.ok(leafValues(rounds[2].request.filter).includes("elastic"));
   assert.ok(leafValues(rounds[2].request.filter).includes("search infrastructure"));
   assert.ok(leafValues(rounds[2].request.filter).includes("distributed systems"));
@@ -856,7 +856,7 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
   assert.ok(
     flattenRules(hiddenRound.request.filter).some((rule) =>
       "name" in rule &&
-      rule.name === "position" &&
+      (rule.name === "current_company:title" || rule.name === "experience:title") &&
       leafValues(rule).some((value) => value.includes("platform engineer"))
     ),
     "hidden gem recall should keep current-position title evidence while allowing profile-wide skill evidence",
@@ -865,8 +865,8 @@ test("buildBrightDataRecallFilters keeps backend expansion rounds high-intent an
     flattenRules(hiddenRound.request.filter).some((rule) =>
       "filters" in rule &&
       rule.operator === "or" &&
-      rule.filters.some((child) => "name" in child && child.name === "about") &&
-      rule.filters.some((child) => "name" in child && child.name === "position")
+      rule.filters.some((child) => "name" in child && child.name === "experience:description") &&
+      rule.filters.some((child) => "name" in child && child.name === "experience:title")
     ),
     "hidden gem skill evidence should not be constrained to current-position text only",
   );
