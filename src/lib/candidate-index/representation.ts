@@ -157,24 +157,24 @@ export async function generateProfileRepresentation(
   };
   let repairReason: string | null = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const { data } = await generateLlmJson<ProfileRepresentation>({
-      model,
-      system: SYSTEM_PROMPT,
-      prompt: JSON.stringify({
-        output_contract: PROFILE_REPRESENTATION_SCHEMA.schema,
-        ...profilePayload,
-        ...(repairReason ? {
-          repair_instruction: `The previous output failed validation: ${repairReason}. Re-read the supplied evidence and return a complete grounded representation.`,
-        } : {}),
-      }),
-      maxOutputTokens: 4000,
-      timeoutMs: 60_000,
-      temperature: 0,
-      jsonSchema: PROFILE_REPRESENTATION_SCHEMA,
-      deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PROFILE_REPRESENTATION_THINKING", "disabled"),
-      usageEvent: { ...usage, stage: attempt === 1 ? "profile_representation" : "profile_representation_repair" },
-    });
     try {
+      const { data } = await generateLlmJson<ProfileRepresentation>({
+        model,
+        system: SYSTEM_PROMPT,
+        prompt: JSON.stringify({
+          output_contract: PROFILE_REPRESENTATION_SCHEMA.schema,
+          ...profilePayload,
+          ...(repairReason ? {
+            repair_instruction: `The previous output failed: ${repairReason}. Re-read the supplied evidence and return a complete grounded representation.`,
+          } : {}),
+        }),
+        maxOutputTokens: 4000,
+        timeoutMs: 60_000,
+        temperature: 0,
+        jsonSchema: PROFILE_REPRESENTATION_SCHEMA,
+        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PROFILE_REPRESENTATION_THINKING", "disabled"),
+        usageEvent: { ...usage, stage: attempt === 1 ? "profile_representation" : "profile_representation_repair" },
+      });
       return { representation: validateProfileRepresentation(data, profile), model };
     } catch (error) {
       repairReason = error instanceof Error ? error.message : String(error);

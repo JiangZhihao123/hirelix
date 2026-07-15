@@ -23,15 +23,26 @@ export type HybridSearchIntent = {
   requiredDegree?: string | null;
 };
 
-export async function countEligibleProfiles(intent: HybridSearchIntent) {
+export function buildProfileEligibilitySql(intent: HybridSearchIntent) {
   const countries = (intent.allowedCountries || []).map((item) => item.toUpperCase());
+  const conditions = [sql`p.processing_status = 'ready'`];
+  if (countries.length > 0) {
+    conditions.push(sql`p.country_code IN (${sql.join(countries.map((country) => sql`${country}`), sql`, `)})`);
+  }
+  if (intent.minimumYearsExperience != null) {
+    conditions.push(sql`p.years_experience >= ${intent.minimumYearsExperience}`);
+  }
+  if (intent.requiredDegree != null) {
+    conditions.push(sql`p.highest_degree = ${intent.requiredDegree}`);
+  }
+  return sql.join(conditions, sql` AND `);
+}
+
+export async function countEligibleProfiles(intent: HybridSearchIntent) {
   const result = rows<{ count: number | string }>(await db.execute(sql`
     SELECT count(*) AS count
     FROM hirelix_profiles p
-    WHERE p.processing_status = 'ready'
-      AND (${countries.length === 0} OR p.country_code = ANY(${countries}))
-      AND (${intent.minimumYearsExperience == null} OR p.years_experience >= ${intent.minimumYearsExperience ?? 0})
-      AND (${intent.requiredDegree == null} OR p.highest_degree = ${intent.requiredDegree})
+    WHERE ${buildProfileEligibilitySql(intent)}
   `));
   return Number(result[0]?.count || 0);
 }
@@ -46,13 +57,7 @@ function vectorLiteral(vector: number[]) {
 
 export async function hybridRetrieve(intent: HybridSearchIntent, limit = 500): Promise<HybridRetrievalItem[]> {
   const queryEmbedding = (await generateEmbeddings([intent.searchDocument])).embeddings[0];
-  const countries = (intent.allowedCountries || []).map((item) => item.toUpperCase());
-  const eligibility = sql`
-    p.processing_status = 'ready'
-    AND (${countries.length === 0} OR p.country_code = ANY(${countries}))
-    AND (${intent.minimumYearsExperience == null} OR p.years_experience >= ${intent.minimumYearsExperience ?? 0})
-    AND (${intent.requiredDegree == null} OR p.highest_degree = ${intent.requiredDegree})
-  `;
+  const eligibility = buildProfileEligibilitySql(intent);
   const profileFts = rows<RetrievalRow>(await db.execute(sql`
     SELECT p.id AS profile_id,
            ts_rank_cd(p.search_vector, websearch_to_tsquery('simple', ${intent.lexicalQuery})) AS score
