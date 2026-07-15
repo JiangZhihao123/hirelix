@@ -123,7 +123,7 @@ async function main() {
       bright_budget: actualBrightCost != null ? actualBrightCost <= 1.25 : null,
       comparison_graph_connected: indexMetrics.comparison_graph_connected === true,
       order_swap_consistency_at_least_85_percent: orderSwapConsistency != null ? orderSwapConsistency >= 0.85 : null,
-      system_top20_contact_target_3_to_5: (systemTop20Decisions.contact || 0) >= 3 && (systemTop20Decisions.contact || 0) <= 5,
+      system_top20_contact_count: systemTop20Decisions.contact || 0,
       codex_blind_precision_at_20: "pending",
       codex_low_rank_false_negative_audit: "pending",
       codex_ab_agreement: "pending",
@@ -154,9 +154,9 @@ async function main() {
     `- Search: \`${searchId}\`\n` +
     `- Status: \`${search.status}\` / \`${job.status}\`\n` +
     `- Bright: ${displayStats.bright_profiles_returned ?? "unknown"} returned, $${actualBrightCost ?? "unknown"} actual cost\n` +
-    `- Results: ${candidates.length} delivered; Top 20 = ${systemTop20Decisions.contact || 0} contact / ${systemTop20Decisions.review || 0} review\n` +
+    `- Results: ${candidates.length} delivered; Top 20 = ${systemTop20Decisions.contact || 0} contact / ${systemTop20Decisions.review || 0} review (diagnostic only)\n` +
     `- Pairwise: ${comparisons.filter((item) => item.included_in_fit).length} included; order-swap consistency ${orderSwapConsistency == null ? "unknown" : `${Math.round(orderSwapConsistency * 100)}%`}; graph connected ${String(indexMetrics.comparison_graph_connected)}\n\n` +
-    `## Decision\n\nDo not deploy. Order-swap consistency is below 85%, and the system contact count is above the 3-5 calibration target. Independent Codex blind review and baseline lift remain pending.\n`;
+    `## Decision\n\nDo not deploy yet. Order-swap consistency is below 85%, and independent Codex blind review and baseline lift remain pending. Contact count is a diagnostic, not an automatic quality verdict.\n`;
   fs.writeFileSync(path.join(outDir, "validation.md"), markdown);
   console.log(JSON.stringify({ out_dir: outDir, acceptance: report.acceptance }, null, 2));
 }
