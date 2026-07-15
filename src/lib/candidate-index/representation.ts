@@ -168,7 +168,7 @@ export async function generateProfileRepresentation(
             repair_instruction: `The previous output failed: ${repairReason}. Re-read the supplied evidence and return a complete grounded representation.`,
           } : {}),
         }),
-        maxOutputTokens: 4000,
+        maxOutputTokens: 8000,
         timeoutMs: 60_000,
         temperature: 0,
         jsonSchema: PROFILE_REPRESENTATION_SCHEMA,

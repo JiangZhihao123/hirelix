@@ -7,9 +7,22 @@ import { generateLlmJson, getDefaultLlmModel, getLightweightLlmModel, resolveDee
 import { areOrderSwapDecisionsConsistent, buildConnectedComparisonPairs, fitDavidsonRanking, type ComparisonOutcome, type DavidsonRank } from "@/lib/candidate-index/ranking";
 import { runWithConcurrency } from "@/lib/search/concurrency";
 
+type CandidateBundleProfile = Pick<typeof hirelix_profiles.$inferSelect,
+  | "id" | "linkedin_url" | "name" | "current_title" | "current_company"
+  | "seniority" | "years_experience" | "role_families" | "skills" | "domains"
+  | "capabilities" | "country_code" | "state_or_region" | "city" | "metro_area"
+  | "highest_degree" | "schools" | "fields_of_study" | "profile_summary"
+  | "semantic_evidence" | "raw_profile"
+>;
+
+type CandidateBundleExperience = Pick<typeof hirelix_profile_experiences.$inferSelect,
+  | "id" | "profile_id" | "source_ordinal" | "title" | "company" | "start_date"
+  | "end_date" | "is_current" | "location" | "description" | "search_document"
+>;
+
 export type CandidateBundle = {
-  profile: typeof hirelix_profiles.$inferSelect;
-  experiences: Array<typeof hirelix_profile_experiences.$inferSelect>;
+  profile: CandidateBundleProfile;
+  experiences: CandidateBundleExperience[];
   retrievalEvidence: Record<string, unknown>;
 };
 
@@ -90,6 +103,19 @@ function stringArray(value: unknown, limit = 12) {
     : [];
 }
 
+async function withJudgmentRetry<T>(operation: () => Promise<T>) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw lastError;
+}
+
 function candidatePrompt(bundle: CandidateBundle) {
   return {
     profile_id: bundle.profile.id,
@@ -132,8 +158,42 @@ export async function loadCandidateBundles(
   evidenceByProfile: Map<string, Record<string, unknown>>,
 ) {
   if (profileIds.length === 0) return [];
-  const profiles = await db.select().from(hirelix_profiles).where(inArray(hirelix_profiles.id, profileIds));
-  const experiences = await db.select().from(hirelix_profile_experiences).where(inArray(hirelix_profile_experiences.profile_id, profileIds));
+  const profiles = await db.select({
+    id: hirelix_profiles.id,
+    linkedin_url: hirelix_profiles.linkedin_url,
+    name: hirelix_profiles.name,
+    current_title: hirelix_profiles.current_title,
+    current_company: hirelix_profiles.current_company,
+    seniority: hirelix_profiles.seniority,
+    years_experience: hirelix_profiles.years_experience,
+    role_families: hirelix_profiles.role_families,
+    skills: hirelix_profiles.skills,
+    domains: hirelix_profiles.domains,
+    capabilities: hirelix_profiles.capabilities,
+    country_code: hirelix_profiles.country_code,
+    state_or_region: hirelix_profiles.state_or_region,
+    city: hirelix_profiles.city,
+    metro_area: hirelix_profiles.metro_area,
+    highest_degree: hirelix_profiles.highest_degree,
+    schools: hirelix_profiles.schools,
+    fields_of_study: hirelix_profiles.fields_of_study,
+    profile_summary: hirelix_profiles.profile_summary,
+    semantic_evidence: hirelix_profiles.semantic_evidence,
+    raw_profile: hirelix_profiles.raw_profile,
+  }).from(hirelix_profiles).where(inArray(hirelix_profiles.id, profileIds));
+  const experiences = await db.select({
+    id: hirelix_profile_experiences.id,
+    profile_id: hirelix_profile_experiences.profile_id,
+    source_ordinal: hirelix_profile_experiences.source_ordinal,
+    title: hirelix_profile_experiences.title,
+    company: hirelix_profile_experiences.company,
+    start_date: hirelix_profile_experiences.start_date,
+    end_date: hirelix_profile_experiences.end_date,
+    is_current: hirelix_profile_experiences.is_current,
+    location: hirelix_profile_experiences.location,
+    description: hirelix_profile_experiences.description,
+    search_document: hirelix_profile_experiences.search_document,
+  }).from(hirelix_profile_experiences).where(inArray(hirelix_profile_experiences.profile_id, profileIds));
   const byProfile = new Map<string, typeof experiences>();
   for (const experience of experiences) {
     const rows = byProfile.get(experience.profile_id) || [];
@@ -158,9 +218,9 @@ export async function qualifyCandidate(
   modelOverride?: string,
 ): Promise<Qualification> {
   const model = modelOverride || process.env.SEARCH_LIGHT_MODEL || getLightweightLlmModel();
-  const { data } = await generateLlmJson<Record<string, unknown>>({
+  const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Judge only whether the candidate clears the minimum contact threshold for this JD. Use concrete profile evidence. Unknown information is not rejection evidence. Employer or school prestige and title similarity are never sufficient. Return reject only for a supported mismatch; maybe means plausible but insufficient evidence.",
+    system: "Return JSON matching output_contract. Judge only whether the candidate clears the minimum contact threshold for this JD. Use concrete profile evidence. Unknown information is not rejection evidence. Employer or school prestige and title similarity are never sufficient. Return reject only for a supported mismatch; maybe means plausible but insufficient evidence.",
     prompt: JSON.stringify({
       output_contract: QUALIFICATION_SCHEMA.schema,
       jd,
@@ -172,7 +232,7 @@ export async function qualifyCandidate(
     jsonSchema: QUALIFICATION_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_QUALIFICATION_THINKING", "disabled"),
     usageEvent: { ...usage, stage: modelOverride ? "qualification_review" : "qualification", candidateIndexes: null },
-  });
+  }));
   const decision = data.decision === "advance" || data.decision === "reject" ? data.decision : "maybe";
   return {
     profileId: bundle.profile.id,
@@ -210,9 +270,9 @@ async function compareCandidates(
     candidate_b: candidatePrompt(second),
   };
   const requestHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
-  const { data } = await generateLlmJson<Record<string, unknown>>({
+  const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Both candidates already passed a minimum qualification gate. If a recruiter can contact only one first for this JD, choose the candidate with stronger concrete JD-relevant evidence. Allow tie. Do not output a numeric score or confidence. Use qualification_review_required only when profile evidence reveals a clear minimum-qualification problem missed by the gate.",
+    system: "Return JSON matching output_contract. Both candidates already passed a minimum qualification gate. If a recruiter can contact only one first for this JD, choose the candidate with stronger concrete JD-relevant evidence. Allow tie. Do not output a numeric score or confidence. Use qualification_review_required only when profile evidence reveals a clear minimum-qualification problem missed by the gate.",
     prompt: JSON.stringify(payload),
     maxOutputTokens: 1800,
     timeoutMs: 60_000,
@@ -220,7 +280,7 @@ async function compareCandidates(
     jsonSchema: COMPARISON_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PAIRWISE_THINKING", "disabled"),
     usageEvent: { ...usage, stage: "pairwise_comparison" },
-  });
+  }));
   const rawDecision = data.decision === "candidate_a" || data.decision === "candidate_b" || data.decision === "tie"
     ? data.decision
     : "qualification_review_required";
@@ -408,9 +468,9 @@ export async function judgeFinalCandidate(
   usage: { searchId: string; jobId: string; userId: string },
 ): Promise<FinalJudgment> {
   const model = process.env.SEARCH_ARBITER_MODEL || "deepseek-v4-pro";
-  const { data } = await generateLlmJson<Record<string, unknown>>({
+  const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Make the final recruiter-facing decision for this JD from the complete profile and evidence pack. Every positive claim must point to concrete work evidence. Do not convert missing information into a rejection unless the JD explicitly makes it mandatory.",
+    system: "Return JSON matching output_contract. Make the final recruiter-facing decision for this JD from the complete profile and evidence pack. Every positive claim must point to concrete work evidence. Do not convert missing information into a rejection unless the JD explicitly makes it mandatory.",
     prompt: JSON.stringify({
       output_contract: FINAL_SCHEMA.schema,
       jd,
@@ -424,7 +484,7 @@ export async function judgeFinalCandidate(
     jsonSchema: FINAL_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_FINAL_JUDGMENT_THINKING", "enabled"),
     usageEvent: { ...usage, stage: "final_judgment" },
-  });
+  }));
   const decision = data.decision === "contact" || data.decision === "review" || data.decision === "reject" ? data.decision : "hold";
   return {
     profileId: bundle.profile.id,
