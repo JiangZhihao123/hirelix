@@ -64,7 +64,7 @@ Bright Dataset
 | 语义检索 | `pgvector` + HNSW |
 | 履历结构化和最终判断 | LLM |
 | 多路排名合并 | Reciprocal Rank Fusion，简称 RRF |
-| 成对比较汇总 | Bradley-Terry 模型 |
+| 成对比较汇总 | Davidson 扩展的 Bradley-Terry 模型 |
 
 `pgvector` 已经提供向量数据库的核心近邻检索能力。首版将结构化过滤、全文检索、向量检索和业务数据放在同一个数据库中，避免双写和索引一致性问题。
 
@@ -134,7 +134,7 @@ embedding
 
 - `searches`：原始 JD、解析后的搜索意图和状态。
 - `search_candidates`：候选人在当前 JD 下的召回来源、证据、判断和最终名次。
-- `candidate_comparisons`：当前 JD 下每次 A/B 比较的候选人、胜负、置信度和理由。
+- `candidate_comparisons`：当前 JD 下每次 A/B 比较的候选人、结果、证据、顺序变体和是否进入排名拟合。
 
 候选人质量永远属于特定 `(JD, profile)`，不保存全局好候选人或坏候选人标签。
 
@@ -377,8 +377,7 @@ LLM 必须输出支持证据、缺失信息和拒绝原因。`unknown` 不能自
 
 ```json
 {
-  "decision": "candidate_a | candidate_b | tie | both_unqualified",
-  "confidence": 0.78,
+  "decision": "candidate_a | candidate_b | tie",
   "decisive_dimensions": [
     "core_capability",
     "seniority_scope"
@@ -388,6 +387,10 @@ LLM 必须输出支持证据、缺失信息和拒绝原因。`unknown` 不能自
   "risks": []
 }
 ```
+
+输入成对比较的候选人必须已经通过绝对合格门槛。比较器不允许输出 `both_unqualified`。如果比较过程中发现某人存在明确淘汰条件，返回 `qualification_review_required` 运行状态，将该候选人退回资格审查；确认淘汰后删除其相关对局并重新拟合排名。
+
+首版不使用 LLM 自报的 `confidence` 作为比赛权重。该数值没有经过校准，容易让一次错误但高置信的判断主导排名。每场有效比赛在拟合时等权处理。
 
 比较维度包括：
 
@@ -402,22 +405,44 @@ LLM 必须输出支持证据、缺失信息和拒绝原因。`unknown` 不能自
 ### 12.2 配对方法
 
 - 每个候选人首版参加约 5 次比较。
-- 首轮按初步排名分层随机配对。
-- 后续优先比较排名接近、模型不确定的人。
-- 允许 `tie` 和 `both_unqualified`，不强迫产生赢家。
+- 第一轮先构造连通骨架，确保所有候选人都通过至少一条比较路径连接到同一张图。
+- 连通骨架完成后，再按初步排名分层配对。
+- 后续优先比较当前排名接近、统计不确定性较高的人。
+- 允许 `tie`，不强迫产生赢家。
 - 抽取 10%-20% 的场次交换 A/B 顺序复测，检查位置偏差。
+- 顺序交换后结论冲突的比赛标记为不稳定，不直接进入排名拟合，先重新比较或交给人工复核。
 - 不比较所有组合，避免 `O(n^2)` 成本。
+
+在 40-60 名候选人的规模下，每人约 5 场意味着大约 100-150 场有效比较。系统在生成比赛前检查比较图是否连通；如果存在孤立子图，优先增加跨组比赛，而不是继续比较组内候选人。
 
 ### 12.3 排名汇总
 
-首版直接使用 Bradley-Terry 模型汇总成对比较结果：
+标准 Bradley-Terry 只支持胜负，不支持平局。首版允许 `tie`，因此使用 Davidson 平局扩展的 Bradley-Terry 模型：
 
-- 输入所有成对胜负和置信度。
+- 输入所有有效的 A 胜、B 胜和平局结果。
+- 每场比赛等权，不使用 LLM 自报置信度。
 - 估计每个候选人在当前 JD 下的相对胜出概率。
+- 同时估计整体平局倾向，避免把势均力敌的候选人强行拉开。
 - 生成当前 JD 内的相对排名。
+- 使用正则化或弱先验，避免少量比赛导致极端分数。
+- 输出统计不确定性；分数接近且不确定性高的人继续补充比赛。
 - 排名不能跨 JD 复用。
 
-Bradley-Terry 排名只决定合格候选人的优先顺序，不替代绝对合格门槛。
+具体拟合定义如下。候选人 `i` 的隐藏分数为 `s_i`，正强度为 `p_i = exp(s_i)`；`v >= 0` 表示整个比较任务的平局倾向。对于候选人 `i` 和 `j`：
+
+```text
+D = p_i + p_j + v * sqrt(p_i * p_j)
+
+P(i wins) = p_i / D
+P(j wins) = p_j / D
+P(tie)    = v * sqrt(p_i * p_j) / D
+```
+
+系统根据所有有效比赛最大化正则化对数似然，得到每个候选人的 `s_i` 和全局平局参数 `v`。最终按 `s_i` 从高到低排序。首版使用 bootstrap 重采样比赛结果估计排名区间；排名区间大量重叠的候选人优先增加比赛，不把微小分差解释成确定顺序。
+
+模型拟合前固定一个候选人的基准分，或约束全部隐藏分数之和为 0，解决模型不可识别问题。比较图必须连通，否则不同子图之间的分数不可直接比较。
+
+Davidson-Bradley-Terry 排名只决定合格候选人的优先顺序，不替代绝对合格门槛，也不产生跨 JD 的全局候选人分数。
 
 ## 13. 最终深度判断与交付
 
@@ -501,7 +526,9 @@ Bradley-Terry 排名只决定合格候选人的优先顺序，不替代绝对合
 | Sampled false-negative rate | 低排名抽样中是否存在明显漏召回 |
 | Pairwise agreement | 成对判断与人工选择的一致率 |
 | Order-swap consistency | A/B 交换位置后是否保持判断 |
-| Both-unqualified rate | 排名系统是否能识别没有合格人选 |
+| Qualification review rate | 成对比较是否频繁发现资格门槛漏判 |
+| Comparison graph connectivity | 所有候选人是否处于同一张可比较网络 |
+| Tie rate | 平局比例是否合理，模型是否在强迫区分近似候选人 |
 | Cost per JD | Bright、结构化、embedding 和判断成本 |
 | Search latency | 从 JD 到候选人池的耗时 |
 
@@ -554,7 +581,7 @@ Bradley-Terry 排名只决定合格候选人的优先顺序，不替代绝对合
 
 - 实现硬条件检查。
 - 实现轻量 JD-specific qualification。
-- 实现成对比较、位置交换检查和 Bradley-Terry 汇总。
+- 实现连通配对、位置交换检查和 Davidson-Bradley-Terry 汇总。
 
 ### P5：Benchmark 决策
 
@@ -571,7 +598,7 @@ Bradley-Terry 排名只决定合格候选人的优先顺序，不替代绝对合
 - 多来源身份归并。
 - Elasticsearch、OpenSearch、Pinecone、Milvus、Weaviate、Qdrant。
 - 全局候选人好坏分数。
-- 跨 JD 复用 Bradley-Terry 排名。
+- 跨 JD 复用 Davidson-Bradley-Terry 排名。
 - 在 benchmark 通过前建设大规模产品 UI 和复杂调度系统。
 
 ## 17. 最终结论
