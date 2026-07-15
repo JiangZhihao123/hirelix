@@ -284,6 +284,7 @@ async function compareCandidates(
   const model = process.env.SEARCH_JUDGE_MODEL || getDefaultLlmModel();
   const payload = {
     output_contract: COMPARISON_SCHEMA.schema,
+    evaluation_date: new Date().toISOString().slice(0, 10),
     jd,
     candidate_a: candidatePrompt(first),
     candidate_b: candidatePrompt(second),
@@ -291,7 +292,7 @@ async function compareCandidates(
   const requestHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Return JSON matching output_contract. Both candidates passed a minimum qualification gate. Decide who a recruiter should contact first for this specific JD by reasoning holistically about both concrete job fit and the likelihood that the person would seriously consider this opportunity. Read the full career trajectory, current role, scope, direction, work model, location, employment preferences, and any explicit availability signals in context. Do not use a fixed formula or mechanical tenure/title rules. Treat each signal as evidence, not a verdict; unknown willingness is unknown, not low. Every willingness claim or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; record those as unknown instead. Prefer tie when expected recruiting value is genuinely indistinguishable. Do not output a numeric score or confidence. Use qualification_review_required only when concrete evidence reveals a minimum-qualification problem missed by the gate.",
+    system: "Return JSON matching output_contract. Both candidates passed a minimum qualification gate. Decide who a recruiter should contact first for this specific JD by reasoning holistically about both concrete job fit and the likelihood that the person would seriously consider this opportunity. Read the full career trajectory, current role, scope, direction, work model, location, employment preferences, and any explicit availability signals in context. The payload includes evaluation_date: if discussing tenure or recency, calculate it from the exact profile dates and evaluation_date before making a claim. Never call a start date recent without checking elapsed time, and never let tenure alone determine willingness. Do not use a fixed formula or mechanical tenure/title rules. Treat each signal as evidence, not a verdict; unknown willingness is unknown, not low. Every willingness claim or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; record those as unknown instead. Prefer tie when expected recruiting value is genuinely indistinguishable. Do not output a numeric score or confidence. Use qualification_review_required only when concrete evidence reveals a minimum-qualification problem missed by the gate.",
     prompt: JSON.stringify(payload),
     maxOutputTokens: 3000,
     timeoutMs: 90_000,
@@ -489,9 +490,10 @@ export async function judgeFinalCandidate(
   const model = process.env.SEARCH_ARBITER_MODEL || "deepseek-v4-pro";
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Return JSON matching output_contract. Make the final recruiter-facing decision for this specific JD from the complete profile and evidence pack. Reason holistically about two independent questions: whether the person is genuinely strong and relevant, and how plausible it is that they would seriously consider this opportunity. Read the career trajectory, current role, scope, direction, work model, location, employment preferences, and explicit availability signals in context. Do not apply a fixed formula or mechanical tenure/title rules. Treat profile signals as evidence, not certainty; unknown willingness must remain unknown rather than becoming low. Every join-likelihood reason or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; put those in missing_information instead. A contact decision requires both compelling fit and a sufficiently plausible evidence-based reason to engage now; use review when fit is strong but willingness or a key fact remains uncertain. Every claim must point to concrete profile evidence, and missing information is not rejection evidence unless the JD explicitly makes it mandatory.",
+    system: "Return JSON matching output_contract. Make the final recruiter-facing decision for this specific JD from the complete profile and evidence pack. Reason holistically about two independent questions: whether the person is genuinely strong and relevant, and how plausible it is that they would seriously consider this opportunity. Read the career trajectory, current role, scope, direction, work model, location, employment preferences, and explicit availability signals in context. The payload includes evaluation_date: if discussing tenure or recency, calculate it from the exact profile dates and evaluation_date before making a claim. Never call a start date recent without checking elapsed time, and never let tenure alone determine willingness. Do not apply a fixed formula or mechanical tenure/title rules. Treat profile signals as evidence, not certainty; unknown willingness must remain unknown rather than becoming low. Every join-likelihood reason or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; put those in missing_information instead. A contact decision requires both compelling fit and a sufficiently plausible evidence-based reason to engage now; use review when fit is strong but willingness or a key fact remains uncertain. Every claim must point to concrete profile evidence, and missing information is not rejection evidence unless the JD explicitly makes it mandatory.",
     prompt: JSON.stringify({
       output_contract: FINAL_SCHEMA.schema,
+      evaluation_date: new Date().toISOString().slice(0, 10),
       jd,
       candidate: candidatePrompt(bundle),
       qualification,
@@ -515,7 +517,9 @@ export async function judgeFinalCandidate(
     profileId: bundle.profile.id,
     decision,
     joinLikelihood,
-    joinLikelihoodScore: Math.max(0, Math.min(100, Math.round(rawJoinLikelihoodScore))),
+    joinLikelihoodScore: joinLikelihood === "unknown"
+      ? 50
+      : Math.max(0, Math.min(100, Math.round(rawJoinLikelihoodScore))),
     joinLikelihoodReasons: stringArray(data.join_likelihood_reasons, 10),
     joinLikelihoodRisks: stringArray(data.join_likelihood_risks, 10),
     matchReasons: stringArray(data.match_reasons, 10),
