@@ -13,6 +13,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -22,6 +23,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
 } from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +65,7 @@ export const hirelix_candidates = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     search_id: uuid("search_id").notNull(),
+    profile_id: uuid("profile_id"),
     name: text("name").notNull(),
     headline: text("headline"),
     location: text("location"),
@@ -76,6 +79,16 @@ export const hirelix_candidates = pgTable(
     outreach_draft: text("outreach_draft"),
     status: text("status").default("new"),
     metadata: jsonb("metadata"),
+    retrieval_channels: jsonb("retrieval_channels"),
+    retrieval_rank: integer("retrieval_rank"),
+    qualification_decision: text("qualification_decision"),
+    qualification_evidence: jsonb("qualification_evidence"),
+    davidson_score: numeric("davidson_score"),
+    rank_low: integer("rank_low"),
+    rank_high: integer("rank_high"),
+    final_rank: integer("final_rank"),
+    final_decision: text("final_decision"),
+    evidence_pack: jsonb("evidence_pack"),
     enriched_at: timestamp("enriched_at", { withTimezone: true }),
     enrich_source: text("enrich_source"),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -85,6 +98,90 @@ export const hirelix_candidates = pgTable(
     enriched_at_idx: index("idx_hirelix_candidates_enriched_at").on(t.enriched_at),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Reusable Bright-backed candidate index
+// ---------------------------------------------------------------------------
+export const hirelix_profiles = pgTable("hirelix_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  linkedin_id: text("linkedin_id"),
+  linkedin_url: text("linkedin_url"),
+  name: text("name").notNull(),
+  current_title: text("current_title"),
+  current_company: text("current_company"),
+  seniority: text("seniority"),
+  years_experience: numeric("years_experience"),
+  role_families: text("role_families").array().notNull().default(sql`'{}'::text[]`),
+  adjacent_roles: text("adjacent_roles").array().notNull().default(sql`'{}'::text[]`),
+  skills: text("skills").array().notNull().default(sql`'{}'::text[]`),
+  domains: text("domains").array().notNull().default(sql`'{}'::text[]`),
+  capabilities: text("capabilities").array().notNull().default(sql`'{}'::text[]`),
+  country_code: text("country_code"),
+  state_or_region: text("state_or_region"),
+  city: text("city"),
+  metro_area: text("metro_area"),
+  highest_degree: text("highest_degree"),
+  schools: text("schools").array().notNull().default(sql`'{}'::text[]`),
+  fields_of_study: text("fields_of_study").array().notNull().default(sql`'{}'::text[]`),
+  profile_summary: text("profile_summary"),
+  semantic_evidence: jsonb("semantic_evidence").notNull().default(sql`'[]'::jsonb`),
+  search_document: text("search_document").notNull().default(""),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  raw_profile: jsonb("raw_profile").notNull(),
+  raw_content_hash: text("raw_content_hash").notNull(),
+  source_snapshot_id: text("source_snapshot_id"),
+  representation_version: integer("representation_version").notNull().default(1),
+  representation_model: text("representation_model"),
+  embedding_model: text("embedding_model"),
+  processing_status: text("processing_status").notNull().default("pending"),
+  processing_error: text("processing_error"),
+  represented_at: timestamp("represented_at", { withTimezone: true }),
+  embedded_at: timestamp("embedded_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const hirelix_profile_experiences = pgTable("hirelix_profile_experiences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profile_id: uuid("profile_id").notNull(),
+  source_ordinal: integer("source_ordinal").notNull(),
+  title: text("title"),
+  company: text("company"),
+  start_date: date("start_date"),
+  end_date: date("end_date"),
+  is_current: boolean("is_current").notNull().default(false),
+  location: text("location"),
+  description: text("description"),
+  search_document: text("search_document").notNull().default(""),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  embedding_model: text("embedding_model"),
+  embedded_at: timestamp("embedded_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const hirelix_candidate_comparisons = pgTable("hirelix_candidate_comparisons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  search_id: uuid("search_id").notNull(),
+  candidate_a_profile_id: uuid("candidate_a_profile_id").notNull(),
+  candidate_b_profile_id: uuid("candidate_b_profile_id").notNull(),
+  pair_key: text("pair_key").notNull(),
+  attempt: integer("attempt").notNull().default(1),
+  presented_order: text("presented_order").notNull(),
+  decision: text("decision").notNull(),
+  decisive_dimensions: text("decisive_dimensions").array().notNull().default(sql`'{}'::text[]`),
+  reason: text("reason"),
+  evidence: jsonb("evidence").notNull().default(sql`'[]'::jsonb`),
+  risks: jsonb("risks").notNull().default(sql`'[]'::jsonb`),
+  qualification_review_profile_id: uuid("qualification_review_profile_id"),
+  is_order_swap: boolean("is_order_swap").notNull().default(false),
+  is_stable: boolean("is_stable").notNull().default(true),
+  included_in_fit: boolean("included_in_fit").notNull().default(true),
+  model: text("model").notNull(),
+  prompt_version: integer("prompt_version").notNull().default(1),
+  request_hash: text("request_hash").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ---------------------------------------------------------------------------
 // Search jobs queue
