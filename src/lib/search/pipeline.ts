@@ -665,6 +665,10 @@ export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
   );
 }
 
+export function shouldLookupGlobalSnapshotCache(parsed: Record<string, unknown>) {
+  return parsed.expand_recall_mode !== "fresh_snapshot";
+}
+
 const MIN_RECALL_PROFILES_BEFORE_SCORING = 100;
 
 export function getRecallReadyProfileThreshold(requestedProfileCount?: number | null) {
@@ -2879,7 +2883,9 @@ async function buildBrightDataDatasetCandidates(
       }
       return null;
     }
-    const cachedRoundEntry = await lookupCachedSnapshot(roundHash);
+    const cachedRoundEntry = shouldLookupGlobalSnapshotCache(parsed)
+      ? await lookupCachedSnapshot(roundHash)
+      : null;
     let roundSnapshotId: string;
     let roundCacheEntry: SnapshotCacheEntry | null = null;
     if (cachedRoundEntry) {
@@ -3064,7 +3070,9 @@ async function buildBrightDataDatasetCandidates(
   ) => {
     const submittedAt = helpers.nowIso();
     const standardHash = computeFilterHash(request);
-    const cachedStandardEntry = await lookupCachedSnapshot(standardHash);
+    const cachedStandardEntry = shouldLookupGlobalSnapshotCache(parsed)
+      ? await lookupCachedSnapshot(standardHash)
+      : null;
     if (cachedStandardEntry) {
       snapshotId = cachedStandardEntry.snapshotId;
       standardCacheEntry = cachedStandardEntry;

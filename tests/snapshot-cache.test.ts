@@ -14,7 +14,14 @@ import {
   shouldWaitForAdditionalRecallBeforeScoring,
   shouldWaitForAdditionalRecallBeforeZeroRecall,
   shouldReuseProfileCacheDespiteSnapshotDrift,
+  shouldLookupGlobalSnapshotCache,
 } from "../src/lib/search/pipeline";
+
+test("fresh snapshot validation bypasses the global snapshot cache", () => {
+  assert.equal(shouldLookupGlobalSnapshotCache({ expand_recall_mode: "fresh_snapshot" }), false);
+  assert.equal(shouldLookupGlobalSnapshotCache({}), true);
+  assert.equal(shouldLookupGlobalSnapshotCache({ expand_recall_mode: "snapshot_profile_cache" }), true);
+});
 
 const mutableEnv = process.env as Record<string, string | undefined>;
 
