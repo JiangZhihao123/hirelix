@@ -16,3 +16,10 @@ test("Zillow validation JD is frozen with a matching content hash", () => {
   assert.match(jdText, /agent frameworks/i);
 });
 
+test("paid Zillow validation initializes the configured outbound proxy", () => {
+  const runner = fs.readFileSync(
+    path.resolve("scripts/candidate-index/run-zillow-validation.ts"),
+    "utf8",
+  );
+  assert.match(runner, /initializeGlobalOutboundProxy\(\)/);
+});

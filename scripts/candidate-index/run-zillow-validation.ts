@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { db, closeDb } from "@/db/client";
 import { hirelix_search_jobs, hirelix_searches } from "@/db/schema";
 import { processNextSearchJob } from "@/lib/search";
+import { initializeGlobalOutboundProxy } from "@/lib/server-outbound-proxy";
 
 type Fixture = {
   fixture_id: string;
@@ -20,6 +21,7 @@ function readArg(name: string) {
 }
 
 async function main() {
+  initializeGlobalOutboundProxy();
   const fixture = JSON.parse(
     fs.readFileSync(path.resolve("tests/fixtures/zillow-agentic-ai-jd.json"), "utf8"),
   ) as Fixture;
@@ -67,4 +69,3 @@ main().finally(() => closeDb()).catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });
-
