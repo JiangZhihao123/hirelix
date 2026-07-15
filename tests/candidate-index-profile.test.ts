@@ -76,4 +76,7 @@ test("candidate index LLM calls use strict named JSON schemas", () => {
     assert.equal(schema.schema.additionalProperties, false);
     assert.ok(schema.name.length > 0);
   }
+  assert.ok(FINAL_SCHEMA.schema.required.includes("join_likelihood"));
+  assert.ok(FINAL_SCHEMA.schema.required.includes("join_likelihood_score"));
+  assert.deepEqual(FINAL_SCHEMA.schema.properties.join_likelihood.enum, ["high", "medium", "low", "unknown"]);
 });

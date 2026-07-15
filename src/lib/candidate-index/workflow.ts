@@ -76,6 +76,7 @@ function compatibilityMetadata(params: {
   matchScore: number;
   qualification: Qualification;
   finalDecision: FinalJudgment["decision"];
+  finalJudgment: FinalJudgment | null;
   evidencePack: Record<string, unknown>;
 }) {
   const recommended = params.finalDecision === "contact" || params.finalDecision === "review";
@@ -97,6 +98,10 @@ function compatibilityMetadata(params: {
     ...(recommended ? { display_tier: params.finalDecision === "contact" ? "priority_outreach" : "worth_reviewing" } : {}),
     is_recommended: recommended,
     final_decision: params.finalDecision,
+    join_likelihood: params.finalJudgment?.joinLikelihood || "unknown",
+    join_likelihood_score: params.finalJudgment?.joinLikelihoodScore || 0,
+    join_likelihood_reasons: params.finalJudgment?.joinLikelihoodReasons || [],
+    join_likelihood_risks: params.finalJudgment?.joinLikelihoodRisks || [],
     evidence_pack: params.evidencePack,
     work_history: params.experiences.map((item) => ({
       title: item.title,
@@ -132,8 +137,8 @@ function compatibilityMetadata(params: {
       scoring_breakdown: {
         capability_score: params.matchScore,
         relevance_score: params.matchScore,
-        join_likelihood_score: 0,
-        join_likelihood_reasons: [],
+        join_likelihood_score: params.finalJudgment?.joinLikelihoodScore || 0,
+        join_likelihood_reasons: params.finalJudgment?.joinLikelihoodReasons || [],
         quality_score: params.matchScore,
         overall_score: params.matchScore,
         advance_score: params.matchScore,
@@ -142,7 +147,10 @@ function compatibilityMetadata(params: {
       constraint_risks: params.qualification.missingInformation,
       risk_flags: params.qualification.rejectionReasons,
       why_this_candidate: params.qualification.supportingEvidence,
-      why_not_higher: params.qualification.missingInformation,
+      why_not_higher: [
+        ...(params.finalJudgment?.joinLikelihoodRisks || []),
+        ...params.qualification.missingInformation,
+      ],
       evidence_quality: params.qualification.supportingEvidence.length >= 2 ? "high" : "medium",
     },
   };
@@ -247,7 +255,7 @@ export async function runCandidateIndexWorkflow(params: {
       github_url: null,
       email: null,
       outreach_draft: null,
-      metadata: compatibilityMetadata({ profile: bundle.profile, experiences: bundle.experiences, finalRank, matchScore, qualification, finalDecision, evidencePack }),
+      metadata: compatibilityMetadata({ profile: bundle.profile, experiences: bundle.experiences, finalRank, matchScore, qualification, finalDecision, finalJudgment: judgment || null, evidencePack }),
       retrieval_channels: retrievalItem.channelRanks,
       retrieval_rank: retrievalItem.rank,
       qualification_decision: qualification.decision,

@@ -38,6 +38,10 @@ export type Qualification = {
 export type FinalJudgment = {
   profileId: string;
   decision: "contact" | "review" | "hold" | "reject";
+  joinLikelihood: "high" | "medium" | "low" | "unknown";
+  joinLikelihoodScore: number;
+  joinLikelihoodReasons: string[];
+  joinLikelihoodRisks: string[];
   matchReasons: string[];
   evidence: string[];
   risks: string[];
@@ -85,9 +89,24 @@ export const FINAL_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["decision", "match_reasons", "evidence", "risks", "missing_information", "recommended_next_action"],
+    required: [
+      "decision",
+      "join_likelihood",
+      "join_likelihood_score",
+      "join_likelihood_reasons",
+      "join_likelihood_risks",
+      "match_reasons",
+      "evidence",
+      "risks",
+      "missing_information",
+      "recommended_next_action",
+    ],
     properties: {
       decision: { type: "string", enum: ["contact", "review", "hold", "reject"] },
+      join_likelihood: { type: "string", enum: ["high", "medium", "low", "unknown"] },
+      join_likelihood_score: { type: "number", minimum: 0, maximum: 100 },
+      join_likelihood_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
+      join_likelihood_risks: { type: "array", maxItems: 10, items: { type: "string" } },
       match_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
       evidence: { type: "array", maxItems: 12, items: { type: "string" } },
       risks: { type: "array", maxItems: 8, items: { type: "string" } },
@@ -272,13 +291,13 @@ async function compareCandidates(
   const requestHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Return JSON matching output_contract. Both candidates already passed a minimum qualification gate. If a recruiter can contact only one first for this JD, choose the candidate with stronger concrete JD-relevant evidence. Allow tie. Do not output a numeric score or confidence. Use qualification_review_required only when profile evidence reveals a clear minimum-qualification problem missed by the gate.",
+    system: "Return JSON matching output_contract. Both candidates passed a minimum qualification gate. Decide who a recruiter should contact first for this specific JD by reasoning holistically about both concrete job fit and the likelihood that the person would seriously consider this opportunity. Read the full career trajectory, current role, scope, direction, work model, location, employment preferences, and any explicit availability signals in context. Do not use a fixed formula or mechanical tenure/title rules. Treat each signal as evidence, not a verdict; unknown willingness is unknown, not low. Every willingness claim or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; record those as unknown instead. Prefer tie when expected recruiting value is genuinely indistinguishable. Do not output a numeric score or confidence. Use qualification_review_required only when concrete evidence reveals a minimum-qualification problem missed by the gate.",
     prompt: JSON.stringify(payload),
     maxOutputTokens: 3000,
     timeoutMs: 90_000,
     temperature: 0,
     jsonSchema: COMPARISON_SCHEMA,
-    deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PAIRWISE_THINKING", "disabled"),
+    deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PAIRWISE_THINKING", "enabled"),
     usageEvent: { ...usage, stage: "pairwise_comparison" },
   }));
   const rawDecision = data.decision === "candidate_a" || data.decision === "candidate_b" || data.decision === "tie"
@@ -470,7 +489,7 @@ export async function judgeFinalCandidate(
   const model = process.env.SEARCH_ARBITER_MODEL || "deepseek-v4-pro";
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Return JSON matching output_contract. Make the final recruiter-facing decision for this JD from the complete profile and evidence pack. Every positive claim must point to concrete work evidence. Do not convert missing information into a rejection unless the JD explicitly makes it mandatory.",
+    system: "Return JSON matching output_contract. Make the final recruiter-facing decision for this specific JD from the complete profile and evidence pack. Reason holistically about two independent questions: whether the person is genuinely strong and relevant, and how plausible it is that they would seriously consider this opportunity. Read the career trajectory, current role, scope, direction, work model, location, employment preferences, and explicit availability signals in context. Do not apply a fixed formula or mechanical tenure/title rules. Treat profile signals as evidence, not certainty; unknown willingness must remain unknown rather than becoming low. Every join-likelihood reason or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; put those in missing_information instead. A contact decision requires both compelling fit and a sufficiently plausible evidence-based reason to engage now; use review when fit is strong but willingness or a key fact remains uncertain. Every claim must point to concrete profile evidence, and missing information is not rejection evidence unless the JD explicitly makes it mandatory.",
     prompt: JSON.stringify({
       output_contract: FINAL_SCHEMA.schema,
       jd,
@@ -486,9 +505,19 @@ export async function judgeFinalCandidate(
     usageEvent: { ...usage, stage: "final_judgment" },
   }));
   const decision = data.decision === "contact" || data.decision === "review" || data.decision === "reject" ? data.decision : "hold";
+  const joinLikelihood = data.join_likelihood === "high" || data.join_likelihood === "medium" || data.join_likelihood === "low"
+    ? data.join_likelihood
+    : "unknown";
+  const rawJoinLikelihoodScore = typeof data.join_likelihood_score === "number" && Number.isFinite(data.join_likelihood_score)
+    ? data.join_likelihood_score
+    : 0;
   return {
     profileId: bundle.profile.id,
     decision,
+    joinLikelihood,
+    joinLikelihoodScore: Math.max(0, Math.min(100, Math.round(rawJoinLikelihoodScore))),
+    joinLikelihoodReasons: stringArray(data.join_likelihood_reasons, 10),
+    joinLikelihoodRisks: stringArray(data.join_likelihood_risks, 10),
     matchReasons: stringArray(data.match_reasons, 10),
     evidence: stringArray(data.evidence),
     risks: stringArray(data.risks, 8),
