@@ -6,6 +6,7 @@ import {
   buildConnectedComparisonPairs,
   fitDavidsonRanking,
   reciprocalRankFusion,
+  stableDecisionToPresentedOutcome,
 } from "@/lib/candidate-index/ranking";
 
 test("RRF merges channels, deduplicates profiles, and uses deterministic ties", () => {
@@ -42,6 +43,14 @@ test("order swap consistency distinguishes a stable winner from position bias", 
   assert.equal(areOrderSwapDecisionsConsistent("a", "a"), false);
   assert.equal(areOrderSwapDecisionsConsistent("tie", "tie"), true);
   assert.equal(areOrderSwapDecisionsConsistent("tie", "a"), false);
+});
+
+test("stable candidate tokens map to the presented order without changing identity", () => {
+  assert.equal(stableDecisionToPresentedOutcome("candidate_1", "candidate_1"), "a");
+  assert.equal(stableDecisionToPresentedOutcome("candidate_2", "candidate_1"), "b");
+  assert.equal(stableDecisionToPresentedOutcome("candidate_1", "candidate_2"), "b");
+  assert.equal(stableDecisionToPresentedOutcome("candidate_2", "candidate_2"), "a");
+  assert.equal(stableDecisionToPresentedOutcome("tie", "candidate_2"), "tie");
 });
 
 test("Davidson ranking handles decisive results and ties", () => {

@@ -1,10 +1,18 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_candidate_comparisons, hirelix_profile_experiences, hirelix_profiles } from "@/db/schema";
 import { generateLlmJson, getDefaultLlmModel, getLightweightLlmModel, resolveDeepSeekThinkingMode } from "@/lib/llm-client";
-import { areOrderSwapDecisionsConsistent, buildConnectedComparisonPairs, fitDavidsonRanking, type ComparisonOutcome, type DavidsonRank } from "@/lib/candidate-index/ranking";
+import {
+  areOrderSwapDecisionsConsistent,
+  buildConnectedComparisonPairs,
+  fitDavidsonRanking,
+  stableDecisionToPresentedOutcome,
+  type ComparisonOutcome,
+  type DavidsonRank,
+  type StableCandidateToken,
+} from "@/lib/candidate-index/ranking";
 import { runWithConcurrency } from "@/lib/search/concurrency";
 
 type CandidateBundleProfile = Pick<typeof hirelix_profiles.$inferSelect,
@@ -32,8 +40,33 @@ export type Qualification = {
   supportingEvidence: string[];
   missingInformation: string[];
   rejectionReasons: string[];
+  comparisonCard: ComparisonCard;
   model: string;
 };
+
+type EvidenceLevel<T extends string> = {
+  level: T;
+  evidence: string[];
+};
+
+export type ComparisonCard = {
+  mandatoryEligibility: EvidenceLevel<"pass" | "unknown" | "fail">;
+  coreWork: EvidenceLevel<"direct" | "equivalent" | "adjacent" | "none">;
+  productionOwnership: EvidenceLevel<"strong" | "moderate" | "limited" | "unknown">;
+  seniorityAlignment: EvidenceLevel<"aligned" | "underleveled" | "overleveled" | "unknown">;
+  careerDirection: EvidenceLevel<"aligned" | "mixed" | "adjacent" | "unknown">;
+  joinSignals: EvidenceLevel<"positive" | "negative" | "mixed" | "none">;
+};
+
+const comparisonCardDimension = (levels: readonly string[]) => ({
+  type: "object",
+  additionalProperties: false,
+  required: ["level", "evidence"],
+  properties: {
+    level: { type: "string", enum: levels },
+    evidence: { type: "array", maxItems: 6, items: { type: "string" } },
+  },
+});
 
 export type FinalJudgment = {
   profileId: string;
@@ -55,12 +88,25 @@ export const QUALIFICATION_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["decision", "supporting_evidence", "missing_information", "rejection_reasons"],
+    required: ["decision", "supporting_evidence", "missing_information", "rejection_reasons", "comparison_card"],
     properties: {
       decision: { type: "string", enum: ["advance", "maybe", "reject"] },
       supporting_evidence: { type: "array", maxItems: 10, items: { type: "string" } },
       missing_information: { type: "array", maxItems: 10, items: { type: "string" } },
       rejection_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
+      comparison_card: {
+        type: "object",
+        additionalProperties: false,
+        required: ["mandatory_eligibility", "core_work", "production_ownership", "seniority_alignment", "career_direction", "join_signals"],
+        properties: {
+          mandatory_eligibility: comparisonCardDimension(["pass", "unknown", "fail"]),
+          core_work: comparisonCardDimension(["direct", "equivalent", "adjacent", "none"]),
+          production_ownership: comparisonCardDimension(["strong", "moderate", "limited", "unknown"]),
+          seniority_alignment: comparisonCardDimension(["aligned", "underleveled", "overleveled", "unknown"]),
+          career_direction: comparisonCardDimension(["aligned", "mixed", "adjacent", "unknown"]),
+          join_signals: comparisonCardDimension(["positive", "negative", "mixed", "none"]),
+        },
+      },
     },
   },
 } as const;
@@ -73,12 +119,12 @@ export const COMPARISON_SCHEMA = {
     additionalProperties: false,
     required: ["decision", "decisive_dimensions", "reason", "evidence", "risks", "qualification_review_candidate"],
     properties: {
-      decision: { type: "string", enum: ["candidate_a", "candidate_b", "tie", "qualification_review_required"] },
+      decision: { type: "string", enum: ["candidate_1", "candidate_2", "tie", "qualification_review_required"] },
       decisive_dimensions: { type: "array", maxItems: 8, items: { type: "string" } },
       reason: { type: "string" },
       evidence: { type: "array", maxItems: 12, items: { type: "string" } },
       risks: { type: "array", maxItems: 8, items: { type: "string" } },
-      qualification_review_candidate: { type: ["string", "null"], enum: ["candidate_a", "candidate_b", null] },
+      qualification_review_candidate: { type: ["string", "null"], enum: ["candidate_1", "candidate_2", null] },
     },
   },
 } as const;
@@ -116,7 +162,7 @@ export const FINAL_SCHEMA = {
   },
 } as const;
 
-export const CANDIDATE_JUDGMENT_PROMPT_VERSION = 2;
+export const CANDIDATE_JUDGMENT_PROMPT_VERSION = 4;
 
 export const QUALIFICATION_SYSTEM_PROMPT = [
   "Return JSON matching output_contract.",
@@ -126,12 +172,23 @@ export const QUALIFICATION_SYSTEM_PROMPT = [
   "advance means the profile contains strong direct or clearly equivalent evidence for the core work and mandatory constraints.",
   "maybe means the fit is plausible but evidence for a JD-relevant capability or mandatory fact is incomplete.",
   "Return reject only for a concrete supported mismatch or failed mandatory constraint.",
+  "Build comparison_card once from cited profile facts; it is a stable evidence card for later relative comparisons, not a numeric score.",
+  "For core_work, direct requires explicit JD-core work and equivalent requires evidence of the same behavior; RAG, chatbots, or adjacent LLM work alone do not prove multi-step agentic reasoning.",
+  "Judge core_work independently from production scale: an internship or prototype can be direct core work, while scale belongs only in production_ownership.",
+  "Do not downgrade transferable core work merely because it was done in another industry unless the JD explicitly requires domain experience.",
+  "For mandatory_eligibility, missing education, authorization, location preference, or availability is unknown rather than fail; US location never proves US work authorization.",
+  "Never put assumptions such as likely, probably, inferred, or assumed into evidence; cite only stated facts, and keep join_signals evidence empty when its level is none.",
 ].join(" ");
 
 export const PAIRWISE_COMPARISON_SYSTEM_PROMPT = [
   "Return JSON matching output_contract.",
   "Both candidates passed a minimum job-fit gate; decide who a recruiter should contact first for this specific JD.",
-  "Use concrete JD fit as the primary comparison: demonstrated core work, scope, seniority, career direction, mandatory constraints, and strength of evidence.",
+  "Each candidate contains a fixed comparison_card produced independently from the full profile. Compare only those cards and identity context; do not invent, re-extract, or reinterpret omitted profile facts.",
+  "candidate_token is a stable identity label that does not indicate quality; never favor the first listed candidate or a particular token.",
+  "First assess each candidate independently against exactly the same evidence hierarchy, then compare them dimension by dimension.",
+  "Use this fixed priority: (1) explicit mandatory eligibility, (2) concrete evidence of the JD's core work, (3) production ownership and scope, (4) seniority alignment, (5) career direction, and only then (6) evidence-based likelihood of considering the opportunity.",
+  "A lower-priority dimension may break a close tie but must not override a material advantage on a higher-priority dimension.",
+  "Base mandatory-constraint failures only on explicit contradictory evidence; missing education, work authorization, location preference, or availability is unknown and must not trigger qualification_review_required.",
   "Use evidence-based likelihood of considering the opportunity only as a secondary prioritization factor, especially when job fit is close.",
   "A missing active-job-seeking or availability signal is neutral and must not make an otherwise stronger candidate lose; unknown willingness is unknown, not low.",
   "Explicit positive or negative willingness evidence may affect priority, but a weaker-fit candidate must not win merely because they appear more available.",
@@ -163,6 +220,133 @@ function stringArray(value: unknown, limit = 12) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim()).slice(0, limit)
     : [];
+}
+
+function comparisonDimension<T extends string>(
+  value: unknown,
+  levels: readonly T[],
+  fallback: T,
+): EvidenceLevel<T> {
+  const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const level = typeof item.level === "string" && levels.includes(item.level as T) ? item.level as T : fallback;
+  return { level, evidence: stringArray(item.evidence, 6) };
+}
+
+function normalizeComparisonCard(value: unknown): ComparisonCard {
+  const card = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    mandatoryEligibility: comparisonDimension(card.mandatory_eligibility, ["pass", "unknown", "fail"], "unknown"),
+    coreWork: comparisonDimension(card.core_work, ["direct", "equivalent", "adjacent", "none"], "none"),
+    productionOwnership: comparisonDimension(card.production_ownership, ["strong", "moderate", "limited", "unknown"], "unknown"),
+    seniorityAlignment: comparisonDimension(card.seniority_alignment, ["aligned", "underleveled", "overleveled", "unknown"], "unknown"),
+    careerDirection: comparisonDimension(card.career_direction, ["aligned", "mixed", "adjacent", "unknown"], "unknown"),
+    joinSignals: comparisonDimension(card.join_signals, ["positive", "negative", "mixed", "none"], "none"),
+  };
+}
+
+type CardComparison = {
+  outcome: "a" | "b" | "tie";
+  decisiveDimension: string;
+  reason: string;
+  evidence: string[];
+};
+
+function compareLevel(first: string, second: string, ranks: Record<string, number>) {
+  const difference = (ranks[first] ?? 0) - (ranks[second] ?? 0);
+  return difference > 0 ? "a" as const : difference < 0 ? "b" as const : "tie" as const;
+}
+
+export function compareComparisonCards(first: ComparisonCard, second: ComparisonCard): CardComparison {
+  const dimensions: Array<{
+    name: string;
+    first: EvidenceLevel<string>;
+    second: EvidenceLevel<string>;
+    ranks: Record<string, number>;
+  }> = [
+    {
+      name: "mandatory_eligibility",
+      first: first.mandatoryEligibility,
+      second: second.mandatoryEligibility,
+      // Unknown is neutral; only explicit failure loses this dimension.
+      ranks: { fail: 0, unknown: 1, pass: 1 },
+    },
+    {
+      name: "core_work",
+      first: first.coreWork,
+      second: second.coreWork,
+      ranks: { none: 0, adjacent: 1, equivalent: 2, direct: 3 },
+    },
+    {
+      name: "production_ownership",
+      first: first.productionOwnership,
+      second: second.productionOwnership,
+      ranks: { unknown: 1, limited: 1, moderate: 2, strong: 3 },
+    },
+    {
+      name: "seniority_alignment",
+      first: first.seniorityAlignment,
+      second: second.seniorityAlignment,
+      ranks: { underleveled: 0, overleveled: 0, unknown: 1, aligned: 1 },
+    },
+    {
+      name: "career_direction",
+      first: first.careerDirection,
+      second: second.careerDirection,
+      ranks: { adjacent: 0, unknown: 1, mixed: 1, aligned: 2 },
+    },
+    {
+      name: "join_signals",
+      first: first.joinSignals,
+      second: second.joinSignals,
+      ranks: { negative: 0, none: 1, mixed: 1, positive: 2 },
+    },
+  ];
+  for (const dimension of dimensions) {
+    const outcome = compareLevel(dimension.first.level, dimension.second.level, dimension.ranks);
+    if (outcome === "tie") continue;
+    return {
+      outcome,
+      decisiveDimension: dimension.name,
+      reason: `${dimension.name}: ${dimension.first.level} vs ${dimension.second.level}`,
+      evidence: outcome === "a" ? dimension.first.evidence : dimension.second.evidence,
+    };
+  }
+  return {
+    outcome: "tie",
+    decisiveDimension: "no_material_difference",
+    reason: "The fixed comparison cards contain no material difference at the configured priority levels.",
+    evidence: [],
+  };
+}
+
+function deterministicComparisonResult(
+  first: CandidateBundle,
+  second: CandidateBundle,
+  firstToken: StableCandidateToken,
+  comparisonCards: Map<string, ComparisonCard>,
+): ComparisonResult {
+  const firstCard = comparisonCards.get(first.profile.id);
+  const secondCard = comparisonCards.get(second.profile.id);
+  if (!firstCard || !secondCard) throw new Error("Pairwise ranking requires a comparison card for every candidate");
+  const comparison = compareComparisonCards(firstCard, secondCard);
+  const secondToken = firstToken === "candidate_1" ? "candidate_2" : "candidate_1";
+  const rawDecision = comparison.outcome === "a"
+    ? firstToken
+    : comparison.outcome === "b"
+      ? secondToken
+      : "tie";
+  const payload = { first_profile_id: first.profile.id, second_profile_id: second.profile.id, firstToken, comparison };
+  return {
+    rawDecision,
+    outcome: comparison.outcome,
+    reviewProfileId: null,
+    decisiveDimensions: [comparison.decisiveDimension],
+    reason: comparison.reason,
+    evidence: comparison.evidence,
+    risks: [],
+    model: "evidence-card-comparator-v1",
+    requestHash: createHash("sha256").update(JSON.stringify(payload)).digest("hex"),
+  };
 }
 
 async function withJudgmentRetry<T>(operation: () => Promise<T>, maxAttempts = 3) {
@@ -295,19 +479,39 @@ export async function qualifyCandidate(
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_QUALIFICATION_THINKING", "disabled"),
     usageEvent: { ...usage, stage: modelOverride ? "qualification_review" : "qualification", candidateIndexes: null },
   }));
-  const decision = data.decision === "advance" || data.decision === "reject" ? data.decision : "maybe";
+  const comparisonCard = normalizeComparisonCard(data.comparison_card);
+  const modelDecision = data.decision === "advance" || data.decision === "reject" ? data.decision : "maybe";
+  const decision = comparisonCard.mandatoryEligibility.level === "fail" ? "reject" : modelDecision;
+  const rejectionReasons = stringArray(data.rejection_reasons, 10);
   return {
     profileId: bundle.profile.id,
     decision,
     supportingEvidence: stringArray(data.supporting_evidence, 10),
     missingInformation: stringArray(data.missing_information, 10),
-    rejectionReasons: stringArray(data.rejection_reasons, 10),
+    rejectionReasons: comparisonCard.mandatoryEligibility.level === "fail" && rejectionReasons.length === 0
+      ? ["Comparison card contains an explicit mandatory-eligibility failure."]
+      : rejectionReasons,
+    comparisonCard,
     model,
   };
 }
 
-type ComparisonResult = {
-  rawDecision: "candidate_a" | "candidate_b" | "tie" | "qualification_review_required";
+function comparisonCandidatePrompt(bundle: CandidateBundle, card: ComparisonCard) {
+  return {
+    name: bundle.profile.name,
+    current_title: bundle.profile.current_title,
+    current_company: bundle.profile.current_company,
+    location: {
+      country: bundle.profile.country_code,
+      state: bundle.profile.state_or_region,
+      city: bundle.profile.city,
+    },
+    comparison_card: card,
+  };
+}
+
+export type ComparisonResult = {
+  rawDecision: "candidate_1" | "candidate_2" | "tie" | "qualification_review_required";
   outcome: "a" | "b" | "tie" | null;
   reviewProfileId: string | null;
   decisiveDimensions: string[];
@@ -323,36 +527,45 @@ async function compareCandidates(
   first: CandidateBundle,
   second: CandidateBundle,
   usage: { searchId: string; jobId: string; userId: string },
+  firstToken: StableCandidateToken = "candidate_1",
+  usageStage = "pairwise_comparison",
+  comparisonCards?: Map<string, ComparisonCard>,
 ): Promise<ComparisonResult> {
+  const secondToken: StableCandidateToken = firstToken === "candidate_1" ? "candidate_2" : "candidate_1";
   const model = process.env.SEARCH_JUDGE_MODEL || getDefaultLlmModel();
+  const maxOutputTokens = model.includes("pro") ? 8000 : 3000;
   const payload = {
     output_contract: COMPARISON_SCHEMA.schema,
     evaluation_date: new Date().toISOString().slice(0, 10),
     jd,
-    candidate_a: candidatePrompt(first),
-    candidate_b: candidatePrompt(second),
+    candidates: [
+      { candidate_token: firstToken, candidate: comparisonCandidatePrompt(first, comparisonCards?.get(first.profile.id) || normalizeComparisonCard(null)) },
+      { candidate_token: secondToken, candidate: comparisonCandidatePrompt(second, comparisonCards?.get(second.profile.id) || normalizeComparisonCard(null)) },
+    ],
   };
   const requestHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
     system: PAIRWISE_COMPARISON_SYSTEM_PROMPT,
     prompt: JSON.stringify(payload),
-    maxOutputTokens: 3000,
+    maxOutputTokens,
     timeoutMs: 90_000,
     temperature: 0,
     jsonSchema: COMPARISON_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PAIRWISE_THINKING", "enabled"),
-    usageEvent: { ...usage, stage: "pairwise_comparison" },
+    usageEvent: { ...usage, stage: usageStage },
   }));
-  const rawDecision = data.decision === "candidate_a" || data.decision === "candidate_b" || data.decision === "tie"
+  const rawDecision = data.decision === "candidate_1" || data.decision === "candidate_2" || data.decision === "tie"
     ? data.decision
     : "qualification_review_required";
   const reviewProfileId = rawDecision === "qualification_review_required"
-    ? data.qualification_review_candidate === "candidate_b" ? second.profile.id : first.profile.id
+    ? data.qualification_review_candidate === secondToken ? second.profile.id : first.profile.id
     : null;
   return {
     rawDecision,
-    outcome: rawDecision === "candidate_a" ? "a" : rawDecision === "candidate_b" ? "b" : rawDecision === "tie" ? "tie" : null,
+    outcome: rawDecision === "qualification_review_required"
+      ? null
+      : stableDecisionToPresentedOutcome(rawDecision, firstToken),
     reviewProfileId,
     decisiveDimensions: stringArray(data.decisive_dimensions, 8),
     reason: typeof data.reason === "string" ? data.reason : "",
@@ -360,6 +573,40 @@ async function compareCandidates(
     risks: stringArray(data.risks, 8),
     model,
     requestHash,
+  };
+}
+
+export async function auditCandidateOrderSwap(
+  jd: Record<string, unknown>,
+  canonicalFirst: CandidateBundle,
+  canonicalSecond: CandidateBundle,
+  usage: { searchId: string; jobId: string; userId: string },
+  comparisonCards: Map<string, ComparisonCard>,
+) {
+  const first = await compareCandidates(
+    jd,
+    canonicalFirst,
+    canonicalSecond,
+    usage,
+    "candidate_1",
+    "pairwise_order_audit",
+    comparisonCards,
+  );
+  const swapped = await compareCandidates(
+    jd,
+    canonicalSecond,
+    canonicalFirst,
+    usage,
+    "candidate_2",
+    "pairwise_order_audit",
+    comparisonCards,
+  );
+  return {
+    first,
+    swapped,
+    stable: first.outcome != null
+      && swapped.outcome != null
+      && areOrderSwapDecisionsConsistent(first.outcome, swapped.outcome),
   };
 }
 
@@ -415,7 +662,20 @@ async function persistComparison(params: {
       hirelix_candidate_comparisons.attempt,
       hirelix_candidate_comparisons.presented_order,
     ],
-    set: { decision: params.result.rawDecision, is_stable: params.stable, included_in_fit: params.included },
+    set: {
+      decision: params.result.rawDecision,
+      decisive_dimensions: params.result.decisiveDimensions,
+      reason: params.result.reason,
+      evidence: params.result.evidence,
+      risks: params.result.risks,
+      qualification_review_profile_id: params.result.reviewProfileId,
+      is_order_swap: params.orderSwap,
+      is_stable: params.stable,
+      included_in_fit: params.included,
+      model: params.result.model,
+      prompt_version: CANDIDATE_JUDGMENT_PROMPT_VERSION,
+      request_hash: params.result.requestHash,
+    },
   });
 }
 
@@ -423,103 +683,37 @@ export async function runPairwiseRanking(
   jd: Record<string, unknown>,
   bundles: CandidateBundle[],
   usage: { searchId: string; jobId: string; userId: string },
+  qualifications: Qualification[] = [],
 ): Promise<{ rankings: DavidsonRank[]; comparisonCount: number; unstableCount: number; graphConnected: boolean; qualificationRejectedProfileIds: string[] }> {
   if (bundles.length < 2) {
     return { rankings: bundles.map((item) => ({ profileId: item.profile.id, score: 0, rank: 1, rankLow: 1, rankHigh: 1 })), comparisonCount: 0, unstableCount: 0, graphConnected: true, qualificationRejectedProfileIds: [] };
   }
   const byId = new Map(bundles.map((item) => [item.profile.id, item]));
+  const comparisonCards = new Map(qualifications.map((item) => [item.profileId, item.comparisonCard]));
   const pairs = buildConnectedComparisonPairs([...byId.keys()], { seed: usage.searchId });
-  let unstableCount = 0;
-  const outcomes: ComparisonOutcome[] = [];
   const concurrency = Math.max(1, Math.min(32, Number(process.env.SEARCH_PAIRWISE_CONCURRENCY || 24)));
-  const results = await runWithConcurrency(pairs, concurrency, async (pair) => {
-    const first = await compareCandidates(jd, byId.get(pair.a)!, byId.get(pair.b)!, usage);
-    if (!first.outcome) {
-      await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 1, presentedOrder: "ab", canonicalA: pair.a, canonicalB: pair.b, result: first, orderSwap: false, stable: false, included: false });
-      if (!first.reviewProfileId) return { outcome: null, rejectedProfileId: null };
-      const reviewedBundle = byId.get(first.reviewProfileId)!;
-      const reviewed = await qualifyCandidate(
-        jd,
-        reviewedBundle,
-        usage,
-        process.env.SEARCH_ARBITER_MODEL || "deepseek-v4-pro",
-      );
-      if (reviewed.decision === "reject") {
-        return { outcome: null, rejectedProfileId: first.reviewProfileId };
-      }
-      const retry = await compareCandidates(jd, byId.get(pair.a)!, byId.get(pair.b)!, usage);
-      await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 2, presentedOrder: "ab", canonicalA: pair.a, canonicalB: pair.b, result: retry, orderSwap: false, stable: Boolean(retry.outcome), included: Boolean(retry.outcome) });
-      return {
-        outcome: retry.outcome ? { a: pair.a, b: pair.b, outcome: retry.outcome } as ComparisonOutcome : null,
-        rejectedProfileId: null,
-      };
+  const outcomes = await runWithConcurrency(pairs, concurrency, async (pair) => {
+    const firstBundle = byId.get(pair.a)!;
+    const secondBundle = byId.get(pair.b)!;
+    const first = deterministicComparisonResult(firstBundle, secondBundle, "candidate_1", comparisonCards);
+    await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 1, presentedOrder: "ab", canonicalA: pair.a, canonicalB: pair.b, result: first, orderSwap: false, stable: true, included: true });
+    if (pair.orderSwap) {
+      const swapped = deterministicComparisonResult(secondBundle, firstBundle, "candidate_2", comparisonCards);
+      const stable = swapped.outcome != null && areOrderSwapDecisionsConsistent(first.outcome!, swapped.outcome);
+      if (!stable) throw new Error(`Evidence-card comparator changed under order swap for ${pair.pairKey}`);
+      await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 1, presentedOrder: "ba", canonicalA: pair.a, canonicalB: pair.b, result: swapped, orderSwap: true, stable: true, included: false });
     }
-    if (!pair.orderSwap) {
-      await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 1, presentedOrder: "ab", canonicalA: pair.a, canonicalB: pair.b, result: first, orderSwap: false, stable: true, included: true });
-      return { outcome: { a: pair.a, b: pair.b, outcome: first.outcome } as ComparisonOutcome, rejectedProfileId: null };
-    }
-    const swapped = await compareCandidates(jd, byId.get(pair.b)!, byId.get(pair.a)!, usage);
-    const stable = swapped.outcome != null && areOrderSwapDecisionsConsistent(first.outcome, swapped.outcome);
-    await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 1, presentedOrder: "ab", canonicalA: pair.a, canonicalB: pair.b, result: first, orderSwap: false, stable, included: stable });
-    await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 1, presentedOrder: "ba", canonicalA: pair.a, canonicalB: pair.b, result: swapped, orderSwap: true, stable, included: false });
-    if (!stable) {
-      unstableCount += 1;
-      const retry = await compareCandidates(jd, byId.get(pair.a)!, byId.get(pair.b)!, usage);
-      await persistComparison({ searchId: usage.searchId, pairKey: pair.pairKey, attempt: 2, presentedOrder: "ab", canonicalA: pair.a, canonicalB: pair.b, result: retry, orderSwap: false, stable: false, included: false });
-      return { outcome: null, rejectedProfileId: null };
-    }
-    return { outcome: { a: pair.a, b: pair.b, outcome: first.outcome } as ComparisonOutcome, rejectedProfileId: null };
+    return { a: pair.a, b: pair.b, outcome: first.outcome! } as ComparisonOutcome;
   });
-  const qualificationRejectedProfileIds = [...new Set(results.map((item) => item.rejectedProfileId).filter((item): item is string => Boolean(item)))];
-  outcomes.push(...results.map((item) => item.outcome).filter((item): item is ComparisonOutcome => Boolean(item)));
-  if (qualificationRejectedProfileIds.length > 0) {
-    for (const profileId of qualificationRejectedProfileIds) {
-      await db.update(hirelix_candidate_comparisons).set({ included_in_fit: false }).where(and(
-        eq(hirelix_candidate_comparisons.search_id, usage.searchId),
-        or(
-          eq(hirelix_candidate_comparisons.candidate_a_profile_id, profileId),
-          eq(hirelix_candidate_comparisons.candidate_b_profile_id, profileId),
-        ),
-      ));
-    }
-  }
-  const activeIds = [...byId.keys()].filter((id) => !qualificationRejectedProfileIds.includes(id));
-  const activeOutcomes = outcomes.filter((item) => activeIds.includes(item.a) && activeIds.includes(item.b));
-  outcomes.length = 0;
-  outcomes.push(...activeOutcomes);
-
-  if (activeIds.length < 2) {
-    return {
-      rankings: activeIds.map((profileId) => ({ profileId, score: 0, rank: 1, rankLow: 1, rankHigh: 1 })),
-      comparisonCount: outcomes.length,
-      unstableCount,
-      graphConnected: true,
-      qualificationRejectedProfileIds,
-    };
-  }
-
-  let components = graphComponents(activeIds, outcomes);
-  let repair = 1;
-  while (components.length > 1) {
-    const a = components[0][0];
-    const b = components[1][0];
-    const pairKey = [a, b].sort().join(":");
-    const result = await compareCandidates(jd, byId.get(a)!, byId.get(b)!, usage);
-    if (!result.outcome) throw new Error("Unable to connect pairwise comparison graph after qualification review request");
-    const outcome = a < b ? result.outcome : result.outcome === "a" ? "b" : result.outcome === "b" ? "a" : "tie";
-    const canonicalA = a < b ? a : b;
-    const canonicalB = a < b ? b : a;
-    outcomes.push({ a: canonicalA, b: canonicalB, outcome });
-    await persistComparison({ searchId: usage.searchId, pairKey, attempt: 100 + repair, presentedOrder: a === canonicalA ? "ab" : "ba", canonicalA, canonicalB, result, orderSwap: false, stable: true, included: true });
-    components = graphComponents(activeIds, outcomes);
-    repair += 1;
-  }
+  const activeIds = [...byId.keys()];
+  const components = graphComponents(activeIds, outcomes);
+  if (components.length !== 1) throw new Error("Evidence-card comparison graph is not connected");
   return {
     rankings: fitDavidsonRanking(activeIds, outcomes, { bootstrapRounds: 200, seed: usage.searchId }),
     comparisonCount: outcomes.length,
-    unstableCount,
-    graphConnected: components.length === 1,
-    qualificationRejectedProfileIds,
+    unstableCount: 0,
+    graphConnected: true,
+    qualificationRejectedProfileIds: [],
   };
 }
 

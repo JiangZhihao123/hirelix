@@ -101,6 +101,16 @@ export type ComparisonOutcome = {
   outcome: "a" | "b" | "tie";
 };
 
+export type StableCandidateToken = "candidate_1" | "candidate_2";
+
+export function stableDecisionToPresentedOutcome(
+  decision: StableCandidateToken | "tie",
+  firstToken: StableCandidateToken,
+): "a" | "b" | "tie" {
+  if (decision === "tie") return "tie";
+  return decision === firstToken ? "a" : "b";
+}
+
 export type DavidsonRank = {
   profileId: string;
   score: number;
@@ -213,4 +223,3 @@ export function areOrderSwapDecisionsConsistent(
   if (original === "tie" || swapped === "tie") return original === swapped;
   return original !== swapped;
 }
-

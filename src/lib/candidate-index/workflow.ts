@@ -326,7 +326,7 @@ export async function runCandidateIndexWorkflow(params: {
     return bundle ? [bundle] : [];
   });
   const advancedBundles = bundles.filter((bundle) => advancedIds.includes(bundle.profile.id));
-  const pairwise = await runPairwiseRanking(judgmentInput, advancedBundles, usage);
+  const pairwise = await runPairwiseRanking(judgmentInput, advancedBundles, usage, qualifications);
   for (const profileId of pairwise.qualificationRejectedProfileIds) {
     const qualification = qualificationById.get(profileId);
     if (qualification) {
