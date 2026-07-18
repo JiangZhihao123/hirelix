@@ -1,6 +1,7 @@
 import type { BrightDataProfile } from "@/lib/brightdata";
 import { hybridRetrieve, type HybridSearchIntent } from "@/lib/candidate-index/retrieval";
-import { screenBrightProfilesForIndex } from "@/lib/candidate-index/intake";
+import { precheckBrightProfile } from "@/lib/candidate-index/intake";
+import { buildRerankDocument, rerankDocuments } from "@/lib/candidate-index/reranker";
 import { indexBrightProfiles } from "@/lib/candidate-index/store";
 import {
   judgeFinalCandidate,
@@ -22,6 +23,49 @@ function stringArray(value: unknown, limit = 30) {
 
 function object(value: unknown) {
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+function configuredInt(name: string, fallback: number, min: number, max: number) {
+  const parsed = Number.parseInt(process.env[name] || "", 10);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+}
+
+export function selectStructurallyIndexableProfiles(profiles: BrightDataProfile[]) {
+  const rejected: Array<{ index: number; reason: string }> = [];
+  const selected = profiles.filter((profile, index) => {
+    const result = precheckBrightProfile(profile);
+    if (!result) return true;
+    rejected.push({ index, reason: result.reason });
+    return false;
+  });
+  return { selected, rejected };
+}
+
+export function planQualificationBatch(params: {
+  totalCandidates: number;
+  evaluatedCount: number;
+  advanceCount: number;
+  initialLimit: number;
+  batchSize: number;
+  maxLimit: number;
+  advanceTarget: number;
+}) {
+  if (params.evaluatedCount > 0 && params.advanceCount >= params.advanceTarget) {
+    return { size: 0, stopReason: "advance_target_reached" as const };
+  }
+  const available = Math.min(params.totalCandidates, params.maxLimit) - params.evaluatedCount;
+  if (available <= 0) {
+    return {
+      size: 0,
+      stopReason: params.evaluatedCount >= params.maxLimit
+        ? "max_limit_reached" as const
+        : "pool_exhausted" as const,
+    };
+  }
+  return {
+    size: Math.min(available, params.evaluatedCount === 0 ? params.initialLimit : params.batchSize),
+    stopReason: null,
+  };
 }
 
 export function buildCandidateIndexSearchIntent(jdText: string, parsed: Record<string, unknown>) {
@@ -167,16 +211,8 @@ export async function runCandidateIndexWorkflow(params: {
 }) {
   const { context } = params;
   const { intent, judgmentInput } = buildCandidateIndexSearchIntent(context.jdText, params.parsed);
-  const intakeLimit = Math.max(1, Math.min(500, Number(process.env.SEARCH_INTAKE_INDEX_LIMIT || 120)));
-  const intake = params.profiles.length > 0
-    ? await screenBrightProfilesForIndex({
-      jd: judgmentInput,
-      profiles: params.profiles,
-      usage: { searchId: context.searchId, jobId: context.jobId, userId: context.userId },
-      limit: intakeLimit,
-    })
-    : null;
-  const profilesToIndex = intake?.selectedProfiles ?? [];
+  const structuralIntake = selectStructurallyIndexableProfiles(params.profiles);
+  const profilesToIndex = structuralIntake.selected;
   const indexed = profilesToIndex.length > 0
     ? await indexBrightProfiles(profilesToIndex, {
       snapshotId: params.snapshotId,
@@ -186,24 +222,98 @@ export async function runCandidateIndexWorkflow(params: {
     })
     : { indexedProfileIds: [], reused: 0, rejected: [] };
   if (profilesToIndex.length > 0 && indexed.indexedProfileIds.length === 0) {
-    throw new Error(`Candidate index rejected all intake-approved profiles: ${indexed.rejected.slice(0, 3).map((item) => item.reason).join("; ")}`);
+    throw new Error(`Candidate index rejected all structurally indexable profiles: ${indexed.rejected.slice(0, 3).map((item) => item.reason).join("; ")}`);
   }
-  const retrieval = await hybridRetrieve(intent, 500);
+  const retrievalLimit = configuredInt("SEARCH_RETRIEVAL_LIMIT", 1000, 100, 2000);
+  const retrieval = await hybridRetrieve(intent, retrievalLimit);
   if (retrieval.length === 0) throw new Error("Candidate index retrieval returned no eligible profiles");
-  const qualificationLimit = Math.max(1, Math.min(200, Number(process.env.SEARCH_QUALIFICATION_LIMIT || 100)));
-  const qualificationPool = retrieval.slice(0, qualificationLimit);
-  const evidenceByProfile = new Map(qualificationPool.map((item) => [item.profileId, {
+  const rerankLimit = configuredInt("SEARCH_RERANK_LIMIT", 600, 100, 1000);
+  const retrievalForRerank = retrieval.slice(0, rerankLimit);
+  const retrievalEvidence = new Map(retrievalForRerank.map((item) => [item.profileId, {
     rrf_score: item.score,
     rrf_rank: item.rank,
     channel_ranks: item.channelRanks,
     channel_evidence: item.evidence,
   }]));
-  const bundles = await loadCandidateBundles(qualificationPool.map((item) => item.profileId), evidenceByProfile);
+  const rerankBundles = await loadCandidateBundles(
+    retrievalForRerank.map((item) => item.profileId),
+    retrievalEvidence,
+  );
+  const retrievalById = new Map(retrievalForRerank.map((item) => [item.profileId, item]));
+  const rerankResult = await rerankDocuments(
+    context.jdText,
+    rerankBundles.map((bundle) => ({
+      profileId: bundle.profile.id,
+      text: buildRerankDocument(bundle),
+      retrievalRank: retrievalById.get(bundle.profile.id)?.rank ?? Number.MAX_SAFE_INTEGER,
+    })),
+  );
+  const rerankById = new Map(rerankResult.results.map((item) => [item.profileId, item]));
+  const rerankedRetrieval = rerankResult.results.flatMap((item) => {
+    const retrievalItem = retrievalById.get(item.profileId);
+    return retrievalItem ? [retrievalItem] : [];
+  });
+  const qualificationInitial = configuredInt("SEARCH_QUALIFICATION_INITIAL_LIMIT", 100, 20, 200);
+  const qualificationBatchSize = configuredInt("SEARCH_QUALIFICATION_BATCH_SIZE", 50, 10, 100);
+  const qualificationLimit = configuredInt("SEARCH_QUALIFICATION_MAX_LIMIT", 200, qualificationInitial, 500);
+  const qualificationAdvanceTarget = configuredInt("SEARCH_QUALIFICATION_ADVANCE_TARGET", 30, 2, 60);
+  const qualificationCandidates = rerankedRetrieval.slice(0, qualificationLimit);
+  const evidenceByProfile = new Map(qualificationCandidates.map((item) => {
+    const rerank = rerankById.get(item.profileId)!;
+    return [item.profileId, {
+      ...(retrievalEvidence.get(item.profileId) || {}),
+      rerank_score: rerank.rerankScore,
+      rerank_rank: rerank.rerankRank,
+      rerank_model: rerankResult.model,
+    }];
+  }));
+  const rerankBundleById = new Map(rerankBundles.map((bundle) => [bundle.profile.id, bundle]));
+  const qualificationBundleById = new Map(qualificationCandidates.flatMap((item) => {
+    const bundle = rerankBundleById.get(item.profileId);
+    return bundle ? [[item.profileId, { ...bundle, retrievalEvidence: evidenceByProfile.get(item.profileId)! }] as const] : [];
+  }));
   const usage = { searchId: context.searchId, jobId: context.jobId, userId: context.userId };
   const qualificationConcurrency = Math.max(1, Math.min(48, Number(process.env.SEARCH_QUALIFICATION_CONCURRENCY || 32)));
-  const qualifications = await runWithConcurrency(bundles, qualificationConcurrency, (bundle) =>
-    qualifyCandidate(judgmentInput, bundle, usage),
-  );
+  const qualifications: Qualification[] = [];
+  const qualificationPool = [] as typeof qualificationCandidates;
+  let qualificationStopReason = "pool_exhausted";
+  for (let offset = 0; offset < qualificationCandidates.length;) {
+    const plan = planQualificationBatch({
+      totalCandidates: qualificationCandidates.length,
+      evaluatedCount: offset,
+      advanceCount: qualifications.filter((item) => item.decision === "advance").length,
+      initialLimit: qualificationInitial,
+      batchSize: qualificationBatchSize,
+      maxLimit: qualificationLimit,
+      advanceTarget: qualificationAdvanceTarget,
+    });
+    if (plan.size === 0) {
+      qualificationStopReason = plan.stopReason || qualificationStopReason;
+      break;
+    }
+    const batchItems = qualificationCandidates.slice(offset, offset + plan.size);
+    const batchBundles = batchItems.flatMap((item) => {
+      const bundle = qualificationBundleById.get(item.profileId);
+      return bundle ? [bundle] : [];
+    });
+    const batchQualifications = await runWithConcurrency(batchBundles, qualificationConcurrency, (bundle) =>
+      qualifyCandidate(judgmentInput, bundle, usage),
+    );
+    qualificationPool.push(...batchItems);
+    qualifications.push(...batchQualifications);
+    offset += batchItems.length;
+    if (batchItems.length === 0) break;
+  }
+  const finalPlan = planQualificationBatch({
+    totalCandidates: qualificationCandidates.length,
+    evaluatedCount: qualificationPool.length,
+    advanceCount: qualifications.filter((item) => item.decision === "advance").length,
+    initialLimit: qualificationInitial,
+    batchSize: qualificationBatchSize,
+    maxLimit: qualificationLimit,
+    advanceTarget: qualificationAdvanceTarget,
+  });
+  qualificationStopReason = finalPlan.stopReason || qualificationStopReason;
   const qualificationById = new Map(qualifications.map((item) => [item.profileId, item]));
   const advancedIds = qualificationPool
     .filter((item) => qualificationById.get(item.profileId)?.decision === "advance")
@@ -211,6 +321,10 @@ export async function runCandidateIndexWorkflow(params: {
     .map((item) => item.profileId);
 
   await setSearchStatus(context.searchId, "deep_scoring", { parsed_requirements: params.parsed });
+  const bundles = qualificationPool.flatMap((item) => {
+    const bundle = qualificationBundleById.get(item.profileId);
+    return bundle ? [bundle] : [];
+  });
   const advancedBundles = bundles.filter((bundle) => advancedIds.includes(bundle.profile.id));
   const pairwise = await runPairwiseRanking(judgmentInput, advancedBundles, usage);
   for (const profileId of pairwise.qualificationRejectedProfileIds) {
@@ -237,12 +351,12 @@ export async function runCandidateIndexWorkflow(params: {
   );
   const finalById = new Map(finalJudgments.map((item) => [item.profileId, item]));
   const bundleById = new Map(bundles.map((item) => [item.profile.id, item]));
-  const retrievalById = new Map(qualificationPool.map((item) => [item.profileId, item]));
+  const qualifiedRetrievalById = new Map(qualificationPool.map((item) => [item.profileId, item]));
 
   const finalRows: CandidateRowInput[] = orderedIds.flatMap((profileId) => {
     const bundle = bundleById.get(profileId);
     const qualification = qualificationById.get(profileId);
-    const retrievalItem = retrievalById.get(profileId);
+    const retrievalItem = qualifiedRetrievalById.get(profileId);
     if (!bundle || !qualification || !retrievalItem) return [];
     const finalRank = finalRankById.get(profileId)!;
     const matchScore = orderedIds.length === 1 ? 100 : Math.round(100 - ((finalRank - 1) * 99) / (orderedIds.length - 1));
@@ -269,8 +383,15 @@ export async function runCandidateIndexWorkflow(params: {
       email: null,
       outreach_draft: null,
       metadata: compatibilityMetadata({ profile: bundle.profile, experiences: bundle.experiences, finalRank, matchScore, qualification, finalDecision, finalJudgment: judgment || null, evidencePack }),
-      retrieval_channels: retrievalItem.channelRanks,
-      retrieval_rank: retrievalItem.rank,
+      retrieval_channels: {
+        ...retrievalItem.channelRanks,
+        reranker: {
+          rank: rerankById.get(profileId)?.rerankRank ?? null,
+          score: rerankById.get(profileId)?.rerankScore ?? null,
+          model: rerankResult.model,
+        },
+      },
+      retrieval_rank: rerankById.get(profileId)?.rerankRank ?? retrievalItem.rank,
       qualification_decision: qualification.decision,
       qualification_evidence: {
         supporting_evidence: qualification.supportingEvidence,
@@ -309,11 +430,25 @@ export async function runCandidateIndexWorkflow(params: {
     finalRows,
     displayStats,
     metrics: {
-      indexed_count: indexed.indexedProfileIds.length,
+      processed_profile_count: indexed.indexedProfileIds.length,
+      indexed_count: indexed.indexedProfileIds.length - indexed.reused,
       reused_count: indexed.reused,
       rejected_count: indexed.rejected.length,
-      intake: intake?.metrics ?? null,
+      ingestion: {
+        received_count: params.profiles.length,
+        indexable_count: profilesToIndex.length,
+        incomplete_count: structuralIntake.rejected.length,
+        llm_calls: 0,
+      },
+      intake: null,
+      retrieval_count: retrieval.length,
+      rerank_input_count: retrievalForRerank.length,
+      rerank_output_count: rerankResult.results.length,
+      rerank_model: rerankResult.model,
+      rerank_input_tokens: rerankResult.inputTokens,
       qualification_pool_count: qualificationPool.length,
+      qualification_stop_reason: qualificationStopReason,
+      qualification_advance_target: qualificationAdvanceTarget,
       comparison_count: pairwise.comparisonCount,
       unstable_comparison_count: pairwise.unstableCount,
       comparison_graph_connected: pairwise.graphConnected,

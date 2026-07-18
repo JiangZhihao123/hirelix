@@ -15,6 +15,8 @@ test("profile eligibility omits unknown optional filters without malformed SQL",
 
   assert.match(query.sql, /p\.country_code IN \(\$1\)/);
   assert.match(query.sql, /p\.years_experience >= \$2/);
+  assert.match(query.sql, /p\.country_code IS NULL/);
+  assert.match(query.sql, /p\.years_experience IS NULL/);
   assert.doesNotMatch(query.sql, /highest_degree/);
   assert.deepEqual(query.params, ["US", 2]);
 });

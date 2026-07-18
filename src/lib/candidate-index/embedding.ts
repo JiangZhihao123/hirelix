@@ -1,4 +1,5 @@
 import { getLogger } from "@/lib/logger";
+import { runWithConcurrency } from "@/lib/search/concurrency";
 
 const DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1";
 const DEFAULT_MODEL = "Qwen/Qwen3-Embedding-8B";
@@ -98,18 +99,22 @@ async function embedBatch(texts: string[]): Promise<EmbeddingBatchResult> {
 }
 
 export async function generateEmbeddings(texts: string[]): Promise<EmbeddingBatchResult> {
-  const embeddings: number[][] = [];
-  let inputTokens = 0;
-  let model = "";
-  let dimensions = DEFAULT_DIMENSIONS;
-
+  const batches: string[][] = [];
   for (let index = 0; index < texts.length; index += MAX_BATCH_SIZE) {
-    const result = await embedBatch(texts.slice(index, index + MAX_BATCH_SIZE));
-    embeddings.push(...result.embeddings);
-    inputTokens += result.inputTokens;
-    model = result.model;
-    dimensions = result.dimensions;
+    batches.push(texts.slice(index, index + MAX_BATCH_SIZE));
   }
-  return { embeddings, model, dimensions, inputTokens };
+  if (batches.length === 0) {
+    return { embeddings: [], model: getEmbeddingConfig().model, dimensions: DEFAULT_DIMENSIONS, inputTokens: 0 };
+  }
+  const rawConcurrency = Number.parseInt(process.env.SEARCH_EMBEDDING_CONCURRENCY || "", 10);
+  const concurrency = Number.isFinite(rawConcurrency)
+    ? Math.max(1, Math.min(12, rawConcurrency))
+    : 4;
+  const results = await runWithConcurrency(batches, concurrency, embedBatch);
+  return {
+    embeddings: results.flatMap((result) => result.embeddings),
+    model: results[0].model,
+    dimensions: results[0].dimensions,
+    inputTokens: results.reduce((sum, result) => sum + result.inputTokens, 0),
+  };
 }
-

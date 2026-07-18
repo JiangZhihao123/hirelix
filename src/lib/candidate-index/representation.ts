@@ -24,6 +24,31 @@ export type ProfileRepresentation = {
   }>;
 };
 
+export const BASE_REPRESENTATION_MODEL = "deterministic-profile-v1";
+
+export function buildBaseProfileRepresentation(profile: NormalizedProfile): ProfileRepresentation {
+  const roleLabels = [
+    profile.currentTitle,
+    ...profile.experiences.map((experience) => experience.title),
+  ].filter((value): value is string => Boolean(value?.trim()));
+  return {
+    role_families: [...new Set(roleLabels.map((value) => value.trim()))].slice(0, 6),
+    adjacent_roles: [],
+    seniority: "unknown",
+    skills: [...new Set(profile.rawProfile.skills.map((value) => value.trim()).filter(Boolean))].slice(0, 30),
+    domains: [],
+    capabilities: [],
+    summary: profile.rawProfile.about?.trim().slice(0, 2400) || "",
+    evidence: [],
+    experiences: profile.experiences.map((experience) => ({
+      experience_ref: experience.ref,
+      domain: null,
+      responsibilities: [],
+      technologies: [],
+    })),
+  };
+}
+
 export const PROFILE_REPRESENTATION_SCHEMA = {
   name: "candidate_profile_representation",
   strict: true,
@@ -192,5 +217,9 @@ export function buildProfileSearchDocument(profile: NormalizedProfile, represent
     `Technical evidence: ${representation.skills.join("; ") || "Unknown"}`,
     `Domains: ${representation.domains.join("; ") || "Unknown"}`,
     `Education: ${[profile.highestDegree, ...profile.fieldsOfStudy].filter(Boolean).join("; ") || "Unknown"}`,
+    `Profile summary: ${representation.summary || "Unknown"}`,
+    ...profile.experiences.slice(0, 6).map((experience) =>
+      `Experience: ${experience.title || "Unknown"} at ${experience.company || "Unknown"}; ${(experience.description || "").slice(0, 800) || "No description"}`,
+    ),
   ].join("\n");
 }

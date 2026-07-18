@@ -3,7 +3,12 @@ import test from "node:test";
 
 import type { BrightDataProfile } from "@/lib/brightdata";
 import { buildExperienceSearchDocument, normalizeBrightProfile } from "@/lib/candidate-index/profile";
-import { PROFILE_REPRESENTATION_SCHEMA, validateProfileRepresentation } from "@/lib/candidate-index/representation";
+import {
+  PROFILE_REPRESENTATION_SCHEMA,
+  buildBaseProfileRepresentation,
+  buildProfileSearchDocument,
+  validateProfileRepresentation,
+} from "@/lib/candidate-index/representation";
 import { COMPARISON_SCHEMA, FINAL_SCHEMA, QUALIFICATION_SCHEMA } from "@/lib/candidate-index/judgment";
 
 function profile(): BrightDataProfile {
@@ -38,6 +43,17 @@ test("profile normalization canonicalizes identity and merges overlapping experi
   assert.ok((normalized.yearsExperience || 0) > 7);
   assert.equal(normalized.experiences[0].isCurrent, true);
   assert.match(buildExperienceSearchDocument(normalized.experiences[0]), /Deployed inference services/);
+});
+
+test("base profile representation is deterministic and includes source facts", () => {
+  const source = profile();
+  source.skills = ["Python", "LangGraph"];
+  const normalized = normalizeBrightProfile(source);
+  const representation = buildBaseProfileRepresentation(normalized);
+  assert.deepEqual(representation.skills, ["Python", "LangGraph"]);
+  assert.ok(representation.role_families.includes("ML Engineer"));
+  assert.equal(representation.evidence.length, 0);
+  assert.match(buildProfileSearchDocument(normalized, representation), /Deployed inference services/);
 });
 
 test("profile representation rejects evidence that cannot point to a real experience", () => {

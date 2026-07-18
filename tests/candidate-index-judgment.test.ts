@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PROFILE_INTAKE_SYSTEM_PROMPT } from "@/lib/candidate-index/intake";
 import {
   CANDIDATE_JUDGMENT_PROMPT_VERSION,
   FINAL_JUDGMENT_SYSTEM_PROMPT,
@@ -10,8 +9,7 @@ import {
   normalizeFinalJudgment,
 } from "@/lib/candidate-index/judgment";
 
-test("candidate gate prompts do not treat job-seeking signals as qualification", () => {
-  assert.match(PROFILE_INTAKE_SYSTEM_PROMPT, /do not estimate willingness/i);
+test("qualification prompt does not treat job-seeking signals as qualification", () => {
   assert.match(QUALIFICATION_SYSTEM_PROMPT, /do not estimate willingness/i);
   assert.match(QUALIFICATION_SYSTEM_PROMPT, /do not require active-job-seeking/i);
 });
