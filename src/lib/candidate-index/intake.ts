@@ -31,6 +31,16 @@ const PROFILE_INTAKE_SCHEMA = {
   },
 } as const;
 
+export const PROFILE_INTAKE_SYSTEM_PROMPT = [
+  "Return JSON matching output_contract.",
+  "Decide whether this complete Bright profile belongs in the searchable pool for this specific JD.",
+  "This stage evaluates job fit and profile completeness only; do not estimate willingness to change jobs or require active-job-seeking signals.",
+  "Use concrete work-experience evidence, not headline keyword stuffing, employer prestige, school prestige, or title similarity alone.",
+  "advance requires direct or clearly equivalent recent work; maybe means plausible fit but the work evidence is incomplete.",
+  "reject requires a supported role, scope, location, eligibility, or must-have mismatch; incomplete means the profile lacks enough real work-history data to judge.",
+  "Unknown information is not rejection evidence.",
+].join(" ");
+
 function strings(value: unknown, limit = 8) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim()).slice(0, limit)
@@ -96,7 +106,7 @@ async function defaultJudgeProfile(
     try {
       const { data } = await generateLlmJson<Record<string, unknown>>({
         model,
-        system: "Return JSON matching output_contract. Decide whether this complete Bright profile belongs in the searchable pool for this specific JD. Use concrete work-experience evidence, not headline keyword stuffing, employer prestige, school prestige, or title similarity alone. advance requires direct or clearly equivalent recent work. maybe means plausible but evidence is incomplete. reject requires a supported role, scope, location, or must-have mismatch. incomplete means the profile lacks enough real work-history data to judge. Unknown information is not rejection evidence.",
+        system: PROFILE_INTAKE_SYSTEM_PROMPT,
         prompt: JSON.stringify({
           output_contract: PROFILE_INTAKE_SCHEMA.schema,
           jd,

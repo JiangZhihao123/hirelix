@@ -116,6 +116,49 @@ export const FINAL_SCHEMA = {
   },
 } as const;
 
+export const CANDIDATE_JUDGMENT_PROMPT_VERSION = 2;
+
+export const QUALIFICATION_SYSTEM_PROMPT = [
+  "Return JSON matching output_contract.",
+  "Judge only whether the candidate has enough concrete evidence of job fit and eligibility to enter relative ranking for this JD.",
+  "Do not estimate willingness to change jobs and do not require active-job-seeking, open-to-work, or other availability signals.",
+  "Unknown information is not rejection evidence; employer or school prestige and title similarity are never sufficient.",
+  "advance means the profile contains strong direct or clearly equivalent evidence for the core work and mandatory constraints.",
+  "maybe means the fit is plausible but evidence for a JD-relevant capability or mandatory fact is incomplete.",
+  "Return reject only for a concrete supported mismatch or failed mandatory constraint.",
+].join(" ");
+
+export const PAIRWISE_COMPARISON_SYSTEM_PROMPT = [
+  "Return JSON matching output_contract.",
+  "Both candidates passed a minimum job-fit gate; decide who a recruiter should contact first for this specific JD.",
+  "Use concrete JD fit as the primary comparison: demonstrated core work, scope, seniority, career direction, mandatory constraints, and strength of evidence.",
+  "Use evidence-based likelihood of considering the opportunity only as a secondary prioritization factor, especially when job fit is close.",
+  "A missing active-job-seeking or availability signal is neutral and must not make an otherwise stronger candidate lose; unknown willingness is unknown, not low.",
+  "Explicit positive or negative willingness evidence may affect priority, but a weaker-fit candidate must not win merely because they appear more available.",
+  "Read the full career trajectory, current role, scope, direction, work model, location, employment preferences, and explicit availability signals in context.",
+  "The payload includes evaluation_date: calculate tenure or recency from exact profile dates and evaluation_date, and never let tenure alone determine willingness.",
+  "Every willingness claim or risk must cite an actual profile fact.",
+  "Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits; record unsupported matters as unknown.",
+  "Prefer tie when expected recruiting priority is genuinely indistinguishable; do not output a numeric score or confidence.",
+  "Use qualification_review_required only when concrete evidence reveals a minimum-qualification problem missed by the gate.",
+].join(" ");
+
+export const FINAL_JUDGMENT_SYSTEM_PROMPT = [
+  "Return concise JSON matching output_contract; keep each array to the few strongest non-duplicative items and each string under 180 characters.",
+  "Make the final recruiter-facing decision for this specific JD from the complete profile, qualification evidence, and relative ranking.",
+  "Evaluate job fit and join likelihood as separate questions: job fit determines whether outreach is warranted, while join likelihood determines outreach priority, effort, and messaging.",
+  "This is passive recruiting: contact does not require active-job-seeking, open-to-work, or any explicit statement that the person wants to leave.",
+  "Use contact when concrete evidence shows strong direct or clearly equivalent fit for the core work and no evidence-based blocker makes outreach unreasonable; unknown willingness alone must not downgrade contact.",
+  "Use review only when a JD-relevant capability, mandatory eligibility fact, or material fit question remains genuinely ambiguous and needs recruiter review; do not use review merely because willingness is unknown.",
+  "Use hold when the candidate is relevant but materially weaker or has a substantial evidence-based fit or availability risk; use reject only for a clear supported mismatch or failed mandatory constraint.",
+  "An explicit positive or negative willingness signal may change priority or expose a blocker, but join likelihood alone must not override compelling job fit.",
+  "Read the career trajectory, current role, scope, direction, work model, location, employment preferences, and explicit availability signals in context.",
+  "The payload includes evaluation_date: calculate tenure or recency from exact profile dates and evaluation_date, and never let tenure alone determine willingness.",
+  "Treat profile signals as evidence, not certainty; every join-likelihood reason or risk must cite an actual profile fact.",
+  "Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits; put unsupported matters in missing_information.",
+  "Every claim must point to concrete profile evidence, and missing information is not rejection evidence unless the JD explicitly makes it mandatory.",
+].join(" ");
+
 function stringArray(value: unknown, limit = 12) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim()).slice(0, limit)
@@ -239,7 +282,7 @@ export async function qualifyCandidate(
   const model = modelOverride || process.env.SEARCH_LIGHT_MODEL || getLightweightLlmModel();
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Return JSON matching output_contract. Judge only whether the candidate clears the minimum contact threshold for this JD. Use concrete profile evidence. Unknown information is not rejection evidence. Employer or school prestige and title similarity are never sufficient. Return reject only for a supported mismatch; maybe means plausible but insufficient evidence.",
+    system: QUALIFICATION_SYSTEM_PROMPT,
     prompt: JSON.stringify({
       output_contract: QUALIFICATION_SCHEMA.schema,
       jd,
@@ -292,7 +335,7 @@ async function compareCandidates(
   const requestHash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Return JSON matching output_contract. Both candidates passed a minimum qualification gate. Decide who a recruiter should contact first for this specific JD by reasoning holistically about both concrete job fit and the likelihood that the person would seriously consider this opportunity. Read the full career trajectory, current role, scope, direction, work model, location, employment preferences, and any explicit availability signals in context. The payload includes evaluation_date: if discussing tenure or recency, calculate it from the exact profile dates and evaluation_date before making a claim. Never call a start date recent without checking elapsed time, and never let tenure alone determine willingness. Do not use a fixed formula or mechanical tenure/title rules. Treat each signal as evidence, not a verdict; unknown willingness is unknown, not low. Every willingness claim or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; record those as unknown instead. Prefer tie when expected recruiting value is genuinely indistinguishable. Do not output a numeric score or confidence. Use qualification_review_required only when concrete evidence reveals a minimum-qualification problem missed by the gate.",
+    system: PAIRWISE_COMPARISON_SYSTEM_PROMPT,
     prompt: JSON.stringify(payload),
     maxOutputTokens: 3000,
     timeoutMs: 90_000,
@@ -363,7 +406,7 @@ async function persistComparison(params: {
     is_stable: params.stable,
     included_in_fit: params.included,
     model: params.result.model,
-    prompt_version: 1,
+    prompt_version: CANDIDATE_JUDGMENT_PROMPT_VERSION,
     request_hash: params.result.requestHash,
   }).onConflictDoUpdate({
     target: [
@@ -490,7 +533,7 @@ export async function judgeFinalCandidate(
   const model = process.env.SEARCH_ARBITER_MODEL || "deepseek-v4-pro";
   const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
     model,
-    system: "Return concise JSON matching output_contract. Keep each array to the few strongest non-duplicative items and each string under 180 characters. Make the final recruiter-facing decision for this specific JD from the complete profile and evidence pack. Reason holistically about two independent questions: whether the person is genuinely strong and relevant, and how plausible it is that they would seriously consider this opportunity. Read the career trajectory, current role, scope, direction, work model, location, employment preferences, and explicit availability signals in context. The payload includes evaluation_date: if discussing tenure or recency, calculate it from the exact profile dates and evaluation_date before making a claim. Never call a start date recent without checking elapsed time, and never let tenure alone determine willingness. Do not apply a fixed formula or mechanical tenure/title rules. Treat profile signals as evidence, not certainty; unknown willingness must remain unknown rather than becoming low. Every join-likelihood reason or risk must cite an actual profile fact. Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits when the profile does not state them; put those in missing_information instead. A contact decision requires both compelling fit and a sufficiently plausible evidence-based reason to engage now; use review when fit is strong but willingness or a key fact remains uncertain. Every claim must point to concrete profile evidence, and missing information is not rejection evidence unless the JD explicitly makes it mandatory.",
+    system: FINAL_JUDGMENT_SYSTEM_PROMPT,
     prompt: JSON.stringify({
       output_contract: FINAL_SCHEMA.schema,
       evaluation_date: new Date().toISOString().slice(0, 10),
@@ -506,6 +549,13 @@ export async function judgeFinalCandidate(
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_FINAL_JUDGMENT_THINKING", "enabled"),
     usageEvent: { ...usage, stage: "final_judgment" },
   }), 5);
+  return normalizeFinalJudgment(bundle.profile.id, data);
+}
+
+export function normalizeFinalJudgment(
+  profileId: string,
+  data: Record<string, unknown>,
+): FinalJudgment {
   const decision = data.decision === "contact" || data.decision === "review" || data.decision === "reject" ? data.decision : "hold";
   const joinLikelihood = data.join_likelihood === "high" || data.join_likelihood === "medium" || data.join_likelihood === "low"
     ? data.join_likelihood
@@ -514,7 +564,7 @@ export async function judgeFinalCandidate(
     ? data.join_likelihood_score
     : 0;
   return {
-    profileId: bundle.profile.id,
+    profileId,
     decision,
     joinLikelihood,
     joinLikelihoodScore: joinLikelihood === "unknown"
