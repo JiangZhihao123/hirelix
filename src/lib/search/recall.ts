@@ -48,7 +48,7 @@ const MAX_BRIGHT_OR_FILTERS = 20;
 const MAX_LLM_SOURCING_LANES = 4;
 const MIN_LLM_SUPPLEMENTAL_RECORDS = 3;
 
-function useBrightExperienceFilters() {
+function shouldUseBrightExperienceFilters() {
   return process.env.BRIGHTDATA_USE_EXPERIENCE_FILTERS === "true";
 }
 
@@ -617,8 +617,8 @@ export function buildRecallSkillSignalGroups(recallSpec: RecallSpec) {
 function buildProfileSignalFilter(terms: string[], maxTerms = 8): BrightDataFilterRule | null {
   const normalizedTerms = compactTerms(terms, maxTerms);
   if (normalizedTerms.length === 0) return null;
-  const descriptionField = useBrightExperienceFilters() ? "experience:description" : "about";
-  const titleField = useBrightExperienceFilters() ? "experience:title" : "position";
+  const descriptionField = shouldUseBrightExperienceFilters() ? "experience:description" : "about";
+  const titleField = shouldUseBrightExperienceFilters() ? "experience:title" : "position";
 
   return {
     operator: "or",
@@ -891,8 +891,8 @@ function buildHeadhunterLaneEvidenceFilter(params: {
 function buildProfileSignalLeaf(term: string, name: "about" | "position"): BrightDataFilterRule {
   return {
     name: name === "position"
-      ? (useBrightExperienceFilters() ? "experience:title" : "position")
-      : (useBrightExperienceFilters() ? "experience:description" : "about"),
+      ? (shouldUseBrightExperienceFilters() ? "experience:title" : "position")
+      : (shouldUseBrightExperienceFilters() ? "experience:description" : "about"),
     operator: "includes",
     value: term,
   };
@@ -1199,7 +1199,7 @@ function buildTitleFilter(titleTerms: string[], limit = 12): BrightDataFilterRul
     (term) => !GENERIC_SENIORITY_TITLE_TERMS.has(term),
   );
   if (terms.length === 0) return null;
-  const titleFields = useBrightExperienceFilters()
+  const titleFields = shouldUseBrightExperienceFilters()
     ? ["current_company:title", "experience:title"]
     : ["position"];
   return {
@@ -2376,7 +2376,7 @@ function buildDeterministicExpansionRounds(params: {
         const hiddenGemFilters: BrightDataFilterRule[] = [
           {
             operator: "or",
-            filters: (useBrightExperienceFilters()
+            filters: (shouldUseBrightExperienceFilters()
               ? ["current_company:title", "experience:title"]
               : ["position"]
             ).flatMap((field) => lateralTitles.map((term) => ({
@@ -2615,7 +2615,10 @@ export function buildBrightDataRecallFilters(
     }),
   }];
 
-  if (headhunterStrategyMode === "headhunter_v2") {
+  if (
+    headhunterStrategyMode === "headhunter_v2" &&
+    executionProfile.name !== "bright_free_preview"
+  ) {
     const configuredLanes = recallSpec.sourcing_lanes
       .filter((lane) => lane.lane_kind !== "exploration")
       .slice(0, 4);

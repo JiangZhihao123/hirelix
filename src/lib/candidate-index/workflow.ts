@@ -1,5 +1,6 @@
 import type { BrightDataProfile } from "@/lib/brightdata";
 import { hybridRetrieve, type HybridSearchIntent } from "@/lib/candidate-index/retrieval";
+import { screenBrightProfilesForIndex } from "@/lib/candidate-index/intake";
 import { indexBrightProfiles } from "@/lib/candidate-index/store";
 import {
   judgeFinalCandidate,
@@ -165,34 +166,46 @@ export async function runCandidateIndexWorkflow(params: {
   brightRequested: number;
 }) {
   const { context } = params;
-  const indexed = params.profiles.length > 0
-    ? await indexBrightProfiles(params.profiles, {
+  const { intent, judgmentInput } = buildCandidateIndexSearchIntent(context.jdText, params.parsed);
+  const intakeLimit = Math.max(1, Math.min(500, Number(process.env.SEARCH_INTAKE_INDEX_LIMIT || 120)));
+  const intake = params.profiles.length > 0
+    ? await screenBrightProfilesForIndex({
+      jd: judgmentInput,
+      profiles: params.profiles,
+      usage: { searchId: context.searchId, jobId: context.jobId, userId: context.userId },
+      limit: intakeLimit,
+    })
+    : null;
+  const profilesToIndex = intake?.selectedProfiles ?? [];
+  const indexed = profilesToIndex.length > 0
+    ? await indexBrightProfiles(profilesToIndex, {
       snapshotId: params.snapshotId,
       searchId: context.searchId,
       jobId: context.jobId,
       userId: context.userId,
     })
     : { indexedProfileIds: [], reused: 0, rejected: [] };
-  if (params.profiles.length > 0 && indexed.indexedProfileIds.length === 0) {
-    throw new Error(`Candidate index rejected all profiles: ${indexed.rejected.slice(0, 3).map((item) => item.reason).join("; ")}`);
+  if (profilesToIndex.length > 0 && indexed.indexedProfileIds.length === 0) {
+    throw new Error(`Candidate index rejected all intake-approved profiles: ${indexed.rejected.slice(0, 3).map((item) => item.reason).join("; ")}`);
   }
-  const { intent, judgmentInput } = buildCandidateIndexSearchIntent(context.jdText, params.parsed);
   const retrieval = await hybridRetrieve(intent, 500);
   if (retrieval.length === 0) throw new Error("Candidate index retrieval returned no eligible profiles");
-  const evidenceByProfile = new Map(retrieval.map((item) => [item.profileId, {
+  const qualificationLimit = Math.max(1, Math.min(200, Number(process.env.SEARCH_QUALIFICATION_LIMIT || 100)));
+  const qualificationPool = retrieval.slice(0, qualificationLimit);
+  const evidenceByProfile = new Map(qualificationPool.map((item) => [item.profileId, {
     rrf_score: item.score,
     rrf_rank: item.rank,
     channel_ranks: item.channelRanks,
     channel_evidence: item.evidence,
   }]));
-  const bundles = await loadCandidateBundles(retrieval.map((item) => item.profileId), evidenceByProfile);
+  const bundles = await loadCandidateBundles(qualificationPool.map((item) => item.profileId), evidenceByProfile);
   const usage = { searchId: context.searchId, jobId: context.jobId, userId: context.userId };
   const qualificationConcurrency = Math.max(1, Math.min(48, Number(process.env.SEARCH_QUALIFICATION_CONCURRENCY || 32)));
   const qualifications = await runWithConcurrency(bundles, qualificationConcurrency, (bundle) =>
     qualifyCandidate(judgmentInput, bundle, usage),
   );
   const qualificationById = new Map(qualifications.map((item) => [item.profileId, item]));
-  const advancedIds = retrieval
+  const advancedIds = qualificationPool
     .filter((item) => qualificationById.get(item.profileId)?.decision === "advance")
     .slice(0, 60)
     .map((item) => item.profileId);
@@ -215,7 +228,7 @@ export async function runCandidateIndexWorkflow(params: {
   const advancedOrdered = [...activeAdvancedIds].sort((left, right) =>
     (rankingById.get(left)?.rank ?? Number.POSITIVE_INFINITY) - (rankingById.get(right)?.rank ?? Number.POSITIVE_INFINITY),
   );
-  const remainingOrdered = retrieval.map((item) => item.profileId).filter((id) => !advancedOrdered.includes(id));
+  const remainingOrdered = qualificationPool.map((item) => item.profileId).filter((id) => !advancedOrdered.includes(id));
   const orderedIds = [...advancedOrdered, ...remainingOrdered];
   const finalRankById = new Map(orderedIds.map((id, index) => [id, index + 1]));
   const topBundles = orderedIds.slice(0, 20).map((id) => bundles.find((bundle) => bundle.profile.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
@@ -224,7 +237,7 @@ export async function runCandidateIndexWorkflow(params: {
   );
   const finalById = new Map(finalJudgments.map((item) => [item.profileId, item]));
   const bundleById = new Map(bundles.map((item) => [item.profile.id, item]));
-  const retrievalById = new Map(retrieval.map((item) => [item.profileId, item]));
+  const retrievalById = new Map(qualificationPool.map((item) => [item.profileId, item]));
 
   const finalRows: CandidateRowInput[] = orderedIds.flatMap((profileId) => {
     const bundle = bundleById.get(profileId);
@@ -299,6 +312,8 @@ export async function runCandidateIndexWorkflow(params: {
       indexed_count: indexed.indexedProfileIds.length,
       reused_count: indexed.reused,
       rejected_count: indexed.rejected.length,
+      intake: intake?.metrics ?? null,
+      qualification_pool_count: qualificationPool.length,
       comparison_count: pairwise.comparisonCount,
       unstable_comparison_count: pairwise.unstableCount,
       comparison_graph_connected: pairwise.graphConnected,

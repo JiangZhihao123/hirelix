@@ -141,7 +141,7 @@ let cachedClient: OpenRouter | null = null;
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
-const DEFAULT_LLM_GLOBAL_CONCURRENCY = 12;
+const DEFAULT_LLM_GLOBAL_CONCURRENCY = 32;
 const DEFAULT_LLM_MAX_ATTEMPTS = 4;
 const DEFAULT_LLM_RETRY_BASE_MS = 2000;
 const DEFAULT_LLM_RETRY_MAX_MS = 30000;
