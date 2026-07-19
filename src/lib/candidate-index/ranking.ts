@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { conjugateGradient } from "fmin";
 
 export type RetrievalChannel = "profile_fts" | "experience_fts" | "profile_vector" | "experience_vector";
 
@@ -122,6 +121,64 @@ export type DavidsonRank = {
 function logSumExp(values: number[]) {
   const max = Math.max(...values);
   return max + Math.log(values.reduce((sum, value) => sum + Math.exp(value - max), 0));
+}
+
+type DifferentiableObjective = (parameters: number[], gradient: number[]) => number;
+
+function dot(left: number[], right: number[]) {
+  return left.reduce((sum, value, index) => sum + value * right[index], 0);
+}
+
+function conjugateGradient(
+  objective: DifferentiableObjective,
+  initial: number[],
+  options: { maxIterations?: number; gradientTolerance?: number } = {},
+) {
+  let x = [...initial];
+  let gradient = Array(initial.length).fill(0);
+  let value = objective(x, gradient);
+  let direction = gradient.map((item) => -item);
+  const maxIterations = options.maxIterations ?? initial.length * 20;
+  const tolerance = options.gradientTolerance ?? 1e-5;
+
+  for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+    const gradientNorm = Math.sqrt(dot(gradient, gradient));
+    if (!Number.isFinite(value) || !Number.isFinite(gradientNorm) || gradientNorm <= tolerance) break;
+
+    let slope = dot(gradient, direction);
+    if (slope >= 0) {
+      direction = gradient.map((item) => -item);
+      slope = -dot(gradient, gradient);
+    }
+
+    let step = 1;
+    let nextX = x;
+    let nextGradient = Array(initial.length).fill(0);
+    let nextValue = value;
+    while (step >= 1e-12) {
+      const trialX = x.map((item, index) => item + step * direction[index]);
+      const trialGradient = Array(initial.length).fill(0);
+      const trialValue = objective(trialX, trialGradient);
+      if (Number.isFinite(trialValue) && trialValue <= value + 1e-4 * step * slope) {
+        nextX = trialX;
+        nextGradient = trialGradient;
+        nextValue = trialValue;
+        break;
+      }
+      step *= 0.5;
+    }
+    if (step < 1e-12) break;
+
+    const denominator = Math.max(dot(gradient, gradient), Number.EPSILON);
+    const gradientDelta = nextGradient.map((item, index) => item - gradient[index]);
+    const beta = Math.max(0, dot(nextGradient, gradientDelta) / denominator);
+    direction = nextGradient.map((item, index) => -item + beta * direction[index]);
+    x = nextX;
+    gradient = nextGradient;
+    value = nextValue;
+  }
+
+  return { x, fx: value };
 }
 
 function fitScores(candidateIds: string[], comparisons: ComparisonOutcome[], lambda: number) {
