@@ -4,7 +4,7 @@ export type BillingPlanCode =
   | "starter_annual"
   | "pro_monthly"
   | "pro_annual";
-export type BillingStatus = "active" | "trialing" | "past_due" | "canceled";
+export type BillingStatus = "active" | "trialing" | "past_due" | "paused" | "canceled";
 export type BillingCycle = "month" | "year" | null;
 
 export type BillingPlan = {
@@ -215,7 +215,12 @@ export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
 const ACTIVE_BILLING_STATUSES = new Set<BillingStatus>(["active", "trialing"]);
 
 export function normalizeBillingStatus(status: string | null | undefined): BillingStatus {
-  if (status === "trialing" || status === "past_due" || status === "canceled") {
+  if (
+    status === "trialing" ||
+    status === "past_due" ||
+    status === "paused" ||
+    status === "canceled"
+  ) {
     return status;
   }
   return "active";

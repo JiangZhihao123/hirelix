@@ -6,7 +6,9 @@ import {
   CUSTOMER_BILLING_PLAN_CODES,
   formatCountLabel,
   getCheckoutConfig,
+  getEffectivePlanCode,
   getPlanStatusCopy,
+  normalizeBillingStatus,
   type BillingSummary,
 } from "../src/lib/billing";
 
@@ -121,6 +123,12 @@ test("billing plans expose free, starter, and pro client-role tiers", () => {
   assert.equal(BILLING_PLANS.pro_annual.priceCents, 358800);
   assert.equal(BILLING_PLANS.pro_annual.profileScansPerMonth, 15000);
   assert.equal(BILLING_PLANS.pro_annual.emailLookupsPerMonth, 500);
+});
+
+test("paused Paddle subscriptions do not retain paid entitlements", () => {
+  assert.equal(normalizeBillingStatus("paused"), "paused");
+  assert.equal(getEffectivePlanCode("starter_monthly", "paused"), "free");
+  assert.equal(getEffectivePlanCode("pro_annual", "paused"), "free");
 });
 
 test("plan status copy describes candidate pool actions for free and paid plans", () => {

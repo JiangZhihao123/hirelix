@@ -8,6 +8,7 @@ import { getCheckoutConfig } from "@/lib/billing";
 import { getLogger } from "@/lib/logger";
 
 const paddleWebhookLogger = getLogger({ component: "paddle_webhook" });
+type BillingTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 function logBillingEvent(eventName: string, payload: Record<string, unknown>) {
   paddleWebhookLogger.info({ event: eventName, ...payload });
@@ -39,15 +40,6 @@ function describeError(error: unknown): Record<string, unknown> {
   return {
     message: String(error),
   };
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "23505"
-  );
 }
 
 export function verifyPaddleSignature(rawBody: string, signature: string | null) {
@@ -275,26 +267,30 @@ async function resolveUserId(data: Record<string, unknown>) {
 }
 
 async function recordEvent(
+  executor: BillingTransaction,
   eventId: string,
   eventType: string,
   userId: string | null,
   payload: Record<string, unknown>,
 ) {
-  try {
-    await db.insert(hirelix_billing_events).values({
+  const inserted = await executor
+    .insert(hirelix_billing_events)
+    .values({
       event_id: eventId,
       event_type: eventType,
       user_id: userId,
       payload,
-    });
-    return false;
-  } catch (error) {
-    if (isUniqueViolation(error)) return true;
-    throw error;
-  }
+    })
+    .onConflictDoNothing({ target: hirelix_billing_events.event_id })
+    .returning({ event_id: hirelix_billing_events.event_id });
+  return inserted.length === 0;
 }
 
-async function updateSubscription(data: Record<string, unknown>, userId: string) {
+async function updateSubscription(
+  executor: BillingTransaction,
+  data: Record<string, unknown>,
+  userId: string,
+) {
   const priceIds = getPaddlePriceIds(data);
   const planCode = resolvePaddlePlanCode(priceIds);
   if (!planCode) return null;
@@ -342,7 +338,7 @@ async function updateSubscription(data: Record<string, unknown>, userId: string)
     subscription_renews_at: renewsAtDate,
     updated_at: new Date(),
   };
-  await db
+  await executor
     .insert(hirelix_user_settings)
     .values(values)
     .onConflictDoUpdate({
@@ -396,8 +392,20 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = await resolveUserId(data);
-    const isDuplicate = await recordEvent(eventId, eventType, userId, payload);
-    if (isDuplicate) {
+    const transactionResult = await db.transaction(async (tx) => {
+      const duplicate = await recordEvent(tx, eventId, eventType, userId, payload);
+      if (duplicate) {
+        return { duplicate: true as const, planCode: null };
+      }
+
+      const planCode =
+        userId && eventType.startsWith("subscription.") && !isTestPayment(data)
+          ? await updateSubscription(tx, data, userId)
+          : null;
+      return { duplicate: false as const, planCode };
+    });
+
+    if (transactionResult.duplicate) {
       logBillingEvent("webhook_duplicate", {
         event_id: eventId,
         event_type: eventType,
@@ -406,15 +414,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, duplicate: true });
     }
 
-    if (userId && eventType.startsWith("subscription.") && !isTestPayment(data)) {
-      const planCode = await updateSubscription(data, userId);
-      if (planCode && (eventType === "subscription.created" || eventType === "subscription.activated")) {
+    if (
+      userId &&
+      transactionResult.planCode &&
+      (eventType === "subscription.created" || eventType === "subscription.activated")
+    ) {
+      try {
         await notifySubscriptionAlert({
           eventId,
           eventType,
           userId,
           data,
-          planCode,
+          planCode: transactionResult.planCode,
+        });
+      } catch (error) {
+        paddleWebhookLogger.error({
+          event: "subscription_alert_failed",
+          event_id: eventId,
+          event_type: eventType,
+          user_id: userId,
+          ...describeError(error),
         });
       }
     }
