@@ -84,6 +84,26 @@ export type AnalyticsContext = {
 
 type TrackEventPayload = Record<string, AnalyticsValue>;
 
+const INTERNAL_PRODUCT_EVENTS = new Set<AnalyticsEventName>([
+  ANALYTICS_EVENTS.searchProcessingView,
+  ANALYTICS_EVENTS.searchResultsView,
+  ANALYTICS_EVENTS.resultsSummaryView,
+  ANALYTICS_EVENTS.searchDone,
+  ANALYTICS_EVENTS.candidateExpand,
+  ANALYTICS_EVENTS.upgradeCtaClick,
+  ANALYTICS_EVENTS.upgradeValueExposed,
+  ANALYTICS_EVENTS.resultsUnlockCtaViewed,
+  ANALYTICS_EVENTS.resultsUnlockCtaClicked,
+  ANALYTICS_EVENTS.contactUnlockGateView,
+  ANALYTICS_EVENTS.clientBriefGateView,
+  ANALYTICS_EVENTS.pricingPlanSelect,
+  ANALYTICS_EVENTS.checkoutStart,
+  ANALYTICS_EVENTS.checkoutSuccess,
+  ANALYTICS_EVENTS.checkoutError,
+  ANALYTICS_EVENTS.retrySearchClick,
+  ANALYTICS_EVENTS.planStatusCardClick,
+]);
+
 declare global {
   interface Window {
     dataLayer?: Array<Record<string, unknown>>;
@@ -268,9 +288,11 @@ export function buildAttributionQuery(options: {
 }
 
 function compactPayload(payload: TrackEventPayload) {
-  return Object.fromEntries(
-    Object.entries(payload).filter(([, value]) => value !== undefined),
-  );
+  const compacted: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value !== undefined) compacted[key] = value;
+  }
+  return compacted;
 }
 
 export function trackEvent(
@@ -280,6 +302,10 @@ export function trackEvent(
   if (typeof window === "undefined") return;
 
   const safePayload = compactPayload(payload);
+
+  if (INTERNAL_PRODUCT_EVENTS.has(eventName)) {
+    void window.__hirelixGrowthTrack?.(eventName, safePayload);
+  }
 
   if (typeof window.gtag === "function") {
     window.gtag("event", eventName, safePayload);

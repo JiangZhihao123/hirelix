@@ -156,6 +156,53 @@ test("buildOpsConversionData keeps filtered traffic out of the main funnel", () 
   assert.equal(data.funnel[0].count, 1);
 });
 
+test("buildOpsConversionData exposes the production operations snapshot", () => {
+  const start = new Date("2026-05-26T00:00:00.000Z");
+  const end = new Date("2026-05-27T00:00:00.000Z");
+  const data = buildOpsConversionData([], {
+    range: "today",
+    start,
+    end,
+    operations: {
+      generatedAt: end.toISOString(),
+      users: { total: 12, newInRange: 2, activePaid: 1 },
+      searches: {
+        created: 5,
+        completed: 4,
+        failed: 1,
+        processing: 0,
+        successRate: 80,
+        medianCompletionMinutes: 11.5,
+        candidatesDelivered: 240,
+        averageCandidatesPerCompleted: 60,
+      },
+      billing: {
+        completedPayments: 1,
+        checkoutStarts: 3,
+        checkoutErrors: 0,
+        upgradeClicks: 4,
+        revenue: [{ currency: "USD", amountMinor: 14900, payments: 1 }],
+      },
+      jobs: {
+        searchQueued: 0,
+        searchRunning: 0,
+        searchFailed: 1,
+        evidenceQueued: 0,
+        evidenceRunning: 0,
+        evidenceFailed: 0,
+        stale: 0,
+      },
+      index: { totalProfiles: 1000, readyProfiles: 995, pendingProfiles: 4, failedProfiles: 1 },
+      searchStatuses: [{ status: "done", count: 4 }],
+      recentSearches: [],
+    },
+  });
+
+  assert.equal(data.operations.searches.successRate, 80);
+  assert.equal(data.operations.billing.revenue[0].amountMinor, 14900);
+  assert.equal(data.operations.index.readyProfiles, 995);
+});
+
 test("buildOpsConversionData uses selected range labels in operator copy", () => {
   const end = new Date("2026-05-26T12:00:00.000Z");
   const start = new Date("2026-05-20T00:00:00.000Z");

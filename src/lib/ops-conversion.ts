@@ -68,7 +68,59 @@ export type OpsConversionData = {
   filteredTraffic: FilteredTrafficSummary[];
   ipAttribution: IpAttributionSummary[];
   betaInvites: BetaInviteOpsSummary;
+  operations: OpsOperationsSnapshot;
   diagnosis: string;
+};
+
+export type OpsOperationsSnapshot = {
+  generatedAt: string;
+  users: {
+    total: number;
+    newInRange: number;
+    activePaid: number;
+  };
+  searches: {
+    created: number;
+    completed: number;
+    failed: number;
+    processing: number;
+    successRate: number;
+    medianCompletionMinutes: number;
+    candidatesDelivered: number;
+    averageCandidatesPerCompleted: number;
+  };
+  billing: {
+    completedPayments: number;
+    checkoutStarts: number;
+    checkoutErrors: number;
+    upgradeClicks: number;
+    revenue: Array<{ currency: string; amountMinor: number; payments: number }>;
+  };
+  jobs: {
+    searchQueued: number;
+    searchRunning: number;
+    searchFailed: number;
+    evidenceQueued: number;
+    evidenceRunning: number;
+    evidenceFailed: number;
+    stale: number;
+  };
+  index: {
+    totalProfiles: number;
+    readyProfiles: number;
+    pendingProfiles: number;
+    failedProfiles: number;
+  };
+  searchStatuses: Array<{ status: string; count: number }>;
+  recentSearches: Array<{
+    id: string;
+    title: string;
+    status: string;
+    candidateCount: number;
+    durationMinutes: number | null;
+    createdAt: string;
+    error: string | null;
+  }>;
 };
 
 export type DurationBucket = {
@@ -190,6 +242,9 @@ const EFFECTIVE_CLICK_EVENTS = new Set([
   "preview_request_submit",
   "book_feedback_click",
   "reply_email_click",
+  "upgrade_cta_click",
+  "results_unlock_cta_clicked",
+  "checkout_start",
 ]);
 
 export const PAGE_STAY_BUCKETS: Array<Omit<DurationBucket, "count"> & { min: number; max: number }> = [
@@ -314,6 +369,7 @@ export function buildOpsConversionData(
     end: Date;
     ipAttribution?: Map<string, IpAttribution> | Record<string, IpAttribution>;
     betaInvites?: BetaInviteOpsSummary;
+    operations?: OpsOperationsSnapshot;
   },
 ): OpsConversionData {
   const cleanEvents = removeOrphanSignupEvents(events.filter((event) => !isOpsEvent(event)));
@@ -417,6 +473,7 @@ export function buildOpsConversionData(
     filteredTraffic: buildFilteredTraffic(filteredSessions, trafficBySession),
     ipAttribution: buildIpAttributionSummary(sessions, trafficBySession, ipAttribution),
     betaInvites: options.betaInvites ?? emptyBetaInviteOpsSummary(),
+    operations: options.operations ?? emptyOpsOperationsSnapshot(options.end),
     diagnosis: buildDiagnosis({
       humanVisits: humanSessions.length,
       effectiveClicks,
@@ -427,6 +484,42 @@ export function buildOpsConversionData(
       highInterestNoAction,
       rangeLabel,
     }),
+  };
+}
+
+export function emptyOpsOperationsSnapshot(now = new Date()): OpsOperationsSnapshot {
+  return {
+    generatedAt: now.toISOString(),
+    users: { total: 0, newInRange: 0, activePaid: 0 },
+    searches: {
+      created: 0,
+      completed: 0,
+      failed: 0,
+      processing: 0,
+      successRate: 0,
+      medianCompletionMinutes: 0,
+      candidatesDelivered: 0,
+      averageCandidatesPerCompleted: 0,
+    },
+    billing: {
+      completedPayments: 0,
+      checkoutStarts: 0,
+      checkoutErrors: 0,
+      upgradeClicks: 0,
+      revenue: [],
+    },
+    jobs: {
+      searchQueued: 0,
+      searchRunning: 0,
+      searchFailed: 0,
+      evidenceQueued: 0,
+      evidenceRunning: 0,
+      evidenceFailed: 0,
+      stale: 0,
+    },
+    index: { totalProfiles: 0, readyProfiles: 0, pendingProfiles: 0, failedProfiles: 0 },
+    searchStatuses: [],
+    recentSearches: [],
   };
 }
 
@@ -1075,6 +1168,23 @@ function eventLabel(eventType: string) {
     preview_request_submit: "提交预览申请",
     book_feedback_click: "点击预约反馈",
     reply_email_click: "点击回复邮件",
+    search_processing_view: "查看搜索进度",
+    search_results_view: "查看搜索结果",
+    results_summary_view: "查看交付摘要",
+    search_done: "搜索完成",
+    candidate_expand: "展开候选人",
+    upgrade_cta_click: "点击升级",
+    upgrade_value_exposed: "看到付费价值",
+    results_unlock_cta_viewed: "看到解锁入口",
+    results_unlock_cta_clicked: "点击解锁结果",
+    contact_unlock_gate_view: "看到联系人解锁",
+    client_brief_gate_view: "看到客户简报解锁",
+    pricing_plan_select: "选择价格方案",
+    checkout_start: "打开结账",
+    checkout_success: "结账返回成功页",
+    checkout_error: "结账错误",
+    retry_search_click: "重试搜索",
+    plan_status_card_click: "点击套餐状态",
   };
   return labels[eventType] ?? eventType;
 }
@@ -1095,6 +1205,18 @@ function eventDetails(event: GrowthEventRecord) {
     return bucket ? `JD：${bucket}` : "";
   }
   if (event.event_type === "search_create_failed") return "创建搜索失败";
+  if (event.event_type === "search_results_view" || event.event_type === "results_summary_view") {
+    const count = readNumber(metadata.candidate_count);
+    return count > 0 ? `${count} 位候选人` : "";
+  }
+  if (event.event_type === "candidate_expand") {
+    const rank = readNumber(metadata.final_rank);
+    return rank > 0 ? `第 ${rank} 名` : "";
+  }
+  if (event.event_type.startsWith("checkout_")) {
+    const purchaseType = readString(metadata.purchase_type);
+    return purchaseType ? `方案：${purchaseType}` : "";
+  }
   if (event.company) return `公司：${event.company}`;
   return "";
 }

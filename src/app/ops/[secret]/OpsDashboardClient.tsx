@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
+  BriefcaseBusiness,
   CheckCircle2,
   Clock3,
+  CreditCard,
   Database,
   Eye,
   Filter,
@@ -15,6 +18,7 @@ import {
   Search,
   Ticket,
   UserCheck,
+  Users,
 } from "lucide-react";
 
 import type { OpsConversionData, OpsRange } from "@/lib/ops-conversion";
@@ -39,8 +43,11 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
     setError(null);
     try {
       const response = await fetch(
-        `/api/ops/conversion?secret=${encodeURIComponent(secret)}&range=${selectedRange}`,
-        { cache: "no-store" },
+        `/api/ops/conversion?range=${selectedRange}`,
+        {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${secret}` },
+        },
       );
       if (!response.ok) throw new Error("看板数据加载失败");
       setData((await response.json()) as OpsConversionData);
@@ -73,10 +80,10 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
           <div>
             <p className="text-xs font-semibold text-sky-700">Hirelix</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-              访问转化看板
+              CEO 运营总览
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              只看真人访问、停留秒数、点击、登录和第一次搜索。机器和预览流量单独过滤。
+              获客、激活、候选人交付、付费和系统运行情况集中在一个页面。
             </p>
           </div>
 
@@ -123,6 +130,110 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
 
         {data ? (
           <div className="mt-6 space-y-6">
+            <section
+              className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                data.operations.jobs.stale > 0 || data.operations.searches.failed > 0
+                  ? "border-amber-200 bg-amber-50"
+                  : "border-emerald-200 bg-emerald-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {data.operations.jobs.stale > 0 || data.operations.searches.failed > 0 ? (
+                  <AlertTriangle className="h-5 w-5 text-amber-700" />
+                ) : (
+                  <Activity className="h-5 w-5 text-emerald-700" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-slate-950">
+                    {data.operations.jobs.stale > 0
+                      ? `${data.operations.jobs.stale} 个任务超过 30 分钟未完成`
+                      : data.operations.searches.failed > 0
+                        ? `${data.range.label}有 ${data.operations.searches.failed} 个搜索失败`
+                        : "核心系统当前没有发现积压"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    搜索运行中 {data.operations.jobs.searchRunning} · 搜索排队 {data.operations.jobs.searchQueued} · 深调排队 {data.operations.jobs.evidenceQueued}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">数据更新于 {formatDateTime(data.operations.generatedAt)}</p>
+            </section>
+
+            <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <MetricCard icon={Users} label={`总用户 / ${data.range.label}新增`} value={data.operations.users.total} detail={`+${data.operations.users.newInRange}`} tone="blue" />
+              <MetricCard icon={BriefcaseBusiness} label="完成搜索" value={data.operations.searches.completed} detail={`创建 ${data.operations.searches.created}`} tone="green" />
+              <MetricCard icon={UserCheck} label="交付候选人" value={data.operations.searches.candidatesDelivered} detail={`每单平均 ${data.operations.searches.averageCandidatesPerCompleted}`} tone="slate" />
+              <MetricCard icon={CreditCard} label="活跃付费用户" value={data.operations.users.activePaid} detail={`${data.range.label}付款 ${data.operations.billing.completedPayments}`} tone="amber" />
+            </section>
+
+            <section className="grid gap-4 lg:grid-cols-3">
+              <Panel title="搜索交付">
+                <div className="grid grid-cols-2 gap-3">
+                  <PlainStat label="成功率" value={`${data.operations.searches.successRate}%`} />
+                  <PlainStat label="中位耗时" value={`${data.operations.searches.medianCompletionMinutes}分钟`} />
+                  <PlainStat label="正在处理" value={data.operations.searches.processing} />
+                  <PlainStat label="失败" value={data.operations.searches.failed} />
+                </div>
+              </Panel>
+
+              <Panel title="收入与付费意向">
+                <div className="grid grid-cols-2 gap-3">
+                  <PlainStat label="确认收入" value={formatRevenue(data.operations.billing.revenue)} />
+                  <PlainStat label="确认付款" value={data.operations.billing.completedPayments} />
+                  <PlainStat label="打开结账" value={data.operations.billing.checkoutStarts} />
+                  <PlainStat label="升级点击" value={data.operations.billing.upgradeClicks} />
+                </div>
+                {data.operations.billing.checkoutErrors > 0 ? (
+                  <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                    {data.range.label}记录到 {data.operations.billing.checkoutErrors} 次结账错误
+                  </p>
+                ) : null}
+              </Panel>
+
+              <Panel title="候选人库与任务">
+                <div className="grid grid-cols-2 gap-3">
+                  <PlainStat label="候选人库" value={data.operations.index.totalProfiles} />
+                  <PlainStat label="索引就绪" value={data.operations.index.readyProfiles} />
+                  <PlainStat label="待处理" value={data.operations.index.pendingProfiles} />
+                  <PlainStat label="索引失败" value={data.operations.index.failedProfiles} />
+                </div>
+              </Panel>
+            </section>
+
+            <Panel title="最近搜索运行情况">
+              {data.operations.recentSearches.length === 0 ? (
+                <EmptyState text={`${data.range.label}还没有搜索`} />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                        <th className="py-2 pr-3 font-medium">岗位</th>
+                        <th className="py-2 pr-3 font-medium">状态</th>
+                        <th className="py-2 pr-3 font-medium">候选人</th>
+                        <th className="py-2 pr-3 font-medium">耗时</th>
+                        <th className="py-2 pr-3 font-medium">创建时间</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.operations.recentSearches.map((search) => (
+                        <tr key={search.id}>
+                          <td className="max-w-[24rem] py-3 pr-3">
+                            <p className="truncate font-medium text-slate-900">{search.title}</p>
+                            {search.error ? <p className="mt-1 truncate text-xs text-red-600">{search.error}</p> : null}
+                          </td>
+                          <td className="py-3 pr-3"><SearchStatusBadge status={search.status} /></td>
+                          <td className="py-3 pr-3 tabular-nums">{search.candidateCount}</td>
+                          <td className="py-3 pr-3 tabular-nums">{search.durationMinutes == null ? "-" : `${search.durationMinutes}分钟`}</td>
+                          <td className="py-3 pr-3 text-slate-500">{formatDateTime(search.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="grid gap-5 lg:grid-cols-[1fr_28rem] lg:items-start">
                 <div>
@@ -440,7 +551,7 @@ function Panel({
   className?: string;
 }) {
   return (
-    <section className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+    <section className={`min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
       <h2 className="mb-4 text-base font-bold text-slate-950">{title}</h2>
       {children}
     </section>
@@ -451,11 +562,13 @@ function MetricCard({
   icon: Icon,
   label,
   value,
+  detail,
   tone = "slate",
 }: {
   icon: typeof Eye;
   label: string;
   value: number;
+  detail?: string;
   tone?: "slate" | "blue" | "green" | "amber";
 }) {
   const toneClass = {
@@ -472,6 +585,7 @@ function MetricCard({
         {label}
       </div>
       <p className="mt-2 text-2xl font-bold tabular-nums">{formatNumber(value)}</p>
+      {detail ? <p className="mt-1 text-xs font-medium opacity-70">{detail}</p> : null}
     </div>
   );
 }
@@ -600,4 +714,46 @@ function formatTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatRevenue(revenue: Array<{ currency: string; amountMinor: number }>) {
+  if (revenue.length === 0) return "$0";
+  return revenue
+    .map((item) =>
+      new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: item.currency,
+        maximumFractionDigits: 2,
+      }).format(item.amountMinor / 100),
+    )
+    .join(" + ");
+}
+
+function SearchStatusBadge({ status }: { status: string }) {
+  const config = status === "done"
+    ? { label: "已完成", className: "bg-emerald-50 text-emerald-700 ring-emerald-200" }
+    : status === "error"
+      ? { label: "失败", className: "bg-red-50 text-red-700 ring-red-200" }
+      : { label: statusLabel(status), className: "bg-amber-50 text-amber-800 ring-amber-200" };
+  return <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 ${config.className}`}>{config.label}</span>;
+}
+
+function statusLabel(status: string) {
+  const labels: Record<string, string> = {
+    queued: "排队",
+    parsing: "解析",
+    searching: "召回",
+    screening: "筛选",
+    deep_scoring: "排序",
+  };
+  return labels[status] ?? status;
 }

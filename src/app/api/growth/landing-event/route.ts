@@ -35,6 +35,22 @@ export const ALLOWED_LANDING_EVENTS = new Set([
   "invite_activate_click",
   "email_otp_requested",
   "email_otp_verified",
+  "search_processing_view",
+  "search_results_view",
+  "results_summary_view",
+  "search_done",
+  "candidate_expand",
+  "upgrade_cta_click",
+  "upgrade_value_exposed",
+  "results_unlock_cta_viewed",
+  "results_unlock_cta_clicked",
+  "contact_unlock_gate_view",
+  "client_brief_gate_view",
+  "checkout_start",
+  "checkout_success",
+  "checkout_error",
+  "retry_search_click",
+  "plan_status_card_click",
 ]);
 
 type LandingEventBody = {
