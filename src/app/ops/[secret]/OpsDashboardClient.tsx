@@ -10,7 +10,6 @@ import {
   CreditCard,
   Database,
   Eye,
-  Filter,
   Flame,
   Loader2,
   MousePointerClick,
@@ -371,7 +370,7 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
               </Panel>
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <section>
               <Panel title="从哪来的">
                 {data.sources.length === 0 ? (
                   <EmptyState text="还没有真人来源数据" />
@@ -408,24 +407,6 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                   </div>
                 )}
               </Panel>
-
-              <Panel title="已过滤流量">
-                <div className="space-y-3">
-                  {data.filteredTraffic.map((item) => (
-                    <div key={item.kind} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                      <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-                        {item.kind === "data_center" ? (
-                          <AlertTriangle className="h-4 w-4 text-amber-600" />
-                        ) : (
-                          <Filter className="h-4 w-4 text-slate-500" />
-                        )}
-                        {item.label}
-                      </span>
-                      <span className="font-bold tabular-nums">{formatNumber(item.count)}</span>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
             </section>
 
             <Panel title="内测邀请">
@@ -454,7 +435,6 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                         <th className="py-2 pr-3 font-medium">归属</th>
                         <th className="py-2 pr-3 font-medium">访问</th>
                         <th className="py-2 pr-3 font-medium">真人</th>
-                        <th className="py-2 pr-3 font-medium">过滤</th>
                         <th className="py-2 pr-3 font-medium">最后出现</th>
                       </tr>
                     </thead>
@@ -471,7 +451,6 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                           </td>
                           <td className="py-3 pr-3 tabular-nums">{item.sessions}</td>
                           <td className="py-3 pr-3 tabular-nums">{item.humanSessions}</td>
-                          <td className="py-3 pr-3 tabular-nums">{item.filteredSessions}</td>
                           <td className="py-3 pr-3 text-slate-500">{formatTime(item.lastSeenAt)}</td>
                         </tr>
                       ))}

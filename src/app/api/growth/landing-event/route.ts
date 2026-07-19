@@ -3,6 +3,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { hirelix_growth_landing_events } from "@/db/schema";
 import { getLogger } from "@/lib/logger";
+import { isLocalOrPrivateIp } from "@/lib/ops-conversion";
 
 const DEFAULT_PREVIEW_REQUEST_RECIPIENT = "jzh_spring@163.com";
 const DEFAULT_ALERT_TIMEOUT_MS = 1200;
@@ -276,6 +277,10 @@ export async function POST(req: NextRequest) {
   }
 
   const eventType = textValue(body.event_type, 80);
+  const ipAddress = getIpAddress(req);
+  if (isLocalOrPrivateIp(ipAddress)) {
+    return NextResponse.json({ ok: true, ignored: true, reason: "local_ip" });
+  }
   const metadata = metadataValue(body.metadata);
   const pageUrl = textValue(body.page_url, 1000);
   const decision = validateLandingEventForRecording({ eventType, metadata, pageUrl });
@@ -312,7 +317,7 @@ export async function POST(req: NextRequest) {
       company,
       page_url: pageUrl,
       referrer: textValue(body.referrer, 1000),
-      ip_address: getIpAddress(req),
+      ip_address: ipAddress,
       user_agent: getHeader(req, "user-agent"),
       metadata: decision.metadata,
     });

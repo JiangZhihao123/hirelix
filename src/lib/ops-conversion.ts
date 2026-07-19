@@ -16,7 +16,7 @@ export type GrowthEventRecord = {
 };
 
 export type OpsRange = "today" | "yesterday" | "7d" | "30d";
-export type TrafficKind = "human" | "data_center";
+export type TrafficKind = "human" | "data_center" | "local";
 export type IpNetworkType = "residential" | "business" | "data_center" | "unknown";
 
 export type IpAttribution = {
@@ -285,10 +285,38 @@ export function classifyTraffic(params: {
   maxScrollDepth?: number;
   sessionCountForIpUa?: number;
 }): TrafficKind {
+  if (isLocalOrPrivateIp(params.ipAddress)) {
+    return "local";
+  }
   if (isDataCenterVisit(params.ipAttribution, params.ipAddress)) {
     return "data_center";
   }
   return "human";
+}
+
+export function isLocalOrPrivateIp(ipAddress: string | null | undefined) {
+  if (!ipAddress) return false;
+  const normalized = ipAddress.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  if (!normalized) return false;
+  if (normalized === "localhost" || normalized === "::" || normalized === "::1") return true;
+
+  const mappedIpv4 = normalized.startsWith("::ffff:")
+    ? normalized.slice("::ffff:".length)
+    : normalized;
+  const parts = mappedIpv4.split(".").map((part) => Number.parseInt(part, 10));
+  if (parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+    const [first, second] = parts;
+    return (
+      first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168)
+    );
+  }
+
+  return normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb");
 }
 
 function isDataCenterVisit(
@@ -396,7 +424,6 @@ export function buildOpsConversionData(
   }
 
   const humanSessions = sessions.filter((session) => trafficBySession.get(session.sessionId) === "human");
-  const filteredSessions = sessions.filter((session) => trafficBySession.get(session.sessionId) !== "human");
   const humanSessionIds = new Set(humanSessions.map((session) => session.sessionId));
   const humanEvents = cleanEvents.filter((event) => humanSessionIds.has(getSessionId(event)));
   const rangeLabel = getOpsRangeWindow(options.range, options.end).label;
@@ -433,9 +460,9 @@ export function buildOpsConversionData(
     },
     summary: {
       humanVisits: humanSessions.length,
-      filteredVisits: filteredSessions.length,
-      suspiciousVisits: filteredSessions.filter((session) => trafficBySession.get(session.sessionId) === "data_center").length,
-      humanRatio: ratio(humanSessions.length, sessions.length),
+      filteredVisits: 0,
+      suspiciousVisits: 0,
+      humanRatio: humanSessions.length > 0 ? 100 : 0,
       effectiveClicks,
       loginAttempts,
       successfulLogins,
@@ -457,7 +484,6 @@ export function buildOpsConversionData(
     visitorSegments: buildVisitorSegments(humanSessions),
     actionItems: buildActionItems({
       humanSessions,
-      filteredSessions,
       effectiveClicks,
       loginAttempts,
       successfulLogins,
@@ -470,7 +496,7 @@ export function buildOpsConversionData(
     topSections: buildTopSections(humanSessions),
     highIntentSessions: buildHighIntentSessions(humanSessions),
     recentHumanEvents: buildRecentHumanEvents(humanEvents, ipAttribution),
-    filteredTraffic: buildFilteredTraffic(filteredSessions, trafficBySession),
+    filteredTraffic: [],
     ipAttribution: buildIpAttributionSummary(sessions, trafficBySession, ipAttribution),
     betaInvites: options.betaInvites ?? emptyBetaInviteOpsSummary(),
     operations: options.operations ?? emptyOpsOperationsSnapshot(options.end),
@@ -742,7 +768,6 @@ function buildVisitorSegments(humanSessions: SessionSummary[]): VisitorSegment[]
 
 function buildActionItems(params: {
   humanSessions: SessionSummary[];
-  filteredSessions: SessionSummary[];
   effectiveClicks: number;
   loginAttempts: number;
   successfulLogins: number;
@@ -754,7 +779,6 @@ function buildActionItems(params: {
 }): ActionItem[] {
   const items: ActionItem[] = [];
   const humanVisits = params.humanSessions.length;
-  const filteredVisits = params.filteredSessions.length;
   const clickedNoLogin = params.humanSessions.filter(
     (session) =>
       hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click", "email_otp_requested"])) &&
@@ -811,14 +835,6 @@ function buildActionItems(params: {
       priority: "high",
       title: "产品内激活卡住",
       detail: "已经有人登录成功，但没有人创建搜索。最值得看新搜索页和真实创建链路。",
-    });
-  }
-
-  if (filteredVisits > humanVisits * 3 && filteredVisits >= 10) {
-    items.push({
-      priority: "low",
-      title: "机器流量偏多",
-      detail: `过滤流量 ${filteredVisits} 次，真人 ${humanVisits} 次。主漏斗仍只看真人，但来源判断要谨慎。`,
     });
   }
 
@@ -900,31 +916,13 @@ function buildRecentHumanEvents(
     });
 }
 
-function buildFilteredTraffic(
-  filteredSessions: SessionSummary[],
-  trafficBySession: Map<string, TrafficKind>,
-): FilteredTrafficSummary[] {
-  const counts: Record<Exclude<TrafficKind, "human">, number> = {
-    data_center: 0,
-  };
-
-  for (const session of filteredSessions) {
-    const kind = trafficBySession.get(session.sessionId);
-    if (kind && kind !== "human") counts[kind] += 1;
-  }
-
-  return [
-    { kind: "data_center", label: "数据中心访问", count: counts.data_center },
-  ];
-}
-
 function buildIpAttributionSummary(
   sessions: SessionSummary[],
   trafficBySession: Map<string, TrafficKind>,
   ipAttribution: Map<string, IpAttribution>,
 ): IpAttributionSummary[] {
   const byIp = new Map<string, SessionSummary[]>();
-  for (const session of sessions) {
+  for (const session of sessions.filter((item) => trafficBySession.get(item.sessionId) === "human")) {
     const ipAddress = session.ipAddress || "unknown";
     byIp.set(ipAddress, [...(byIp.get(ipAddress) ?? []), session]);
   }
@@ -932,12 +930,11 @@ function buildIpAttributionSummary(
   return [...byIp.entries()]
     .map(([ipAddress, ipSessions]) => {
       const attribution = ipAttribution.get(ipAddress) ?? fallbackIpAttribution(ipAddress);
-      const humanSessions = ipSessions.filter((session) => trafficBySession.get(session.sessionId) === "human").length;
       return {
         ...attribution,
         sessions: ipSessions.length,
-        humanSessions,
-        filteredSessions: ipSessions.length - humanSessions,
+        humanSessions: ipSessions.length,
+        filteredSessions: 0,
         lastSeenAt: new Date(Math.max(...ipSessions.map((session) => session.lastEventAt.getTime()))).toISOString(),
       };
     })
