@@ -19,13 +19,15 @@ test("pairwise prompt prioritizes fit and treats unknown willingness as neutral"
   assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /overall recruiting-priority judgment/i);
   assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /do not calculate a score by adding dimension labels/i);
   assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /stable identity label/i);
+  assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /order-invariant decision protocol/i);
+  assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /not an arithmetic score/i);
   assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /missing education.*unknown/i);
   assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /evaluate job fit and evidence-based likelihood.*together/i);
   assert.match(PAIRWISE_COMPARISON_SYSTEM_PROMPT, /missing active-job-seeking or availability signal is neutral/i);
 });
 
 test("final prompt lets strong passive candidates reach contact", () => {
-  assert.equal(CANDIDATE_JUDGMENT_PROMPT_VERSION, 5);
+  assert.equal(CANDIDATE_JUDGMENT_PROMPT_VERSION, 6);
   assert.match(FINAL_JUDGMENT_SYSTEM_PROMPT, /job fit determines whether outreach is warranted/i);
   assert.match(FINAL_JUDGMENT_SYSTEM_PROMPT, /contact does not require active-job-seeking/i);
   assert.match(FINAL_JUDGMENT_SYSTEM_PROMPT, /unknown willingness alone must not downgrade contact/i);

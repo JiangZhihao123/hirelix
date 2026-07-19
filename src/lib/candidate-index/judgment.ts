@@ -177,7 +177,7 @@ export const FINAL_SCHEMA = {
   },
 } as const;
 
-export const CANDIDATE_JUDGMENT_PROMPT_VERSION = 5;
+export const CANDIDATE_JUDGMENT_PROMPT_VERSION = 6;
 
 export const QUALIFICATION_SYSTEM_PROMPT = [
   "Return JSON matching output_contract.",
@@ -200,6 +200,9 @@ export const PAIRWISE_COMPARISON_SYSTEM_PROMPT = [
   "Both candidates passed a minimum job-fit gate; decide who a recruiter should contact first for this specific JD.",
   "Read the complete profile and career trajectory as a whole. The comparison_card is supporting evidence and an audit aid, not a score or a substitute for holistic judgment.",
   "candidate_token is a stable identity label that does not indicate quality; never favor the first listed candidate or a particular token.",
+  "Use the same order-invariant decision protocol every time: identify any concrete blocker, compare direct or equivalent core-work evidence and production ownership, then seniority and career direction, and use explicit join signals only as a final priority modifier.",
+  "This protocol organizes holistic judgment; it is not an arithmetic score, fixed weighting formula, or checklist vote.",
+  "Before deciding, form a concise evidence synopsis for each candidate keyed only by candidate_token, then compare those synopses; array position and presentation order must never change the result.",
   "Use the full record to form one overall recruiting-priority judgment; do not calculate a score by adding dimension labels.",
   "Concrete mandatory-constraint failures matter, but missing education, work authorization, location preference, or availability is unknown and must not trigger qualification_review_required.",
   "Evaluate job fit and evidence-based likelihood of considering the opportunity together as a recruiter would, while never letting an unsupported willingness assumption override fit.",
@@ -209,7 +212,7 @@ export const PAIRWISE_COMPARISON_SYSTEM_PROMPT = [
   "The payload includes evaluation_date: calculate tenure or recency from exact profile dates and evaluation_date, and never let tenure alone determine willingness.",
   "Every willingness claim or risk must cite an actual profile fact.",
   "Do not speculate about employer prestige, compensation, domain interest, relocation, remote preference, personal circumstances, or protected traits; record unsupported matters as unknown.",
-  "Prefer tie when expected recruiting priority is genuinely indistinguishable; do not output a numeric score or confidence.",
+  "Choose tie only when neither candidate has a material evidence-based advantage in expected recruiting priority; a tie versus a decisive result is a substantive conclusion and must not change merely because presentation order changes.",
   "Use qualification_review_required only when concrete evidence reveals a minimum-qualification problem missed by the gate.",
 ].join(" ");
 
