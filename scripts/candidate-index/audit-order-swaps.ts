@@ -10,7 +10,12 @@ import {
   hirelix_search_jobs,
   hirelix_searches,
 } from "@/db/schema";
-import { auditCandidateOrderSwap, loadCandidateBundles, qualifyCandidate } from "@/lib/candidate-index/judgment";
+import {
+  auditCandidateOrderSwap,
+  CANDIDATE_JUDGMENT_PROMPT_VERSION,
+  loadCandidateBundles,
+  qualifyCandidate,
+} from "@/lib/candidate-index/judgment";
 import { buildCandidateIndexSearchIntent } from "@/lib/candidate-index/workflow";
 import { runWithConcurrency } from "@/lib/search/concurrency";
 import { initializeGlobalOutboundProxy } from "@/lib/server-outbound-proxy";
@@ -98,7 +103,7 @@ async function main() {
   const report = {
     generated_at: new Date().toISOString(),
     search_id: searchId,
-    prompt_version: 5,
+    prompt_version: CANDIDATE_JUDGMENT_PROMPT_VERSION,
     model: process.env.SEARCH_JUDGE_MODEL || null,
     pair_count: results.length,
     stable_count: stableCount,
