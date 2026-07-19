@@ -38,6 +38,12 @@ async function main() {
   }
   if (maxBudget !== 1.25) throw new Error("Paid validation requires an exact $1.25 hard budget acknowledgement");
   if (!searchId) throw new Error("--search-id is required for paid validation");
+  if (!process.env.BRIGHTDATA_API_TOKEN) {
+    throw new Error("BRIGHTDATA_API_TOKEN is required for paid validation");
+  }
+  if (!process.env.BRIGHTDATA_RECALL_DATASET_ID && !process.env.BRIGHTDATA_DATASET_ID) {
+    throw new Error("BRIGHTDATA_RECALL_DATASET_ID or BRIGHTDATA_DATASET_ID is required for paid validation");
+  }
 
   const rows = await db
     .select({
