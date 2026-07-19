@@ -36,7 +36,7 @@ import {
   hidePublicEvidenceLine,
   parseOutreach,
 } from "./utils";
-import { ActionabilityBadge, ContactActionStrip, InitialsAvatar } from "./ui";
+import { ContactActionStrip, InitialsAvatar } from "./ui";
 
 function citationLabelForItem(item: { citation_label?: string | null }, index: number) {
   return item.citation_label || `[${index + 1}]`;
@@ -86,6 +86,7 @@ function isSellingEvidence(item: PublicEvidenceItem) {
 
 export function CandidateWorkbenchDetail({
   candidate,
+  queueRank,
   requiredSkills,
   billingPlanCode,
   clientBriefEnabled,
@@ -98,6 +99,7 @@ export function CandidateWorkbenchDetail({
   onStatusChange,
 }: {
   candidate: CandidateRow;
+  queueRank: number;
   requiredSkills: string[];
   billingPlanCode: import("@/lib/billing").BillingPlanCode;
   clientBriefEnabled: boolean;
@@ -366,15 +368,9 @@ export function CandidateWorkbenchDetail({
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${deliveryBucketTone}`}>
                     {deliveryBucketLabel}
                   </span>
-                  <ActionabilityBadge candidate={localCandidate} />
-                  {typeof localCandidate.final_rank === "number" && (
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      Rank #{localCandidate.final_rank}
-                      {typeof localCandidate.rank_low === "number" && typeof localCandidate.rank_high === "number"
-                        ? ` · likely ${localCandidate.rank_low}-${localCandidate.rank_high}`
-                        : ""}
-                    </span>
-                  )}
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                    Rank #{queueRank}
+                  </span>
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 {currentRole}
@@ -462,14 +458,11 @@ export function CandidateWorkbenchDetail({
         <div className="mt-4">
           {activeDetailTab === "sell" && (
             <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
-              <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                       {isRecommendedCandidate ? "Recommendation" : "Pool Review"}
-                      </p>
-                      <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                        {deliveryBucketLabel}
                       </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -528,7 +521,7 @@ export function CandidateWorkbenchDetail({
                     )}
                   </div>
                 )}
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="mt-5 border-t border-slate-200 pt-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Why this candidate
                   </p>
@@ -537,8 +530,8 @@ export function CandidateWorkbenchDetail({
                   </p>
                 </div>
                 {isRecommendedCandidate && (
-                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       Why they may move
                     </p>
                     {moveLikelihoodReasons.length > 0 ? (
@@ -556,13 +549,7 @@ export function CandidateWorkbenchDetail({
                 )}
               </div>
               <div className="space-y-4">
-                <div className={`rounded-2xl border px-4 py-3 ${
-                  audit.trust.tone === "strong"
-                    ? "border-emerald-200 bg-emerald-50"
-                    : audit.trust.tone === "medium"
-                      ? "border-sky-200 bg-sky-50"
-                      : "border-amber-200 bg-amber-50"
-                }`}>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
                     Assessment basis
                   </p>
@@ -573,8 +560,8 @@ export function CandidateWorkbenchDetail({
                     {audit.trust.description}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     {isRecommendedCandidate
                       ? sellingEvidenceItems.length > 0 ? "Research evidence" : "Profile evidence"
                       : "Why this is not higher"}
@@ -613,7 +600,7 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   )}
                 </div>
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
                     {isRecommendedCandidate ? "Verify before pitching" : "Manual review notes"}
                   </p>
@@ -631,8 +618,8 @@ export function CandidateWorkbenchDetail({
                     </p>
                   )}
                 </div>
-                <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Next action
                   </p>
                   <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">

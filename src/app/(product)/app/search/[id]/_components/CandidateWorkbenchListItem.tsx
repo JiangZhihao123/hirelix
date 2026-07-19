@@ -4,7 +4,6 @@ import { sanitizeDisplayName } from "@/lib/display-name";
 import type { CandidateRow } from "./types";
 import {
   AlertCircle,
-  CheckCircle2,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -13,26 +12,26 @@ import {
   formatDeliveryBucketLabel,
   getCandidateDeliveryBucket,
   getCandidateDecisionAudit,
-  getCandidateSellingKit,
   formatRecruiterSellingHeadline,
 } from "./utils";
 import { InitialsAvatar } from "./ui";
 
 export function CandidateWorkbenchListItem({
   candidate,
+  queueRank,
   selected,
   onSelect,
   billingPlanCode,
   isNew,
 }: {
   candidate: CandidateRow;
+  queueRank: number;
   selected: boolean;
   onSelect: () => void;
   billingPlanCode: import("@/lib/billing").BillingPlanCode;
   isNew?: boolean;
 }) {
   const hidePublicEvidence = billingPlanCode === "free";
-  const sellingKit = getCandidateSellingKit(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
   const displayName = sanitizeDisplayName(candidate.name);
@@ -65,11 +64,9 @@ export function CandidateWorkbenchListItem({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-sm font-semibold text-slate-950">{displayName}</p>
-            {typeof candidate.final_rank === "number" && (
-              <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700">
-                #{candidate.final_rank}
-              </span>
-            )}
+            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700">
+              #{queueRank}
+            </span>
             {recommendationLabel && (
               <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${recommendationClass}`}>
                 {recommendationLabel}
@@ -82,39 +79,28 @@ export function CandidateWorkbenchListItem({
             )}
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
-            {currentRole}
+            {[currentRole, currentCompany].filter(Boolean).join(" · ")}
           </p>
-          {currentCompany && (
-            <p className="mt-1 text-xs text-slate-500">
-              {currentCompany}
-            </p>
-          )}
           {recruiterHeadline && (
             <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-900">
               {recruiterHeadline}
             </p>
           )}
-          <div className="mt-3 space-y-1.5">
-            <div className="flex gap-2 rounded-lg border border-sky-100 bg-sky-50 px-2.5 py-2">
-              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
-              <p className="line-clamp-2 text-[11px] leading-5 text-sky-800">
-                {audit.proofLines.slice(0, 2).join(" · ")}
+          <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+            <div className="flex gap-2">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
+              <p className="line-clamp-2 text-[11px] leading-5 text-slate-600">
+                {audit.proofLines[0]}
               </p>
             </div>
             {audit.riskLines.length > 0 && (
-              <div className="flex gap-2 rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2">
+              <div className="flex gap-2">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
                 <p className="line-clamp-2 text-[11px] leading-5 text-amber-800">
                   {audit.riskLines[0]}
                 </p>
               </div>
             )}
-            <div className="flex gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2">
-              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-              <p className="line-clamp-2 text-[11px] leading-5 text-emerald-800">
-                {audit.nextAction}
-              </p>
-            </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {candidate.location && (
@@ -122,30 +108,6 @@ export function CandidateWorkbenchListItem({
                 {candidate.location}
               </span>
             )}
-            {!hidePublicEvidence && (sellingKit?.evidence_badges || []).slice(0, 3).map((badge, index) => (
-              <span
-                key={`${badge.label}-${badge.citation_label}-${index}`}
-                className={`rounded-full border px-2.5 py-1 text-[11px] ${
-                  badge.tier === "strong"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : badge.tier === "medium"
-                      ? "border-sky-200 bg-sky-50 text-sky-700"
-                      : "border-slate-200 bg-white text-slate-600"
-                }`}
-              >
-                {[badge.label, badge.citation_label].filter(Boolean).join(" ")}
-              </span>
-            ))}
-            {(hidePublicEvidence || !sellingKit?.evidence_badges || sellingKit.evidence_badges.length === 0) && (
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
-                Profile fit reviewed
-              </span>
-            )}
-            {(sellingKit?.risk_flags || []).slice(0, 1).map((risk) => (
-              <span key={risk} className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-700">
-                {risk}
-              </span>
-            ))}
             {candidate.email && (
               <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
                 Contact ready

@@ -844,13 +844,6 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.do_not_show_count) ??
     0;
   const visibleCandidateCount = recommendedCandidates.length;
-  const contactUnlockCandidates =
-    positiveInt(rawDisplayStats?.contact_unlock_candidates) ??
-    allCandidates.filter(
-      (candidate) =>
-        candidate.metadata?.suitability?.advance_recommendation !== "reject" &&
-        candidate.metadata?.suitability?.blocking_severity !== "hard",
-    ).length;
   const excludedReasonCounts =
     Array.isArray(rawDisplayStats?.excluded_reason_counts)
       ? rawDisplayStats.excluded_reason_counts
@@ -1583,52 +1576,12 @@ export default function SearchResultPage() {
       {/* Results */}
       {allCandidates.length > 0 && (
         <div className="space-y-3">
-          {isFreePlan && (billing?.usage.enrichesRemaining ?? 0) <= 0 && allCandidates.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
-              <div>
-                <p className="text-sm font-semibold text-slate-950">Contact lookup and candidate research are available on Starter.</p>
-                <p className="mt-1 text-xs text-slate-600">Review the ranked pool now; unlock evidence and contact details only when needed.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <PaddleCheckoutButton
-                  checkout={{ type: "plan", planCode: "starter_monthly" }}
-                  label="Upgrade to Starter"
-                  onClick={() => handleUpgradeClick("results_first_use_strip")}
-                  onError={(message) => setUpgradeError(message)}
-                  className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
-                />
-              </div>
-            </div>
-          )}
           {publicEvidenceError && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               {publicEvidenceError}
             </div>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-                <p className="text-sm text-muted">
-                  {showOnlyWithEmail
-                    ? `${visibleCandidates.length} candidates with email available`
-                    : `${visibleCandidates.length} in ${selectedPoolLabel.toLowerCase()}`}
-                </p>
-              <div className="hidden flex-wrap items-center gap-1.5 text-xs text-muted-light sm:flex">
-                {contactUnlockCandidates > 0 && (
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} contact lookups</span>
-                )}
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
-                    {recommendedCount} recommended
-                  </span>
-                {billing?.usage.exportEnabled ? (
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
-                      {`${allCandidates.filter((candidate) => candidate.email).length}/${allCandidates.length} with email`}
-                  </span>
-                ) : (
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Real LinkedIn profiles</span>
-                )}
-                <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Recruiter sorted</span>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
               {isReviewable && (
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="inline-flex rounded-full border border-border bg-background p-1">
@@ -1653,19 +1606,21 @@ export default function SearchResultPage() {
                       Full pool ({allCandidates.length})
                     </button>
                   </div>
-                <label className="flex items-center gap-2 text-xs text-muted">
-                  <span>Sort by</span>
-                  <select
-                    value={sortMode}
-                    onChange={(event) => setSortMode(event.target.value as CandidateSortMode)}
-                    className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
-                  >
-                    <option value="overall">Recommended order</option>
-                    <option value="capability">Technical fit</option>
-                    <option value="relevance">Role Fit</option>
-                    <option value="join_likelihood">Move likelihood</option>
-                  </select>
-                </label>
+                {poolView === "full_pool" && (
+                  <label className="flex items-center gap-2 text-xs text-muted">
+                    <span>Sort by</span>
+                    <select
+                      value={sortMode}
+                      onChange={(event) => setSortMode(event.target.value as CandidateSortMode)}
+                      className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+                    >
+                      <option value="overall">Recommended order</option>
+                      <option value="capability">Technical fit</option>
+                      <option value="relevance">Role Fit</option>
+                      <option value="join_likelihood">Move likelihood</option>
+                    </select>
+                  </label>
+                )}
                 {billing?.usage.exportEnabled && allCandidates.some((candidate) => candidate.email) && (
                   <>
                     <button
@@ -1706,20 +1661,23 @@ export default function SearchResultPage() {
               <>
                 {poolView === "full_pool" && (
                   <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
-                    <div className="grid grid-cols-[minmax(220px,1.8fr)_minmax(140px,1fr)_72px_72px_72px_92px_minmax(120px,0.9fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <div className="grid grid-cols-[minmax(220px,1.6fr)_minmax(140px,0.9fr)_72px_minmax(120px,0.8fr)_minmax(240px,1.6fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                       <span>Profile</span>
                       <span>Location</span>
-                      <span>Overall</span>
-                      <span>Tech</span>
-                      <span>Role fit</span>
-                      <span>Reachability</span>
-                      <span>Bucket</span>
+                      <span>Rank</span>
+                      <span>Priority</span>
+                      <span>Why here</span>
                       <span>Main risk</span>
                     </div>
                     <div className="max-h-[560px] overflow-y-auto">
-                      {visibleCandidates.map((candidate) => {
+                      {visibleCandidates.map((candidate, index) => {
                         const currentRole = deriveCurrentRole(candidate);
                         const currentCompany = deriveCurrentCompany(candidate);
+                        const reason =
+                          candidate.match_reasons[0] ||
+                          candidate.metadata?.shortlist_reason ||
+                          candidate.metadata?.suitability?.shortlist_reason ||
+                          "Relevant profile evidence";
                         const risk =
                           candidate.metadata?.primary_risk ||
                           candidate.metadata?.suitability?.primary_risk ||
@@ -1734,7 +1692,7 @@ export default function SearchResultPage() {
                               setActiveCandidateId(candidate.id);
                               handleCandidateExpand(candidate);
                             }}
-                            className={`grid w-full grid-cols-[minmax(220px,1.8fr)_minmax(140px,1fr)_72px_72px_72px_92px_minmax(120px,0.9fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                            className={`grid w-full grid-cols-[minmax(220px,1.6fr)_minmax(140px,0.9fr)_72px_minmax(120px,0.8fr)_minmax(240px,1.6fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                               candidate.id === activeCandidate?.id ? "bg-sky-50" : "bg-white"
                             }`}
                           >
@@ -1745,11 +1703,9 @@ export default function SearchResultPage() {
                               </span>
                             </span>
                             <span className="truncate text-slate-600">{candidate.location || "Unknown"}</span>
-                            <span className="font-semibold text-slate-950">{getCandidateOverallScore(candidate)}</span>
-                            <span className="text-slate-700">{getCandidateCapabilityScore(candidate) || "—"}</span>
-                            <span className="text-slate-700">{getCandidateRelevanceScore(candidate) || "—"}</span>
-                            <span className="text-slate-700">{getCandidateJoinLikelihoodScore(candidate) || "—"}</span>
+                            <span className="font-semibold text-slate-950">#{index + 1}</span>
                             <span className="truncate text-slate-700">{formatDeliveryBucketLabel(candidate)}</span>
+                            <span className="line-clamp-2 text-xs leading-5 text-slate-600">{reason}</span>
                             <span className="line-clamp-2 text-xs leading-5 text-slate-500">{risk}</span>
                           </button>
                         );
@@ -1770,14 +1726,15 @@ export default function SearchResultPage() {
                         <p className="mt-1 text-sm text-slate-600">
                         {poolView === "full_pool"
                           ? "Scan the full ranked pool with lower-priority context preserved."
-                          : "Work from the first-pass priorities first. The right panel defaults to the copy-ready selling kit."}
+                          : "Open a candidate to review the recommendation, evidence, risk, and outreach."}
                       </p>
                     </div>
                     <div className="space-y-3">
-                      {visibleCandidates.map((candidate) => (
+                      {visibleCandidates.map((candidate, index) => (
                         <CandidateWorkbenchListItem
                           key={candidate.id}
                           candidate={candidate}
+                          queueRank={index + 1}
                           selected={candidate.id === activeCandidate.id}
                           onSelect={() => {
                             setActiveCandidateId(candidate.id);
@@ -1791,6 +1748,7 @@ export default function SearchResultPage() {
                   </aside>
                   <CandidateWorkbenchDetail
                     candidate={activeCandidate}
+                    queueRank={Math.max(1, visibleCandidates.findIndex((candidate) => candidate.id === activeCandidate.id) + 1)}
                     requiredSkills={requiredSkills}
                     billingPlanCode={billing?.subscription.planCode || "free"}
                     clientBriefEnabled={billing?.usage.clientBriefEnabled ?? false}
