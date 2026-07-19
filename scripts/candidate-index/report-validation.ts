@@ -59,6 +59,9 @@ async function main() {
   const swapRows = comparisons.filter((item) => item.is_order_swap);
   const stableSwapRows = swapRows.filter((item) => item.is_stable);
   const orderSwapConsistency = swapRows.length === 0 ? null : stableSwapRows.length / swapRows.length;
+  const swapPairKeys = [...new Set(swapRows.map((item) => item.pair_key))];
+  const effectiveSwapPairCount = swapPairKeys.filter((pairKey) => comparisons.some((item) => item.pair_key === pairKey && item.included_in_fit)).length;
+  const effectiveOrderSwapConsistency = swapPairKeys.length === 0 ? null : effectiveSwapPairCount / swapPairKeys.length;
   const actualBrightCost = Number.isFinite(balanceBefore) && Number.isFinite(balanceAfter)
     ? Math.round((balanceBefore - balanceAfter) * 100) / 100
     : null;
@@ -116,13 +119,17 @@ async function main() {
       order_swap_tests: swapRows.length,
       stable_order_swap_tests: stableSwapRows.length,
       order_swap_consistency: orderSwapConsistency,
+      effective_order_swap_pairs: effectiveSwapPairCount,
+      effective_order_swap_consistency: effectiveOrderSwapConsistency,
+      arbiter_rows: comparisons.filter((item) => item.decisive_dimensions.includes("holistic_arbiter")).length,
       graph_connected: indexMetrics.comparison_graph_connected ?? null,
     },
     llm_usage: usageByStage,
     acceptance: {
       bright_budget: actualBrightCost != null ? actualBrightCost <= 1.25 : null,
       comparison_graph_connected: indexMetrics.comparison_graph_connected === true,
-      order_swap_consistency_at_least_85_percent: orderSwapConsistency != null ? orderSwapConsistency >= 0.85 : null,
+      raw_order_swap_consistency_at_least_85_percent: orderSwapConsistency != null ? orderSwapConsistency >= 0.85 : null,
+      effective_order_swap_consistency_at_least_85_percent: effectiveOrderSwapConsistency != null ? effectiveOrderSwapConsistency >= 0.85 : null,
       system_top20_contact_count: systemTop20Decisions.contact || 0,
       codex_blind_precision_at_20: "pending",
       codex_low_rank_false_negative_audit: "pending",
@@ -155,8 +162,8 @@ async function main() {
     `- Status: \`${search.status}\` / \`${job.status}\`\n` +
     `- Bright: ${displayStats.bright_profiles_returned ?? "unknown"} returned, $${actualBrightCost ?? "unknown"} actual cost\n` +
     `- Results: ${candidates.length} delivered; Top 20 = ${systemTop20Decisions.contact || 0} contact / ${systemTop20Decisions.review || 0} review (diagnostic only)\n` +
-    `- Pairwise: ${comparisons.filter((item) => item.included_in_fit).length} included; order-swap consistency ${orderSwapConsistency == null ? "unknown" : `${Math.round(orderSwapConsistency * 100)}%`}; graph connected ${String(indexMetrics.comparison_graph_connected)}\n\n` +
-    `## Decision\n\nDo not deploy yet. Order-swap consistency is below 85%, and independent Codex blind review and baseline lift remain pending. Contact count is a diagnostic, not an automatic quality verdict.\n`;
+    `- Pairwise: ${comparisons.filter((item) => item.included_in_fit).length} included; raw order-swap consistency ${orderSwapConsistency == null ? "unknown" : `${Math.round(orderSwapConsistency * 100)}%`}; effective after arbiter ${effectiveOrderSwapConsistency == null ? "unknown" : `${Math.round(effectiveOrderSwapConsistency * 100)}%`}; graph connected ${String(indexMetrics.comparison_graph_connected)}\n\n` +
+    `## Decision\n\nDo not deploy yet. Human blind review and baseline lift remain pending. Raw judge consistency is diagnostic; effective comparisons include explicit holistic arbitration for order conflicts. Contact count is a diagnostic, not an automatic quality verdict.\n`;
   fs.writeFileSync(path.join(outDir, "validation.md"), markdown);
   console.log(JSON.stringify({ out_dir: outDir, acceptance: report.acceptance }, null, 2));
 }

@@ -9,7 +9,7 @@ import {
   buildProfileSearchDocument,
   validateProfileRepresentation,
 } from "@/lib/candidate-index/representation";
-import { COMPARISON_SCHEMA, FINAL_SCHEMA, QUALIFICATION_SCHEMA } from "@/lib/candidate-index/judgment";
+import { ARBITER_SCHEMA, COMPARISON_SCHEMA, FINAL_SCHEMA, QUALIFICATION_SCHEMA } from "@/lib/candidate-index/judgment";
 
 function profile(): BrightDataProfile {
   return {
@@ -86,7 +86,7 @@ test("substantive profiles cannot silently produce an empty representation", () 
 });
 
 test("candidate index LLM calls use strict named JSON schemas", () => {
-  for (const schema of [PROFILE_REPRESENTATION_SCHEMA, QUALIFICATION_SCHEMA, COMPARISON_SCHEMA, FINAL_SCHEMA]) {
+  for (const schema of [PROFILE_REPRESENTATION_SCHEMA, QUALIFICATION_SCHEMA, COMPARISON_SCHEMA, ARBITER_SCHEMA, FINAL_SCHEMA]) {
     assert.equal(schema.strict, true);
     assert.equal(schema.schema.type, "object");
     assert.equal(schema.schema.additionalProperties, false);

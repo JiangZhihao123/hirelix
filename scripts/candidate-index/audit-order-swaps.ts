@@ -10,8 +10,7 @@ import {
   hirelix_search_jobs,
   hirelix_searches,
 } from "@/db/schema";
-import { auditCandidateOrderSwap, compareComparisonCards, loadCandidateBundles, qualifyCandidate } from "@/lib/candidate-index/judgment";
-import { areOrderSwapDecisionsConsistent } from "@/lib/candidate-index/ranking";
+import { auditCandidateOrderSwap, loadCandidateBundles, qualifyCandidate } from "@/lib/candidate-index/judgment";
 import { buildCandidateIndexSearchIntent } from "@/lib/candidate-index/workflow";
 import { runWithConcurrency } from "@/lib/search/concurrency";
 import { initializeGlobalOutboundProxy } from "@/lib/server-outbound-proxy";
@@ -31,7 +30,7 @@ async function main() {
   if (!searchId) throw new Error("--search-id is required");
   const concurrency = Math.max(1, Math.min(24, Number(arg("concurrency") || "12")));
   const cardConcurrency = Math.max(1, Math.min(12, Number(arg("card-concurrency") || "8")));
-  const outPath = path.resolve(arg("out") || `runs/candidate-index/${searchId}/order-swap-audit-v4.json`);
+  const outPath = path.resolve(arg("out") || `runs/candidate-index/${searchId}/order-swap-audit-v5.json`);
 
   const [search] = await db.select().from(hirelix_searches).where(eq(hirelix_searches.id, searchId)).limit(1);
   const [job] = await db.select().from(hirelix_search_jobs).where(eq(hirelix_search_jobs.search_id, searchId)).limit(1);
@@ -64,30 +63,19 @@ async function main() {
     qualifyCandidate(judgmentInput, bundle, usage),
   );
   const comparisonCards = new Map(qualifications.map((item) => [item.profileId, item.comparisonCard]));
-  const llmDiagnostic = process.argv.includes("--llm-diagnostic");
 
   const results = await runWithConcurrency(pairs, concurrency, async (pair) => {
     const first = bundleById.get(pair.firstId);
     const second = bundleById.get(pair.secondId);
     if (!first || !second) throw new Error(`Candidate bundle missing for ${pair.pairKey}`);
-    const firstCard = comparisonCards.get(first.profile.id)!;
-    const secondCard = comparisonCards.get(second.profile.id)!;
-    const audit = llmDiagnostic
-      ? await auditCandidateOrderSwap(judgmentInput, first, second, usage, comparisonCards)
-      : (() => {
-        const firstResult = compareComparisonCards(firstCard, secondCard);
-        const swappedResult = compareComparisonCards(secondCard, firstCard);
-        return {
-          first: { rawDecision: firstResult.outcome, outcome: firstResult.outcome, reason: firstResult.reason },
-          swapped: { rawDecision: swappedResult.outcome, outcome: swappedResult.outcome, reason: swappedResult.reason },
-          stable: areOrderSwapDecisionsConsistent(firstResult.outcome, swappedResult.outcome),
-        };
-      })();
+    const audit = await auditCandidateOrderSwap(judgmentInput, first, second, usage, comparisonCards);
     return {
       pair_key: pair.pairKey,
       candidate_1: { profile_id: first.profile.id, name: first.profile.name },
       candidate_2: { profile_id: second.profile.id, name: second.profile.name },
-      stable: audit.stable,
+      stable: audit.rawStable,
+      effective_stable: Boolean(audit.final),
+      used_arbiter: audit.usedArbiter,
       first: {
         decision: audit.first.rawDecision,
         outcome: audit.first.outcome,
@@ -98,18 +86,26 @@ async function main() {
         outcome: audit.swapped.outcome,
         reason: audit.swapped.reason,
       },
+      final: audit.final ? {
+        decision: audit.final.rawDecision,
+        outcome: audit.final.outcome,
+        reason: audit.final.reason,
+      } : null,
     };
   });
   const stableCount = results.filter((result) => result.stable).length;
+  const effectiveStableCount = results.filter((result) => result.effective_stable).length;
   const report = {
     generated_at: new Date().toISOString(),
     search_id: searchId,
-    prompt_version: 4,
-    model: llmDiagnostic ? process.env.SEARCH_JUDGE_MODEL || null : "evidence-card-comparator-v1",
+    prompt_version: 5,
+    model: process.env.SEARCH_JUDGE_MODEL || null,
     pair_count: results.length,
     stable_count: stableCount,
     order_swap_consistency: stableCount / results.length,
     passed_85_percent: stableCount / results.length >= 0.85,
+    effective_stable_count: effectiveStableCount,
+    effective_order_swap_consistency: results.length === 0 ? null : effectiveStableCount / results.length,
     comparison_cards: qualifications.map((item) => ({
       profile_id: item.profileId,
       decision: item.decision,

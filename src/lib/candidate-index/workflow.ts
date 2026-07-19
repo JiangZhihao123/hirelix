@@ -451,6 +451,7 @@ export async function runCandidateIndexWorkflow(params: {
       qualification_advance_target: qualificationAdvanceTarget,
       comparison_count: pairwise.comparisonCount,
       unstable_comparison_count: pairwise.unstableCount,
+      pairwise_arbiter_count: pairwise.arbiterCount,
       comparison_graph_connected: pairwise.graphConnected,
     },
   };
