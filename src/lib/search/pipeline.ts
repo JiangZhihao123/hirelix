@@ -2504,7 +2504,7 @@ async function buildBrightDataDatasetCandidates(
   });
   const recallStrategyMode = getHeadhunterRecallStrategyMode(parsed);
   if (!brightDataToken && !forceSnapshotProfileCache) {
-    return null;
+    throw new Error("BRIGHTDATA_API_TOKEN is required for Bright Data recall.");
   }
   const brightDataAuthToken = brightDataToken ?? "";
   const pipelineStartMs = Date.now();
@@ -2668,7 +2668,7 @@ async function buildBrightDataDatasetCandidates(
         notes: ["No executable primary lane remained after critic and filter compilation."],
       });
     }
-    return null;
+    throw new Error("Bright Data recall produced no executable standard round.");
   }
   const adaptiveActionMap = new Map(
     getAdaptiveRecallActions(parsed).map((action) => [action.id, action]),
