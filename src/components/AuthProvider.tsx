@@ -3,6 +3,12 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 
 import { authClient, useSession } from "@/lib/auth-client";
+import {
+  ANALYTICS_EVENTS,
+  getAnalyticsContextFromBrowser,
+  isRecentSignup,
+  trackEvent,
+} from "@/lib/analytics";
 import { consumeRecentGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/growth-client";
 
 /**
@@ -14,6 +20,7 @@ import { consumeRecentGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/
 type AppUser = {
   id: string;
   email?: string;
+  created_at?: string | Date;
   user_metadata: {
     name?: string | null;
     avatar_url?: string | null;
@@ -41,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ? {
         id: data.user.id,
         email: data.user.email ?? undefined,
+        created_at: data.user.createdAt,
         user_metadata: {
           name: data.user.name ?? null,
           avatar_url: data.user.image ?? null,
@@ -53,13 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isPending || !user?.id || trackedUserIdRef.current === user.id) return;
     if (!consumeRecentGrowthGoogleSignInStarted()) return;
     trackedUserIdRef.current = user.id;
+    if (!isRecentSignup(user.created_at)) return;
+    trackEvent(ANALYTICS_EVENTS.signupSuccess, {
+      ...getAnalyticsContextFromBrowser(),
+      auth_method: "google_oauth",
+      auth_result: "google_oauth_callback",
+      has_email: Boolean(user.email),
+    });
     void trackGrowthEvent("signup_success", {
       route: window.location.pathname,
       has_email: Boolean(user.email),
       auth_result: "google_oauth_callback",
       invite_code: window.__hirelixGrowthIdentity?.invite_code ?? null,
     });
-  }, [isPending, user?.email, user?.id]);
+  }, [isPending, user?.created_at, user?.email, user?.id]);
 
   const signOut = async () => {
     if (typeof window !== "undefined") {

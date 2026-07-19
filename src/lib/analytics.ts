@@ -233,6 +233,18 @@ export function getAnalyticsContextFromBrowser(
   );
 }
 
+export function isRecentSignup(
+  createdAt: string | Date | null | undefined,
+  nowMs = Date.now(),
+  windowMs = 10 * 60 * 1000,
+) {
+  if (!createdAt) return false;
+  const createdAtMs = createdAt instanceof Date ? createdAt.valueOf() : Date.parse(createdAt);
+  if (!Number.isFinite(createdAtMs)) return false;
+  const ageMs = nowMs - createdAtMs;
+  return ageMs >= -60_000 && ageMs <= windowMs;
+}
+
 export function buildAttributionQuery(options: {
   intentPath: IntentPath;
   pageVariant: string;
