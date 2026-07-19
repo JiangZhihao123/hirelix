@@ -1,7 +1,6 @@
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import {
   BILLING_PLANS,
-  getPlanEmailLookupsPerMonth,
   getPlanProfileScansPerMonth,
   getPlanPublicEvidenceDeepDivesPerMonth,
   type BillingPlanCode,
@@ -74,7 +73,7 @@ export function PricingSection({
         `${formatCount(getPlanProfileScansPerMonth(starterAnnualPlan))} targeted profile scan budget`,
         "AI can split scans across sourcing angles",
         "Useful profiles are deduped and ranked",
-        `${formatCount(getPlanEmailLookupsPerMonth(starterAnnualPlan))} contact lookups`,
+        "LinkedIn outreach drafts for recommended candidates",
         `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(starterAnnualPlan))} candidate research runs`,
         "CSV export and client-ready briefs",
       ],
@@ -95,7 +94,7 @@ export function PricingSection({
         `${formatCount(getPlanProfileScansPerMonth(proAnnualPlan))} targeted profile scan budget`,
         "AI can run more sourcing rounds per desk",
         "Useful profiles are deduped and ranked",
-        `${formatCount(getPlanEmailLookupsPerMonth(proAnnualPlan))} contact lookups`,
+        "LinkedIn outreach drafts for recommended candidates",
         `${formatCount(getPlanPublicEvidenceDeepDivesPerMonth(proAnnualPlan))} candidate research runs`,
         "CSV export and client-ready briefs",
       ],

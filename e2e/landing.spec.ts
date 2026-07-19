@@ -127,7 +127,8 @@ test.describe("Landing Page", () => {
     await expect(pricing.getByText("Pro", { exact: true })).toBeVisible();
     await expect(pricing.getByText("Run a real preview before you pay.")).toBeVisible();
     await expect(pricing.getByText("No candidate email lookup")).toHaveCount(0);
-    await expect(pricing.getByText("contact lookups")).toHaveCount(2);
+    await expect(pricing.getByText("contact lookups")).toHaveCount(0);
+    await expect(pricing.getByText("LinkedIn outreach drafts for recommended candidates")).toHaveCount(2);
     await expect(pricing.getByText("CSV export and client-ready briefs")).toHaveCount(2);
     await expect(pricing.getByText("3 client roles per month")).toBeVisible();
     await expect(pricing.getByText("10 client roles per month")).toBeVisible();

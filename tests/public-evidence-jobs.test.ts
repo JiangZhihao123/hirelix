@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   getPublicEvidenceJobTimeoutMs,
   normalizePublicEvidenceJobTimestampFields,
+  shouldRefreshLinkedInOutreachAfterResearch,
 } from "../src/lib/public-evidence-jobs";
 
 test("normalizePublicEvidenceJobTimestampFields converts ISO strings for Drizzle timestamp columns", () => {
@@ -28,4 +29,14 @@ test("getPublicEvidenceJobTimeoutMs bounds configurable job timeout", () => {
   assert.equal(getPublicEvidenceJobTimeoutMs({ PUBLIC_EVIDENCE_JOB_TIMEOUT_MS: "1000" }), 30_000);
   assert.equal(getPublicEvidenceJobTimeoutMs({ PUBLIC_EVIDENCE_JOB_TIMEOUT_MS: "999999" }), 240_000);
   assert.equal(getPublicEvidenceJobTimeoutMs({ PUBLIC_EVIDENCE_JOB_TIMEOUT_MS: "wat" }), 240_000);
+});
+
+test("researched outreach refreshes only when candidate research produced sellable evidence", () => {
+  assert.equal(shouldRefreshLinkedInOutreachAfterResearch({
+    selling_kit: { evidence_basis: "public_evidence" },
+  }), true);
+  assert.equal(shouldRefreshLinkedInOutreachAfterResearch({
+    selling_kit: { evidence_basis: "linkedin_based" },
+  }), false);
+  assert.equal(shouldRefreshLinkedInOutreachAfterResearch({}), false);
 });

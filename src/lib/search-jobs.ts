@@ -3159,7 +3159,6 @@ async function generateOutreachDraftsForRows(
           firstName,
           roleTitle: normalizeNullableString(parsed.title) || "open role",
           evidence,
-          hasEmail: true,
         }),
       ),
     };
@@ -3201,7 +3200,6 @@ async function generateOutreachDraftsForRows(
               firstName,
               roleTitle: normalizeNullableString(parsed.title) || "open role",
               evidence,
-              hasEmail: true,
             }),
           ),
         };
@@ -3212,7 +3210,6 @@ async function generateOutreachDraftsForRows(
           (signal) => generateLlmJson<{
             subject?: string;
             linkedin?: string;
-            email?: string;
           }>({
             model: getLightModel(),
             prompt: buildRecruiterOutreachPrompt({
@@ -3233,7 +3230,7 @@ async function generateOutreachDraftsForRows(
             abortSignal: signal,
             timeoutMs: 60000,
             temperature: 0,
-            jsonSchema: buildOutreachDraftJsonSchema(),
+            jsonSchema: buildOutreachDraftJsonSchema({ includeEmail: false }),
             deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
             usageEvent: {
               searchId: context.searchId,
@@ -3252,8 +3249,7 @@ async function generateOutreachDraftsForRows(
         );
         const subject = normalizeNullableString(parsedDraft.subject);
         const linkedin = normalizeNullableString(parsedDraft.linkedin);
-        const email = normalizeNullableString(parsedDraft.email);
-        if (!subject || !linkedin || !email) {
+        if (!subject || !linkedin) {
           logSearchEvent("outreach_draft_fallback", {
             search_id: context.searchId,
             candidate_index:
@@ -3267,7 +3263,7 @@ async function generateOutreachDraftsForRows(
         }
         return {
           ...normalizedRow,
-          outreach_draft: JSON.stringify({ subject, linkedin, email }),
+          outreach_draft: JSON.stringify({ subject, linkedin }),
         };
       } catch (error) {
         logSearchEvent("outreach_draft_fallback", {

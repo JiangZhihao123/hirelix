@@ -1,7 +1,5 @@
 "use client";
 
-import { Lock } from "lucide-react";
-import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   getDisplayNameColorSeed,
   getDisplayNameInitials,
@@ -87,78 +85,5 @@ export function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
     <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
       Ready to act
     </span>
-  );
-}
-
-export function ContactActionStrip({
-  billingPlanCode,
-  hasRealEmail,
-  enrichesRemaining,
-  enriching,
-  onEnrich,
-  onUpgradeClick,
-  onError,
-  compact = false,
-}: {
-  billingPlanCode: import("@/lib/billing").BillingPlanCode;
-  hasRealEmail: boolean;
-  enrichesRemaining: number;
-  enriching: boolean;
-  onEnrich: () => void;
-  onUpgradeClick: (surface: string) => void;
-  onError: (message: string) => void;
-  compact?: boolean;
-}) {
-  if (hasRealEmail) return null;
-
-  const wrapperClass = compact
-    ? "rounded-xl border border-amber-200 bg-amber-50 px-3 py-3"
-    : "rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4";
-  const textClass = compact ? "text-xs" : "text-sm";
-  const hintClass = compact ? "mt-1 text-[11px]" : "mt-1 text-xs";
-  const requiresUpgrade = billingPlanCode === "free" || enrichesRemaining <= 0;
-
-  return (
-    <div className={wrapperClass}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="inline-flex items-center gap-1.5 text-amber-800">
-            <Lock className="h-3.5 w-3.5" />
-            <p className={`${textClass} font-semibold`}>
-              Get email
-            </p>
-          </div>
-          <p className={`${hintClass} text-amber-700`}>
-            {billingPlanCode === "free"
-              ? "Upgrade when you are ready to contact candidates from this pool."
-              : enrichesRemaining > 0
-                ? "Find this candidate's email when you're ready to reach out."
-                : "Your monthly email lookup limit has been used."}
-          </p>
-        </div>
-
-        {requiresUpgrade && billingPlanCode === "free" ? (
-          <PaddleCheckoutButton
-            checkout={{ type: "plan", planCode: "starter_monthly" }}
-            label="Upgrade to Starter"
-            onClick={() => onUpgradeClick(compact ? "candidate_email_strip_compact" : "candidate_email_strip")}
-            onError={onError}
-            className="inline-flex shrink-0 cursor-pointer items-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
-          />
-        ) : requiresUpgrade ? (
-          <span className="inline-flex shrink-0 items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
-            Limit reached
-          </span>
-        ) : (
-          <button
-            onClick={onEnrich}
-            disabled={enriching}
-            className="inline-flex shrink-0 cursor-pointer items-center rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {enriching ? "Finding..." : "Get email"}
-          </button>
-        )}
-      </div>
-    </div>
   );
 }

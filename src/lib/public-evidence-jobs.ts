@@ -11,9 +11,20 @@ import {
 import { extractRequiredSkillsForGithub } from "@/lib/github-enrichment-jobs";
 import { toJsonbSafeRecord } from "@/lib/jsonb-safe";
 import { getLogger } from "@/lib/logger";
+import {
+  generateLlmJson,
+  getLightweightLlmModel,
+  resolveDeepSeekThinkingMode,
+} from "@/lib/llm-client";
+import { buildOutreachDraftJsonSchema } from "@/lib/llm-schemas";
 import { enrichPublicEvidenceForCandidate } from "@/lib/public-evidence";
 import { getSellableEvidenceItems } from "@/lib/public-evidence/selling-kit";
 import type { PublicEvidenceItem } from "@/lib/public-evidence/types";
+import {
+  buildDeterministicWeakEvidenceOutreachDraft,
+  buildRecruiterOutreachEvidence,
+  buildRecruiterOutreachPrompt,
+} from "@/lib/recruiter-outreach";
 import { withTimeout } from "@/lib/search/concurrency";
 
 const publicEvidenceLogger = getLogger({ component: "public_evidence_jobs" });
@@ -77,6 +88,83 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? { ...(value as Record<string, unknown>) }
     : {};
+}
+
+export function shouldRefreshLinkedInOutreachAfterResearch(metadata: unknown) {
+  return asRecord(asRecord(metadata).selling_kit).evidence_basis === "public_evidence";
+}
+
+function getRoleTitle(parsedRequirements: unknown) {
+  const parsed = asRecord(parsedRequirements);
+  const roleCore = asRecord(asRecord(parsed.hiring_brief).role_core);
+  return typeof roleCore.title === "string" && roleCore.title.trim()
+    ? roleCore.title.trim()
+    : typeof parsed.title === "string" && parsed.title.trim()
+      ? parsed.title.trim()
+      : "open role";
+}
+
+async function generateResearchedLinkedInOutreach(params: {
+  jdText: string;
+  parsedRequirements: unknown;
+  candidate: {
+    id: string;
+    name: string;
+    headline: string | null;
+    location: string | null;
+    skills: string[] | null;
+    matchReasons: string[] | null;
+    metadata: Record<string, unknown>;
+  };
+}) {
+  const candidateInput = {
+    name: params.candidate.name,
+    headline: params.candidate.headline,
+    location: params.candidate.location,
+    skills: params.candidate.skills || [],
+    matchReasons: params.candidate.matchReasons || [],
+    githubSignals: asRecord(params.candidate.metadata.github_signals),
+    publicEvidence: asRecord(params.candidate.metadata.public_evidence),
+    sellingKit: asRecord(params.candidate.metadata.selling_kit),
+  };
+  const roleTitle = getRoleTitle(params.parsedRequirements);
+  const firstName = params.candidate.name.split(/\s+/).filter(Boolean)[0] || "there";
+
+  try {
+    const { data } = await withTimeout(
+      (signal) => generateLlmJson<{ subject?: string; linkedin?: string }>({
+        model: process.env.SEARCH_LIGHT_MODEL || getLightweightLlmModel(),
+        prompt: buildRecruiterOutreachPrompt({
+          jdText: params.jdText,
+          roleTitle,
+          candidate: candidateInput,
+        }),
+        maxOutputTokens: 500,
+        temperature: 0,
+        jsonSchema: buildOutreachDraftJsonSchema({ includeEmail: false }),
+        deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
+        abortSignal: signal,
+        timeoutMs: 60_000,
+      }),
+      60_000,
+      `Researched LinkedIn outreach for ${params.candidate.name}`,
+    );
+    const subject = typeof data.subject === "string" ? data.subject.trim() : "";
+    const linkedin = typeof data.linkedin === "string" ? data.linkedin.trim() : "";
+    if (subject && linkedin) return { subject, linkedin };
+  } catch (error) {
+    publicEvidenceLogger.warn({
+      event: "public_evidence_outreach_fallback",
+      candidate_id: params.candidate.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return buildDeterministicWeakEvidenceOutreachDraft({
+    firstName,
+    roleTitle,
+    evidence: buildRecruiterOutreachEvidence(candidateInput),
+  });
 }
 
 export function shouldQueuePublicEvidence(metadata: unknown) {
@@ -381,6 +469,7 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
         .select({
           id: hirelix_searches.id,
           user_id: hirelix_searches.user_id,
+          jd_text: hirelix_searches.jd_text,
           parsed_requirements: hirelix_searches.parsed_requirements,
         })
         .from(hirelix_searches)
@@ -431,6 +520,21 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
       metadata,
       publicEvidenceScore: enrichment.result.score,
     });
+    const refreshedOutreach = shouldRefreshLinkedInOutreachAfterResearch(blended.metadata)
+      ? await generateResearchedLinkedInOutreach({
+        jdText: search.jd_text || "",
+        parsedRequirements: search.parsed_requirements,
+        candidate: {
+          id: candidate.id,
+          name: candidate.name || "Unknown candidate",
+          headline: candidate.headline,
+          location: candidate.location,
+          skills: candidate.skills,
+          matchReasons: candidate.match_reasons,
+          metadata: blended.metadata,
+        },
+      })
+      : null;
     await persistPublicEvidenceItems({
       candidateId: candidate.id,
       searchId: job.search_id,
@@ -442,6 +546,9 @@ export async function processNextPublicEvidenceJob(preferredCandidateId?: string
         github_url: enrichment.githubUrl || candidate.github_url,
         match_score: blended.matchScore,
         metadata: toJsonbSafeRecord(blended.metadata),
+        ...(refreshedOutreach
+          ? { outreach_draft: JSON.stringify(refreshedOutreach) }
+          : {}),
       })
       .where(eq(hirelix_candidates.id, candidate.id));
     if (job.user_id) {

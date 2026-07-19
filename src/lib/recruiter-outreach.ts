@@ -367,14 +367,13 @@ ${cautionFacts}
 Return ONLY valid JSON with this exact shape:
 {
   "subject": "string",
-  "linkedin": "string",
-  "email": "string"
+  "linkedin": "string"
 }
 
 Rules:
 - Write from the perspective of a third-party headhunter, not an in-house recruiter.
 - Never name or hint at the client company. Use "one of my clients" or a generic descriptor (stage, industry, team size).
-- Make both drafts specific to this person and this role.
+- Make the InMail specific to this person and this role.
 - You must reference the proof line above. Do not ignore it.
 - Mention only facts that are explicitly supported by the proof line or approved facts.
 - Never turn inferred fit, likely experience, or role requirements into confirmed candidate facts.
@@ -387,8 +386,7 @@ Rules:
 - If the evidence source is GitHub, use it as an engineering credibility signal only. Do not infer payments or domain expertise unless the proof itself shows it.
 - If the evidence source is LinkedIn, use one concrete career detail instead of inventing GitHub proof.
 - Keep the LinkedIn InMail under 80 words and casual.
-- Keep the email body under 120 words and slightly more formal.
-- Both drafts must start with "Hi ${firstName},"
+- The InMail must start with "Hi ${firstName},"
 - No markdown. No code fences. No extra keys.`;
 }
 
@@ -396,7 +394,6 @@ export function buildDeterministicWeakEvidenceOutreachDraft(params: {
   firstName: string;
   roleTitle: string;
   evidence: RecruiterOutreachEvidence;
-  hasEmail: boolean;
 }) {
   const firstName = params.firstName || "there";
   const subject = `${params.roleTitle} opportunity`;
@@ -404,13 +401,8 @@ export function buildDeterministicWeakEvidenceOutreachDraft(params: {
   const linkedin =
     `Hi ${firstName}, I noticed ${proof} and thought there may be overlap with a ${params.roleTitle} search I'm running for one of my clients. ` +
     "Open to a quick chat?";
-  const email =
-    `Hi ${firstName}, I noticed ${proof} and thought there may be overlap with a ${params.roleTitle} search I'm running for one of my clients. ` +
-    "If you're open to a brief conversation, I'd be happy to share a bit more context.\n\nBest regards";
-
   return {
     subject,
     linkedin,
-    ...(params.hasEmail ? { email } : {}),
   };
 }

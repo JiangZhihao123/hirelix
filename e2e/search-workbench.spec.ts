@@ -304,12 +304,17 @@ test.describe("Search workbench", () => {
     const queue = page.getByTestId("outreach-approval-queue");
     await expect(queue).toBeVisible();
     await expect(queue).toContainText("Outreach approval queue");
+    await expect(queue.getByText("Email copy", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Get email", { exact: true })).toHaveCount(0);
     for (const status of ["contacted", "replied", "submitted", "interview", "placed"]) {
       await expect(page.getByTestId(`validation-count-${status}-value`)).toHaveText("0");
     }
 
     await expect(page.getByTestId("copy-linkedin-candidate-1")).toBeEnabled();
     await page.getByTestId("copy-linkedin-candidate-1").click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toContain("Subject: Jordan, quick question about backend systems");
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
       .toContain("backend systems work stood out");

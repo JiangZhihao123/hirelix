@@ -187,7 +187,7 @@ export const COMPANY_INFO_EXTRACTION_JSON_SCHEMA: LlmJsonSchemaConfig = {
 export function buildOutreachDraftJsonSchema(options?: {
   includeEmail?: boolean;
 }): LlmJsonSchemaConfig {
-  const includeEmail = options?.includeEmail !== false;
+  const includeEmail = options?.includeEmail === true;
   return {
     name: includeEmail ? "outreach_draft_full" : "outreach_draft_linkedin_only",
     strict: true,

@@ -66,6 +66,8 @@ test("buildRecruiterOutreachPrompt includes anti-overclaim guardrails", () => {
   assert.match(prompt, /If evidence confidence is "weak", use cautious language/);
   assert.match(prompt, /Avoid phrases like "perfect match", "aligns perfectly", or "extensive experience"/);
   assert.doesNotMatch(prompt, /Match reasons:/);
+  assert.doesNotMatch(prompt, /"email"/);
+  assert.doesNotMatch(prompt, /email body/i);
 });
 
 test("buildRecruiterOutreachPrompt keeps github evidence scoped to engineering credibility", () => {
@@ -188,7 +190,6 @@ test("buildDeterministicWeakEvidenceOutreachDraft stays grounded in safe profile
   const draft = buildDeterministicWeakEvidenceOutreachDraft({
     firstName: "Evan",
     roleTitle: "Staff Software Engineer",
-    hasEmail: true,
     evidence: buildRecruiterOutreachEvidence({
       name: "Evan Andrews",
       headline: "at Stripe",
@@ -199,5 +200,5 @@ test("buildDeterministicWeakEvidenceOutreachDraft stays grounded in safe profile
 
   assert.match(draft.linkedin, /I noticed your profile mentions Payments and Go/);
   assert.doesNotMatch(draft.linkedin, /worked on payments infrastructure/i);
-  assert.match(draft.email || "", /there may be overlap/);
+  assert.deepEqual(Object.keys(draft).sort(), ["linkedin", "subject"]);
 });

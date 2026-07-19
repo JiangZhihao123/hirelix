@@ -7,14 +7,13 @@ import {
   CheckCircle2,
   Check,
   Copy,
+  ExternalLink,
   GraduationCap,
   Loader2,
-  Mail,
   Send,
   Sparkles,
   X,
 } from "lucide-react";
-import { useAuth } from "@/components/AuthProvider";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_OPTIONS } from "@/lib/candidate-status";
 import { sanitizeDisplayName } from "@/lib/display-name";
@@ -36,7 +35,7 @@ import {
   hidePublicEvidenceLine,
   parseOutreach,
 } from "./utils";
-import { ContactActionStrip, InitialsAvatar } from "./ui";
+import { InitialsAvatar } from "./ui";
 
 function citationLabelForItem(item: { citation_label?: string | null }, index: number) {
   return item.citation_label || `[${index + 1}]`;
@@ -90,11 +89,9 @@ export function CandidateWorkbenchDetail({
   requiredSkills,
   billingPlanCode,
   clientBriefEnabled,
-  enrichesRemaining,
   publicEvidenceDeepDivesRemaining,
   publicEvidenceQueueing,
   onPublicEvidenceDeepDive,
-  refreshBilling,
   onUpgradeClick,
   onStatusChange,
 }: {
@@ -103,11 +100,9 @@ export function CandidateWorkbenchDetail({
   requiredSkills: string[];
   billingPlanCode: import("@/lib/billing").BillingPlanCode;
   clientBriefEnabled: boolean;
-  enrichesRemaining: number;
   publicEvidenceDeepDivesRemaining: number;
   publicEvidenceQueueing: boolean;
   onPublicEvidenceDeepDive: () => void;
-  refreshBilling: () => Promise<void>;
   onUpgradeClick: (surface: string) => void;
   onStatusChange: (id: string, status: string) => void;
 }) {
@@ -117,8 +112,6 @@ export function CandidateWorkbenchDetail({
   const [enriching, setEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [localCandidate, setLocalCandidate] = useState(candidate);
-  const { user } = useAuth();
-  const requiresEmailUpgrade = billingPlanCode === "free";
   const requiresPublicEvidenceUpgrade = billingPlanCode === "free";
 
   useEffect(() => {
@@ -145,24 +138,17 @@ export function CandidateWorkbenchDetail({
     hidePublicEvidence: requiresPublicEvidenceUpgrade,
   });
   const outreach = parseOutreach(localCandidate.outreach_draft);
-  const hasRealEmail = !!(localCandidate.email && !localCandidate.email.includes("***"));
-  const [outreachTab, setOutreachTab] = useState<"linkedin" | "email">(hasRealEmail ? "email" : "linkedin");
   const [editedSubject, setEditedSubject] = useState(outreach.subject);
   const [editedLinkedin, setEditedLinkedin] = useState(outreach.linkedin);
-  const [editedEmail, setEditedEmail] = useState(outreach.email);
 
   useEffect(() => {
     const next = parseOutreach(localCandidate.outreach_draft);
     setEditedSubject(next.subject);
     setEditedLinkedin(next.linkedin);
-    setEditedEmail(next.email);
-    setOutreachTab(localCandidate.email ? "email" : "linkedin");
-  }, [localCandidate.email, localCandidate.outreach_draft]);
+  }, [localCandidate.outreach_draft]);
 
   const overallScore = getCandidateOverallScore(localCandidate);
   const scoreMetrics = getCandidateScoreMetrics(localCandidate);
-  const activeBody = outreachTab === "linkedin" ? editedLinkedin : editedEmail;
-  const setActiveBody = outreachTab === "linkedin" ? setEditedLinkedin : setEditedEmail;
   const shortlistReason =
     localCandidate.metadata?.shortlist_reason ??
     suitability?.shortlist_reason ??
@@ -268,13 +254,8 @@ export function CandidateWorkbenchDetail({
       ? "Lead with the strongest verified public engineering evidence."
       : "Use the most relevant profile experience in the opening line, or research the candidate before citing outside proof.");
 
-  async function handleEnrich(options: { regenerateOutreach?: boolean } = {}) {
-    if (enriching || !user) return;
-    if (!options.regenerateOutreach && requiresEmailUpgrade) {
-      onUpgradeClick("workbench_email_lookup");
-      setEnrichError("Start a subscription to unlock email lookup.");
-      return;
-    }
+  async function handleRegenerateOutreach() {
+    if (enriching) return;
     setEnrichError(null);
     setEnriching(true);
     try {
@@ -282,9 +263,7 @@ export function CandidateWorkbenchDetail({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: options.regenerateOutreach
-          ? JSON.stringify({ regenerate_outreach: true })
-          : undefined,
+        body: JSON.stringify({ regenerate_outreach: true }),
       });
       if (!res.ok) {
         throw new Error(PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE);
@@ -292,12 +271,10 @@ export function CandidateWorkbenchDetail({
       const data = await res.json();
       setLocalCandidate((prev) => ({
         ...prev,
-        email: data.email || prev.email,
         github_url: data.github_url || prev.github_url,
         outreach_draft: data.outreach_draft || prev.outreach_draft,
         metadata: data.metadata || prev.metadata,
       }));
-      await refreshBilling();
     } catch (error) {
       setEnrichError(error instanceof Error ? error.message : PUBLIC_CANDIDATE_ENRICH_ERROR_MESSAGE);
     } finally {
@@ -312,9 +289,9 @@ export function CandidateWorkbenchDetail({
   }
 
   function copyAll() {
-    const full = outreachTab === "email" && editedSubject
-      ? `Subject: ${editedSubject}\n\n${activeBody}`
-      : activeBody;
+    const full = editedSubject
+      ? `Subject: ${editedSubject}\n\n${editedLinkedin}`
+      : editedLinkedin;
     copyText(full, "all");
   }
 
@@ -724,19 +701,6 @@ export function CandidateWorkbenchDetail({
                   </span>
                 )}
               </div>
-              {!hasRealEmail && (
-                <div className="mt-4">
-                  <ContactActionStrip
-                    billingPlanCode={billingPlanCode}
-                    hasRealEmail={hasRealEmail}
-                    enrichesRemaining={enrichesRemaining}
-                    enriching={enriching}
-                    onEnrich={handleEnrich}
-                    onUpgradeClick={onUpgradeClick}
-                    onError={(message) => setEnrichError(message)}
-                  />
-                </div>
-              )}
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Best opening angle
@@ -830,7 +794,7 @@ export function CandidateWorkbenchDetail({
                 <div className="flex flex-wrap gap-2">
                   {canRegenerateWithPublicEvidence && (
                     <button
-                      onClick={() => handleEnrich({ regenerateOutreach: true })}
+                      onClick={handleRegenerateOutreach}
                       disabled={enriching}
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
                     >
@@ -1350,37 +1314,21 @@ export function CandidateWorkbenchDetail({
 
             {!localCandidate.outreach_draft ? (
               <div className="mt-6 rounded-2xl border border-dashed border-slate-200 p-6 text-center">
-                <Mail className="mx-auto h-8 w-8 text-slate-400" />
+                <Send className="mx-auto h-8 w-8 text-slate-400" />
                 <p className="mt-4 text-sm font-medium text-slate-900">
-                  Outreach copy is not ready yet
+                  LinkedIn outreach is not ready yet
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {billingPlanCode === "free"
-                    ? "You already have the ranked candidate list. Start a subscription when you are ready to contact candidates."
-                    : "Generate the outreach draft and find the email when you're ready to act on this candidate."}
+                  Generate a grounded LinkedIn InMail from the candidate profile and current research evidence.
                 </p>
-                {requiresEmailUpgrade ? (
-                  <PaddleCheckoutButton
-                    checkout={{ type: "plan", planCode: "starter_monthly" }}
-                    label="Upgrade to Starter"
-                    onClick={() => onUpgradeClick("workbench_outreach_drawer")}
-                    onError={(message) => setEnrichError(message)}
-                    className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-                  />
-                ) : enrichesRemaining <= 0 ? (
-                  <span className="mt-4 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600">
-                    Limit reached
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => handleEnrich()}
-                    disabled={enriching}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Generate outreach
-                  </button>
-                )}
+                <button
+                  onClick={handleRegenerateOutreach}
+                  disabled={enriching}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Generate LinkedIn draft
+                </button>
                 {enrichError && (
                   <p className="mt-3 text-sm text-red-500">{enrichError}</p>
                 )}
@@ -1388,28 +1336,9 @@ export function CandidateWorkbenchDetail({
             ) : (
               <div className="mt-6 space-y-4">
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setOutreachTab("linkedin")}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      outreachTab === "linkedin"
-                        ? "bg-[#0077B5]/10 text-[#0077B5]"
-                        : "text-slate-500 hover:bg-slate-50"
-                    }`}
-                  >
+                  <span className="rounded-full bg-[#0077B5]/10 px-3 py-1 text-xs font-medium text-[#0077B5]">
                     LinkedIn
-                  </button>
-                  {hasRealEmail && (
-                    <button
-                      onClick={() => setOutreachTab("email")}
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        outreachTab === "email"
-                          ? "bg-slate-950 text-white"
-                          : "text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
-                      Email
-                    </button>
-                  )}
+                  </span>
                   <button
                     onClick={copyAll}
                     className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
@@ -1419,7 +1348,7 @@ export function CandidateWorkbenchDetail({
                   </button>
                   {canRegenerateWithPublicEvidence && (
                     <button
-                      onClick={() => handleEnrich({ regenerateOutreach: true })}
+                      onClick={handleRegenerateOutreach}
                       disabled={enriching}
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
                     >
@@ -1429,36 +1358,40 @@ export function CandidateWorkbenchDetail({
                   )}
                 </div>
 
-                {outreachTab === "email" && (
-                  <div>
-                    <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Subject
-                    </label>
-                    <input
-                      type="text"
-                      value={editedSubject}
-                      onChange={(event) => setEditedSubject(event.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    InMail subject
+                  </label>
+                  <input
+                    type="text"
+                    value={editedSubject}
+                    onChange={(event) => setEditedSubject(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
+                  />
+                </div>
 
                 <div>
                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Message
                   </label>
                   <textarea
-                    value={activeBody}
-                    onChange={(event) => setActiveBody(event.target.value)}
+                    value={editedLinkedin}
+                    onChange={(event) => setEditedLinkedin(event.target.value)}
                     rows={12}
                     className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
                   />
                 </div>
 
-                {localCandidate.email && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    {localCandidate.email}
-                  </div>
+                {localCandidate.profile_url && (
+                  <a
+                    href={localCandidate.profile_url.replace("://linkedin.com", "://www.linkedin.com")}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#0077B5] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#005582]"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open LinkedIn profile
+                  </a>
                 )}
               </div>
             )}

@@ -5,11 +5,9 @@ import { db } from "@/db/client";
 import {
   hirelix_candidates,
   hirelix_searches,
-  hirelix_usage_events,
   hirelix_user_settings,
 } from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
-import { findEmail } from "@/lib/hunter";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
   generateLlmJson,
@@ -29,9 +27,8 @@ const routeLogger = getLogger({ component: "api_candidate_enrich" });
 /**
  * POST /api/candidates/[id]/enrich
  *
- * On-demand: find email for a single candidate.
- * Draft generation normally happens in the main search pipeline; this route
- * only backfills a draft when one is unexpectedly missing.
+ * Explicit on-demand actions only: queue candidate research or regenerate a
+ * LinkedIn outreach draft. Email lookup is intentionally outside this flow.
  */
 export async function POST(
   req: NextRequest,
@@ -48,6 +45,13 @@ export async function POST(
     const user = await getUserFromApiRequest(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!regenerateOutreach && !requestPublicEvidence) {
+      return NextResponse.json(
+        { error: "Specify public_evidence or regenerate_outreach." },
+        { status: 400 },
+      );
     }
 
     const billing = await getBillingSummaryForUser(user.id);
@@ -128,23 +132,11 @@ export async function POST(
     };
 
     const updates: Record<string, unknown> = {};
-    const needsContactLookup = !candidate.email && !regenerateOutreach && !requestPublicEvidence;
-    const needsDraftBackfill = !candidate.outreach_draft || regenerateOutreach;
+    const needsDraftBackfill = regenerateOutreach;
     const sanitizedCandidateName = sanitizeDisplayName(candidate.name);
     if (sanitizedCandidateName !== candidate.name) {
       updates.name = sanitizedCandidateName;
       candidate.name = sanitizedCandidateName;
-    }
-    if (needsContactLookup && billing.usage.emailLookupsRemaining <= 0) {
-      return NextResponse.json(
-        {
-          error:
-            billing.plan.code === "free"
-              ? "Start a subscription to unlock email lookup, export, and client-ready briefs."
-              : "You have reached this month's email lookup limit. Your next cycle will reset automatically.",
-        },
-        { status: 403 },
-      );
     }
     if (requestPublicEvidence) {
       if (
@@ -188,8 +180,6 @@ export async function POST(
       }
     }
 
-    const apolloApiKey = process.env.APOLLO_API_KEY || null;
-    const hunterApiKey = process.env.HUNTER_API_KEY || null;
     let openRouterConfigured = true;
     try {
       getLlmApiKey();
@@ -226,49 +216,7 @@ export async function POST(
         : null;
     const effectiveGithubUrl = typeof candidate.github_url === "string" ? candidate.github_url : null;
 
-    // ── Step 1: Find email (if not already found) ──
-    if (needsContactLookup && (apolloApiKey || hunterApiKey)) {
-      const nameParts = sanitizedCandidateName.split(" ");
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.slice(1).join(" ") || "";
-
-      if (firstName && candidate.profile_url) {
-        try {
-          const emailResult = await findEmail({
-            apolloApiKey,
-            hunterApiKey,
-            firstName,
-            lastName,
-            linkedinUrl: candidate.profile_url,
-            metadata: (candidate.metadata as Record<string, unknown>) || {},
-            headline: candidate.headline,
-          });
-          if (emailResult.email) {
-            updates.email = emailResult.email;
-            updates.enrich_source = emailResult.source;
-            routeLogger.info({
-              event: "candidate_email_found",
-              candidate_id: candidate.id,
-              search_id: candidate.search_id,
-              user_id: user.id,
-              source: emailResult.source,
-            });
-          }
-        } catch (err) {
-          routeLogger.error(
-            {
-              candidate_id: candidate.id,
-              search_id: candidate.search_id,
-              user_id: user.id,
-              ...errorLogFields(err),
-            },
-            "Candidate email lookup failed",
-          );
-        }
-      }
-    }
-
-    // ── Step 2: Generate outreach draft (if not already generated) ──
+    // Generate or refresh the LinkedIn outreach draft from the current evidence.
     if (needsDraftBackfill && openRouterConfigured) {
       const model = getDefaultLlmModel();
       const parsed = parsedRequirements;
@@ -276,8 +224,6 @@ export async function POST(
       const parsedRequiredSkills = Array.isArray(parsed.required_skills)
         ? parsed.required_skills.filter((value): value is string => typeof value === "string")
         : requiredSkills;
-      const email = updates.email || candidate.email;
-      const hasEmail = !!email;
       const firstName = sanitizedCandidateName.split(" ")[0];
       const evidence = buildRecruiterOutreachEvidence({
         name: sanitizedCandidateName,
@@ -344,22 +290,18 @@ Outreach angle: ${evidence.outreachAngle}
 ## Return JSON with:
 - subject: string (compelling subject line, under 10 words, personalized to THIS candidate)
 - linkedin: string (LinkedIn InMail, under 80 words, casual, starts with "Hi ${firstName},")
-${hasEmail ? `- email: string (email body, under 100 words, slightly more formal, starts with "Hi ${firstName},")` : ""}
 
       Return ONLY valid JSON, no markdown.`;
 
       const { data: draft } = await generateLlmJson<{
         subject?: string;
         linkedin?: string;
-        email?: string;
       }>({
         model,
         prompt,
         maxOutputTokens: 1000,
         temperature: 0,
-        jsonSchema: buildOutreachDraftJsonSchema({
-          includeEmail: hasEmail,
-        }),
+        jsonSchema: buildOutreachDraftJsonSchema({ includeEmail: false }),
         deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_OUTREACH_THINKING", "disabled"),
       });
       const subject = typeof draft.subject === "string" && draft.subject.trim().length > 0
@@ -368,16 +310,12 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
       const linkedin = typeof draft.linkedin === "string" && draft.linkedin.trim().length > 0
         ? draft.linkedin.trim()
         : null;
-      const emailDraft = !hasEmail || (typeof draft.email === "string" && draft.email.trim().length > 0)
-        ? draft.email?.trim()
-        : null;
-      if (!subject || !linkedin || (hasEmail && !emailDraft)) {
+      if (!subject || !linkedin) {
         throw new Error(`Outreach generation returned incomplete content for ${sanitizedCandidateName}`);
       }
       updates.outreach_draft = JSON.stringify({
         subject,
         linkedin,
-        ...(hasEmail ? { email: emailDraft } : {}),
       });
       routeLogger.info(
         {
@@ -391,30 +329,14 @@ ${hasEmail ? `- email: string (email body, under 100 words, slightly more formal
 
     // ── Update DB ──
     if (Object.keys(updates).length > 0) {
-      if (!candidate.enriched_at && needsContactLookup) {
-        updates.enriched_at = new Date();
-      }
       await db
         .update(hirelix_candidates)
         .set(updates)
         .where(eq(hirelix_candidates.id, id));
     }
 
-    if (!candidate.enriched_at && needsContactLookup) {
-      await db.insert(hirelix_usage_events).values({
-        user_id: user.id,
-        event_type: "candidate_enriched",
-        related_id: candidate.id,
-        metadata: {
-          plan_code: billing.plan.code,
-          email_lookup_count: 1,
-        },
-      });
-    }
-
     return NextResponse.json({
       ok: true,
-      email: updates.email || candidate.email || null,
       github_url: updates.github_url || effectiveGithubUrl || candidate.github_url || null,
       metadata: updates.metadata || effectiveMetadata,
       outreach_draft: updates.outreach_draft || candidate.outreach_draft || null,

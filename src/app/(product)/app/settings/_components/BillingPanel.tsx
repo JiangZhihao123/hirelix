@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ExternalLink,
   Loader2,
-  Mail,
   ScanSearch,
   Sparkles,
 } from "lucide-react";
@@ -14,7 +13,6 @@ import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import {
   BILLING_PLANS,
-  getPlanEmailLookupsPerMonth,
   getPlanProfileScansPerMonth,
   getPlanPublicEvidenceDeepDivesPerMonth,
   type BillingPlanCode,
@@ -67,7 +65,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
       id="billing"
       eyebrow="Billing"
       title="Billing and usage"
-      description="Usage is based on AI sourcing budget, then email lookup and candidate research only when you choose to run them."
+      description="Usage is based on AI sourcing budget and candidate research runs you choose to start."
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -186,29 +184,6 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
-                  <Mail className="h-4 w-4 text-slate-400" />
-                  Email lookups
-                </span>
-                <span className="text-slate-500">
-                  {billing.usage.emailLookupsUsed}/{billing.usage.emailLookupsLimit}
-                </span>
-              </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-slate-900"
-                  style={{
-                    width: getUsageWidth(billing.usage.emailLookupsUsed, billing.usage.emailLookupsLimit),
-                  }}
-                />
-              </div>
-              <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.emailLookupsRemaining} lookups left this cycle
-              </p>
-            </div>
-
-            <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <Sparkles className="h-4 w-4 text-slate-400" />
                   Candidate research
                 </span>
@@ -256,7 +231,6 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
               const monthlyPlanCode = tier.monthlyPlanCode;
               const tierIsCurrent = isCurrentTier(annualPlanCode, monthlyPlanCode);
               const profileScans = getPlanProfileScansPerMonth(plan).toLocaleString("en-US");
-              const emailLookups = getPlanEmailLookupsPerMonth(plan).toLocaleString("en-US");
               const evidenceDeepDives = getPlanPublicEvidenceDeepDivesPerMonth(plan).toLocaleString("en-US");
 
               return (
@@ -294,7 +268,7 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                       `${profileScans} targeted profile scan budget per month`,
                       "AI can split scans across sourcing angles",
                       "Useful profiles are deduped and ranked",
-                      `${emailLookups} contact lookups per month`,
+                      "LinkedIn outreach drafts for recommended candidates",
                       `${evidenceDeepDives} candidate research runs per month`,
                       "CSV export and client-ready briefs",
                     ].map((item) => (

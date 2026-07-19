@@ -49,7 +49,6 @@ import {
   Eye,
   EyeOff,
   FileText,
-  Mail,
   MapPin,
   RotateCcw,
   ScanSearch,
@@ -99,6 +98,11 @@ import { TaskTimelinePanel } from "./_components/TaskTimelinePanel";
 
 type CandidatePoolView = "recommended" | "full_pool";
 
+function isCandidateResearchPending(candidate: CandidateRow) {
+  const status = candidate.metadata?.public_evidence?.status;
+  return status === "queued" || status === "running";
+}
+
 function buildCandidateClientBrief(candidate: CandidateRow, index: number, hidePublicEvidence = false) {
   const sellingKit = getCandidateSellingKit(candidate);
   const headline = formatRecruiterSellingHeadline(candidate, { hidePublicEvidence });
@@ -147,7 +151,6 @@ export default function SearchResultPage() {
   const [loading, setLoading] = useState(true);
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(false);
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
   const [poolView, setPoolView] = useState<CandidatePoolView>("recommended");
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null);
@@ -424,6 +427,16 @@ export default function SearchResultPage() {
     }, 2000);
     return () => clearInterval(interval);
   }, [fetchData, search]);
+
+  useEffect(() => {
+    if (!candidates.some(isCandidateResearchPending)) return;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchData();
+      }
+    }, 2500);
+    return () => window.clearInterval(interval);
+  }, [candidates, fetchData]);
 
   useEffect(() => {
     if (!search || !isSearchTaskProcessingStatus(search.status) || hasTrackedTaskViewRef.current) {
@@ -770,9 +783,7 @@ export default function SearchResultPage() {
     : recommendedCandidates.length > 0
       ? recommendedCandidates
       : allCandidates;
-  const visibleCandidates = showOnlyWithEmail
-    ? tierBaseCandidates.filter((candidate) => candidate.email)
-    : tierBaseCandidates;
+  const visibleCandidates = tierBaseCandidates;
   const activeCandidate =
     visibleCandidates.find((candidate) => candidate.id === activeCandidateId) ||
     visibleCandidates[0] ||
@@ -1452,10 +1463,10 @@ export default function SearchResultPage() {
             <div className="mt-4 space-y-3">
               {outreachQueueCandidates.map((candidate) => {
                 const outreach = parseOutreach(candidate.outreach_draft);
-                const linkedinCopy = outreach.linkedin || outreach.email || "";
-                const emailCopy = outreach.email
-                  ? [outreach.subject ? `Subject: ${outreach.subject}` : null, outreach.email].filter(Boolean).join("\n\n")
-                  : "";
+                const linkedinCopy = [
+                  outreach.subject ? `Subject: ${outreach.subject}` : null,
+                  outreach.linkedin,
+                ].filter(Boolean).join("\n\n");
                 return (
                   <div
                     key={candidate.id}
@@ -1483,15 +1494,6 @@ export default function SearchResultPage() {
                       >
                         {copiedWorkflowAction === `linkedin-${candidate.id}` ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                         LinkedIn copy
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!emailCopy}
-                        onClick={() => copyWorkflowText(emailCopy, `email-${candidate.id}`)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {copiedWorkflowAction === `email-${candidate.id}` ? <Check className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
-                        Email copy
                       </button>
                       {candidate.profile_url && (
                         <a
@@ -1621,17 +1623,6 @@ export default function SearchResultPage() {
                     </select>
                   </label>
                 )}
-                {billing?.usage.exportEnabled && allCandidates.some((candidate) => candidate.email) && (
-                  <>
-                    <button
-                      onClick={() => setShowOnlyWithEmail(!showOnlyWithEmail)}
-                      className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
-                    >
-                      {showOnlyWithEmail ? "Show all" : "Only with email"}
-                    </button>
-                    <span className="text-muted-light">·</span>
-                  </>
-                )}
                 <button
                   onClick={() => toggleAll(visibleCandidates)}
                   className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
@@ -1752,11 +1743,12 @@ export default function SearchResultPage() {
                     requiredSkills={requiredSkills}
                     billingPlanCode={billing?.subscription.planCode || "free"}
                     clientBriefEnabled={billing?.usage.clientBriefEnabled ?? false}
-                    enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
                     publicEvidenceDeepDivesRemaining={billing?.usage.publicEvidenceDeepDivesRemaining ?? 0}
-                    publicEvidenceQueueing={publicEvidenceQueueingId === activeCandidate.id}
+                    publicEvidenceQueueing={
+                      publicEvidenceQueueingId === activeCandidate.id ||
+                      isCandidateResearchPending(activeCandidate)
+                    }
                     onPublicEvidenceDeepDive={() => handlePublicEvidenceDeepDive(activeCandidate)}
-                    refreshBilling={refreshBilling}
                     onUpgradeClick={handleUpgradeClick}
                     onStatusChange={handleStatusChange}
                   />
@@ -1788,11 +1780,11 @@ export default function SearchResultPage() {
                       selected={selectedIds.has(c.id)}
                       onToggleSelect={() => toggleSelect(c.id)}
                       billingPlanCode={billing?.subscription.planCode || "free"}
-                      enrichesRemaining={billing?.usage.enrichesRemaining ?? 0}
                       publicEvidenceDeepDivesRemaining={billing?.usage.publicEvidenceDeepDivesRemaining ?? 0}
-                      publicEvidenceQueueing={publicEvidenceQueueingId === c.id}
+                      publicEvidenceQueueing={
+                        publicEvidenceQueueingId === c.id || isCandidateResearchPending(c)
+                      }
                       onPublicEvidenceDeepDive={() => handlePublicEvidenceDeepDive(c)}
-                      refreshBilling={refreshBilling}
                       onUpgradeClick={handleUpgradeClick}
                       isNew={isImprovingInBackground && newCandidateIds.has(c.id)}
                     />
