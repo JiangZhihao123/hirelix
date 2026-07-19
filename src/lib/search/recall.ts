@@ -424,16 +424,6 @@ function isReliabilityPrimaryRole(recallSpec: RecallSpec, hiringBrief?: HiringBr
   return /\b(site reliability|sre|devops|cloud)\b/.test(primaryRoleText);
 }
 
-function hasDataPlatformSignals(recallSpec: RecallSpec) {
-  const signals = [
-    ...recallSpec.core_skill_terms,
-    ...recallSpec.differentiating_skill_terms,
-    ...recallSpec.domain_terms,
-    ...recallSpec.must_have_signals,
-  ];
-  return signals.some((signal) => includesAnyKeyword(signal, DATA_PLATFORM_KEYWORDS));
-}
-
 function isDataPlatformPrimaryRole(
   parsed: Record<string, unknown>,
   recallSpec: RecallSpec,
@@ -1451,10 +1441,6 @@ export function getHeadhunterRecallStrategyMode(parsed: Record<string, unknown>)
   if (displayStats?.recall_strategy_mode === "headhunter_v2") return "headhunter_v2";
   if (displayStats?.recall_strategy_mode === "headhunter_v1") return "headhunter_v1";
   return "legacy";
-}
-
-function isHeadhunterRecallStrategy(parsed: Record<string, unknown>) {
-  return getHeadhunterRecallStrategyMode(parsed) !== "legacy";
 }
 
 function getLaneInitialBudget(

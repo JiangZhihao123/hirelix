@@ -43,6 +43,13 @@ import type { SearchExecutionProfile } from "@/lib/search-execution";
 
 process.env.BRIGHTDATA_DATASET_ID = process.env.BRIGHTDATA_DATASET_ID || "test_dataset";
 
+type JsonSchemaNode = {
+  required?: string[];
+  enum?: string[];
+  properties?: Record<string, JsonSchemaNode>;
+  items?: JsonSchemaNode;
+};
+
 const freeExecutionProfile: SearchExecutionProfile = {
   name: "bright_free_preview",
   mode: "production",
@@ -214,20 +221,20 @@ test("JD parse schema and prompt require headhunter brief and lane contracts", (
   assert.match(JD_SEARCH_INTENT_PROMPT, /same_work_proof/);
   assert.match(JD_SEARCH_INTENT_PROMPT, /primary_exact/);
   assert.match(JD_SEARCH_INTENT_PROMPT, /target_company_engineering/);
-  const briefSchema = (JD_SEARCH_INTENT_JSON_SCHEMA.schema.properties as Record<string, any>).headhunter_brief;
-  assert.ok(briefSchema.required.includes("role_family"));
-  assert.ok(briefSchema.required.includes("functional_core"));
-  assert.ok(briefSchema.required.includes("must_not_drift_to"));
+  const briefSchema = (JD_SEARCH_INTENT_JSON_SCHEMA.schema.properties as Record<string, JsonSchemaNode>).headhunter_brief;
+  assert.ok(briefSchema.required?.includes("role_family"));
+  assert.ok(briefSchema.required?.includes("functional_core"));
+  assert.ok(briefSchema.required?.includes("must_not_drift_to"));
 });
 
 test("lane contract critic schema exposes bounded decisions and role-family alignment", () => {
   assert.match(LANE_CONTRACT_CRITIC_PROMPT, /BEFORE any Bright Data budget is spent/);
   assert.ok(LANE_CONTRACT_CRITIC_JSON_SCHEMA.schema);
-  const properties = LANE_CONTRACT_CRITIC_JSON_SCHEMA.schema.properties as Record<string, any>;
+  const properties = LANE_CONTRACT_CRITIC_JSON_SCHEMA.schema.properties as Record<string, JsonSchemaNode>;
   assert.deepEqual(properties.status.enum, ["approved", "needs_repair", "rejected"]);
-  const reviewItem = properties.reviews.items.properties;
-  assert.deepEqual(reviewItem.decision.enum, ["approve", "repair", "reject"]);
-  assert.deepEqual(reviewItem.role_family_alignment.enum, ["aligned", "authorized_adjacent", "drifted"]);
+  const reviewItem = properties.reviews.items?.properties;
+  assert.deepEqual(reviewItem?.decision.enum, ["approve", "repair", "reject"]);
+  assert.deepEqual(reviewItem?.role_family_alignment.enum, ["aligned", "authorized_adjacent", "drifted"]);
 });
 
 test("role-family fallback treats platform wording in backend work as evidence, not the job family", () => {
