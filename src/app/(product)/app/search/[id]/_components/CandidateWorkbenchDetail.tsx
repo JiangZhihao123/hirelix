@@ -36,7 +36,7 @@ import {
   hidePublicEvidenceLine,
   parseOutreach,
 } from "./utils";
-import { ActionabilityBadge, ContactActionStrip, InitialsAvatar, ScoreBadge } from "./ui";
+import { ActionabilityBadge, ContactActionStrip, InitialsAvatar } from "./ui";
 
 function citationLabelForItem(item: { citation_label?: string | null }, index: number) {
   return item.citation_label || `[${index + 1}]`;
@@ -171,6 +171,11 @@ export function CandidateWorkbenchDetail({
   const riskFlags = Array.isArray(localCandidate.metadata?.risk_flags)
     ? localCandidate.metadata.risk_flags
     : [];
+  const moveLikelihoodReasons = Array.from(new Set([
+    ...(localCandidate.metadata?.join_likelihood_reasons || []),
+    ...(localCandidate.metadata?.scoring_breakdown?.join_likelihood_reasons || []),
+    ...(suitability?.scoring_breakdown?.join_likelihood_reasons || []),
+  ].filter(Boolean))).slice(0, 3);
   const blockingConstraints =
     localCandidate.metadata?.blocking_constraints ??
     suitability?.blocking_constraints ??
@@ -362,15 +367,13 @@ export function CandidateWorkbenchDetail({
                     {deliveryBucketLabel}
                   </span>
                   <ActionabilityBadge candidate={localCandidate} />
-                  {typeof localCandidate.final_rank === "number" ? (
+                  {typeof localCandidate.final_rank === "number" && (
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
                       Rank #{localCandidate.final_rank}
                       {typeof localCandidate.rank_low === "number" && typeof localCandidate.rank_high === "number"
                         ? ` · likely ${localCandidate.rank_low}-${localCandidate.rank_high}`
                         : ""}
                     </span>
-                  ) : (
-                    <ScoreBadge score={overallScore} />
                   )}
               </div>
               <p className="mt-1 text-sm text-slate-600">
@@ -435,11 +438,10 @@ export function CandidateWorkbenchDetail({
         <div className="mt-4 border-b border-slate-200">
           <div className="flex flex-wrap gap-1">
             {[
-              ["sell", isRecommendedCandidate ? "Sell" : "Review"],
+              ["sell", isRecommendedCandidate ? "Brief" : "Review"],
               ["evidence", "Evidence"],
               ["outreach", "Outreach"],
               ["profile", "Profile"],
-              ["score", "Score"],
             ].map(([key, label]) => (
               <button
                 key={key}
@@ -464,7 +466,7 @@ export function CandidateWorkbenchDetail({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                      {isRecommendedCandidate ? "Candidate Selling Kit" : "Pool Review"}
+                      {isRecommendedCandidate ? "Recommendation" : "Pool Review"}
                       </p>
                       <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
                         {deliveryBucketLabel}
@@ -528,12 +530,30 @@ export function CandidateWorkbenchDetail({
                 )}
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Ranking reason
+                    Why this candidate
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-700">
                     {audit.rankingReason}
                   </p>
                 </div>
+                {isRecommendedCandidate && (
+                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">
+                      Why they may move
+                    </p>
+                    {moveLikelihoodReasons.length > 0 ? (
+                      <ul className="mt-2 space-y-1">
+                        {moveLikelihoodReasons.map((reason) => (
+                          <li key={reason} className="text-sm leading-6 text-slate-700">{reason}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-sm leading-6 text-slate-700">
+                        No reliable movement signal appears in the profile. Confirm motivation during first contact.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-4">
                 <div className={`rounded-2xl border px-4 py-3 ${
@@ -544,7 +564,7 @@ export function CandidateWorkbenchDetail({
                       : "border-amber-200 bg-amber-50"
                 }`}>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-                    Trust check
+                    Assessment basis
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-950">
                     {audit.trust.label}
@@ -555,7 +575,9 @@ export function CandidateWorkbenchDetail({
                 </div>
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                    {isRecommendedCandidate ? "Best usable proof" : "Why this is not higher"}
+                    {isRecommendedCandidate
+                      ? sellingEvidenceItems.length > 0 ? "Research evidence" : "Profile evidence"
+                      : "Why this is not higher"}
                   </p>
                   {!isRecommendedCandidate ? (
                     <ul className="mt-2 space-y-2">
@@ -584,9 +606,11 @@ export function CandidateWorkbenchDetail({
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Candidate research has not been run yet. Use the profile fit notes, or research this candidate before citing outside sources.
-                    </p>
+                    <ul className="mt-2 space-y-2">
+                      {audit.proofLines.slice(0, 3).map((proof) => (
+                        <li key={proof} className="text-sm leading-6 text-slate-700">{proof}</li>
+                      ))}
+                    </ul>
                   )}
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -602,7 +626,7 @@ export function CandidateWorkbenchDetail({
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-amber-900">
                       {isRecommendedCandidate
-                        ? "Confirm current interest, compensation range, and role scope before submitting."
+                        ? "No material profile-specific risk was identified. Confirm availability during outreach."
                         : "Keep this profile as market coverage unless a recruiter manually promotes it."}
                     </p>
                   )}

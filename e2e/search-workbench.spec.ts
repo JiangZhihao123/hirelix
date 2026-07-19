@@ -288,9 +288,10 @@ test.describe("Search workbench", () => {
       origin: new URL(page.url()).origin,
     });
 
+    await page.getByText("Client brief and outreach workflow", { exact: true }).click();
     const recommendedPool = page.getByTestId("client-ready-recommended-pool");
     await expect(recommendedPool).toBeVisible();
-    await expect(recommendedPool).toContainText("Client-ready recommended pool");
+    await expect(recommendedPool).toContainText("Client-ready ranked pool");
     await expect(recommendedPool).toContainText("Jordan Lee");
     await expect(recommendedPool).toContainText("Priya Shah");
 
@@ -298,7 +299,7 @@ test.describe("Search workbench", () => {
     await expect(page.getByTestId("copy-client-brief")).toContainText("Copied");
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-      .toContain("Client-ready recommended pool: Senior Backend Engineer");
+      .toContain("Client-ready ranked pool: Senior Backend Engineer");
 
     const queue = page.getByTestId("outreach-approval-queue");
     await expect(queue).toBeVisible();

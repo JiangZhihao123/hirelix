@@ -233,8 +233,8 @@ export function compareCandidatesForRecruiterRanking(left: CandidateRow, right: 
   const rightRank = typeof right.metadata?.scored_rank === "number" ? right.metadata.scored_rank : Number.POSITIVE_INFINITY;
 
   return (
-    leftFinalRank - rightFinalRank ||
     candidateDeliveryPriority(left) - candidateDeliveryPriority(right) ||
+    leftFinalRank - rightFinalRank ||
     candidateQualityScore(right) - candidateQualityScore(left) ||
     candidateAdvanceScore(right) - candidateAdvanceScore(left) ||
     right.match_score - left.match_score ||
@@ -844,9 +844,6 @@ export function getCandidateDecisionAudit(
   const currentRole = deriveCurrentRole(candidate);
   const currentCompany = deriveCurrentCompany(candidate);
   const score = getCandidateOverallScore(candidate);
-  const capability = getCandidateCapabilityScore(candidate);
-  const relevance = getCandidateRelevanceScore(candidate);
-  const reachability = getCandidateJoinLikelihoodScore(candidate);
   const proofLines = [
     ...(sellingKit?.client_brief?.evidence_refs || []),
     ...(publicEvidence?.items || [])
@@ -890,13 +887,14 @@ export function getCandidateDecisionAudit(
               ? "Review then contact. Confirm fit before sending."
               : "Review fit and risks before outreach.";
   const rankPrefix = typeof rank === "number" ? `#${rank}: ` : "";
-  const rankingReason =
-    `${rankPrefix}${currentRole}${currentCompany ? ` at ${currentCompany}` : ""} ranks here because overall ${score}, technical ${capability || "unknown"}, role fit ${relevance || "unknown"}, reachability ${reachability || "unknown"}.`;
+  const rankingReason = `${rankPrefix}${currentRole}${currentCompany ? ` at ${currentCompany}` : ""} is prioritized because ${
+    uniqueProof[0] || "the profile shows relevant role evidence"
+  }${uniqueRisks[0] ? ` Main uncertainty: ${uniqueRisks[0]}` : "."}`;
 
   return {
     trust,
     proofLines: uniqueProof.length > 0 ? uniqueProof : ["Profile facts support initial review; research the candidate when you need citable proof."],
-    riskLines: uniqueRisks.length > 0 ? uniqueRisks : ["Verify current interest, compensation range, and role scope before pitching."],
+    riskLines: uniqueRisks,
     nextAction,
     rankingReason,
   };

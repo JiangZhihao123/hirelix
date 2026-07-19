@@ -423,6 +423,30 @@ test("client recruiter ranking preserves delivery buckets and quality before raw
   );
 });
 
+test("client recruiter ranking keeps lower delivery tiers below recommended candidates", () => {
+  const candidates = [
+    {
+      id: "rejected-rank-one",
+      status: "new",
+      ...candidateRow(0, "not_recommended"),
+      name: "Rejected Rank One",
+      final_rank: 1,
+    },
+    {
+      id: "recommended-rank-twenty",
+      status: "new",
+      ...candidateRow(1, "reach_first"),
+      name: "Recommended Rank Twenty",
+      final_rank: 20,
+    },
+  ] satisfies CandidateRow[];
+
+  assert.deepEqual(
+    [...candidates].sort(compareCandidatesForRecruiterRanking).map((candidate) => candidate.name),
+    ["Recommended Rank Twenty", "Rejected Rank One"],
+  );
+});
+
 test("completeSearch upserts the full pool and drafts outreach only for recommended rows", async () => {
   const rows = [
     candidateRow(0, "reach_first"),

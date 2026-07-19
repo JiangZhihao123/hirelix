@@ -85,7 +85,6 @@ import {
   getCandidateSellingKit,
   getProviderDelayCopy,
   getSearchErrorPresentation,
-  getCandidateDecisionAudit,
   getSearchPageCacheKey,
   hidePublicEvidenceLine,
   parseOutreach,
@@ -764,10 +763,6 @@ export default function SearchResultPage() {
     const bucket = getCandidateDeliveryBucket(candidate);
     return bucket === "reach_first" || bucket === "review_next";
   });
-  const lowerPriorityCandidates = allCandidates.filter((candidate) => {
-    const bucket = getCandidateDeliveryBucket(candidate);
-    return bucket === "lower_priority";
-  });
   const actualPriorityOutreachCount = priorityCandidates.length;
   const actualWorthReviewingCount = worthReviewingCandidates.length;
   const tierBaseCandidates = poolView === "full_pool"
@@ -783,12 +778,6 @@ export default function SearchResultPage() {
     visibleCandidates[0] ||
     null;
 
-  const averageQuality = visibleCandidates.length
-    ? Math.round(
-        visibleCandidates.reduce((sum, candidate) => sum + candidate.match_score, 0) /
-          visibleCandidates.length,
-      )
-    : 0;
   const recallMetadata =
     reqs && typeof reqs.recall_metadata === "object" && reqs.recall_metadata
       ? (reqs.recall_metadata as RecallMetadataView)
@@ -862,14 +851,6 @@ export default function SearchResultPage() {
         candidate.metadata?.suitability?.advance_recommendation !== "reject" &&
         candidate.metadata?.suitability?.blocking_severity !== "hard",
     ).length;
-  const clearLocationFitCount = allCandidates.filter((candidate) => {
-    const locationFit = candidate.metadata?.suitability?.constraint_verdicts?.location_fit;
-    return locationFit === "local" || locationFit === "nearby";
-  }).length;
-  const strongMustHaveCount = allCandidates.filter((candidate) => {
-    const coverage = candidate.metadata?.suitability?.constraint_verdicts?.must_have_coverage;
-    return coverage === "strong";
-  }).length;
   const excludedReasonCounts =
     Array.isArray(rawDisplayStats?.excluded_reason_counts)
       ? rawDisplayStats.excluded_reason_counts
@@ -877,31 +858,17 @@ export default function SearchResultPage() {
   const widenPoolSuggestions = buildWidenPoolSuggestions(excludedReasonCounts as Array<{ reason: ExcludedReason; count: number }>);
   const recallProfileCount =
     positiveInt(rawDisplayStats?.recall_profile_count) ?? brightProfilesReturned ?? retrievalCount;
-  const clearLocationFitDisplayCount =
-    positiveInt(rawDisplayStats?.clear_location_fit_count) ?? clearLocationFitCount;
-  const mustHaveStrongDisplayCount =
-    positiveInt(rawDisplayStats?.must_have_strong_count) ?? strongMustHaveCount;
-  const firstContactConfidenceCount =
-    positiveInt(rawDisplayStats?.first_contact_confidence_count) ??
-    allCandidates.filter(
-      (candidate) =>
-        candidate.metadata?.first_contact_confidence === "high" ||
-        candidate.metadata?.suitability?.first_contact_confidence === "high",
-    ).length;
   const recommendedCount =
     positiveInt(rawDisplayStats?.recommended_count) ??
     recommendedCandidates.length;
   const needsSearchCalibration =
     rawDisplayStats?.search_quality_diagnosis?.status === "needs_calibration" &&
     (positiveInt(rawDisplayStats?.actionable_candidate_count) ?? recommendedCount) === 0;
-  const lowerPriorityCount =
-    positiveInt(rawDisplayStats?.lower_priority_count) ??
-    lowerPriorityCandidates.length;
   const hasCompleteRankedPool =
     deepReviewCompletedCount <= allCandidates.length ||
     Math.abs(deepReviewCompletedCount - allCandidates.length) <= 1;
   const poolCoverageCopy = hasCompleteRankedPool
-    ? `All ${deliveredCandidateCount} delivered profiles stay in the ranked pool, with ${recommendedCount} marked for first-pass review.`
+    ? `${deliveredCandidateCount} evaluated profiles remain available in the full pool.`
     : `This older run shows ${deliveredCandidateCount} saved profiles, with ${recommendedCount} marked for first-pass review. Run or expand the role to build a fresh full pool.`;
   const selectedPoolLabel = poolView === "full_pool" ? "Full pool" : "Recommended";
   const taskStage = getSearchTaskStage({
@@ -922,14 +889,6 @@ export default function SearchResultPage() {
     fallback: "New candidate pool",
   });
   const clientReadyCandidates = (recommendedCandidates.length > 0 ? recommendedCandidates : allCandidates).slice(0, 5);
-  const actionPlanCandidates = (recommendedCandidates.length > 0 ? recommendedCandidates : allCandidates)
-    .slice(0, 3)
-    .map((candidate, index) => ({
-      candidate,
-      audit: getCandidateDecisionAudit(candidate, index + 1, {
-        hidePublicEvidence: isFreePlan,
-      }),
-    }));
   const clientReadyBriefText = [
     `Client-ready ranked pool: ${displayTitle}`,
     locationScope ? `Location/work model: ${[locationScope, workModel].filter(Boolean).join(" | ")}` : null,
@@ -947,12 +906,6 @@ export default function SearchResultPage() {
     interview: allCandidates.filter((candidate) => candidate.status === "interview").length,
     placed: allCandidates.filter((candidate) => candidate.status === "placed").length,
   };
-  const risksFoundCount = allCandidates.filter((candidate) => {
-    const audit = getCandidateDecisionAudit(candidate, undefined, {
-      hidePublicEvidence: isFreePlan,
-    });
-    return audit.riskLines.length > 0;
-  }).length;
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation(search.parsed_requirements);
@@ -1346,12 +1299,14 @@ export default function SearchResultPage() {
               <h2 className="mt-1 text-lg font-semibold text-slate-950">
                 {isImprovingInBackground
                   ? "Your candidate pool is ready to review"
-                  : "Your candidate pool is ready"}
+                  : recommendedCount > 0
+                    ? `${recommendedCount} candidates recommended`
+                    : "Your candidate pool is ready"}
               </h2>
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
                   {isImprovingInBackground
                     ? "Hirelix is still refining the remaining scores in the background."
-                    : `Hirelix reviewed ${formatDisplayCount(deepReviewCompletedCount)} sourced profiles. ${poolCoverageCopy}`}
+                    : `Selected from ${recallProfileCount} sourced profiles. ${poolCoverageCopy}`}
               </p>
               {billing?.plan.code !== "free" && (
                 <p className="mt-2 text-xs text-slate-500">
@@ -1371,8 +1326,8 @@ export default function SearchResultPage() {
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Sourced</span>
-                  <span className="text-sm font-semibold text-slate-950">{recallProfileCount}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Recommended</span>
+                  <span className="text-sm font-semibold text-slate-950">{recommendedCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reach first</span>
@@ -1383,12 +1338,8 @@ export default function SearchResultPage() {
                   <span className="text-sm font-semibold text-slate-950">{worthReviewingCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Lower priority</span>
-                  <span className="text-sm font-semibold text-slate-950">{lowerPriorityCount}</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Risks found</span>
-                <span className="text-sm font-semibold text-slate-950">{risksFoundCount}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Full pool</span>
+                  <span className="text-sm font-semibold text-slate-950">{deliveredCandidateCount}</span>
               </div>
             </div>
           </div>
@@ -1396,78 +1347,11 @@ export default function SearchResultPage() {
       )}
 
       {isReviewable && allCandidates.length > 0 && (
-        <div className="mb-4 grid min-w-0 gap-4 xl:grid-cols-[1.05fr,0.95fr]">
-          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-            <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Search outcome
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                    {recommendedCount > 0
-                      ? `${allCandidates.length} delivered candidates, ranked with ${recommendedCount} first-pass priorities.`
-                      : `${allCandidates.length} delivered candidates are ready for market review.`}
-                  </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                    Every sourced profile remains available; use the priority labels to decide who to review first.
-                  </p>
-              </div>
-              <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto xl:grid-cols-5">
-                <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                    <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Sourced</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-950">{recallProfileCount}</p>
-                </div>
-                <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Reach first</p>
-                  <p className="mt-1 text-xl font-semibold text-slate-950">{priorityOutreachCount}</p>
-                </div>
-                <div className="min-w-0 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
-                    <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">Review next</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-950">{worthReviewingCount}</p>
-                  </div>
-                  <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                    <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Lower priority</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-950">{lowerPriorityCount}</p>
-                </div>
-                <div className="min-w-0 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
-                  <p className="break-words text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">Risks found</p>
-                  <p className="mt-1 text-xl font-semibold text-slate-950">{risksFoundCount}</p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-5 grid gap-3 lg:grid-cols-3">
-              {actionPlanCandidates.map(({ candidate, audit }, index) => (
-                <div key={candidate.id} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-slate-950 px-2 py-0.5 text-[11px] font-semibold text-white">
-                      #{index + 1}
-                    </span>
-                    <p className="text-sm font-semibold text-slate-950">{candidate.name}</p>
-                  </div>
-                  <p className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    audit.trust.tone === "strong"
-                      ? "bg-emerald-100 text-emerald-800"
-                      : audit.trust.tone === "medium"
-                        ? "bg-sky-100 text-sky-800"
-                        : "bg-amber-100 text-amber-800"
-                  }`}>
-                    {audit.trust.label}
-                  </p>
-                  <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-700">
-                    <span className="font-semibold text-slate-950">Proof:</span>{" "}
-                    {audit.proofLines[0]}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-amber-800">
-                    <span className="font-semibold">Risk:</span>{" "}
-                    {audit.riskLines[0]}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-emerald-800">
-                    {audit.nextAction}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
+        <details className="mb-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">
+            Client brief and outreach workflow
+          </summary>
+          <div className="grid min-w-0 gap-4 border-t border-slate-200 p-4 xl:grid-cols-[1.05fr,0.95fr]">
             <section
               data-testid="client-ready-recommended-pool"
             className="min-w-0 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm"
@@ -1644,7 +1528,8 @@ export default function SearchResultPage() {
               })}
             </div>
           </section>
-        </div>
+          </div>
+        </details>
       )}
 
       {/* JD original text toggle */}
@@ -1698,57 +1583,13 @@ export default function SearchResultPage() {
       {/* Results */}
       {allCandidates.length > 0 && (
         <div className="space-y-3">
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Candidate pool
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                    Delivered {deliveredCandidateCount} ranked candidates from {recallProfileCount} sourced profiles.
-                  </h2>
-                </div>
-              <p className="text-xs text-slate-500">
-                Workflow: {validationCounts.contacted} contacted · {validationCounts.submitted} submitted · {validationCounts.interview} interview · {validationCounts.placed} placed
-              </p>
-            </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                {[
-                  { label: "Sourced profiles", value: recallProfileCount },
-                  { label: "Full pool", value: deliveredCandidateCount },
-                  { label: "Recommended", value: recommendedCount },
-                  { label: "Reach first", value: priorityOutreachCount },
-                  { label: "Review next", value: worthReviewingCount },
-                ].map((item) => (
-                <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    {item.label}
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-950">{item.value}</p>
-                </div>
-              ))}
-            </div>
-          </section>
           {isFreePlan && (billing?.usage.enrichesRemaining ?? 0) <= 0 && allCandidates.length > 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-[linear-gradient(180deg,#fffdf7_0%,#fff7df_100%)] px-4 py-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
-                Action unlock
-              </p>
-              <h3 className="mt-2 text-lg font-semibold text-slate-950">
-                Unlock contact lookup and deep evidence when you are ready.
-              </h3>
-              <p className="mt-2 text-sm text-slate-700">
-                Upgrade for email lookup, candidate research, CSV export, and client-ready briefs on the candidates you choose.
-              </p>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                  <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{recommendedCount} recommended profiles</span>
-                  <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{lowerPriorityCount} lower-priority profiles</span>
-                  <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{clearLocationFitDisplayCount} with clear location fit</span>
-                  <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{mustHaveStrongDisplayCount} with strong must-have coverage</span>
-                  <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{firstContactConfidenceCount} high contact-confidence profiles</span>
-                  <span className="rounded-full border border-amber-200 bg-white px-3 py-1">{contactUnlockCandidates} contact lookups available</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Contact lookup and candidate research are available on Starter.</p>
+                <p className="mt-1 text-xs text-slate-600">Review the ranked pool now; unlock evidence and contact details only when needed.</p>
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <PaddleCheckoutButton
                   checkout={{ type: "plan", planCode: "starter_monthly" }}
                   label="Upgrade to Starter"
@@ -1756,9 +1597,6 @@ export default function SearchResultPage() {
                   onError={(message) => setUpgradeError(message)}
                   className="inline-flex items-center justify-center rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-amber-300"
                 />
-                <p className="text-xs text-slate-600">
-                    You can review the ranked pool, fit reasons, risks, and outreach drafts now.
-                </p>
               </div>
             </div>
           )}
@@ -1775,16 +1613,9 @@ export default function SearchResultPage() {
                     : `${visibleCandidates.length} in ${selectedPoolLabel.toLowerCase()}`}
                 </p>
               <div className="hidden flex-wrap items-center gap-1.5 text-xs text-muted-light sm:flex">
-                {visibleCandidates.length > 0 && (
-                  <>
-                    <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Avg {averageQuality}%</span>
-                    <span className="rounded-md border border-slate-200 bg-white px-2 py-1">Range {Math.min(...visibleCandidates.map((c) => c.match_score))}–{Math.max(...visibleCandidates.map((c) => c.match_score))}%</span>
-                  </>
-                )}
                 {contactUnlockCandidates > 0 && (
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{contactUnlockCandidates} contact lookups</span>
                 )}
-                <span className="rounded-md border border-slate-200 bg-white px-2 py-1">{risksFoundCount} risks flagged</span>
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
                     {recommendedCount} recommended
                   </span>
@@ -1829,10 +1660,10 @@ export default function SearchResultPage() {
                     onChange={(event) => setSortMode(event.target.value as CandidateSortMode)}
                     className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
                   >
-                    <option value="overall">Overall score</option>
-                    <option value="capability">Capability</option>
+                    <option value="overall">Recommended order</option>
+                    <option value="capability">Technical fit</option>
                     <option value="relevance">Role Fit</option>
-                    <option value="join_likelihood">Reachability</option>
+                    <option value="join_likelihood">Move likelihood</option>
                   </select>
                 </label>
                 {billing?.usage.exportEnabled && allCandidates.some((candidate) => candidate.email) && (
