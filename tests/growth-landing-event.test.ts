@@ -4,6 +4,20 @@ import assert from "node:assert/strict";
 import {
   validateLandingEventForRecording,
 } from "../src/app/api/growth/landing-event/route";
+import { hasReachedEngagementThreshold } from "../src/lib/growth-engagement";
+
+test("growth engagement requires real page and active-read duration", () => {
+  assert.equal(hasReachedEngagementThreshold({
+    eventType: "engaged_180s",
+    activeReadSeconds: 2,
+    pageStaySeconds: 2,
+  }), false);
+  assert.equal(hasReachedEngagementThreshold({
+    eventType: "engaged_180s",
+    activeReadSeconds: 180,
+    pageStaySeconds: 180,
+  }), true);
+});
 
 test("growth landing event records try-for-free clicks", () => {
   const decision = validateLandingEventForRecording({
@@ -29,6 +43,20 @@ test("growth landing event softly ignores unknown analytics events", () => {
     action: "ignore",
     eventType: "frontend_experiment_click",
     reason: "invalid_event_type",
+  });
+});
+
+test("growth landing event ignores impossible engagement claims", () => {
+  const decision = validateLandingEventForRecording({
+    eventType: "engaged_60s",
+    metadata: { active_read_seconds: 2, page_stay_seconds: 2 },
+    pageUrl: "https://hirelix.online/",
+  });
+
+  assert.deepEqual(decision, {
+    action: "ignore",
+    eventType: "engaged_60s",
+    reason: "invalid_engagement_duration",
   });
 });
 

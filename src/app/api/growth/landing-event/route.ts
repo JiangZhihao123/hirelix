@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { hirelix_growth_landing_events } from "@/db/schema";
 import { getLogger } from "@/lib/logger";
 import { isLocalOrPrivateIp } from "@/lib/ops-conversion";
+import { getEngagementThreshold, hasReachedEngagementThreshold } from "@/lib/growth-engagement";
 
 const DEFAULT_PREVIEW_REQUEST_RECIPIENT = "jzh_spring@163.com";
 const DEFAULT_ALERT_TIMEOUT_MS = 1200;
@@ -76,7 +77,7 @@ type LandingEventDecision =
   | {
       action: "ignore";
       eventType: string | null;
-      reason: "invalid_event_type" | "ops_page";
+      reason: "invalid_event_type" | "invalid_engagement_duration" | "ops_page";
     }
   | {
       action: "reject";
@@ -152,6 +153,22 @@ export function validateLandingEventForRecording(params: {
       action: "ignore",
       eventType: params.eventType,
       reason: "ops_page",
+    };
+  }
+
+  const engagementThreshold = getEngagementThreshold(params.eventType);
+  if (
+    engagementThreshold !== null &&
+    !hasReachedEngagementThreshold({
+      eventType: params.eventType,
+      activeReadSeconds: Number(params.metadata.active_read_seconds) || 0,
+      pageStaySeconds: Number(params.metadata.page_stay_seconds) || 0,
+    })
+  ) {
+    return {
+      action: "ignore",
+      eventType: params.eventType,
+      reason: "invalid_engagement_duration",
     };
   }
 

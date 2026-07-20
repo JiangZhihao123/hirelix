@@ -30,6 +30,10 @@ import {
   type IntentPath,
 } from "@/lib/analytics";
 import { getJdLengthBucket } from "@/lib/growth-client";
+import {
+  ENGAGEMENT_EVENT_THRESHOLDS,
+  hasReachedEngagementThreshold,
+} from "@/lib/growth-engagement";
 import type { BillingPlanCode } from "@/lib/billing";
 import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
@@ -141,7 +145,6 @@ export default function Home() {
     const startedAt = Date.now();
     let activeReadSeconds = 0;
     let lastTickAt = startedAt;
-    let lastInteractionAt = startedAt;
     let interactionCount = 0;
     let maxScrollDepth = 0;
     const seenSections = new Set<string>();
@@ -218,7 +221,6 @@ export default function Home() {
 
     function markInteraction() {
       interactionCount += 1;
-      lastInteractionAt = Date.now();
       maxScrollDepth = Math.max(maxScrollDepth, getMaxScrollDepth());
     }
 
@@ -238,18 +240,29 @@ export default function Home() {
     const activeTimer = window.setInterval(() => {
       const now = Date.now();
       const elapsed = Math.max(0, Math.round((now - lastTickAt) / 1000));
-      if (document.visibilityState === "visible" && now - lastInteractionAt <= 15_000) {
+      if (document.visibilityState === "visible") {
         activeReadSeconds += elapsed;
       }
       lastTickAt = now;
       maxScrollDepth = Math.max(maxScrollDepth, getMaxScrollDepth());
     }, 1000);
 
-    const engagedTimers = [10, 30, 60, 180].map((seconds) =>
-      window.setTimeout(() => {
-        void sendGrowthEvent(`engaged_${seconds}s`, getSessionMetadata());
-      }, seconds * 1000),
-    );
+    const recordedEngagementEvents = new Set<string>();
+    const engagementTimer = window.setInterval(() => {
+      const sessionMetadata = getSessionMetadata();
+      for (const eventType of Object.keys(ENGAGEMENT_EVENT_THRESHOLDS)) {
+        if (recordedEngagementEvents.has(eventType)) continue;
+        if (!hasReachedEngagementThreshold({
+          eventType,
+          activeReadSeconds: sessionMetadata.active_read_seconds,
+          pageStaySeconds: sessionMetadata.page_stay_seconds,
+        })) {
+          continue;
+        }
+        recordedEngagementEvents.add(eventType);
+        void sendGrowthEvent(eventType, sessionMetadata);
+      }
+    }, 1000);
 
     const interactionEvents = ["pointermove", "pointerdown", "keydown", "touchstart", "scroll"] as const;
     for (const eventName of interactionEvents) {
@@ -290,7 +303,7 @@ export default function Home() {
         window.cancelAnimationFrame(revealColdEmailPanelFrame);
       }
       window.clearInterval(activeTimer);
-      for (const timer of engagedTimers) window.clearTimeout(timer);
+      window.clearInterval(engagementTimer);
       for (const eventName of interactionEvents) {
         window.removeEventListener(eventName, markInteraction);
       }
