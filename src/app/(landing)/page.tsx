@@ -114,6 +114,10 @@ export default function Home() {
     if (typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
+    const attribution = getAnalyticsContextFromBrowser({
+      entry_mode: "landing",
+      page_variant: experiments.pageVariant,
+    });
     const trafficSource = params.get("traffic_source") || params.get("utm_source");
     const isColdEmailVisitor =
       trafficSource === "cold_email" || params.get("utm_medium") === "email";
@@ -158,10 +162,13 @@ export default function Home() {
       page_url: window.location.href,
       referrer: document.referrer,
       metadata: {
-        utm_source: params.get("utm_source"),
-        utm_medium: params.get("utm_medium"),
-        utm_campaign: params.get("utm_campaign"),
-        traffic_source: params.get("traffic_source") || params.get("utm_source"),
+        utm_source: attribution.utm_source ?? null,
+        utm_medium: attribution.utm_medium ?? null,
+        utm_campaign: attribution.utm_campaign,
+        utm_content: attribution.utm_content ?? null,
+        utm_term: attribution.utm_term ?? null,
+        gclid: attribution.gclid ?? null,
+        traffic_source: attribution.traffic_source,
         page_variant: params.get("page_variant") || experiments.pageVariant,
         intent_path: params.get("intent_path"),
         invite_code: getCookieValue("hirelix_invite_code"),
