@@ -345,6 +345,11 @@ export default function Home() {
       pageVariant: context.page_variant,
       trafficSource: context.traffic_source,
       utmCampaign: context.utm_campaign,
+      utmSource: context.utm_source,
+      utmMedium: context.utm_medium,
+      utmContent: context.utm_content,
+      utmTerm: context.utm_term,
+      gclid: context.gclid,
       entryMode: context.entry_mode,
       extra,
     });

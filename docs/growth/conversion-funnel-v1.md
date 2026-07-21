@@ -44,9 +44,14 @@ All events should carry these shared attributes where available:
 - `email_otp_requested`: the user requested an email OTP code
 - `email_otp_verified`: the user successfully verified an email OTP code
 - `email_otp_failed`: email OTP request or verification failed
-- `signup_success`: reserved for identifying first-time OTP sign-ins if we need that cut later
+- `signup_success`: a diagnostic auth event only; it is never the paid-acquisition primary conversion
 - `new_search_view`: the authenticated new-search screen loaded
+- `sourcing_brief_generated`: the JD was accepted and a sourcing brief was generated successfully; this is the primary paid-acquisition conversion
 - `search_create_success`: a new search was created successfully
+
+Google Ads and GA4 must optimize for `sourcing_brief_generated`. Landing views,
+CTA clicks, auth starts, and successful login/signup remain secondary funnel signals
+and must not be configured as primary conversions.
 
 ### Product activation events
 

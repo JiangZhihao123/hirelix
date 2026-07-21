@@ -27,6 +27,7 @@ export const ALLOWED_LANDING_EVENTS = new Set([
   "password_signin",
   "signup_success",
   "new_search_view",
+  "sourcing_brief_generated",
   "search_create_success",
   "search_create_failed",
   "pricing_plan_select",

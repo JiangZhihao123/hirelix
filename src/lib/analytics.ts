@@ -5,6 +5,16 @@ type SearchParamsLike = {
 type AnalyticsValue = string | number | boolean | null | undefined;
 
 const LANDING_EXPERIMENT_STORAGE_KEY = "hirelix.landing-experiments.v1";
+const ATTRIBUTION_STORAGE_KEY = "hirelix.growth.attribution.v1";
+
+const ATTRIBUTION_QUERY_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gclid",
+] as const;
 
 export const ANALYTICS_EVENTS = {
   landingView: "landing_view",
@@ -24,6 +34,7 @@ export const ANALYTICS_EVENTS = {
   primaryProductCtaClick: "primary_product_cta_click",
   newSearchView: "new_search_view",
   briefConfirmationView: "brief_confirmation_view",
+  sourcingBriefGenerated: "sourcing_brief_generated",
   briefLaunchClick: "brief_launch_click",
   searchConfirmationView: "search_confirmation_view",
   searchJobEnqueued: "search_job_enqueued",
@@ -76,7 +87,12 @@ export type LandingExperimentState = {
 export type AnalyticsContext = {
   device_type: DeviceType;
   traffic_source: string;
+  utm_source?: string;
+  utm_medium?: string;
   utm_campaign: string;
+  utm_content?: string;
+  utm_term?: string;
+  gclid?: string;
   page_variant: string;
   intent_path: IntentPath;
   entry_mode: EntryMode;
@@ -85,6 +101,7 @@ export type AnalyticsContext = {
 type TrackEventPayload = Record<string, AnalyticsValue>;
 
 const INTERNAL_PRODUCT_EVENTS = new Set<AnalyticsEventName>([
+  ANALYTICS_EVENTS.sourcingBriefGenerated,
   ANALYTICS_EVENTS.searchProcessingView,
   ANALYTICS_EVENTS.searchResultsView,
   ANALYTICS_EVENTS.resultsSummaryView,
@@ -213,16 +230,112 @@ function detectTrafficSource(params: SearchParamsLike, referrer = "") {
   return "direct";
 }
 
+type StoredAttribution = {
+  traffic_source: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
+  gclid?: string;
+};
+
+function readQueryValue(params: SearchParamsLike, key: string) {
+  const value = params.get(key)?.trim();
+  return value || undefined;
+}
+
+function getAttributionFromParams(
+  params: SearchParamsLike,
+  referrer = "",
+): StoredAttribution {
+  return {
+    traffic_source: detectTrafficSource(params, referrer),
+    utm_source: readQueryValue(params, "utm_source"),
+    utm_medium: readQueryValue(params, "utm_medium"),
+    utm_campaign: readQueryValue(params, "utm_campaign"),
+    utm_content: readQueryValue(params, "utm_content"),
+    utm_term: readQueryValue(params, "utm_term"),
+    gclid: readQueryValue(params, "gclid"),
+  };
+}
+
+function hasExplicitAttribution(params: SearchParamsLike) {
+  return Boolean(
+    readQueryValue(params, "traffic_source") ||
+      ATTRIBUTION_QUERY_KEYS.some((key) => readQueryValue(params, key)),
+  );
+}
+
+function getExternalReferrer() {
+  if (typeof window === "undefined" || !document.referrer) return "";
+  try {
+    return new URL(document.referrer).origin === window.location.origin
+      ? ""
+      : document.referrer;
+  } catch {
+    return document.referrer;
+  }
+}
+
+function readStoredAttribution(): StoredAttribution | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const rawValue = window.sessionStorage.getItem(ATTRIBUTION_STORAGE_KEY);
+    if (!rawValue) return null;
+    const parsed = JSON.parse(rawValue) as Partial<StoredAttribution>;
+    if (!parsed.traffic_source || typeof parsed.traffic_source !== "string") return null;
+    return parsed as StoredAttribution;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredAttribution(attribution: StoredAttribution) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(attribution));
+  } catch {
+    // Analytics must never interrupt the product flow when browser storage is unavailable.
+  }
+}
+
+export function getAttributionFromBrowser(): StoredAttribution {
+  if (typeof window === "undefined") {
+    return { traffic_source: "direct" };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  if (hasExplicitAttribution(params)) {
+    const attribution = getAttributionFromParams(params, getExternalReferrer());
+    writeStoredAttribution(attribution);
+    return attribution;
+  }
+
+  const stored = readStoredAttribution();
+  if (stored) return stored;
+
+  const attribution = getAttributionFromParams(params, getExternalReferrer());
+  writeStoredAttribution(attribution);
+  return attribution;
+}
+
 export function getAnalyticsContextFromParams(
   params: SearchParamsLike,
   overrides: Partial<AnalyticsContext> = {},
   referrer = "",
 ): AnalyticsContext {
+  const attribution = getAttributionFromParams(params, referrer);
   return {
     device_type: overrides.device_type ?? getDeviceType(),
     traffic_source:
-      overrides.traffic_source ?? detectTrafficSource(params, referrer),
-    utm_campaign: overrides.utm_campaign ?? params.get("utm_campaign") ?? "none",
+      overrides.traffic_source ?? attribution.traffic_source,
+    utm_source: overrides.utm_source ?? attribution.utm_source,
+    utm_medium: overrides.utm_medium ?? attribution.utm_medium,
+    utm_campaign: overrides.utm_campaign ?? attribution.utm_campaign ?? "none",
+    utm_content: overrides.utm_content ?? attribution.utm_content,
+    utm_term: overrides.utm_term ?? attribution.utm_term,
+    gclid: overrides.gclid ?? attribution.gclid,
     page_variant:
       overrides.page_variant ?? params.get("page_variant") ?? "unassigned",
     intent_path:
@@ -246,11 +359,12 @@ export function getAnalyticsContextFromBrowser(
     };
   }
 
-  return getAnalyticsContextFromParams(
-    new URLSearchParams(window.location.search),
-    overrides,
-    document.referrer,
-  );
+  const params = new URLSearchParams(window.location.search);
+  const attribution = getAttributionFromBrowser();
+  return getAnalyticsContextFromParams(params, {
+    ...attribution,
+    ...overrides,
+  });
 }
 
 export function isRecentSignup(
@@ -270,6 +384,11 @@ export function buildAttributionQuery(options: {
   pageVariant: string;
   trafficSource: string;
   utmCampaign: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  gclid?: string;
   entryMode?: EntryMode;
   extra?: Record<string, string | number>;
 }) {
@@ -278,6 +397,11 @@ export function buildAttributionQuery(options: {
   params.set("page_variant", options.pageVariant);
   params.set("traffic_source", options.trafficSource);
   params.set("utm_campaign", options.utmCampaign);
+  if (options.utmSource) params.set("utm_source", options.utmSource);
+  if (options.utmMedium) params.set("utm_medium", options.utmMedium);
+  if (options.utmContent) params.set("utm_content", options.utmContent);
+  if (options.utmTerm) params.set("utm_term", options.utmTerm);
+  if (options.gclid) params.set("gclid", options.gclid);
   params.set("entry", options.entryMode ?? "workspace");
 
   for (const [key, value] of Object.entries(options.extra ?? {})) {

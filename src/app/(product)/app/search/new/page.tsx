@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import {
   ANALYTICS_EVENTS,
-  getAnalyticsContextFromParams,
+  buildAttributionQuery,
+  getAnalyticsContextFromBrowser,
   trackEvent,
 } from "@/lib/analytics";
 import { getGrowthIdentity, getJdLengthBucket, trackGrowthEvent } from "@/lib/growth-client";
@@ -63,7 +64,7 @@ export default function NewSearchPage() {
   const [isNavigating, startTransition] = useTransition();
   const replyInputRef = useRef<HTMLInputElement>(null);
   const hasTrackedViewRef = useRef(false);
-  const analyticsContext = getAnalyticsContextFromParams(searchParams);
+  const analyticsContext = getAnalyticsContextFromBrowser();
 
   useEffect(() => {
     // Only prefill when the JD came from the user (typed in landing hero or
@@ -193,6 +194,12 @@ export default function NewSearchPage() {
       const data = (await res.json()) as ClarifyResponse;
 
       setStage({ type: "confirming", response: data, brief: buildEditableBrief(data), reply: "" });
+      trackEvent(ANALYTICS_EVENTS.sourcingBriefGenerated, {
+        ...analyticsContext,
+        jd_length_bucket: getJdLengthBucket(jdText),
+        ready_to_launch: data.clarification.ready_to_launch,
+        required_skill_count: data.summary.requiredSkills.length,
+      });
       trackEvent(ANALYTICS_EVENTS.briefConfirmationView, {
         ...analyticsContext,
         ready_to_launch: data.clarification.ready_to_launch,
@@ -255,8 +262,20 @@ export default function NewSearchPage() {
         jd_length_bucket: getJdLengthBucket(jdText),
         had_clarification: Boolean(userClarification),
       }, { awaitResponse: true });
+      const resultAttribution = buildAttributionQuery({
+        intentPath: analyticsContext.intent_path,
+        pageVariant: analyticsContext.page_variant,
+        trafficSource: analyticsContext.traffic_source,
+        utmCampaign: analyticsContext.utm_campaign,
+        utmSource: analyticsContext.utm_source,
+        utmMedium: analyticsContext.utm_medium,
+        utmContent: analyticsContext.utm_content,
+        utmTerm: analyticsContext.utm_term,
+        gclid: analyticsContext.gclid,
+        entryMode: analyticsContext.entry_mode,
+      });
       startTransition(() => {
-        router.push(`/app/search/${id}`);
+        router.push(`/app/search/${id}?${resultAttribution.toString()}`);
       });
     } catch (error) {
       setStage({

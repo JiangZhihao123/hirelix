@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { getAnalyticsContextFromBrowser } from "@/lib/analytics";
 
 const VISITOR_KEY = "hirelix.growth.visitor_id";
 const SESSION_KEY = "hirelix.growth.session_id";
@@ -39,6 +40,7 @@ export function GrowthTracker() {
         options = {},
       ) => {
         const params = new URLSearchParams(window.location.search);
+        const attribution = getAnalyticsContextFromBrowser();
         const payload = JSON.stringify({
           visitor_id: visitorId,
           session_id: sessionId,
@@ -50,10 +52,13 @@ export function GrowthTracker() {
           referrer: document.referrer,
           event_type: eventType,
           metadata: {
-            utm_source: params.get("utm_source"),
-            utm_medium: params.get("utm_medium"),
-            utm_campaign: params.get("utm_campaign"),
-            traffic_source: params.get("traffic_source") || params.get("utm_source"),
+            utm_source: attribution.utm_source ?? null,
+            utm_medium: attribution.utm_medium ?? null,
+            utm_campaign: attribution.utm_campaign,
+            utm_content: attribution.utm_content ?? null,
+            utm_term: attribution.utm_term ?? null,
+            gclid: attribution.gclid ?? null,
+            traffic_source: attribution.traffic_source,
             page_variant: params.get("page_variant"),
             intent_path: params.get("intent_path"),
             invite_code: readCookie("hirelix_invite_code"),

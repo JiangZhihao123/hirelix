@@ -95,3 +95,17 @@ test("growth landing event normalizes valid preview request metadata", () => {
     assert.equal(decision.metadata.role_length, 47);
   }
 });
+
+test("growth landing event records sourcing brief generation as an activation event", () => {
+  const decision = validateLandingEventForRecording({
+    eventType: "sourcing_brief_generated",
+    metadata: {
+      traffic_source: "google_ads",
+      utm_campaign: "us_recruiter_search",
+      jd_length_bucket: "500+",
+    },
+    pageUrl: "https://hirelix.online/app/search/new",
+  });
+
+  assert.equal(decision.action, "record");
+});
