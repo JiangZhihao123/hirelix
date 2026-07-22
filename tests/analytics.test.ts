@@ -63,3 +63,14 @@ test("attribution query forwards Google click attribution through auth callback"
   assert.equal(params.get("utm_term"), "candidate sourcing software");
   assert.equal(params.get("gclid"), "test-click-id");
 });
+
+test("analytics context attributes Hacker News referrers without UTM parameters", () => {
+  const context = getAnalyticsContextFromParams(
+    new URLSearchParams(),
+    {},
+    "https://news.ycombinator.com/item?id=49002579",
+  );
+
+  assert.equal(context.traffic_source, "hackernews");
+  assert.equal(context.utm_campaign, "none");
+});

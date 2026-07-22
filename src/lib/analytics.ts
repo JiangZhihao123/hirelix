@@ -225,6 +225,7 @@ function detectTrafficSource(params: SearchParamsLike, referrer = "") {
   if (referrer.includes("google.")) return "google_organic";
   if (referrer.includes("linkedin.")) return "linkedin";
   if (referrer.includes("reddit.")) return "reddit";
+  if (referrer.includes("news.ycombinator.com")) return "hackernews";
   if (referrer) return "referral";
 
   return "direct";
