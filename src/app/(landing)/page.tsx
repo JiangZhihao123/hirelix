@@ -15,10 +15,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   FileText,
-  MailCheck,
-  Search,
   Sparkles,
-  UserSearch,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -39,6 +36,7 @@ import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
 import { CtaSection } from "./_components/CtaSection";
 import { FeaturesSection, HowItWorksSection, ResourcesSection } from "./_components/FeaturesSection";
+import { HeroCandidateProof } from "./_components/HeroCandidateProof";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
 import { PricingSection } from "./_components/PricingSection";
 
@@ -655,98 +653,118 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section id="product" data-growth-section="首屏" className="relative flex min-h-screen items-center overflow-hidden border-b border-slate-200/80 bg-white pt-28 pb-16">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.035)_1px,transparent_1px)] bg-[size:64px_64px]" />
-        <div className="relative mx-auto grid max-w-6xl gap-12 px-5 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
+      <section
+        id="product"
+        data-growth-section="首屏"
+        className="relative flex min-h-[calc(100svh-2.5rem)] items-end overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10"
+      >
+        <Image
+          src="/landing/hirelix-hero-recruiter-v1.webp"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[34%_center] lg:object-center"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-white/68 lg:bg-white/28" />
+        <div className="relative mx-auto w-full max-w-[96rem] px-5 sm:px-6 lg:px-10">
+          <div className="ml-auto max-w-3xl lg:text-right">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-white/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm backdrop-blur-sm">
               <Sparkles className="h-3.5 w-3.5" />
               For technical headhunters
             </div>
 
-            <h1 className="mt-6 max-w-[15ch] text-4xl font-extrabold leading-[1.06] tracking-tight text-slate-950 sm:text-[3rem] lg:text-[3.25rem]">
+            <h1 className="mt-4 text-4xl font-extrabold leading-[1.06] text-slate-950 sm:text-[3rem] lg:text-[3.5rem]">
               A day of technical candidate research, done in{" "}
-              <span className="text-indigo-600">15 minutes.</span>
+              <span className="text-indigo-700">15 minutes.</span>
             </h1>
 
-            <p className="mt-5 max-w-[34rem] text-base leading-7 text-slate-600">
-              Paste the client JD. Hirelix&apos;s AI agents search, score, and research real profiles in parallel, then deliver a ranked shortlist with evidence and personalized outreach drafts.
+            <p className="mt-4 ml-auto max-w-2xl text-base leading-7 text-slate-700">
+              Hirelix sources, ranks, and researches real profiles from the client JD, with fit evidence and outreach drafts ready to review.
             </p>
+
+            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row lg:justify-end">
+              <button
+                type="button"
+                onClick={handleTrySample}
+                data-testid="hero-sample-link"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
+              >
+                View a real candidate pool
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={focusHeroJd}
+                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-slate-300 bg-white/88 px-5 text-sm font-semibold text-slate-950 backdrop-blur-sm transition-colors hover:bg-white"
+              >
+                Try with your JD
+              </button>
+            </div>
           </div>
 
+          <div className="mt-6 ml-auto max-w-5xl">
+            <HeroCandidateProof />
+          </div>
+        </div>
+      </section>
+
+      <section data-growth-section="开始试用" className="border-b border-slate-200 bg-white py-9 sm:py-11">
+        <div className="mx-auto grid max-w-6xl gap-5 px-5 sm:px-6 lg:grid-cols-[minmax(14rem,0.55fr)_minmax(0,1.45fr)] lg:items-center">
           <div>
-            <form id="hero-form" onSubmit={handleSubmit} className="mx-auto max-w-[40rem] text-left lg:mx-0">
-              <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.1)]">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                    <FileText className="h-4 w-4 text-indigo-700" />
-                    Paste a job description
-                  </div>
-                  {wordCount > 0 ? (
-                    <span className="hidden text-xs font-medium text-emerald-700 sm:inline">
-                      {wordCount} words ready
-                    </span>
-                  ) : null}
+            <p className="text-xs font-semibold uppercase text-indigo-700">Your client role</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-950">Try it with the JD already on your desk.</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">One real role preview before you pay.</p>
+          </div>
+
+          <form id="hero-form" onSubmit={handleSubmit} className="min-w-0">
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.07)]">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <FileText className="h-4 w-4 text-indigo-700" />
+                  Paste a job description
                 </div>
-                <textarea
-                  ref={heroJdTextareaRef}
-                  value={jdText}
-                  onChange={(e) => handleJdInput(e.target.value)}
-                  placeholder="Paste the full client job description here..."
-                  rows={3}
-                  className="min-h-28 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-sm leading-6 text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-100"
-                />
-                <div className="mt-3 flex flex-col gap-3 text-xs text-slate-600 sm:flex-row sm:items-start sm:justify-between">
-                  <span>
-                    {wordCount > 0
-                      ? canSubmit
-                        ? `${wordCount} words ready to analyze`
-                        : "Paste at least 50 characters to continue."
-                      : "No client role handy? View a sample:"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleTrySample}
-                    data-testid="hero-sample-link"
-                    className="self-start font-semibold text-indigo-700 underline-offset-4 transition-colors hover:text-indigo-900 hover:underline sm:self-auto"
-                  >
-                    View sample pool
-                  </button>
-                </div>
+                {wordCount > 0 ? <span className="text-xs font-medium text-emerald-700">{wordCount} words</span> : null}
+              </div>
+              <textarea
+                ref={heroJdTextareaRef}
+                value={jdText}
+                onChange={(e) => handleJdInput(e.target.value)}
+                placeholder="Paste the full client job description here..."
+                rows={2}
+                className="min-h-24 w-full resize-none border-0 bg-white px-4 py-3 text-sm leading-6 text-slate-950 outline-none placeholder:text-slate-500 focus:bg-slate-50"
+              />
+              <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs text-slate-600">
+                  {wordCount > 0
+                    ? canSubmit
+                      ? `${wordCount} words ready to analyze`
+                      : "Paste at least 50 characters to continue."
+                    : "Your JD stays ready through sign in."}
+                </span>
                 <button
                   type="submit"
                   disabled={heroPrimaryDisabled}
                   data-testid="hero-primary-cta"
                   aria-busy={isSubmitting}
-                  className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3.5 text-base font-semibold transition-all ${
+                  className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-all ${
                     heroPrimaryDisabled
-                      ? "!cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
-                      : "bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] hover:-translate-y-0.5 hover:bg-slate-800"
+                      ? "cursor-not-allowed bg-slate-200 text-slate-500"
+                      : "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)] hover:-translate-y-0.5 hover:bg-slate-800"
                   }`}
                 >
-                  {isSubmitting ? "Opening your candidate pool..." : "Build candidate pool"}{" "}
+                  {isSubmitting ? "Opening your candidate pool..." : "Build candidate pool"}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
-            </form>
-
-            <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-600">
-              {[
-                { icon: UserSearch, label: "Real profiles" },
-                { icon: Search, label: "Candidate research" },
-                { icon: MailCheck, label: "Outreach drafts included" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-2">
-                  <item.icon className="h-4 w-4 text-indigo-600" />
-                  <span>{item.label}</span>
-                </div>
-              ))}
             </div>
-          </div>
+          </form>
         </div>
+      </section>
 
-        {isColdEmailVisitor && (
-          <div className="relative mx-auto mt-5 max-w-[96rem] px-5 sm:px-6">
+      {isColdEmailVisitor && (
+        <section className="border-b border-slate-200 bg-white py-5">
+          <div className="mx-auto max-w-[96rem] px-5 sm:px-6">
             <div className="grid gap-4 rounded-lg border border-indigo-100 bg-indigo-50/70 p-4 shadow-[0_18px_50px_rgba(67,56,202,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
               <div>
                 <p className="text-sm font-semibold text-indigo-950">
@@ -828,8 +846,8 @@ export default function Home() {
               </form>
             </div>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {sampleShortlistOpen && (
         <section id="sample-pool" data-growth-section="产品示例" className="scroll-mt-24 border-b border-slate-200 bg-white py-12">

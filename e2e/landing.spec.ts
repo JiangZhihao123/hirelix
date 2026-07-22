@@ -16,15 +16,16 @@ test.describe("Landing Page", () => {
     await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Try for free/i);
     await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
     await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build candidate pool/i);
-    await expect(page.getByTestId("hero-sample-link")).toBeVisible();
+    await expect(page.getByTestId("hero-sample-link")).toHaveText(/View a real candidate pool/i);
+    await expect(page.getByTestId("hero-product-proof")).toBeVisible();
     await expect(page.getByRole("link", { name: "Hirelix home" })).toHaveAttribute("href", "/");
     await expect(page.getByText("No setup required")).toHaveCount(0);
     await expect(page.getByText("Beta access")).toHaveCount(0);
     await expect(page.getByText("Invite-only beta")).toHaveCount(0);
     const hero = page.locator("#product");
-    await expect(hero.getByText("Real profiles", { exact: true })).toBeVisible();
-    await expect(hero.getByText("Public evidence research", { exact: true })).toBeVisible();
-    await expect(hero.getByText("Outreach drafts included", { exact: true })).toBeVisible();
+    await expect(hero.getByText("Ranked candidate pool", { exact: true })).toBeVisible();
+    await expect(hero.getByText("Research complete", { exact: true })).toBeVisible();
+    await expect(hero.getByText("Outreach draft", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "/");
     await expect(page.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#how-it-works");
     await expect(page.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
@@ -36,7 +37,7 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Start with the role already on your desk." })).toBeVisible();
-    await expect(page.getByText("Hirelix's AI agents search, score, and research real profiles")).toBeVisible();
+    await expect(page.getByText("Hirelix sources, ranks, and researches real profiles from the client JD")).toBeVisible();
     await expect(page.locator("#features").getByText("GitHub, papers, technical blogs")).toBeVisible();
     await expect(page.getByText("patent")).toHaveCount(0);
     await expect(page.getByText("news reporting")).toHaveCount(0);
@@ -46,7 +47,7 @@ test.describe("Landing Page", () => {
     const cta = page.getByTestId("hero-primary-cta");
 
     await expect(cta).toBeDisabled();
-    await expect(page.getByText("No client role handy? View a sample:")).toBeVisible();
+    await expect(page.getByText("Your JD stays ready through sign in.")).toBeVisible();
 
     await page.getByPlaceholder("Paste the full client job description here...").fill("Too short");
 
@@ -239,8 +240,8 @@ test.describe("Landing Page mobile responsiveness", () => {
     const pricing = page.locator("#pricing");
 
     await expect(pricing.getByText("Free", { exact: true })).toBeVisible();
-    await expect(pricing.getByText("150 targeted profile scans")).toBeVisible();
-    await expect(pricing.getByText("Outreach drafts")).toBeVisible();
+    await expect(pricing.getByText("250 targeted profile scan budget")).toBeVisible();
+    await expect(pricing.getByText("Top recommendations with outreach drafts", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
   });
 });
