@@ -36,7 +36,6 @@ import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
 import { CtaSection } from "./_components/CtaSection";
 import { FeaturesSection, HowItWorksSection, ResourcesSection } from "./_components/FeaturesSection";
-import { HeroCandidateProof } from "./_components/HeroCandidateProof";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
 import { PricingSection } from "./_components/PricingSection";
 
@@ -703,9 +702,6 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-6 ml-auto max-w-5xl">
-            <HeroCandidateProof />
-          </div>
         </div>
       </section>
 
