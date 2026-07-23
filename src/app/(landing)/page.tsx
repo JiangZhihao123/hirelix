@@ -655,7 +655,7 @@ export default function Home() {
       <section
         id="product"
         data-growth-section="首屏"
-        className="relative flex min-h-[calc(100svh-2.5rem)] items-end overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10"
+        className="relative flex min-h-[calc(100svh-2.5rem)] items-end overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10 lg:items-center"
       >
         <Image
           src="/landing/hirelix-hero-recruiter-v1.webp"
