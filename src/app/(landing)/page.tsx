@@ -655,7 +655,7 @@ export default function Home() {
       <section
         id="product"
         data-growth-section="首屏"
-        className="relative flex min-h-[calc(100svh-2.5rem)] items-end overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10 lg:items-center"
+        className="relative flex min-h-[calc(100svh-2.5rem)] items-center overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10"
       >
         <Image
           src="/landing/hirelix-hero-recruiter-v1.webp"
@@ -666,8 +666,8 @@ export default function Home() {
           className="object-cover object-[34%_center] lg:object-center"
         />
         <div className="pointer-events-none absolute inset-0 bg-white/68 lg:bg-white/28" />
-        <div className="relative mx-auto w-full max-w-[96rem] px-5 sm:px-6 lg:translate-y-5 lg:px-10">
-          <div className="ml-auto max-w-3xl lg:text-right">
+        <div className="relative mx-auto w-full max-w-[96rem] translate-y-16 px-5 sm:px-6 lg:translate-y-5 lg:px-10">
+          <div className="ml-auto max-w-3xl lg:translate-x-8 lg:text-right">
             <div className="inline-flex items-center gap-2 rounded-lg border border-white/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm backdrop-blur-sm">
               <Sparkles className="h-3.5 w-3.5" />
               For technical headhunters
