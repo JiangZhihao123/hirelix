@@ -165,6 +165,65 @@ test("buildOpsConversionData keeps filtered traffic out of the main funnel", () 
   assert.equal(data.funnel[0].count, 1);
 });
 
+test("buildOpsConversionData recovers Product Hunt attribution from URLs and referrers", () => {
+  const start = new Date("2026-07-23T00:00:00.000Z");
+  const end = new Date("2026-07-24T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "page_view",
+        visitor_id: "product-hunt-visitor",
+        session_id: "product-hunt-session",
+        page_url: "https://hirelix.online/?ref=producthunt",
+        referrer: "",
+        ip_address: "203.0.113.20",
+        user_agent: "Mozilla/5.0 Chrome/149.0",
+        metadata: { traffic_source: "direct" },
+        created_at: "2026-07-23T08:15:00.000Z",
+      },
+      {
+        event_type: "session_summary",
+        visitor_id: "product-hunt-visitor",
+        session_id: "product-hunt-session",
+        page_url: "https://hirelix.online/",
+        referrer: "https://www.producthunt.com/",
+        ip_address: "203.0.113.20",
+        user_agent: "Mozilla/5.0 Chrome/149.0",
+        metadata: { traffic_source: "direct", page_stay_seconds: 30 },
+        created_at: "2026-07-23T08:15:30.000Z",
+      },
+    ],
+    { range: "today", start, end },
+  );
+
+  assert.equal(data.sources.length, 1);
+  assert.equal(data.sources[0]?.source, "Product Hunt");
+  assert.equal(data.sources[0]?.humanVisits, 1);
+});
+
+test("buildOpsConversionData groups founder outreach UTM traffic under email", () => {
+  const start = new Date("2026-07-23T00:00:00.000Z");
+  const end = new Date("2026-07-24T00:00:00.000Z");
+  const data = buildOpsConversionData(
+    [
+      {
+        event_type: "page_view",
+        visitor_id: "founder-outreach-visitor",
+        session_id: "founder-outreach-session",
+        page_url: "https://hirelix.online/?utm_source=founder_outreach",
+        referrer: "",
+        ip_address: "203.0.113.21",
+        user_agent: "Mozilla/5.0 Chrome/149.0",
+        metadata: { traffic_source: "founder_outreach" },
+        created_at: "2026-07-23T09:00:00.000Z",
+      },
+    ],
+    { range: "today", start, end },
+  );
+
+  assert.equal(data.sources[0]?.source, "邮件");
+});
+
 test("buildOpsConversionData removes local sessions from every CEO-facing activity list", () => {
   const start = new Date("2026-05-26T00:00:00.000Z");
   const end = new Date("2026-05-27T00:00:00.000Z");

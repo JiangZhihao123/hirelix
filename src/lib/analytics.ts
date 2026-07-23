@@ -209,6 +209,7 @@ function detectTrafficSource(params: SearchParamsLike, referrer = "") {
 
   const utmSource = params.get("utm_source")?.toLowerCase() || "";
   const utmMedium = params.get("utm_medium")?.toLowerCase() || "";
+  const referralHint = params.get("ref")?.toLowerCase() || "";
 
   if (
     params.get("gclid") ||
@@ -222,10 +223,12 @@ function detectTrafficSource(params: SearchParamsLike, referrer = "") {
     return utmSource;
   }
 
+  if (referralHint === "producthunt") return "producthunt";
   if (referrer.includes("google.")) return "google_organic";
   if (referrer.includes("linkedin.")) return "linkedin";
   if (referrer.includes("reddit.")) return "reddit";
   if (referrer.includes("news.ycombinator.com")) return "hackernews";
+  if (referrer.includes("producthunt.com")) return "producthunt";
   if (referrer) return "referral";
 
   return "direct";
@@ -262,8 +265,10 @@ function getAttributionFromParams(
 }
 
 function hasExplicitAttribution(params: SearchParamsLike) {
+  const referralHint = readQueryValue(params, "ref")?.toLowerCase();
   return Boolean(
     readQueryValue(params, "traffic_source") ||
+      referralHint === "producthunt" ||
       ATTRIBUTION_QUERY_KEYS.some((key) => readQueryValue(params, key)),
   );
 }
