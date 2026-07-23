@@ -9,9 +9,9 @@ export function HeroCandidateProof() {
   return (
     <div
       data-testid="hero-product-proof"
-      className="h-[18rem] overflow-hidden rounded-lg border border-white/80 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.24)] sm:h-[19rem] lg:h-[15rem]"
+      className="h-[18rem] overflow-hidden rounded-lg border border-white/70 bg-white/75 shadow-[0_28px_80px_rgba(15,23,42,0.2)] backdrop-blur-md sm:h-[19rem] lg:h-[15rem]"
     >
-      <div className="flex h-12 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 sm:px-5">
+      <div className="flex h-12 items-center justify-between gap-4 border-b border-white/70 bg-white/65 px-4 sm:px-5">
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-slate-950 sm:text-sm">
             Senior Software Engineer
@@ -25,16 +25,16 @@ export function HeroCandidateProof() {
       </div>
 
       <div className="grid h-[calc(100%-3rem)] lg:grid-cols-[minmax(15rem,0.72fr)_minmax(0,1.28fr)]">
-        <div className="hidden border-r border-slate-200 bg-slate-50/90 lg:block">
-          <div className="flex h-8 items-center justify-between border-b border-slate-200 px-4 text-[10px] font-semibold uppercase text-slate-500">
+        <div className="hidden border-r border-white/60 bg-slate-100/45 lg:block">
+          <div className="flex h-8 items-center justify-between border-b border-white/60 px-4 text-[10px] font-semibold uppercase text-slate-500">
             <span>Recommended order</span>
             <span>{candidateRows.length} profiles</span>
           </div>
           {candidateRows.slice(0, 2).map((candidate, index) => (
             <div
               key={candidate.name}
-              className={`border-b border-slate-200 px-4 py-1.5 ${
-                index === 0 ? "bg-white shadow-[inset_3px_0_0_#4f46e5]" : "bg-slate-50/60"
+              className={`border-b border-white/60 px-4 py-1.5 ${
+                index === 0 ? "bg-white/75 shadow-[inset_3px_0_0_#4f46e5]" : "bg-slate-100/30"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -55,7 +55,7 @@ export function HeroCandidateProof() {
           </div>
         </div>
 
-        <div className="min-w-0 bg-white px-4 py-3 sm:px-5">
+        <div className="min-w-0 bg-white/60 px-4 py-3 sm:px-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
