@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -21,6 +21,28 @@ function checkConfig(overrides: NodeJS.ProcessEnv) {
         OUTREACH_POSTAL_ADDRESS: "1 Test Street, Test City",
         ...overrides,
       },
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+function dryRun(body: string) {
+  const cwd = mkdtempSync(path.join(tmpdir(), "hirelix-outreach-dry-run-"));
+  try {
+    const batchPath = path.join(cwd, "batch.json");
+    writeFileSync(batchPath, JSON.stringify({
+      emails: [{
+        id: "signature-test",
+        to: "recipient@example.com",
+        subject: "Signature test",
+        body,
+      }],
+    }));
+    return spawnSync(process.execPath, [scriptPath, batchPath, "--dry-run"], {
+      cwd,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, HOME: process.env.HOME },
     });
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -71,4 +93,21 @@ test("outreach config requires the Zoho sender to match the authenticated mailbo
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /OUTREACH_FROM_EMAIL must use the configured ZOHO_SMTP_USER/);
+});
+
+test("outreach dry run adds the founder signature before the opt-out footer", () => {
+  const result = dryRun('Hi there.\n\nIf this is not relevant, reply "opt out".');
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(
+    result.stdout,
+    /Noah Jiang\nFounder, Hirelix\nhttps:\/\/hirelix\.online\/go\/signature-test\?.*\n\nIf this is not relevant/,
+  );
+});
+
+test("outreach dry run does not duplicate an existing founder signature", () => {
+  const result = dryRun("Hi there.\n\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online");
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.match(/Founder, Hirelix/g)?.length, 1);
 });
