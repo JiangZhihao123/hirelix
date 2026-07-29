@@ -35,7 +35,12 @@ import type { BillingPlanCode } from "@/lib/billing";
 import { candidateRows } from "./_components/data";
 import { AuthModal } from "./_components/AuthModal";
 import { CtaSection } from "./_components/CtaSection";
-import { FeaturesSection, HowItWorksSection, ResourcesSection } from "./_components/FeaturesSection";
+import {
+  FeaturesSection,
+  HowItWorksSection,
+  ResourcesSection,
+  SampleFeedbackSection,
+} from "./_components/FeaturesSection";
 import { HeroCandidateProof } from "./_components/HeroCandidateProof";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
 import { PricingSection } from "./_components/PricingSection";
@@ -922,6 +927,7 @@ export default function Home() {
 
       <HowItWorksSection />
       <FeaturesSection />
+      <SampleFeedbackSection />
       <PricingSection onStart={handlePricingStart} onSelectPlan={handlePricingPlanSelect} />
       <ResourcesSection onStart={focusHeroJd} />
       <ObjectionsSection />

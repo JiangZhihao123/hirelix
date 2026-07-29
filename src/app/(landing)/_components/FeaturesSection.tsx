@@ -155,6 +155,62 @@ export function FeaturesSection() {
   );
 }
 
+export function SampleFeedbackSection() {
+  const feedback = [
+    {
+      quote:
+        "I spend less time switching between profiles and more time having useful conversations with candidates.",
+      role: "Example, boutique technical recruiter",
+    },
+    {
+      quote:
+        "The value is not just finding more names. It is quickly seeing which profiles deserve a closer look.",
+      role: "Example, technical recruiting firm",
+    },
+    {
+      quote:
+        "Hirelix gives us a clearer first pass on difficult engineering searches.",
+      role: "Example, AI recruiting team",
+    },
+  ];
+
+  return (
+    <section
+      id="sample-feedback"
+      data-growth-section="示例反馈"
+      className="border-t border-slate-200 bg-slate-50 py-16 sm:py-20"
+    >
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
+            Sample feedback
+          </p>
+          <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+            More time for the conversations that matter.
+          </h2>
+          <p className="mx-auto mt-4 text-base leading-7 text-slate-600">
+            Illustrative feedback showing the kind of value Hirelix is designed to create for technical recruiters.
+          </p>
+        </div>
+
+        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+          {feedback.map((item) => (
+            <figure
+              key={item.quote}
+              className="flex min-h-48 flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.045)]"
+            >
+              <blockquote className="text-base leading-7 text-slate-800">“{item.quote}”</blockquote>
+              <figcaption className="mt-6 text-xs font-semibold uppercase tracking-[0.1em] text-slate-500">
+                {item.role}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function ResourcesSection({ onStart }: { onStart: () => void }) {
   const resources = [
     {
