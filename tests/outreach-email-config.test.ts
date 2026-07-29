@@ -7,13 +7,14 @@ import test from "node:test";
 
 const scriptPath = path.resolve("scripts/tools/send-growth-email-batch.mjs");
 
-function checkConfig(overrides: NodeJS.ProcessEnv) {
+function checkConfig(overrides: Partial<NodeJS.ProcessEnv>) {
   const cwd = mkdtempSync(path.join(tmpdir(), "hirelix-outreach-config-"));
   try {
     return spawnSync(process.execPath, [scriptPath, "--check-config"], {
       cwd,
       encoding: "utf8",
       env: {
+        NODE_ENV: process.env.NODE_ENV ?? "test",
         PATH: process.env.PATH,
         HOME: process.env.HOME,
         OUTREACH_FROM_EMAIL: "Noah Jiang <noah@hirelix.online>",
@@ -42,7 +43,11 @@ function dryRun(body: string) {
     return spawnSync(process.execPath, [scriptPath, batchPath, "--dry-run"], {
       cwd,
       encoding: "utf8",
-      env: { PATH: process.env.PATH, HOME: process.env.HOME },
+      env: {
+        NODE_ENV: process.env.NODE_ENV ?? "test",
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+      },
     });
   } finally {
     rmSync(cwd, { recursive: true, force: true });

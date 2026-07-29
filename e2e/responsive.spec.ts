@@ -7,7 +7,6 @@ test.describe("Responsive - Landing Page", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
-    await expect(page.getByTestId("hero-product-proof")).toBeVisible();
     await expect(page.getByTestId("nav-primary-cta")).toBeVisible();
     await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Try for free/i);
   });

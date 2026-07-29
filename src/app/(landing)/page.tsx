@@ -41,7 +41,6 @@ import {
   ResourcesSection,
   SampleFeedbackSection,
 } from "./_components/FeaturesSection";
-import { HeroCandidateProof } from "./_components/HeroCandidateProof";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
 import { PricingSection } from "./_components/PricingSection";
 
@@ -651,7 +650,7 @@ export default function Home() {
               data-testid="nav-primary-cta"
               className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              Try for free
+              Start a role preview
             </button>
           </div>
         </div>
@@ -661,7 +660,7 @@ export default function Home() {
       <section
         id="product"
         data-growth-section="首屏"
-        className="relative flex min-h-[calc(100svh-2.5rem)] items-end overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10"
+        className="relative flex min-h-[calc(100svh-2.5rem)] items-center overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10"
       >
         <Image
           src="/landing/hirelix-hero-recruiter-v1.webp"
@@ -672,20 +671,20 @@ export default function Home() {
           className="object-cover object-[34%_center] lg:object-center"
         />
         <div className="pointer-events-none absolute inset-0 bg-white/68 lg:bg-white/28" />
-        <div className="relative mx-auto w-full max-w-[96rem] px-5 sm:px-6 lg:px-10">
-          <div className="ml-auto max-w-3xl lg:text-right">
+        <div className="relative mx-auto w-full max-w-[96rem] translate-y-16 px-5 sm:px-6 lg:-translate-y-20 lg:px-10">
+          <div className="ml-auto max-w-3xl lg:translate-x-8 lg:text-right">
             <div className="inline-flex items-center gap-2 rounded-lg border border-white/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm backdrop-blur-sm">
               <Sparkles className="h-3.5 w-3.5" />
-              For technical headhunters
+              AI sourcing agent for technical recruiters
             </div>
 
             <h1 className="mt-4 text-4xl font-extrabold leading-[1.06] text-slate-950 sm:text-[3rem] lg:text-[3.5rem]">
-              A day of technical candidate research, done in{" "}
-              <span className="text-indigo-700">15 minutes.</span>
+              Spend less time sourcing.{" "}
+              <span className="text-indigo-700">More time with candidates.</span>
             </h1>
 
             <p className="mt-4 ml-auto max-w-2xl text-base leading-7 text-slate-700">
-              Hirelix sources, ranks, and researches real profiles from the client JD, with fit evidence and outreach drafts ready to review.
+              Hirelix finds, screens, and compares real technical profiles from a client JD, so you can focus on candidate conversations and client relationships.
             </p>
 
             <div className="mt-5 flex flex-col gap-2.5 sm:flex-row lg:justify-end">
@@ -695,7 +694,7 @@ export default function Home() {
                 data-testid="hero-sample-link"
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
               >
-                View a real candidate pool
+                See a sample shortlist
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
@@ -703,14 +702,11 @@ export default function Home() {
                 onClick={focusHeroJd}
                 className="inline-flex min-h-12 items-center justify-center rounded-lg border border-slate-300 bg-white/88 px-5 text-sm font-semibold text-slate-950 backdrop-blur-sm transition-colors hover:bg-white"
               >
-                Try with your JD
+                Run your role
               </button>
             </div>
           </div>
 
-          <div className="mt-6 ml-auto max-w-5xl">
-            <HeroCandidateProof />
-          </div>
         </div>
       </section>
 
@@ -718,8 +714,8 @@ export default function Home() {
         <div className="mx-auto grid max-w-6xl gap-5 px-5 sm:px-6 lg:grid-cols-[minmax(14rem,0.55fr)_minmax(0,1.45fr)] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase text-indigo-700">Your client role</p>
-            <h2 className="mt-2 text-2xl font-bold text-slate-950">Try it with the JD already on your desk.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">One real role preview before you pay.</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-950">Run the role already on your desk.</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">See how Hirelix finds, screens, and compares the pool.</p>
           </div>
 
           <form id="hero-form" onSubmit={handleSubmit} className="min-w-0">
@@ -758,7 +754,7 @@ export default function Home() {
                       : "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)] hover:-translate-y-0.5 hover:bg-slate-800"
                   }`}
                 >
-                  {isSubmitting ? "Opening your candidate pool..." : "Build candidate pool"}
+                  {isSubmitting ? "Building your shortlist..." : "Build ranked shortlist"}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -773,11 +769,10 @@ export default function Home() {
             <div className="grid gap-4 rounded-lg border border-indigo-100 bg-indigo-50/70 p-4 shadow-[0_18px_50px_rgba(67,56,202,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
               <div>
                 <p className="text-sm font-semibold text-indigo-950">
-                  Want me to run this on one real client role?
+                  Want to become an early Hirelix user?
                 </p>
                 <p className="mt-1 text-sm leading-6 text-indigo-900/80">
-                  Send a role title or JD snippet. I can run a small role preview before you spend
-                  time setting anything up.
+                  We are building an AI sourcing agent for technical recruiters and inviting a small early-user group.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a
@@ -844,7 +839,7 @@ export default function Home() {
                         : "cursor-not-allowed bg-indigo-100 text-indigo-400"
                     }`}
                   >
-                    {previewRequestStatus === "submitting" ? "Sending..." : "Send a JD for preview"}
+                    {previewRequestStatus === "submitting" ? "Sending..." : "Join the early-user group"}
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -874,7 +869,7 @@ export default function Home() {
                 onClick={focusHeroJd}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
               >
-                Build candidate pool
+                  Run your role
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -934,7 +929,7 @@ export default function Home() {
       <CtaSection
         onTrySample={handleTrySample}
         onSignIn={handleGenericSignIn}
-        desktopFooterCtaLabel="Build candidate pool"
+        desktopFooterCtaLabel="Build ranked shortlist"
       />
 
       <AuthModal

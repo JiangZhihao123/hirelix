@@ -17,13 +17,13 @@ export function CtaSection({
       <section data-growth-section="底部行动" className="relative overflow-hidden border-t border-slate-200 bg-white py-20 sm:py-28">
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-            Ready when you are
+            For technical recruiters
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-            Start with the role already on your desk.
+            Spend less time sourcing. More time with candidates.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            Paste a client JD, review the ranked candidate pool, and edit outreach drafts before anything gets sent.
+            Find, screen, and compare real technical profiles from a client JD, then decide who deserves a conversation.
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-4">
@@ -38,7 +38,7 @@ export function CtaSection({
               onClick={onTrySample}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:hidden"
             >
-              View sample pool <ArrowRight className="h-4 w-4" />
+              See a sample shortlist <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-sm text-slate-600">
               Already have an account?{" "}
@@ -76,7 +76,7 @@ export function CtaSection({
               <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
               <span className="font-semibold text-slate-950">Hirelix</span>
             </div>
-            <p>Evidence-backed technical candidate pools from real LinkedIn profiles.</p>
+            <p>Find, compare, and review real technical profiles from a client JD.</p>
             <p>Built for technical headhunters.</p>
             <p>Support: <a className="text-indigo-700 hover:text-indigo-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>
