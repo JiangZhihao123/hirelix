@@ -1,0 +1,79 @@
+{
+  "date": "2026-07-30",
+  "batch": "founder-outreach-2026-07-30",
+  "tracking_campaign": "founder_outreach_linkless_trial_invite",
+  "product": "Hirelix",
+  "sender_name": "Noah Jiang",
+  "include_product_url": false,
+  "notes": [
+    "Seven previously uncontacted technical recruiting founders with Hunter-valid company-domain emails.",
+    "No URLs or tracking links are included. Recipients are invited to find Hirelix through Google.",
+    "Every email states the business relevance and includes an opt-out plus mailing-address placeholder.",
+    "Final sending requires recipient and copy confirmation plus configured sender and postal address."
+  ],
+  "emails": [
+    {
+      "id": "neil_scaleability_20260730",
+      "to": "neil@scale-ability.ai",
+      "first_name": "Neil",
+      "company": "Scale-Ability",
+      "source_url": "https://scale-ability.ai",
+      "subject": "Would you try Hirelix on one AI role?",
+      "body": "Hi Neil,\n\nI'm Noah, founder of Hirelix. I built it for technical recruiters who spend too much time finding profiles and comparing technical evidence before deciding who deserves outreach.\n\nHirelix turns a client JD into a ranked pool of real technical profiles, with fit reasons, risks to verify, and editable outreach drafts. It is designed to reduce repetitive sourcing work while leaving recruiter judgment and candidate relationships with you.\n\nScale-Ability's focus on AI/ML and software roles made me think this may be relevant. Would you be open to trying it on one role and telling me bluntly what is missing?\n\nThere is no link in this email. You can Google \"Hirelix\" if you would like to take a look.\n\nBest,\nNoah\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "steve_scalrr_20260730",
+      "to": "steve@scalrr.com",
+      "first_name": "Steve",
+      "company": "SCALRR",
+      "source_url": "https://www.scalrr.com",
+      "subject": "Would you try Hirelix on one startup role?",
+      "body": "Hi Steve,\n\nI'm Noah, founder of Hirelix. I built it for technical recruiters who spend too much time finding profiles and comparing technical evidence before deciding who deserves outreach.\n\nHirelix turns a client JD into a ranked pool of real technical profiles, with fit reasons, risks to verify, and editable outreach drafts. It is designed to reduce repetitive sourcing work while leaving recruiter judgment and candidate relationships with you.\n\nSCALRR's work across startup engineering, product, data, and AI roles made me think this may be relevant. Would you be open to trying it on one search and telling me bluntly where the ranking falls short?\n\nThere is no link in this email. You can Google \"Hirelix\" if you would like to take a look.\n\nBest,\nNoah\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "george_kofi_20260730",
+      "to": "george@kofi-group.com",
+      "first_name": "George",
+      "company": "Kofi Group",
+      "source_url": "https://kofi-group.com",
+      "subject": "Could Hirelix help with one hard technical search?",
+      "body": "Hi George,\n\nI'm Noah, founder of Hirelix. I built it for technical recruiters who spend too much time finding profiles and comparing technical evidence before deciding who deserves outreach.\n\nHirelix turns a client JD into a ranked pool of real technical profiles, with fit reasons, risks to verify, and editable outreach drafts. It is designed to reduce repetitive sourcing work while leaving recruiter judgment and candidate relationships with you.\n\nKofi Group's work across developer tooling, cloud, data, and ML stood out, especially where adjacent profiles can look similar by title. Would you be open to trying Hirelix on one role and giving me a blunt assessment?\n\nThere is no link in this email. You can Google \"Hirelix\" if you would like to take a look.\n\nBest,\nNoah\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "trista_sprout_20260730",
+      "to": "trista@sproutalent.com",
+      "first_name": "Trista",
+      "company": "Sprout Talent",
+      "source_url": "https://sproutalent.com",
+      "subject": "Would you try Hirelix on one Series A-C role?",
+      "body": "Hi Trista,\n\nI'm Noah, founder of Hirelix. I built it for technical recruiters who spend too much time finding profiles and comparing technical evidence before deciding who deserves outreach.\n\nHirelix turns a client JD into a ranked pool of real technical profiles, with fit reasons, risks to verify, and editable outreach drafts. It is designed to reduce repetitive sourcing work while leaving recruiter judgment and candidate relationships with you.\n\nSprout Talent's work with Series A-C B2B and SaaS teams made me think the evidence-and-risk view could be useful on a technical leadership brief. Would you be open to trying it on one role and telling me what is missing?\n\nThere is no link in this email. You can Google \"Hirelix\" if you would like to take a look.\n\nBest,\nNoah\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "darren_recruitslab_20260730",
+      "to": "darren@recruitslab.com",
+      "first_name": "Darren",
+      "company": "Recruits Lab",
+      "source_url": "https://recruitslab.com/about",
+      "subject": "Would you try Hirelix on one AI search?",
+      "body": "Hi Darren,\n\nI'm Noah, founder of Hirelix. I built it for technical recruiters who spend too much time finding profiles and comparing technical evidence before deciding who deserves outreach.\n\nHirelix turns a client JD into a ranked pool of real technical profiles, with fit reasons, risks to verify, and editable outreach drafts. It is designed to reduce repetitive sourcing work while leaving recruiter judgment and candidate relationships with you.\n\nRecruits Lab's work on AI research and applied engineering searches stood out, where research depth and production evidence are easy to conflate. Would you be open to trying Hirelix on one role and giving me a blunt assessment?\n\nThere is no link in this email. You can Google \"Hirelix\" if you would like to take a look.\n\nBest,\nNoah\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "ron_tekrecruiter_20260730",
+      "to": "rsmith@tekrecruiter.com",
+      "first_name": "Ron",
+      "company": "TekRecruiter",
+      "source_url": "https://www.tekrecruiter.com/about",
+      "subject": "Would you try Hirelix on one technical role?",
+      "body": "Hi Ron,\n\nI'm Noah, founder of Hirelix. I built it for technical recruiters who spend too much time finding profiles and comparing technical evidence before deciding who deserves outreach.\n\nHirelix turns a client JD into a ranked pool of real technical profiles, with fit reasons, risks to verify, and editable outreach drafts. It is designed to reduce repetitive sourcing work while leaving recruiter judgment and candidate relationships with you.\n\nYour combination of solutions architecture and technical recruiting experience made me think you would have a useful read on whether the evidence is actually credible. Would you be open to trying it on one role?\n\nThere is no link in this email. You can Google \"Hirelix\" if you would like to take a look.\n\nBest,\nNoah\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "joe_180engineering_20260730",
+      "to": "joe@180engineering.com",
+      "first_name": "Joe",
+      "company": "180 Engineering",
+      "source_url": "https://180engineering.com/our-team/",
+      "subject": "Could Hirelix help with one engineering search?",
+      "body": "Hi Joe,\n\nI'm Noah, founder of Hirelix. I built it for technical recruiters who spend too much time finding profiles and comparing technical evidence before deciding who deserves outreach.\n\nHirelix turns a client JD into a ranked pool of real technical profiles, with fit reasons, risks to verify, and editable outreach drafts. It is designed to reduce repetitive sourcing work while leaving recruiter judgment and candidate relationships with you.\n\nYour engineering leadership background and the reason you founded 180 Engineering made me think you would have a particularly useful read on the quality of the technical evidence. Would you be open to trying it on one role?\n\nThere is no link in this email. You can Google \"Hirelix\" if you would like to take a look.\n\nBest,\nNoah\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}

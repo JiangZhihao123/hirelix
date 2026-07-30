@@ -12,6 +12,7 @@ const DEFAULT_SMTP_HOST = "smtp.zoho.com";
 const DEFAULT_SMTP_PORT = 465;
 const DEFAULT_SEND_INTERVAL_MS = 3000;
 const DEFAULT_FOUNDER_SIGNATURE = "Noah Jiang\nFounder, Hirelix\nhttps://hirelix.online";
+const LINKLESS_FOUNDER_SIGNATURE = "Noah Jiang\nFounder, Hirelix";
 
 function loadDotEnv(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -134,12 +135,13 @@ function renderBody(body, postalAddress) {
   return body.replaceAll(ADDRESS_PLACEHOLDER, postalAddress);
 }
 
-function ensureFounderSignature(body) {
-  if (body.includes(DEFAULT_FOUNDER_SIGNATURE)) return body;
+function ensureFounderSignature(body, includeProductUrl = true) {
+  if (body.includes(LINKLESS_FOUNDER_SIGNATURE)) return body;
+  const signature = includeProductUrl ? DEFAULT_FOUNDER_SIGNATURE : LINKLESS_FOUNDER_SIGNATURE;
   const complianceMarker = '\n\nIf this is not relevant, reply "opt out"';
   const complianceIndex = body.indexOf(complianceMarker);
-  if (complianceIndex < 0) return `${body.trimEnd()}\n\n${DEFAULT_FOUNDER_SIGNATURE}`;
-  return `${body.slice(0, complianceIndex).trimEnd()}\n\n${DEFAULT_FOUNDER_SIGNATURE}${body.slice(complianceIndex)}`;
+  if (complianceIndex < 0) return `${body.trimEnd()}\n\n${signature}`;
+  return `${body.slice(0, complianceIndex).trimEnd()}\n\n${signature}${body.slice(complianceIndex)}`;
 }
 
 function buildTrackingUrl(email, batch, trackingBase) {
@@ -166,7 +168,10 @@ function renderTrackedBody(email, batch, env) {
   const inviteUrl = buildInviteUrl(email, batch, env.OUTREACH_TRACKING_BASE);
   const primaryUrl = inviteUrl || trackingUrl;
   const productUrls = new Set([batch.product_url || DEFAULT_PRODUCT_URL, DEFAULT_PRODUCT_URL]);
-  let body = ensureFounderSignature(renderBody(email.body, postalAddress));
+  let body = ensureFounderSignature(
+    renderBody(email.body, postalAddress),
+    batch.include_product_url !== false,
+  );
   if (inviteUrl) {
     body = body
       .replaceAll("{{invite_link}}", inviteUrl)

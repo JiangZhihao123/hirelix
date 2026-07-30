@@ -28,11 +28,12 @@ function checkConfig(overrides: Partial<NodeJS.ProcessEnv>) {
   }
 }
 
-function dryRun(body: string) {
+function dryRun(body: string, batchOverrides: Record<string, unknown> = {}) {
   const cwd = mkdtempSync(path.join(tmpdir(), "hirelix-outreach-dry-run-"));
   try {
     const batchPath = path.join(cwd, "batch.json");
     writeFileSync(batchPath, JSON.stringify({
+      ...batchOverrides,
       emails: [{
         id: "signature-test",
         to: "recipient@example.com",
@@ -115,4 +116,15 @@ test("outreach dry run does not duplicate an existing founder signature", () => 
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout.match(/Founder, Hirelix/g)?.length, 1);
+});
+
+test("outreach dry run can produce a linkless founder email", () => {
+  const result = dryRun(
+    'Hi there. Google "Hirelix" if you would like to take a look.\n\nIf this is not relevant, reply "opt out".',
+    { include_product_url: false },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Noah Jiang\nFounder, Hirelix\n\nIf this is not relevant/);
+  assert.doesNotMatch(result.stdout, /https?:\/\//);
 });
