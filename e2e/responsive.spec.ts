@@ -5,10 +5,11 @@ test.describe("Responsive - Landing Page", () => {
 
   test("should show the mobile landing hero and primary action", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /AI sourcing and screening for technical recruiters/i })).toBeVisible();
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
     await expect(page.getByTestId("nav-primary-cta")).toBeVisible();
-    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Try for free/i);
+    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Try free/i);
+    await expect(page.getByRole("navigation").getByRole("button", { name: "Sign in" })).toBeVisible();
   });
 
   test("should keep the JD form and pricing section usable on mobile", async ({ page }) => {
@@ -31,11 +32,10 @@ test.describe("Responsive - Landing Page", () => {
 
   test("should still render the major conversion sections on mobile", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /AI sourcing and screening for technical recruiters/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: "From client role to ranked candidate pool." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Pick the client-role volume you need." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
   });
 });

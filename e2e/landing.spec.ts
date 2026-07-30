@@ -13,10 +13,10 @@ test.describe("Landing Page", () => {
   test("should display the core landing sections and CTAs", async ({ page }) => {
     await expect(page.getByAltText("Hirelix").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /Sign in/i }).first()).toBeVisible();
-    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Try for free/i);
-    await expect(page.getByRole("heading", { name: /A day of technical candidate research, done in 15 minutes/i })).toBeVisible();
-    await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build candidate pool/i);
-    await expect(page.getByTestId("hero-sample-link")).toHaveText(/View a real candidate pool/i);
+    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Start a role preview/i);
+    await expect(page.getByRole("heading", { name: /AI sourcing and screening for technical recruiters/i })).toBeVisible();
+    await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build ranked shortlist/i);
+    await expect(page.getByTestId("hero-sample-link")).toHaveText(/See how candidates are ranked/i);
     await expect(page.getByRole("link", { name: "Hirelix home" })).toHaveAttribute("href", "/");
     await expect(page.getByText("No setup required")).toHaveCount(0);
     await expect(page.getByText("Beta access")).toHaveCount(0);
@@ -25,14 +25,13 @@ test.describe("Landing Page", () => {
     await expect(page.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#how-it-works");
     await expect(page.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
     await expect(page.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "#pricing");
-    await expect(page.getByRole("link", { name: "Resources" })).toHaveAttribute("href", "#resources");
+    await expect(page.getByRole("link", { name: "Resources" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "From client role to ranked candidate pool." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Pick the client-role volume you need." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Practical references for technical sourcing." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Start with the role already on your desk." })).toBeVisible();
-    await expect(page.getByText("Hirelix sources, ranks, and researches real profiles from the client JD")).toBeVisible();
+    await expect(page.getByText("Sample feedback")).toHaveCount(0);
+    await expect(page.getByText("184", { exact: true })).toBeVisible();
     await expect(page.locator("#features").getByText("GitHub, papers, technical blogs")).toBeVisible();
     await expect(page.getByText("patent")).toHaveCount(0);
     await expect(page.getByText("news reporting")).toHaveCount(0);
@@ -81,7 +80,8 @@ test.describe("Landing Page", () => {
     await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "What a technical headhunter reviews after a client JD." })).toBeVisible();
     const sampleShortlist = page.locator("#sample-pool");
-    await expect(sampleShortlist.getByText("James Liu")).toBeVisible();
+    await expect(sampleShortlist.getByText("Candidate A")).toBeVisible();
+    await expect(sampleShortlist.getByText(/fictional, anonymized profiles/i)).toBeVisible();
     await expect(sampleShortlist.getByText("Client brief")).toHaveCount(3);
   });
 
@@ -172,28 +172,26 @@ test.describe("Landing Page", () => {
 
         return Math.max(sectionBox.y - navBox.height, eyebrowBox.y - navBox.height);
       })
-      .toBeLessThanOrEqual(64);
+      .toBeLessThanOrEqual(80);
   });
 
-  test("nav sections should fill the viewport below the fixed nav", async ({ page }) => {
+  test("nav sections should use content-driven height", async ({ page }) => {
     await page.getByRole("link", { name: "How it works" }).click();
     await expect(page).toHaveURL(/#how-it-works$/);
 
     await expect
       .poll(async () => {
-        const navBox = await page.locator("nav").boundingBox();
         const sectionBox = await page.locator("#how-it-works").boundingBox();
         const nextSectionBox = await page.locator("#features").boundingBox();
 
-        if (!navBox || !sectionBox || !nextSectionBox) {
-          return Number.NEGATIVE_INFINITY;
+        if (!sectionBox || !nextSectionBox) {
+          return Number.POSITIVE_INFINITY;
         }
 
-        const viewportHeight = page.viewportSize()?.height ?? 0;
         const sectionBottom = sectionBox.y + sectionBox.height;
-        return Math.min(sectionBottom - viewportHeight, nextSectionBox.y - viewportHeight);
+        return Math.abs(nextSectionBox.y - sectionBottom);
       })
-      .toBeGreaterThanOrEqual(0);
+      .toBeLessThanOrEqual(2);
   });
 
   test("Home and logo links should reload the landing root", async ({ page }) => {

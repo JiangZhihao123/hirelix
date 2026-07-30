@@ -16,9 +16,9 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hirelix.online"),
-  title: "Hirelix — Technical Candidate Research in 15 Minutes",
+  title: "Hirelix | AI Sourcing and Screening for Technical Recruiters",
   description:
-    "Paste the client JD. Hirelix's AI agents research real profiles in parallel and deliver a ranked shortlist with evidence and personalized outreach drafts.",
+    "Turn a client JD into a ranked pool of real technical profiles with fit evidence, risks to verify, candidate research, and outreach drafts.",
   alternates: {
     canonical: "/",
   },
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Hirelix — Technical Candidate Research in 15 Minutes",
+    title: "Hirelix | AI Sourcing and Screening for Technical Recruiters",
     description:
-      "Paste the client JD. Hirelix's AI agents research real profiles in parallel and deliver a ranked shortlist with evidence and personalized outreach drafts.",
+      "Turn a client JD into a ranked pool of real technical profiles with fit evidence, risks to verify, candidate research, and outreach drafts.",
     type: "website",
     url: "https://hirelix.online",
     siteName: "Hirelix",
@@ -41,15 +41,15 @@ export const metadata: Metadata = {
         url: "https://hirelix.online/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Hirelix — Technical candidate research in 15 minutes",
+        alt: "Hirelix AI sourcing and screening for technical recruiters",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Hirelix — Technical Candidate Research in 15 Minutes",
+    title: "Hirelix | AI Sourcing and Screening for Technical Recruiters",
     description:
-      "Paste the client JD. Hirelix's AI agents research real profiles in parallel and deliver a ranked shortlist with evidence and personalized outreach drafts.",
+      "Turn a client JD into a ranked pool of real technical profiles with fit evidence, risks to verify, candidate research, and outreach drafts.",
     images: ["https://hirelix.online/og-image.png"],
   },
 };

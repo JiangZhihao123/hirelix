@@ -14,6 +14,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
+  CheckCircle2,
   FileText,
   Sparkles,
 } from "lucide-react";
@@ -38,8 +39,6 @@ import { CtaSection } from "./_components/CtaSection";
 import {
   FeaturesSection,
   HowItWorksSection,
-  ResourcesSection,
-  SampleFeedbackSection,
 } from "./_components/FeaturesSection";
 import { ObjectionsSection } from "./_components/ObjectionsSection";
 import { PricingSection } from "./_components/PricingSection";
@@ -634,13 +633,12 @@ export default function Home() {
             <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
             <a href="#features" className="transition-colors hover:text-slate-950">Features</a>
             <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>
-            <a href="#resources" className="transition-colors hover:text-slate-950">Resources</a>
           </div>
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={handleGenericSignIn}
-              className="hidden rounded-lg px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:text-slate-950 sm:inline-flex"
+              className="inline-flex rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 transition-colors hover:text-slate-950 sm:px-4"
             >
               Sign in
             </button>
@@ -650,7 +648,8 @@ export default function Home() {
               data-testid="nav-primary-cta"
               className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              Start a role preview
+              <span className="sm:hidden">Try free</span>
+              <span className="hidden sm:inline">Start a role preview</span>
             </button>
           </div>
         </div>
@@ -660,41 +659,35 @@ export default function Home() {
       <section
         id="product"
         data-growth-section="首屏"
-        className="relative flex min-h-[calc(100svh-2.5rem)] items-center overflow-hidden border-b border-slate-200 bg-slate-100 pt-24 pb-8 sm:pt-28 sm:pb-10"
+        className="relative overflow-hidden border-b border-slate-200 bg-white pt-24 pb-6 sm:pb-8"
       >
-        <Image
-          src="/landing/hirelix-hero-recruiter-v1.webp"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-[34%_center] lg:object-center"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-white/68 lg:bg-white/28" />
-        <div className="relative mx-auto w-full max-w-[96rem] translate-y-16 px-5 sm:px-6 lg:-translate-y-20 lg:px-10">
-          <div className="ml-auto max-w-3xl lg:translate-x-8 lg:text-right">
-            <div className="inline-flex items-center gap-2 rounded-lg border border-white/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm backdrop-blur-sm">
+        <div className="mx-auto w-full max-w-6xl px-5 sm:px-6">
+          <div className="mx-auto max-w-4xl text-center">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
               <Sparkles className="h-3.5 w-3.5" />
-              AI sourcing agent for technical recruiters
+              Built for technical recruiters
             </div>
 
             <h1 className="mt-4 text-4xl font-extrabold leading-[1.06] text-slate-950 sm:text-[3rem] lg:text-[3.5rem]">
-              Spend less time sourcing.{" "}
-              <span className="text-indigo-700">More time with candidates.</span>
+              AI sourcing and screening for{" "}
+              <span className="text-indigo-700">technical recruiters.</span>
             </h1>
 
-            <p className="mt-4 ml-auto max-w-2xl text-base leading-7 text-slate-700">
-              Hirelix finds, screens, and compares real technical profiles from a client JD, so you can focus on candidate conversations and client relationships.
+            <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold text-slate-800">
+              Spend less time sourcing. More time with candidates.
+            </p>
+            <p className="mx-auto mt-2 max-w-2xl text-base leading-7 text-slate-600">
+              Turn a client JD into a ranked pool of real profiles with fit evidence, risks to verify, and outreach starting points.
             </p>
 
-            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row lg:justify-end">
+            <div className="mt-6 flex flex-col justify-center gap-2.5 sm:flex-row">
               <button
                 type="button"
                 onClick={handleTrySample}
                 data-testid="hero-sample-link"
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
               >
-                See a sample shortlist
+                See how candidates are ranked
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
@@ -707,6 +700,70 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="mt-7 max-h-40 overflow-hidden border-y border-slate-200 bg-slate-50 shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-950">Senior backend engineer</p>
+                <p className="mt-0.5 text-xs text-slate-500">Ranked candidate pool</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3 text-xs text-slate-600">
+                <span><strong className="text-slate-950">184</strong> reviewed</span>
+                <span className="hidden sm:inline"><strong className="text-emerald-700">12</strong> recommended</span>
+              </div>
+            </div>
+            <div className="bg-white p-3 sm:hidden">
+              <div className="flex items-start gap-3">
+                <Image
+                  src="/landing/avatar-james.png"
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 rounded-full bg-slate-100"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-950">Candidate A</p>
+                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">Reach out first</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-700">Global-scale APIs and platform systems match the role.</p>
+                  <p className="text-xs leading-5 text-amber-700">Risk: startup-stage preference is unknown.</p>
+                </div>
+              </div>
+            </div>
+            <div className="hidden min-w-[46rem] grid-cols-[1fr_8rem_1.35fr] border-b border-slate-200 bg-slate-100 px-5 py-2 text-[11px] font-semibold uppercase text-slate-500 sm:grid">
+              <span>Candidate</span>
+              <span>Decision</span>
+              <span>Fit evidence and risk</span>
+            </div>
+            <div className="hidden min-w-[46rem] bg-white sm:block">
+              {candidateRows.slice(0, 2).map((candidate, index) => (
+                <div key={candidate.name} className="grid grid-cols-[1fr_8rem_1.35fr] items-center border-b border-slate-100 px-4 py-3 last:border-b-0 sm:px-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Image
+                      src={`/landing/avatar-${index === 0 ? "james" : "anika"}.png`}
+                      alt=""
+                      width={36}
+                      height={36}
+                      className="h-9 w-9 rounded-full bg-slate-100"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-950">{candidate.name}</p>
+                      <p className="truncate text-xs text-slate-500">{candidate.role}</p>
+                    </div>
+                  </div>
+                  <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${index === 0 ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700"}`}>
+                    {index === 0 ? "Reach out first" : "Review"}
+                  </span>
+                  <div className="grid grid-cols-[1rem_1fr] gap-x-2 text-xs leading-5 text-slate-600">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />
+                    <p>{candidate.matchReasons[0]}</p>
+                    <span />
+                    <p className="text-amber-700">Risk: {candidate.riskReasons[0]}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -855,13 +912,13 @@ export default function Home() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
-                  Sample candidate pool
+                  Illustrative candidate review
                 </p>
                 <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
                   What a technical headhunter reviews after a client JD.
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  This is a static example. Run your own role when you want Hirelix to build the real ranked candidate pool.
+                  These fictional, anonymized profiles show the review format only. Run your own role when you want Hirelix to build a real ranked candidate pool.
                 </p>
               </div>
               <button
@@ -922,9 +979,7 @@ export default function Home() {
 
       <HowItWorksSection />
       <FeaturesSection />
-      <SampleFeedbackSection />
       <PricingSection onStart={handlePricingStart} onSelectPlan={handlePricingPlanSelect} />
-      <ResourcesSection onStart={focusHeroJd} />
       <ObjectionsSection />
       <CtaSection
         onTrySample={handleTrySample}
