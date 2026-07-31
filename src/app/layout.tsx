@@ -16,6 +16,9 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hirelix.online"),
+  verification: {
+    google: "4o3NyYXO-oCyTIei_hlKZfz87B49ELEuTPkvz-uFzQo",
+  },
   title: "Hirelix | AI Sourcing and Screening for Technical Recruiters",
   description:
     "Turn a client JD into a ranked pool of real technical profiles with fit evidence, risks to verify, candidate research, and outreach drafts.",
