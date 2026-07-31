@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -11,6 +12,7 @@ const ZOHO_SMTP_PROVIDER = "zoho_smtp";
 const DEFAULT_SMTP_HOST = "smtp.zoho.com";
 const DEFAULT_SMTP_PORT = 465;
 const DEFAULT_SEND_INTERVAL_MS = 3000;
+const DEFAULT_ZOHO_KEYCHAIN_SERVICE = "hirelix-zoho-smtp";
 const DEFAULT_FOUNDER_SIGNATURE = "Noah Jiang\nFounder, Hirelix\nhttps://hirelix.online";
 const LINKLESS_FOUNDER_SIGNATURE = "Noah Jiang\nFounder, Hirelix";
 
@@ -258,6 +260,29 @@ function getEmailProvider(env) {
   return (env.OUTREACH_EMAIL_PROVIDER || DEFAULT_PROVIDER).trim().toLowerCase();
 }
 
+function loadZohoAppPassword(env) {
+  if (
+    getEmailProvider(env) !== ZOHO_SMTP_PROVIDER ||
+    env.ZOHO_SMTP_APP_PASSWORD ||
+    process.platform !== "darwin" ||
+    !env.ZOHO_SMTP_USER
+  ) {
+    return env;
+  }
+
+  const service = env.ZOHO_SMTP_KEYCHAIN_SERVICE || DEFAULT_ZOHO_KEYCHAIN_SERVICE;
+  try {
+    const password = execFileSync(
+      "/usr/bin/security",
+      ["find-generic-password", "-s", service, "-a", env.ZOHO_SMTP_USER, "-w"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+    return password ? { ...env, ZOHO_SMTP_APP_PASSWORD: password } : env;
+  } catch {
+    return env;
+  }
+}
+
 function parseNonNegativeInteger(value, name, defaultValue, max = Number.MAX_SAFE_INTEGER) {
   const raw = value == null || value === "" ? String(defaultValue) : String(value).trim();
   if (!/^\d+$/.test(raw)) {
@@ -445,11 +470,11 @@ const batchPath = args.find((arg) => !arg.startsWith("--"));
 const shouldSend = args.includes("--send");
 const confirmed = args.includes("--yes");
 const forceResend = args.includes("--force-resend");
-const env = {
+const env = loadZohoAppPassword({
   ...loadDotEnv(path.resolve(".env")),
   ...loadDotEnv(path.resolve(".env.local")),
   ...process.env,
-};
+});
 const senderConfig = await inferSenderConfig(env);
 const sendEnv = senderConfig.env;
 
