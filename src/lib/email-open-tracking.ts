@@ -16,8 +16,9 @@ export function isValidEmailPixelId(value: string) {
   return EMAIL_PIXEL_ID_PATTERN.test(value);
 }
 
-export function classifyEmailImageRequest(userAgent: string | null): EmailImageRequestClass {
+export function classifyEmailImageRequest(userAgent: string | null, ipAddress: string | null = null): EmailImageRequestClass {
   if (!userAgent || AUTOMATION_PATTERN.test(userAgent)) return "automated_or_unknown";
+  if (ipAddress && /^72\.14\./.test(ipAddress)) return "image_proxy";
   if (IMAGE_PROXY_PATTERN.test(userAgent)) return "image_proxy";
   if (SECURITY_SCANNER_PATTERN.test(userAgent)) return "security_scanner";
   return "mail_client_or_proxy";

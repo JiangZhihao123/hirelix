@@ -58,8 +58,8 @@ export async function GET(
 
   const url = new URL(req.url);
   const userAgent = getHeader(req, "user-agent");
-  const requestClass = classifyEmailImageRequest(userAgent);
   const ipAddress = getIpAddress(req);
+  const requestClass = classifyEmailImageRequest(userAgent, ipAddress);
   const batchId = safeQueryValue(url.searchParams.get("batch"), 80);
   const campaign = safeQueryValue(url.searchParams.get("campaign"), 80);
   const recipient = getHeader(req, "x-email-recipient") || safeQueryValue(url.searchParams.get("to"), 320);

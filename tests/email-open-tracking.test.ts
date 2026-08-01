@@ -24,6 +24,10 @@ test("email pixel distinguishes Gmail proxy and security scanners", () => {
   assert.equal(classifyEmailImageRequest("Proofpoint URL Defense Scanner"), "security_scanner");
   assert.equal(classifyEmailImageRequest("curl/8.7.1"), "automated_or_unknown");
   assert.equal(classifyEmailImageRequest("Mozilla/5.0 AppleWebKit/605.1.15"), "mail_client_or_proxy");
+  assert.equal(
+    classifyEmailImageRequest("Mozilla/5.0 (Windows NT 10.0) Chrome/42.0 Edge/12.246", "72.14.199.162"),
+    "image_proxy",
+  );
 });
 
 test("invalid email pixel ids return a non-cacheable transparent GIF without database access", async () => {
