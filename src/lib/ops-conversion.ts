@@ -633,7 +633,9 @@ function buildEmailTracking(events: GrowthEventRecord[]): EmailTrackingRow[] {
     if (event.event_type === "email_sent") {
       existing.sentAt = existing.sentAt && existing.sentAt < at ? existing.sentAt : at;
     } else {
-      const requestClass = readString(event.metadata?.request_class);
+      const requestClass = event.ip_address?.startsWith("72.14.")
+        ? "image_proxy"
+        : readString(event.metadata?.request_class);
       existing.signalDetails.push({
         requestClass: requestClass || "unknown",
         userAgent: event.user_agent || "",
