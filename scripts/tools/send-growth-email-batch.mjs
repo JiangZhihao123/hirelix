@@ -40,6 +40,7 @@ function usage() {
   console.log(`Usage:
   node scripts/tools/send-growth-email-batch.mjs <batch.json> [--dry-run]
   node scripts/tools/send-growth-email-batch.mjs <batch.json> --send --yes [--force-resend]
+  node scripts/tools/send-growth-email-batch.mjs <batch.json> --send --yes --only=<email_id>
   node scripts/tools/send-growth-email-batch.mjs --check-config
 
 Required for --send:
@@ -541,6 +542,7 @@ const batchPath = args.find((arg) => !arg.startsWith("--"));
 const shouldSend = args.includes("--send");
 const confirmed = args.includes("--yes");
 const forceResend = args.includes("--force-resend");
+const onlyEmailId = args.find((arg) => arg.startsWith("--only="))?.slice("--only=".length) || null;
 const env = loadZohoAppPassword({
   ...loadDotEnv(path.resolve(".env")),
   ...loadDotEnv(path.resolve(".env.local")),
@@ -564,7 +566,8 @@ if (shouldSend && !confirmed) {
 }
 
 const batch = JSON.parse(fs.readFileSync(batchPath, "utf8"));
-const emails = Array.isArray(batch.emails) ? batch.emails : [];
+const allEmails = Array.isArray(batch.emails) ? batch.emails : [];
+const emails = onlyEmailId ? allEmails.filter((email) => email.id === onlyEmailId) : allEmails;
 if (!emails.length) throw new Error("Batch has no emails.");
 
 if (!shouldSend) {
