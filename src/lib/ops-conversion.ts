@@ -80,7 +80,7 @@ export type EmailTrackingRow = {
   sentAt: string | null;
   firstPixelAt: string | null;
   pixelLoads: number;
-  signal: "unread" | "image_loaded" | "proxy_or_scanner";
+  signal: "unread" | "mail_client_or_proxy" | "image_proxy" | "security_scanner";
 };
 
 export type OpsOperationsSnapshot = {
@@ -638,9 +638,11 @@ function buildEmailTracking(events: GrowthEventRecord[]): EmailTrackingRow[] {
       }
       existing.pixelLoads += 1;
       existing.firstPixelAt = existing.firstPixelAt && existing.firstPixelAt < at ? existing.firstPixelAt : at;
-      existing.signal = requestClass === "image_proxy" || requestClass === "security_scanner"
-        ? "proxy_or_scanner"
-        : "image_loaded";
+      existing.signal = requestClass === "image_proxy"
+        ? "image_proxy"
+        : requestClass === "security_scanner"
+          ? "security_scanner"
+          : "mail_client_or_proxy";
     }
     byEmail.set(event.email_id, existing);
   }

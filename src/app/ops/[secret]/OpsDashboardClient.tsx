@@ -190,8 +190,8 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
                           <td className="py-3 pr-3 text-slate-600">{email.company || "-"}</td>
                           <td className="py-3 pr-3 text-slate-500">{email.sentAt ? formatDateTime(email.sentAt) : "-"}</td>
                           <td className="py-3 pr-3">
-                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${email.signal === "unread" ? "bg-slate-100 text-slate-600" : email.signal === "proxy_or_scanner" ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
-                              {email.signal === "unread" ? "未检测到图片加载" : email.signal === "proxy_or_scanner" ? "代理/扫描器信号" : "检测到图片加载"}
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${email.signal === "unread" ? "bg-slate-100 text-slate-600" : email.signal === "security_scanner" ? "bg-rose-50 text-rose-800" : email.signal === "image_proxy" ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
+                              {email.signal === "unread" ? "未检测到图片加载" : email.signal === "security_scanner" ? "安全扫描器信号（非真人）" : email.signal === "image_proxy" ? "图片代理信号（非真人确认）" : "普通邮件客户端信号"}
                             </span>
                           </td>
                           <td className="py-3 pr-3 text-slate-500">{email.firstPixelAt ? `${formatDateTime(email.firstPixelAt)} · ${email.pixelLoads}次` : "-"}</td>
