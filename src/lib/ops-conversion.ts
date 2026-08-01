@@ -631,9 +631,13 @@ function buildEmailTracking(events: GrowthEventRecord[]): EmailTrackingRow[] {
     if (event.event_type === "email_sent") {
       existing.sentAt = existing.sentAt && existing.sentAt < at ? existing.sentAt : at;
     } else {
+      const requestClass = readString(event.metadata?.request_class);
+      if (requestClass === "automated_or_unknown") {
+        byEmail.set(event.email_id, existing);
+        continue;
+      }
       existing.pixelLoads += 1;
       existing.firstPixelAt = existing.firstPixelAt && existing.firstPixelAt < at ? existing.firstPixelAt : at;
-      const requestClass = readString(event.metadata?.request_class);
       existing.signal = requestClass === "image_proxy" || requestClass === "security_scanner"
         ? "proxy_or_scanner"
         : "image_loaded";
