@@ -81,6 +81,7 @@ export type EmailTrackingRow = {
   firstPixelAt: string | null;
   pixelLoads: number;
   signal: "unread" | "mail_client_or_proxy" | "image_proxy" | "security_scanner";
+  signalDetails: Array<{ requestClass: string; userAgent: string; ipAddress: string; at: string }>;
 };
 
 export type OpsOperationsSnapshot = {
@@ -624,6 +625,7 @@ function buildEmailTracking(events: GrowthEventRecord[]): EmailTrackingRow[] {
       firstPixelAt: null,
       pixelLoads: 0,
       signal: "unread" as const,
+      signalDetails: [],
     };
     if (event.recipient) existing.recipient = event.recipient;
     if (event.company) existing.company = event.company;
@@ -632,6 +634,12 @@ function buildEmailTracking(events: GrowthEventRecord[]): EmailTrackingRow[] {
       existing.sentAt = existing.sentAt && existing.sentAt < at ? existing.sentAt : at;
     } else {
       const requestClass = readString(event.metadata?.request_class);
+      existing.signalDetails.push({
+        requestClass: requestClass || "unknown",
+        userAgent: event.user_agent || "",
+        ipAddress: event.ip_address || "",
+        at,
+      });
       if (requestClass === "automated_or_unknown") {
         byEmail.set(event.email_id, existing);
         continue;
