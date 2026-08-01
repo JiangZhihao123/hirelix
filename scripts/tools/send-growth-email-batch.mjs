@@ -154,7 +154,35 @@ function buildTrackingUrl(email, batch, trackingBase) {
   params.set("campaign", batch.tracking_campaign || "founder_outreach");
   if (email.to) params.set("to", email.to);
   if (email.company) params.set("company", email.company);
+  if (email.to) params.set("to", email.to);
+  if (email.company) params.set("company", email.company);
   return `${base}/go/${encodeURIComponent(email.id)}?${params.toString()}`;
+}
+
+function buildPixelUrl(email, batch, trackingBase) {
+  const base = (trackingBase || DEFAULT_PRODUCT_URL).replace(/\/+$/, "");
+  const params = new URLSearchParams();
+  const batchId = batch.tracking_batch_id || batch.batch || batch.date || "";
+  if (batchId) params.set("batch", String(batchId));
+  params.set("campaign", batch.tracking_campaign || "founder_outreach");
+  return `${base}/o/${encodeURIComponent(email.id)}/pixel.gif?${params.toString()}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderTrackedHtml(email, batch, env, textBody) {
+  const pixelUrl = buildPixelUrl(email, batch, env.OUTREACH_TRACKING_BASE);
+  const paragraphs = textBody.split(/\n\s*\n/).map((paragraph) =>
+    `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`,
+  ).join("\n");
+  return `<!doctype html><html><body style="font-family:Arial,sans-serif;line-height:1.55;color:#111827">${paragraphs}<img src="${escapeHtml(pixelUrl)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0" /></body></html>`;
 }
 
 function buildInviteUrl(email, batch, trackingBase) {
@@ -401,7 +429,7 @@ function printSendConfigCheck(env, options = {}) {
   console.log("\nReady to send. No config values printed.");
 }
 
-async function sendResendEmail({ apiKey, from, replyTo, email, body }) {
+async function sendResendEmail({ apiKey, from, replyTo, email, body, html }) {
   const response = await fetch(RESEND_ENDPOINT, {
     method: "POST",
     headers: {
@@ -414,6 +442,7 @@ async function sendResendEmail({ apiKey, from, replyTo, email, body }) {
       reply_to: replyTo,
       subject: email.subject,
       text: body,
+      html,
     }),
   });
 
@@ -445,14 +474,56 @@ async function createZohoTransport(env) {
   });
 }
 
-async function sendZohoEmail({ transport, from, replyTo, email, body }) {
+async function sendZohoEmail({ transport, from, replyTo, email, body, html }) {
   return transport.sendMail({
     from,
     to: email.to,
     replyTo,
     subject: email.subject,
     text: body,
+    html,
   });
+}
+
+async function recordSentEvent(env, email, batch, providerId) {
+  const trackingBase = (env.OUTREACH_TRACKING_BASE || DEFAULT_PRODUCT_URL).replace(/\/+$/, "");
+  if (env.OPS_DASHBOARD_SECRET) {
+    try {
+      const response = await fetch(`${trackingBase}/api/growth/email-event`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.OPS_DASHBOARD_SECRET}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_type: "email_sent",
+          email_id: email.id,
+          batch_id: batch.tracking_batch_id || batch.batch || batch.date || null,
+          recipient: email.to,
+          company: email.company || null,
+          pixel_url: buildPixelUrl(email, batch, trackingBase),
+          provider: getEmailProvider(env),
+          message_id: providerId || null,
+          subject: email.subject,
+        }),
+      });
+      if (response.ok) return;
+      throw new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      console.error(`warning ${email.to}: could not record email_sent event via app: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (!env.DATABASE_URL) return;
+  try {
+    const postgres = (await import("postgres")).default;
+    const sql = postgres(env.DATABASE_URL, { max: 1, connect_timeout: 5, idle_timeout: 5 });
+    await sql`
+      insert into hirelix_growth_landing_events
+        (event_type, email_id, batch_id, recipient, company, page_url, metadata)
+      values
+        ('email_sent', ${email.id}, ${batch.tracking_batch_id || batch.batch || batch.date || null}, ${email.to}, ${email.company || null}, ${buildPixelUrl(email, batch, env.OUTREACH_TRACKING_BASE)}, ${sql.json({ provider: getEmailProvider(env), message_id: providerId || null, subject: email.subject })})
+    `;
+    await sql.end({ timeout: 5 });
+  } catch (error) {
+    console.error(`warning ${email.to}: could not record email_sent event: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function sleep(ms) {
@@ -525,6 +596,7 @@ for (const email of emails) {
   }
 
   const body = renderTrackedBody(email, batch, sendEnv);
+  const html = renderTrackedHtml(email, batch, sendEnv, body);
   try {
     if (sentInThisRun > 0 && sendIntervalMs > 0) await sleep(sendIntervalMs);
     const result = provider === ZOHO_SMTP_PROVIDER
@@ -534,6 +606,7 @@ for (const email of emails) {
           replyTo: sendEnv.OUTREACH_REPLY_TO,
           email,
           body,
+          html,
         })
       : await sendResendEmail({
           apiKey: sendEnv.RESEND_API_KEY,
@@ -541,6 +614,7 @@ for (const email of emails) {
           replyTo: sendEnv.OUTREACH_REPLY_TO,
           email,
           body,
+          html,
         });
     const providerId = provider === ZOHO_SMTP_PROVIDER ? result?.messageId : result?.id;
     appendLog(logPath, {
@@ -553,6 +627,7 @@ for (const email of emails) {
         ? `provider=zoho_smtp message_id=${providerId || "unknown"}`
         : "provider=resend",
     });
+    await recordSentEvent(sendEnv, email, batch, providerId);
     alreadySent.add(email.id);
     sentInThisRun += 1;
     console.log(`sent ${email.to} via ${provider} ${providerId || ""}`);

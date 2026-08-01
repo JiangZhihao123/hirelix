@@ -68,8 +68,19 @@ export type OpsConversionData = {
   filteredTraffic: FilteredTrafficSummary[];
   ipAttribution: IpAttributionSummary[];
   betaInvites: BetaInviteOpsSummary;
+  emailTracking: EmailTrackingRow[];
   operations: OpsOperationsSnapshot;
   diagnosis: string;
+};
+
+export type EmailTrackingRow = {
+  emailId: string;
+  recipient: string;
+  company: string;
+  sentAt: string | null;
+  firstPixelAt: string | null;
+  pixelLoads: number;
+  signal: "unread" | "image_loaded" | "proxy_or_scanner";
 };
 
 export type OpsOperationsSnapshot = {
@@ -401,6 +412,7 @@ export function buildOpsConversionData(
   },
 ): OpsConversionData {
   const cleanEvents = removeOrphanSignupEvents(events.filter((event) => !isOpsEvent(event)));
+  const emailTracking = buildEmailTracking(events);
   const sessions = buildSessions(cleanEvents);
   const ipUaCounts = countSessionsByIpUa(sessions);
   const ipAttribution = normalizeIpAttribution(options.ipAttribution);
@@ -499,6 +511,7 @@ export function buildOpsConversionData(
     filteredTraffic: [],
     ipAttribution: buildIpAttributionSummary(sessions, trafficBySession, ipAttribution),
     betaInvites: options.betaInvites ?? emptyBetaInviteOpsSummary(),
+    emailTracking,
     operations: options.operations ?? emptyOpsOperationsSnapshot(options.end),
     diagnosis: buildDiagnosis({
       humanVisits: humanSessions.length,
@@ -588,6 +601,7 @@ function removeOrphanSignupEvents(events: GrowthEventRecord[]) {
 }
 
 function isOpsEvent(event: GrowthEventRecord) {
+  if (event.event_type === "email_sent" || event.event_type === "email_image_loaded") return true;
   const route = readString(event.metadata?.route);
   if (route?.startsWith("/ops/")) return true;
   if (!event.page_url) return false;
@@ -596,6 +610,37 @@ function isOpsEvent(event: GrowthEventRecord) {
   } catch {
     return event.page_url.includes("/ops/");
   }
+}
+
+function buildEmailTracking(events: GrowthEventRecord[]): EmailTrackingRow[] {
+  const byEmail = new Map<string, EmailTrackingRow>();
+  for (const event of events) {
+    if (!event.email_id || (event.event_type !== "email_sent" && event.event_type !== "email_image_loaded")) continue;
+    const existing = byEmail.get(event.email_id) ?? {
+      emailId: event.email_id,
+      recipient: event.recipient ?? "",
+      company: event.company ?? "",
+      sentAt: null,
+      firstPixelAt: null,
+      pixelLoads: 0,
+      signal: "unread" as const,
+    };
+    if (event.recipient) existing.recipient = event.recipient;
+    if (event.company) existing.company = event.company;
+    const at = toDate(event.created_at).toISOString();
+    if (event.event_type === "email_sent") {
+      existing.sentAt = existing.sentAt && existing.sentAt < at ? existing.sentAt : at;
+    } else {
+      existing.pixelLoads += 1;
+      existing.firstPixelAt = existing.firstPixelAt && existing.firstPixelAt < at ? existing.firstPixelAt : at;
+      const requestClass = readString(event.metadata?.request_class);
+      existing.signal = requestClass === "image_proxy" || requestClass === "security_scanner"
+        ? "proxy_or_scanner"
+        : "image_loaded";
+    }
+    byEmail.set(event.email_id, existing);
+  }
+  return [...byEmail.values()].sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""));
 }
 
 function buildSessions(events: GrowthEventRecord[]): SessionSummary[] {

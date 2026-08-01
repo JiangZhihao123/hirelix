@@ -165,6 +165,44 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
               <MetricCard icon={CreditCard} label="活跃付费用户" value={data.operations.users.activePaid} detail={`${data.range.label}付款 ${data.operations.billing.completedPayments}`} tone="amber" />
             </section>
 
+            <Panel title="创始人外联邮件">
+              <p className="mb-3 text-xs text-slate-500">
+                图片加载是弱信号；Gmail 图片代理和安全扫描器可能会产生误报。
+              </p>
+              {data.emailTracking.length === 0 ? (
+                <EmptyState text="当前时间范围还没有发送事件" />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                        <th className="py-2 pr-3 font-medium">收件人</th>
+                        <th className="py-2 pr-3 font-medium">公司</th>
+                        <th className="py-2 pr-3 font-medium">发送时间</th>
+                        <th className="py-2 pr-3 font-medium">状态</th>
+                        <th className="py-2 pr-3 font-medium">首次信号</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.emailTracking.map((email) => (
+                        <tr key={email.emailId}>
+                          <td className="py-3 pr-3 font-medium text-slate-900">{email.recipient || email.emailId}</td>
+                          <td className="py-3 pr-3 text-slate-600">{email.company || "-"}</td>
+                          <td className="py-3 pr-3 text-slate-500">{email.sentAt ? formatDateTime(email.sentAt) : "-"}</td>
+                          <td className="py-3 pr-3">
+                            <span className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${email.signal === "unread" ? "bg-slate-100 text-slate-600" : email.signal === "proxy_or_scanner" ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>
+                              {email.signal === "unread" ? "未检测到图片加载" : email.signal === "proxy_or_scanner" ? "代理/扫描器信号" : "检测到图片加载"}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-3 text-slate-500">{email.firstPixelAt ? `${formatDateTime(email.firstPixelAt)} · ${email.pixelLoads}次` : "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+
             <section className="grid gap-4 lg:grid-cols-3">
               <Panel title="搜索交付">
                 <div className="grid grid-cols-2 gap-3">
