@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  if (!body || body.event_type !== "email_sent" || typeof body.email_id !== "string" || !/^[a-z][a-z0-9-]+_20\d{6,8}$/i.test(body.email_id)) {
+  if (!body || body.event_type !== "email_sent" || typeof body.email_id !== "string" || !/^[a-z][a-z0-9_-]+_20\d{6,8}$/i.test(body.email_id)) {
     return NextResponse.json({ error: "Invalid email event" }, { status: 400 });
   }
 

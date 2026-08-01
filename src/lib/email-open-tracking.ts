@@ -1,5 +1,5 @@
 const EMAIL_PIXEL_ID_PATTERN =
-  /^(?:20\d{2}-\d{2}-\d{2}-(?:batch\d+|followup|pixeltest)-[a-z0-9-]+|[a-z][a-z0-9-]+_20\d{6,8})$/i;
+  /^(?:20\d{2}-\d{2}-\d{2}-(?:batch\d+|followup|pixeltest)-[a-z0-9-]+|[a-z][a-z0-9_-]+_20\d{6,8})$/i;
 
 const IMAGE_PROXY_PATTERN = /googleimageproxy|googleusercontent|ggpht/i;
 const SECURITY_SCANNER_PATTERN =
