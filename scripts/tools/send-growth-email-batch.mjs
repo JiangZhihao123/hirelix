@@ -138,6 +138,13 @@ function renderBody(body, postalAddress) {
   return body.replaceAll(ADDRESS_PLACEHOLDER, postalAddress);
 }
 
+function renderSubject(email, batch) {
+  const template = batch.subject_template;
+  return typeof template === "string" && template
+    ? template.replaceAll("{Company}", email.company || "technical recruiting")
+    : email.subject;
+}
+
 function ensureFounderSignature(body, includeProductUrl = true) {
   if (body.includes(LINKLESS_FOUNDER_SIGNATURE)) return body;
   const signature = includeProductUrl ? DEFAULT_FOUNDER_SIGNATURE : LINKLESS_FOUNDER_SIGNATURE;
@@ -441,7 +448,7 @@ async function sendResendEmail({ apiKey, from, replyTo, email, body, html }) {
       from,
       to: [email.to],
       reply_to: replyTo,
-      subject: email.subject,
+      subject: renderSubject(email, batch),
       text: body,
       html,
     }),
@@ -480,7 +487,7 @@ async function sendZohoEmail({ transport, from, replyTo, email, body, html }) {
     from,
     to: email.to,
     replyTo,
-    subject: email.subject,
+    subject: renderSubject(email, batch),
     text: body,
     html,
   });

@@ -2,6 +2,7 @@
   "date": "2026-08-01",
   "batch": "founder-outreach-2026-08-01",
   "tracking_campaign": "founder_outreach_seed_users_with_pixel",
+  "subject_template": "A technical sourcing idea for {Company}",
   "product": "Hirelix",
   "sender_name": "Noah Jiang",
   "include_product_url": false,
