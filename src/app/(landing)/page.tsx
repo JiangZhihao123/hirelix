@@ -648,8 +648,8 @@ export default function Home() {
               data-testid="nav-primary-cta"
               className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              <span className="sm:hidden">Try free</span>
-              <span className="hidden sm:inline">Start a role preview</span>
+              <span className="sm:hidden">Run free role</span>
+              <span className="hidden sm:inline">Run one role free</span>
             </button>
           </div>
         </div>
@@ -685,17 +685,17 @@ export default function Home() {
                 type="button"
                 onClick={handleTrySample}
                 data-testid="hero-sample-link"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white/88 px-5 text-sm font-semibold text-slate-950 backdrop-blur-sm transition-colors hover:bg-white"
               >
-                See how candidates are ranked
+                See an example ranked pool
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
                 type="button"
                 onClick={focusHeroJd}
-                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-slate-300 bg-white/88 px-5 text-sm font-semibold text-slate-950 backdrop-blur-sm transition-colors hover:bg-white"
+                className="inline-flex min-h-12 items-center justify-center rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
               >
-                Run your role
+                Run one real role free
               </button>
             </div>
           </div>
@@ -771,8 +771,22 @@ export default function Home() {
         <div className="mx-auto grid max-w-6xl gap-5 px-5 sm:px-6 lg:grid-cols-[minmax(14rem,0.55fr)_minmax(0,1.45fr)] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase text-indigo-700">Your client role</p>
-            <h2 className="mt-2 text-2xl font-bold text-slate-950">Run the role already on your desk.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">See how Hirelix finds, screens, and compares the pool.</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-950">Paste one real client role.</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Hirelix builds the sourcing brief before it searches, screens, and compares the pool.</p>
+            <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-1">
+              <li className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">1</span>
+                Paste one real JD
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">2</span>
+                Sign in to save the role
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">3</span>
+                Confirm the sourcing brief
+              </li>
+            </ol>
           </div>
 
           <form id="hero-form" onSubmit={handleSubmit} className="min-w-0">
@@ -780,7 +794,7 @@ export default function Home() {
               <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
                   <FileText className="h-4 w-4 text-indigo-700" />
-                  Paste a job description
+                  Paste one client JD
                 </div>
                 {wordCount > 0 ? <span className="text-xs font-medium text-emerald-700">{wordCount} words</span> : null}
               </div>
@@ -788,18 +802,21 @@ export default function Home() {
                 ref={heroJdTextareaRef}
                 value={jdText}
                 onChange={(e) => handleJdInput(e.target.value)}
-                placeholder="Paste the full client job description here..."
+                placeholder="Paste a real client job description here..."
                 rows={2}
                 className="min-h-24 w-full resize-none border-0 bg-white px-4 py-3 text-sm leading-6 text-slate-950 outline-none placeholder:text-slate-500 focus:bg-slate-50"
               />
               <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-xs text-slate-600">
-                  {wordCount > 0
-                    ? canSubmit
-                      ? `${wordCount} words ready to analyze`
-                      : "Paste at least 50 characters to continue."
-                    : "Your JD stays ready through sign in."}
-                </span>
+                <div className="space-y-1 text-xs text-slate-600">
+                  <span className="block">
+                    {wordCount > 0
+                      ? canSubmit
+                        ? `${wordCount} words ready to analyze`
+                        : "Paste at least 50 characters to continue."
+                      : "Your JD stays attached after sign in."}
+                  </span>
+                  <span className="block text-slate-500">1 free client role · No credit card</span>
+                </div>
                 <button
                   type="submit"
                   disabled={heroPrimaryDisabled}
@@ -811,7 +828,7 @@ export default function Home() {
                       : "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)] hover:-translate-y-0.5 hover:bg-slate-800"
                   }`}
                 >
-                  {isSubmitting ? "Building your shortlist..." : "Build ranked shortlist"}
+                  {isSubmitting ? "Preparing your role..." : "Build my sourcing brief"}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -926,7 +943,7 @@ export default function Home() {
                 onClick={focusHeroJd}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
               >
-                  Run your role
+                Run one real role free
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -984,7 +1001,7 @@ export default function Home() {
       <CtaSection
         onTrySample={handleTrySample}
         onSignIn={handleGenericSignIn}
-        desktopFooterCtaLabel="Build ranked shortlist"
+        desktopFooterCtaLabel="Run one real role free"
       />
 
       <AuthModal

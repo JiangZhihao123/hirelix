@@ -38,7 +38,7 @@ export function CtaSection({
               onClick={onTrySample}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:hidden"
             >
-              See a sample shortlist <ArrowRight className="h-4 w-4" />
+              See an example ranked pool <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-sm text-slate-600">
               Already have an account?{" "}

@@ -129,7 +129,7 @@ export function AuthModal({
                 </p>
                 <h2 id={titleId} className="mt-4 max-w-[14ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
                   {isSearchAuthIntent
-                    ? "One more step to build your candidate pool."
+                    ? "One more step to build your sourcing brief."
                     : "Sign in and keep moving."}
                 </h2>
                 <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
