@@ -51,7 +51,11 @@ export async function completeSearch(
   },
 ) {
   const doneAt = helpers.nowIso();
-  const sortedRows = [...finalRows].sort((left, right) => right.match_score - left.match_score);
+  const sortedRows = [...finalRows].sort((left, right) => {
+    const leftRank = left.final_rank ?? Number.POSITIVE_INFINITY;
+    const rightRank = right.final_rank ?? Number.POSITIVE_INFINITY;
+    return leftRank - rightRank || right.match_score - left.match_score;
+  });
   const deliveredRows = sortedRows;
   const candidateCountReference = deliveredRows.length;
   const recommendedRows = deliveredRows.filter(

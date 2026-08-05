@@ -57,6 +57,26 @@ export const hirelix_searches = pgTable(
   }),
 );
 
+export const hirelix_search_shares = pgTable(
+  "hirelix_search_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    search_id: uuid("search_id").notNull(),
+    user_id: uuid("user_id").notNull(),
+    token_hash: text("token_hash").notNull(),
+    candidate_limit: integer("candidate_limit").notNull().default(50),
+    expires_at: timestamp("expires_at", { withTimezone: true }),
+    revoked_at: timestamp("revoked_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => ({
+    token_hash_key: uniqueIndex("hirelix_search_shares_token_hash_key").on(t.token_hash),
+    search_idx: index("idx_hirelix_search_shares_search_id").on(t.search_id),
+    user_idx: index("idx_hirelix_search_shares_user_id").on(t.user_id),
+  }),
+);
+
 // ---------------------------------------------------------------------------
 // Candidates
 // ---------------------------------------------------------------------------
@@ -760,6 +780,7 @@ export const verification = pgTable("verification", {
 // ---------------------------------------------------------------------------
 export const schema = {
   hirelix_searches,
+  hirelix_search_shares,
   hirelix_candidates,
   hirelix_search_jobs,
   hirelix_search_notifications,

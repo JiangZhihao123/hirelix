@@ -3,7 +3,9 @@ import test from "node:test";
 
 import type { BrightDataProfile } from "@/lib/brightdata";
 import {
+  buildFinalRankById,
   planQualificationBatch,
+  selectFinalJudgmentCandidateIds,
   selectStructurallyIndexableProfiles,
 } from "@/lib/candidate-index/workflow";
 
@@ -59,4 +61,17 @@ test("qualification evaluates 100 first and expands until target or max", () => 
     initialLimit: 100, batchSize: 50, maxLimit: 200, advanceTarget: 30,
   });
   assert.deepEqual(capped, { size: 0, stopReason: "max_limit_reached" });
+});
+
+test("client delivery deeply judges 50 candidates and assigns stable ranks to the full pool", () => {
+  const orderedIds = Array.from({ length: 75 }, (_, index) => `candidate-${index + 1}`);
+  assert.deepEqual(
+    selectFinalJudgmentCandidateIds(orderedIds),
+    orderedIds.slice(0, 50),
+  );
+  const ranks = buildFinalRankById(orderedIds);
+  assert.equal(ranks.size, 75);
+  assert.equal(ranks.get("candidate-1"), 1);
+  assert.equal(ranks.get("candidate-50"), 50);
+  assert.equal(ranks.get("candidate-75"), 75);
 });

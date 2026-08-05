@@ -84,6 +84,9 @@ export type UsageSummary = {
 };
 
 export type BillingSummary = {
+  operator?: {
+    internal: boolean;
+  };
   plan: BillingPlan;
   subscription: {
     planCode: BillingPlanCode;

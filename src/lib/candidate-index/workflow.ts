@@ -68,6 +68,17 @@ export function planQualificationBatch(params: {
   };
 }
 
+export function selectFinalJudgmentCandidateIds(
+  orderedIds: string[],
+  limit = 50,
+) {
+  return orderedIds.slice(0, Math.max(0, limit));
+}
+
+export function buildFinalRankById(orderedIds: string[]) {
+  return new Map(orderedIds.map((id, index) => [id, index + 1]));
+}
+
 export function buildCandidateIndexSearchIntent(jdText: string, parsed: Record<string, unknown>) {
   const hiringBrief = object(parsed.hiring_brief);
   const roleCore = object(hiringBrief.role_core);
@@ -344,8 +355,11 @@ export async function runCandidateIndexWorkflow(params: {
   );
   const remainingOrdered = qualificationPool.map((item) => item.profileId).filter((id) => !advancedOrdered.includes(id));
   const orderedIds = [...advancedOrdered, ...remainingOrdered];
-  const finalRankById = new Map(orderedIds.map((id, index) => [id, index + 1]));
-  const topBundles = orderedIds.slice(0, 20).map((id) => bundles.find((bundle) => bundle.profile.id === id)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const finalRankById = buildFinalRankById(orderedIds);
+  const finalJudgmentLimit = configuredInt("SEARCH_FINAL_JUDGMENT_LIMIT", 50, 20, 100);
+  const topBundles = selectFinalJudgmentCandidateIds(orderedIds, finalJudgmentLimit)
+    .map((id) => bundles.find((bundle) => bundle.profile.id === id))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
   const finalJudgments = await runWithConcurrency(topBundles, 8, (bundle) =>
     judgeFinalCandidate(judgmentInput, bundle, qualificationById.get(bundle.profile.id)!, rankingById.get(bundle.profile.id) || null, usage),
   );
@@ -410,7 +424,7 @@ export async function runCandidateIndexWorkflow(params: {
   const reviewCount = finalRows.filter((row) => row.final_decision === "review").length;
   const displayStats: Partial<SearchDisplayStats> = {
     retrieval_count: retrieval.length,
-    deep_review_requested_count: Math.min(20, finalRows.length),
+    deep_review_requested_count: Math.min(finalJudgmentLimit, finalRows.length),
     deep_review_completed_count: finalJudgments.length,
     deep_review_count: finalJudgments.length,
     qualified_count: advancedIds.length,

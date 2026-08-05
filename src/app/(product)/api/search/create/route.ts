@@ -21,6 +21,10 @@ import {
 import { getPlanSearchBatchProfileScanLimit } from "@/lib/billing";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
+  getInternalProfileScanBudget,
+  isInternalOperatorEmail,
+} from "@/lib/internal-operator";
+import {
   getInviteCodeFromRequest,
   getRequestMeta,
   markInviteSearchCreated,
@@ -45,20 +49,23 @@ export async function POST(req: NextRequest) {
     const { jd_text, parsed_requirements_override, user_clarification, growth_tracking } = await req.json();
     const inviteCode = getInviteCodeFromRequest(req, growth_tracking);
     const billing = await getBillingSummaryForUser(user.id);
-    const planCode = normalizeSearchPlanCode(billing.plan.code);
+    const internalOperator = isInternalOperatorEmail(user.email);
+    const planCode = normalizeSearchPlanCode(internalOperator ? "pro_monthly" : billing.plan.code);
     const searchTargets = getInitialSearchTargets(planCode);
-    const profileScanBudget = Math.min(
-      billing.usage.profileScansRemaining,
-      getPlanSearchBatchProfileScanLimit(
-        billing.plan,
-        DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
-      ),
-    );
+    const profileScanBudget = internalOperator
+      ? getInternalProfileScanBudget()
+      : Math.min(
+        billing.usage.profileScansRemaining,
+        getPlanSearchBatchProfileScanLimit(
+          billing.plan,
+          DEFAULT_SEARCH_PROFILE_SCAN_BATCH_LIMIT,
+        ),
+      );
     const deliveryReferenceCount = Math.max(1, profileScanBudget);
     const requestedCandidates = deliveryReferenceCount;
     const outreachPoolTarget = deliveryReferenceCount;
 
-    if (billing.usage.clientRolesRemaining <= 0) {
+    if (!internalOperator && billing.usage.clientRolesRemaining <= 0) {
       return NextResponse.json(
         {
           error:
@@ -70,7 +77,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (billing.usage.profileScansRemaining <= 0 || profileScanBudget <= 0) {
+    if (!internalOperator && (billing.usage.profileScansRemaining <= 0 || profileScanBudget <= 0)) {
       return NextResponse.json(
         {
           error:
@@ -128,9 +135,11 @@ export async function POST(req: NextRequest) {
           launch_scope: "linkedin_plus_github",
           execution_profile: searchTargets.executionProfile,
           activation_run: false,
+          internal_operator: internalOperator,
           search_phase: "mvp_focus",
         },
     );
+    parsedRequirements.internal_operator = internalOperator;
     let search: { id: string } | undefined;
     try {
       const ts = new Date(timestamp);
@@ -222,6 +231,8 @@ export async function POST(req: NextRequest) {
           launch_scope: "linkedin_plus_github",
           execution_profile: searchTargets.executionProfile,
           activation_run: false,
+          internal_operator: internalOperator,
+          client_roles_used: internalOperator ? 0 : 1,
           invite_code: invite?.invite_code ?? inviteCode ?? null,
           invite_source: invite?.source ?? null,
           invite_batch_id: invite?.batch_id ?? null,

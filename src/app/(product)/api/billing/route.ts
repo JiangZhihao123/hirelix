@@ -4,12 +4,14 @@ import {
   getBillingSummaryForUser,
 } from "@/lib/billing-server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
+import { isInternalOperatorEmail } from "@/lib/internal-operator";
 
 export async function GET(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const billing = await getBillingSummaryForUser(user.id);
+  billing.operator = { internal: isInternalOperatorEmail(user.email) };
   return NextResponse.json({ billing });
 }
 

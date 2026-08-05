@@ -54,6 +54,7 @@ import {
   ScanSearch,
   Search,
   Send,
+  Share2,
 } from "lucide-react";
 import type {
   CandidateRow,
@@ -160,6 +161,8 @@ export default function SearchResultPage() {
   const [, setUpgradeError] = useState<string | null>(null);
   const [rescoreError, setRescoreError] = useState<string | null>(null);
   const [rescoreSubmitting, setRescoreSubmitting] = useState(false);
+  const [shareSubmitting, setShareSubmitting] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [expandError, setExpandError] = useState<string | null>(null);
   const [expandSubmitting, setExpandSubmitting] = useState(false);
   const [expandPanelOpen, setExpandPanelOpen] = useState(false);
@@ -253,6 +256,24 @@ export default function SearchResultPage() {
     void navigator.clipboard.writeText(text);
     setCopiedWorkflowAction(action);
     window.setTimeout(() => setCopiedWorkflowAction(null), 1800);
+  }
+
+  async function createClientShare() {
+    if (!id || shareSubmitting) return;
+    setShareSubmitting(true);
+    setShareFeedback(null);
+    try {
+      const response = await fetchWithUserSession(`/api/search/${id}/share`, { method: "POST" });
+      const payload = await response.json() as { shareUrl?: string; error?: string };
+      if (!response.ok || !payload.shareUrl) throw new Error(payload.error || "Could not create client link.");
+      await navigator.clipboard.writeText(payload.shareUrl);
+      setShareFeedback("Private link copied");
+      window.setTimeout(() => setShareFeedback(null), 3000);
+    } catch (error) {
+      setShareFeedback(error instanceof Error ? error.message : "Could not create client link.");
+    } finally {
+      setShareSubmitting(false);
+    }
   }
 
   async function rerunScoringFromCache() {
@@ -999,6 +1020,19 @@ export default function SearchResultPage() {
                     Export this pool
                   </Link>
                 ))}
+              {allCandidates.length > 0 && (
+                <button
+                  type="button"
+                  onClick={createClientShare}
+                  disabled={shareSubmitting}
+                  title={shareFeedback || "Create a private, no-login client link"}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition-colors hover:border-sky-300 hover:bg-sky-100 disabled:opacity-60"
+                >
+                  {shareFeedback === "Private link copied" ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
+                  <span className="hidden sm:inline">{shareFeedback || (shareSubmitting ? "Creating link" : "Share client view")}</span>
+                  <span className="sm:hidden">Share</span>
+                </button>
+              )}
               <Link
                 href={`/app/search/new${entryQuery}`}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"

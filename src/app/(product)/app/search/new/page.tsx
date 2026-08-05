@@ -102,7 +102,7 @@ export default function NewSearchPage() {
   const isOutOfDiscoveryScans = billing?.usage.profileScansRemaining === 0;
   const isOutOfFreePreview =
     billing?.plan.code === "free" && (isOutOfClientRoles || isOutOfDiscoveryScans);
-  const cannotStart = Boolean(isOutOfClientRoles || isOutOfDiscoveryScans);
+  const cannotStart = !billing?.operator?.internal && Boolean(isOutOfClientRoles || isOutOfDiscoveryScans);
 
   const buildEditableBrief = (response: ClarifyResponse): EditableBrief => ({
     title: response.summary.title,
