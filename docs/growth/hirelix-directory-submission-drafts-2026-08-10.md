@@ -95,3 +95,43 @@ Status: Prepared only. Nothing in this document proves a directory submission wa
 - Tags: AI, Hiring, Human Resources.
 - Listing URL was corrected and persisted as https://www.hirelix.online/?utm_source=uneed&utm_medium=launchpad&utm_campaign=uneed_launch.
 - Current state: Submitted and waiting; not yet published.
+
+## Product Hunt
+
+- Public search result on 2026-08-10: No Hirelix product was found.
+- Signed-in state: The current account can access the new-product form; no existing Hirelix product is available in the relaunch picker.
+- Cost: Product Hunt states that launching is free.
+- Product URL: https://www.hirelix.online
+- Product name: Hirelix
+- Tagline: AI sourcing and screening for technical recruiters
+- Short description: Turn a client JD into a ranked pool of real technical profiles. Hirelix explains fit evidence and risks, supports optional public candidate research, and prepares editable outreach drafts without sending them automatically.
+- Suggested topics: AI Agents, Recruiting, Productivity
+- Maker introduction:
+
+  I built Hirelix for technical recruiters who spend too much time translating client JDs into searches and manually comparing weak keyword matches.
+
+  Hirelix structures the role first, searches for real profiles, evaluates each person against the must-haves, and shows the evidence and risks behind the ranking. Recruiters can then research selected candidates more deeply and edit outreach drafts before deciding whether to contact anyone.
+
+  One real role is free with no credit card. I would especially value candid feedback from independent recruiters and boutique search firms: where does the evidence help, and where would you still hesitate to trust the shortlist?
+
+- Available launch assets:
+  - Logo: public/logo-512.png
+  - Open Graph image: public/og-image.png (1200x630)
+  - Landing visual: public/landing/hirelix-hero-recruiter-v1.webp
+- Current state: Product URL field is open but untouched. No Product Hunt draft or launch was created.
+
+## AlternativeTo
+
+- Public search result on 2026-08-10: No Hirelix application was found.
+- Free submission requires an account with a verified email address.
+- Normal review can remain in the backlog for at least a few months.
+- Optional priority review costs USD 5 and is usually reviewed within 1-2 business days; payment does not guarantee approval.
+- Current state: No account was created and no application was submitted.
+
+## BetaList, Futurepedia, There’s An AI For That, and Startup Stash
+
+- BetaList: All submissions are now paid and require an account. BetaList states that payment is automatically refunded if the startup is not selected.
+- Futurepedia: Basic Listing is USD 247 and currently sold out; Verified Listing is USD 497 as a one-time fee.
+- There’s An AI For That: The launch page was blocked by the browser security policy. No alternate-browser or direct-fetch workaround was attempted.
+- Startup Stash: The listing Typeform is reachable and begins by requesting the submitter’s first and last name. Pricing was not exposed before personal-data entry.
+- Current state: No submission, account creation, or payment action was taken for these four channels.
