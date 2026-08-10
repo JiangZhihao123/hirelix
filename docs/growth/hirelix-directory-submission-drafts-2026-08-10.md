@@ -59,3 +59,39 @@ Status: Prepared only. Nothing in this document proves a directory submission wa
 
 - Verified price: One-time USD 97 fee.
 - Current state: No form or payment action taken. Budget approval is required before continuing.
+
+## SHRM Human Resource Vendor Directory
+
+- Verified offer: Free basic company listing; no credit card required.
+- Prefilled: Hirelix, Noah Jiang, noah@hirelix.online, and https://www.hirelix.online.
+- Blocker: Phone number is mandatory and no authorized number is available.
+- Current state: Form remains open; no submission was sent.
+
+## Capterra
+
+- Prefilled: noah@hirelix.online, Hirelix, and https://www.hirelix.online.
+- Sales-outreach opt-in: Left unchecked.
+- Submission effect: Clicking Continue sends the initial listing request and accepts the Gartner Digital Markets privacy terms. If approved, the listing will be published on Capterra and can later be added to GetApp and Software Advice.
+- Current state: Initial form is ready; Continue was not clicked.
+
+## G2 and TrustRadius
+
+- G2: A free profile is available, but adding a new product requires account validation through LinkedIn, Google, or a business email.
+- TrustRadius: A free profile is available, but the claim flow requires creating or signing into a vendor account.
+- Current state: No account was created and no profile request was submitted.
+
+## Crozdesk, GoodFirms, and SaaSworthy
+
+- Crozdesk: Free application and no credit card were verified. The form additionally requires an authorized phone number, headquarters location, a primary category, and a monthly marketing budget.
+- GoodFirms: The visible form is a sponsorship request that requires selecting an existing company and completing a CAPTCHA; it is not a clean new-product listing flow for Hirelix.
+- SaaSworthy: The Standard basic profile is free. Its lead form requires a phone number and funding-stage information that are not currently authorized or verified.
+- Current state: Requirements verified; no request was submitted.
+
+## Uneed
+
+- Existing state verified in the signed-in account: Hirelix is already in the free waiting line as item 43020, with no launch date scheduled.
+- Product category: Business.
+- Pricing: Freemium.
+- Tags: AI, Hiring, Human Resources.
+- Listing URL was corrected and persisted as https://www.hirelix.online/?utm_source=uneed&utm_medium=launchpad&utm_campaign=uneed_launch.
+- Current state: Submitted and waiting; not yet published.
