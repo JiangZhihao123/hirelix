@@ -1,7 +1,12 @@
-import { and, eq, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gt, gte, lt, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { hirelix_searches, hirelix_usage_events, hirelix_user_settings } from "@/db/schema";
+import {
+  hirelix_redemptions,
+  hirelix_searches,
+  hirelix_usage_events,
+  hirelix_user_settings,
+} from "@/db/schema";
 import {
   clampRemaining,
   getBillingPeriodBounds,
@@ -39,11 +44,8 @@ type PaddlePortalSessionResponse = {
 };
 
 export async function getBillingSummaryForUser(userId: string): Promise<BillingSummary> {
-  const { startIso, endIso } = getBillingPeriodBounds();
-  const startDate = new Date(startIso);
-  const endDate = new Date(endIso);
-
-  const [settingsRows, usageEventRows, searchCountRows] = await Promise.all([
+  const now = new Date();
+  const [settingsRows, redemptionRows] = await Promise.all([
     db
       .select({
         subscription_plan: hirelix_user_settings.subscription_plan,
@@ -57,6 +59,40 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       .from(hirelix_user_settings)
       .where(eq(hirelix_user_settings.user_id, userId))
       .limit(1),
+    db
+      .select({
+        benefit_plan: hirelix_redemptions.benefit_plan,
+        starts_at: hirelix_redemptions.starts_at,
+        ends_at: hirelix_redemptions.ends_at,
+      })
+      .from(hirelix_redemptions)
+      .where(
+        and(
+          eq(hirelix_redemptions.user_id, userId),
+          eq(hirelix_redemptions.status, "active"),
+          lte(hirelix_redemptions.starts_at, now),
+          gt(hirelix_redemptions.ends_at, now),
+        ),
+      )
+      .limit(1),
+  ]);
+
+  const settings = settingsRows[0] ?? null;
+  const paidPlanCode = getEffectivePlanCode(
+    settings?.subscription_plan,
+    settings?.subscription_status,
+  );
+  const redemption = paidPlanCode === "free" ? redemptionRows[0] ?? null : null;
+  const redemptionActive = redemption?.benefit_plan === "starter_monthly";
+  const planCode = redemptionActive ? "starter_monthly" : paidPlanCode;
+  const plan = getPlan(planCode);
+  const calendarBounds = getBillingPeriodBounds(now);
+  const startDate = redemptionActive ? redemption.starts_at : new Date(calendarBounds.startIso);
+  const endDate = redemptionActive ? redemption.ends_at : new Date(calendarBounds.endIso);
+  const startIso = startDate.toISOString();
+  const endIso = endDate.toISOString();
+
+  const [usageEventRows, searchCountRows] = await Promise.all([
     db
       .select({
         related_id: hirelix_usage_events.related_id,
@@ -82,8 +118,6 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
         ),
       ),
   ]);
-
-  const settings = settingsRows[0] ?? null;
   let profileScansUsed = 0;
   let emailLookupsUsed = 0;
   let publicEvidenceDeepDivesUsed = 0;
@@ -114,13 +148,8 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     }
   }
 
-  const planCode = getEffectivePlanCode(
-    settings?.subscription_plan,
-    settings?.subscription_status,
-  );
-  const plan = getPlan(planCode);
-  const extraProfileScans = settings?.extra_search_credits ?? 0;
-  const extraEmailLookups = settings?.extra_enrich_credits ?? 0;
+  const extraProfileScans = redemptionActive ? 0 : settings?.extra_search_credits ?? 0;
+  const extraEmailLookups = redemptionActive ? 0 : settings?.extra_enrich_credits ?? 0;
   const baseProfileScansLimit = getPlanProfileScansPerMonth(plan);
   const emailLookupsLimit = getPlanEmailLookupsPerMonth(plan) + extraEmailLookups;
   const publicEvidenceDeepDivesLimit = getPlanPublicEvidenceDeepDivesPerMonth(plan);
@@ -158,18 +187,43 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     plan,
     subscription: {
       planCode,
-      status: normalizedStatus,
-      billingCycle:
-        settings?.billing_cycle === "month" || settings?.billing_cycle === "year"
+      status: redemptionActive ? "active" : normalizedStatus,
+      billingCycle: redemptionActive
+        ? null
+        : settings?.billing_cycle === "month" || settings?.billing_cycle === "year"
           ? settings.billing_cycle
           : plan.billingCycle,
-      startedAt: settings?.subscription_started_at
+      startedAt: redemptionActive
+        ? redemption.starts_at.toISOString()
+        : settings?.subscription_started_at
         ? settings.subscription_started_at.toISOString()
         : null,
-      renewsAt: settings?.subscription_renews_at
+      renewsAt: redemptionActive
+        ? redemption.ends_at.toISOString()
+        : settings?.subscription_renews_at
         ? settings.subscription_renews_at.toISOString()
         : null,
     },
+    access: redemptionActive
+      ? {
+          source: "redemption",
+          label: "Beta access",
+          expiresAt: redemption.ends_at.toISOString(),
+          autoRenews: false,
+        }
+      : paidPlanCode !== "free"
+        ? {
+            source: "paddle",
+            label: "Paid subscription",
+            expiresAt: settings?.subscription_renews_at?.toISOString() ?? null,
+            autoRenews: true,
+          }
+        : {
+            source: "free",
+            label: "Free plan",
+            expiresAt: null,
+            autoRenews: false,
+          },
     usage: {
       periodStart: startIso,
       periodEnd: endIso,

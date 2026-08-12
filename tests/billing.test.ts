@@ -37,6 +37,12 @@ function makeBillingSummary(
       startedAt: null,
       renewsAt: null,
     },
+    access: {
+      source: planCode === "free" ? "free" : "paddle",
+      label: planCode === "free" ? "Free plan" : "Paid subscription",
+      expiresAt: null,
+      autoRenews: planCode !== "free",
+    },
     usage: {
       periodStart: "2026-05-01T00:00:00.000Z",
       periodEnd: "2026-06-01T00:00:00.000Z",

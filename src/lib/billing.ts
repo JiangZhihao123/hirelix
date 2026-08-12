@@ -95,6 +95,12 @@ export type BillingSummary = {
     startedAt: string | null;
     renewsAt: string | null;
   };
+  access: {
+    source: "free" | "paddle" | "redemption";
+    label: string;
+    expiresAt: string | null;
+    autoRenews: boolean;
+  };
   usage: UsageSummary;
   checkout: {
     paddleEnabled: boolean;

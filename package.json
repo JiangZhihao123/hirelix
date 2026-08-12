@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "billing:create-redemption-codes": "node scripts/tools/create-redemption-codes.mjs",
     "scheduler:start": "tsx --tsconfig scheduler/tsconfig.json scheduler/index.ts",
     "scheduler:dev": "dotenv -e .env.local -- tsx --tsconfig scheduler/tsconfig.json scheduler/index.ts",
     "test:unit": "tsx --test tests/*.test.ts",

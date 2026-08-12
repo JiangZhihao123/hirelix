@@ -8,6 +8,7 @@ import {
   Loader2,
   ScanSearch,
   Sparkles,
+  TicketCheck,
 } from "lucide-react";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
 import { fetchWithUserSession } from "@/lib/client-auth";
@@ -29,9 +30,16 @@ import {
 
 type PaidBillingPlanCode = Exclude<BillingPlanCode, "free">;
 
-export function BillingPanel({ billing }: { billing: BillingSummary }) {
+export function BillingPanel({
+  billing,
+  onBillingChange,
+}: {
+  billing: BillingSummary;
+  onBillingChange: (billing: BillingSummary) => void;
+}) {
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
-  const isPaidPlan = billing.subscription.planCode !== "free";
+  const isPaddleSubscription = billing.access.source === "paddle";
+  const isRedemptionAccess = billing.access.source === "redemption";
   const subscriptionTiers = [
     {
       key: "starter",
@@ -81,32 +89,41 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
                 </div>
                 <div className="text-left sm:text-right">
                   <p className="text-lg font-semibold text-slate-950">
-                    {billing.plan.priceLabel}
+                    {isRedemptionAccess ? "Beta access" : billing.plan.priceLabel}
                   </p>
-                  <p className="text-sm text-slate-500">{billing.plan.cadenceLabel}</p>
+                  <p className="text-sm text-slate-500">
+                    {isRedemptionAccess ? "No charge" : billing.plan.cadenceLabel}
+                  </p>
                 </div>
               </div>
               <div className="grid gap-4 border-t border-slate-200/80 pt-4 sm:grid-cols-2">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    Subscription
+                    Access
                   </p>
                   <p className="mt-2 text-sm font-medium text-slate-950">
-                    {billing.subscription.status === "active"
+                    {isRedemptionAccess
+                      ? "Starter beta access"
+                      : billing.subscription.status === "active"
                       ? "Subscription active"
                       : billing.subscription.status}
                   </p>
                 </div>
                 <div className="sm:text-right">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    Renewal
+                    {isRedemptionAccess ? "Ends" : "Renewal"}
                   </p>
                   <p className="mt-2 text-sm text-slate-600">
                     {formatDateLabel(billing.subscription.renewsAt)}
                   </p>
                 </div>
               </div>
-              {isPaidPlan ? (
+              {isRedemptionAccess ? (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+                  This 30-day Starter access does not renew automatically.
+                </div>
+              ) : null}
+              {isPaddleSubscription ? (
                 <div className="border-t border-slate-200/80 pt-4">
                   {billing.checkout.paddlePortalConfigured ? (
                     <BillingPortalButton
@@ -129,6 +146,16 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
             </div>
           </div>
         </SettingsFieldGroup>
+
+        {billing.access.source === "free" ? (
+          <RedeemBetaCode
+            onSuccess={(nextBilling, message) => {
+              onBillingChange(nextBilling);
+              setBillingMessage({ type: "success", text: message });
+            }}
+            onError={(message) => setBillingMessage({ type: "error", text: message })}
+          />
+        ) : null}
 
         <SettingsFieldGroup
           title="Usage"
@@ -304,6 +331,84 @@ export function BillingPanel({ billing }: { billing: BillingSummary }) {
         <MessageBanner message={billingMessage} />
       </div>
     </SettingsSection>
+  );
+}
+
+function RedeemBetaCode({
+  onSuccess,
+  onError,
+}: {
+  onSuccess: (billing: BillingSummary, message: string) => void;
+  onError: (message: string) => void;
+}) {
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function redeem() {
+    setLoading(true);
+    try {
+      const response = await fetchWithUserSession("/api/billing/redeem", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await response.json().catch(() => ({})) as {
+        billing?: BillingSummary;
+        endsAt?: unknown;
+        error?: unknown;
+      };
+      if (!response.ok || !data.billing) {
+        onError(typeof data.error === "string" ? data.error : "Unable to redeem this beta code.");
+        return;
+      }
+      setCode("");
+      onSuccess(
+        data.billing,
+        `Starter beta access is active until ${formatDateLabel(
+          typeof data.endsAt === "string" ? data.endsAt : data.billing.access.expiresAt,
+        )}. It will not renew automatically.`,
+      );
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Unable to redeem this beta code.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <SettingsFieldGroup
+      title="Redeem beta access"
+      description="Use a private beta code to unlock Starter for 30 days. No card required."
+    >
+      <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
+        <label htmlFor="beta-redemption-code" className="text-sm font-medium text-slate-900">
+          Beta code
+        </label>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <input
+            id="beta-redemption-code"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            placeholder="HIRELIX-BETA-XXXX-XXXX"
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm uppercase text-slate-950 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+          />
+          <button
+            type="button"
+            onClick={redeem}
+            disabled={loading || code.trim().length === 0}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <TicketCheck className="h-4 w-4" />}
+            {loading ? "Redeeming..." : "Redeem"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          One redemption per account. Access ends automatically after 30 days.
+        </p>
+      </div>
+    </SettingsFieldGroup>
   );
 }
 

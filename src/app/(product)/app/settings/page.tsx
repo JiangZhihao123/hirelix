@@ -155,7 +155,13 @@ export default function SettingsPage() {
   const selectedSection = (() => {
     if (activeSection === "billing") {
       return billing ? (
-        <BillingPanel billing={billing} />
+        <BillingPanel
+          billing={billing}
+          onBillingChange={(nextBilling) => {
+            setBilling(nextBilling);
+            void refreshBilling();
+          }}
+        />
       ) : (
         <SettingsPageSkeleton />
       );

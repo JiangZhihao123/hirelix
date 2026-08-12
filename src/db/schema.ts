@@ -351,6 +351,64 @@ export const hirelix_billing_events = pgTable("hirelix_billing_events", {
 });
 
 // ---------------------------------------------------------------------------
+// Promotional billing access
+// ---------------------------------------------------------------------------
+export const hirelix_redemption_codes = pgTable(
+  "hirelix_redemption_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    code_hash: text("code_hash").notNull(),
+    code_prefix: text("code_prefix").notNull(),
+    campaign: text("campaign"),
+    benefit_plan: text("benefit_plan").notNull().default("starter_monthly"),
+    duration_days: integer("duration_days").notNull().default(30),
+    max_redemptions: integer("max_redemptions").notNull().default(1),
+    redemption_count: integer("redemption_count").notNull().default(0),
+    status: text("status").notNull().default("active"),
+    expires_at: timestamp("expires_at", { withTimezone: true }),
+    created_by: text("created_by"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    code_hash_key: uniqueIndex("hirelix_redemption_codes_code_hash_key").on(t.code_hash),
+    status_expires_idx: index("idx_hirelix_redemption_codes_status_expires").on(
+      t.status,
+      t.expires_at,
+    ),
+  }),
+);
+
+export const hirelix_redemptions = pgTable(
+  "hirelix_redemptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    code_id: uuid("code_id").notNull(),
+    user_id: uuid("user_id").notNull(),
+    benefit_plan: text("benefit_plan").notNull().default("starter_monthly"),
+    status: text("status").notNull().default("active"),
+    redeemed_at: timestamp("redeemed_at", { withTimezone: true }).notNull().defaultNow(),
+    starts_at: timestamp("starts_at", { withTimezone: true }).notNull(),
+    ends_at: timestamp("ends_at", { withTimezone: true }).notNull(),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    code_user_key: uniqueIndex("hirelix_redemptions_code_user_key").on(t.code_id, t.user_id),
+    user_benefit_key: uniqueIndex("hirelix_redemptions_user_benefit_key").on(
+      t.user_id,
+      t.benefit_plan,
+    ),
+    user_status_ends_idx: index("idx_hirelix_redemptions_user_status_ends").on(
+      t.user_id,
+      t.status,
+      t.ends_at,
+    ),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Growth outreach tracking
 // ---------------------------------------------------------------------------
 export const hirelix_growth_outreach_clicks = pgTable(
@@ -788,6 +846,8 @@ export const schema = {
   hirelix_user_settings,
   hirelix_usage_events,
   hirelix_billing_events,
+  hirelix_redemption_codes,
+  hirelix_redemptions,
   hirelix_growth_outreach_clicks,
   hirelix_growth_landing_events,
   hirelix_beta_invites,
