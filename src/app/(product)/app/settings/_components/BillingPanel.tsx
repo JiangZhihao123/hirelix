@@ -61,7 +61,7 @@ export function BillingPanel({
   }>;
 
   function isCurrentPlan(planCode: PaidBillingPlanCode) {
-    return billing.subscription.planCode === planCode;
+    return billing.access.source === "paddle" && billing.subscription.planCode === planCode;
   }
 
   function isCurrentTier(annualPlanCode: PaidBillingPlanCode, monthlyPlanCode: PaidBillingPlanCode) {
