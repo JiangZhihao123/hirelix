@@ -2,7 +2,7 @@
 
 Date: 2026-08-10
 
-Status: Prepared only. Nothing in this document proves a directory submission was sent or published.
+Status: SourcrLab submitted on 2026-09-23 and pending review. Other channels retain their per-entry status; no new listing publication is verified here.
 
 ## Common product facts
 
@@ -25,7 +25,7 @@ Status: Prepared only. Nothing in this document proves a directory submission wa
 - Starting price: USD 99/month
 - Offers free plan: Yes
 - Additional notes: Hirelix is built for independent technical recruiters and boutique search firms. It turns a client JD into a ranked pool of real profiles with fit evidence, risks, optional public research, and editable outreach drafts. One real role is free; no credit card. Outreach is never sent automatically.
-- Current state: Form prefilled in Chrome; final Submit Tool action not taken.
+- 2026-09-23: Submitted the free listing for `https://hirelix.online/` under Talent Acquisition / Candidate Sourcing, with Freemium pricing and the public product description. SourcrLab subsequently displayed: "We already have a submission for this website waiting for review." The listing is pending review; publication and referral traffic are unverified.
 
 ## RecruitsAgent
 
