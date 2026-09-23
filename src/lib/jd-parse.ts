@@ -6,6 +6,10 @@ import {
 } from "@/lib/llm-client";
 import { JD_SEARCH_INTENT_PROMPT } from "@/lib/prompts";
 import {
+  DEFAULT_SEARCH_INTENT_MAX_OUTPUT_TOKENS,
+  getSearchIntentMaxOutputTokens,
+} from "@/lib/search/config";
+import {
   inferRoleFamilyFromText,
   normalizeRoleFamily,
 } from "@/lib/search/lane-contract-critic";
@@ -86,7 +90,7 @@ type ParseJobDescriptionOptions = {
   populateTargetCompanies?: boolean;
 };
 
-export const DEFAULT_JD_PARSE_MAX_OUTPUT_TOKENS = 6400;
+export const DEFAULT_JD_PARSE_MAX_OUTPUT_TOKENS = DEFAULT_SEARCH_INTENT_MAX_OUTPUT_TOKENS;
 
 export type ParsedJobSummary = {
   title: string;
@@ -109,10 +113,7 @@ function normalizeNullableString(value: unknown) {
 }
 
 export function getJobDescriptionParseMaxOutputTokens() {
-  const raw = process.env.SEARCH_PARSE_MAX_OUTPUT_TOKENS;
-  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-  if (!Number.isFinite(parsed)) return DEFAULT_JD_PARSE_MAX_OUTPUT_TOKENS;
-  return Math.min(Math.max(parsed, 4000), 10000);
+  return getSearchIntentMaxOutputTokens();
 }
 
 function normalizeStringArray(value: unknown, maxItems: number) {

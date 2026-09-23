@@ -199,7 +199,7 @@ async function mockLoggedInCoreFlow(page: Page, calls: Array<{ path: string; bod
           parsed_requirements: completedSearch.search.parsed_requirements,
           summary: {
             title: "Senior Backend Engineer",
-            requiredSkills: ["PostgreSQL", "Distributed Systems", "APIs"],
+            requiredSkills: ["PostgreSQL", "Go, Java, or Python in production", "Distributed Systems", "APIs"],
             niceToHaveSkills: ["Observability"],
             experienceYearsMin: 7,
             workModel: "remote",
@@ -262,7 +262,7 @@ test.describe("Core user flow", () => {
 
     await expect(page.getByText("Ready to launch.")).toBeVisible();
     await page.getByRole("button", { name: "Launch search" }).click();
-    await expect(page).toHaveURL(/\/app\/search\/core-search$/);
+    await expect(page).toHaveURL(/\/app\/search\/core-search(?:\?|$)/);
     await expect(page.getByRole("heading", { name: "Senior Backend Engineer" })).toBeVisible();
     await expect(page.getByTestId("client-ready-recommended-pool")).toContainText("Jordan Lee");
     await expect(page.getByTestId("outreach-approval-queue")).toContainText("LinkedIn copy");
@@ -273,5 +273,50 @@ test.describe("Core user flow", () => {
     expect(calls.find((call) => call.path === "/api/search/create")?.body).toMatchObject({
       jd_text: jdText,
     });
+    const createBody = calls.find((call) => call.path === "/api/search/create")?.body;
+    const brief = (createBody?.parsed_requirements_override as {
+      hiring_brief?: { role_core?: { required_skills?: string[] } };
+    } | undefined)?.hiring_brief;
+    expect(brief?.role_core?.required_skills).toContain("Go, Java, or Python in production");
+  });
+
+  test("retries a failed search from the same workbench", async ({ page }) => {
+    const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
+    await mockLoggedInCoreFlow(page, calls);
+    let retried = false;
+    const returnedStatuses: string[] = [];
+    await page.route("**/api/searches/core-search", async (route) => {
+      returnedStatuses.push(retried ? "queued" : "error");
+      await route.fulfill({
+        json: {
+          search: {
+            ...completedSearch.search,
+            status: retried ? "queued" : "error",
+            pipeline_step: retried ? "queued" : "error",
+            partial_ready_at: retried ? null : completedSearch.search.partial_ready_at,
+            updated_at: retried ? new Date().toISOString() : completedSearch.search.updated_at,
+            parsed_requirements: {
+              ...completedSearch.search.parsed_requirements,
+              search_error_type: retried ? null : "provider_failure",
+              search_error_retryable: !retried,
+            },
+          },
+          candidates: [],
+        },
+      });
+    });
+    await page.route("**/api/search/core-search/retry", async (route) => {
+      retried = true;
+      await route.fulfill({ json: { ok: true } });
+    });
+
+    await page.goto("/app/search/core-search");
+    await expect(page.getByText("This shortlist run didn't finish")).toBeVisible();
+    await page.getByRole("button", { name: "Retry this search" }).click();
+
+    await expect.poll(() => retried).toBe(true);
+    await expect.poll(() => returnedStatuses.at(-1)).toBe("queued");
+    await expect(page.getByText("This shortlist run didn't finish")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Your search has been accepted|Hirelix understands the role and is moving into recall/ })).toBeVisible();
   });
 });

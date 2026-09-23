@@ -106,7 +106,7 @@ export default function NewSearchPage() {
 
   const buildEditableBrief = (response: ClarifyResponse): EditableBrief => ({
     title: response.summary.title,
-    requiredSkillsText: response.summary.requiredSkills.join(", "),
+    requiredSkillsText: response.summary.requiredSkills.join("\n"),
     experienceYearsMin:
       typeof response.summary.experienceYearsMin === "number"
         ? String(response.summary.experienceYearsMin)
@@ -126,7 +126,7 @@ export default function NewSearchPage() {
 
   const editedParsedRequirements = (response: ClarifyResponse, brief: EditableBrief) => {
     const requiredSkills = brief.requiredSkillsText
-      .split(/[,\n]/)
+      .split(/\n/)
       .map((skill) => skill.trim())
       .filter(Boolean);
     const hardFilters = brief.hardFiltersText
@@ -460,7 +460,7 @@ export default function NewSearchPage() {
                   </label>
                 </div>
                 <label className="mt-4 block text-sm font-medium text-slate-700">
-                  Must-have skills
+                  Must-have skills (one per line)
                   <textarea
                     rows={3}
                     value={stage.brief.requiredSkillsText}

@@ -233,11 +233,17 @@ export const SEARCH_LOW_COST_MODE = getConfiguredBoolean(
   false,
 );
 
-export const PARSE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
-  "SEARCH_PARSE_MAX_OUTPUT_TOKENS",
-  SEARCH_LOW_COST_MODE ? 1400 : 3200,
-  { min: 200, max: 6000 },
-);
+export const DEFAULT_SEARCH_INTENT_MAX_OUTPUT_TOKENS = 6400;
+
+export function getSearchIntentMaxOutputTokens() {
+  return getConfiguredPositiveInt(
+    "SEARCH_PARSE_MAX_OUTPUT_TOKENS",
+    DEFAULT_SEARCH_INTENT_MAX_OUTPUT_TOKENS,
+    { min: 4000, max: 10000 },
+  );
+}
+
+export const PARSE_MAX_OUTPUT_TOKENS = getSearchIntentMaxOutputTokens();
 
 export const JUDGE_MAX_OUTPUT_TOKENS = getConfiguredPositiveInt(
   "SEARCH_JUDGE_MAX_OUTPUT_TOKENS",

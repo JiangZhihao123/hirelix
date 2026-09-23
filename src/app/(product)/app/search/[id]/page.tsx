@@ -161,6 +161,8 @@ export default function SearchResultPage() {
   const [, setUpgradeError] = useState<string | null>(null);
   const [rescoreError, setRescoreError] = useState<string | null>(null);
   const [rescoreSubmitting, setRescoreSubmitting] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [retrySubmitting, setRetrySubmitting] = useState(false);
   const [shareSubmitting, setShareSubmitting] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
   const [expandError, setExpandError] = useState<string | null>(null);
@@ -273,6 +275,34 @@ export default function SearchResultPage() {
       setShareFeedback(error instanceof Error ? error.message : "Could not create client link.");
     } finally {
       setShareSubmitting(false);
+    }
+  }
+
+  async function retryFailedSearch() {
+    if (!id || retrySubmitting) return;
+    setRetryError(null);
+    setRetrySubmitting(true);
+    try {
+      const response = await fetchWithUserSession(`/api/search/${id}/retry`, { method: "POST" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || "Could not retry this search.");
+      }
+      trackEvent(ANALYTICS_EVENTS.retrySearchClick, { ...analyticsContext, search_id: id });
+      window.sessionStorage.removeItem(getSearchPageCacheKey(id));
+      setSearch((current) => current ? {
+        ...current,
+        status: "queued",
+        pipeline_step: "queued",
+        error_message: null,
+        partial_ready_at: null,
+        updated_at: new Date().toISOString(),
+      } : current);
+      void refreshBilling();
+    } catch (error) {
+      setRetryError(error instanceof Error ? error.message : "Could not retry this search.");
+    } finally {
+      setRetrySubmitting(false);
     }
   }
 
@@ -1598,6 +1628,15 @@ export default function SearchResultPage() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={retryFailedSearch}
+                disabled={retrySubmitting}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-800 disabled:cursor-wait disabled:opacity-60"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {retrySubmitting ? "Retrying..." : "Retry this search"}
+              </button>
               <Link
                 href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
@@ -1606,6 +1645,7 @@ export default function SearchResultPage() {
               </Link>
             </div>
           </div>
+          {retryError && <p className="mt-3 text-xs text-red-700">{retryError}</p>}
         </div>
       )}
 

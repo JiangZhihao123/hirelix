@@ -446,7 +446,7 @@ export function getSearchErrorPresentation(parsedRequirements?: Record<string, u
   return {
     title: "This shortlist run didn't finish",
     body: "Hirelix couldn't finish this search. The detailed error has been logged for debugging.",
-    hint: "Retry from here, or tighten the JD if the role is too vague.",
+    hint: "Retry this search without changing the JD. If it fails again, contact support.",
   };
 }
 
