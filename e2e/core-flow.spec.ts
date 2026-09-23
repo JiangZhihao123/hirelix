@@ -339,6 +339,8 @@ test.describe("Core user flow", () => {
 
     await page.goto("/app/search/core-search");
     await expect(page.getByRole("heading", { name: "Reviewing your candidates now." })).toBeVisible();
+    await expect(page.getByText("Candidate review is underway. The pool will appear after the first pass finishes.")).toBeVisible();
+    await expect(page.getByText(/relevant profiles were pulled into review\./)).toBeVisible();
     await expect(page.getByText("No candidates entered the ranked pool yet.")).toHaveCount(0);
   });
 });

@@ -1199,7 +1199,9 @@ export default function SearchResultPage() {
                 </span>
               </div>
               <p className="mt-4 max-w-2xl text-xs text-slate-500">
-                {standardRecallReady
+                {taskStage === "reviewing_profiles"
+                  ? "Candidate review is underway. The pool will appear after the first pass finishes."
+                  : standardRecallReady
                   ? `LinkedIn scan finished in ${standardRecallReadyLabel}. Now reviewing the strongest matches.`
                   : getProviderDelayCopy(providerDelayMs, searchEmailNotificationsEnabled)}
               </p>

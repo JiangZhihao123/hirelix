@@ -83,6 +83,7 @@ export function LinkedInScanAnimation({
   canLeavePage = true,
 }: LinkedInScanAnimationProps) {
   const isReviewing = stage === "reviewing_profiles";
+  const recallReady = Boolean(recallCompletedAt) || isReviewing;
   const safeCandidateCount =
     typeof candidateCount === "number" && Number.isFinite(candidateCount) ? candidateCount : 0;
   const safeRecallProfileCount =
@@ -107,12 +108,12 @@ export function LinkedInScanAnimation({
     },
     {
       label: "LinkedIn profiles recalled",
-      detail: recallCompletedAt
+      detail: recallReady
         ? safeRecallProfileCount && safeRecallProfileCount > 0
           ? `${safeRecallProfileCount.toLocaleString()} relevant profiles were pulled into review.`
           : "Relevant LinkedIn profiles were pulled into review."
         : "Recalling relevant LinkedIn profiles for this role.",
-      state: recallCompletedAt ? "done" : stage === "linkedin_scan" ? "active" : "upcoming",
+      state: recallReady ? "done" : "active",
     },
     {
       label: "Top candidates under review",

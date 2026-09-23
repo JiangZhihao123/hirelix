@@ -28,9 +28,13 @@ export function TaskTimelinePanel({
     "Expanding best lane",
     "Reviewing candidates",
   ] as const;
+  const reviewingWithoutPool = headhunterMode && search.status === "deep_scoring" && !search.partial_ready_at;
   const steps = getSearchTaskTimelineItems(search).map((step, index) => ({
     ...step,
     label: headhunterMode ? headhunterLabels[index] ?? step.label : step.label,
+    state: reviewingWithoutPool
+      ? index < 4 ? "done" as const : "active" as const
+      : step.state,
   }));
   const detailForStep = (label: string) => {
     if (label === "Reading role") return "Building the headhunter brief";
