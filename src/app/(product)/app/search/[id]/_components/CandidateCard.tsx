@@ -216,7 +216,7 @@ export function CandidateCard({
       className="rounded-xl border border-border bg-background transition-colors hover:border-muted-light"
     >
       {/* Header */}
-      <div className="flex w-full items-center gap-4 p-5 text-left">
+      <div className="flex w-full items-start gap-2 p-3 text-left sm:items-center sm:gap-4 sm:p-5">
         {onToggleSelect && (
           <input
             type="checkbox"
@@ -227,7 +227,7 @@ export function CandidateCard({
         )}
         <button
           onClick={toggleExpanded}
-          className="flex flex-1 cursor-pointer items-center gap-4 min-w-0"
+          className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 sm:items-center sm:gap-4"
         >
         <InitialsAvatar name={displayName} />
         <div className="min-w-0 flex-1">
@@ -259,6 +259,12 @@ export function CandidateCard({
           </p>
           {currentCompany && (
             <p className="mt-1 truncate text-[11px] text-muted-light">{currentCompany}</p>
+          )}
+          {candidate.location && (
+            <p className="mt-1 flex items-center gap-1 text-[11px] leading-4 text-muted-light sm:hidden">
+              <MapPin className="h-3 w-3 shrink-0" />
+              {candidate.location}
+            </p>
           )}
           {recruiterHeadline && (
             <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-foreground">

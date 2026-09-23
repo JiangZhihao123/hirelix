@@ -862,6 +862,8 @@ export function getCandidateDecisionAudit(
     .map((line) => (options.hidePublicEvidence ? hidePublicEvidenceLine(line) : line))
     .filter((line): line is string => typeof line === "string" && isUsefulProofLine(line));
   const riskLines = [
+    ...(candidate.evidence_pack?.final_judgment?.risks || []),
+    ...(candidate.evidence_pack?.final_judgment?.missingInformation || []),
     ...(sellingKit?.client_brief?.risks_to_verify || []),
     ...(sellingKit?.risk_flags || []),
     ...(candidate.metadata?.risk_flags || []),
