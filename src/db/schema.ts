@@ -119,6 +119,62 @@ export const hirelix_candidates = pgTable(
   }),
 );
 
+// Private, recruiter-owned memory. A search candidate can seed a memory entry,
+// but the saved snapshot and recruiter's note survive that search's deletion.
+export const hirelix_agent_people = pgTable(
+  "hirelix_agent_people",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id").notNull(),
+    source_candidate_id: uuid("source_candidate_id"),
+    source_search_id: uuid("source_search_id"),
+    name: text("name").notNull(),
+    headline: text("headline"),
+    location: text("location"),
+    skills: text("skills").array().notNull().default(sql`'{}'::text[]`),
+    profile_url: text("profile_url"),
+    note: text("note").notNull().default(""),
+    source_evidence: jsonb("source_evidence").notNull().default(sql`'{}'::jsonb`),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    user_updated_idx: index("hirelix_agent_people_user_updated_idx").on(t.user_id, t.updated_at),
+    source_candidate_key: uniqueIndex("hirelix_agent_people_user_candidate_key").on(t.user_id, t.source_candidate_id),
+  }),
+);
+
+export const hirelix_agent_messages = pgTable(
+  "hirelix_agent_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id").notNull(),
+    role: text("role").notNull(),
+    content: text("content").notNull(),
+    search_id: uuid("search_id"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    user_created_idx: index("hirelix_agent_messages_user_created_idx").on(t.user_id, t.created_at),
+  }),
+);
+
+export const hirelix_agent_briefs = pgTable(
+  "hirelix_agent_briefs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id").notNull(),
+    search_id: uuid("search_id").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    user_created_idx: index("hirelix_agent_briefs_user_created_idx").on(t.user_id, t.created_at),
+  }),
+);
+
 // ---------------------------------------------------------------------------
 // Reusable Bright-backed candidate index
 // ---------------------------------------------------------------------------
@@ -840,6 +896,9 @@ export const schema = {
   hirelix_searches,
   hirelix_search_shares,
   hirelix_candidates,
+  hirelix_agent_people,
+  hirelix_agent_messages,
+  hirelix_agent_briefs,
   hirelix_search_jobs,
   hirelix_search_notifications,
   hirelix_github_enrichment_jobs,

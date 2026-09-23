@@ -1,31 +1,31 @@
-import { Database, Mail, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { BookUser, FileText, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 export function ObjectionsSection() {
   const items = [
     {
-      icon: Database,
-      title: "Are these real people?",
-      desc: "Yes. The product is built around real LinkedIn profile discovery, not synthetic candidate records.",
+      icon: BookUser,
+      title: "Whose candidate memory is this?",
+      desc: "Yours. You decide whom to save and what private observations the agent can use across roles.",
     },
     {
       icon: ShieldCheck,
-      title: "What candidate research does Hirelix run?",
-      desc: "When you choose to research a candidate, Hirelix checks sources like GitHub, papers, technical blogs, company engineering blogs, open-source packages, Stack Overflow, talks, personal sites, and portfolios.",
+      title: "Can it distinguish my notes from profile claims?",
+      desc: "Yes. Saved recruiter notes and imported search evidence retain their source context, so uncertain claims can stay uncertain.",
     },
     {
       icon: Search,
-      title: "What do I get from the first run?",
-      desc: "A ranked candidate pool with recommended profiles, fit evidence, risks to verify, and personalized outreach starting points.",
+      title: "Can I still run a new search?",
+      desc: "Yes. Existing JD search remains available when you need to discover people outside your private memory.",
     },
     {
-      icon: Mail,
-      title: "Do you send outreach automatically?",
-      desc: "No. Hirelix drafts outreach so you can review, edit, and decide when to contact a candidate.",
+      icon: FileText,
+      title: "Does it send the weekly brief?",
+      desc: "No. It generates a draft you can edit or revise. You decide what to share with your client.",
     },
     {
       icon: Sparkles,
-      title: "What happens when I am ready to contact candidates?",
-      desc: "Continue from the recommended shortlist inside the ranked pool, unlock the workflow capabilities you need, and work the candidates inside the product.",
+      title: "Will it make up weekly progress?",
+      desc: "It is instructed to say when no candidate activity was verified and to show the missing facts before a recommendation.",
     },
   ];
 
@@ -37,10 +37,10 @@ export function ObjectionsSection() {
             Questions
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            The first questions before you paste a client role
+            Questions about your private agent
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            Short answers for the trust checks that matter before the first candidate pool.
+            What the agent remembers, how it handles evidence, and what stays in your hands.
           </p>
         </div>
 

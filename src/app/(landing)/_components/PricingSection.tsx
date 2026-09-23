@@ -109,10 +109,10 @@ export function PricingSection({
             Pricing
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Pick the client-role volume you need.
+            Add sourcing capacity when you need it.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            Try one real role first. Upgrade only if the output is useful.
+            Your private agent and candidate memory are available after sign-in. These plans govern the existing profile search and research capacity.
           </p>
         </div>
 

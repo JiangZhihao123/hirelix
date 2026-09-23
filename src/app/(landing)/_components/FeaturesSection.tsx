@@ -1,28 +1,22 @@
-import {
-  FileText,
-  Github,
-  ListChecks,
-  Mail,
-  Search,
-} from "lucide-react";
+import { BookUser, FileText, MessageCircle, Search, Sparkles } from "lucide-react";
 
 export function HowItWorksSection() {
   const steps = [
     {
-      title: "Paste the client JD",
-      desc: "Start from the real role on your desk. No Boolean rebuild or long setup flow.",
+      title: "Bring a real client JD",
+      desc: "Give your agent the role you are working on and the requirements that actually matter.",
     },
     {
-      title: "Hirelix builds the sourcing brief",
-      desc: "The agents extract must-have skills, constraints, target signals, and comparable backgrounds.",
+      title: "Keep your own candidate memory",
+      desc: "Save people and your own observations once, even when a particular search is over.",
     },
     {
-      title: "Agents source and research candidates",
-      desc: "Real profiles are sourced, scored, and checked for public technical evidence in parallel.",
+      title: "Ask for role-specific judgment",
+      desc: "The agent explains who might fit this JD, which evidence supports that view, and what remains unverified.",
     },
     {
-      title: "Review the ranked candidate pool",
-      desc: "Open the full ranked pool with a recommended shortlist, fit reasons, risks, evidence, and outreach starting points.",
+      title: "Draft the client update",
+      desc: "Turn the available evidence into a recommendation brief you can edit before sharing.",
     },
   ];
 
@@ -35,11 +29,10 @@ export function HowItWorksSection() {
               How it works
             </p>
             <h2 className="max-w-[12ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-              From client role to ranked candidate pool.
+              Your own recruiting intelligence, available across roles.
             </h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-              Hirelix keeps the first pass focused: understand the role, research real people,
-              inspect the evidence, and start outreach only after a candidate is worth it.
+              The agent works from your JD, the people you chose to remember, and the evidence you can actually defend.
             </p>
           </div>
 
@@ -72,34 +65,34 @@ export function HowItWorksSection() {
 export function FeaturesSection() {
   const features = [
     {
+      icon: BookUser,
+      title: "Private candidate memory",
+      desc: "Keep candidate context and your own notes beyond a single assignment.",
+    },
+    {
       icon: FileText,
-      title: "JD-to-sourcing brief",
-      desc: "Turns the client JD into role requirements, constraints, target company signals, and adjacent background patterns.",
+      title: "JD as context",
+      desc: "Bring the client's actual role. A person can fit one JD and miss another.",
+    },
+    {
+      icon: MessageCircle,
+      title: "Ask your agent",
+      desc: "Get a direct answer about saved people, evidence gaps, and the role in front of you.",
+    },
+    {
+      icon: Sparkles,
+      title: "Recommendation briefs",
+      desc: "Generate and revise a weekly client update from what is recorded, with no invented activity.",
     },
     {
       icon: Search,
-      title: "Real profile discovery",
-      desc: "Sources around real candidate profiles instead of generating synthetic records or generic persona matches.",
+      title: "Existing search, when needed",
+      desc: "The current sourcing engine remains available to discover people to review and remember.",
     },
     {
-      icon: Github,
-      title: "Candidate research",
-      desc: "When you choose to research a candidate, Hirelix checks sources like GitHub, papers, technical blogs, company engineering blogs, package registries, Stack Overflow, talks, personal sites, and portfolios.",
-    },
-    {
-      icon: ListChecks,
-      title: "Ranked candidate pool",
-      desc: "Each scan reviews targeted profiles and preserves the full ranked pool, with recommended candidates marked inside it.",
-    },
-    {
-      icon: ListChecks,
-      title: "Fit reasons and risks",
-      desc: "Shows why the candidate fits, what might block the match, and what evidence is safe to reference.",
-    },
-    {
-      icon: Mail,
-      title: "Outreach drafts",
-      desc: "Creates personalized outreach starting points from profile fit and candidate research. Nothing is sent automatically.",
+      icon: FileText,
+      title: "Evidence and uncertainty",
+      desc: "Keep recruiter notes separate from source claims, and call out what still needs verification.",
     },
   ];
 
@@ -112,11 +105,11 @@ export function FeaturesSection() {
               Features
             </p>
             <h2 className="max-w-xl text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-              Technical sourcing work, compressed into one review surface.
+              A thinking partner with your own long-term context.
             </h2>
           </div>
           <p className="max-w-md text-base leading-7 text-slate-600">
-            The product is built around the work a technical headhunter needs before putting a candidate in front of a client.
+            The agent starts from your knowledge of people and helps you make a defensible decision for each client role.
           </p>
         </div>
 
@@ -138,15 +131,15 @@ export function FeaturesSection() {
         <div className="mt-12 grid gap-3 border-t border-slate-200 pt-6 text-sm text-slate-700 sm:grid-cols-3">
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-indigo-700" />
-            Real profiles, not synthetic candidates
+            Your candidate memory stays yours
           </div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-            Research sources stay separated from risks
+            Source claims stay separate from your notes
           </div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-            Outreach starts after review
+            Client briefs remain drafts until you review them
           </div>
         </div>
       </div>

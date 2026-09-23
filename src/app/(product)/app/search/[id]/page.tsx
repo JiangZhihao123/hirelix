@@ -729,7 +729,7 @@ export default function SearchResultPage() {
         <p className="text-muted">{loadError || "Candidate pool not found"}</p>
         {loadError && <button className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm text-white" onClick={() => void fetchData()}>Try again</button>}
         <Link
-          href="/app"
+          href="/app/searches"
           className="mt-4 text-sm text-primary hover:underline"
         >
           Go back
@@ -944,7 +944,7 @@ export default function SearchResultPage() {
       {/* Header */}
       <div className="mb-6">
         <Link
-          href="/app"
+          href="/app/searches"
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -956,6 +956,7 @@ export default function SearchResultPage() {
           </h1>
           {isReviewable && (
             <div className="flex flex-wrap items-center gap-2">
+              <Link href={`/app/talent?role=${id}`} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">Remember candidates</Link>
               <button
                 onClick={() => setShowJd(!showJd)}
                 className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
@@ -1175,7 +1176,7 @@ export default function SearchResultPage() {
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
-                  href="/app"
+                  href="/app/searches"
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
                 >
                   <ArrowLeft className="h-4 w-4" />

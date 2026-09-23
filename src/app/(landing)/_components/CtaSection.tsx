@@ -20,10 +20,10 @@ export function CtaSection({
             For technical recruiters
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-            Spend less time sourcing. More time with candidates.
+            Keep the context behind every candidate conversation.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            Find, screen, and compare real technical profiles from a client JD, then decide who deserves a conversation.
+            Bring your client roles and your own candidate knowledge to one private agent. Ask better questions and prepare stronger recommendations.
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-4">
@@ -38,7 +38,7 @@ export function CtaSection({
               onClick={onTrySample}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:hidden"
             >
-              See an example ranked pool <ArrowRight className="h-4 w-4" />
+              See a search example <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-sm text-slate-600">
               Already have an account?{" "}
@@ -55,15 +55,15 @@ export function CtaSection({
           <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-600">
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-indigo-700" />
-              Real profiles
+              Private candidate memory
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-              Candidate research
+              JD-specific judgment
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              Outreach drafts included
+              Recommendation drafts
             </span>
           </div>
         </div>
@@ -76,7 +76,7 @@ export function CtaSection({
               <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
               <span className="font-semibold text-slate-950">Hirelix</span>
             </div>
-            <p>Find, compare, and review real technical profiles from a client JD.</p>
+            <p>A private recruiting agent for the people and roles you know.</p>
             <p>Built for technical headhunters.</p>
             <p>Support: <a className="text-indigo-700 hover:text-indigo-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
             <p>Subscriptions renew automatically until canceled.</p>

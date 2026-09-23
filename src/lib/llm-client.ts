@@ -39,6 +39,8 @@ type LlmTextOptions = {
   requireParameters?: boolean;
   deepSeekThinking?: DeepSeekThinkingMode;
   deepSeekReasoningEffort?: DeepSeekReasoningEffort;
+  /** Keep private agent context out of the shared LLM usage payload log. */
+  redactUsagePayload?: boolean;
   usageEvent?: Omit<
     LlmUsageEventPayload,
     | "model"
@@ -314,7 +316,8 @@ function isRetriableLlmError(error: unknown) {
       message.includes("network") ||
       message.includes("timeout") ||
       message.includes("timed out") ||
-      message.includes("econnreset")
+      message.includes("econnreset") ||
+      message.includes("returned empty content")
     );
   }
   return false;
@@ -635,8 +638,8 @@ async function recordUsageFromExit(params: {
       errorMessage: params.errorMessage ?? null,
       requestHash: sha256Json(requestPayload),
       responseHash: responsePayload ? sha256Json(responsePayload) : null,
-      requestPayload,
-      responsePayload,
+      requestPayload: params.options.redactUsagePayload ? null : requestPayload,
+      responsePayload: params.options.redactUsagePayload ? null : responsePayload,
     });
   } catch (error) {
     llmLogger.error({
@@ -774,8 +777,10 @@ async function sendOfficialDeepSeekRequest(
     throw new Error("DeepSeek returned an empty response (no choices)");
   }
 
+  const content = normalizeMessageContent(message.content);
+  if (!content.trim()) throw new Error("DeepSeek returned empty content");
   return {
-    text: normalizeMessageContent(message.content),
+    text: content,
     usage: buildUsage(
       raw && typeof raw === "object"
         ? (raw as Record<string, unknown>).usage
@@ -881,8 +886,10 @@ export async function generateLlmText(
     });
     throw new Error("LLM provider returned an empty response (no choices)");
   }
+  const content = normalizeMessageContent(message?.content);
+  if (!content.trim()) throw new Error("OpenRouter returned empty content");
   const result = {
-    text: normalizeMessageContent(message?.content),
+    text: content,
     usage: buildUsage(response.usage as unknown),
     rawResponse: response,
   };

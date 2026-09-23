@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   verification: {
     google: "4o3NyYXO-oCyTIei_hlKZfz87B49ELEuTPkvz-uFzQo",
   },
-  title: "Hirelix | AI Sourcing and Screening for Technical Recruiters",
+  title: "Hirelix | Private AI Agent for Professional Headhunters",
   description:
-    "Turn a client JD into a ranked pool of real technical profiles with fit evidence, risks to verify, candidate research, and outreach drafts.",
+    "A private recruiting agent that remembers your candidates, reasons against each client JD, and drafts evidence-backed recommendation briefs.",
   alternates: {
     canonical: "/",
   },
@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Hirelix | AI Sourcing and Screening for Technical Recruiters",
+    title: "Hirelix | Private AI Agent for Professional Headhunters",
     description:
-      "Turn a client JD into a ranked pool of real technical profiles with fit evidence, risks to verify, candidate research, and outreach drafts.",
+      "A private recruiting agent that remembers your candidates, reasons against each client JD, and drafts evidence-backed recommendation briefs.",
     type: "website",
     url: "https://hirelix.online",
     siteName: "Hirelix",
@@ -44,15 +44,15 @@ export const metadata: Metadata = {
         url: "https://hirelix.online/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Hirelix AI sourcing and screening for technical recruiters",
+        alt: "Hirelix private AI agent for professional headhunters",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Hirelix | AI Sourcing and Screening for Technical Recruiters",
+    title: "Hirelix | Private AI Agent for Professional Headhunters",
     description:
-      "Turn a client JD into a ranked pool of real technical profiles with fit evidence, risks to verify, candidate research, and outreach drafts.",
+      "A private recruiting agent that remembers your candidates, reasons against each client JD, and drafts evidence-backed recommendation briefs.",
     images: ["https://hirelix.online/og-image.png"],
   },
 };

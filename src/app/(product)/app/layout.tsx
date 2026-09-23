@@ -18,6 +18,9 @@ import { BillingProvider, useBilling } from "@/lib/use-billing";
 import {
   Search,
   Plus,
+  BookUser,
+  FileText,
+  Sparkles,
   LogOut,
   Loader2,
   Menu,
@@ -81,8 +84,10 @@ function ProductLayoutShell({
   const isNewSearchRoute = pathname === "/app/search/new";
   const isSearchDetailRoute = pathname.startsWith("/app/search/") && !isNewSearchRoute;
   const isFreeTrialEntry = entryMode === "free_trial";
-  const isDashboardRoute =
-    pathname === "/app" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
+  const isAgentRoute = pathname === "/app";
+  const isTalentRoute = pathname === "/app/talent";
+  const isBriefsRoute = pathname === "/app/briefs";
+  const isDashboardRoute = pathname === "/app/searches" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
   const isSettingsRoute = pathname === "/app/settings";
   const authRedirectPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
@@ -110,6 +115,9 @@ function ProductLayoutShell({
   useEffect(() => {
     if (!user) return;
     router.prefetch("/app");
+    router.prefetch("/app/talent");
+    router.prefetch("/app/briefs");
+    router.prefetch("/app/searches");
     router.prefetch("/app/search/new");
     router.prefetch("/app/settings");
   }, [router, user]);
@@ -147,12 +155,12 @@ function ProductLayoutShell({
           {isSearchIntent
             ? "Sign in to open your shortlist"
             : isFreeTrialEntry
-              ? "Start your free shortlist"
+              ? "Start with your private agent"
               : "Sign in to Hirelix"}
         </h1>
         {isFreeTrialEntry && !isSearchIntent ? (
           <p className="-mt-5 max-w-sm text-center text-sm leading-6 text-muted">
-            Preview one client role before you pay.
+            Bring a client role or start with people you already know.
           </p>
         ) : null}
         {isSearchIntent && (
@@ -205,10 +213,34 @@ function ProductLayoutShell({
               setSidebarOpen(false);
               setPendingPath("/app");
             }}
+            className={getNavClassName(isAgentRoute)}
+          >
+            {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            My agent
+          </Link>
+          <Link
+            href="/app/talent"
+            onClick={() => { setSidebarOpen(false); setPendingPath("/app/talent"); }}
+            className={getNavClassName(isTalentRoute)}
+          >
+            {effectivePendingPath === "/app/talent" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookUser className="h-4 w-4" />}
+            Talent memory
+          </Link>
+          <Link
+            href="/app/searches"
+            onClick={() => { setSidebarOpen(false); setPendingPath("/app/searches"); }}
             className={getNavClassName(isDashboardRoute)}
           >
-            {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Shortlists
+            {effectivePendingPath === "/app/searches" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Client roles
+          </Link>
+          <Link
+            href="/app/briefs"
+            onClick={() => { setSidebarOpen(false); setPendingPath("/app/briefs"); }}
+            className={getNavClassName(isBriefsRoute)}
+          >
+            {effectivePendingPath === "/app/briefs" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            Weekly briefs
           </Link>
           <Link
             href="/app/search/new"

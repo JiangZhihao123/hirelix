@@ -69,6 +69,23 @@ export function DashboardPageSkeleton() {
   );
 }
 
+export function AgentHomeSkeleton() {
+  return (
+    <div className="mx-auto max-w-[1480px] animate-pulse">
+      <div className="h-4 w-44 rounded bg-slate-200" />
+      <div className="mt-4 h-10 w-3/4 max-w-xl rounded bg-slate-200" />
+      <div className="mt-3 h-5 w-2/3 max-w-2xl rounded bg-slate-200" />
+      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
+          <div className="grid gap-3 sm:grid-cols-3">{[0, 1, 2].map((item) => <div key={item} className="h-40 rounded-2xl border border-slate-200 bg-white" />)}</div>
+          <div className="mt-5 h-[500px] rounded-2xl border border-slate-200 bg-white" />
+        </div>
+        <div className="h-80 rounded-2xl border border-slate-200 bg-white" />
+      </div>
+    </div>
+  );
+}
+
 export function NewShortlistSkeleton() {
   return (
     <div className="mx-auto max-w-3xl">

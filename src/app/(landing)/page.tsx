@@ -14,7 +14,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  CheckCircle2,
   FileText,
   Sparkles,
 } from "lucide-react";
@@ -433,7 +432,7 @@ export default function Home() {
   }
 
   function handleTryForFree() {
-    const href = buildTrackedHref("/app/search/new", "signin", undefined, "free_trial");
+    const href = buildTrackedHref("/app", "signin", undefined, "free_trial");
     trackEvent(ANALYTICS_EVENTS.heroPrimaryCtaClick, {
       ...getAnalyticsContextFromBrowser({
         entry_mode: "free_trial",
@@ -648,8 +647,8 @@ export default function Home() {
               data-testid="nav-primary-cta"
               className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              <span className="sm:hidden">Run free role</span>
-              <span className="hidden sm:inline">Run one role free</span>
+              <span className="sm:hidden">Open agent</span>
+              <span className="hidden sm:inline">Open your agent</span>
             </button>
           </div>
         </div>
@@ -665,103 +664,57 @@ export default function Home() {
           <div className="mx-auto max-w-4xl text-center">
             <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
               <Sparkles className="h-3.5 w-3.5" />
-              Built for technical recruiters
+              Built for professional headhunters
             </div>
 
             <h1 className="mt-4 text-4xl font-extrabold leading-[1.06] text-slate-950 sm:text-[3rem] lg:text-[3.5rem]">
-              AI sourcing and screening for{" "}
-              <span className="text-indigo-700">technical recruiters.</span>
+              Your private agent for{" "}
+              <span className="text-indigo-700">every candidate conversation.</span>
             </h1>
 
             <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold text-slate-800">
-              Spend less time sourcing. More time with candidates.
+              The people you know become lasting recruiting intelligence.
             </p>
             <p className="mx-auto mt-2 max-w-2xl text-base leading-7 text-slate-600">
-              Turn a client JD into a ranked pool of real profiles with fit evidence, risks to verify, and outreach starting points.
+              Keep your own candidate memory, ask sharper questions against each JD, and draft client recommendations from evidence you can explain.
             </p>
 
             <div className="mt-6 flex flex-col justify-center gap-2.5 sm:flex-row">
               <button
                 type="button"
-                onClick={handleTrySample}
+                onClick={handleTryForFree}
                 data-testid="hero-sample-link"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white/88 px-5 text-sm font-semibold text-slate-950 backdrop-blur-sm transition-colors hover:bg-white"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
               >
-                See an example ranked pool
+                Open your private agent
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
                 type="button"
                 onClick={focusHeroJd}
-                className="inline-flex min-h-12 items-center justify-center rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
+                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-950 transition-colors hover:bg-slate-50"
               >
-                Run one real role free
+                Start with a client JD
               </button>
             </div>
           </div>
 
-          <div className="mt-7 border-y border-slate-200 bg-slate-50 shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-950">Senior backend engineer</p>
-                <p className="mt-0.5 text-xs text-slate-500">Ranked candidate pool</p>
+          <div className="mt-8 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-[0_20px_55px_rgba(15,23,42,0.08)] lg:grid-cols-[1.45fr_0.85fr] lg:p-6">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 text-left sm:p-7">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950"><Sparkles className="h-4 w-4 text-indigo-700" /> Ask your agent</div>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">Private to your account</span>
               </div>
-              <div className="flex shrink-0 items-center gap-3 text-xs text-slate-600">
-                <span><strong className="text-slate-950">184</strong> reviewed</span>
-                <span className="hidden sm:inline"><strong className="text-emerald-700">12</strong> recommended</span>
+              <div className="mt-6 ml-auto max-w-[85%] rounded-2xl bg-slate-900 px-4 py-3 text-sm leading-6 text-white">Who in my own candidate memory might fit this new client JD?</div>
+              <div className="mt-4 max-w-[92%] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700">
+                I can compare the role with people you saved, show which facts support each potential fit, and point out what still needs verification. I will keep your notes distinct from profile claims.
               </div>
+              <div className="mt-7 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-500">Ask about a JD, a person, or your candidate memory…</div>
             </div>
-            <div className="bg-white p-3 sm:hidden">
-              <div className="flex items-start gap-3">
-                <Image
-                  src="/landing/avatar-james.png"
-                  alt=""
-                  width={36}
-                  height={36}
-                  className="h-9 w-9 rounded-full bg-slate-100"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-950">Candidate A</p>
-                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">Reach out first</span>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-700">Global-scale APIs and platform systems match the role.</p>
-                  <p className="text-xs leading-5 text-amber-700">Risk: startup-stage preference is unknown.</p>
-                </div>
-              </div>
-            </div>
-            <div className="hidden min-w-[46rem] grid-cols-[1fr_8rem_1.35fr] border-b border-slate-200 bg-slate-100 px-5 py-2 text-[11px] font-semibold uppercase text-slate-500 sm:grid">
-              <span>Candidate</span>
-              <span>Decision</span>
-              <span>Fit evidence and risk</span>
-            </div>
-            <div className="hidden min-w-[46rem] bg-white sm:block">
-              {candidateRows.slice(0, 1).map((candidate, index) => (
-                <div key={candidate.name} className="grid grid-cols-[1fr_8rem_1.35fr] items-center border-b border-slate-100 px-4 py-3 last:border-b-0 sm:px-5">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Image
-                      src={`/landing/avatar-${index === 0 ? "james" : "anika"}.png`}
-                      alt=""
-                      width={36}
-                      height={36}
-                      className="h-9 w-9 rounded-full bg-slate-100"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-950">{candidate.name}</p>
-                      <p className="truncate text-xs text-slate-500">{candidate.role}</p>
-                    </div>
-                  </div>
-                  <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${index === 0 ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700"}`}>
-                    {index === 0 ? "Reach out first" : "Review"}
-                  </span>
-                  <div className="grid grid-cols-[1rem_1fr] gap-x-2 text-xs leading-5 text-slate-600">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />
-                    <p>{candidate.matchReasons[0]}</p>
-                    <span />
-                    <p className="text-amber-700">Risk: {candidate.riskReasons[0]}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="grid gap-3 text-left">
+              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">01 · Memory</p><h3 className="mt-2 text-base font-semibold text-slate-950">Your people and observations</h3><p className="mt-1 text-sm leading-6 text-slate-600">Save the context that usually disappears between assignments.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">02 · Judgment</p><h3 className="mt-2 text-base font-semibold text-slate-950">One JD at a time</h3><p className="mt-1 text-sm leading-6 text-slate-600">Ask why someone may fit this role and what evidence is missing.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">03 · Deliverable</p><h3 className="mt-2 text-base font-semibold text-slate-950">A brief you can defend</h3><p className="mt-1 text-sm leading-6 text-slate-600">Review and edit the agent’s recommendation draft before sharing.</p></div>
             </div>
           </div>
         </div>
@@ -772,7 +725,7 @@ export default function Home() {
           <div>
             <p className="text-xs font-semibold uppercase text-indigo-700">Your client role</p>
             <h2 className="mt-2 text-2xl font-bold text-slate-950">Paste one real client role.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Hirelix builds the sourcing brief before it searches, screens, and compares the pool.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">A JD is one useful starting point. Your agent can also work from people you already know.</p>
             <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-1">
               <li className="flex items-center gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">1</span>
@@ -784,7 +737,7 @@ export default function Home() {
               </li>
               <li className="flex items-center gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">3</span>
-                Confirm the sourcing brief
+                Continue with your agent
               </li>
             </ol>
           </div>
@@ -828,7 +781,7 @@ export default function Home() {
                       : "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)] hover:-translate-y-0.5 hover:bg-slate-800"
                   }`}
                 >
-                  {isSubmitting ? "Preparing your role..." : "Build my sourcing brief"}
+                  {isSubmitting ? "Preparing your role..." : "Start with this JD"}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -846,7 +799,7 @@ export default function Home() {
                   Want to become an early Hirelix user?
                 </p>
                 <p className="mt-1 text-sm leading-6 text-indigo-900/80">
-                  We are building an AI sourcing agent for technical recruiters and inviting a small early-user group.
+                  We are building a private recruiting agent for professional headhunters and inviting a small early-user group.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a
@@ -1001,7 +954,7 @@ export default function Home() {
       <CtaSection
         onTrySample={handleTrySample}
         onSignIn={handleGenericSignIn}
-        desktopFooterCtaLabel="Run one real role free"
+        desktopFooterCtaLabel="Start with a client JD"
       />
 
       <AuthModal
