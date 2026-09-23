@@ -341,10 +341,10 @@ export function CandidateCard({
 
       {/* Expanded details */}
       {expanded && (
-        <div className="border-t border-border px-5 pb-5 pt-4">
-          <div className="grid gap-6 lg:grid-cols-2">
+        <div className="min-w-0 border-t border-border px-3 pb-4 pt-4 sm:px-5 sm:pb-5">
+          <div className="grid min-w-0 gap-6 lg:grid-cols-2">
             {/* Left: Candidate info */}
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4 break-words">
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
                   Details
@@ -655,7 +655,7 @@ export function CandidateCard({
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
                   Status
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {CANDIDATE_STATUS_OPTIONS.map((s) => (
                     <button
                       key={s}
@@ -674,7 +674,7 @@ export function CandidateCard({
             </div>
 
             {/* Right: Outreach */}
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               {!localCandidate.outreach_draft ? (
                 // Fallback if the main pipeline did not persist outreach copy
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
@@ -743,7 +743,7 @@ export function CandidateCard({
                       type="text"
                       value={editedSubject}
                       onChange={(e) => setEditedSubject(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
                   <div>
@@ -759,7 +759,7 @@ export function CandidateCard({
                       value={editedLinkedin}
                       onChange={(e) => setEditedLinkedin(e.target.value)}
                       rows={8}
-                      className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm leading-relaxed text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
                   {localCandidate.profile_url && (
