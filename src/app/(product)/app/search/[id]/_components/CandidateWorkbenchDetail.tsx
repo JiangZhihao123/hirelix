@@ -241,7 +241,13 @@ export function CandidateWorkbenchDetail({
     primaryEvidenceItem?.evidence_summary ||
     safeFirstMatchReason ||
     "No specific proof line is ready yet.";
-  const verificationChecklist = riskFlags.slice(0, 5);
+  const verificationChecklist = Array.from(new Set([
+    ...(localCandidate.evidence_pack?.final_judgment?.risks || []),
+    ...(localCandidate.evidence_pack?.final_judgment?.missingInformation || []),
+    ...(sellingKit?.client_brief?.risks_to_verify || []),
+    ...(sellingKit?.risk_flags || []),
+    ...riskFlags,
+  ].filter(Boolean))).slice(0, 5);
   const publicEvidenceSourceLabel = primaryEvidenceItem?.source_type
     ? `${primaryEvidenceItem.citation_label || "[1]"} ${formatPublicEvidenceCategory(primaryEvidenceItem)}`
     : publicEvidence?.status === "queued" || publicEvidence?.status === "running"
@@ -581,9 +587,9 @@ export function CandidateWorkbenchDetail({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
                     {isRecommendedCandidate ? "Verify before pitching" : "Manual review notes"}
                   </p>
-                  {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || verificationChecklist).length > 0 ? (
+                  {verificationChecklist.length > 0 ? (
                     <ul className="mt-2 space-y-1">
-                      {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || verificationChecklist).slice(0, 4).map((risk) => (
+                      {verificationChecklist.slice(0, 4).map((risk) => (
                         <li key={risk} className="text-sm leading-6 text-amber-900">{risk}</li>
                       ))}
                     </ul>
@@ -871,9 +877,9 @@ export function CandidateWorkbenchDetail({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
                     Verify before pitching
                   </p>
-                  {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).length > 0 ? (
+                  {verificationChecklist.length > 0 ? (
                     <ul className="mt-2 space-y-1">
-                      {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).slice(0, 2).map((risk) => (
+                      {verificationChecklist.slice(0, 2).map((risk) => (
                         <li key={risk} className="text-sm leading-6 text-amber-900">
                           {risk}
                         </li>

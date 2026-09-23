@@ -821,15 +821,14 @@ export default function SearchResultPage() {
   const priorityCandidates = allCandidates.filter(
     (candidate) => getCandidateDisplayTier(candidate) === "priority_outreach",
   );
-  const worthReviewingCandidates = allCandidates.filter(
-    (candidate) => getCandidateDisplayTier(candidate) === "worth_reviewing",
-  );
   const recommendedCandidates = allCandidates.filter((candidate) => {
     const bucket = getCandidateDeliveryBucket(candidate);
     return bucket === "reach_first" || bucket === "review_next";
   });
-  const actualPriorityOutreachCount = priorityCandidates.length;
-  const actualWorthReviewingCount = worthReviewingCandidates.length;
+  const actualPriorityOutreachCount = recommendedCandidates.filter(
+    (candidate) => getCandidateDeliveryBucket(candidate) === "reach_first",
+  ).length;
+  const actualWorthReviewingCount = recommendedCandidates.length - actualPriorityOutreachCount;
   const tierBaseCandidates = poolView === "full_pool"
     ? allCandidates
     : recommendedCandidates.length > 0
@@ -893,14 +892,8 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.deep_review_count) ??
     Math.max(allCandidates.length, 0);
   const deliveredCandidateCount = allCandidates.length;
-  const priorityOutreachCount =
-    positiveInt(rawDisplayStats?.priority_outreach_count) ??
-    positiveInt(rawDisplayStats?.strong_now_count) ??
-    actualPriorityOutreachCount;
-  const worthReviewingCount =
-    positiveInt(rawDisplayStats?.worth_reviewing_count) ??
-    positiveInt(rawDisplayStats?.consider_next_count) ??
-    actualWorthReviewingCount;
+  const priorityOutreachCount = actualPriorityOutreachCount;
+  const worthReviewingCount = actualWorthReviewingCount;
   const isFreePlan = billing?.plan.code === "free";
   const ruledOutCount =
     positiveInt(rawDisplayStats?.ruled_out_count) ??

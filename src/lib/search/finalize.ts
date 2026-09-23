@@ -171,6 +171,8 @@ export async function completeSearch(
   });
 
   await helpers.updateSearchUsageEventMetadata(context.searchId, {
+    client_role_billing_status: draftedRows.length > 0 ? "charged_after_completion" : "released_after_failure",
+    client_roles_used: draftedRows.length > 0 && finalParsed.internal_operator !== true ? 1 : 0,
     execution_profile: finalParsed.execution_profile ?? null,
     search_phase: finalParsed.search_phase ?? null,
     result_stage: finalParsed.result_stage ?? null,

@@ -31,6 +31,8 @@ test("released failed searches do not count against client role allowance", () =
   assert.equal(getBillableClientRoleCount({}), 1);
   assert.equal(getBillableClientRoleCount({ client_roles_used: 1 }), 1);
   assert.equal(getBillableClientRoleCount({ client_roles_used: 0 }), 0);
+  assert.equal(getBillableClientRoleCount({ internal_operator: true, client_roles_used: 1 }), 0);
+  assert.equal(getBillableClientRoleCount({ client_role_billing_status: "charged_after_completion", client_roles_used: 1 }), 1);
   assert.equal(
     getBillableClientRoleCount({ client_role_billing_status: "released_after_failure" }),
     0,

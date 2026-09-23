@@ -123,6 +123,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   let publicEvidenceDeepDivesUsed = 0;
   let billableClientRolesFromEvents = 0;
   const releasedSearchIds = new Set<string>();
+  const internalOperatorSearchIds = new Set<string>();
 
   for (const row of usageEventRows) {
     const metadata =
@@ -141,6 +142,9 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       if (isClientRoleReleased(metadata) && row.related_id) {
         releasedSearchIds.add(row.related_id);
       }
+      if (metadata.internal_operator === true && row.related_id) {
+        internalOperatorSearchIds.add(row.related_id);
+      }
     } else if (row.event_type === "candidate_enriched") {
       emailLookupsUsed += emailLookupCount ?? 1;
     } else if (row.event_type === "public_evidence_deep_dive") {
@@ -153,7 +157,10 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   const baseProfileScansLimit = getPlanProfileScansPerMonth(plan);
   const emailLookupsLimit = getPlanEmailLookupsPerMonth(plan) + extraEmailLookups;
   const publicEvidenceDeepDivesLimit = getPlanPublicEvidenceDeepDivesPerMonth(plan);
-  const searchRowsUsed = Math.max(0, (searchCountRows[0]?.count ?? 0) - releasedSearchIds.size);
+  const searchRowsUsed = Math.max(0, (searchCountRows[0]?.count ?? 0) - new Set([
+    ...releasedSearchIds,
+    ...internalOperatorSearchIds,
+  ]).size);
   const clientRolesUsed = Math.max(billableClientRolesFromEvents, searchRowsUsed);
   const clientRolesLimit = plan.searchesPerMonth;
   const freePreviewUsed = plan.code === "free" && profileScansUsed > 0;
@@ -274,7 +281,7 @@ function getMetadataCount(value: unknown) {
 }
 
 export function getBillableClientRoleCount(metadata: Record<string, unknown>) {
-  if (isClientRoleReleased(metadata)) {
+  if (metadata.internal_operator === true || isClientRoleReleased(metadata)) {
     return 0;
   }
   const explicitCount = getMetadataCount(metadata.client_roles_used);
