@@ -41,16 +41,16 @@ test.describe("Landing Page", () => {
     const cta = page.getByTestId("hero-primary-cta");
 
     await expect(cta).toBeDisabled();
-    await expect(page.getByText("Your JD stays ready through sign in.")).toBeVisible();
+    await expect(page.getByText("Your JD stays attached after sign in.")).toBeVisible();
 
-    await page.getByPlaceholder("Paste the full client job description here...").fill("Too short");
+    await page.getByPlaceholder("Paste a real client job description here...").fill("Too short");
 
     await expect(cta).toBeDisabled();
     await expect(page.getByText("Paste at least 50 characters to continue.")).toBeVisible();
   });
 
   test("desktop primary CTA should open an accessible landing auth modal", async ({ page }) => {
-    await page.getByPlaceholder("Paste the full client job description here...").fill(validJd);
+    await page.getByPlaceholder("Paste a real client job description here...").fill(validJd);
 
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
     await page.getByTestId("hero-primary-cta").click();
@@ -60,7 +60,7 @@ test.describe("Landing Page", () => {
     await expect(modal).toBeVisible();
     await expect(modal).toHaveAttribute("role", "dialog");
     await expect(modal).toHaveAttribute("aria-modal", "true");
-    await expect(page.getByRole("heading", { name: "One more step to build your candidate pool." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "One more step to build your sourcing brief." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
@@ -216,16 +216,19 @@ test.describe("Landing Page mobile responsiveness", () => {
     await page.goto("/");
   });
 
-  test("should show a compact saved-JD auth modal on mobile", async ({ page }) => {
-    await page.getByPlaceholder("Paste the full client job description here...").fill(validJd);
+  test("should show the JD and sign-in actions together on mobile", async ({ page }) => {
+    await page.getByPlaceholder("Paste a real client job description here...").fill(validJd);
     await page.getByTestId("hero-primary-cta").click();
 
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByTestId("landing-auth-modal").getByText("Your JD is saved", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("landing-auth-modal").locator("p").filter({ hasText: /^Your JD$/ })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
+    await expect(page.getByPlaceholder("you@company.com")).toBeInViewport();
+    await expect(page.getByRole("button", { name: "Continue with email" })).toBeInViewport();
+
+    await page.getByRole("button", { name: "Use password instead" }).click();
+    await expect(page.getByRole("button", { name: "Sign in with password" })).toBeInViewport();
   });
 
   test("should keep mobile pricing focused on the first run", async ({ page }) => {

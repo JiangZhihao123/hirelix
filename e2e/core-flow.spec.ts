@@ -236,14 +236,14 @@ async function mockLoggedInCoreFlow(page: Page, calls: Array<{ path: string; bod
 }
 
 test.describe("Core user flow", () => {
-  test("keeps a pasted JD through the landing auth gate", async ({ page }) => {
+  test("keeps a pasted JD through the landing auth gate", async ({ page, isMobile }) => {
     await page.goto("/");
 
-    await page.getByPlaceholder("Paste the full client job description here...").fill(jdText);
+    await page.getByPlaceholder("Paste a real client job description here...").fill(jdText);
     await page.getByTestId("hero-primary-cta").click();
 
     await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "One more step to build your candidate pool." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: isMobile ? "Continue with this role." : "One more step to build your sourcing brief." })).toBeVisible();
     await expect(page.getByTestId("landing-auth-preview-title")).toContainText("We are hiring a Senior Backend Engineer");
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
   });

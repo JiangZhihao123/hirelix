@@ -112,7 +112,7 @@ export function AuthModal({
           <X className="h-4 w-4" />
         </button>
         <div className="grid max-h-[92vh] overflow-y-auto lg:grid-cols-[0.96fr_1.04fr]">
-          <div className="relative overflow-hidden border-b border-slate-200 bg-slate-50 p-6 sm:p-8 lg:border-b-0 lg:border-r">
+          <div className="relative overflow-hidden border-b border-slate-200 bg-slate-50 p-4 sm:p-8 lg:border-b-0 lg:border-r">
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:48px_48px]" />
             <div className="relative">
               <div className="flex items-start justify-between gap-4 pr-12">
@@ -122,30 +122,35 @@ export function AuthModal({
                 </div>
               </div>
 
-              <div className="mt-8">
-                <p className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
+              <div className="mt-3 lg:mt-8">
+                <p className="hidden items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 lg:inline-flex">
                   <Sparkles className="h-3.5 w-3.5" />
-                  {isSearchAuthIntent ? "Your client role is saved" : "Welcome back"}
+                  {isSearchAuthIntent ? "Your JD is ready" : "Welcome back"}
                 </p>
-                <h2 id={titleId} className="mt-4 max-w-[14ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-                  {isSearchAuthIntent
-                    ? "One more step to build your sourcing brief."
-                    : "Sign in and keep moving."}
+                <h2 id={titleId} className="max-w-[20ch] text-xl font-bold tracking-tight text-slate-950 lg:mt-4 lg:max-w-[14ch] lg:text-4xl">
+                  {isSearchAuthIntent ? (
+                    <>
+                      <span className="lg:hidden">Continue with this role.</span>
+                      <span className="hidden lg:inline">One more step to build your sourcing brief.</span>
+                    </>
+                  ) : (
+                    "Sign in and keep moving."
+                  )}
                 </h2>
-                <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
+                <p className="mt-4 hidden max-w-xl text-sm leading-6 text-slate-600 lg:block lg:text-base lg:leading-7">
                   {isSearchAuthIntent
-                    ? "Your JD is saved. Sign in to continue into the workspace with this role still attached."
+                    ? "Sign in to continue with this JD and build your sourcing brief."
                     : "Use your account to continue into the next candidate pool flow without losing context."}
                 </p>
               </div>
 
               {isSearchAuthIntent ? (
-                <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.07)] lg:mt-6">
+                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 shadow-[0_18px_50px_rgba(15,23,42,0.07)] lg:mt-6 lg:p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                         <FileText className="h-3.5 w-3.5 text-indigo-700" />
-                        Your JD is saved
+                        Your JD
                       </p>
                       <p
                         data-testid="landing-auth-preview-title"
@@ -212,9 +217,9 @@ export function AuthModal({
             </div>
           </div>
 
-          <div className="relative p-6 sm:p-8 lg:p-10">
+          <div className="relative p-4 sm:p-8 lg:p-10">
             <div className="mx-auto max-w-md">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
+              <div className="mb-4 hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 lg:inline-flex">
                 <LockKeyhole className="h-3.5 w-3.5 text-indigo-700" />
                 Secure sign in
               </div>
@@ -223,12 +228,12 @@ export function AuthModal({
                 redirectPath={pendingRedirectPath}
                 contextTitle={
                   isSearchAuthIntent
-                    ? "Continue to your candidate pool"
-                    : "Continue to your next candidate pool"
+                    ? "Sign in to continue"
+                    : "Sign in to your workspace"
                 }
                 contextBody={
                   isSearchAuthIntent
-                    ? "Use Google or email to keep this exact role attached and move straight into the candidate pool workflow."
+                    ? "Your JD stays attached while you build the sourcing brief."
                     : "Use Google or email to sign in without breaking the flow."
                 }
                 onSuccessStart={onSuccessStart}

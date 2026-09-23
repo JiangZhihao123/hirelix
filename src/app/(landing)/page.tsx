@@ -700,7 +700,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-7 max-h-40 overflow-hidden border-y border-slate-200 bg-slate-50 shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+          <div className="mt-7 border-y border-slate-200 bg-slate-50 shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
             <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-950">Senior backend engineer</p>
@@ -736,7 +736,7 @@ export default function Home() {
               <span>Fit evidence and risk</span>
             </div>
             <div className="hidden min-w-[46rem] bg-white sm:block">
-              {candidateRows.slice(0, 2).map((candidate, index) => (
+              {candidateRows.slice(0, 1).map((candidate, index) => (
                 <div key={candidate.name} className="grid grid-cols-[1fr_8rem_1.35fr] items-center border-b border-slate-100 px-4 py-3 last:border-b-0 sm:px-5">
                   <div className="flex min-w-0 items-center gap-3">
                     <Image

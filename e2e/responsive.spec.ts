@@ -8,14 +8,14 @@ test.describe("Responsive - Landing Page", () => {
     await expect(page.getByRole("heading", { name: /AI sourcing and screening for technical recruiters/i })).toBeVisible();
     await expect(page.getByTestId("hero-sample-link")).toBeVisible();
     await expect(page.getByTestId("nav-primary-cta")).toBeVisible();
-    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Try free/i);
+    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Run free role/i);
     await expect(page.getByRole("navigation").getByRole("button", { name: "Sign in" })).toBeVisible();
   });
 
   test("should keep the JD form and pricing section usable on mobile", async ({ page }) => {
     await page.goto("/");
     await expect(
-      page.getByPlaceholder("Paste the full client job description here..."),
+      page.getByPlaceholder("Paste a real client job description here..."),
     ).toBeVisible();
     await expect(page.getByText("Free", { exact: true })).toBeVisible();
     await expect(page.getByText("Starter", { exact: true })).toBeVisible();
