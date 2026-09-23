@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export type RetrievalChannel = "profile_fts" | "experience_fts" | "profile_vector" | "experience_vector";
+export type RetrievalChannel = "profile_fts" | "experience_fts" | "profile_vector" | "experience_vector" | "location_vector";
 
 export type FusedRetrieval = {
   profileId: string;

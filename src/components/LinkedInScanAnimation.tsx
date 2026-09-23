@@ -1,5 +1,6 @@
 "use client";
 
+import { getSearchCompletionFollowUpCopy, areSearchNotificationsPromisedInClient } from "@/lib/search-notification-config";
 import { CheckCircle2, CircleDotDashed, Search } from "lucide-react";
 
 interface LinkedInScanAnimationProps {
@@ -91,11 +92,11 @@ export function LinkedInScanAnimation({
       ? recallProfileCount
       : null;
 
-  const title = isReviewing ? "Reviewing top matches" : "Scanning LinkedIn";
+  const title = isReviewing ? "Reviewing top matches" : "Finding profiles";
   const description = isReviewing
     ? safeRecallProfileCount && safeRecallProfileCount > 0
-      ? `LinkedIn recall completed. Reviewing ${safeRecallProfileCount.toLocaleString()} profiles against your brief.`
-      : "LinkedIn recall completed. Reviewing the strongest matches now."
+      ? `Profiles retrieved. Reviewing ${safeRecallProfileCount.toLocaleString()} profiles against your brief.`
+      : "Profiles retrieved. Reviewing the strongest matches now."
     : "We've finished parsing the role and are recalling relevant profiles now.";
 
   const steps: StepConfig[] = [
@@ -107,12 +108,12 @@ export function LinkedInScanAnimation({
       state: briefReadyAt ? "done" : "active",
     },
     {
-      label: "LinkedIn profiles recalled",
+      label: "Candidate profiles found",
       detail: recallReady
         ? safeRecallProfileCount && safeRecallProfileCount > 0
           ? `${safeRecallProfileCount.toLocaleString()} relevant profiles were pulled into review.`
-          : "Relevant LinkedIn profiles were pulled into review."
-        : "Recalling relevant LinkedIn profiles for this role.",
+          : "Candidate profiles were pulled into review."
+        : "Finding candidate profiles for this role.",
       state: recallReady ? "done" : "active",
     },
     {
@@ -188,7 +189,7 @@ export function LinkedInScanAnimation({
           )}
           {canLeavePage && (
             <span className="rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1">
-              You can leave this page. We&apos;ll email you when the shortlist is ready.
+              {getSearchCompletionFollowUpCopy(areSearchNotificationsPromisedInClient())}
             </span>
           )}
         </div>

@@ -640,7 +640,7 @@ export function tagPoolRows(
       const nestedValue = (scoringBreakdown as Record<string, unknown>)[field];
       if (typeof nestedValue === "number") return nestedValue;
     }
-    return row.match_score;
+    return row.match_score ?? 0;
   };
   const deliveryPriority = (row: CandidateRowInput) => {
     switch (row.metadata?.delivery_bucket) {
@@ -667,17 +667,17 @@ export function tagPoolRows(
       const rightTrigger =
         typeof right.metadata?.subscription_trigger_score === "number"
           ? right.metadata.subscription_trigger_score
-          : right.match_score;
+          : (right.match_score ?? 0);
       const leftTrigger =
         typeof left.metadata?.subscription_trigger_score === "number"
           ? left.metadata.subscription_trigger_score
-          : left.match_score;
+          : (left.match_score ?? 0);
       const rightPreliminary = right.metadata?.preliminary === true ? 1 : 0;
       const leftPreliminary = left.metadata?.preliminary === true ? 1 : 0;
       return (
         rightQuality - leftQuality ||
         rightAdvance - leftAdvance ||
-        right.match_score - left.match_score ||
+        (right.match_score ?? 0) - (left.match_score ?? 0) ||
         rightTrigger - leftTrigger ||
         leftPreliminary - rightPreliminary
       );

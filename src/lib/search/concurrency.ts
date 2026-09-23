@@ -54,16 +54,24 @@ export async function runWithConcurrency<TInput, TOutput>(
 ) {
   const results: TOutput[] = [];
   let nextIndex = 0;
+  let failed = false;
+  let firstError: unknown;
 
   async function worker() {
-    while (nextIndex < items.length) {
+    while (!failed && nextIndex < items.length) {
       const current = nextIndex;
       nextIndex += 1;
-      results[current] = await fn(items[current]);
+      try {
+        results[current] = await fn(items[current]);
+      } catch (error) {
+        if (!failed) firstError = error;
+        failed = true;
+      }
     }
   }
 
   const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
   await Promise.all(workers);
+  if (failed) throw firstError;
   return results;
 }

@@ -27,3 +27,9 @@ test("getSearchTaskEtaCopy keeps deep scoring reassurance copy", () => {
     "Shortlist ready now; background refinement may take 1-3 more minutes",
   );
 });
+
+test("deep review remains running until an actual completed result exists", async () => {
+  const { getSearchStatusBucket } = await import("../src/lib/search-state");
+  assert.equal(getSearchStatusBucket("deep_scoring"), "processing");
+  assert.equal(getSearchStatusBucket("done"), "done");
+});

@@ -1,86 +1,18 @@
-import {
-  adaptDatasetRecordToBrightDataProfile,
-  brightDataProfileToRichText,
-  computeFilterHash,
-  downloadDatasetSnapshot,
-  formatBrightDataSnapshotFailure,
-  getBrightDataAccountBalance,
-  getDatasetSnapshotMetadata,
-  normalizeBrightDataSnapshotCost,
-  triggerDatasetFilter,
-  type BrightDataDatasetFilterRequest,
-  type BrightDataProfile,
-  type BrightDataSnapshotMetadata,
-} from "@/lib/brightdata";
-import { and, eq, gte } from "drizzle-orm";
+import { adaptDatasetRecordToBrightDataProfile, computeFilterHash, downloadDatasetSnapshot, formatBrightDataSnapshotFailure, getBrightDataAccountBalance, getDatasetSnapshotMetadata, normalizeBrightDataSnapshotCost, triggerDatasetFilter, type BrightDataDatasetFilterRequest, type BrightDataProfile, type BrightDataSnapshotMetadata } from "@/lib/brightdata";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import {
-  hirelix_llm_usage_events,
-  hirelix_searches,
-  hirelix_user_settings,
-} from "@/db/schema";
+import { hirelix_searches, hirelix_user_settings } from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
-import { countEligibleProfiles } from "@/lib/candidate-index/retrieval";
-import { buildCandidateIndexSearchIntent, runCandidateIndexWorkflow } from "@/lib/candidate-index/workflow";
-import {
-  BRIGHTDATA_COMPANY_TARGET_LIMIT,
-  BRIGHTDATA_FILTER_POLL_INTERVAL_MS,
-  BRIGHTDATA_FILTER_TIMEOUT_MS,
-  BRIGHTDATA_HIDDEN_GEM_LIMIT,
-  DEEP_REVIEW_DEBUG_LOGS,
-  DEEP_SCORING_BATCH_SIZE,
-  DEEP_SCORING_CONCURRENCY,
-  FAST_JUDGE_BATCH_SIZE,
-  FAST_JUDGE_CONCURRENCY,
-  HIGHLIGHT_CANDIDATE_COUNT,
-  OUTREACH_POOL_TARGET,
-  getExecutionRuntime,
-  resolveStageConcurrency,
-} from "@/lib/search/config";
+import { ensureSearchDecisionContract } from "@/lib/candidate-index/intent";
+import { planSearchNextAction } from "@/lib/candidate-index/search-agent";
+import { buildSearchOutcome, getDecisionRecord, readDecisionContract } from "@/lib/search/decision-contract";
+import { runCandidateIndexWorkflow } from "@/lib/candidate-index/workflow";
+import { BRIGHTDATA_COMPANY_TARGET_LIMIT, BRIGHTDATA_FILTER_POLL_INTERVAL_MS, BRIGHTDATA_FILTER_TIMEOUT_MS, BRIGHTDATA_HIDDEN_GEM_LIMIT, DEEP_SCORING_BATCH_SIZE, DEEP_SCORING_CONCURRENCY, FAST_JUDGE_BATCH_SIZE, FAST_JUDGE_CONCURRENCY, HIGHLIGHT_CANDIDATE_COUNT, OUTREACH_POOL_TARGET, getExecutionRuntime, resolveStageConcurrency } from "@/lib/search/config";
 import { completeSearch } from "@/lib/search/finalize";
-import {
-  cacheSnapshotEntry,
-  expireCachedSnapshot,
-  flushPendingLlmUsageEvents,
-  loadCachedSnapshotProfiles,
-  lookupCachedSnapshot,
-  persistSnapshotProfiles,
-  retagSearchCandidatePoolTypes,
-  setSearchStatus,
-  updateCachedSnapshotMetadata,
-  updateSearchParsedRequirements,
-  updateSearchUsageEventMetadata,
-  upsertCandidatesForSearch,
-  upsertSingleCandidate,
-  type SnapshotCacheEntry,
-} from "@/lib/search/persistence";
-import {
-  buildBrightDataCandidateRows,
-  buildBrightDataRecallFilterForLane,
-  buildBrightDataRecallFilters,
-  getHeadhunterRecallStrategyMode,
-  getRecallPersonas,
-  getTotalRecallRequestLimit,
-  type RecallRound,
-} from "@/lib/search/recall";
-import {
-  arbitrateCandidateScore,
-  deepScoreSelectedProfiles,
-  judgeScoreBatch,
-  scoreCandidateBatch,
-} from "@/lib/search/scoring-runtime";
-import { selectShortlistedAssessments, tagPoolRows } from "@/lib/search/scoring";
+import { cacheSnapshotEntry, expireCachedSnapshot, loadCachedSnapshotProfiles, lookupCachedSnapshot, persistSnapshotProfiles, setSearchStatus, updateCachedSnapshotMetadata, updateSearchParsedRequirements, updateSearchUsageEventMetadata, upsertCandidatesForSearch, type SnapshotCacheEntry } from "@/lib/search/persistence";
+import { buildBrightDataRecallFilterForLane, buildBrightDataRecallFilters, getHeadhunterRecallStrategyMode, getRecallPersonas, getTotalRecallRequestLimit, type RecallRound } from "@/lib/search/recall";
 import { normalizeStoredSearchExpansionFeedback } from "@/lib/search-expansion";
-import {
-  planAdaptiveExpansion,
-  type AdaptiveExpansionPlan,
-} from "@/lib/search/adaptive-expansion";
-import {
-  buildLaneAuditUserPrompt,
-  normalizeLaneAuditResult,
-  type LaneAuditResult,
-} from "@/lib/search/lane-auditor";
 import {
   applyLaneContractReviewToParsed,
   buildDeterministicLaneContractReview,
@@ -128,10 +60,6 @@ export class DatasetRecallPendingError extends Error {
     this.retryImmediately = options?.retryImmediately ?? true;
     this.retryDelayMs = Math.max(1000, options?.retryDelayMs ?? BRIGHTDATA_FILTER_POLL_INTERVAL_MS);
   }
-}
-
-function candidateIndexPipelineIsActive(): boolean {
-  return true;
 }
 
 export class ZeroRecallError extends Error {
@@ -341,25 +269,6 @@ export function getDeliveryBucketForAssessment(
   return "lower_priority";
 }
 
-function countDeliveryBuckets(rows: CandidateRowInput[]) {
-  return rows.reduce(
-    (counts, row) => {
-      const bucket = row.metadata?.delivery_bucket;
-      if (bucket === "reach_first") counts.reachFirst += 1;
-      else if (bucket === "review_next") counts.reviewNext += 1;
-      else if (bucket === "not_recommended") counts.notRecommended += 1;
-      else counts.lowerPriority += 1;
-      return counts;
-    },
-    {
-      reachFirst: 0,
-      reviewNext: 0,
-      lowerPriority: 0,
-      notRecommended: 0,
-    },
-  );
-}
-
 type RecallSnapshotRef = {
   round: string;
   snapshotId: string;
@@ -470,21 +379,6 @@ function getAdaptiveRecallActions(parsed: Record<string, unknown>) {
     .filter((action): action is NonNullable<typeof action> => Boolean(action))
 }
 
-function hasPlannedAdaptiveRecallActions(parsed: Record<string, unknown>) {
-  const state = readAdaptiveRecallState(parsed);
-  if (state?.phase !== "planned" || state.should_continue !== true) {
-    return false;
-  }
-  return getAdaptiveRecallActions(parsed)
-    .some((action) =>
-      action.budget > 0 &&
-      action.status !== "done" &&
-      action.status !== "recorded" &&
-      action.status !== "stopped" &&
-      action.status !== "failed"
-    );
-}
-
 function getAdaptiveRecallActionsForRounds(parsed: Record<string, unknown>) {
   return getAdaptiveRecallActions(parsed)
     .filter((action) =>
@@ -592,63 +486,6 @@ export function canAdditionalRecallRoundsOwnEmptyStandardSnapshot(
       snapshot.status === "scheduled" ||
       snapshot.status === "building",
   );
-}
-
-async function loadSearchLlmUsageStats(
-  searchId: string,
-  jobId: string,
-  startedAtIso: string,
-): Promise<Partial<SearchDisplayStats>> {
-  const data = await db
-    .select({
-      model: hirelix_llm_usage_events.model,
-      input_tokens: hirelix_llm_usage_events.input_tokens,
-      output_tokens: hirelix_llm_usage_events.output_tokens,
-      cached_input_tokens: hirelix_llm_usage_events.cached_input_tokens,
-      cache_miss_input_tokens: hirelix_llm_usage_events.cache_miss_input_tokens,
-    })
-    .from(hirelix_llm_usage_events)
-    .where(
-      and(
-        eq(hirelix_llm_usage_events.search_id, searchId),
-        eq(hirelix_llm_usage_events.job_id, jobId),
-        gte(hirelix_llm_usage_events.created_at, new Date(startedAtIso)),
-      ),
-    );
-
-  if (!data.length) return {};
-
-  let inputTokens = 0;
-  let outputTokens = 0;
-  let cachedInputTokens = 0;
-  let cacheMissInputTokens = 0;
-  let cost = 0;
-
-  for (const row of data) {
-    const model = typeof row.model === "string" ? row.model : "";
-    const cached = typeof row.cached_input_tokens === "number" ? row.cached_input_tokens : 0;
-    const miss = typeof row.cache_miss_input_tokens === "number" ? row.cache_miss_input_tokens : 0;
-    const input = typeof row.input_tokens === "number" ? row.input_tokens : cached + miss;
-    const output = typeof row.output_tokens === "number" ? row.output_tokens : 0;
-    const isPro = model.includes("pro");
-    const hitRate = isPro ? 0.003625 : 0.0028;
-    const missRate = isPro ? 0.435 : 0.14;
-    const outputRate = isPro ? 0.87 : 0.28;
-
-    inputTokens += input;
-    outputTokens += output;
-    cachedInputTokens += cached;
-    cacheMissInputTokens += miss;
-    cost += (cached * hitRate + miss * missRate + output * outputRate) / 1_000_000;
-  }
-
-  return {
-    llm_input_tokens: inputTokens,
-    llm_output_tokens: outputTokens,
-    llm_cached_input_tokens: cachedInputTokens,
-    llm_cache_miss_input_tokens: cacheMissInputTokens,
-    llm_actual_estimated_cost: Math.round(cost * 10000) / 10000,
-  };
 }
 
 export function shouldReuseProfileCacheDespiteSnapshotDrift(params: {
@@ -853,438 +690,12 @@ export function shouldContinueWithPartialHeadhunterRecall(params: {
   return false;
 }
 
-function emptyRecallRoundQualityDistribution(): RecallRoundQualityDistribution {
-  return {
-    strong_now: 0,
-    consider_next: 0,
-    do_not_show: 0,
-    total_scored: 0,
-  };
-}
-
-function buildRoundQualityDistribution(
-  assessments: ScoredCandidateAssessment[] | undefined,
-  profiles: BrightDataProfile[],
-) {
-  const byRound = new Map<string, RecallRoundQualityDistribution>();
-  for (const assessment of assessments ?? []) {
-    const profile = profiles[assessment.index] as (BrightDataProfile & { __recall_source?: unknown }) | undefined;
-    const round =
-      typeof profile?.__recall_source === "string" && profile.__recall_source.length > 0
-        ? profile.__recall_source
-        : "standard";
-    const current = byRound.get(round) ?? emptyRecallRoundQualityDistribution();
-    current.total_scored += 1;
-    if (assessment.suitability.bucket === "strong_now") current.strong_now += 1;
-    else if (assessment.suitability.bucket === "consider_next") current.consider_next += 1;
-    else current.do_not_show += 1;
-    byRound.set(round, current);
-  }
-  return byRound;
-}
-
 function getHeadhunterLaneKindForRound(round: string): HeadhunterLaneKind {
   if (round === "standard") return "primary_exact";
   if (round === "primary_relaxed") return "primary_relaxed";
   if (round === "company_target" || round.includes("company")) return "target_company_engineering";
   if (round.includes("exploration")) return "exploration";
   return "adjacent_authorized";
-}
-
-function getSourcingLaneForRound(
-  recallSpec: RecallSpec,
-  round: string,
-  laneKind: HeadhunterLaneKind,
-): SourcingLane {
-  const laneByKind = recallSpec.sourcing_lanes.find((lane) => lane.lane_kind === laneKind);
-  if (laneByKind) return laneByKind;
-  const fallbackLane = recallSpec.sourcing_lanes[0];
-  if (fallbackLane) return fallbackLane;
-  return {
-    name: round === "standard" ? "Primary exact lane" : `${round} lane`,
-    strategy: laneKind === "target_company_engineering" ? "company" : laneKind === "primary_exact" ? "title" : "skill",
-    lane_kind: laneKind,
-    target_persona: "Profiles matching the parsed role intent",
-    non_negotiables: recallSpec.must_have_signals,
-    relaxed_evidence: recallSpec.differentiating_skill_terms,
-    exclusion_patterns: recallSpec.avoid_profiles,
-    initial_budget: laneKind === "primary_exact" ? 35 : 15,
-    max_budget: laneKind === "primary_exact" ? 150 : 80,
-    title_terms: recallSpec.title_variants,
-    skill_terms: recallSpec.core_skill_terms,
-    company_terms: recallSpec.target_companies,
-    avoid_terms: recallSpec.avoid_profiles,
-    budget_weight: 1,
-  };
-}
-
-function countLaneProfiles(profiles: BrightDataProfile[], round: string) {
-  return profiles.filter((profile) => getProfileRecallSource(profile) === round).length;
-}
-
-function incrementCount(map: Map<string, number>, value: string | null | undefined) {
-  const key = value?.trim();
-  if (!key) return;
-  map.set(key, (map.get(key) ?? 0) + 1);
-}
-
-function topCounts(map: Map<string, number>, limit = 6) {
-  return [...map.entries()]
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, limit)
-    .map(([value, count]) => ({ value, count }));
-}
-
-function buildLaneJudgeSummary(params: {
-  round: string;
-  assessments: ScoredCandidateAssessment[] | undefined;
-  profiles: BrightDataProfile[];
-  qualityDistribution?: RecallRoundQualityDistribution | null;
-}) {
-  const laneAssessments = (params.assessments ?? []).filter((assessment) => {
-    const profile = params.profiles[assessment.index];
-    return profile ? getProfileRecallSource(profile) === params.round : false;
-  });
-  const advanceCounts = new Map<string, number>();
-  const bucketCounts = new Map<string, number>();
-  const blockingCounts = new Map<string, number>();
-  const riskCounts = new Map<string, number>();
-  const weakReasonCounts = new Map<string, number>();
-
-  for (const assessment of laneAssessments) {
-    const suitability = assessment.suitability;
-    incrementCount(bucketCounts, suitability.bucket);
-    incrementCount(advanceCounts, suitability.advance_recommendation);
-    incrementCount(blockingCounts, suitability.blocking_severity);
-    incrementCount(riskCounts, suitability.primary_risk);
-    for (const flag of suitability.risk_flags ?? []) incrementCount(riskCounts, flag);
-    for (const reason of suitability.why_not_higher ?? []) incrementCount(weakReasonCounts, reason);
-    for (const constraint of suitability.blocking_constraints ?? []) {
-      incrementCount(weakReasonCounts, constraint);
-    }
-  }
-
-  return JSON.stringify(
-    {
-      round: params.round,
-      returned_count: countLaneProfiles(params.profiles, params.round),
-      scored_count: laneAssessments.length,
-      quality_distribution: params.qualityDistribution ?? null,
-      bucket_counts: Object.fromEntries(bucketCounts.entries()),
-      advance_recommendation_counts: Object.fromEntries(advanceCounts.entries()),
-      blocking_severity_counts: Object.fromEntries(blockingCounts.entries()),
-      top_risks: topCounts(riskCounts),
-      top_weak_or_blocking_patterns: topCounts(weakReasonCounts),
-    },
-    null,
-    2,
-  );
-}
-
-function buildLaneAuditProfileSample(params: {
-  round: string;
-  profiles: BrightDataProfile[];
-  assessments: ScoredCandidateAssessment[] | undefined;
-}) {
-  const assessmentByIndex = new Map((params.assessments ?? []).map((assessment) => [assessment.index, assessment]));
-  const entries = params.profiles
-    .map((profile, index) => ({
-      profile,
-      index,
-      assessment: assessmentByIndex.get(index),
-    }))
-    .filter((entry) => getProfileRecallSource(entry.profile) === params.round);
-  if (entries.length === 0) return "No profiles returned for this lane.";
-
-  const sorted = [...entries].sort((left, right) => {
-    const rightScore = right.assessment?.suitability.quality_score ?? right.assessment?.suitability.match_score ?? 0;
-    const leftScore = left.assessment?.suitability.quality_score ?? left.assessment?.suitability.match_score ?? 0;
-    return rightScore - leftScore;
-  });
-  const selected = new Map<number, (typeof entries)[number]>();
-  for (const entry of sorted.slice(0, 8)) selected.set(entry.index, entry);
-  for (const entry of sorted.slice(-4)) selected.set(entry.index, entry);
-
-  return [...selected.values()]
-    .sort((left, right) => left.index - right.index)
-    .map((entry) => {
-      const assessment = entry.assessment;
-      const judgeLine = assessment
-        ? [
-            `bucket=${assessment.suitability.bucket}`,
-            `advance=${assessment.suitability.advance_recommendation}`,
-            `quality=${assessment.suitability.quality_score}`,
-            `risk=${assessment.suitability.primary_risk ?? "none"}`,
-          ].join("; ")
-        : "not scored";
-      return [
-        `### Profile index ${entry.index}`,
-        `Judge result: ${judgeLine}`,
-        safeTruncate(brightDataProfileToRichText(entry.profile, entry.index), 1400),
-      ].join("\n");
-    })
-    .join("\n\n");
-}
-
-function summarizeSingleLaneAudit(audit: LaneAuditResult) {
-  const working = audit.why_this_lane_is_working.trim();
-  const wrong = audit.why_this_lane_is_wrong.trim();
-  const summary = working || wrong || "Lane audited without additional narrative.";
-  return safeTruncate(summary, 220);
-}
-
-function shouldContinueExpansionForLane(audit: LaneAuditResult) {
-  return audit.decision === "expand" && (audit.quality_grade === "A" || audit.quality_grade === "B");
-}
-
-function summarizeLaneAudits(
-  audits: Array<{ lane: string; audit: LaneAuditResult | null; sampleCount: number }>,
-) {
-  const completed = audits.filter((entry) => entry.audit);
-  if (!completed.length) return "Lane audit could not be completed; inspect scheduler logs for lane audit failures.";
-  return completed
-    .map((entry) => {
-      const audit = entry.audit as LaneAuditResult;
-      return `${entry.lane}: ${audit.quality_grade}/${audit.decision}, ${entry.sampleCount} profiles, ${summarizeSingleLaneAudit(audit)}`;
-    })
-    .join(" | ")
-    .slice(0, 500);
-}
-
-async function auditHeadhunterRecallLanes(params: {
-  context: PipelineContext;
-  parsed: Record<string, unknown>;
-  recallSpec: RecallSpec;
-  profiles: BrightDataProfile[];
-  assessments: ScoredCandidateAssessment[] | undefined;
-  recallIterations: NonNullable<RecallMetadata["recall_iterations"]>;
-  roundDiagnostics: RecallRoundDiagnostics[];
-  helpers: SearchPipelineHelpers;
-}) {
-  if (params.recallIterations.length === 0) return null;
-
-  const {
-    generateLlmJson,
-    getLightweightLlmModel,
-    resolveDeepSeekThinkingMode,
-  } = await import("@/lib/llm-client");
-  const { LANE_AUDITOR_JSON_SCHEMA } = await import("@/lib/llm-schemas");
-  const { withTimeout } = await import("@/lib/search/concurrency");
-
-  const audits: Array<{ lane: string; audit: LaneAuditResult | null; sampleCount: number }> = [];
-  const updatedIterations: NonNullable<RecallMetadata["recall_iterations"]> = [];
-
-  for (const iteration of params.recallIterations) {
-    const laneKind = iteration.lane_kind ?? getHeadhunterLaneKindForRound(iteration.lane);
-    const lane = getSourcingLaneForRound(params.recallSpec, iteration.lane, laneKind);
-    const diagnostic = params.roundDiagnostics.find((round) => round.round === iteration.lane);
-    const sampleCount = countLaneProfiles(params.profiles, iteration.lane);
-    if (
-      sampleCount === 0 &&
-      (iteration.raw_profiles_returned ?? diagnostic?.returned_count ?? 0) > 0 &&
-      (iteration.unique_profiles_added ?? diagnostic?.unique_added_count ?? 0) === 0
-    ) {
-      const duplicateAudit: LaneAuditResult = {
-        decision: "stop",
-        quality_grade: "D",
-        why_this_lane_is_working: "",
-        why_this_lane_is_wrong:
-          "Bright returned profiles for this lane, but they were all already present in the candidate pool. This is a duplicate market slice, not a fresh sourcing direction.",
-        wrong_profile_patterns: ["duplicate profiles already recalled"],
-        next_lane_revision: {
-          name: "New distinct sourcing thesis required",
-          lane_kind: laneKind,
-          target_persona: lane.target_persona ?? "A materially different candidate market slice",
-          non_negotiables: lane.non_negotiables ?? [],
-          relaxed_evidence: lane.relaxed_evidence ?? [],
-          exclusion_patterns: lane.exclusion_patterns ?? lane.avoid_terms ?? [],
-          initial_budget: lane.initial_budget ?? 20,
-          max_budget: lane.max_budget ?? 40,
-        },
-      };
-      const summary = summarizeSingleLaneAudit(duplicateAudit);
-      audits.push({ lane: iteration.lane, audit: duplicateAudit, sampleCount });
-      updatedIterations.push({
-        ...iteration,
-        lane_kind: laneKind,
-        market_slice_status: "duplicate_market_slice",
-        audit: {
-          decision: duplicateAudit.decision,
-          quality_grade: duplicateAudit.quality_grade,
-          summary,
-          why_this_lane_is_working: duplicateAudit.why_this_lane_is_working,
-          why_this_lane_is_wrong: duplicateAudit.why_this_lane_is_wrong,
-          wrong_profile_patterns: duplicateAudit.wrong_profile_patterns,
-          next_lane_revision: duplicateAudit.next_lane_revision,
-          audited_at: params.helpers.nowIso(),
-          sample_count: sampleCount,
-        },
-        continue_expansion: false,
-      });
-      params.helpers.logSearchEvent("search_lane_audit_completed", {
-        search_id: params.context.searchId,
-        job_id: params.context.jobId,
-        lane: iteration.lane,
-        lane_kind: laneKind,
-        decision: duplicateAudit.decision,
-        quality_grade: duplicateAudit.quality_grade,
-        sample_count: sampleCount,
-        raw_profiles_returned: iteration.raw_profiles_returned ?? diagnostic?.returned_count ?? null,
-        unique_profiles_added: iteration.unique_profiles_added ?? diagnostic?.unique_added_count ?? null,
-        overlap_ratio: iteration.overlap_ratio ?? diagnostic?.overlap_ratio ?? null,
-        market_slice_status: "duplicate_market_slice",
-        continue_expansion: false,
-      });
-      continue;
-    }
-    const profileSample = buildLaneAuditProfileSample({
-      round: iteration.lane,
-      profiles: params.profiles,
-      assessments: params.assessments,
-    });
-    const judgeSummary = buildLaneJudgeSummary({
-      round: iteration.lane,
-      profiles: params.profiles,
-      assessments: params.assessments,
-      qualityDistribution: diagnostic?.quality_distribution ?? null,
-    });
-
-    try {
-      const prompt = buildLaneAuditUserPrompt({
-        jdText: params.context.jdText,
-        headhunterBrief: params.parsed.headhunter_brief,
-        lane,
-        profileSample,
-        judgeSummary,
-      });
-      const { data } = await withTimeout(
-        (signal) => generateLlmJson<unknown>({
-          model: getLightweightLlmModel(),
-          prompt,
-          maxOutputTokens: 2200,
-          abortSignal: signal,
-          timeoutMs: 60000,
-          temperature: 0,
-          jsonSchema: LANE_AUDITOR_JSON_SCHEMA,
-          deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_LANE_AUDIT_THINKING", "disabled"),
-          usageEvent: {
-            searchId: params.context.searchId,
-            jobId: params.context.jobId,
-            userId: params.context.userId,
-            stage: "lane_audit",
-            batchSize: sampleCount,
-            metadata: {
-              lane: iteration.lane,
-              laneKind,
-            },
-          },
-        }),
-        60000,
-        `Lane audit ${iteration.lane}`,
-      );
-      const audit = normalizeLaneAuditResult(data);
-      const summary = summarizeSingleLaneAudit(audit);
-      const continueExpansion = shouldContinueExpansionForLane(audit);
-      audits.push({ lane: iteration.lane, audit, sampleCount });
-      updatedIterations.push({
-        ...iteration,
-        lane_kind: laneKind,
-        audit: {
-          decision: audit.decision,
-          quality_grade: audit.quality_grade,
-          summary,
-          why_this_lane_is_working: audit.why_this_lane_is_working,
-          why_this_lane_is_wrong: audit.why_this_lane_is_wrong,
-          wrong_profile_patterns: audit.wrong_profile_patterns,
-          next_lane_revision: audit.next_lane_revision,
-          audited_at: params.helpers.nowIso(),
-          sample_count: sampleCount,
-        },
-        continue_expansion: continueExpansion,
-      });
-      params.helpers.logSearchEvent("search_lane_audit_completed", {
-        search_id: params.context.searchId,
-        job_id: params.context.jobId,
-        lane: iteration.lane,
-        lane_kind: laneKind,
-        decision: audit.decision,
-        quality_grade: audit.quality_grade,
-        sample_count: sampleCount,
-        continue_expansion: continueExpansion,
-      });
-    } catch (error) {
-      audits.push({ lane: iteration.lane, audit: null, sampleCount });
-      updatedIterations.push({
-        ...iteration,
-        lane_kind: laneKind,
-        audit: null,
-        continue_expansion: null,
-      });
-      params.helpers.logSearchEvent("search_lane_audit_failed", {
-        search_id: params.context.searchId,
-        job_id: params.context.jobId,
-        lane: iteration.lane,
-        lane_kind: laneKind,
-        sample_count: sampleCount,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  const stoppedLaneCount = updatedIterations.filter((iteration) =>
-    iteration.audit?.decision === "stop" || iteration.audit?.quality_grade === "D"
-  ).length;
-
-  return {
-    recallIterations: updatedIterations,
-    laneAuditSummary: summarizeLaneAudits(audits),
-    stoppedLaneCount,
-  };
-}
-
-function toAdaptiveRecallState(params: {
-  plan: AdaptiveExpansionPlan;
-  plannedAt: string;
-  phase: "planned" | "not_needed";
-  batchIndex: number;
-  strategyMode: "headhunter_v1" | "headhunter_v2";
-  previousState?: Record<string, unknown> | null;
-}) {
-  const cleanIdPart = (value: string) =>
-    value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48) || "lane";
-  const previousActions = Array.isArray(params.previousState?.actions)
-    ? params.previousState.actions
-    : [];
-  return {
-    strategy_mode: params.strategyMode,
-    phase: params.phase,
-    planned_at: params.plannedAt,
-    batch_index: params.batchIndex,
-    should_continue: params.plan.should_continue,
-    stop_reason: params.plan.stop_reason,
-    remaining_budget: params.plan.remaining_budget,
-    planned_budget: params.plan.planned_budget,
-    actions: [
-      ...previousActions,
-      ...params.plan.actions.map((action, index) => ({
-        id: `adaptive_b${params.batchIndex}_${index + 1}_${cleanIdPart(action.type)}_${cleanIdPart(action.lane)}`,
-        type: action.type,
-        lane: action.lane,
-        lane_kind: action.lane_kind,
-        budget: action.budget,
-        reason: action.reason,
-        source_iteration: action.source_iteration ?? null,
-        revised_lane: action.revised_lane ?? null,
-        thesis_rewrite: action.thesis_rewrite ?? null,
-        status: action.budget > 0 ? "planned" : "recorded",
-        snapshot_id: null,
-        submitted_at: null,
-        completed_at: null,
-        profiles_returned: null,
-        unique_added: null,
-      })),
-    ],
-  };
 }
 
 async function reviewLaneContractsBeforeRecall(params: {
@@ -1435,14 +846,6 @@ function buildNeedsCalibrationResult(params: {
     displayStats: stats,
     assessments: [],
   } satisfies SearchPipelineResult;
-}
-
-function getNextAdaptiveRecallBatchIndex(parsed: Record<string, unknown>) {
-  const current = readAdaptiveRecallState(parsed);
-  const value = typeof current?.batch_index === "number" && Number.isFinite(current.batch_index)
-    ? Math.max(0, Math.round(current.batch_index))
-    : 0;
-  return value + 1;
 }
 
 export function buildSearchQualityDiagnosis(stats: {
@@ -1755,361 +1158,6 @@ async function parseJobDescription(
   });
 
   return parsed;
-}
-
-async function scoreBrightDataProfiles(
-  context: PipelineContext,
-  parsed: Record<string, unknown>,
-  brightProfiles: BrightDataProfile[],
-  retrievalCount: number,
-  executionProfile: SearchExecutionProfile,
-  helpers: SearchPipelineHelpers,
-  options?: {
-    progressOffset?: number;
-    onFirstVisibleCandidate?: (statsPatch: Partial<SearchDisplayStats>) => Promise<void>;
-    totalProfileScanBudget?: number;
-    totalProfilesRequested?: number;
-  },
-): Promise<SearchPipelineResult> {
-  const scoringStartMs = Date.now();
-  const scoringStartedAtIso = helpers.nowIso();
-  const runtime = getExecutionRuntime(executionProfile);
-  const renderProfileEntries = brightProfiles.map((profile, index) =>
-    brightDataProfileToRichText(profile, index),
-  );
-  const selectedIndexes = brightProfiles.map((_, index) => index);
-  const progressOffset = Math.max(0, options?.progressOffset ?? 0);
-  let firstVisibleSignalled = false;
-  let scoringStats: Partial<SearchDisplayStats> = {};
-
-  const deepAssessments = await deepScoreSelectedProfiles(
-    runtime,
-    parsed,
-    context.jdText,
-    renderProfileEntries,
-    selectedIndexes,
-    brightProfiles.length,
-    {
-      scoreCandidateBatch,
-      sortCandidateAssessments: helpers.sortCandidateAssessments,
-      scoringHelpers: {
-        judgeScoreBatch,
-        arbitrateCandidateScore,
-        logSearchEvent: helpers.logSearchEvent,
-        computeQualityScore: helpers.computeQualityScore,
-        computeAdvanceScore: helpers.computeAdvanceScore,
-        deriveAdvanceRecommendation: helpers.deriveAdvanceRecommendation,
-        sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-        normalizeNullableString: helpers.normalizeNullableString,
-        deriveFitDecisionFromScore: helpers.deriveFitDecisionFromScore,
-        judgeHelpers: {
-          truncateForPrompt: helpers.truncateForPrompt,
-          buildPromptSearchContext: helpers.buildPromptSearchContext,
-          getJudgeModel: helpers.getJudgeModel,
-          logSearchEvent: helpers.logSearchEvent,
-          sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-          normalizeScore: helpers.normalizeScore,
-          stripSpeculativeRelocation: helpers.stripSpeculativeRelocation,
-          normalizeStringArray: helpers.normalizeStringArray,
-          normalizeBlockingConstraints: helpers.normalizeBlockingConstraints,
-          normalizeBlockingSeverity: helpers.normalizeBlockingSeverity,
-          normalizeAdvanceRecommendation: helpers.normalizeAdvanceRecommendation,
-          normalizeEnumValue: helpers.normalizeEnumValue,
-          deriveShortlistDecision: helpers.deriveShortlistDecision,
-          normalizeNullableString: helpers.normalizeNullableString,
-          sanitizeConstraintVerdicts: helpers.sanitizeConstraintVerdicts,
-          normalizeExperienceYears: helpers.normalizeExperienceYears,
-        },
-        arbiterHelpers: {
-          truncateForPrompt: helpers.truncateForPrompt,
-          buildPromptSearchContext: helpers.buildPromptSearchContext,
-          buildCompanyProfileContext: helpers.buildCompanyProfileContext,
-          getArbiterModel: helpers.getArbiterModel,
-          logSearchEvent: helpers.logSearchEvent,
-          sanitizeCandidateSuitability: helpers.sanitizeCandidateSuitability,
-          normalizeStringArray: helpers.normalizeStringArray,
-          normalizeExperienceYears: helpers.normalizeExperienceYears,
-          normalizeNullableString: helpers.normalizeNullableString,
-          sortCandidateAssessments: helpers.sortCandidateAssessments,
-        },
-      },
-    },
-    {
-      onCandidateScored: async (assessment, completedCount) => {
-        const completedTotal = progressOffset + completedCount;
-        const displayTier = helpers.getDisplayTierForAssessment(assessment);
-        const rows = buildBrightDataCandidateRows(
-          brightProfiles,
-          [assessment],
-          1,
-          "outreach_pool",
-          {
-            getDisplayTierForAssessment: helpers.getDisplayTierForAssessment,
-            getDeliveryBucketForAssessment: (candidateAssessment, candidateDisplayTier) =>
-              getDeliveryBucketForAssessment(
-                candidateAssessment,
-                candidateDisplayTier,
-                helpers.shouldDisplayCandidate,
-              ),
-          },
-        );
-        if (rows.length > 0) {
-          await upsertSingleCandidate(context.searchId, rows[0]);
-          await retagSearchCandidatePoolTypes(context.searchId);
-          if (displayTier && helpers.shouldDisplayCandidate(assessment) && !firstVisibleSignalled) {
-            firstVisibleSignalled = true;
-            await options?.onFirstVisibleCandidate?.({
-              visible_candidate_count: 1,
-              shortlist_count: 1,
-              priority_outreach_count: displayTier === "priority_outreach" ? 1 : 0,
-              worth_reviewing_count: displayTier === "worth_reviewing" ? 1 : 0,
-              shortlist_yes_count: helpers.shouldDisplayCandidate(assessment) ? 1 : 0,
-              shortlist_no_count: helpers.shouldDisplayCandidate(assessment) ? 0 : 1,
-            });
-          }
-        }
-        if (completedTotal % 5 === 0) {
-          await helpers.updateSearchDisplayStat(context.searchId, parsed, "deep_review_completed_count", completedTotal);
-        }
-      },
-      onScoringStats: async (stats) => {
-        scoringStats = {
-          fast_judge_count: stats.fastJudgeCount,
-          deep_judge_count: stats.deepJudgeCount,
-          arbiter_count: stats.arbiterCount,
-          fast_judge_wall_time_ms: stats.fastJudgeWallTimeMs,
-          deep_judge_wall_time_ms: stats.deepJudgeWallTimeMs,
-          llm_wall_time_ms: stats.llmWallTimeMs,
-        };
-      },
-      searchId: context.searchId,
-      jobId: context.jobId,
-      userId: context.userId,
-    },
-  );
-
-  helpers.logSearchEvent("search_timing", {
-    search_id: context.searchId,
-    phase: "scoring_complete",
-    scoring_elapsed_ms: Date.now() - scoringStartMs,
-    recall_profile_count: brightProfiles.length,
-    deep_review_input: selectedIndexes.length,
-    deep_review_output: deepAssessments.length,
-    job_id: context.jobId,
-  });
-
-  await flushPendingLlmUsageEvents();
-  const llmUsageStats = await loadSearchLlmUsageStats(
-    context.searchId,
-    context.jobId,
-    scoringStartedAtIso,
-  );
-  scoringStats = {
-    ...scoringStats,
-    ...llmUsageStats,
-  };
-
-  if (DEEP_REVIEW_DEBUG_LOGS) {
-    helpers.logSearchEvent("deep_review_distribution", {
-      search_id: context.searchId,
-      requested_count: selectedIndexes.length,
-      completed_count: deepAssessments.length,
-      selected_indexes: selectedIndexes,
-      scores: deepAssessments.map((assessment) => ({
-        index: assessment.index,
-        match_score: assessment.suitability.match_score,
-        quality_score: assessment.suitability.quality_score,
-        advance_score: assessment.suitability.advance_score,
-        capability_score: assessment.suitability.scoring_breakdown.capability_score,
-        relevance_score: assessment.suitability.scoring_breakdown.relevance_score,
-        join_likelihood_score: assessment.suitability.scoring_breakdown.join_likelihood_score,
-        fit_decision: assessment.suitability.fit_decision,
-        actionability: assessment.suitability.actionability,
-        advance_recommendation: assessment.suitability.advance_recommendation,
-        blocking_severity: assessment.suitability.blocking_severity,
-        blocking_constraints: assessment.suitability.blocking_constraints,
-      })),
-    });
-  }
-
-  const fullDetailIncomplete = deepAssessments.length < selectedIndexes.length;
-  const hardBlockedCount = deepAssessments.filter(
-    (assessment) => assessment.suitability.blocking_severity === "hard",
-  ).length;
-  const softBlockedCount = deepAssessments.filter(
-    (assessment) => assessment.suitability.blocking_severity === "soft",
-  ).length;
-  const advanceableCount = deepAssessments.filter(
-    (assessment) => assessment.suitability.advance_recommendation === "advance",
-  ).length;
-  const deepSelection = selectShortlistedAssessments(deepAssessments, {
-    shouldDisplayCandidate: helpers.shouldDisplayCandidate,
-    sortCandidateAssessments: helpers.sortCandidateAssessments,
-  });
-  const priorityAssessments = deepSelection.selected
-    .filter((assessment) => helpers.getDisplayTierForAssessment(assessment) === "priority_outreach");
-  const worthReviewingAssessments = deepSelection.selected
-    .filter((assessment) => helpers.getDisplayTierForAssessment(assessment) === "worth_reviewing");
-  const ruledOutAssessments = deepAssessments
-    .filter((assessment) => assessment.suitability.bucket === "do_not_show");
-  const visibleAssessments = [...priorityAssessments, ...worthReviewingAssessments];
-  const rankedAssessments = [...deepAssessments].sort(helpers.sortCandidateAssessments);
-  const excludedReasonCounts = helpers.buildExcludedReasonCounts(ruledOutAssessments);
-  helpers.logSearchEvent("search_shortlist_decisions", {
-    search_id: context.searchId,
-    shortlist_yes_count: deepSelection.shortlistYesCount,
-    shortlist_no_count: deepSelection.shortlistNoCount,
-    hard_blocked_count: hardBlockedCount,
-    job_id: context.jobId,
-  });
-
-  const deepRows = buildBrightDataCandidateRows(
-    brightProfiles,
-    rankedAssessments,
-    rankedAssessments.length,
-    "main",
-    {
-      getDisplayTierForAssessment: helpers.getDisplayTierForAssessment,
-      getDeliveryBucketForAssessment: (assessment, displayTier) =>
-        getDeliveryBucketForAssessment(
-          assessment,
-          displayTier,
-          helpers.shouldDisplayCandidate,
-        ),
-    },
-  );
-  const taggedRows = tagPoolRows(deepRows, [], deepRows.length);
-  const deliveryCounts = countDeliveryBuckets(taggedRows);
-  const finalRows = taggedRows;
-  const strictAdvanceCount = deepAssessments.filter((assessment) =>
-    assessment.suitability.shortlist_decision === "yes" &&
-    assessment.suitability.advance_recommendation === "advance"
-  ).length;
-  const topQualityScore = deepAssessments.reduce(
-    (best, assessment) => Math.max(best, assessment.suitability.quality_score),
-    0,
-  );
-  const top50QualityCutoff = finalRows.length > 0 ? finalRows[finalRows.length - 1]?.match_score ?? 0 : 0;
-
-  if (finalRows.length === 0) {
-    throw new Error("No candidates were ranked into the delivered candidate pool.");
-  }
-  if (fullDetailIncomplete) {
-    throw new Error(
-      `Deep scoring incomplete: reviewed ${deepAssessments.length}/${selectedIndexes.length} recalled profiles.`,
-    );
-  }
-
-  const estimatedCosts = helpers.estimateBrightPipelineLlmCost({
-    context,
-    parsed,
-    renderProfileEntries,
-    selectedCount: selectedIndexes.length,
-    finalRows,
-    runtime,
-  });
-  const contactUnlockCandidates = finalRows.filter((row) => {
-    const metadata = row.metadata && typeof row.metadata === "object"
-      ? (row.metadata as Record<string, unknown>)
-      : null;
-    const suitability = helpers.sanitizeCandidateSuitability(metadata?.suitability);
-    return suitability?.blocking_severity !== "hard" && suitability?.advance_recommendation !== "reject";
-  }).length;
-  const shortlistYesCount = deepSelection.shortlistYesCount;
-  const shortlistNoCount = deepSelection.shortlistNoCount;
-  const clearLocationFitCount = finalRows.filter((row) => {
-    const metadata = row.metadata && typeof row.metadata === "object"
-      ? (row.metadata as Record<string, unknown>)
-      : null;
-    const verdicts = metadata?.constraint_verdicts && typeof metadata.constraint_verdicts === "object"
-      ? (metadata.constraint_verdicts as ConstraintVerdict)
-      : null;
-    return verdicts?.location_fit === "local" || verdicts?.location_fit === "nearby";
-  }).length;
-  const mustHaveStrongCount = finalRows.filter((row) => {
-    const metadata = row.metadata && typeof row.metadata === "object"
-      ? (row.metadata as Record<string, unknown>)
-      : null;
-    const verdicts = metadata?.constraint_verdicts && typeof metadata.constraint_verdicts === "object"
-      ? (metadata.constraint_verdicts as ConstraintVerdict)
-      : null;
-    return verdicts?.must_have_coverage === "strong";
-  }).length;
-  const mustHaveUnknownCount = finalRows.filter((row) => {
-    const metadata = row.metadata && typeof row.metadata === "object"
-      ? (row.metadata as Record<string, unknown>)
-      : null;
-    const verdicts = metadata?.constraint_verdicts && typeof metadata.constraint_verdicts === "object"
-      ? (metadata.constraint_verdicts as ConstraintVerdict)
-      : null;
-    return verdicts?.must_have_coverage === "unknown";
-  }).length;
-  const firstContactConfidenceCount = finalRows.filter((row) => {
-    const metadata = row.metadata && typeof row.metadata === "object"
-      ? (row.metadata as Record<string, unknown>)
-      : null;
-    return metadata?.first_contact_confidence === "high";
-  }).length;
-
-  return {
-    finalRows,
-    assessments: deepAssessments,
-    displayStats: helpers.buildSearchDisplayStats({
-      retrieval_count: retrievalCount,
-      recall_profile_count: brightProfiles.length,
-      deep_review_requested_count: selectedIndexes.length,
-      deep_review_completed_count: deepAssessments.length,
-      qualified_count: finalRows.length,
-      outreach_pool_count: finalRows.length,
-      shortlist_count: finalRows.length,
-      brightdata_scrape_count: brightProfiles.length,
-      bright_profile_budget: options?.totalProfileScanBudget ?? executionProfile.filterLimit,
-      bright_profiles_requested: options?.totalProfilesRequested ?? executionProfile.filterLimit,
-      bright_profiles_returned: brightProfiles.length,
-      estimated_llm_cost: estimatedCosts.estimatedLlmCost,
-      estimated_search_total_cost: estimatedCosts.estimatedSearchTotalCost,
-      ...scoringStats,
-      judge_mode: runtime.judgeMode,
-      activation_run: helpers.isActivationRun(parsed),
-      quality_floor_applied: false,
-      visible_candidate_count: finalRows.length,
-      pre_gate_blocked_count: 0,
-      prescreen_blocked_count: 0,
-      contact_unlock_candidates: contactUnlockCandidates,
-      shortlist_yes_count: shortlistYesCount,
-      shortlist_no_count: shortlistNoCount,
-      priority_outreach_count: deliveryCounts.reachFirst,
-      worth_reviewing_count: deliveryCounts.reviewNext,
-      recommended_count: deliveryCounts.reachFirst + deliveryCounts.reviewNext,
-      lower_priority_count: deliveryCounts.lowerPriority,
-      ruled_out_count: ruledOutAssessments.length,
-      clear_location_fit_count: clearLocationFitCount,
-      must_have_strong_count: mustHaveStrongCount,
-      must_have_unknown_count: mustHaveUnknownCount,
-      first_contact_confidence_count: firstContactConfidenceCount,
-      deep_qualified_rate: deepAssessments.length > 0 ? visibleAssessments.length / deepAssessments.length : 0,
-      hard_blocked_count: hardBlockedCount,
-      soft_blocked_count: softBlockedCount,
-      advanceable_count: advanceableCount,
-      top_quality_score: topQualityScore,
-      top50_quality_cutoff: top50QualityCutoff,
-      strong_now_count: deliveryCounts.reachFirst,
-      consider_next_count: deliveryCounts.reviewNext,
-      do_not_show_count: deliveryCounts.notRecommended,
-      excluded_reason_counts: excludedReasonCounts,
-      search_quality_diagnosis: buildSearchQualityDiagnosis({
-        requestedCount: options?.totalProfilesRequested ?? executionProfile.filterLimit,
-        returnedCount: brightProfiles.length,
-        strictAdvanceCount,
-        reachFirstCount: deliveryCounts.reachFirst,
-        reviewNextCount: deliveryCounts.reviewNext,
-        lowerPriorityCount: deliveryCounts.lowerPriority,
-        notRecommendedCount: deliveryCounts.notRecommended,
-        mustHaveStrongCount,
-        mustHaveUnknownCount,
-      }),
-    }),
-  };
 }
 
 function getProfileRecallSource(profile: BrightDataProfile) {
@@ -4618,247 +3666,13 @@ async function buildBrightDataDatasetCandidates(
     time_to_standard_recall_ready_ms: timeToStandardRecallReadyMs,
   });
 
-  const handleFirstVisibleCandidate = async (statsPatch: Partial<SearchDisplayStats>) => {
-    await helpers.markSearchReviewable(context, parsed, statsPatch);
-  };
-
-  if (allProfiles.length === 0) {
-    throw new ZeroRecallError(activeSnapshotId);
-  }
-  if (candidateIndexPipelineIsActive()) {
-    const candidateIndexResult = await runCandidateIndexWorkflow({
-    context,
-    parsed,
-    profiles: allProfiles,
-    snapshotId: activeSnapshotId,
-    brightCost: resolvedRecallCost ?? undefined,
-    brightRequested: totalRequestedLimit,
-  });
-    parsed.candidate_index_metrics = {
-      ...candidateIndexResult.metrics,
-      local_eligible_count: null,
-      bright_supplemented: true,
-    };
-    parsed.display_stats = helpers.buildSearchDisplayStats({
-      ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
-      ...candidateIndexResult.displayStats,
-    });
-    await updateSearchParsedRequirements(context.searchId, parsed);
-    helpers.logSearchEvent("candidate_index_pipeline_completed", {
-      search_id: context.searchId,
-      job_id: context.jobId,
-      ...candidateIndexResult.metrics,
-    });
-    return {
-      finalRows: candidateIndexResult.finalRows,
-      displayStats: parsed.display_stats as SearchDisplayStats,
-    };
-  }
-
-  const combinedResult = await scoreBrightDataProfiles(
-    context,
-    parsed,
-    allProfiles,
-    allProfiles.length,
-    executionProfile,
-    helpers,
-    {
-      progressOffset: 0,
-      onFirstVisibleCandidate: handleFirstVisibleCandidate,
-      totalProfileScanBudget: effectiveProfileScanBudget,
-      totalProfilesRequested: totalRequestedLimit,
-    },
-  );
-
-  const qualityDistributionByRound = buildRoundQualityDistribution(
-    combinedResult.assessments,
-    allProfiles,
-  );
-  const roundDiagnosticsWithQuality = buildRoundDiagnostics({
-    standardReturned: standardProfileCount,
-    additionalReturned: additionalReturnedCounts,
-    additionalUniqueAdded: additionalUniqueAddedCounts,
-    additionalDuplicateCount: additionalDuplicateCounts,
-    additionalOverlapRatio: additionalOverlapRatios,
-    qualityDistribution: qualityDistributionByRound,
-  });
-  const recallMetadataBeforeLaneAudit = helpers.normalizeRecallMetadata(parsed.recall_metadata) ?? {
-    provider: "brightdata_dataset" as const,
-    snapshot_id: activeSnapshotId,
-  };
-  const recallIterationsBeforeLaneAudit = recallStrategyMode !== "legacy"
-    ? applyRoundRecallStatsToIterations(recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations)
-    : recallMetadataBeforeLaneAudit.recall_iterations ?? recallIterations;
-  const laneAuditState = recallStrategyMode !== "legacy"
-    ? await auditHeadhunterRecallLanes({
-      context,
-      parsed,
-      recallSpec,
-      profiles: allProfiles,
-      assessments: combinedResult.assessments,
-      recallIterations: recallIterationsBeforeLaneAudit,
-      roundDiagnostics: roundDiagnosticsWithQuality,
-      helpers,
-    })
-    : null;
-  const effectiveRecallIterations =
-    laneAuditState?.recallIterations ??
-    recallIterationsBeforeLaneAudit;
-  const displayStatsBeforeAdaptive = helpers.buildSearchDisplayStats({
-    ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
-    ...combinedResult.displayStats,
-  });
-  const pendingAdaptiveActionsAfterScoring = hasPlannedAdaptiveRecallActions(parsed);
-  const adaptivePlan = recallStrategyMode !== "legacy" && !pendingAdaptiveActionsAfterScoring
-    ? planAdaptiveExpansion({
-      parsed,
-      recallMetadata: {
-        ...recallMetadataBeforeLaneAudit,
-        recall_iterations: effectiveRecallIterations,
-        round_diagnostics: roundDiagnosticsWithQuality,
-      },
-      displayStats: displayStatsBeforeAdaptive,
-      recallSpec,
-      totalBudget: context.candidateCount,
-      strategyMode: recallStrategyMode === "headhunter_v2" ? "headhunter_v2" : "headhunter_v1",
-      isDuplicateRevision: ({ revised_lane: revisedLane, budget }) => {
-        const request = buildAdaptiveRecallLaneRequest(revisedLane, budget);
-        if (!request) return false;
-        const requestHash = computeFilterHash(request);
-        if (isRecallFilterHashDuplicateForRound(usedRecallFilterHashes, requestHash)) {
-          return true;
-        }
-        rememberRecallFilterHash(usedRecallFilterHashes, requestHash, `planned:${requestHash}`);
-        return false;
-      },
-    })
-    : null;
-  const laneAuditSummary =
-    laneAuditState?.laneAuditSummary ??
-    (recallStrategyMode !== "legacy"
-      ? "Lane audit could not be completed; inspect scheduler logs for lane audit failures."
-      : undefined);
-  const resultDisplayStats = helpers.buildSearchDisplayStats({
-    ...(helpers.normalizeSearchDisplayStats(parsed.display_stats) ?? helpers.buildSearchDisplayStats({})),
-    ...combinedResult.displayStats,
-    bright_snapshot_cost: resolvedRecallCost ?? undefined,
-    bright_profile_budget: effectiveProfileScanBudget,
-    bright_profiles_requested: totalRequestedLimit,
-    bright_profiles_returned: allProfiles.length,
-    judge_mode: runtime.judgeMode,
-    recall_strategy_mode: recallStrategyMode,
-    recall_iteration_count: effectiveRecallIterations.length || recallIterations.length,
-    lane_audit_summary: laneAuditSummary,
-    actionable_candidate_count: combinedResult.displayStats.recommended_count,
-    stopped_lane_count: laneAuditState?.stoppedLaneCount,
-    adaptive_recall_planned_budget: adaptivePlan?.planned_budget,
-    adaptive_recall_remaining_budget: adaptivePlan?.remaining_budget,
-  });
-  const previousAdaptiveState = readAdaptiveRecallState(parsed);
-  if (adaptivePlan && adaptivePlan.should_continue && adaptivePlan.planned_budget > 0) {
-    const plannedAt = helpers.nowIso();
-    const batchIndex = getNextAdaptiveRecallBatchIndex(parsed);
-    parsed.adaptive_recall = toAdaptiveRecallState({
-      plan: adaptivePlan,
-      plannedAt,
-      phase: "planned",
-      batchIndex,
-      strategyMode: recallStrategyMode === "headhunter_v2" ? "headhunter_v2" : "headhunter_v1",
-      previousState: previousAdaptiveState,
-    });
-    helpers.logSearchEvent("search_adaptive_recall_planned", {
-      search_id: context.searchId,
-      job_id: context.jobId,
-      should_continue: adaptivePlan.should_continue,
-      stop_reason: adaptivePlan.stop_reason,
-      batch_index: batchIndex,
-      planned_budget: adaptivePlan.planned_budget,
-      remaining_budget: adaptivePlan.remaining_budget,
-      actions: adaptivePlan.actions.map((action) => ({
-        type: action.type,
-        lane: action.lane,
-        lane_kind: action.lane_kind,
-        budget: action.budget,
-      })),
-    });
-  } else if (adaptivePlan) {
-    parsed.adaptive_recall = toAdaptiveRecallState({
-      plan: adaptivePlan,
-      plannedAt: helpers.nowIso(),
-      phase: "not_needed",
-      batchIndex: typeof previousAdaptiveState?.batch_index === "number" && Number.isFinite(previousAdaptiveState.batch_index)
-        ? Math.max(0, Math.round(previousAdaptiveState.batch_index))
-        : 0,
-      strategyMode: recallStrategyMode === "headhunter_v2" ? "headhunter_v2" : "headhunter_v1",
-      previousState: previousAdaptiveState,
-    });
-  }
-  parsed.recall_metadata = {
-    ...recallMetadataBeforeLaneAudit,
-    provider: "brightdata_dataset",
-    snapshot_id: activeSnapshotId,
-    recall_iterations: effectiveRecallIterations,
-    recall_personas: recallPersonas,
-    ...(compiledFilterFidelityForRun.length > 0
-      ? { compiled_filter_fidelity: compiledFilterFidelityForRun }
-      : {}),
-    round_diagnostics: roundDiagnosticsWithQuality,
-  };
-  if (laneAuditState) {
-    parsed.display_stats = helpers.buildSearchDisplayStats({
-      ...resultDisplayStats,
-      lane_audit_summary: laneAuditState.laneAuditSummary,
-      stopped_lane_count: laneAuditState.stoppedLaneCount,
-    });
-  }
-  if (!laneAuditState) {
-    parsed.display_stats = resultDisplayStats;
-  }
-
-  if (adaptivePlan && adaptivePlan.should_continue && adaptivePlan.planned_budget > 0) {
-    await upsertCandidatesForSearch(context.searchId, combinedResult.finalRows, {
-      replaceMissing: false,
-    });
-    await updateSearchParsedRequirements(context.searchId, parsed);
-    await setSearchStatus(context.searchId, "deep_scoring", {
-      parsed_requirements: parsed,
-    });
-    helpers.logSearchEvent("search_adaptive_recall_requeued", {
-      search_id: context.searchId,
-      job_id: context.jobId,
-      planned_budget: adaptivePlan.planned_budget,
-      remaining_budget: adaptivePlan.remaining_budget,
-      current_profiles: allProfiles.length,
-      current_actionable_candidates: combinedResult.displayStats.recommended_count,
-    });
-    throw new DatasetRecallPendingError(
-      `Adaptive headhunter recall planned ${adaptivePlan.planned_budget} additional profile(s)`,
-      { retryDelayMs: BRIGHTDATA_FILTER_POLL_INTERVAL_MS },
-    );
-  }
-
-  helpers.logSearchEvent("search_step_completed", {
-    search_id: context.searchId,
-    step: "deep_scoring",
-    provider: "brightdata_dataset",
-    execution_profile: executionProfile.name,
-    result_count: combinedResult.finalRows.length,
-    retrieved_count: allProfiles.length,
-    shortlist_count: combinedResult.displayStats.shortlist_count,
-    job_id: context.jobId,
-  });
-
-  helpers.logSearchEvent("search_timing", {
-    search_id: context.searchId,
-    phase: "pipeline_complete",
-    total_elapsed_ms: Date.now() - pipelineStartMs,
-    job_id: context.jobId,
-  });
-
-  return {
-    ...combinedResult,
-    displayStats: resultDisplayStats,
-  };
+  if (allProfiles.length === 0) throw new ZeroRecallError(activeSnapshotId);
+  const result = await runCandidateIndexWorkflow({ context, parsed, profiles: allProfiles, snapshotId: activeSnapshotId, brightCost: resolvedRecallCost ?? undefined, brightRequested: totalRequestedLimit });
+  parsed.candidate_index_metrics = { ...result.metrics, bright_supplemented: true };
+  parsed.display_stats = helpers.buildSearchDisplayStats(result.displayStats);
+  await updateSearchParsedRequirements(context.searchId, parsed);
+  helpers.logSearchEvent("candidate_index_pipeline_completed", { search_id: context.searchId, job_id: context.jobId, ...result.metrics });
+  return { finalRows: result.finalRows, displayStats: parsed.display_stats as SearchDisplayStats };
 }
 
 export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipelineHelpers) {
@@ -4898,7 +3712,7 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
   const storedProfileScanBudget =
     typeof existingParsed?.profile_scan_budget === "number" &&
     Number.isFinite(existingParsed.profile_scan_budget)
-      ? Math.max(1, Math.round(existingParsed.profile_scan_budget))
+      ? Math.max(0, Math.round(existingParsed.profile_scan_budget))
       : null;
   const initialExecutionProfileWithBudget =
     storedProfileScanBudget === null
@@ -4975,63 +3789,55 @@ export async function runSearchPipeline(job: SearchJobRow, helpers: SearchPipeli
     displayCount: context.candidateCount,
   });
 
-  if (phase1Parsed.candidate_index_force_bright !== true) {
-    const { intent } = buildCandidateIndexSearchIntent(context.jdText, phase1Parsed);
-    const localEligibleCount = await countEligibleProfiles(intent);
-    if (localEligibleCount >= 300) {
-      await setSearchStatus(context.searchId, "searching", { parsed_requirements: phase1Parsed });
-      const localResult = await runCandidateIndexWorkflow({
-        context,
-        parsed: phase1Parsed,
-        profiles: [],
-        snapshotId: null,
-        brightRequested: 0,
-      });
-      phase1Parsed.candidate_index_metrics = {
-        ...localResult.metrics,
-        local_eligible_count: localEligibleCount,
-        bright_supplemented: false,
-      };
-      await completeSearch(
-        context,
-        phase1Parsed,
-        localResult.finalRows,
-        helpers.buildSearchDisplayStats(localResult.displayStats),
-        {
-          nowIso: helpers.nowIso,
-          getSearchStartedAt: helpers.getSearchStartedAt,
-          elapsedSince: helpers.elapsedSince,
-          buildSearchDisplayStats: helpers.buildSearchDisplayStats,
-          generateOutreachDraftsForRows: helpers.generateOutreachDraftsForRows,
-          getExecutionRuntime: (executionProfile) =>
-            getExecutionRuntime(executionProfile as SearchExecutionProfile),
-          getSearchExecutionProfile: (name) =>
-            getSearchExecutionProfile(name as Parameters<typeof getSearchExecutionProfile>[0]),
-          upsertCandidatesForSearch,
-          withDisplayStats: helpers.withDisplayStats,
-          setSearchStatus,
-          updateSearchUsageEventMetadata,
-          logSearchEvent: helpers.logSearchEvent,
-        },
-        {
-          replaceMissingCandidates: true,
-          runtime: getExecutionRuntime(initialExecutionProfileWithBudget),
-        },
-      );
-      return;
-    }
-  }
-
+  await ensureSearchDecisionContract(context.jdText, phase1Parsed, { searchId: context.searchId, jobId: context.jobId, userId: context.userId });
   const isFreshExpandRun = phase1Parsed.expand_recall_mode === "fresh_snapshot";
-  const phase1Result = await buildBrightDataDatasetCandidates(
-    context,
-    phase1Parsed,
-    initialExecutionProfileWithBudget,
-    helpers,
-  );
-  if (!phase1Result) {
-    throw new Error("Bright Data recall did not return a pipeline result.");
+  const savedAgent = phase1Parsed.search_agent && typeof phase1Parsed.search_agent === "object" ? phase1Parsed.search_agent as Record<string, unknown> : {};
+  const cachedReplay = isSnapshotProfileCacheRerun(phase1Parsed);
+  const sourceAllowed = process.env.SEARCH_ALLOW_BRIGHT_RECALL !== "false" && phase1Parsed.allow_external_recall !== false && (storedProfileScanBudget ?? initialExecutionProfileWithBudget.filterLimit) > 0;
+  let sourceRequested = savedAgent.stage === "source_requested" || isFreshExpandRun || cachedReplay || phase1Parsed.candidate_index_force_bright === true;
+  let phase1Result: SearchPipelineResult | null = null;
+  if (!sourceRequested) {
+    await setSearchStatus(context.searchId, "searching", { parsed_requirements: phase1Parsed });
+    const local = await runCandidateIndexWorkflow({ context, parsed: phase1Parsed, profiles: [], snapshotId: null, brightRequested: 0 });
+    phase1Parsed.candidate_index_metrics = { ...local.metrics, bright_supplemented: false };
+    const gaps = new Map<string, number>();
+    for (const candidate of local.finalRows) {
+      for (const row of getDecisionRecord(candidate)?.assessment.requirements || []) {
+        if (row.status !== "supported") gaps.set(row.description, (gaps.get(row.description) || 0) + 1);
+      }
+    }
+    const action = await planSearchNextAction({
+      contract: readDecisionContract(phase1Parsed.decision_contract)!, outcome: local.outcome,
+      unresolved: [...gaps].map(([requirement, count]) => ({ requirement, count })).sort((a, b) => b.count - a.count),
+      sourceAllowed, sourceAlreadyRequested: false, scanBudget: storedProfileScanBudget ?? initialExecutionProfileWithBudget.filterLimit,
+      usage: { searchId: context.searchId, jobId: context.jobId, userId: context.userId },
+    });
+    sourceRequested = action.action === "source_more";
+    phase1Parsed.search_agent = { version: 1, stage: sourceRequested ? "source_requested" : "finished", action, local_outcome: local.outcome };
+    phase1Parsed.recall_provider = "candidate_index";
+    await updateSearchParsedRequirements(context.searchId, phase1Parsed);
+    helpers.logSearchEvent("search_agent_action", { search_id: context.searchId, job_id: context.jobId, ...action, contact_count: local.outcome.contactCount, review_count: local.outcome.reviewCount });
+    if (!sourceRequested) phase1Result = { finalRows: local.finalRows, displayStats: helpers.buildSearchDisplayStats({ ...local.displayStats, search_outcome: { ...local.outcome, stopReason: "planner_finished" } }) };
   }
+  if (sourceRequested) {
+    if (!sourceAllowed && !cachedReplay) throw new Error("External sourcing is not authorized for this run. Use saved-profile review or provide a sourcing budget.");
+    phase1Parsed.recall_provider = "brightdata_dataset";
+    phase1Parsed.search_agent = { ...(phase1Parsed.search_agent as Record<string, unknown> || {}), stage: "source_requested" };
+    await updateSearchParsedRequirements(context.searchId, phase1Parsed);
+    try {
+      phase1Result = await buildBrightDataDatasetCandidates(context, phase1Parsed, initialExecutionProfileWithBudget, helpers);
+    } catch (error) {
+      if (!(error instanceof ZeroRecallError)) throw error;
+      // A successful source query with zero profiles is a coverage result, not a transport failure.
+      const local = await runCandidateIndexWorkflow({ context, parsed: phase1Parsed, profiles: [], snapshotId: null, brightRequested: initialExecutionProfileWithBudget.filterLimit });
+      phase1Result = { finalRows: local.finalRows, displayStats: helpers.buildSearchDisplayStats({ ...local.displayStats, search_outcome: { ...local.outcome, stopReason: "source_exhausted" } }) };
+    }
+    if (!phase1Result) throw new Error("Source execution returned no search result.");
+    const outcome = buildSearchOutcome({ candidates: phase1Result.finalRows, retrievedCount: phase1Result.displayStats.retrieval_count, targetCount: Math.max(1, Number(process.env.SEARCH_CONTACT_TARGET) || 3), stopReason: phase1Result.displayStats.search_outcome?.stopReason === "source_exhausted" ? "source_exhausted" : "source_batch_completed" });
+    phase1Result.displayStats.search_outcome = outcome;
+    phase1Parsed.search_agent = { ...(phase1Parsed.search_agent as Record<string, unknown> || {}), stage: "finished", final_outcome: outcome };
+  }
+  if (!phase1Result) throw new Error("Search finished without a persisted outcome.");
   if (isSnapshotProfileCacheRerun(phase1Parsed)) {
     phase1Parsed.last_rerun_mode = SNAPSHOT_PROFILE_CACHE_RERUN_MODE;
     phase1Parsed.last_rerun_completed_at = helpers.nowIso();

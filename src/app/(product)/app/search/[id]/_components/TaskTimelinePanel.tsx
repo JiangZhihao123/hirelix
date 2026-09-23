@@ -54,10 +54,10 @@ export function TaskTimelinePanel({
     if (label === "Brief ready") {
       return search.parse_completed_at ? "Role brief parsed" : "Parsing JD into search criteria";
     }
-    if (label === "Scanning LinkedIn") {
-      return search.standard_recall_completed_at
-        ? `${metrics?.recalledCount ?? "LinkedIn"} profiles recalled`
-        : "Waiting on LinkedIn profile data";
+    if (label === "Finding profiles") {
+      return search.standard_recall_completed_at || search.status === "screening" || search.status === "deep_scoring" || search.status === "done"
+        ? metrics?.recalledCount ? `${metrics.recalledCount} profiles retrieved` : "Candidate profiles retrieved"
+        : "Finding candidate profile data";
     }
     if (label === "Reviewing candidates") {
       return metrics?.reviewedCount

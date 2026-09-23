@@ -1,5 +1,6 @@
+import { publicSearchRequirements } from "@/lib/search/decision-contract";
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_candidates, hirelix_searches } from "@/db/schema";
@@ -54,7 +55,7 @@ export async function GET(
   const { id } = await params;
 
   const searchRows = await db
-    .select()
+    .select({ ...getTableColumns(hirelix_searches), parsed_requirements: sql<Record<string, unknown>>`${hirelix_searches.parsed_requirements} - 'candidate_index_checkpoint'` })
     .from(hirelix_searches)
     .where(and(eq(hirelix_searches.id, id), eq(hirelix_searches.user_id, user.id)))
     .limit(1);
@@ -64,7 +65,14 @@ export async function GET(
   }
 
   const candidateRows = await db
-    .select()
+    .select({
+      ...getTableColumns(hirelix_candidates),
+      // The UI needs one decision record and source facts, not duplicated worker inputs.
+      metadata: sql<Record<string, unknown>>`${hirelix_candidates.metadata} - 'raw_profile' - 'canonical_profile' - 'evidence_pack'`,
+      evidence_pack: sql<Record<string, unknown>>`jsonb_build_object('final_judgment', NULLIF(${hirelix_candidates.evidence_pack}->'final_judgment', 'null'::jsonb) - 'assessment')`,
+      retrieval_channels: sql<null>`NULL`,
+      qualification_evidence: sql<null>`NULL`,
+    })
     .from(hirelix_candidates)
     .where(eq(hirelix_candidates.search_id, id))
     .orderBy(
@@ -100,7 +108,7 @@ export async function GET(
   });
 
   return NextResponse.json({
-    search: stripDates(search),
+    search: stripDates({ ...search, parsed_requirements: publicSearchRequirements(search.parsed_requirements) }),
     candidates: listCandidates,
   });
 }

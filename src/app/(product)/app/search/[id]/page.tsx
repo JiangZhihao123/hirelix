@@ -85,11 +85,9 @@ import {
   getCandidateSellingKit,
   getProviderDelayCopy,
   getSearchErrorPresentation,
-  getSearchPageCacheKey,
   hidePublicEvidenceLine,
   parseOutreach,
   positiveInt,
-  readSearchPageCache,
   formatRecruiterSellingHeadline,
 } from "./_components/utils";
 import { CandidateCard } from "./_components/CandidateCard";
@@ -97,7 +95,7 @@ import { CandidateWorkbenchDetail } from "./_components/CandidateWorkbenchDetail
 import { CandidateWorkbenchListItem } from "./_components/CandidateWorkbenchListItem";
 import { TaskTimelinePanel } from "./_components/TaskTimelinePanel";
 
-type CandidatePoolView = "recommended" | "full_pool";
+type CandidatePoolView = "recommended" | "verification" | "full_pool";
 
 function isCandidateResearchPending(candidate: CandidateRow) {
   const status = candidate.metadata?.public_evidence?.status;
@@ -150,6 +148,7 @@ export default function SearchResultPage() {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [newCandidateIds, setNewCandidateIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showJd, setShowJd] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<CandidateSortMode>("overall");
@@ -226,12 +225,12 @@ export default function SearchResultPage() {
 
   function exportCSV(rows: CandidateRow[]) {
     if (rows.length === 0) return;
-    const headers = ["Name", "Headline", "Location", "Overall Score", "Skills", "Experience Years", "Profile URL", "Email", "Status", "Match Reasons"];
+    const headers = ["Name", "Headline", "Location", "Decision", "Skills", "Experience Years", "Profile URL", "Email", "Status", "Match Reasons"];
     const csvRows = rows.map((c) => [
       c.name,
       c.headline || "",
       c.location || "",
-      c.match_score,
+      getCandidateDeliveryBucket(c),
       c.skills.join("; "),
       c.experience_years || "",
       c.profile_url || "",
@@ -289,7 +288,6 @@ export default function SearchResultPage() {
         throw new Error(payload?.error || "Could not retry this search.");
       }
       trackEvent(ANALYTICS_EVENTS.retrySearchClick, { ...analyticsContext, search_id: id });
-      window.sessionStorage.removeItem(getSearchPageCacheKey(id));
       setSearch((current) => current ? {
         ...current,
         status: "queued",
@@ -317,7 +315,6 @@ export default function SearchResultPage() {
       if (!response.ok) {
         throw new Error(PUBLIC_RESCORE_ERROR_MESSAGE);
       }
-      window.sessionStorage.removeItem(getSearchPageCacheKey(id));
       await fetchData();
     } catch (error) {
       setRescoreError(error instanceof Error ? error.message : PUBLIC_RESCORE_ERROR_MESSAGE);
@@ -349,7 +346,6 @@ export default function SearchResultPage() {
         const payload = await response.json().catch(() => null) as { error?: string } | null;
         throw new Error(payload?.error || "Could not expand this candidate pool.");
       }
-      window.sessionStorage.removeItem(getSearchPageCacheKey(id));
       setExpandPanelOpen(false);
       setExpandFeedback("");
       await Promise.all([fetchData(), refreshBilling()]);
@@ -367,6 +363,7 @@ export default function SearchResultPage() {
     let candidatesData: CandidateRow[] | null = null;
     try {
       const res = await fetchWithUserSession(`/api/searches/${id}`);
+      if (!res.ok && res.status !== 404) throw new Error("Could not load this candidate pool. Please try again.");
       if (res.ok) {
         const payload = (await res.json()) as {
           search: SearchRow;
@@ -375,8 +372,11 @@ export default function SearchResultPage() {
         searchData = payload.search ?? null;
         candidatesData = payload.candidates ?? [];
       }
+      setLoadError(null);
     } catch {
-      // best-effort
+      setLoadError("Could not load this candidate pool. Please try again.");
+      setLoading(false);
+      return;
     }
 
     let normalizedSearch = searchData;
@@ -425,16 +425,6 @@ export default function SearchResultPage() {
     }
   }, [authLoading, user, id]);
 
-  useEffect(() => {
-    if (!id) return;
-    const cachedSnapshot = readSearchPageCache(id);
-    if (!cachedSnapshot) return;
-
-    setSearch(cachedSnapshot.search);
-    setCandidates(cachedSnapshot.candidates);
-    seenCandidateIdsRef.current = new Set(cachedSnapshot.candidates.map((candidate) => candidate.id));
-    setLoading(false);
-  }, [id]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -446,17 +436,6 @@ export default function SearchResultPage() {
     return () => window.clearTimeout(timeoutId);
   }, [authLoading, fetchData]);
 
-  useEffect(() => {
-    if (!id || !search) return;
-
-    window.sessionStorage.setItem(
-      getSearchPageCacheKey(id),
-      JSON.stringify({
-        search,
-        candidates,
-      }),
-    );
-  }, [candidates, id, search]);
 
   useEffect(() => {
     const onVisible = () => {
@@ -747,7 +726,8 @@ export default function SearchResultPage() {
   if (!search) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-muted">Candidate pool not found</p>
+        <p className="text-muted">{loadError || "Candidate pool not found"}</p>
+        {loadError && <button className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm text-white" onClick={() => void fetchData()}>Try again</button>}
         <Link
           href="/app"
           className="mt-4 text-sm text-primary hover:underline"
@@ -823,17 +803,13 @@ export default function SearchResultPage() {
   );
   const recommendedCandidates = allCandidates.filter((candidate) => {
     const bucket = getCandidateDeliveryBucket(candidate);
-    return bucket === "reach_first" || bucket === "review_next";
+    return bucket === "reach_first";
   });
-  const actualPriorityOutreachCount = recommendedCandidates.filter(
-    (candidate) => getCandidateDeliveryBucket(candidate) === "reach_first",
-  ).length;
-  const actualWorthReviewingCount = recommendedCandidates.length - actualPriorityOutreachCount;
+  const verificationCandidates = allCandidates.filter((candidate) => getCandidateDeliveryBucket(candidate) === "review_next");
+  const actualWorthReviewingCount = verificationCandidates.length;
   const tierBaseCandidates = poolView === "full_pool"
     ? allCandidates
-    : recommendedCandidates.length > 0
-      ? recommendedCandidates
-      : allCandidates;
+    : poolView === "verification" ? verificationCandidates : recommendedCandidates;
   const visibleCandidates = tierBaseCandidates;
   const activeCandidate =
     visibleCandidates.find((candidate) => candidate.id === activeCandidateId) ||
@@ -844,7 +820,7 @@ export default function SearchResultPage() {
     reqs && typeof reqs.recall_metadata === "object" && reqs.recall_metadata
       ? (reqs.recall_metadata as RecallMetadataView)
       : null;
-  const canRerunScoringFromCache = isReviewable && Boolean(recallMetadata?.snapshot_id);
+  const canRerunScoringFromCache = search.status === "done" && Boolean(recallMetadata?.snapshot_id || reqs?.decision_contract);
   const currentProfileScanBudget =
     positiveInt(reqs?.profile_scan_budget) ??
     positiveInt(rawDisplayStats?.bright_profiles_requested) ??
@@ -892,7 +868,6 @@ export default function SearchResultPage() {
     positiveInt(rawDisplayStats?.deep_review_count) ??
     Math.max(allCandidates.length, 0);
   const deliveredCandidateCount = allCandidates.length;
-  const priorityOutreachCount = actualPriorityOutreachCount;
   const worthReviewingCount = actualWorthReviewingCount;
   const isFreePlan = billing?.plan.code === "free";
   const ruledOutCount =
@@ -907,9 +882,9 @@ export default function SearchResultPage() {
   const widenPoolSuggestions = buildWidenPoolSuggestions(excludedReasonCounts as Array<{ reason: ExcludedReason; count: number }>);
   const recallProfileCount =
     positiveInt(rawDisplayStats?.recall_profile_count) ?? brightProfilesReturned ?? retrievalCount;
-  const recommendedCount =
-    positiveInt(rawDisplayStats?.recommended_count) ??
-    recommendedCandidates.length;
+  const recommendedCount = recommendedCandidates.length;
+  const outcome = rawDisplayStats?.search_outcome;
+  const executionProgress = reqs?.execution_progress as { label: string; completed: number; total: number } | undefined;
   const needsSearchCalibration =
     rawDisplayStats?.search_quality_diagnosis?.status === "needs_calibration" &&
     (positiveInt(rawDisplayStats?.actionable_candidate_count) ?? recommendedCount) === 0;
@@ -919,7 +894,7 @@ export default function SearchResultPage() {
   const poolCoverageCopy = hasCompleteRankedPool
     ? `${deliveredCandidateCount} evaluated profiles remain available in the full pool.`
     : `This older run shows ${deliveredCandidateCount} saved profiles, with ${recommendedCount} marked for first-pass review. Run or expand the role to build a fresh full pool.`;
-  const selectedPoolLabel = poolView === "full_pool" ? "Full pool" : "Recommended";
+  const selectedPoolLabel = poolView === "full_pool" ? "Full pool" : poolView === "verification" ? "Verify first" : "Recommended";
   const taskStage = getSearchTaskStage({
     ...search,
     standard_recall_completed_at: standardRecallCompletedAt,
@@ -937,7 +912,7 @@ export default function SearchResultPage() {
     parsedRequirements: search.parsed_requirements,
     fallback: "New candidate pool",
   });
-  const clientReadyCandidates = (recommendedCandidates.length > 0 ? recommendedCandidates : allCandidates).slice(0, 5);
+  const clientReadyCandidates = recommendedCandidates.slice(0, 5);
   const clientReadyBriefText = [
     `Client-ready ranked pool: ${displayTitle}`,
     locationScope ? `Location/work model: ${[locationScope, workModel].filter(Boolean).join(" | ")}` : null,
@@ -997,7 +972,7 @@ export default function SearchResultPage() {
                 >
                   <RotateCcw className={`h-3 w-3 ${rescoreSubmitting ? "animate-spin" : ""}`} />
                   <span className="hidden sm:inline">
-                    {rescoreSubmitting ? "Rerunning scores" : "Rerun scoring"}
+                    {rescoreSubmitting ? "Reviewing saved profiles" : "Review saved profiles"}
                   </span>
                   <span className="sm:hidden">Rescore</span>
                 </button>
@@ -1174,11 +1149,11 @@ export default function SearchResultPage() {
                   : taskStage === "brief_ready"
                     ? "Hirelix understands the role and is moving into recall."
                     : taskStage === "linkedin_scan"
-                      ? "Scanning LinkedIn at scale."
+                      ? "Finding profiles for this role."
                       : "Reviewing your candidates now."}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-                {getSearchTaskSummary(taskStage)}
+                {executionProgress ? `${executionProgress.label}: ${executionProgress.completed} of ${executionProgress.total} profiles reviewed.` : getSearchTaskSummary(taskStage)}
               </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
@@ -1353,9 +1328,9 @@ export default function SearchResultPage() {
         </div>
       )}
 
-      {isReviewable && allCandidates.length > 0 && !needsSearchCalibration && (
+      {isReviewable && (allCandidates.length > 0 || outcome) && !needsSearchCalibration && (
         <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3">
                 <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
                   {isImprovingInBackground ? "Candidate pool ready" : "Candidate pool complete"}
@@ -1364,13 +1339,13 @@ export default function SearchResultPage() {
                 {isImprovingInBackground
                   ? "Your candidate pool is ready to review"
                   : recommendedCount > 0
-                    ? `${recommendedCount} candidates recommended`
-                    : "Your candidate pool is ready"}
+                    ? `${recommendedCount} candidate${recommendedCount === 1 ? "" : "s"} recommended`
+                    : "No confirmed recommendations yet"}
               </h2>
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
                   {isImprovingInBackground
                     ? "Hirelix is still refining the remaining scores in the background."
-                    : `Selected from ${recallProfileCount} sourced profiles. ${poolCoverageCopy}`}
+                    : outcome?.explanation || `Selected from ${recallProfileCount} sourced profiles. ${poolCoverageCopy}`}
               </p>
               {billing?.plan.code !== "free" && (
                 <p className="mt-2 text-xs text-slate-500">
@@ -1394,11 +1369,7 @@ export default function SearchResultPage() {
                   <span className="text-sm font-semibold text-slate-950">{recommendedCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Reach first</span>
-                <span className="text-sm font-semibold text-slate-950">{priorityOutreachCount}</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Review next</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Verify first</span>
                   <span className="text-sm font-semibold text-slate-950">{worthReviewingCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
@@ -1410,7 +1381,7 @@ export default function SearchResultPage() {
         </div>
       )}
 
-      {isReviewable && allCandidates.length > 0 && (
+      {isReviewable && recommendedCount > 0 && (
         <details className="mb-4 rounded-xl border border-slate-200 bg-white shadow-sm">
           <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">
             Client brief and outreach workflow
@@ -1653,6 +1624,7 @@ export default function SearchResultPage() {
               {publicEvidenceError}
             </div>
           )}
+          {isReviewable && visibleCandidates.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{poolView === "recommended" ? "No profiles currently have enough evidence for a confirmed recommendation. Open Verify first to inspect specific gaps, or Full pool to see all decisions." : "No candidates in this list."}</div>}
           <div className="flex flex-wrap items-center gap-2">
               {isReviewable && (
                 <div className="flex flex-wrap items-center gap-2">
@@ -1667,6 +1639,9 @@ export default function SearchResultPage() {
                     >
                       Recommended ({recommendedCount})
                     </button>
+                    <button onClick={() => setPoolView("verification")} className={`rounded-full px-3 py-1 text-xs font-medium ${poolView === "verification" ? "bg-slate-950 text-white" : "text-muted hover:text-foreground"}`}>
+                      Verify first ({worthReviewingCount})
+                    </button>
                     <button
                       onClick={() => setPoolView("full_pool")}
                       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -1678,7 +1653,7 @@ export default function SearchResultPage() {
                       Full pool ({allCandidates.length})
                     </button>
                   </div>
-                {poolView === "full_pool" && (
+                {poolView === "full_pool" && !outcome && (
                   <label className="flex items-center gap-2 text-xs text-muted">
                     <span>Sort by</span>
                     <select
@@ -1721,8 +1696,8 @@ export default function SearchResultPage() {
             {visibleCandidates.length > 0 && (
               <>
                 {poolView === "full_pool" && (
-                  <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block">
-                    <div className="grid grid-cols-[minmax(220px,1.6fr)_minmax(140px,0.9fr)_72px_minmax(120px,0.8fr)_minmax(240px,1.6fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm xl:block">
+                    <div className="grid min-w-[1100px] grid-cols-[minmax(220px,1.6fr)_minmax(140px,0.9fr)_72px_minmax(120px,0.8fr)_minmax(240px,1.6fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                       <span>Profile</span>
                       <span>Location</span>
                       <span>Rank</span>
@@ -1753,7 +1728,7 @@ export default function SearchResultPage() {
                               setActiveCandidateId(candidate.id);
                               handleCandidateExpand(candidate);
                             }}
-                            className={`grid w-full grid-cols-[minmax(220px,1.6fr)_minmax(140px,0.9fr)_72px_minmax(120px,0.8fr)_minmax(240px,1.6fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                            className={`grid w-full min-w-[1100px] grid-cols-[minmax(220px,1.6fr)_minmax(140px,0.9fr)_72px_minmax(120px,0.8fr)_minmax(240px,1.6fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                               candidate.id === activeCandidate?.id ? "bg-sky-50" : "bg-white"
                             }`}
                           >
@@ -1775,7 +1750,7 @@ export default function SearchResultPage() {
                   </div>
                 )}
                 {activeCandidate && (
-                  <div className={`hidden gap-4 lg:grid lg:grid-cols-[360px_minmax(0,1fr)] ${poolView === "full_pool" ? "mt-4" : ""}`}>
+                  <div className={`hidden gap-4 xl:grid xl:grid-cols-[320px_minmax(0,1fr)] ${poolView === "full_pool" ? "mt-4" : ""}`}>
                   <aside className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="mb-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1825,7 +1800,7 @@ export default function SearchResultPage() {
                 </div>
               )}
 
-              <div className="space-y-3 lg:hidden">
+              <div className="space-y-3 xl:hidden">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                       {selectedPoolLabel}
@@ -1833,14 +1808,14 @@ export default function SearchResultPage() {
                     <p className="mt-1 text-sm text-slate-700">
                       {poolView === "full_pool"
                         ? "Use the full ranked pool to compare the market and recover edge cases."
-                        : "Start with the strongest sellable profiles, then open each card for proof and outreach copy."}
+                        : poolView === "verification" ? "Open each profile to check the evidence gaps before deciding whether to contact them." : "Open each recommended profile for supporting evidence and outreach copy."}
                   </p>
                 </div>
                 {visibleCandidates.map((c, idx) => (
                   <div
                     key={c.id}
                     className="animate-fade-in-up"
-                    style={{ animationDelay: `${idx * 100}ms` }}
+                    style={{ animationDelay: `${Math.min(idx, 8) * 50}ms` }}
                   >
                     <CandidateCard
                       candidate={c}

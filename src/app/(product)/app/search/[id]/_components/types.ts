@@ -81,7 +81,7 @@ export type CandidateRow = {
   location: string | null;
   skills: string[];
   experience_years: number | null;
-  match_score: number;
+  match_score: number | null;
   match_reasons: string[];
   profile_url: string | null;
   github_url: string | null;
@@ -240,6 +240,7 @@ export type ExcludedReason =
   | "multiple_risks";
 
 export type SearchDisplayStats = {
+  search_outcome?: import("@/lib/search/decision-contract").SearchOutcome;
   retrieval_count?: number;
   deep_review_count?: number;
   deep_review_requested_count?: number;
@@ -363,9 +364,4 @@ export type GithubSignals = {
   discovery_notes?: string[];
   evidence_summary?: string[];
   last_enriched_at?: string | null;
-};
-
-export type SearchPageCacheSnapshot = {
-  search: SearchRow;
-  candidates: CandidateRow[];
 };

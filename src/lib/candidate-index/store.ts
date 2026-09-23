@@ -10,8 +10,7 @@ import {
   type NormalizedProfile,
 } from "@/lib/candidate-index/profile";
 import {
-  BASE_REPRESENTATION_MODEL,
-  buildBaseProfileRepresentation,
+  generateProfileRepresentation,
   buildProfileSearchDocument,
   type ProfileRepresentation,
 } from "@/lib/candidate-index/representation";
@@ -40,6 +39,7 @@ type PreparedProfile = {
   normalized: NormalizedProfile;
   existing: ExistingProfile;
   representation: ProfileRepresentation;
+  representationModel: string;
   profileDocument: string;
   experienceDocuments: string[];
 };
@@ -57,14 +57,16 @@ function profileBase(
     current_company: normalized.currentCompany,
     years_experience: normalized.yearsExperience == null ? null : String(normalized.yearsExperience),
     country_code: normalized.countryCode,
-    city: normalized.city,
+    city: prepared.representation.location?.city || normalized.city,
+    state_or_region: prepared.representation.location?.state_or_region || null,
+    metro_area: prepared.representation.location?.metro_area || null,
     highest_degree: normalized.highestDegree,
     schools: normalized.schools,
     fields_of_study: normalized.fieldsOfStudy,
     raw_profile: normalized.rawProfile,
     raw_content_hash: normalized.rawContentHash,
     source_snapshot_id: snapshotId,
-    representation_version: 2,
+    representation_version: 3,
     processing_status: "representing",
     processing_error: null,
     updated_at: new Date(),
@@ -82,16 +84,15 @@ async function persistPreparedProfile(
   const base = {
     ...profileBase(prepared, options.snapshotId),
   };
-  let profileRow: typeof hirelix_profiles.$inferSelect | undefined;
-  try {
-    profileRow = prepared.existing
-      ? (await db.update(hirelix_profiles).set(base).where(eq(hirelix_profiles.id, prepared.existing.id)).returning())[0]
-      : (await db.insert(hirelix_profiles).values(base).returning())[0];
+  return db.transaction(async (tx) => {
+    const profileRow = prepared.existing
+      ? (await tx.update(hirelix_profiles).set(base).where(eq(hirelix_profiles.id, prepared.existing.id)).returning())[0]
+      : (await tx.insert(hirelix_profiles).values(base).returning())[0];
     if (!profileRow) throw new Error("Profile insert or update returned no row");
     const profileId = profileRow.id;
-    await db.delete(hirelix_profile_experiences).where(eq(hirelix_profile_experiences.profile_id, profileId));
+    await tx.delete(hirelix_profile_experiences).where(eq(hirelix_profile_experiences.profile_id, profileId));
     const experienceRows = normalized.experiences.length > 0
-      ? await db.insert(hirelix_profile_experiences).values(normalized.experiences.map((item) => ({
+      ? await tx.insert(hirelix_profile_experiences).values(normalized.experiences.map((item) => ({
         profile_id: profileId,
         source_ordinal: item.sourceOrdinal,
         title: item.title,
@@ -105,7 +106,7 @@ async function persistPreparedProfile(
       }))).returning()
       : [];
 
-    await db.update(hirelix_profiles).set({
+    await tx.update(hirelix_profiles).set({
       seniority: representation.seniority,
       role_families: representation.role_families,
       adjacent_roles: representation.adjacent_roles,
@@ -116,16 +117,16 @@ async function persistPreparedProfile(
       semantic_evidence: representation.evidence,
       search_document: prepared.profileDocument,
       embedding: profileEmbedding,
-      representation_model: BASE_REPRESENTATION_MODEL,
+      representation_model: prepared.representationModel,
       embedding_model: embeddingModel,
-      processing_status: "ready",
+      processing_status: "embedding",
       represented_at: new Date(),
       embedded_at: new Date(),
       updated_at: new Date(),
     }).where(eq(hirelix_profiles.id, profileId));
 
     for (const [index, experienceRow] of experienceRows.entries()) {
-      await db.update(hirelix_profile_experiences).set({
+      await tx.update(hirelix_profile_experiences).set({
         search_document: prepared.experienceDocuments[index],
         embedding: experienceEmbeddings[index],
         embedding_model: embeddingModel,
@@ -136,17 +137,9 @@ async function persistPreparedProfile(
         eq(hirelix_profile_experiences.profile_id, profileId),
       ));
     }
+    await tx.update(hirelix_profiles).set({ processing_status: "ready" }).where(eq(hirelix_profiles.id, profileId));
     return profileId;
-  } catch (error) {
-    if (profileRow) {
-      await db.update(hirelix_profiles).set({
-        processing_status: "error",
-        processing_error: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000),
-        updated_at: new Date(),
-      }).where(eq(hirelix_profiles.id, profileRow.id));
-    }
-    throw error;
-  }
+  });
 }
 
 export async function indexBrightProfiles(
@@ -159,10 +152,10 @@ export async function indexBrightProfiles(
     try {
       const normalized = normalizeBrightProfile(profile);
       const existing = await findExisting(normalized.linkedinId, normalized.linkedinUrl);
-      if (existing?.raw_content_hash === normalized.rawContentHash && existing.processing_status === "ready") {
+      if (existing?.raw_content_hash === normalized.rawContentHash && existing.processing_status === "ready" && existing.representation_version === 3) {
         return { index, reusedProfileId: existing.id, prepared: null, error: null };
       }
-      const representation = buildBaseProfileRepresentation(normalized);
+      const { representation, model: representationModel } = await generateProfileRepresentation(normalized, options);
       const byRef = new Map(representation.experiences.map((item) => [item.experience_ref, item]));
       const experienceDocuments = normalized.experiences.map((item) =>
         buildExperienceSearchDocument(item, byRef.get(item.ref)),
@@ -175,6 +168,7 @@ export async function indexBrightProfiles(
           normalized,
           existing,
           representation,
+          representationModel,
           profileDocument: buildProfileSearchDocument(normalized, representation),
           experienceDocuments,
         } satisfies PreparedProfile,

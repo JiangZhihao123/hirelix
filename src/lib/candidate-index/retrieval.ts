@@ -21,6 +21,7 @@ export type HybridSearchIntent = {
   allowedCountries?: string[];
   minimumYearsExperience?: number | null;
   requiredDegree?: string | null;
+  locationTerms?: string[];
 };
 
 export function buildProfileEligibilitySql(intent: HybridSearchIntent) {
@@ -36,6 +37,14 @@ export function buildProfileEligibilitySql(intent: HybridSearchIntent) {
     conditions.push(sql`(p.highest_degree = ${intent.requiredDegree} OR p.highest_degree IS NULL)`);
   }
   return sql.join(conditions, sql` AND `);
+}
+
+/** A retrieval hint only. Missing or old locality stays in the broad channels for LLM review. */
+export function buildLocationHintSql(intent: HybridSearchIntent) {
+  const terms = [...new Set((intent.locationTerms || []).map((term) => term.trim()).filter(Boolean))];
+  if (terms.length === 0) return sql`FALSE`;
+  const location = sql`concat_ws(' ', p.city, p.state_or_region, p.metro_area)`;
+  return sql`(${sql.join(terms.map((term) => sql`strpos(lower(${location}), lower(${term})) > 0`), sql` OR `)})`;
 }
 
 export async function countEligibleProfiles(intent: HybridSearchIntent) {
@@ -63,7 +72,7 @@ export async function hybridRetrieve(intent: HybridSearchIntent, limit = 1000): 
     ? Math.max(100, Math.min(2000, configuredChannelLimit))
     : 500;
   const experienceVectorOversample = Math.min(10_000, channelLimit * 5);
-  const [profileFtsResult, experienceFtsResult, profileVectorResult, experienceVectorResult] = await Promise.all([
+  const [profileFtsResult, experienceFtsResult, profileVectorResult, experienceVectorResult, locationVectorResult] = await Promise.all([
     db.execute(sql`
     SELECT p.id AS profile_id,
            ts_rank_cd(p.search_vector, websearch_to_tsquery('simple', ${intent.lexicalQuery})) AS score
@@ -116,6 +125,13 @@ export async function hybridRetrieve(intent: HybridSearchIntent, limit = 1000): 
     ORDER BY score ASC, profile_id
     LIMIT ${channelLimit}
   `),
+    intent.locationTerms?.length ? db.execute(sql`
+      SELECT p.id AS profile_id, p.embedding <=> ${vectorLiteral(queryEmbedding)}::vector AS score
+      FROM hirelix_profiles p
+      WHERE ${eligibility} AND ${buildLocationHintSql(intent)} AND p.embedding IS NOT NULL
+      ORDER BY p.embedding <=> ${vectorLiteral(queryEmbedding)}::vector, p.id
+      LIMIT ${channelLimit}
+    `) : Promise.resolve([]),
   ]);
   const profileFts = rows<RetrievalRow>(profileFtsResult);
   const experienceFts = rows<RetrievalRow>(experienceFtsResult);
@@ -123,6 +139,7 @@ export async function hybridRetrieve(intent: HybridSearchIntent, limit = 1000): 
   const experienceVector = rows<RetrievalRow>(experienceVectorResult);
 
   const channelRows: Record<RetrievalChannel, RetrievalRow[]> = {
+    location_vector: rows<RetrievalRow>(locationVectorResult),
     profile_fts: profileFts,
     experience_fts: [...experienceFts].sort((a, b) => Number(b.score) - Number(a.score)),
     profile_vector: profileVector,

@@ -1,5 +1,6 @@
+import { publicSearchRequirements } from "@/lib/search/decision-contract";
 import { NextRequest, NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_searches } from "@/db/schema";
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     .select({
       id: hirelix_searches.id,
       title: hirelix_searches.title,
-      parsed_requirements: hirelix_searches.parsed_requirements,
+      parsed_requirements: sql<Record<string, unknown>>`${hirelix_searches.parsed_requirements} - 'candidate_index_checkpoint'`,
       status: hirelix_searches.status,
       pipeline_step: hirelix_searches.pipeline_step,
       parse_completed_at: hirelix_searches.parse_completed_at,
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
   // the previous Supabase-backed client code.
   const searches = rows.map((row) => ({
     ...row,
+    parsed_requirements: publicSearchRequirements(row.parsed_requirements),
     parse_completed_at: row.parse_completed_at?.toISOString() ?? null,
     partial_ready_at: row.partial_ready_at?.toISOString() ?? null,
     created_at: row.created_at?.toISOString() ?? null,

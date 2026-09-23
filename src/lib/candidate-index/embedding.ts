@@ -1,12 +1,10 @@
-import { getLogger } from "@/lib/logger";
+import { requestIndexJson } from "./provider-request";
 import { runWithConcurrency } from "@/lib/search/concurrency";
 
 const DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1";
 const DEFAULT_MODEL = "Qwen/Qwen3-Embedding-8B";
 const DEFAULT_DIMENSIONS = 1536;
 const MAX_BATCH_SIZE = 32;
-const MAX_ATTEMPTS = 3;
-const embeddingLogger = getLogger({ component: "candidate_index_embedding" });
 
 type EmbeddingResponse = {
   data?: Array<{ index?: number; embedding?: number[] }>;
@@ -36,66 +34,33 @@ export function getEmbeddingConfig() {
   };
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function shouldRetry(status: number) {
-  return status === 408 || status === 429 || status >= 500;
-}
-
 async function embedBatch(texts: string[]): Promise<EmbeddingBatchResult> {
   if (texts.length === 0 || texts.length > MAX_BATCH_SIZE) {
     throw new Error(`Embedding batch size must be between 1 and ${MAX_BATCH_SIZE}`);
   }
   const config = getEmbeddingConfig();
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    const response = await fetch(`${config.baseUrl}/embeddings`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: config.model,
-        input: texts,
-        dimensions: config.dimensions,
-        encoding_format: "float",
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
-
-    if (!response.ok) {
-      const message = (await response.text()).slice(0, 500);
-      if (attempt < MAX_ATTEMPTS && shouldRetry(response.status)) {
-        embeddingLogger.warn({ status: response.status, attempt }, "embedding request retrying");
-        await sleep(500 * 2 ** (attempt - 1));
-        continue;
-      }
-      throw new Error(`SiliconFlow embeddings failed (${response.status}): ${message}`);
-    }
-
-    const payload = (await response.json()) as EmbeddingResponse;
-    const rows = [...(payload.data || [])].sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
-    const embeddings = rows.map((row) => row.embedding || []);
-    if (embeddings.length !== texts.length) {
-      throw new Error(`SiliconFlow returned ${embeddings.length} embeddings for ${texts.length} inputs`);
-    }
-    for (const embedding of embeddings) {
-      if (embedding.length !== config.dimensions || embedding.some((value) => !Number.isFinite(value))) {
-        throw new Error(`SiliconFlow returned an invalid embedding dimension; expected ${config.dimensions}`);
-      }
-    }
-    return {
-      embeddings,
-      model: config.model,
-      dimensions: config.dimensions,
-      inputTokens: payload.usage?.total_tokens ?? payload.usage?.prompt_tokens ?? 0,
-    };
+  const payload = await requestIndexJson<EmbeddingResponse>({
+    url: `${config.baseUrl}/embeddings`, apiKey: config.apiKey, timeoutMs: 60_000,
+    body: { model: config.model, input: texts, dimensions: config.dimensions, encoding_format: "float" },
+  });
+  const rows = [...(payload.data || [])].sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
+  const embeddings = rows.map((row) => row.embedding || []);
+  if (embeddings.length !== texts.length) {
+    throw new Error(`SiliconFlow returned ${embeddings.length} embeddings for ${texts.length} inputs`);
   }
+  for (const embedding of embeddings) {
+    if (embedding.length !== config.dimensions || embedding.some((value) => !Number.isFinite(value))) {
+      throw new Error(`SiliconFlow returned an invalid embedding dimension; expected ${config.dimensions}`);
+    }
+  }
+  return {
+    embeddings,
+    model: config.model,
+    dimensions: config.dimensions,
+    inputTokens: payload.usage?.total_tokens ?? payload.usage?.prompt_tokens ?? 0,
+  };
 
-  throw new Error("SiliconFlow embeddings exhausted retries");
 }
 
 export async function generateEmbeddings(texts: string[]): Promise<EmbeddingBatchResult> {

@@ -1,4 +1,4 @@
-import { getLogger } from "@/lib/logger";
+import { requestIndexJson } from "./provider-request";
 import type { CandidateBundle } from "@/lib/candidate-index/judgment";
 import { runWithConcurrency } from "@/lib/search/concurrency";
 
@@ -6,8 +6,6 @@ const DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1";
 const DEFAULT_MODEL = "Qwen/Qwen3-Reranker-8B";
 const DEFAULT_BATCH_SIZE = 32;
 const MAX_BATCH_SIZE = 64;
-const MAX_ATTEMPTS = 3;
-const rerankerLogger = getLogger({ component: "candidate_index_reranker" });
 
 type RerankApiResult = {
   index?: number;
@@ -50,14 +48,6 @@ export function getRerankerConfig() {
   };
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function shouldRetry(status: number) {
-  return status === 408 || status === 429 || status >= 500;
-}
-
 function matchedExperienceIds(bundle: CandidateBundle) {
   const channelEvidence = bundle.retrievalEvidence.channel_evidence;
   if (!channelEvidence || typeof channelEvidence !== "object") return new Set<string>();
@@ -98,55 +88,32 @@ async function rerankBatch(
   fetcher: typeof fetch,
 ) {
   const config = getRerankerConfig();
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    const response = await fetcher(`${config.baseUrl}/rerank`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: config.model,
-        query: query.slice(0, 12000),
-        documents: documents.map((document) => document.text),
-        top_n: documents.length,
-        return_documents: false,
-      }),
-      signal: AbortSignal.timeout(90_000),
-    });
-    if (!response.ok) {
-      const message = (await response.text()).slice(0, 500);
-      if (attempt < MAX_ATTEMPTS && shouldRetry(response.status)) {
-        rerankerLogger.warn({ status: response.status, attempt }, "reranker request retrying");
-        await sleep(500 * 2 ** (attempt - 1));
-        continue;
-      }
-      throw new Error(`SiliconFlow reranker failed (${response.status}): ${message}`);
+  const payload = await requestIndexJson<RerankApiResponse>({
+    url: `${config.baseUrl}/rerank`, apiKey: config.apiKey, timeoutMs: 90_000, fetcher,
+    body: { model: config.model, query: query.slice(0, 12000), documents: documents.map((document) => document.text), top_n: documents.length, return_documents: false },
+  });
+  const scoreByIndex = new Map<number, number>();
+  for (const result of payload.results || []) {
+    if (
+      typeof result.index === "number" &&
+      typeof result.relevance_score === "number" &&
+      Number.isFinite(result.relevance_score)
+    ) {
+      scoreByIndex.set(result.index, result.relevance_score);
     }
-    const payload = await response.json() as RerankApiResponse;
-    const scoreByIndex = new Map<number, number>();
-    for (const result of payload.results || []) {
-      if (
-        typeof result.index === "number" &&
-        typeof result.relevance_score === "number" &&
-        Number.isFinite(result.relevance_score)
-      ) {
-        scoreByIndex.set(result.index, result.relevance_score);
-      }
-    }
-    if (scoreByIndex.size !== documents.length) {
-      throw new Error(`SiliconFlow reranker returned ${scoreByIndex.size} scores for ${documents.length} documents`);
-    }
-    return {
-      rows: documents.map((document, index) => ({
-        ...document,
-        rerankScore: scoreByIndex.get(index)!,
-      })),
-      inputTokens: payload.meta?.tokens?.input_tokens ?? 0,
-      model: config.model,
-    };
   }
-  throw new Error("SiliconFlow reranker exhausted retries");
+  if (scoreByIndex.size !== documents.length) {
+    throw new Error(`SiliconFlow reranker returned ${scoreByIndex.size} scores for ${documents.length} documents`);
+  }
+  return {
+    rows: documents.map((document, index) => ({
+      ...document,
+      rerankScore: scoreByIndex.get(index)!,
+    })),
+    inputTokens: payload.meta?.tokens?.input_tokens ?? 0,
+    model: config.model,
+  };
+
 }
 
 export async function rerankDocuments(

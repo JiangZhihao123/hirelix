@@ -29,8 +29,8 @@ export function isReviewableSearchStatus(status: string | null | undefined) {
 }
 
 export function getSearchStatusBucket(status: string | null | undefined) {
-  if (isReviewableSearchStatus(status)) return "done";
   if (isRunningSearchStatus(status)) return "processing";
+  if (isReviewableSearchStatus(status)) return "done";
   if (status === "error") return "error";
   return "all";
 }

@@ -8,6 +8,7 @@ export type ProfileSemanticEvidence = {
 };
 
 export type ProfileRepresentation = {
+  location?: { city: string | null; state_or_region: string | null; metro_area: string | null };
   role_families: string[];
   adjacent_roles: string[];
   seniority: string;
@@ -55,8 +56,12 @@ export const PROFILE_REPRESENTATION_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["role_families", "adjacent_roles", "seniority", "skills", "domains", "capabilities", "summary", "evidence", "experiences"],
+    required: ["location", "role_families", "adjacent_roles", "seniority", "skills", "domains", "capabilities", "summary", "evidence", "experiences"],
     properties: {
+    location: {
+      type: "object", additionalProperties: false, required: ["city", "state_or_region", "metro_area"],
+      properties: { city: { type: ["string", "null"] }, state_or_region: { type: ["string", "null"] }, metro_area: { type: ["string", "null"] } },
+    },
     role_families: { type: "array", maxItems: 6, items: { type: "string" } },
     adjacent_roles: { type: "array", maxItems: 6, items: { type: "string" } },
     seniority: { type: "string" },
@@ -100,7 +105,7 @@ export const PROFILE_REPRESENTATION_SCHEMA = {
 const SYSTEM_PROMPT = `You extract reusable recruiting evidence from a LinkedIn profile.
 Return only schema-valid JSON. Every skill, domain, and capability must be supported by profile text and tied to a supplied experience_ref in evidence. Repeat the exact skill, domain, or capability label in the related evidence claim or detail.
 Do not infer responsibilities from title, employer prestige, or school prestige. Distinguish production ownership from brief exposure. Missing information is unknown, not negative.
-This is not a candidate quality judgment and must not contain a JD match score.`;
+Normalize the supplied profile location into city, state_or_region and metro_area only where the supplied text establishes them. A country-only location has null city and metro_area. Do not infer residence from employer offices or past experience. This is not a candidate quality judgment and must not contain a JD match score.`;
 
 function strings(value: unknown, limit: number) {
   return Array.isArray(value)
@@ -149,7 +154,9 @@ export function validateProfileRepresentation(value: unknown, profile: Normalize
       throw new Error("Substantive profile representation has no evidence");
     }
   }
+  const location = record.location && typeof record.location === "object" ? record.location as Record<string, unknown> : {};
   return {
+    location: { city: typeof location.city === "string" ? location.city : null, state_or_region: typeof location.state_or_region === "string" ? location.state_or_region : null, metro_area: typeof location.metro_area === "string" ? location.metro_area : null },
     role_families: strings(record.role_families, 6),
     adjacent_roles: strings(record.adjacent_roles, 6),
     seniority: typeof record.seniority === "string" ? record.seniority.trim() : "unknown",
@@ -170,6 +177,7 @@ export async function generateProfileRepresentation(
   const profilePayload = {
     name: profile.name,
     current_title: profile.currentTitle,
+    location: { country: profile.countryCode, locality: profile.city },
     about: profile.rawProfile.about,
     education: profile.rawProfile.education,
     experiences: profile.experiences.map((item) => ({
@@ -211,6 +219,7 @@ export async function generateProfileRepresentation(
 
 export function buildProfileSearchDocument(profile: NormalizedProfile, representation: ProfileRepresentation) {
   return [
+    `Location: ${[representation.location?.city || profile.city, representation.location?.state_or_region, representation.location?.metro_area, profile.countryCode].filter(Boolean).join("; ") || "Unknown"}`,
     `Primary and adjacent roles: ${[...representation.role_families, ...representation.adjacent_roles].join("; ") || "Unknown"}`,
     `Seniority and scope: ${representation.seniority}; ${profile.yearsExperience ?? "unknown"} years; ${representation.summary || "Unknown"}`,
     `Core capabilities: ${representation.capabilities.join("; ") || "Unknown"}`,

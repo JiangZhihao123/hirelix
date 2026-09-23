@@ -40,6 +40,8 @@ import {
   formatRecruiterSellingHeadline,
   parseOutreach,
 } from "./utils";
+import { usesEvidenceRanking } from "@/lib/search/decision-contract";
+import { CandidateRequirementEvidence } from "./CandidateRequirementEvidence";
 import { ActionabilityBadge, InitialsAvatar, ScoreBadge } from "./ui";
 
 export function CandidateCard({
@@ -239,7 +241,7 @@ export function CandidateCard({
               </span>
             )}
             <ActionabilityBadge candidate={candidate} />
-            <ScoreBadge score={overallScore} />
+            {!usesEvidenceRanking(localCandidate) && <ScoreBadge score={overallScore} />}
             {recommendationLabel && (
               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${recommendationClass}`}>
                 {recommendationLabel}
@@ -305,6 +307,7 @@ export function CandidateCard({
               ))}
             </div>
           )}
+          <CandidateRequirementEvidence candidate={localCandidate} compact />
           {scoringBreakdown && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {scoreMetrics.map((metric) => (
@@ -342,6 +345,7 @@ export function CandidateCard({
       {/* Expanded details */}
       {expanded && (
         <div className="min-w-0 border-t border-border px-3 pb-4 pt-4 sm:px-5 sm:pb-5">
+          <CandidateRequirementEvidence candidate={localCandidate} />
           <div className="grid min-w-0 gap-6 lg:grid-cols-2">
             {/* Left: Candidate info */}
             <div className="min-w-0 space-y-4 break-words">
@@ -549,7 +553,7 @@ export function CandidateCard({
               {joinLikelihoodReasons.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Why they might realistically engage
+                    Outreach context
                   </p>
                   <ul className="space-y-1.5">
                     {joinLikelihoodReasons.map((reason, i) => (

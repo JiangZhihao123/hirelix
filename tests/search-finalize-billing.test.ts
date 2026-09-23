@@ -22,7 +22,7 @@ test("a completed retry charges the role that was released after failure", async
     github_url: null,
     email: null,
     outreach_draft: null,
-    metadata: { delivery_bucket: "review_next" },
+    metadata: { delivery_bucket: "reach_first" },
     final_rank: 1,
   };
 
@@ -54,4 +54,11 @@ test("a completed retry charges the role that was released after failure", async
   assert.equal(usageMetadata.client_roles_used, 1);
   assert.equal(usageMetadata.profile_scans_billing_status, "charged");
   assert.equal(getBillableClientRoleCount(usageMetadata), 1);
+});
+
+ test("no recommendations releases a role while preserving paid scans on saved-profile review", async () => {
+  const { mergeSearchUsageMetadata } = await import("../src/lib/search/persistence");
+  const metadata = mergeSearchUsageMetadata({ profile_scans_used: 500, client_roles_used: 1 }, { profile_scans_used: 0, client_roles_used: 0, client_role_billing_status: "released_no_recommendations" });
+  assert.equal(metadata.profile_scans_used, 500);
+  assert.equal(getBillableClientRoleCount(metadata), 0);
 });

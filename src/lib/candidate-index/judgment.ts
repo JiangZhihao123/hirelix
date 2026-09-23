@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { hirelix_candidate_comparisons, hirelix_profile_experiences, hirelix_profiles } from "@/db/schema";
+import { hirelix_candidate_comparisons, hirelix_profile_experiences, hirelix_profiles, hirelix_dataset_snapshots } from "@/db/schema";
 import { generateLlmJson, getDefaultLlmModel, getLightweightLlmModel, resolveDeepSeekThinkingMode } from "@/lib/llm-client";
 import {
   buildConnectedComparisonPairs,
@@ -12,6 +12,7 @@ import {
   type DavidsonRank,
   type StableCandidateToken,
 } from "@/lib/candidate-index/ranking";
+import { ASSESSMENT_SCHEMA, normalizeAssessment, readDecisionContract, resolveCandidateDecision, type CandidateAssessment } from "@/lib/search/decision-contract";
 import { runWithConcurrency } from "@/lib/search/concurrency";
 
 type CandidateBundleProfile = Pick<typeof hirelix_profiles.$inferSelect,
@@ -20,7 +21,7 @@ type CandidateBundleProfile = Pick<typeof hirelix_profiles.$inferSelect,
   | "capabilities" | "country_code" | "state_or_region" | "city" | "metro_area"
   | "highest_degree" | "schools" | "fields_of_study" | "profile_summary"
   | "semantic_evidence" | "raw_profile"
->;
+> & Partial<Pick<typeof hirelix_profiles.$inferSelect, "raw_content_hash" | "source_snapshot_id" | "representation_version">> & { retrieved_at?: Date | string | null };
 
 type CandidateBundleExperience = Pick<typeof hirelix_profile_experiences.$inferSelect,
   | "id" | "profile_id" | "source_ordinal" | "title" | "company" | "start_date"
@@ -31,6 +32,7 @@ export type CandidateBundle = {
   profile: CandidateBundleProfile;
   experiences: CandidateBundleExperience[];
   retrievalEvidence: Record<string, unknown>;
+  finalAssessment?: CandidateAssessment;
 };
 
 export type Qualification = {
@@ -40,6 +42,7 @@ export type Qualification = {
   missingInformation: string[];
   rejectionReasons: string[];
   comparisonCard: ComparisonCard;
+  assessment?: CandidateAssessment;
   model: string;
 };
 
@@ -79,6 +82,9 @@ export type FinalJudgment = {
   risks: string[];
   missingInformation: string[];
   recommendedNextAction: string;
+  assessment?: CandidateAssessment;
+  modelDecision?: FinalJudgment["decision"];
+  reconciliation?: string | null;
 };
 
 export const QUALIFICATION_SCHEMA = {
@@ -87,12 +93,13 @@ export const QUALIFICATION_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["decision", "supporting_evidence", "missing_information", "rejection_reasons", "comparison_card"],
+    required: ["decision", "supporting_evidence", "missing_information", "rejection_reasons", "comparison_card", "assessment"],
     properties: {
       decision: { type: "string", enum: ["advance", "maybe", "reject"] },
       supporting_evidence: { type: "array", maxItems: 10, items: { type: "string" } },
       missing_information: { type: "array", maxItems: 10, items: { type: "string" } },
       rejection_reasons: { type: "array", maxItems: 10, items: { type: "string" } },
+      assessment: ASSESSMENT_SCHEMA,
       comparison_card: {
         type: "object",
         additionalProperties: false,
@@ -161,6 +168,8 @@ export const FINAL_SCHEMA = {
       "risks",
       "missing_information",
       "recommended_next_action",
+      "assessment",
+      "reconciliation",
     ],
     properties: {
       decision: { type: "string", enum: ["contact", "review", "hold", "reject"] },
@@ -173,13 +182,20 @@ export const FINAL_SCHEMA = {
       risks: { type: "array", maxItems: 8, items: { type: "string" } },
       missing_information: { type: "array", maxItems: 8, items: { type: "string" } },
       recommended_next_action: { type: "string" },
+      assessment: ASSESSMENT_SCHEMA,
+      reconciliation: { type: "string" },
     },
   },
 } as const;
 
-export const CANDIDATE_JUDGMENT_PROMPT_VERSION = 6;
+export const CANDIDATE_JUDGMENT_PROMPT_VERSION = 10;
 
 export const QUALIFICATION_SYSTEM_PROMPT = [
+  "Assess performed work independently of the job title. Do not invent a primary-responsibility, exact-domain, or full-time-exclusivity condition that the JD does not require. Judge each criterion independently: uncertainty about relevant years must not erase clearly documented service development, operations, or other capabilities.",
+  "For minimum years in a specified function, count only non-overlapping periods with evidence of that function or clearly equivalent work. Total career tenure, a generic software title, and years in a neighboring function do not prove the required duration. Explain which roles and periods establish the threshold; if the relevant duration cannot be established, mark that requirement unknown rather than borrowing total years_experience.",
+  "Use jd.decision_contract as the authoritative requirements. Return exactly one assessment.requirements row per requirement id; cite only exact keys from candidate.source_evidence. A label or adjacent topic does not establish performed work. Preserve technical alternatives; do not demand every OR alternative.",
+  "supported requires direct or clearly equivalent evidence; contradicted requires explicit contrary evidence; absence is unknown. Treat every required before_outreach fact separately. A country-only location does not establish a strict city/metro; an observed local profile establishes geographic feasibility, not willingness to commute. An explicit incompatible location without permitted relocation cannot be marked supported.",
+  "Profile retrieval time is provenance, not confirmation of present employment, residence or willingness. Retain older historical work evidence; describe potentially changed current facts as checks. Never invent relocation, availability, work authorization or recent verification.",
   "Return JSON matching output_contract.",
   "Judge only whether the candidate has enough concrete evidence of job fit and eligibility to enter relative ranking for this JD.",
   "Do not estimate willingness to change jobs and do not require active-job-seeking, open-to-work, or other availability signals.",
@@ -188,7 +204,7 @@ export const QUALIFICATION_SYSTEM_PROMPT = [
   "maybe means the fit is plausible but evidence for a JD-relevant capability or mandatory fact is incomplete.",
   "Return reject only for a concrete supported mismatch or failed mandatory constraint.",
   "Build comparison_card once from cited profile facts; it is a stable evidence card for later relative comparisons, not a numeric score.",
-  "For core_work, direct requires explicit JD-core work and equivalent requires evidence of the same behavior; RAG, chatbots, or adjacent LLM work alone do not prove multi-step agentic reasoning.",
+  "For core_work, direct requires explicit JD-core work and equivalent requires evidence of the same behavior; a technology label or adjacent project alone does not prove the work required by this JD.",
   "Judge core_work independently from production scale: an internship or prototype can be direct core work, while scale belongs only in production_ownership.",
   "Do not downgrade transferable core work merely because it was done in another industry unless the JD explicitly requires domain experience.",
   "For mandatory_eligibility, missing education, authorization, location preference, or availability is unknown rather than fail; US location never proves US work authorization.",
@@ -197,6 +213,7 @@ export const QUALIFICATION_SYSTEM_PROMPT = [
 
 export const PAIRWISE_COMPARISON_SYSTEM_PROMPT = [
   "Return JSON matching output_contract.",
+  "When final_assessment is supplied, it is the latest requirement-by-requirement eligibility assessment. Use it instead of superseded preliminary cards; request qualification review only for a concrete conflicting profile fact.",
   "Both candidates passed a minimum job-fit gate; decide who a recruiter should contact first for this specific JD.",
   "Read the complete profile and career trajectory as a whole. The comparison_card is supporting evidence and an audit aid, not a score or a substitute for holistic judgment.",
   "candidate_token is a stable identity label that does not indicate quality; never favor the first listed candidate or a particular token.",
@@ -226,10 +243,17 @@ export const PAIRWISE_ARBITER_SYSTEM_PROMPT = [
 ].join(" ");
 
 export const FINAL_JUDGMENT_SYSTEM_PROMPT = [
+  "Assess performed work independently of the job title. Do not invent a primary-responsibility, exact-domain, or full-time-exclusivity condition that the JD does not require. Judge each criterion independently: uncertainty about relevant years must not erase clearly documented service development, operations, or other capabilities.",
+  "For minimum years in a specified function, count only non-overlapping periods with evidence of that function or clearly equivalent work. Total career tenure, a generic software title, and years in a neighboring function do not prove the required duration. Explain which roles and periods establish the threshold; if the relevant duration cannot be established, mark that requirement unknown rather than borrowing total years_experience.",
+  "Use jd.decision_contract as the authoritative requirements. Return exactly one assessment.requirements row per requirement id; cite only exact keys from candidate.source_evidence. A label or adjacent topic does not establish performed work. Preserve technical alternatives; do not demand every OR alternative.",
+  "supported requires direct or clearly equivalent evidence; contradicted requires explicit contrary evidence; absence is unknown. Treat every required before_outreach fact separately. A country-only location does not establish a strict city/metro; an observed local profile establishes geographic feasibility, not willingness to commute. An explicit incompatible location without permitted relocation cannot be marked supported.",
+  "Profile retrieval time is provenance, not confirmation of present employment, residence or willingness. Retain older historical work evidence; describe potentially changed current facts as checks. Never invent relocation, availability, work authorization or recent verification.",
   "Return concise JSON matching output_contract; keep each array to the few strongest non-duplicative items and each string under 180 characters.",
   "Make the final recruiter-facing decision for this specific JD from the complete profile, qualification evidence, and relative ranking.",
   "Evaluate job fit and join likelihood as separate questions: job fit determines whether outreach is warranted, while join likelihood determines outreach priority, effort, and messaging.",
   "This is passive recruiting: contact does not require active-job-seeking, open-to-work, or any explicit statement that the person wants to leave.",
+  "contact requires direct or equivalent core_fit and supported required before_outreach facts; unresolved during_outreach facts are explicit questions, not an automatic blocker. Use review only for plausible fits with a resolvable material evidence gap, not to fill a quota. A merely adjacent profile with little core-work evidence should usually be hold.",
+  "When upgrading a maybe/reject qualification to contact, reconciliation must cite the exact profile evidence that resolves the earlier gaps or disproves the earlier mismatch. Repeating a conclusion is not reconciliation.",
   "Use contact when concrete evidence shows strong direct or clearly equivalent fit for the core work and no evidence-based blocker makes outreach unreasonable; unknown willingness alone must not downgrade contact.",
   "Use review only when a JD-relevant capability, mandatory eligibility fact, or material fit question remains genuinely ambiguous and needs recruiter review; do not use review merely because willingness is unknown.",
   "Use hold when the candidate is relevant but materially weaker or has a substantial evidence-based fit or availability risk; use reject only for a clear supported mismatch or failed mandatory constraint.",
@@ -269,11 +293,11 @@ function normalizeComparisonCard(value: unknown): ComparisonCard {
   };
 }
 
-async function withJudgmentRetry<T>(operation: () => Promise<T>, maxAttempts = 3) {
+async function withJudgmentRetry<T>(operation: (attempt: number) => Promise<T>, maxAttempts = 3) {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await operation();
+      return await operation(attempt);
     } catch (error) {
       lastError = error;
       if (attempt < maxAttempts) await new Promise((resolve) => setTimeout(resolve, 500));
@@ -282,9 +306,23 @@ async function withJudgmentRetry<T>(operation: () => Promise<T>, maxAttempts = 3
   throw lastError;
 }
 
+export function candidateSourceEvidence(bundle: CandidateBundle) {
+  const raw = bundle.profile.raw_profile as Record<string, unknown> | null;
+  const entries: Array<[string, unknown]> = [
+    ["profile.location", raw ? [raw.city, raw.location, raw.country_code].filter((value) => typeof value === "string").join(", ") : [bundle.profile.city, bundle.profile.country_code].filter(Boolean).join(", ")],
+    ["profile.skills", Array.isArray(raw?.skills) ? raw.skills.join("; ") : !raw ? bundle.profile.skills?.join("; ") : null],
+    ["profile.about", raw?.about],
+    ["profile.education", JSON.stringify(raw?.education || { schools: bundle.profile.schools, degree: bundle.profile.highest_degree })],
+    ...bundle.experiences.map((item): [string, unknown] => [`exp-${item.source_ordinal}`, JSON.stringify({ title: item.title, company: item.company, start: item.start_date, end: item.end_date, current: item.is_current, location: item.location, description: item.description })]),
+  ];
+  return Object.fromEntries(entries.filter((entry) => typeof entry[1] === "string" && entry[1].trim().length > 0));
+}
+
 function candidatePrompt(bundle: CandidateBundle) {
   return {
     profile_id: bundle.profile.id,
+    source_evidence: candidateSourceEvidence(bundle),
+    profile_retrieved_at: bundle.profile.retrieved_at || null,
     name: bundle.profile.name,
     current_title: bundle.profile.current_title,
     current_company: bundle.profile.current_company,
@@ -322,7 +360,7 @@ function candidatePrompt(bundle: CandidateBundle) {
 export async function loadCandidateBundles(
   profileIds: string[],
   evidenceByProfile: Map<string, Record<string, unknown>>,
-) {
+): Promise<CandidateBundle[]> {
   if (profileIds.length === 0) return [];
   const profiles = await db.select({
     id: hirelix_profiles.id,
@@ -346,7 +384,11 @@ export async function loadCandidateBundles(
     profile_summary: hirelix_profiles.profile_summary,
     semantic_evidence: hirelix_profiles.semantic_evidence,
     raw_profile: hirelix_profiles.raw_profile,
-  }).from(hirelix_profiles).where(inArray(hirelix_profiles.id, profileIds));
+    raw_content_hash: hirelix_profiles.raw_content_hash,
+    source_snapshot_id: hirelix_profiles.source_snapshot_id,
+    representation_version: hirelix_profiles.representation_version,
+    retrieved_at: hirelix_dataset_snapshots.created_at,
+  }).from(hirelix_profiles).leftJoin(hirelix_dataset_snapshots, eq(hirelix_profiles.source_snapshot_id, hirelix_dataset_snapshots.snapshot_id)).where(inArray(hirelix_profiles.id, profileIds));
   const experiences = await db.select({
     id: hirelix_profile_experiences.id,
     profile_id: hirelix_profile_experiences.profile_id,
@@ -392,7 +434,7 @@ export async function qualifyCandidate(
       jd,
       candidate: candidatePrompt(bundle),
     }),
-    maxOutputTokens: 2400,
+    maxOutputTokens: 6000,
     timeoutMs: 90_000,
     temperature: 0,
     jsonSchema: QUALIFICATION_SCHEMA,
@@ -401,7 +443,13 @@ export async function qualifyCandidate(
   }));
   const comparisonCard = normalizeComparisonCard(data.comparison_card);
   const modelDecision = data.decision === "advance" || data.decision === "reject" ? data.decision : "maybe";
-  const decision = comparisonCard.mandatoryEligibility.level === "fail" ? "reject" : modelDecision;
+  const contract = readDecisionContract(jd.decision_contract);
+  const assessment = contract ? normalizeAssessment(data.assessment, contract, Object.keys(candidateSourceEvidence(bundle))) : undefined;
+  let decision: Qualification["decision"] = comparisonCard.mandatoryEligibility.level === "fail" ? "reject" as const : modelDecision;
+  if (assessment && contract) {
+    const resolved = resolveCandidateDecision({ contract, assessment, modelDecision: modelDecision === "advance" ? "contact" : modelDecision === "reject" ? "reject" : "review" });
+    decision = resolved.decision === "contact" ? "advance" : resolved.decision === "reject" ? "reject" : "maybe";
+  }
   const rejectionReasons = stringArray(data.rejection_reasons, 10);
   return {
     profileId: bundle.profile.id,
@@ -412,6 +460,7 @@ export async function qualifyCandidate(
       ? ["Comparison card contains an explicit mandatory-eligibility failure."]
       : rejectionReasons,
     comparisonCard,
+    assessment,
     model,
   };
 }
@@ -419,7 +468,8 @@ export async function qualifyCandidate(
 function comparisonCandidatePrompt(bundle: CandidateBundle, card: ComparisonCard) {
   return {
     profile: candidatePrompt(bundle),
-    comparison_card: card,
+    comparison_card: bundle.finalAssessment ? undefined : card,
+    final_assessment: bundle.finalAssessment,
   };
 }
 
@@ -446,7 +496,7 @@ async function compareCandidates(
 ): Promise<ComparisonResult> {
   const secondToken: StableCandidateToken = firstToken === "candidate_1" ? "candidate_2" : "candidate_1";
   const model = process.env.SEARCH_JUDGE_MODEL || getDefaultLlmModel();
-  const maxOutputTokens = model.includes("pro") ? 8000 : 3000;
+  const maxOutputTokens = model.includes("pro") ? 10_000 : 6000;
   const payload = {
     output_contract: COMPARISON_SCHEMA.schema,
     evaluation_date: new Date().toISOString().slice(0, 10),
@@ -462,7 +512,7 @@ async function compareCandidates(
     system: PAIRWISE_COMPARISON_SYSTEM_PROMPT,
     prompt: JSON.stringify(payload),
     maxOutputTokens,
-    timeoutMs: 90_000,
+    timeoutMs: 180_000,
     temperature: 0,
     jsonSchema: COMPARISON_SCHEMA,
     deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_PAIRWISE_THINKING", "enabled"),
@@ -777,7 +827,7 @@ export async function judgeFinalCandidate(
   usage: { searchId: string; jobId: string; userId: string },
 ): Promise<FinalJudgment> {
   const model = process.env.SEARCH_ARBITER_MODEL || "deepseek-v4-pro";
-  const { data } = await withJudgmentRetry(() => generateLlmJson<Record<string, unknown>>({
+  const { data } = await withJudgmentRetry((attempt) => generateLlmJson<Record<string, unknown>>({
     model,
     system: FINAL_JUDGMENT_SYSTEM_PROMPT,
     prompt: JSON.stringify({
@@ -788,14 +838,22 @@ export async function judgeFinalCandidate(
       qualification,
       relative_ranking: ranking,
     }),
-    maxOutputTokens: 8000,
-    timeoutMs: 180_000,
+    maxOutputTokens: attempt === 1 ? 12_000 : 20_000,
+    timeoutMs: 300_000,
     temperature: 0,
     jsonSchema: FINAL_SCHEMA,
-    deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_FINAL_JUDGMENT_THINKING", "enabled"),
+    deepSeekThinking: resolveDeepSeekThinkingMode("SEARCH_FINAL_JUDGMENT_THINKING", "disabled"),
     usageEvent: { ...usage, stage: "final_judgment" },
-  }), 5);
-  return normalizeFinalJudgment(bundle.profile.id, data);
+  }), 3);
+  const judgment = normalizeFinalJudgment(bundle.profile.id, data);
+  const contract = readDecisionContract(jd.decision_contract);
+  if (contract) {
+    judgment.assessment = normalizeAssessment(data.assessment, contract, Object.keys(candidateSourceEvidence(bundle)));
+    judgment.modelDecision = judgment.decision;
+    const resolved = resolveCandidateDecision({ contract, assessment: judgment.assessment, modelDecision: judgment.decision, previousDecision: qualification.decision, reconciliation: judgment.reconciliation });
+    judgment.decision = resolved.decision;
+  }
+  return judgment;
 }
 
 export function normalizeFinalJudgment(
@@ -823,5 +881,6 @@ export function normalizeFinalJudgment(
     risks: stringArray(data.risks, 8),
     missingInformation: stringArray(data.missing_information, 8),
     recommendedNextAction: typeof data.recommended_next_action === "string" ? data.recommended_next_action : decision,
+    reconciliation: typeof data.reconciliation === "string" && data.reconciliation.trim() ? data.reconciliation.trim() : null,
   };
 }

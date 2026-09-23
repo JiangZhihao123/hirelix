@@ -174,6 +174,8 @@ export async function POST(
       requested_candidate_count: deliveryReferenceCount,
       profile_scan_budget: expansion.nextBudget,
       expand_recall_mode: "fresh_snapshot",
+      allow_external_recall: true,
+      search_agent: null,
       expansion_requested_at: timestamp,
       expansion_count: currentExpansionCount + 1,
       expansion_previous_profile_scan_budget: expansion.currentBudget,

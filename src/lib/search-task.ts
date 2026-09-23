@@ -3,6 +3,7 @@ export const SEARCH_TASK_PROCESSING_STATUSES = [
   "parsing",
   "searching",
   "screening",
+  "deep_scoring",
 ] as const;
 
 export type SearchTaskProcessingStatus =
@@ -69,7 +70,7 @@ export function getSearchTaskStageLabel(stage: SearchTaskStage) {
     case "brief_ready":
       return "Understanding the role";
     case "linkedin_scan":
-      return "Scanning LinkedIn";
+      return "Finding profiles";
     case "reviewing_profiles":
       return "Reviewing candidates";
     case "shortlist_ready":
@@ -111,11 +112,11 @@ export function getSearchTaskSummary(stage: SearchTaskStage) {
     case "accepted":
       return "Your search has started. You can leave this page while Hirelix prepares the search.";
     case "brief_ready":
-      return "Hirelix has turned the JD into a sourcing brief and is preparing the LinkedIn search. You can leave this page.";
+      return "The role requirements are ready. Hirelix is finding candidate profiles.";
     case "linkedin_scan":
-      return "We're scanning LinkedIn at scale. This usually takes a few minutes — you can leave this page.";
+      return "Hirelix is finding profiles against the role requirements. You can leave this page and check back.";
     case "reviewing_profiles":
-      return "We've finished the LinkedIn scan. Now reviewing the strongest matches for this role.";
+      return "Candidate profiles are being reviewed against the role requirements.";
     case "shortlist_ready":
       return "Your shortlist is ready to review. Hirelix can keep refining in the background.";
     default:
@@ -138,7 +139,7 @@ export function getSearchTaskTimelineItems(search: SearchTaskLike) {
   return [
     { label: "Accepted", state: activeIndex > 0 ? "done" : activeIndex === 0 ? "active" : "upcoming" },
     { label: "Brief ready", state: activeIndex > 1 ? "done" : activeIndex === 1 ? "active" : "upcoming" },
-    { label: "Scanning LinkedIn", state: activeIndex > 2 ? "done" : activeIndex === 2 ? "active" : "upcoming" },
+    { label: "Finding profiles", state: activeIndex > 2 ? "done" : activeIndex === 2 ? "active" : "upcoming" },
     { label: "Reviewing candidates", state: activeIndex > 3 ? "done" : activeIndex === 3 ? "active" : "upcoming" },
     { label: "Shortlist ready", state: activeIndex > 4 ? "done" : activeIndex === 4 ? "active" : "upcoming" },
   ] as const;
@@ -150,7 +151,7 @@ export function inferSearchTaskRisks(input: SearchRiskInput): SearchTaskRisk[] {
   const hasStrictLocation =
     Boolean(input.locationScope) &&
     input.locationFlexibility === "strict" &&
-    input.relocationAllowed === "no" &&
+    input.relocationAllowed !== "yes" &&
     input.workModel !== "remote";
 
   risks.push({

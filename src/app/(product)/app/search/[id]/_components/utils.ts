@@ -1,3 +1,4 @@
+import { candidateDecision, getDecisionRecord, usesEvidenceRanking } from "@/lib/search/decision-contract";
 import { getSearchCompletionFollowUpCopy } from "@/lib/search-notification-config";
 import type {
   CandidateDisplayTier,
@@ -7,31 +8,10 @@ import type {
   ExcludedReason,
   GithubSignals,
   PublicEvidence,
-  SearchPageCacheSnapshot,
 } from "./types";
 
 export const PRIORITY_OUTREACH_MIN_SCORE = 70;
 const REACH_FIRST_MIN_REACHABILITY = 55;
-
-export function getSearchPageCacheKey(id: string) {
-  return `hirelix:search-page:${id}`;
-}
-
-export function readSearchPageCache(id: string | null | undefined): SearchPageCacheSnapshot | null {
-  if (!id || typeof window === "undefined") return null;
-
-  const raw = window.sessionStorage.getItem(getSearchPageCacheKey(id));
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as SearchPageCacheSnapshot;
-    if (!parsed || typeof parsed !== "object") return null;
-    if (!parsed.search || !Array.isArray(parsed.candidates)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 export function formatConstraintValue(
   value: ConstraintVerdict["location_fit"] | ConstraintVerdict["work_model_fit"] | ConstraintVerdict["must_have_coverage"],
@@ -81,6 +61,10 @@ export function formatDisplayCount(value: number) {
 }
 
 export function getCandidateDisplayTier(candidate: CandidateRow): CandidateDisplayTier | null {
+  if (usesEvidenceRanking(candidate) || getDecisionRecord(candidate)) {
+    const decision = candidateDecision(candidate);
+    return decision === "contact" ? "priority_outreach" : decision === "review" ? "worth_reviewing" : null;
+  }
   const safeScore = typeof candidate.match_score === "number" ? candidate.match_score : 0;
   const deliveryBucket = candidate.metadata?.delivery_bucket;
   const reachabilityScore = getCandidateJoinLikelihoodScoreValue(candidate);
@@ -149,6 +133,9 @@ function candidateHasActiveJobSearchSignal(candidate: CandidateRow) {
 }
 
 export function getCandidateDeliveryBucket(candidate: CandidateRow) {
+  if (usesEvidenceRanking(candidate) || getDecisionRecord(candidate)) {
+    return ({ contact: "reach_first", review: "review_next", hold: "lower_priority", reject: "not_recommended" } as const)[candidateDecision(candidate)];
+  }
   const explicit = candidate.metadata?.delivery_bucket;
   if (explicit === "reach_first") {
     return getCandidateDisplayTier(candidate) === "priority_outreach"
@@ -182,9 +169,9 @@ export function getCandidateDeliveryBucket(candidate: CandidateRow) {
 export function formatDeliveryBucketLabel(candidate: CandidateRow) {
   switch (getCandidateDeliveryBucket(candidate)) {
     case "reach_first":
-      return "Reach first";
+      return "Recommended for outreach";
     case "review_next":
-      return "Review next";
+      return "Verify first";
     case "not_recommended":
       return "Not recommended";
     case "lower_priority":
@@ -202,13 +189,13 @@ function candidateQualityScore(candidate: CandidateRow) {
 function candidateAdvanceScore(candidate: CandidateRow) {
   return candidate.metadata?.advance_score ??
     candidate.metadata?.scoring_breakdown?.advance_score ??
-    candidate.match_score;
+    (candidate.match_score ?? 0);
 }
 
 function candidateTriggerScore(candidate: CandidateRow) {
   return candidate.metadata?.subscription_trigger_score ??
     candidate.metadata?.suitability?.subscription_trigger_score ??
-    candidate.match_score;
+    (candidate.match_score ?? 0);
 }
 
 function candidateDeliveryPriority(candidate: CandidateRow) {
@@ -237,14 +224,14 @@ export function compareCandidatesForRecruiterRanking(left: CandidateRow, right: 
     leftFinalRank - rightFinalRank ||
     candidateQualityScore(right) - candidateQualityScore(left) ||
     candidateAdvanceScore(right) - candidateAdvanceScore(left) ||
-    right.match_score - left.match_score ||
+    (right.match_score ?? 0) - (left.match_score ?? 0) ||
     candidateTriggerScore(right) - candidateTriggerScore(left) ||
     leftRank - rightRank
   );
 }
 
 export function formatTierLabel(value: CandidateDisplayTier) {
-  return value === "priority_outreach" ? "Reach Out First" : "Worth Reviewing";
+  return value === "priority_outreach" ? "Recommended for outreach" : "Verify first";
 }
 
 export function formatExcludedReasonLabel(reason: ExcludedReason) {
@@ -451,6 +438,7 @@ export function getSearchErrorPresentation(parsedRequirements?: Record<string, u
 }
 
 export function getCandidateScoringBreakdown(candidate: CandidateRow) {
+  if (usesEvidenceRanking(candidate) || getDecisionRecord(candidate)) return undefined;
   return candidate.metadata?.scoring_breakdown || candidate.metadata?.suitability?.scoring_breakdown;
 }
 
@@ -462,7 +450,7 @@ export function getCandidateOverallScore(candidate: CandidateRow) {
     candidate.metadata?.suitability?.advance_score ??
     getCandidateScoringBreakdown(candidate)?.overall_score ??
     getCandidateScoringBreakdown(candidate)?.advance_score ??
-    candidate.match_score
+    candidate.match_score ?? 0
   );
 }
 
@@ -489,6 +477,7 @@ export function getCandidateJoinLikelihoodScore(candidate: CandidateRow) {
 }
 
 export function getCandidateScoreMetrics(candidate: CandidateRow) {
+  if (usesEvidenceRanking(candidate) || getDecisionRecord(candidate)) return [];
   const breakdown = getCandidateScoringBreakdown(candidate);
   return [
     {

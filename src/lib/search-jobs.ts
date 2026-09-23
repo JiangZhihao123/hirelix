@@ -1027,6 +1027,7 @@ function buildSearchDisplayStats(
       .sort((left, right) => right.count - left.count)
     : [];
   return {
+    search_outcome: overrides.search_outcome,
     retrieval_count: Math.max(0, Math.round(overrides.retrieval_count ?? 0)),
     deep_review_count: deepReviewCompletedCount,
     deep_review_requested_count: deepReviewRequestedCount,

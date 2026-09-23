@@ -753,6 +753,16 @@ export async function updateSearchParsedRequirements(
   );
 }
 
+export function mergeSearchUsageMetadata(current: Record<string, unknown>, patch: Record<string, unknown>) {
+  const next = { ...current, ...patch };
+  // Reviewing saved profiles cannot refund scans already consumed by this role.
+  if (typeof current.profile_scans_used === "number" && typeof patch.profile_scans_used === "number") {
+    next.profile_scans_used = Math.max(current.profile_scans_used, patch.profile_scans_used);
+  }
+  if (current.internal_operator === true) Object.assign(next, { client_roles_used: 0, client_role_billing_status: "internal_operator_exempt" });
+  return next;
+}
+
 export async function updateSearchUsageEventMetadata(
   searchId: string,
   metadataPatch: Record<string, unknown>,
@@ -783,13 +793,7 @@ export async function updateSearchUsageEventMetadata(
   await db
     .update(hirelix_usage_events)
     .set({
-      metadata: toJsonbSafeRecord({
-        ...currentMetadata,
-        ...metadataPatch,
-        ...(currentMetadata.internal_operator === true
-          ? { client_roles_used: 0, client_role_billing_status: "internal_operator_exempt" }
-          : {}),
-      }),
+      metadata: toJsonbSafeRecord(mergeSearchUsageMetadata(currentMetadata, metadataPatch)),
     })
     .where(eq(hirelix_usage_events.id, event.id));
 }

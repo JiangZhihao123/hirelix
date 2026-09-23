@@ -105,8 +105,9 @@ export async function POST(
   }
 
   const parsedRequirements = readRecord(search.parsed_requirements);
-  const snapshotRefs = getSnapshotRefs(parsedRequirements);
-  if (snapshotRefs.length === 0) {
+  const indexReview = parsedRequirements?.recall_provider === "candidate_index" || Boolean(parsedRequirements?.decision_contract);
+  const snapshotRefs = indexReview ? [] : getSnapshotRefs(parsedRequirements);
+  if (!indexReview && snapshotRefs.length === 0) {
     return NextResponse.json(
       { error: "This shortlist has no reusable snapshot cache yet" },
       { status: 409 },
@@ -141,7 +142,11 @@ export async function POST(
   const timestamp = new Date().toISOString();
   const nextParsedRequirements = toJsonbSafeRecord({
     ...(parsedRequirements ?? {}),
-    rerun_mode: RERUN_MODE,
+    rerun_mode: indexReview ? "candidate_index" : RERUN_MODE,
+    allow_external_recall: false,
+    candidate_index_force_bright: false,
+    candidate_index_checkpoint: null,
+    search_agent: null,
     rerun_requested_at: timestamp,
     rerun_snapshot_ids: snapshotRefs.map((ref) => ref.snapshotId),
     display_stats: {
@@ -186,7 +191,7 @@ export async function POST(
 
   return NextResponse.json({
     ok: true,
-    mode: RERUN_MODE,
+    mode: indexReview ? "candidate_index" : RERUN_MODE,
     snapshot_ids: snapshotRefs.map((ref) => ref.snapshotId),
   });
 }

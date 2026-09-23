@@ -1,3 +1,4 @@
+import { candidateDecision, buildSearchOutcome } from "@/lib/search/decision-contract";
 import type {
   CandidateRowInput,
   PipelineContext,
@@ -54,29 +55,16 @@ export async function completeSearch(
   const sortedRows = [...finalRows].sort((left, right) => {
     const leftRank = left.final_rank ?? Number.POSITIVE_INFINITY;
     const rightRank = right.final_rank ?? Number.POSITIVE_INFINITY;
-    return leftRank - rightRank || right.match_score - left.match_score;
+    return leftRank - rightRank || (right.match_score ?? 0) - (left.match_score ?? 0);
   });
   const deliveredRows = sortedRows;
   const candidateCountReference = deliveredRows.length;
-  const recommendedRows = deliveredRows.filter(
-    (row) =>
-      row.metadata?.delivery_bucket === "reach_first" ||
-      row.metadata?.delivery_bucket === "review_next" ||
-      row.metadata?.display_tier === "priority_outreach" ||
-      row.metadata?.display_tier === "worth_reviewing",
-  );
-  const priorityOutreachCount = deliveredRows.filter(
-    (row) => row.metadata?.delivery_bucket === "reach_first" || row.metadata?.display_tier === "priority_outreach",
-  ).length;
-  const worthReviewingCount = deliveredRows.filter(
-    (row) => row.metadata?.delivery_bucket === "review_next" || row.metadata?.display_tier === "worth_reviewing",
-  ).length;
-  const lowerPriorityCount = deliveredRows.filter(
-    (row) => row.metadata?.delivery_bucket === "lower_priority",
-  ).length;
-  const notRecommendedCount = deliveredRows.filter(
-    (row) => row.metadata?.delivery_bucket === "not_recommended",
-  ).length;
+  const recommendedRows = deliveredRows.filter((row) => candidateDecision(row) === "contact");
+  const priorityOutreachCount = recommendedRows.length;
+  const worthReviewingCount = deliveredRows.filter((row) => candidateDecision(row) === "review").length;
+  const lowerPriorityCount = deliveredRows.filter((row) => candidateDecision(row) === "hold").length;
+  const notRecommendedCount = deliveredRows.filter((row) => candidateDecision(row) === "reject").length;
+  const outcome = buildSearchOutcome({ candidates: deliveredRows, retrievedCount: displayStats.search_outcome?.retrievedCount ?? displayStats.recall_profile_count ?? deliveredRows.length, targetCount: displayStats.search_outcome?.targetCount ?? 3, stopReason: displayStats.search_outcome?.stopReason ?? "evaluation_completed", explanation: displayStats.search_outcome?.explanation });
   const clearLocationFitCount = deliveredRows.filter((row) => {
     const verdicts =
       row.metadata?.constraint_verdicts && typeof row.metadata.constraint_verdicts === "object"
@@ -108,9 +96,10 @@ export async function completeSearch(
   const startedAt = helpers.getSearchStartedAt(parsed, context);
   const finalDisplayStats = helpers.buildSearchDisplayStats({
     ...displayStats,
-    promised_candidate_count: candidateCountReference,
+    promised_candidate_count: outcome.targetCount,
+    search_outcome: outcome,
     delivered_candidate_count: deliveredRows.length,
-    shortlist_underfilled: false,
+    shortlist_underfilled: recommendedRows.length < outcome.targetCount,
     shortlist_count: recommendedRows.length,
     qualified_count: recommendedRows.length,
     outreach_pool_count: recommendedRows.length,
@@ -171,8 +160,8 @@ export async function completeSearch(
   });
 
   await helpers.updateSearchUsageEventMetadata(context.searchId, {
-    client_role_billing_status: draftedRows.length > 0 ? "charged_after_completion" : "released_after_failure",
-    client_roles_used: draftedRows.length > 0 && finalParsed.internal_operator !== true ? 1 : 0,
+    client_role_billing_status: recommendedRows.length > 0 ? "charged_after_completion" : "released_no_recommendations",
+    client_roles_used: recommendedRows.length > 0 && finalParsed.internal_operator !== true ? 1 : 0,
     execution_profile: finalParsed.execution_profile ?? null,
     search_phase: finalParsed.search_phase ?? null,
     result_stage: finalParsed.result_stage ?? null,
@@ -220,9 +209,10 @@ export async function completeSearch(
   helpers.logSearchEvent("search_done", {
     search_id: context.searchId,
     candidate_count: draftedRows.length,
-    promised_candidate_count: candidateCountReference,
+    promised_candidate_count: outcome.targetCount,
+    search_outcome: outcome,
     delivered_candidate_count: draftedRows.length,
-    shortlist_underfilled: false,
+    shortlist_underfilled: recommendedRows.length < outcome.targetCount,
     final_ready_latency_ms: finalReadyLatencyMs,
     bright_snapshot_cost: finalDisplayStats.bright_snapshot_cost ?? null,
     estimated_llm_cost: finalDisplayStats.estimated_llm_cost ?? null,

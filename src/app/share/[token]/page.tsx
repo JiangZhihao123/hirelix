@@ -1,3 +1,4 @@
+import { candidateDecision, usesEvidenceRanking } from "@/lib/search/decision-contract";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
@@ -153,7 +154,7 @@ export default async function SharedCandidatePoolPage({
               : stringArray(suitability.risk_flags);
             const reasons = stringArray(candidate.match_reasons).slice(0, 3);
             const rank = candidate.final_rank || index + 1;
-            const recommended = candidate.final_decision === "contact" || candidate.final_decision === "review";
+            const recommended = candidateDecision(candidate) === "contact";
             const profileUrl = publicProfileUrl(candidate.profile_url);
             return (
               <article key={candidate.id} className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
@@ -163,16 +164,17 @@ export default async function SharedCandidatePoolPage({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-lg font-semibold text-white">{candidate.name}</h2>
+                        {candidateDecision(candidate) === "review" && <span className="rounded-full bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">Verify first</span>}
                         {recommended && <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">Recommended</span>}
                       </div>
                       {candidate.headline && <p className="mt-1 text-sm text-slate-300">{candidate.headline}</p>}
                       {candidate.location && <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400"><MapPin className="h-3.5 w-3.5" />{candidate.location}</p>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 sm:flex-col sm:items-end">
+                  {!usesEvidenceRanking(candidate) && <div className="flex items-center gap-3 sm:flex-col sm:items-end">
                     <span className="text-2xl font-semibold text-sky-300">{candidate.match_score ?? "—"}</span>
                     <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500">fit score</span>
-                  </div>
+                  </div>}
                 </div>
 
                 {reasons.length > 0 && (

@@ -520,16 +520,16 @@ test("completeSearch upserts the full pool and drafts outreach only for recommen
   assert.equal(upsertedRows.length, 4);
   assert.deepEqual(
     outreachInputRows.map((row) => row.metadata.delivery_bucket),
-    ["reach_first", "review_next"],
+    ["reach_first"],
   );
   assert.deepEqual(
     upsertedRows.map((row) => Boolean(row.outreach_draft)),
-    [true, true, false, false],
+    [true, false, false, false],
   );
   const finalStats = observed.finalStats as SearchDisplayStats;
   assert.ok(finalStats);
   assert.equal(finalStats.delivered_candidate_count, 4);
-  assert.equal(finalStats.recommended_count, 2);
+  assert.equal(finalStats.recommended_count, 1);
   assert.equal(finalStats.lower_priority_count, 1);
   assert.equal(finalStats.ruled_out_count, 1);
   assert.equal(finalStats.do_not_show_count, 1);

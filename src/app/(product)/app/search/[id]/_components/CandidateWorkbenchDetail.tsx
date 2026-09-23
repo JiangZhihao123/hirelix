@@ -1,5 +1,7 @@
 "use client";
 
+import { CandidateRequirementEvidence } from "./CandidateRequirementEvidence";
+import { usesEvidenceRanking } from "@/lib/search/decision-contract";
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
@@ -322,7 +324,7 @@ export function CandidateWorkbenchDetail({
   const canRegenerateWithPublicEvidence =
     Boolean(localCandidate.outreach_draft && sellingKit?.evidence_basis === "public_evidence");
   const deliveryBucket = getCandidateDeliveryBucket(localCandidate);
-  const isRecommendedCandidate = deliveryBucket === "reach_first" || deliveryBucket === "review_next";
+  const isRecommendedCandidate = deliveryBucket === "reach_first";
   const deliveryBucketLabel = formatDeliveryBucketLabel(localCandidate);
   const deliveryBucketTone =
     deliveryBucket === "reach_first"
@@ -392,7 +394,7 @@ export function CandidateWorkbenchDetail({
         </div>
 
         {localCandidate.evidence_pack?.final_judgment && (
-          <div className="mt-4 grid gap-3 border-y border-slate-200 py-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 border-y border-slate-200 py-4 2xl:grid-cols-3">
             <div>
               <p className="text-[11px] font-semibold uppercase text-slate-500">Decision</p>
               <p className="mt-1 text-sm font-semibold capitalize text-slate-950">
@@ -515,7 +517,7 @@ export function CandidateWorkbenchDetail({
                 {isRecommendedCandidate && (
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Why they may move
+                      Outreach context
                     </p>
                     {moveLikelihoodReasons.length > 0 ? (
                       <ul className="mt-2 space-y-1">
@@ -615,6 +617,7 @@ export function CandidateWorkbenchDetail({
 
           {activeDetailTab === "evidence" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <CandidateRequirementEvidence candidate={localCandidate} />
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Research sources
               </p>
@@ -758,11 +761,13 @@ export function CandidateWorkbenchDetail({
             </div>
           )}
 
+          {activeDetailTab !== "score" && activeDetailTab !== "evidence" && <CandidateRequirementEvidence candidate={localCandidate} compact />}
           {activeDetailTab === "score" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Scorecard
+                {usesEvidenceRanking(localCandidate) ? "Role evidence" : "Scorecard"}
               </p>
+              <CandidateRequirementEvidence candidate={localCandidate} />
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {scoreMetrics.map((metric) => (
                   <div key={metric.key} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -963,7 +968,7 @@ export function CandidateWorkbenchDetail({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Scorecard
+                    {usesEvidenceRanking(localCandidate) ? "Role evidence" : "Scorecard"}
                   </p>
                     <p className="mt-1 text-sm text-slate-600">
                       Overall ranks the candidate pool; the three dimensions explain why.

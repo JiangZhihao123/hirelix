@@ -27,7 +27,7 @@ test("pairwise prompt prioritizes fit and treats unknown willingness as neutral"
 });
 
 test("final prompt lets strong passive candidates reach contact", () => {
-  assert.equal(CANDIDATE_JUDGMENT_PROMPT_VERSION, 6);
+  assert.equal(CANDIDATE_JUDGMENT_PROMPT_VERSION, 10);
   assert.match(FINAL_JUDGMENT_SYSTEM_PROMPT, /job fit determines whether outreach is warranted/i);
   assert.match(FINAL_JUDGMENT_SYSTEM_PROMPT, /contact does not require active-job-seeking/i);
   assert.match(FINAL_JUDGMENT_SYSTEM_PROMPT, /unknown willingness alone must not downgrade contact/i);

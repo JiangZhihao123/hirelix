@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildOfficialDeepSeekBody,
   getDefaultLlmModel,
   getLightweightLlmModel,
   normalizeLlmModelForCurrentProvider,
@@ -73,4 +74,11 @@ test("OpenRouter keeps provider-prefixed model names", () => {
       );
     },
   );
+});
+
+ test("official JSON mode transmits the schema even when caller does not embed it", () => {
+  const schema = { type: "object", required: ["requirements"], properties: { requirements: { type: "array" } } };
+  const body = buildOfficialDeepSeekBody({ model: "deepseek-v4-flash", system: "Extract role facts", prompt: "Backend engineer", jsonSchema: { name: "role", strict: true, schema } }, "disabled", null);
+  assert.ok(body.messages.some((message) => message.content.includes(JSON.stringify(schema))));
+  assert.deepEqual(body.response_format, { type: "json_object" });
 });

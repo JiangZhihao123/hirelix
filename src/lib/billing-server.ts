@@ -292,6 +292,7 @@ export function getBillableClientRoleCount(metadata: Record<string, unknown>) {
 function isClientRoleReleased(metadata: Record<string, unknown>) {
   return (
     metadata.client_role_billing_status === "released_after_failure" ||
+    metadata.client_role_billing_status === "released_no_recommendations" ||
     metadata.search_billing_status === "released_after_failure" ||
     metadata.profile_scans_billing_status === "released_after_failure"
   );

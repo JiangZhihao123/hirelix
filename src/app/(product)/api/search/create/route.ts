@@ -77,18 +77,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!internalOperator && (billing.usage.profileScansRemaining <= 0 || profileScanBudget <= 0)) {
-      return NextResponse.json(
-        {
-          error:
-            billing.plan.code === "free"
-              ? "You have used your free targeted profile scan preview. Start a subscription to keep sourcing."
-              : "You have reached this month's targeted profile scan allowance. Your next cycle will reset automatically.",
-        },
-        { status: 403 },
-      );
-    }
-
     if (!jd_text || typeof jd_text !== "string" || jd_text.trim().length < 50) {
       return NextResponse.json(
         { error: "Job description is too short (min 50 chars)" },
@@ -140,6 +128,7 @@ export async function POST(req: NextRequest) {
         },
     );
     parsedRequirements.internal_operator = internalOperator;
+    parsedRequirements.allow_external_recall = profileScanBudget > 0;
     let search: { id: string } | undefined;
     try {
       const ts = new Date(timestamp);

@@ -506,8 +506,8 @@ export default function DashboardPage() {
 
           <div className="grid gap-3 md:grid-cols-4">
             {[
-                  { label: "Ready to contact", value: dashboardCounts.ready },
-              { label: "Needs review", value: Math.max(dashboardCounts.active - dashboardCounts.ready - dashboardCounts.running, 0) },
+                  { label: "Completed searches", value: dashboardCounts.ready },
+              { label: "Archived", value: dashboardCounts.archived },
               { label: "Running", value: dashboardCounts.running },
               { label: "Issues", value: dashboardCounts.issues },
             ].map((item) => (
@@ -515,7 +515,7 @@ export default function DashboardPage() {
                 key={item.label}
                 type="button"
                 onClick={() => {
-                  if (item.label === "Ready to contact") setFilter("ready");
+                  if (item.label === "Completed searches") setFilter("ready");
                   else if (item.label === "Running") setFilter("running");
                   else if (item.label === "Issues") setFilter("issues");
                   else setFilter("active");
@@ -588,7 +588,8 @@ export default function DashboardPage() {
             });
             const previewText = buildSearchPreview(displayTitle, s.jd_text);
             const bucket = getDashboardBucket(s.status);
-            const nextAction =
+            const outcome = (s.parsed_requirements?.display_stats as { search_outcome?: { contactCount: number; reviewCount: number } } | undefined)?.search_outcome;
+            const nextAction = outcome && bucket === "ready" ? outcome.contactCount > 0 ? "Review recommendations" : "Inspect evidence gaps" :
               bucket === "ready"
                 ? billing?.usage.exportEnabled
                   ? "Export client list"
@@ -598,7 +599,7 @@ export default function DashboardPage() {
                   : bucket === "issues"
                     ? "Needs cleanup"
                     : "Review later";
-            const evidenceLabel = stats
+            const evidenceLabel = outcome ? `${outcome.contactCount} recommended · ${outcome.reviewCount} to verify` : stats
               ? `${stats.total} candidates`
               : bucket === "running"
                 ? "Pending"

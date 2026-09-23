@@ -84,14 +84,17 @@ function sha256Json(value: unknown) {
   return createHash("sha256").update(stableJson(value) || "").digest("hex");
 }
 
-function buildOfficialDeepSeekBody(
+export function buildOfficialDeepSeekBody(
   options: LlmTextOptions,
   thinkingType: DeepSeekThinkingMode,
   reasoningEffort: DeepSeekReasoningEffort | null,
 ) {
   return {
     model: options.model,
-    messages: buildMessages(options),
+    messages: buildMessages(options.jsonSchema ? {
+      ...options,
+      system: `${options.system || ""}\nReturn only JSON conforming to this output schema: ${JSON.stringify(options.jsonSchema.schema)}`,
+    } : options),
     stream: false,
     ...(typeof options.maxOutputTokens === "number"
       ? { max_tokens: options.maxOutputTokens }
@@ -721,6 +724,7 @@ async function sendOfficialDeepSeekRequest(
   const { signal, cleanup } = createRequestSignal(options);
   let release: (() => void) | null = null;
   let response: Response;
+  let raw: unknown;
   try {
     release = await acquireLlmSlot(signal);
     response = await fetch(`${baseUrl}/chat/completions`, {
@@ -732,12 +736,12 @@ async function sendOfficialDeepSeekRequest(
       body: JSON.stringify(body),
       signal,
     });
+    raw = await response.json().catch(() => null);
   } finally {
     release?.();
     cleanup();
   }
 
-  const raw = await response.json().catch(() => null);
   if (!response.ok) {
     const error =
       raw && typeof raw === "object"
@@ -895,6 +899,13 @@ export async function generateLlmText(
   return result;
 }
 
+export class LlmOutputTruncatedError extends Error {
+  constructor(public readonly outputTokenLimit: number | undefined) {
+    super(`LLM output reached its token limit (${outputTokenLimit ?? "unknown"}) before completing JSON.`);
+    this.name = "LlmOutputTruncatedError";
+  }
+}
+
 export async function generateLlmJson<T>(
   options: LlmTextOptions,
 ): Promise<LlmTextResult & { data: T }> {
@@ -903,6 +914,8 @@ export async function generateLlmJson<T>(
     jsonMode: !options.jsonSchema,
   });
 
+  const raw = result.rawResponse as { choices?: Array<{ finish_reason?: string }> } | null;
+  if (raw?.choices?.[0]?.finish_reason === "length") throw new LlmOutputTruncatedError(options.maxOutputTokens);
   try {
     return {
       ...result,

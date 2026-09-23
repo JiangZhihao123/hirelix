@@ -43,7 +43,7 @@ export type CandidateRowInput = {
   location: string | null;
   skills: string[];
   experience_years: number | null;
-  match_score: number;
+  match_score: number | null;
   match_reasons: string[];
   profile_url: string | null;
   github_url: string | null;
@@ -393,6 +393,7 @@ export type SearchDisplayStats = {
   time_to_done_ms?: number;
   excluded_reason_counts?: ExcludedReasonCount[];
   search_quality_diagnosis?: SearchQualityDiagnosis;
+  search_outcome?: import("@/lib/search/decision-contract").SearchOutcome;
 };
 
 export type SearchPipelineResult = {
