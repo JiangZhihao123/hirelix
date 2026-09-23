@@ -89,9 +89,19 @@ export async function GET(
     return out as T;
   };
 
+  const listCandidates = candidateRows.map((row) => {
+    const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? { ...row.metadata as Record<string, unknown> }
+      : {};
+    delete metadata.raw_profile;
+    delete metadata.canonical_profile;
+    delete metadata.evidence_pack;
+    return stripDates({ ...row, metadata });
+  });
+
   return NextResponse.json({
     search: stripDates(search),
-    candidates: candidateRows.map(stripDates),
+    candidates: listCandidates,
   });
 }
 
