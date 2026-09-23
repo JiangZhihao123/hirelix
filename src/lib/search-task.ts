@@ -46,9 +46,11 @@ export function isSearchTaskProcessingStatus(status: string | null | undefined) 
 }
 
 export function getSearchTaskStage(search: SearchTaskLike): SearchTaskStage {
-  if (search.partial_ready_at || search.status === "deep_scoring" || search.status === "done") {
+  if (search.partial_ready_at || search.status === "done") {
     return "shortlist_ready";
   }
+
+  if (search.status === "deep_scoring") return "reviewing_profiles";
 
   const pipelineStep = search.pipeline_step || search.status || "queued";
   if (pipelineStep === "screening") return "reviewing_profiles";

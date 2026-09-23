@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getSearchTaskEtaCopy } from "../src/lib/search-task";
+import { getSearchTaskEtaCopy, getSearchTaskStage } from "../src/lib/search-task";
+
+test("deep scoring waits for a visible candidate before marking the shortlist ready", () => {
+  assert.equal(getSearchTaskStage({ status: "deep_scoring", partial_ready_at: null }), "reviewing_profiles");
+  assert.equal(getSearchTaskStage({ status: "deep_scoring", partial_ready_at: "2026-09-23T10:00:00Z" }), "shortlist_ready");
+});
 
 test("getSearchTaskEtaCopy keeps accepted searches scoped to brief parsing", () => {
   assert.equal(

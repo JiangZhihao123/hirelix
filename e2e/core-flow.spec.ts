@@ -319,4 +319,26 @@ test.describe("Core user flow", () => {
     await expect(page.getByText("This shortlist run didn't finish")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Your search has been accepted|Hirelix understands the role and is moving into recall/ })).toBeVisible();
   });
+
+  test("keeps the progress view while deep scoring has no visible candidates", async ({ page }) => {
+    await mockLoggedInCoreFlow(page, []);
+    await page.route("**/api/searches/core-search", async (route) => {
+      await route.fulfill({
+        json: {
+          search: {
+            ...completedSearch.search,
+            status: "deep_scoring",
+            pipeline_step: "deep_scoring",
+            partial_ready_at: null,
+            updated_at: new Date().toISOString(),
+          },
+          candidates: [],
+        },
+      });
+    });
+
+    await page.goto("/app/search/core-search");
+    await expect(page.getByRole("heading", { name: "Reviewing your candidates now." })).toBeVisible();
+    await expect(page.getByText("No candidates entered the ranked pool yet.")).toHaveCount(0);
+  });
 });

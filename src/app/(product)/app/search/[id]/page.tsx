@@ -784,7 +784,8 @@ export default function SearchResultPage() {
     search.status === "queued" ||
     search.status === "parsing" ||
     search.status === "searching" ||
-    search.status === "screening";
+    search.status === "screening" ||
+    (search.status === "deep_scoring" && candidates.length === 0 && !search.partial_ready_at);
   const allCandidates = [...candidates].sort((left, right) => {
     if (sortMode === "overall") return compareCandidatesForRecruiterRanking(left, right);
     const scoreFor = (candidate: CandidateRow) => {
@@ -1923,7 +1924,7 @@ export default function SearchResultPage() {
         </div>
       )}
 
-      {isReviewable && allCandidates.length === 0 && (
+      {isReviewable && !isPreResultsProcessing && allCandidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
             <p className="text-muted">No candidates entered the ranked pool yet.</p>
             <p className="mt-2 max-w-md text-center text-sm text-muted">
