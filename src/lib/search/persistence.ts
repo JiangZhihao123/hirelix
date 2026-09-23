@@ -786,6 +786,9 @@ export async function updateSearchUsageEventMetadata(
       metadata: toJsonbSafeRecord({
         ...currentMetadata,
         ...metadataPatch,
+        ...(currentMetadata.internal_operator === true
+          ? { client_roles_used: 0, client_role_billing_status: "internal_operator_exempt" }
+          : {}),
       }),
     })
     .where(eq(hirelix_usage_events.id, event.id));
