@@ -5,11 +5,13 @@ import { assessCandidate } from "./assessment";
 import { indexCandidate, retrieveJob } from "./retrieval";
 import type { JobKind } from "./types";
 import { assistantReply } from "./conversations";
+import { generateRevision } from "./revisions";
 import { generateDeliverable } from "./deliverables";
 
 export const workspaceHandlers: Partial<Record<JobKind, JobHandler>> = {
   chat: assistantReply,
   deliverable: generateDeliverable,
+  revision: generateRevision,
   import: prepareImport,
   assessment: assessCandidate,
   index: indexCandidate,

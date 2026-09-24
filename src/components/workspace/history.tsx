@@ -1,4 +1,5 @@
 "use client";
+import { AgentText } from "@/components/AgentText";
 import { Dialog, ErrorNotice, Loading, date, useQuery } from "./client";
 export function History({
   kind,
@@ -29,33 +30,45 @@ export function History({
                 Version {item.version} · {date(item.created_at, true)}
               </summary>
               <div className="ws-section">
-                {Object.entries(item.snapshot)
-                  .filter(
-                    ([key]) =>
-                      ![
-                        "id",
-                        "user_id",
-                        "source_candidate_id",
-                        "source_search_id",
-                        "source_evidence",
-                        "created_at",
-                        "updated_at",
-                        "version",
-                      ].includes(key),
-                  )
-                  .map(([key, value]) => (
-                    <div key={key} className="mb-3">
-                      <h3>{key.replaceAll("_", " ")}</h3>
-                      {typeof value === "string" ? (
-                        <p>{value}</p>
-                      ) : Array.isArray(value) &&
-                        value.every((item) => typeof item === "string") ? (
-                        <p>{value.join(", ")}</p>
-                      ) : (
-                        <pre>{JSON.stringify(value, null, 2)}</pre>
-                      )}
-                    </div>
-                  ))}
+                {kind === "deliverable" ? (
+                  <>
+                    <h3>{String(item.snapshot.title || "")}</h3>
+                    <AgentText content={String(item.snapshot.content || "")} />
+                    <p className="ws-muted">
+                      {item.snapshot.status === "submitted"
+                        ? `Submission recorded ${date(String(item.snapshot.submitted_at))}`
+                        : "Draft"}
+                    </p>
+                  </>
+                ) : (
+                  Object.entries(item.snapshot)
+                    .filter(
+                      ([key]) =>
+                        ![
+                          "id",
+                          "user_id",
+                          "source_candidate_id",
+                          "source_search_id",
+                          "source_evidence",
+                          "created_at",
+                          "updated_at",
+                          "version",
+                        ].includes(key),
+                    )
+                    .map(([key, value]) => (
+                      <div key={key} className="mb-3">
+                        <h3>{key.replaceAll("_", " ")}</h3>
+                        {typeof value === "string" ? (
+                          <p>{value}</p>
+                        ) : Array.isArray(value) &&
+                          value.every((item) => typeof item === "string") ? (
+                          <p>{value.join(", ")}</p>
+                        ) : (
+                          <pre>{JSON.stringify(value, null, 2)}</pre>
+                        )}
+                      </div>
+                    ))
+                )}
               </div>
             </details>
           ))

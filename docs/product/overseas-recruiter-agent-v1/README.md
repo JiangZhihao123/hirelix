@@ -1,6 +1,6 @@
 # Hirelix 产品说明书交付包
 
-日期：2026-09-24 ｜ 版本：1.2
+日期：2026-09-24 ｜ 版本：1.3
 
 定位：**专业猎头的私人 Agent**。对外表达为 “Your private AI assistant. Built for headhunters.”
 
@@ -14,11 +14,11 @@
 | --- | --- |
 | `index.html` | 带目录、表格和图片的离线阅读版 |
 | `product-spec.md` | 27 章完整中文说明，可继续编辑 |
-| `product-spec.pdf` | 31 页 PDF 阅读版，包含在最终 ZIP 中 |
+| `product-spec.pdf` | PDF 阅读版，包含在最终 ZIP 中 |
 | `images/01-assistant-home.png` | 私人助理首页 |
 | `images/02-candidates.png` | 候选人列表与档案 |
 | `images/03-role-workspace.png` | 围绕 JD 的职位工作页 |
-| `images/04-candidate-submission.png` | 候选人推荐稿 |
+| `images/04-candidate-submission.png` | 单人推荐状态示意；同一提交也支持多人 |
 | `images/05-search-update.png` | 客户搜寻进展更新 |
 | `images/06-import-review.png` | 候选人导入确认 |
 | `image-prompts.md` | 六张最终图片的提示词和生成方式 |

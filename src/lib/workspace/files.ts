@@ -42,7 +42,19 @@ export async function readFile(userId: string, id: string) {
 export function attachment(bytes: Uint8Array, name: string, type: string) {
   const fallback =
     name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 150) || "download";
-  return new Response(new Uint8Array(bytes), {
+  let position = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (position >= bytes.byteLength) {
+        controller.close();
+        return;
+      }
+      const end = Math.min(position + 64 * 1024, bytes.byteLength);
+      controller.enqueue(bytes.slice(position, end));
+      position = end;
+    },
+  });
+  return new Response(body, {
     headers: {
       "Content-Type": type,
       "Content-Disposition": `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(name).replace(/'/g, "%27")}`,

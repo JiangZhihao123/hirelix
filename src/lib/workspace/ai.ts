@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { generateLlmText, getDefaultLlmModel } from "@/lib/llm-client";
+import {
+  generateLlmText,
+  getDefaultLlmModel,
+  extractJsonText,
+} from "@/lib/llm-client";
+import { getLogger } from "@/lib/logger";
 import { WorkspaceError } from "./database";
 
 export async function structured<T extends z.ZodType>(
@@ -23,9 +28,15 @@ export async function structured<T extends z.ZodType>(
     redactUsagePayload: true,
     usageEvent: { userId, stage },
   });
+  const extracted = extractJsonText(response.text);
+  if (extracted !== response.text.trim())
+    getLogger({ component: "workspace_ai" }).info(
+      { stage, wrapped_json: true },
+      "Structured reply included an outer wrapper",
+    );
   let data: unknown;
   try {
-    data = JSON.parse(response.text);
+    data = JSON.parse(extracted);
   } catch {
     throw new WorkspaceError(
       "The assistant returned an incomplete answer. Your input is saved; retry the task.",

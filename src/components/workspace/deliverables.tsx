@@ -25,6 +25,7 @@ import {
   Dialog,
   date,
 } from "./client";
+import { RevisionPanel } from "./revision";
 import { History } from "./history";
 import { AgentText } from "@/components/AgentText";
 import type {
@@ -34,11 +35,13 @@ import type {
   SourceRecord,
   Job,
 } from "@/lib/workspace/types";
+import type { SubmissionCv } from "@/lib/workspace/deliverables";
 
 type Sources = {
   role: Role;
   people: Array<{ person: Person; permission: string; interest: string }>;
   records: SourceRecord[];
+  files: SubmissionCv[];
   last_submitted: Deliverable | null;
 };
 export function PrepareDocument({
@@ -55,6 +58,7 @@ export function PrepareDocument({
       (params.get("people") || "").split(",").filter(Boolean),
     ),
     [records, setRecords] = useState<string[]>([]),
+    [selectedFiles, setSelectedFiles] = useState<Record<string, string>>({}),
     [start, setStart] = useState(""),
     [end, setEnd] = useState(""),
     [instructions, setInstructions] = useState(""),
@@ -85,6 +89,7 @@ export function PrepareDocument({
   const eligible =
     sources.data?.records.filter(
       (r) =>
+        r.kind !== "cv" &&
         (!r.person_id || people.includes(r.person_id)) &&
         (!r.role_id || r.role_id === roleId) &&
         (kind !== "search_update" ||
@@ -103,6 +108,10 @@ export function PrepareDocument({
       role_id: roleId,
       person_ids: people,
       record_ids: records,
+      file_ids:
+        kind === "submission"
+          ? people.map((id) => selectedFiles[id]).filter(Boolean)
+          : [],
       period_start:
         kind === "search_update" && start
           ? new Date(start).toISOString()
@@ -201,6 +210,7 @@ export function PrepareDocument({
                   setRoleId(e.target.value);
                   setPeople([]);
                   setRecords([]);
+                  setSelectedFiles({});
                 }}
               >
                 <option value="">Choose a role</option>
@@ -279,7 +289,21 @@ export function PrepareDocument({
                                   ? [...p, person.id]
                                   : p.filter((id) => id !== person.id),
                               );
-                              setRecords([]);
+                              if (!e.target.checked) {
+                                setRecords((previous) =>
+                                  previous.filter(
+                                    (id) =>
+                                      sources.data?.records.find(
+                                        (record) => record.id === id,
+                                      )?.person_id !== person.id,
+                                  ),
+                                );
+                                setSelectedFiles((previous) => {
+                                  const next = { ...previous };
+                                  delete next[person.id];
+                                  return next;
+                                });
+                              }
                             }}
                           />
                           <span>
@@ -297,6 +321,79 @@ export function PrepareDocument({
                       ))
                     )}
                   </section>
+                  {kind === "submission" && people.length > 0 && (
+                    <section className="ws-section">
+                      <h3>CV attachments by candidate</h3>
+                      <p className="ws-muted">
+                        Choose the exact CV version for each person. No file is
+                        attached automatically. You can save a draft while a CV
+                        is missing.
+                      </p>
+                      {chosen.map(({ person }) => {
+                        const options = (sources.data?.files ?? []).filter(
+                          (file) => file.person_id === person.id,
+                        );
+                        return (
+                          <div className="ws-cv-person" key={person.id}>
+                            <strong>{person.name}</strong>
+                            <label className="ws-source-choice">
+                              <input
+                                type="radio"
+                                name={`cv-${person.id}`}
+                                checked={!selectedFiles[person.id]}
+                                onChange={() =>
+                                  setSelectedFiles((previous) => ({
+                                    ...previous,
+                                    [person.id]: "",
+                                  }))
+                                }
+                              />
+                              <span>No CV selected</span>
+                            </label>
+                            {options.map((file) => (
+                              <div className="ws-cv-option" key={file.id}>
+                                <label className="ws-source-choice">
+                                  <input
+                                    type="radio"
+                                    name={`cv-${person.id}`}
+                                    checked={
+                                      selectedFiles[person.id] === file.id
+                                    }
+                                    onChange={() =>
+                                      setSelectedFiles((previous) => ({
+                                        ...previous,
+                                        [person.id]: file.id,
+                                      }))
+                                    }
+                                  />
+                                  <span>
+                                    <strong>{file.name}</strong>
+                                    <small>
+                                      {(file.byte_size / 1024).toFixed(0)} KB ·
+                                      stored CV
+                                    </small>
+                                  </span>
+                                </label>
+                                <a
+                                  className="ws-link"
+                                  href={`/api/workspace/files/${file.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  Review file
+                                </a>
+                              </div>
+                            ))}
+                            {!options.length && (
+                              <p className="ws-muted">
+                                No imported CV for this person yet.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </section>
+                  )}
                   <section className="ws-section">
                     <h3>Supporting notes</h3>
                     <p className="ws-muted">
@@ -416,6 +513,8 @@ export function PrepareDocument({
             ))}
             <div className="ws-selection-count">
               {people.length} candidates · {records.length} selected notes
+              {kind === "submission" &&
+                ` · ${people.filter((id) => selectedFiles[id]).length} CVs selected`}
             </div>
           </aside>
         </form>
@@ -443,7 +542,9 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     [error, setError] = useState(""),
     [history, setHistory] = useState(false),
     [submit, setSubmit] = useState(false),
-    [copied, setCopied] = useState(false);
+    [copied, setCopied] = useState<"subject" | "body" | "document" | null>(
+      null,
+    );
   const inflight = useRef(false),
     dirty = title !== document.title || content !== document.content,
     readOnly = document.status === "submitted";
@@ -489,10 +590,41 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+  async function download(format: "pdf" | "docx") {
+    try {
+      const response = await fetch(
+        `/api/workspace/deliverables/${document.id}/export?format=${format}&version=${document.version}`,
+      );
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error || "Could not export this document");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = `${title}.${format}`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not export");
+    }
+  }
+  async function copyText(
+    value: string,
+    part: "subject" | "body" | "document",
+  ) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(part);
+    } catch {
+      setError("Could not access the clipboard. Select and copy the text.");
+    }
+  }
   const source = document.source_snapshot as {
     role?: { title: string; client_name: string; version: number };
-    people?: Array<{ id: string; name: string }>;
+    people?: Array<{ id: string; name: string; sharing_permission?: string }>;
     records?: Array<{ id: string; title: string; person_id: string | null }>;
+    files?: SubmissionCv[];
     captured_at?: string;
   };
   return (
@@ -540,25 +672,51 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                     ? "Unsaved changes"
                     : "Saved"}
           </span>
+          {(["pdf", "docx"] as const).map((format) => (
+            <button
+              key={format}
+              className="ws-button"
+              disabled={dirty || saving}
+              onClick={() => void download(format)}
+            >
+              Export {format.toUpperCase()}
+            </button>
+          ))}
           <button className="ws-button" onClick={() => setPreview((p) => !p)}>
             {preview ? "Edit draft" : "Client preview"}
           </button>
-          <button
-            className="ws-button"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(`${title}\n\n${content}`);
-                setCopied(true);
-              } catch {
-                setError(
-                  "Could not access the clipboard. Select and copy the draft text.",
-                );
+          {document.kind === "submission" ? (
+            <>
+              <button
+                className="ws-button"
+                onClick={() => void copyText(title, "subject")}
+              >
+                {copied === "subject" ? (
+                  <Check size={14} />
+                ) : (
+                  <Copy size={14} />
+                )}
+                {copied === "subject" ? "Subject copied" : "Copy subject"}
+              </button>
+              <button
+                className="ws-button"
+                onClick={() => void copyText(content, "body")}
+              >
+                {copied === "body" ? <Check size={14} /> : <Copy size={14} />}
+                {copied === "body" ? "Body copied" : "Copy body"}
+              </button>
+            </>
+          ) : (
+            <button
+              className="ws-button"
+              onClick={() =>
+                void copyText(`${title}\n\n${content}`, "document")
               }
-            }}
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? "Copied" : "Copy"}
-          </button>
+            >
+              {copied === "document" ? <Check size={14} /> : <Copy size={14} />}
+              {copied === "document" ? "Copied" : "Copy text"}
+            </button>
+          )}
         </div>
       </header>
       <ErrorNotice
@@ -580,7 +738,10 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 <input
                   aria-label="Document title"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    setCopied(null);
+                  }}
                   maxLength={500}
                 />
               </label>
@@ -588,7 +749,10 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 className="ws-document-text"
                 aria-label="Document content"
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  setCopied(null);
+                }}
                 maxLength={100000}
                 spellCheck
               />
@@ -596,6 +760,19 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           )}
         </article>
         <aside className="ws-document-side">
+          {!readOnly && (
+            <RevisionPanel
+              document={document}
+              disabled={dirty || saving || !!error}
+              onApplied={(value) => {
+                setDocument(value);
+                setTitle(value.title);
+                setContent(value.content);
+                setCopied(null);
+                setError("");
+              }}
+            />
+          )}
           <section className="ws-section">
             <h3>{readOnly ? "Delivery recorded" : "Ready for your review"}</h3>
             <p>
@@ -614,7 +791,54 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             )}
           </section>
           <section className="ws-section">
+            {document.kind === "submission" && (
+              <>
+                <h3>CV attachments</h3>
+                <p className="ws-muted">
+                  Only the files listed here were selected for this submission.
+                  Review and download each before sharing. PDF and DOCX exports
+                  contain the written recommendation only.
+                </p>
+                {source.people?.map((person) => {
+                  const file = source.files?.find(
+                    (item) => item.person_id === person.id,
+                  );
+                  return (
+                    <div className="ws-attachment-person" key={person.id}>
+                      <strong>{person.name}</strong>
+                      {file ? (
+                        <a
+                          className="ws-detail-link"
+                          href={`/api/workspace/files/${file.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {file.name} <ArrowUpRight size={12} />
+                        </a>
+                      ) : (
+                        <p className="ws-muted">
+                          No CV selected for this person.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </section>
+          <section className="ws-section">
             <h3>Source material</h3>
+            {source.people
+              ?.filter((person) => person.sharing_permission !== "confirmed")
+              .map((person) => (
+                <p key={person.id} className="ws-muted">
+                  {person.name}:{" "}
+                  {person.sharing_permission === "declined"
+                    ? "sharing permission declined"
+                    : "sharing permission not confirmed"}{" "}
+                  in this draft’s sources.
+                </p>
+              ))}
             <p className="ws-muted">
               Saved with this draft · Role version {source.role?.version}
             </p>

@@ -1522,6 +1522,33 @@
   overflow-y: auto;
   color: var(--ws-ink);
 }
+.ws-cv-person {
+  border-bottom: 1px solid var(--ws-line);
+  padding: 18px 0;
+}
+.ws-cv-person > strong,
+.ws-attachment-person > strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ws-cv-person .ws-source-choice {
+  padding: 8px 0;
+}
+.ws-cv-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.ws-cv-option .ws-link {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.ws-attachment-person {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ws-line);
+}
 .ws-selection-preview {
   border-left: 1px solid var(--ws-line);
   padding-left: 26px;
