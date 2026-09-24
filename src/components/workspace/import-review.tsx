@@ -1,4 +1,6 @@
 "use client";
+
+import { useT } from "@/components/LanguageProvider";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -56,6 +58,7 @@ const labels: Record<string, string> = {
   profile: "Professional background",
 };
 export function ImportCandidates() {
+  const t = useT();
   const params = useSearchParams(),
     router = useRouter(),
     task = params.get("task");
@@ -133,17 +136,16 @@ export function ImportCandidates() {
         <div>
           <Link className="ws-link mb-4" href="/app/candidates">
             <ArrowLeft size={13} />
-            Candidates
+            {t("Candidates")}
           </Link>
-          <h1>Import candidates</h1>
+          <h1>{t("Import candidates")}</h1>
           <p>
-            Review the fields and possible duplicates before saving to your
-            candidate pool.
+            {t("Review the fields and possible duplicates before saving to your candidate pool.")}
           </p>
         </div>
         {task && (
           <Link className="ws-button" href="/app/candidates/import">
-            Upload another file
+            {t("Upload another file")}
           </Link>
         )}
       </header>
@@ -153,10 +155,10 @@ export function ImportCandidates() {
           <form className="ws-form !p-0" onSubmit={upload}>
             <div className="ws-upload-zone">
               <Upload size={22} className="ws-muted" />
-              <h2>Bring your existing candidates.</h2>
-              <p>CSV, text PDF or DOCX · Up to 4 MB per file</p>
+              <h2>{t("Bring your existing candidates.")}</h2>
+              <p>{t("CSV, text PDF or DOCX · Up to 4 MB per file")}</p>
               <input
-                aria-label="Candidate file"
+                aria-label={t("Candidate file")}
                 type="file"
                 accept=".csv,.pdf,.docx"
                 onChange={(event) => {
@@ -166,19 +168,18 @@ export function ImportCandidates() {
                 }}
               />
               <small>
-                Original files are retained with the imported records. Scanned
-                PDF images need a text version.
+                {t("Original files are retained with the imported records. Scanned PDF images need a text version.")}
               </small>
             </div>
             <button
               className="ws-button ws-button-primary self-start"
               disabled={!file || uploading}
             >
-              {uploading ? "Uploading…" : "Upload & preview"}
+              {uploading ? t("Uploading…") : t("Upload & preview")}
             </button>
           </form>
           <section className="ws-section mt-8">
-            <h3>Recent imports</h3>
+            <h3>{t("Recent imports")}</h3>
             {recent.data?.jobs.filter((job) => job.kind === "import").length ? (
               recent.data.jobs
                 .filter((job) => job.kind === "import")
@@ -193,19 +194,19 @@ export function ImportCandidates() {
                       {String(job.result?.filename || "Candidate import")}
                     </strong>
                     <small>
-                      {job.status} · {job.progress}
+                      {t(job.status)} · {t(job.progress)}
                     </small>
                   </Link>
                 ))
             ) : (
               <p className="ws-muted">
-                Your imports will appear here so you can resume a review.
+                {t("Your imports will appear here so you can resume a review.")}
               </p>
             )}
           </section>
         </div>
       ) : !preview.data ? (
-        <Loading>Opening import…</Loading>
+        <Loading>{t("Opening import…")}</Loading>
       ) : preview.data.job.status === "error" ? (
         <div className="px-8">
           <ErrorNotice
@@ -217,36 +218,34 @@ export function ImportCandidates() {
             }
           />
           <p className="ws-muted text-sm mt-4">
-            The original file has been saved. Retry the same task to continue
-            without creating another import.
+            {t("The original file has been saved. Retry the same task to continue without creating another import.")}
           </p>
         </div>
       ) : ["queued", "running"].includes(preview.data.job.status) ? (
         <div className="px-8">
-          <Loading>{preview.data.job.progress}</Loading>
+          <Loading>{t(preview.data.job.progress)}</Loading>
           <p className="ws-muted text-sm">
-            You can leave this page. This import and its original file will
-            remain available in Tasks.
+            {t("You can leave this page. This import and its original file will remain available in Tasks.")}
           </p>
           <Link className="ws-link mt-4" href="/app/tasks">
-            View tasks <ArrowUpRight size={13} />
+            {t("View tasks")} <ArrowUpRight size={13} />
           </Link>
         </div>
       ) : (
         <>
           <div className="ws-import-summary">
-            <span>{result?.total || 0} rows</span>
+            <span>{result?.total || 0} {t("rows")}</span>
             {preview.data.counts.map((item) => (
               <span className="ws-tag" key={item.status}>
                 {item.count}{" "}
-                {item.status === "review" ? "to review" : item.status}
+                {item.status === "review" ? t("to review") : item.status}
               </span>
             ))}
             <a
               className="ws-link ml-auto"
               href={`/api/workspace/files/${String(preview.data.job.payload.file_id)}`}
             >
-              Download original
+              {t("Download original")}
             </a>
           </div>
           {result?.warnings?.length ? (
@@ -273,14 +272,14 @@ export function ImportCandidates() {
             )}
           <div className="ws-import-table">
             <div className="ws-import-row ws-table-head">
-              <span>Candidate</span>
-              <span>Possible duplicate</span>
-              <span>Review</span>
+              <span>{t("Candidate")}</span>
+              <span>{t("Possible duplicate")}</span>
+              <span>{t("Review")}</span>
             </div>
             {preview.data.items.map((item) => (
               <div className="ws-import-row" key={item.id}>
                 <div>
-                  <strong>{item.extracted.name || "Name needs review"}</strong>
+                  <strong>{item.extracted.name || t("Name needs review")}</strong>
                   <small>
                     {item.extracted.headline ||
                       item.extracted.email ||
@@ -296,7 +295,7 @@ export function ImportCandidates() {
                       </p>
                     ))
                   ) : (
-                    <small>No exact identity match found</small>
+                    <small>{t("No exact identity match found")}</small>
                   )}
                 </div>
                 <div className="ws-actions">
@@ -306,10 +305,10 @@ export function ImportCandidates() {
                       href={`/app/candidates?person=${item.result_person_id}`}
                     >
                       <Check size={14} />
-                      Saved
+                      {t("Saved")}
                     </Link>
                   ) : item.status === "skipped" ? (
-                    <span className="ws-muted">Skipped</span>
+                    <span className="ws-muted">{t("Skipped")}</span>
                   ) : (
                     <>
                       <button
@@ -317,14 +316,14 @@ export function ImportCandidates() {
                         disabled={!result?.mapping_confirmed || saving}
                         onClick={() => setReview(item)}
                       >
-                        Review
+                        {t("Review")}
                       </button>
                       <button
                         className="ws-link"
                         disabled={!result?.mapping_confirmed || saving}
                         onClick={() => skip(item)}
                       >
-                        Skip
+                        {t("Skip")}
                       </button>
                     </>
                   )}
@@ -334,19 +333,19 @@ export function ImportCandidates() {
             <div className="ws-pagination">
               <button
                 className="ws-icon"
-                aria-label="Previous import page"
+                aria-label={t("Previous import page")}
                 disabled={page === 1}
                 onClick={() => setPage((value) => value - 1)}
               >
                 <ChevronLeft size={16} />
               </button>
               <span>
-                Page {page} of{" "}
+                {t("Page")} {page} {t("of")}{" "}
                 {Math.max(1, Math.ceil((result?.total || 0) / 50))}
               </span>
               <button
                 className="ws-icon"
-                aria-label="Next import page"
+                aria-label={t("Next import page")}
                 disabled={page * 50 >= (result?.total || 0)}
                 onClick={() => setPage((value) => value + 1)}
               >
@@ -382,6 +381,7 @@ function ColumnMapping({
   examples: ImportRow[];
   onConfirm: (mapping: Mapping) => Promise<void>;
 }) {
+  const t = useT();
   const [mapping, setMapping] = useState(initial),
     [saving, setSaving] = useState(false),
     [error, setError] = useState("");
@@ -401,15 +401,14 @@ function ColumnMapping({
   }
   return (
     <form className="ws-mapping" onSubmit={save}>
-      <h2>Confirm column mapping</h2>
+      <h2>{t("Confirm column mapping")}</h2>
       <p className="ws-muted text-xs mb-5">
-        Check the suggested mapping. For names, you can combine first and last
-        name columns.
+        {t("Check the suggested mapping. For names, you can combine first and last name columns.")}
       </p>
       <ErrorNotice error={error} />
       <div className="ws-fields">
         {fields.map((field) => (
-          <Field key={field} label={labels[field]}>
+          <Field key={field} label={t(labels[field])}>
             <select
               multiple={field === "name"}
               value={
@@ -425,7 +424,7 @@ function ColumnMapping({
               }
             >
               {field !== "name" && (
-                <option value="">Do not import this field</option>
+                <option value="">{t("Do not import this field")}</option>
               )}
               {headers.map((header) => (
                 <option key={header} value={header}>
@@ -447,7 +446,7 @@ function ColumnMapping({
                     .join(" ");
                 })
                 .filter(Boolean)
-                .join(" / ") || "No sample value"}
+                .join(" / ") || t("No sample value")}
             </small>
           </Field>
         ))}
@@ -456,7 +455,7 @@ function ColumnMapping({
         className="ws-button ws-button-primary mt-5"
         disabled={saving || !mapping.name.length}
       >
-        {saving ? "Preparing rows…" : "Confirm mapping"}
+        {saving ? t("Preparing rows…") : t("Confirm mapping")}
       </button>
     </form>
   );
@@ -488,6 +487,7 @@ function ReviewRow({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [action, setAction] = useState<"add" | "merge">(
       row.matches.length ? "merge" : "add",
     ),
@@ -525,8 +525,8 @@ function ReviewRow({
         initialValues={selected}
         title={
           action === "merge"
-            ? "Review merged candidate"
-            : "Review imported candidate"
+            ? t("Review merged candidate")
+            : t("Review imported candidate")
         }
         onClose={() => setEditing(false)}
         onSaved={onSaved}
@@ -561,7 +561,7 @@ function ReviewRow({
       wide
     >
       <div className="ws-form">
-        <Field label="How should this record be saved?">
+        <Field label={t("How should this record be saved?")}>
           <select
             value={action}
             onChange={(event) => {
@@ -569,21 +569,20 @@ function ReviewRow({
               setChoices({});
             }}
           >
-            <option value="add">Add as a new candidate</option>
+            <option value="add">{t("Add as a new candidate")}</option>
             <option value="merge" disabled={!row.matches.length}>
-              Merge into an existing match
+              {t("Merge into an existing match")}
             </option>
           </select>
         </Field>
         {row.matches.length > 0 && action === "add" && (
           <p className="ws-warning">
-            A possible match exists. Add a separate candidate only if this is a
-            different person.
+            {t("A possible match exists. Add a separate candidate only if this is a different person.")}
           </p>
         )}
         {action === "merge" && (
           <>
-            <Field label="Existing candidate">
+            <Field label={t("Existing candidate")}>
               <select
                 value={targetId}
                 onChange={(event) => {
@@ -604,12 +603,11 @@ function ReviewRow({
             ) : conflicts.length ? (
               <>
                 <p className="ws-muted text-xs">
-                  Choose a value for each difference. Previous versions and the
-                  original imported file will remain available.
+                  {t("Choose a value for each difference. Previous versions and the original imported file will remain available.")}
                 </p>
                 {conflicts.map((field) => (
                   <fieldset className="ws-conflict" key={field}>
-                    <legend>{labels[field]}</legend>
+                    <legend>{t(labels[field])}</legend>
                     <label>
                       <input
                         type="radio"
@@ -623,7 +621,7 @@ function ReviewRow({
                         }
                       />
                       <span>
-                        <strong>Keep existing</strong>
+                        <strong>{t("Keep existing")}</strong>
                         <small>{readable(target.data?.person[field])}</small>
                       </span>
                     </label>
@@ -640,7 +638,7 @@ function ReviewRow({
                         }
                       />
                       <span>
-                        <strong>Use imported</strong>
+                        <strong>{t("Use imported")}</strong>
                         <small>{readable(row.extracted[field])}</small>
                       </span>
                     </label>
@@ -649,21 +647,20 @@ function ReviewRow({
               </>
             ) : (
               <p className="ws-muted text-sm">
-                No conflicting populated fields. Imported source records will be
-                retained.
+                {t("No conflicting populated fields. Imported source records will be retained.")}
               </p>
             )}
           </>
         )}
         <details>
-          <summary className="ws-link">View original imported content</summary>
+          <summary className="ws-link">{t("View original imported content")}</summary>
           <p className="whitespace-pre-wrap text-xs leading-6 mt-3">
             {row.raw_text}
           </p>
         </details>
         <div className="ws-form-footer">
           <button className="ws-button" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             className="ws-button ws-button-primary"
@@ -675,7 +672,7 @@ function ReviewRow({
             }
             onClick={() => setEditing(true)}
           >
-            Review fields
+            {t("Review fields")}
           </button>
         </div>
       </div>
@@ -685,6 +682,7 @@ function ReviewRow({
 
 /** The same import review lives inside the assistant conversation. */
 export function ConversationImport({ jobId }: { jobId: string }) {
+  const t = useT();
   const [page, setPage] = useState(1),
     [review, setReview] = useState<ImportRow | null>(null),
     [error, setError] = useState(""),
@@ -734,21 +732,21 @@ export function ConversationImport({ jobId }: { jobId: string }) {
   return (
     <section
       className="ws-chat-import"
-      aria-label="Candidate import in conversation"
+      aria-label={t("Candidate import in conversation")}
     >
-      <div className="ws-message-label">Hirelix</div>
+      <div className="ws-message-label">{t("Hirelix")}</div>
       <ErrorNotice error={error || preview.error} retry={preview.refresh} />
       {!job ? (
-        <Loading>Opening your file…</Loading>
+        <Loading>{t("Opening your file…")}</Loading>
       ) : pending ? (
         <Loading>
           {job.progress === "Queued"
-            ? "I have your file. I’ll read the candidates and check for duplicates."
-            : job.progress}
+            ? t("I have your file. I’ll read the candidates and check for duplicates.")
+            : t(job.progress)}
         </Loading>
       ) : job.status === "error" ? (
         <>
-          <p>I’ve kept your original file, but couldn’t finish reading it.</p>
+          <p>{t("I’ve kept your original file, but couldn’t finish reading it.")}</p>
           <ErrorNotice
             error={job.error || "This file needs another attempt"}
             retry={() =>
@@ -774,14 +772,13 @@ export function ConversationImport({ jobId }: { jobId: string }) {
           result.headers ? (
             <>
               <p className="ws-muted">
-                I’ve matched the columns to candidate fields. Check the sample
-                before I save anyone.
+                {t("I’ve matched the columns to candidate fields. Check the sample before I save anyone.")}
               </p>
               <button
                 className="ws-button mt-3"
                 onClick={() => setExpanded((v) => !v)}
               >
-                {expanded ? "Hide column details" : "Review column mapping"}
+                {expanded ? t("Hide column details") : t("Review column mapping")}
               </button>
               {expanded && (
                 <ColumnMapping
@@ -810,13 +807,12 @@ export function ConversationImport({ jobId }: { jobId: string }) {
                     <small>
                       {item.extracted.headline ||
                         item.extracted.email ||
-                        "Check the extracted profile"}
+                        t("Check the extracted profile")}
                     </small>
                     {item.status === "review" && item.matches.length > 0 && (
                       <small className="ws-duplicate-hint">
-                        Already in your pool?{" "}
-                        {item.matches.map((m) => m.name).join(", ")}. I’ll ask
-                        which details to keep.
+                        {t("Already in your pool?")}{" "}
+                        {item.matches.map((m) => m.name).join(", ")}{t(". I’ll ask which details to keep.")}
                       </small>
                     )}
                   </div>
@@ -827,10 +823,10 @@ export function ConversationImport({ jobId }: { jobId: string }) {
                         href={`/app/candidates?person=${item.result_person_id}`}
                       >
                         <Check size={13} />
-                        Open candidate
+                        {t("Open candidate")}
                       </Link>
                     ) : item.status === "skipped" ? (
-                      <small>Skipped</small>
+                      <small>{t("Skipped")}</small>
                     ) : (
                       <>
                         <button
@@ -839,15 +835,15 @@ export function ConversationImport({ jobId }: { jobId: string }) {
                           onClick={() => setReview(item)}
                         >
                           {item.matches.length
-                            ? "Review duplicate"
-                            : "Review & save"}
+                            ? t("Review duplicate")
+                            : t("Review & save")}
                         </button>
                         <button
                           className="ws-link"
                           disabled={saving}
                           onClick={() => skip(item)}
                         >
-                          Skip
+                          {t("Skip")}
                         </button>
                       </>
                     )}
@@ -863,7 +859,7 @@ export function ConversationImport({ jobId }: { jobId: string }) {
                 disabled={page === 1}
                 onClick={() => setPage((p) => p - 1)}
               >
-                Previous
+                {t("Previous")}
               </button>
               <span>
                 {page} / {Math.ceil((result?.total || 0) / 50)}
@@ -873,7 +869,7 @@ export function ConversationImport({ jobId }: { jobId: string }) {
                 disabled={page * 50 >= (result?.total || 0)}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next
+                {t("Next")}
               </button>
             </div>
           )}
@@ -887,7 +883,7 @@ export function ConversationImport({ jobId }: { jobId: string }) {
             : undefined
         }
       >
-        Original:{" "}
+        {t("Original:")}{" "}
         {String(job?.payload.filename || result?.format || "candidate file")}
       </a>
       {review && (

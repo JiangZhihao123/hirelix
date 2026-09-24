@@ -1,13 +1,18 @@
+"use client";
+
+
+import { useT } from "@/components/LanguageProvider";
 import { BookUser, FileText, MessageCircle, Search, Sparkles } from "lucide-react";
 
 export function HowItWorksSection() {
+  const t = useT();
   const steps = [
     {
       title: "Bring a real client JD",
       desc: "Give your agent the role you are working on and the requirements that actually matter.",
     },
     {
-      title: "Keep your own candidate memory",
+      title: "Build your own candidate pool",
       desc: "Save people and your own observations once, even when a particular search is over.",
     },
     {
@@ -26,13 +31,13 @@ export function HowItWorksSection() {
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-              How it works
+              {t("How it works")}
             </p>
             <h2 className="max-w-[12ch] text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-              Your own recruiting intelligence, available across roles.
+              {t("Your own recruiting intelligence, available across roles.")}
             </h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-              The agent works from your JD, the people you chose to remember, and the evidence you can actually defend.
+              {t("The agent works from your JD, the people you chose to remember, and the evidence you can actually defend.")}
             </p>
           </div>
 
@@ -49,8 +54,8 @@ export function HowItWorksSection() {
                     ) : null}
                   </div>
                   <div className="pb-2 sm:pb-5">
-                    <h3 className="text-base font-semibold text-slate-950">{step.title}</h3>
-                    <p className="mt-1.5 text-sm leading-6 text-slate-600">{step.desc}</p>
+                    <h3 className="text-base font-semibold text-slate-950">{t(step.title)}</h3>
+                    <p className="mt-1.5 text-sm leading-6 text-slate-600">{t(step.desc)}</p>
                   </div>
                 </div>
               ))}
@@ -63,10 +68,11 @@ export function HowItWorksSection() {
 }
 
 export function FeaturesSection() {
+  const t = useT();
   const features = [
     {
       icon: BookUser,
-      title: "Private candidate memory",
+      title: "Your private candidate pool",
       desc: "Keep candidate context and your own notes beyond a single assignment.",
     },
     {
@@ -102,14 +108,14 @@ export function FeaturesSection() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-              Features
+              {t("Features")}
             </p>
             <h2 className="max-w-xl text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-              A thinking partner with your own long-term context.
+              {t("A thinking partner with your own long-term context.")}
             </h2>
           </div>
           <p className="max-w-md text-base leading-7 text-slate-600">
-            The agent starts from your knowledge of people and helps you make a defensible decision for each client role.
+            {t("The agent starts from your knowledge of people and helps you make a defensible decision for each client role.")}
           </p>
         </div>
 
@@ -122,8 +128,8 @@ export function FeaturesSection() {
               <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white text-indigo-700 ring-1 ring-slate-200">
                 <item.icon className="h-5 w-5" />
               </div>
-              <h3 className="text-base font-semibold text-slate-950">{item.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.desc}</p>
+              <h3 className="text-base font-semibold text-slate-950">{t(item.title)}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{t(item.desc)}</p>
             </div>
           ))}
         </div>
@@ -131,15 +137,15 @@ export function FeaturesSection() {
         <div className="mt-12 grid gap-3 border-t border-slate-200 pt-6 text-sm text-slate-700 sm:grid-cols-3">
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-indigo-700" />
-            Your candidate memory stays yours
+            {t("Your candidate pool stays yours")}
           </div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-            Source claims stay separate from your notes
+            {t("Source claims stay separate from your notes")}
           </div>
           <div className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-            Client briefs remain drafts until you review them
+            {t("Client briefs remain drafts until you review them")}
           </div>
         </div>
       </div>

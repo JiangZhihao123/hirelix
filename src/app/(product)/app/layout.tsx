@@ -21,6 +21,7 @@ import {
   type EntryMode,
 } from "@/lib/analytics";
 import { BillingProvider } from "@/lib/use-billing";
+import { useT } from "@/components/LanguageProvider";
 import {
   Search,
   BriefcaseBusiness,
@@ -50,6 +51,7 @@ export default function ProductLayout({
 }
 
 function ProductLayoutShell({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -91,26 +93,26 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const nav = [
     {
       href: "/app",
-      label: "My assistant",
+      label: t("My assistant"),
       icon: MessageSquare,
       active: pathname === "/app",
     },
     {
       href: "/app/candidates",
-      label: "Candidates",
+      label: t("Candidates"),
       icon: BookUser,
       active:
         pathname.startsWith("/app/candidates") || pathname === "/app/talent",
     },
     {
       href: "/app/roles",
-      label: "Roles",
+      label: t("Roles"),
       icon: BriefcaseBusiness,
       active: pathname.startsWith("/app/roles"),
     },
     {
       href: "/app/submissions",
-      label: "Submissions",
+      label: t("Submissions"),
       icon: FileText,
       active:
         pathname.startsWith("/app/submissions") || pathname === "/app/briefs",
@@ -172,25 +174,25 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
       <div className="private-workspace flex min-h-screen flex-col items-center justify-center gap-8 px-6">
         <div className="flex items-center gap-2.5">
           <span className="text-3xl font-semibold tracking-tight text-primary">
-            hirelix
+            {t("hirelix")}
           </span>
         </div>
         <h1 className="text-center text-xl font-semibold">
           {isSearchIntent
-            ? "Sign in to open your shortlist"
+            ? t("Sign in to open your shortlist")
             : isFreeTrialEntry
-              ? "Start with your private assistant"
-              : "Sign in to Hirelix"}
+              ? t("Start with your private assistant")
+              : t("Sign in to Hirelix")}
         </h1>
         {isFreeTrialEntry && !isSearchIntent ? (
           <p className="-mt-5 max-w-sm text-center text-sm leading-6 text-muted">
-            Your candidates, your roles, and the work you prepare for clients.
+            {t("Your candidates, your roles, and the work you prepare for clients.")}
           </p>
         ) : null}
         {isSearchIntent && (
           <div className="w-full max-w-xl rounded-xl border border-border bg-surface p-4 text-left">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-light">
-              Your JD is saved
+              {t("Your JD is saved")}
             </p>
             <p className="mt-2 max-h-32 overflow-hidden whitespace-pre-wrap text-sm text-foreground">
               {pendingJd}
@@ -199,7 +201,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         )}
         <LoginForm redirectPath={authRedirectPath} />
         <Link href="/" className="text-sm text-muted hover:text-foreground">
-          &larr; Back to homepage
+          {t("← Back to homepage")}
         </Link>
       </div>
     );
@@ -212,22 +214,22 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
       {sidebarOpen && (
         <button
           className="ws-overlay"
-          aria-label="Close navigation"
+          aria-label={t("Close navigation")}
           onClick={() => setSidebarOpen(false)}
         />
       )}
       <aside
         className="ws-sidebar"
         data-open={sidebarOpen}
-        aria-label="Main navigation"
+        aria-label={t("Main navigation")}
       >
         <div className="ws-brand">
           <Link href="/app" onClick={() => navigate("/app")}>
-            hirelix
+            {t("hirelix")}
           </Link>
           <button
             className="ws-icon ws-mobile-only"
-            aria-label="Close navigation"
+            aria-label={t("Close navigation")}
             onClick={() => setSidebarOpen(false)}
           >
             <X size={18} />
@@ -249,7 +251,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               <span>{item.label}</span>
             </Link>
           ))}
-          <small>TOOLS</small>
+          <small>{t("TOOLS")}</small>
           <Link
             href="/app/searches"
             onClick={() => navigate("/app/searches")}
@@ -258,7 +260,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             }
           >
             <Search size={16} />
-            Sourcing
+            {t("Sourcing")}
           </Link>
         </nav>
         <div className="ws-sidebar-bottom">
@@ -269,7 +271,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               aria-current={pathname === "/app/settings" ? "page" : undefined}
             >
               <Settings size={16} />
-              Settings
+              {t("Settings")}
             </Link>
           </nav>
           <div className="ws-account">
@@ -279,8 +281,8 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             </div>
             <button
               className="ws-icon"
-              aria-label="Sign out"
-              title="Sign out"
+              aria-label={t("Sign out")}
+              title={t("Sign out")}
               onClick={() => signOut().then(() => router.push("/"))}
             >
               <LogOut size={15} />
@@ -293,25 +295,25 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           <div className="ws-actions">
             <button
               className="ws-icon ws-mobile-only"
-              aria-label="Open navigation"
+              aria-label={t("Open navigation")}
               onClick={() => setSidebarOpen(true)}
             >
               <Menu size={18} />
             </button>
-            <span>{nav.find((item) => item.active)?.label || "Workspace"}</span>
+            <span>{nav.find((item) => item.active)?.label || t("Workspace")}</span>
           </div>
           <div className="ws-topbar-actions">
             <Link
               href="/app/candidates"
               className="ws-icon"
-              aria-label="Search your candidates"
+              aria-label={t("Search your candidates")}
             >
               <Search size={17} />
             </Link>
             <Link
               href="/app/tasks"
               className="ws-icon"
-              aria-label="Tasks and notifications"
+              aria-label={t("Tasks and notifications")}
             >
               <Bell size={17} />
             </Link>

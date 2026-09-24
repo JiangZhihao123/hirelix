@@ -1,4 +1,6 @@
 "use client";
+
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +14,8 @@ import {
 import { RoleForm } from "@/components/workspace/forms";
 import type { Role } from "@/lib/workspace/types";
 export default function Roles() {
+  const t = useT();
+  const { locale } = useLanguage();
   const router = useRouter(),
     query = useQuery<{
       roles: Array<
@@ -32,10 +36,9 @@ export default function Roles() {
     <div className="ws-page">
       <header className="ws-page-header">
         <div>
-          <h1>Roles</h1>
+          <h1>{t("Roles")}</h1>
           <p>
-            Your assignments, with the requirements and conversations behind
-            them.
+            {t("Your assignments, with the requirements and conversations behind them.")}
           </p>
         </div>
         <button
@@ -43,39 +46,39 @@ export default function Roles() {
           onClick={() => setAdding(true)}
         >
           <Plus size={15} />
-          Add role
+          {t("Add role")}
         </button>
       </header>
       <div className="ws-toolbar">
         <div className="ws-search">
           <Search size={16} />
           <input
-            aria-label="Search roles"
-            placeholder="Search by role or client"
+            aria-label={t("Search roles")}
+            placeholder={t("Search by role or client")}
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
           />
         </div>
         <div className="ws-filters">
           <select
-            aria-label="Role status"
+            aria-label={t("Role status")}
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
             {["all", "active", "paused", "closed"].map((value) => (
               <option key={value} value={value}>
                 {value === "all"
-                  ? "All roles"
-                  : value[0].toUpperCase() + value.slice(1)}
+                  ? t("All roles")
+                  : t(value)}
               </option>
             ))}
           </select>
-          <span className="ws-count">{roles.length} roles</span>
+          <span className="ws-count">{locale === "zh" ? `${roles.length} 个职位` : `${roles.length} roles`}</span>
         </div>
       </div>
       <ErrorNotice error={query.error} retry={query.refresh} />
       {query.loading ? (
-        <Loading>Loading roles…</Loading>
+        <Loading>{t("Loading roles…")}</Loading>
       ) : roles.length ? (
         <div className="ws-role-grid">
           {roles.map((role) => (
@@ -86,19 +89,19 @@ export default function Roles() {
             >
               <div>
                 <h2>{role.title}</h2>
-                <p>{role.client_name || "Client not yet recorded"}</p>
+                <p>{role.client_name || t("Client not yet recorded")}</p>
               </div>
               <div className="ws-role-count">
-                <p>{role.candidate_count} candidates</p>
-                <p>{role.submission_count} submissions recorded</p>
+                <p>{locale === "zh" ? `${role.candidate_count} 位候选人` : `${role.candidate_count} candidates`}</p>
+                <p>{locale === "zh" ? `已记录 ${role.submission_count} 次推荐` : `${role.submission_count} submissions recorded`}</p>
               </div>
               <div className="ws-role-count">
-                <p>Updated</p>
+                <p>{t("Updated")}</p>
                 <p>{date(role.updated_at)}</p>
               </div>
               <div>
                 <span className="ws-status" data-status={role.status}>
-                  {role.status}
+                  {t(role.status)}
                 </span>
               </div>
             </Link>
@@ -106,14 +109,12 @@ export default function Roles() {
         </div>
       ) : (
         <div className="ws-empty">
-          <h2>{filter ? "No matching roles" : "Start with a client’s JD."}</h2>
+          <h2>{filter ? t("No matching roles") : t("Start with a client’s JD.")}</h2>
           <p>
-            Keep the original requirements, candidate discussions and client
-            material together. You can add people from your existing candidate
-            pool.
+            {t("Keep the original requirements, candidate discussions and client material together. You can add people from your existing candidate pool.")}
           </p>
           <button className="ws-button mt-5" onClick={() => setAdding(true)}>
-            Add your first role
+            {t("Add your first role")}
           </button>
         </div>
       )}

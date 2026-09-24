@@ -1,4 +1,6 @@
 "use client";
+
+import { useT } from "@/components/LanguageProvider";
 import { useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { api, Dialog, Field, ErrorNotice } from "./client";
@@ -26,6 +28,7 @@ export function PersonForm({
   onClose: () => void;
   onSaved: (person: Person) => void;
 }) {
+  const t = useT();
   const initial = person || initialValues;
   const [fields, setFields] = useState(() => {
     const defaults = personInput.parse({ name: "New candidate" });
@@ -97,14 +100,14 @@ export function PersonForm({
   }
   return (
     <Dialog
-      title={title || (person ? "Edit candidate" : "Add candidate")}
+      title={title || (person ? t("Edit candidate") : t("Add candidate"))}
       onClose={close}
       wide
     >
       <form autoComplete="off" className="ws-form" onSubmit={submit}>
         <ErrorNotice error={error} />
         <div className="ws-fields">
-          <Field label="Full name">
+          <Field label={t("Full name")}>
             <input
               autoFocus
               required
@@ -116,35 +119,35 @@ export function PersonForm({
               }}
             />
           </Field>
-          <Field label="Current role / headline">
+          <Field label={t("Current role / headline")}>
             <input
               value={fields.headline}
               maxLength={500}
               onChange={(event) => set("headline", event.target.value)}
             />
           </Field>
-          <Field label="Location">
+          <Field label={t("Location")}>
             <input
               value={fields.location}
               maxLength={250}
               onChange={(event) => set("location", event.target.value)}
             />
           </Field>
-          <Field label="Email">
+          <Field label={t("Email")}>
             <input
               type="email"
               value={fields.email}
               onChange={(event) => set("email", event.target.value)}
             />
           </Field>
-          <Field label="Phone">
+          <Field label={t("Phone")}>
             <input
               value={fields.phone}
               maxLength={100}
               onChange={(event) => set("phone", event.target.value)}
             />
           </Field>
-          <Field label="Profile URL">
+          <Field label={t("Profile URL")}>
             <input
               type="url"
               value={fields.profile_url}
@@ -153,8 +156,8 @@ export function PersonForm({
           </Field>
         </div>
         <Field
-          label="Expertise"
-          hint="Separate skills or areas of expertise with commas."
+          label={t("Expertise")}
+          hint={t("Separate skills or areas of expertise with commas.")}
         >
           <input
             value={skills}
@@ -164,7 +167,7 @@ export function PersonForm({
             }}
           />
         </Field>
-        <Field label="Professional summary">
+        <Field label={t("Professional summary")}>
           <textarea
             rows={3}
             value={fields.profile.summary}
@@ -179,8 +182,8 @@ export function PersonForm({
           />
         </Field>
         <Field
-          label="Your private note"
-          hint="Kept in this person's record. You choose which notes to include in client material."
+          label={t("Your private note")}
+          hint={t("Kept in this person's record. You choose which notes to include in client material.")}
         >
           <textarea
             rows={3}
@@ -196,11 +199,11 @@ export function PersonForm({
             disabled={saving}
             onClick={close}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button className="ws-button ws-button-primary" disabled={saving}>
             {saving && <Loader2 size={14} className="animate-spin" />}
-            {saving ? "Saving…" : "Save candidate"}
+            {saving ? t("Saving…") : t("Save candidate")}
           </button>
         </div>
       </form>
@@ -216,6 +219,7 @@ export function RoleForm({
   onClose: () => void;
   onSaved: (role: Role) => void;
 }) {
+  const t = useT();
   const [fields, setFields] = useState(() =>
     roleInput.parse({
       ...role,
@@ -268,7 +272,7 @@ export function RoleForm({
     }
   }
   return (
-    <Dialog title={role ? "Edit role" : "Add a role"} onClose={close} wide>
+    <Dialog title={role ? t("Edit role") : t("Add a role")} onClose={close} wide>
       <form
         autoComplete="off"
         className="ws-form"
@@ -277,7 +281,7 @@ export function RoleForm({
       >
         <ErrorNotice error={error} />
         <div className="ws-fields">
-          <Field label="Role title">
+          <Field label={t("Role title")}>
             <input
               autoFocus
               required
@@ -286,7 +290,7 @@ export function RoleForm({
               onChange={(event) => setTitle(event.target.value)}
             />
           </Field>
-          <Field label="Client">
+          <Field label={t("Client")}>
             <input
               required
               value={client}
@@ -296,8 +300,8 @@ export function RoleForm({
           </Field>
         </div>
         <Field
-          label="Job description"
-          hint="Paste the original JD. You can refine the working requirements below."
+          label={t("Job description")}
+          hint={t("Paste the original JD. You can refine the working requirements below.")}
         >
           <textarea
             rows={7}
@@ -314,7 +318,7 @@ export function RoleForm({
             ["unknowns", "Still to clarify"],
           ] as const
         ).map(([key, label]) => (
-          <Field key={key} label={label} hint="One item per line.">
+          <Field key={key} label={label} hint={t("One item per line.")}>
             <textarea
               rows={2}
               value={fields.brief[key].join("\n")}
@@ -332,7 +336,7 @@ export function RoleForm({
         ))}
         <details>
           <summary className="ws-link">
-            Client contact and practical details
+            {t("Client contact and practical details")}
           </summary>
           <div className="ws-fields mt-4">
             {(
@@ -369,11 +373,11 @@ export function RoleForm({
             disabled={saving}
             onClick={close}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button className="ws-button ws-button-primary" disabled={saving}>
             {saving && <Loader2 size={14} className="animate-spin" />}
-            {saving ? "Saving…" : "Save role"}
+            {saving ? t("Saving…") : t("Save role")}
           </button>
         </div>
       </form>
@@ -393,6 +397,7 @@ export function RecordForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [kind, setKind] = useState<SourceRecord["kind"]>(
       record?.kind || "note",
     ),
@@ -443,7 +448,7 @@ export function RecordForm({
     }
   }
   return (
-    <Dialog title={record ? "Edit record" : "Add a record"} onClose={close}>
+    <Dialog title={record ? t("Edit record") : t("Add a record")} onClose={close}>
       <form
         autoComplete="off"
         className="ws-form"
@@ -452,7 +457,7 @@ export function RecordForm({
       >
         <ErrorNotice error={error} />
         <div className="ws-fields">
-          <Field label="Record type">
+          <Field label={t("Record type")}>
             <select
               value={kind}
               onChange={(event) =>
@@ -469,8 +474,8 @@ export function RecordForm({
             </select>
           </Field>
           <Field
-            label="When it happened"
-            hint="Your local time. Leave blank if unknown; adding a record does not imply it happened today."
+            label={t("When it happened")}
+            hint={t("Your local time. Leave blank if unknown; adding a record does not imply it happened today.")}
           >
             <input
               type="datetime-local"
@@ -479,7 +484,7 @@ export function RecordForm({
             />
           </Field>
         </div>
-        <Field label="Title">
+        <Field label={t("Title")}>
           <input
             autoFocus
             required
@@ -488,7 +493,7 @@ export function RecordForm({
             onChange={(event) => setTitle(event.target.value)}
           />
         </Field>
-        <Field label="Original note or message">
+        <Field label={t("Original note or message")}>
           <textarea
             required
             rows={7}
@@ -497,7 +502,7 @@ export function RecordForm({
             onChange={(event) => setContent(event.target.value)}
           />
         </Field>
-        <Field label="Source URL (optional)">
+        <Field label={t("Source URL (optional)")}>
           <input
             type="url"
             value={url}
@@ -511,10 +516,10 @@ export function RecordForm({
             onClick={close}
             className="ws-button"
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button disabled={saving} className="ws-button ws-button-primary">
-            {saving ? "Saving…" : "Save record"}
+            {saving ? t("Saving…") : t("Save record")}
           </button>
         </div>
       </form>

@@ -1,4 +1,6 @@
 "use client";
+
+import { useT } from "@/components/LanguageProvider";
 import { AgentText } from "@/components/AgentText";
 import { Dialog, ErrorNotice, Loading, date, useQuery } from "./client";
 export function History({
@@ -10,6 +12,7 @@ export function History({
   id: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const query = useQuery<{
     versions: Array<{
       version: number;
@@ -18,7 +21,7 @@ export function History({
     }>;
   }>(`/versions?kind=${kind}&id=${id}`);
   return (
-    <Dialog title="Version history" onClose={onClose} wide>
+    <Dialog title={t("Version history")} onClose={onClose} wide>
       <div className="ws-history">
         <ErrorNotice error={query.error} retry={query.refresh} />
         {query.loading ? (
@@ -27,7 +30,7 @@ export function History({
           query.data?.versions.map((item) => (
             <details key={item.version}>
               <summary>
-                Version {item.version} · {date(item.created_at, true)}
+                {t("Version")} {item.version} · {date(item.created_at, true)}
               </summary>
               <div className="ws-section">
                 {kind === "deliverable" ? (
@@ -37,7 +40,7 @@ export function History({
                     <p className="ws-muted">
                       {item.snapshot.status === "submitted"
                         ? `Submission recorded ${date(String(item.snapshot.submitted_at))}`
-                        : "Draft"}
+                        : t("Draft")}
                     </p>
                   </>
                 ) : (

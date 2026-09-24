@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { getSearchTaskTimelineItems } from "@/lib/search-task";
 import type { SearchRow } from "./types";
@@ -20,6 +22,7 @@ export function TaskTimelinePanel({
   };
   metrics?: TimelineMetrics;
 }) {
+  const t = useT();
   const headhunterMode = metrics?.recallStrategyMode === "headhunter_v1" || metrics?.recallStrategyMode === "headhunter_v2";
   const headhunterLabels = [
     "Reading role",
@@ -76,7 +79,7 @@ export function TaskTimelinePanel({
   return (
     <div className="mb-6 rounded-2xl border border-sky-200 bg-[linear-gradient(180deg,#fafdff_0%,#f2f8ff_100%)] p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-        Live progress
+        {t("Live progress")}
       </p>
       <div className="mt-4 space-y-3">
         {steps.map((step, i) => {
@@ -100,12 +103,12 @@ export function TaskTimelinePanel({
                   <span className={`text-sm ${
                     isDone ? "text-green-700 font-medium" : isActive ? "text-foreground font-medium" : "text-muted-light"
                   }`}>
-                    {step.label}
+                    {t(step.label)}
                     {isDone && " ✓"}
                   </span>
                   {isActive && (
                     <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-sky-700">
-                      Now
+                      {t("Now")}
                     </span>
                   )}
                 </div>

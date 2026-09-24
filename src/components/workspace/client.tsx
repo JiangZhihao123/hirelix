@@ -1,4 +1,6 @@
 "use client";
+
+import { useT } from "@/components/LanguageProvider";
 import {
   useCallback,
   useEffect,
@@ -84,22 +86,24 @@ export function ErrorNotice({
   error: string;
   retry?: () => void;
 }) {
+  const t = useT();
   return error ? (
     <div className="ws-error" role="alert">
-      <span>{error}</span>
+      <span>{t(error)}</span>
       {retry && (
         <button type="button" onClick={retry}>
-          Try again
+          {t("Try again")}
         </button>
       )}
     </div>
   ) : null;
 }
 export function Loading({ children = "Loading…" }: { children?: ReactNode }) {
+  const t = useT();
   return (
     <div role="status" className="ws-loading">
       <Loader2 size={16} className="animate-spin" />
-      {children}
+      {typeof children === "string" ? t(children) : children}
     </div>
   );
 }
@@ -114,6 +118,7 @@ export function Dialog({
   onClose: () => void;
   wide?: boolean;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = ref.current;
@@ -131,14 +136,14 @@ export function Dialog({
         event.preventDefault();
         onClose();
       }}
-      aria-label={title}
+      aria-label={t(title)}
     >
       <header>
-        <h2>{title}</h2>
+        <h2>{t(title)}</h2>
         <button
           type="button"
           className="ws-icon"
-          aria-label={`Close ${title}`}
+          aria-label={`${t("Close")} ${t(title)}`}
           onClick={onClose}
         >
           <X size={18} />
@@ -157,20 +162,22 @@ export function Field({
   children: ReactNode;
   hint?: string;
 }) {
+  const t = useT();
   return (
     <label className="ws-field">
-      <span>{label}</span>
+      <span>{t(label)}</span>
       {children}
-      {hint && <small>{hint}</small>}
+      {hint && <small>{t(hint)}</small>}
     </label>
   );
 }
 export function date(value: string | null | undefined, withTime = false) {
-  if (!value) return "Not recorded";
+  const chinese = typeof document !== "undefined" && document.documentElement.lang === "zh-CN";
+  if (!value) return chinese ? "未记录" : "Not recorded";
   const parsed = new Date(value);
   return Number.isNaN(parsed.valueOf())
-    ? "Not recorded"
-    : new Intl.DateTimeFormat("en-GB", {
+    ? (chinese ? "未记录" : "Not recorded")
+    : new Intl.DateTimeFormat(chinese ? "zh-CN" : "en-GB", {
         day: "numeric",
         month: "short",
         year: "numeric",

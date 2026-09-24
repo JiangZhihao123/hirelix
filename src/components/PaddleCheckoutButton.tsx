@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
@@ -30,6 +32,7 @@ export function PaddleCheckoutButton({
   onClick,
   onError,
 }: PaddleCheckoutButtonProps) {
+  const t = useT();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const config = getCheckoutConfig();
@@ -131,7 +134,7 @@ export function PaddleCheckoutButton({
       {loading ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
-          Opening checkout...
+          {t("Opening checkout...")}
         </>
       ) : (
         label

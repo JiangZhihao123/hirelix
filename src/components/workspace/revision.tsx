@@ -1,4 +1,6 @@
 "use client";
+
+import { useT } from "@/components/LanguageProvider";
 import { useEffect, useState } from "react";
 import { api, useQuery, ErrorNotice, Field, Dialog } from "./client";
 import { AgentText } from "@/components/AgentText";
@@ -13,6 +15,7 @@ export function RevisionPanel({
   disabled: boolean;
   onApplied: (value: Deliverable) => void;
 }) {
+  const t = useT();
   const query = useQuery<{ job: Job | null }>(
     `/deliverables/${document.id}/revision`,
   );
@@ -77,18 +80,17 @@ export function RevisionPanel({
   }
   return (
     <section className="ws-panel mt-6">
-      <h2>Revise with your assistant</h2>
+      <h2>{t("Revise with your assistant")}</h2>
       <p className="ws-muted">
-        Review a proposed revision before replacing your draft. Your previous
-        version is kept.
+        {t("Review a proposed revision before replacing your draft. Your previous version is kept.")}
       </p>
       <ErrorNotice error={error || query.error} />
-      <Field label="What would you like to change?">
+      <Field label={t("What would you like to change?")}>
         <textarea
           rows={3}
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
-          placeholder="Make it shorter and lead with the team-building experience."
+          placeholder={t("Make it shorter and lead with the team-building experience.")}
         />
       </Field>
       <button
@@ -97,15 +99,14 @@ export function RevisionPanel({
         onClick={() => void request()}
       >
         {" "}
-        {running ? "Preparing revision…" : "Prepare revision"}
+        {running ? t("Preparing revision…") : t("Prepare revision")}
       </button>
       {disabled && (
-        <p className="ws-muted">Save your current edits before revising.</p>
+        <p className="ws-muted">{t("Save your current edits before revising.")}</p>
       )}
       {running && (
         <p role="status" className="ws-muted">
-          {job.progress || "Preparing your revision"}. You can return to this
-          draft later.
+          {job.progress || t("Preparing your revision")}{t(". You can return to this draft later.")}
         </p>
       )}
       {job?.status === "error" && (
@@ -133,18 +134,18 @@ export function RevisionPanel({
               }
             }}
           >
-            Retry revision
+            {t("Retry revision")}
           </button>
         </>
       )}
       {job?.status === "done" && !job.result?.applied_version && (
         <div className="mt-4">
           <button className="ws-button" onClick={() => setReview(true)}>
-            Review proposed revision
+            {t("Review proposed revision")}
           </button>
           {review && (
             <Dialog
-              title="Review proposed revision"
+              title={t("Review proposed revision")}
               wide
               onClose={() => {
                 if (!busy) setReview(false);
@@ -157,9 +158,7 @@ export function RevisionPanel({
                 <AgentText content={String(job.result?.content || "")} />
                 {job.payload.expected_version !== document.version && (
                   <p role="alert">
-                    This draft changed after the revision started. Prepare a new
-                    revision using the current text; this suggestion has been
-                    kept.
+                    {t("This draft changed after the revision started. Prepare a new revision using the current text; this suggestion has been kept.")}
                   </p>
                 )}
                 <button
@@ -171,7 +170,7 @@ export function RevisionPanel({
                   }
                   onClick={() => void apply()}
                 >
-                  Apply revision
+                  {t("Apply revision")}
                 </button>
               </div>
             </Dialog>
@@ -180,7 +179,7 @@ export function RevisionPanel({
       )}
       {!!job?.result?.applied_version && (
         <p className="ws-muted">
-          Revision applied. The earlier text is available in version history.
+          {t("Revision applied. The earlier text is available in version history.")}
         </p>
       )}
     </section>

@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useState, type FormEvent } from "react";
 import { ArrowRight, KeyRound, Loader2, Mail, RotateCcw, ShieldCheck } from "lucide-react";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
@@ -25,6 +27,7 @@ export function LoginForm({
   onFailure,
   variant = "page",
 }: LoginFormProps) {
+  const t = useT();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -246,7 +249,7 @@ export function LoginForm({
         </div>
         <div className="relative flex justify-center">
           <span className={`bg-white px-3 text-xs font-medium ${styles.dividerText}`}>
-            or continue with email
+            {t("or continue with email")}
           </span>
         </div>
       </div>
@@ -254,7 +257,7 @@ export function LoginForm({
       {authMode === "password" ? (
         <form className="space-y-3" onSubmit={handlePasswordSignIn}>
           <label className="block text-sm font-medium">
-            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>Email</span>
+            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>{t("Email")}</span>
             <span className="relative mt-1 block">
               <Mail className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${styles.icon}`} />
               <input
@@ -262,13 +265,13 @@ export function LoginForm({
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@company.com"
+                placeholder={t("you@company.com")}
                 className={styles.input}
               />
             </span>
           </label>
           <label className="block text-sm font-medium">
-            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>Password</span>
+            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>{t("Password")}</span>
             <span className="relative mt-1 block">
               <KeyRound className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${styles.icon}`} />
               <input
@@ -276,7 +279,7 @@ export function LoginForm({
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Password"
+                placeholder={t("Password")}
                 className={styles.input}
               />
             </span>
@@ -287,7 +290,7 @@ export function LoginForm({
             className={styles.submitButton}
           >
             {emailSigningIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            Sign in with password
+            {t("Sign in with password")}
           </button>
           <button
             type="button"
@@ -298,13 +301,13 @@ export function LoginForm({
             disabled={authBusy}
             className={styles.secondaryButton}
           >
-            Use email code instead
+            {t("Use email code instead")}
           </button>
         </form>
       ) : !otpSent ? (
         <form className="space-y-3" onSubmit={handleSendOtp}>
           <label className="block text-sm font-medium">
-            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>Work email</span>
+            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>{t("Work email")}</span>
             <span className="relative mt-1 block">
               <Mail className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${styles.icon}`} />
               <input
@@ -312,7 +315,7 @@ export function LoginForm({
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@company.com"
+                placeholder={t("you@company.com")}
                 className={styles.input}
               />
             </span>
@@ -323,7 +326,7 @@ export function LoginForm({
             className={styles.submitButton}
           >
             {sendingOtp ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            Continue with email
+            {t("Continue with email")}
           </button>
           <button
             type="button"
@@ -337,7 +340,7 @@ export function LoginForm({
             className={styles.secondaryButton}
           >
             <KeyRound className="h-3.5 w-3.5" />
-            Use password instead
+            {t("Use password instead")}
           </button>
         </form>
       ) : (
@@ -346,12 +349,12 @@ export function LoginForm({
             <div className="flex items-start gap-2">
               <ShieldCheck className={`mt-0.5 h-4 w-4 shrink-0 ${styles.successText}`} />
               <p>
-                We sent a code to <span className="font-semibold">{normalizedEmail}</span>.
+                {t("We sent a code to")} <span className="font-semibold">{normalizedEmail}</span>.
               </p>
             </div>
           </div>
           <label className="block text-sm font-medium">
-            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>Email code</span>
+            <span className={variant === "modal" ? "text-slate-700" : "text-foreground"}>{t("Email code")}</span>
             <span className="relative mt-1 block">
               <ShieldCheck className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${styles.icon}`} />
               <input
@@ -361,7 +364,7 @@ export function LoginForm({
                 maxLength={6}
                 value={otp}
                 onChange={(event) => setOtp(event.target.value)}
-                placeholder="6-digit code"
+                placeholder={t("6-digit code")}
                 className={styles.otpInput}
               />
             </span>
@@ -372,7 +375,7 @@ export function LoginForm({
             className={styles.submitButton}
           >
             {emailSigningIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            Verify code
+            {t("Verify code")}
           </button>
           <div className="flex items-center justify-between gap-3">
             <button
@@ -385,7 +388,7 @@ export function LoginForm({
               disabled={authBusy}
               className={styles.secondaryButton}
             >
-              Use another email
+              {t("Use another email")}
             </button>
             <button
               type="button"
@@ -394,7 +397,7 @@ export function LoginForm({
               className={styles.secondaryButton}
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Resend code
+              {t("Resend code")}
             </button>
           </div>
         </form>
@@ -402,7 +405,7 @@ export function LoginForm({
 
       {errorMessage && (
         <p className="mt-3 text-sm text-red-600" role="alert">
-          {errorMessage}
+          {t(errorMessage)}
         </p>
       )}
     </div>

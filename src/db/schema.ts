@@ -356,6 +356,7 @@ export const hirelix_user_settings = pgTable("hirelix_user_settings", {
   user_id: uuid("user_id").notNull().unique(),
   pdl_api_key: text("pdl_api_key"),
   company_profile: jsonb("company_profile"),
+  ui_locale: text("ui_locale").notNull().default("en"),
   subscription_plan: text("subscription_plan").default("free"),
   subscription_status: text("subscription_status").default("active"),
   billing_cycle: text("billing_cycle"),

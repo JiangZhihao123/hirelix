@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useState, type FormEvent } from "react";
 import { Check, KeyRound, Loader2 } from "lucide-react";
 
@@ -40,6 +42,7 @@ export function AccountSection({
   signInMethods: string[];
   onPasswordSet: () => void;
 }) {
+  const t = useT();
   const hasPassword = signInMethods.includes("credential");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -111,24 +114,24 @@ export function AccountSection({
   return (
     <SettingsSection
       id="account"
-      eyebrow="Account"
-      title="Account"
-      description="Manage password sign-in for this account."
+      eyebrow={t("Account")}
+      title={t("Account")}
+      description={t("Manage password sign-in for this account.")}
     >
       <div className="space-y-5">
         <SettingsFieldGroup
-          title={hasPassword ? "Change password" : "Set password"}
+          title={hasPassword ? t("Change password") : t("Set password")}
           description={
             hasPassword
-              ? "Update the password for this email login."
-              : "Add a password so you can sign in without waiting for an email code."
+              ? t("Update the password for this email login.")
+              : t("Add a password so you can sign in without waiting for an email code.")
           }
         >
           <form className="space-y-4" onSubmit={handlePasswordSubmit}>
             {hasPassword ? (
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                  Current password
+                  {t("Current password")}
                 </label>
                 <input
                   type="password"
@@ -143,27 +146,27 @@ export function AccountSection({
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                  New password
+                  {t("New password")}
                 </label>
                 <input
                   type="password"
                   autoComplete={hasPassword ? "new-password" : "new-password"}
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder={t("At least 8 characters")}
                   className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                 />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-800">
-                  Confirm password
+                  {t("Confirm password")}
                 </label>
                 <input
                   type="password"
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="Repeat password"
+                  placeholder={t("Repeat password")}
                   className="w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/20"
                 />
               </div>
@@ -172,7 +175,7 @@ export function AccountSection({
             <div className="flex flex-col gap-4 border-t border-slate-200/80 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="inline-flex items-center gap-2 text-sm text-slate-600">
                 <KeyRound className="h-4 w-4 text-slate-400" />
-                Password login is optional. Email code sign-in remains available.
+                {t("Password login is optional. Email code sign-in remains available.")}
               </div>
               <button
                 type="submit"
@@ -184,7 +187,7 @@ export function AccountSection({
                 ) : (
                   <Check className="h-4 w-4" />
                 )}
-                {passwordActionLabel}
+                {t(passwordActionLabel)}
               </button>
             </div>
 

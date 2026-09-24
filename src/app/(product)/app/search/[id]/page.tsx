@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -140,6 +142,7 @@ function buildCandidateClientBrief(candidate: CandidateRow, index: number, hideP
 }
 
 export default function SearchResultPage() {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
@@ -726,13 +729,13 @@ export default function SearchResultPage() {
   if (!search) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <p className="text-muted">{loadError || "Candidate pool not found"}</p>
-        {loadError && <button className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm text-white" onClick={() => void fetchData()}>Try again</button>}
+        <p className="text-muted">{loadError || t("Candidate pool not found")}</p>
+        {loadError && <button className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm text-white" onClick={() => void fetchData()}>{t("Try again")}</button>}
         <Link
           href="/app/searches"
           className="mt-4 text-sm text-primary hover:underline"
         >
-          Go back
+          {t("Go back")}
         </Link>
       </div>
     );
@@ -948,7 +951,7 @@ export default function SearchResultPage() {
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to candidate pools
+          {t("Back to candidate pools")}
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
@@ -956,14 +959,14 @@ export default function SearchResultPage() {
           </h1>
           {isReviewable && (
             <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/app/talent?role=${id}`} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">Remember candidates</Link>
+              <Link href={`/app/talent?role=${id}`} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">{t("Remember candidates")}</Link>
               <button
                 onClick={() => setShowJd(!showJd)}
                 className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
               >
                 {showJd ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                <span className="hidden sm:inline">{showJd ? "Hide JD" : "View JD"}</span>
-                <span className="sm:hidden">{showJd ? "Hide" : "JD"}</span>
+                <span className="hidden sm:inline">{showJd ? t("Hide JD") : t("View JD")}</span>
+                <span className="sm:hidden">{showJd ? t("Hide") : t("JD")}</span>
               </button>
               {canRerunScoringFromCache && (
                 <button
@@ -973,9 +976,9 @@ export default function SearchResultPage() {
                 >
                   <RotateCcw className={`h-3 w-3 ${rescoreSubmitting ? "animate-spin" : ""}`} />
                   <span className="hidden sm:inline">
-                    {rescoreSubmitting ? "Reviewing saved profiles" : "Review saved profiles"}
+                    {rescoreSubmitting ? t("Reviewing saved profiles") : t("Review saved profiles")}
                   </span>
-                  <span className="sm:hidden">Rescore</span>
+                  <span className="sm:hidden">{t("Rescore")}</span>
                 </button>
               )}
               {canExpandCandidatePool ? (
@@ -986,9 +989,9 @@ export default function SearchResultPage() {
                 >
                   <ScanSearch className={`h-3 w-3 ${expandSubmitting ? "animate-pulse" : ""}`} />
                   <span className="hidden sm:inline">
-                    {expandSubmitting ? "Expanding pool" : "Refine & expand"}
+                    {expandSubmitting ? t("Expanding pool") : t("Refine & expand")}
                   </span>
-                  <span className="sm:hidden">Expand</span>
+                  <span className="sm:hidden">{t("Expand")}</span>
                 </button>
               ) : billing?.plan.code === "free" && isReviewable ? (
                 <Link
@@ -997,7 +1000,7 @@ export default function SearchResultPage() {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition-colors hover:border-indigo-300 hover:bg-indigo-100"
                 >
                   <ScanSearch className="h-3 w-3" />
-                  Expand pool
+                  {t("Expand pool")}
                 </Link>
               ) : null}
               {allCandidates.length > 0 &&
@@ -1007,8 +1010,8 @@ export default function SearchResultPage() {
                     className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-foreground hover:border-muted-light transition-colors"
                   >
                     <Download className="h-3 w-3" />
-                    <span className="hidden sm:inline">Export CSV</span>
-                    <span className="sm:hidden">CSV</span>
+                    <span className="hidden sm:inline">{t("Export CSV")}</span>
+                    <span className="sm:hidden">{t("CSV")}</span>
                   </button>
                 ) : (
                   <Link
@@ -1017,7 +1020,7 @@ export default function SearchResultPage() {
                     className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-muted-light hover:text-foreground"
                   >
                     <Download className="h-3 w-3" />
-                    Export this pool
+                    {t("Export this pool")}
                   </Link>
                 ))}
               {allCandidates.length > 0 && (
@@ -1025,12 +1028,12 @@ export default function SearchResultPage() {
                   type="button"
                   onClick={createClientShare}
                   disabled={shareSubmitting}
-                  title={shareFeedback || "Create a private, no-login client link"}
+                  title={shareFeedback || t("Create a private, no-login client link")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition-colors hover:border-sky-300 hover:bg-sky-100 disabled:opacity-60"
                 >
                   {shareFeedback === "Private link copied" ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
-                  <span className="hidden sm:inline">{shareFeedback || (shareSubmitting ? "Creating link" : "Share client view")}</span>
-                  <span className="sm:hidden">Share</span>
+                  <span className="hidden sm:inline">{shareFeedback || (shareSubmitting ? t("Creating link") : t("Share client view"))}</span>
+                  <span className="sm:hidden">{t("Share")}</span>
                 </button>
               )}
               <Link
@@ -1038,7 +1041,7 @@ export default function SearchResultPage() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
               >
                 <Search className="h-3 w-3" />
-                New search
+                {t("New search")}
               </Link>
             </div>
           )}
@@ -1047,7 +1050,7 @@ export default function SearchResultPage() {
           <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,16rem)_1fr_auto] lg:items-end">
               <label className="text-xs font-medium text-indigo-950">
-                Expansion reason
+                {t("Expansion reason")}
                 <select
                   value={expandReason}
                   onChange={(event) => setExpandReason(event.target.value as SearchExpansionReasonCode)}
@@ -1055,18 +1058,18 @@ export default function SearchResultPage() {
                 >
                   {SEARCH_EXPANSION_REASON_OPTIONS.map((option) => (
                     <option key={option.code} value={option.code}>
-                      {option.label}
+                      {t(option.label)}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="text-xs font-medium text-indigo-950">
-                Recruiter feedback
+                {t("Recruiter feedback")}
                 <input
                   value={expandFeedback}
                   onChange={(event) => setExpandFeedback(event.target.value)}
                   maxLength={600}
-                  placeholder="Example: need staff-level Kafka/Flink platform owners, not ETL-heavy profiles"
+                  placeholder={t("Example: need staff-level Kafka/Flink platform owners, not ETL-heavy profiles")}
                   className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
               </label>
@@ -1077,11 +1080,11 @@ export default function SearchResultPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <ScanSearch className={`h-4 w-4 ${expandSubmitting ? "animate-pulse" : ""}`} />
-                {expandSubmitting ? "Expanding" : "Run expansion"}
+                {expandSubmitting ? t("Expanding") : t("Run expansion")}
               </button>
             </div>
             <p className="mt-2 text-xs leading-5 text-indigo-900/75">
-              The next run keeps this JD, spends targeted scan budget, and uses your feedback to adjust the sourcing lanes before recall.
+              {t("The next run keeps this JD, spends targeted scan budget, and uses your feedback to adjust the sourcing lanes before recall.")}
             </p>
           </div>
         )}
@@ -1098,7 +1101,7 @@ export default function SearchResultPage() {
               ))}
               {typeof reqs.experience_years_min === "number" && (
                 <span className="text-xs text-muted">
-                  {reqs.experience_years_min}+ years
+                  {reqs.experience_years_min}{t("+ years")}
                 </span>
               )}
               {locationScope && (
@@ -1124,13 +1127,13 @@ export default function SearchResultPage() {
               )}
               {launchScope === "linkedin_plus_github" && (
                 <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                  Candidate research available
+                  {t("Candidate research available")}
                 </span>
               )}
             </div>
             {constraintReasoning && (
               <p className="max-w-3xl text-xs text-muted">
-                Hirelix interpreted this role as: {constraintReasoning}
+                {t("Hirelix interpreted this role as:")} {constraintReasoning}
               </p>
             )}
           </div>
@@ -1142,26 +1145,26 @@ export default function SearchResultPage() {
           <div className="mb-4 grid gap-4 lg:grid-cols-[1.3fr,0.7fr]">
             <div className="rounded-3xl border border-sky-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5faff_100%)] p-6 shadow-[0_16px_40px_rgba(14,165,233,0.08)]">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                {getSearchTaskStageLabel(taskStage)}
+                {t(getSearchTaskStageLabel(taskStage))}
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
                 {taskStage === "accepted"
-                  ? "Your search has been accepted."
+                  ? t("Your search has been accepted.")
                   : taskStage === "brief_ready"
-                    ? "Hirelix understands the role and is moving into recall."
+                    ? t("Hirelix understands the role and is moving into recall.")
                     : taskStage === "linkedin_scan"
-                      ? "Finding profiles for this role."
-                      : "Reviewing your candidates now."}
+                      ? t("Finding profiles for this role.")
+                      : t("Reviewing your candidates now.")}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
-                {executionProgress ? `${executionProgress.label}: ${executionProgress.completed} of ${executionProgress.total} profiles reviewed.` : getSearchTaskSummary(taskStage)}
+                {executionProgress ? `${t(executionProgress.label)}: ${executionProgress.completed} ${t("of")} ${executionProgress.total} ${t("profiles reviewed.")}` : t(getSearchTaskSummary(taskStage))}
               </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-                  Started {formatStartedAgo(searchStartedAt)} ago
+                  {t("Started")} {formatStartedAgo(searchStartedAt)} {t("ago")}
                 </span>
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
-                  {getSearchTaskEtaCopy(search.status, taskStage)}
+                  {t(getSearchTaskEtaCopy(search.status, taskStage))}
                 </span>
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1">
                   {getSearchCompletionFollowUpCopy(searchEmailNotificationsEnabled)}
@@ -1169,7 +1172,7 @@ export default function SearchResultPage() {
               </div>
               <p className="mt-4 max-w-2xl text-xs text-slate-500">
                 {taskStage === "reviewing_profiles"
-                  ? "Candidate review is underway. The pool will appear after the first pass finishes."
+                  ? t("Candidate review is underway. The pool will appear after the first pass finishes.")
                   : standardRecallReady
                   ? `LinkedIn scan finished in ${standardRecallReadyLabel}. Now reviewing the strongest matches.`
                   : getProviderDelayCopy(providerDelayMs, searchEmailNotificationsEnabled)}
@@ -1180,14 +1183,14 @@ export default function SearchResultPage() {
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Back to dashboard
+                  {t("Back to dashboard")}
                 </Link>
                 <Link
                   href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
                   className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
                 >
                   <FileText className="h-4 w-4" />
-                  Refine JD
+                  {t("Refine JD")}
                 </Link>
               </div>
             </div>
@@ -1220,7 +1223,7 @@ export default function SearchResultPage() {
           <div className="mb-6 grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Sourcing brief
+                {t("Sourcing brief")}
               </p>
               {briefReadyAt ? (
                 <>
@@ -1230,7 +1233,7 @@ export default function SearchResultPage() {
                       : displayTitle}
                   </h3>
                   <p className="mt-2 text-xs text-slate-500">
-                    Brief ready in {briefReadyLabel}
+                    {t("Brief ready in")} {briefReadyLabel}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
                     {typeof roleCore?.seniority === "string" && roleCore.seniority && (
@@ -1257,7 +1260,7 @@ export default function SearchResultPage() {
                   {requiredSkills.length > 0 && (
                     <div className="mt-4">
                       <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
-                        Required skills
+                        {t("Required skills")}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {requiredSkills.slice(0, 10).map((skill) => (
@@ -1279,13 +1282,13 @@ export default function SearchResultPage() {
                 </>
               ) : (
                 <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-                  Hirelix is still building the sourcing brief from the JD. This section will fill in as soon as parsing finishes.
+                  {t("Hirelix is still building the sourcing brief from the JD. This section will fill in as soon as parsing finishes.")}
                 </div>
               )}
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Search risks
+                {t("Search risks")}
               </p>
               <div className="mt-4 space-y-3">
                 {taskRisks.map((risk) => (
@@ -1315,13 +1318,13 @@ export default function SearchResultPage() {
       {isReviewable && needsSearchCalibration && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-800">
-            Search needs calibration
+            {t("Search needs calibration")}
           </p>
           <h2 className="mt-1 text-lg font-semibold text-slate-950">
-            No outreach-ready candidates found
+            {t("No outreach-ready candidates found")}
           </h2>
           <p className="mt-1 max-w-4xl text-sm text-amber-900">
-            Hirelix stopped further automatic sourcing because the current thesis did not produce actionable candidates.
+            {t("Hirelix stopped further automatic sourcing because the current thesis did not produce actionable candidates.")}
             {rawDisplayStats?.search_quality_diagnosis?.notes?.[0]
               ? ` ${rawDisplayStats.search_quality_diagnosis.notes[0]}`
               : ""}
@@ -1334,18 +1337,18 @@ export default function SearchResultPage() {
           <div className="flex flex-col gap-3">
                 <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                  {isImprovingInBackground ? "Candidate pool ready" : "Candidate pool complete"}
+                  {isImprovingInBackground ? t("Candidate pool ready") : t("Candidate pool complete")}
                 </p>
               <h2 className="mt-1 text-lg font-semibold text-slate-950">
                 {isImprovingInBackground
-                  ? "Your candidate pool is ready to review"
+                  ? t("Your candidate pool is ready to review")
                   : recommendedCount > 0
                     ? `${recommendedCount} candidate${recommendedCount === 1 ? "" : "s"} recommended`
-                    : "No confirmed recommendations yet"}
+                    : t("No confirmed recommendations yet")}
               </h2>
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
                   {isImprovingInBackground
-                    ? "Hirelix is still refining the remaining scores in the background."
+                    ? t("Hirelix is still refining the remaining scores in the background.")
                     : outcome?.explanation || `Selected from ${recallProfileCount} sourced profiles. ${poolCoverageCopy}`}
               </p>
               {billing?.plan.code !== "free" && (
@@ -1360,21 +1363,21 @@ export default function SearchResultPage() {
                   <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-500" />
                     {candidates.length > 0
                       ? `Scored ${candidates.length} candidate${candidates.length === 1 ? "" : "s"} so far — still reviewing${rawDisplayStats?.deep_review_completed_count && rawDisplayStats?.deep_review_requested_count ? ` (${rawDisplayStats.deep_review_completed_count}/${rawDisplayStats.deep_review_requested_count} reviewed)` : ""}...`
-                      : "The ranked candidate pool is still growing as more recalled profiles are reviewed..."}
+                      : t("The ranked candidate pool is still growing as more recalled profiles are reviewed...")}
                 </div>
               )}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Recommended</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t("Recommended")}</span>
                   <span className="text-sm font-semibold text-slate-950">{recommendedCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Verify first</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t("Verify first")}</span>
                   <span className="text-sm font-semibold text-slate-950">{worthReviewingCount}</span>
               </div>
               <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Full pool</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{t("Full pool")}</span>
                   <span className="text-sm font-semibold text-slate-950">{deliveredCandidateCount}</span>
               </div>
             </div>
@@ -1385,7 +1388,7 @@ export default function SearchResultPage() {
       {isReviewable && recommendedCount > 0 && (
         <details className="mb-4 rounded-xl border border-slate-200 bg-white shadow-sm">
           <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700">
-            Client brief and outreach workflow
+            {t("Client brief and outreach workflow")}
           </summary>
           <div className="grid min-w-0 gap-4 border-t border-slate-200 p-4 xl:grid-cols-[1.05fr,0.95fr]">
             <section
@@ -1395,13 +1398,13 @@ export default function SearchResultPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                    Client-ready ranked pool
+                    {t("Client-ready ranked pool")}
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  Copy a client brief before you start outreach.
+                  {t("Copy a client brief before you start outreach.")}
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  Use this as the recruiter-facing summary: who to lead with, why they fit, what proof is usable, and what still needs verification.
+                  {t("Use this as the recruiter-facing summary: who to lead with, why they fit, what proof is usable, and what still needs verification.")}
                 </p>
               </div>
               {billing?.usage.clientBriefEnabled ? (
@@ -1412,12 +1415,12 @@ export default function SearchResultPage() {
                   className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
                 >
                   {copiedWorkflowAction === "client-brief" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copiedWorkflowAction === "client-brief" ? "Copied" : "Copy brief"}
+                  {copiedWorkflowAction === "client-brief" ? t("Copied") : t("Copy brief")}
                 </button>
               ) : (
                 <PaddleCheckoutButton
                   checkout={{ type: "plan", planCode: "starter_monthly" }}
-                  label="Upgrade to Starter for client briefs"
+                  label={t("Upgrade to Starter for client briefs")}
                   onClick={() => handleUpgradeClick("results_client_brief_gate")}
                   onError={(message) => setUpgradeError(message)}
                   className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
@@ -1445,11 +1448,11 @@ export default function SearchResultPage() {
                       {headline ||
                         hidePublicEvidenceLine(sellingKit?.client_brief?.positioning) ||
                         hidePublicEvidenceLine(candidate.match_reasons[0]) ||
-                        "Relevant based on the current profile fit and risk signals."}
+                        t("Relevant based on the current profile fit and risk signals.")}
                     </p>
                     {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).length > 0 && (
                       <p className="mt-2 text-xs text-amber-700">
-                        Verify: {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).slice(0, 2).join("; ")}
+                        {t("Verify:")} {(sellingKit?.client_brief?.risks_to_verify || sellingKit?.risk_flags || []).slice(0, 2).join("; ")}
                       </p>
                     )}
                   </div>
@@ -1465,13 +1468,13 @@ export default function SearchResultPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                  Outreach approval queue
+                  {t("Outreach approval queue")}
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  Review, copy, then mark progress.
+                  {t("Review, copy, then mark progress.")}
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                    This keeps the workflow human-in-the-loop while still moving candidates to contacted, replied, submitted, interview, and placed.
+                    {t("This keeps the workflow human-in-the-loop while still moving candidates to contacted, replied, submitted, interview, and placed.")}
                 </p>
               </div>
               <div className="grid grid-cols-5 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
@@ -1513,7 +1516,7 @@ export default function SearchResultPage() {
                         </p>
                       </div>
                       <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                        {CANDIDATE_STATUS_LABELS[candidate.status as keyof typeof CANDIDATE_STATUS_LABELS] || candidate.status}
+                        {t(CANDIDATE_STATUS_LABELS[candidate.status as keyof typeof CANDIDATE_STATUS_LABELS] || candidate.status)}
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -1525,7 +1528,7 @@ export default function SearchResultPage() {
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {copiedWorkflowAction === `linkedin-${candidate.id}` ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        LinkedIn copy
+                        {t("LinkedIn copy")}
                       </button>
                       {candidate.profile_url && (
                         <a
@@ -1535,7 +1538,7 @@ export default function SearchResultPage() {
                           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                         >
                           <Send className="h-3.5 w-3.5" />
-                          Open profile
+                          {t("Open profile")}
                         </a>
                       )}
                       {(["contacted", "submitted"] as const).map((status) => (
@@ -1546,7 +1549,7 @@ export default function SearchResultPage() {
                           onClick={() => void handleStatusChange(candidate.id, status)}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                         >
-                          Mark {CANDIDATE_STATUS_LABELS[status].toLowerCase()}
+                          {t("Mark")} {CANDIDATE_STATUS_LABELS[status].toLowerCase()}
                         </button>
                       ))}
                     </div>
@@ -1562,7 +1565,7 @@ export default function SearchResultPage() {
       {/* JD original text toggle */}
       {showJd && search.jd_text && (
         <div className="mb-6 rounded-xl border border-border bg-surface p-5">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">Original Job Description</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">{t("Original Job Description")}</p>
           <pre className="whitespace-pre-wrap text-sm text-muted leading-relaxed">{search.jd_text}</pre>
         </div>
       )}
@@ -1603,13 +1606,13 @@ export default function SearchResultPage() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-800 disabled:cursor-wait disabled:opacity-60"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                {retrySubmitting ? "Retrying..." : "Retry this search"}
+                {retrySubmitting ? t("Retrying...") : t("Retry this search")}
               </button>
               <Link
                 href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
               >
-                Refine JD and search again
+                {t("Refine JD and search again")}
               </Link>
             </div>
           </div>
@@ -1625,7 +1628,7 @@ export default function SearchResultPage() {
               {publicEvidenceError}
             </div>
           )}
-          {isReviewable && visibleCandidates.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{poolView === "recommended" ? "No profiles currently have enough evidence for a confirmed recommendation. Open Verify first to inspect specific gaps, or Full pool to see all decisions." : "No candidates in this list."}</div>}
+          {isReviewable && visibleCandidates.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{poolView === "recommended" ? t("No profiles currently have enough evidence for a confirmed recommendation. Open Verify first to inspect specific gaps, or Full pool to see all decisions.") : t("No candidates in this list.")}</div>}
           <div className="flex flex-wrap items-center gap-2">
               {isReviewable && (
                 <div className="flex flex-wrap items-center gap-2">
@@ -1638,10 +1641,10 @@ export default function SearchResultPage() {
                           : "text-muted hover:text-foreground"
                       }`}
                     >
-                      Recommended ({recommendedCount})
+                      {t("Recommended (")}{recommendedCount})
                     </button>
                     <button onClick={() => setPoolView("verification")} className={`rounded-full px-3 py-1 text-xs font-medium ${poolView === "verification" ? "bg-slate-950 text-white" : "text-muted hover:text-foreground"}`}>
-                      Verify first ({worthReviewingCount})
+                      {t("Verify first (")}{worthReviewingCount})
                     </button>
                     <button
                       onClick={() => setPoolView("full_pool")}
@@ -1651,21 +1654,21 @@ export default function SearchResultPage() {
                           : "text-muted hover:text-foreground"
                       }`}
                     >
-                      Full pool ({allCandidates.length})
+                      {t("Full pool (")}{allCandidates.length})
                     </button>
                   </div>
                 {poolView === "full_pool" && !outcome && (
                   <label className="flex items-center gap-2 text-xs text-muted">
-                    <span>Sort by</span>
+                    <span>{t("Sort by")}</span>
                     <select
                       value={sortMode}
                       onChange={(event) => setSortMode(event.target.value as CandidateSortMode)}
                       className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
                     >
-                      <option value="overall">Recommended order</option>
-                      <option value="capability">Technical fit</option>
-                      <option value="relevance">Role Fit</option>
-                      <option value="join_likelihood">Move likelihood</option>
+                      <option value="overall">{t("Recommended order")}</option>
+                      <option value="capability">{t("Technical fit")}</option>
+                      <option value="relevance">{t("Role Fit")}</option>
+                      <option value="join_likelihood">{t("Move likelihood")}</option>
                     </select>
                   </label>
                 )}
@@ -1674,12 +1677,12 @@ export default function SearchResultPage() {
                   className="text-xs cursor-pointer text-muted hover:text-foreground transition-colors"
                 >
                   {visibleCandidates.length > 0 && visibleCandidates.every((candidate) => selectedIds.has(candidate.id))
-                    ? "Deselect all"
-                    : "Select all"}
+                    ? t("Deselect all")
+                    : t("Select all")}
                 </button>
                 {selectedIds.size > 0 && (
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted">{selectedIds.size} selected</span>
+                    <span className="text-xs text-muted">{selectedIds.size} {t("selected")}</span>
                     {(["starred", "contacted", "submitted", "rejected"] as const).map((s) => (
                       <button
                         key={s}
@@ -1699,12 +1702,12 @@ export default function SearchResultPage() {
                 {poolView === "full_pool" && (
                   <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm xl:block">
                     <div className="grid min-w-[1100px] grid-cols-[minmax(220px,1.6fr)_minmax(140px,0.9fr)_72px_minmax(120px,0.8fr)_minmax(240px,1.6fr)_minmax(180px,1.2fr)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      <span>Profile</span>
-                      <span>Location</span>
-                      <span>Rank</span>
-                      <span>Priority</span>
-                      <span>Why here</span>
-                      <span>Main risk</span>
+                      <span>{t("Profile")}</span>
+                      <span>{t("Location")}</span>
+                      <span>{t("Rank")}</span>
+                      <span>{t("Priority")}</span>
+                      <span>{t("Why here")}</span>
+                      <span>{t("Main risk")}</span>
                     </div>
                     <div className="max-h-[560px] overflow-y-auto">
                       {visibleCandidates.map((candidate, index) => {
@@ -1736,10 +1739,10 @@ export default function SearchResultPage() {
                             <span className="min-w-0">
                               <span className="block truncate font-semibold text-slate-950">{candidate.name}</span>
                               <span className="block truncate text-xs text-slate-500">
-                                {[currentRole, currentCompany].filter(Boolean).join(" at ") || candidate.headline || "LinkedIn profile"}
+                                {[currentRole, currentCompany].filter(Boolean).join(" at ") || candidate.headline || t("LinkedIn profile")}
                               </span>
                             </span>
-                            <span className="truncate text-slate-600">{candidate.location || "Unknown"}</span>
+                            <span className="truncate text-slate-600">{candidate.location || t("Unknown")}</span>
                             <span className="font-semibold text-slate-950">#{index + 1}</span>
                             <span className="truncate text-slate-700">{formatDeliveryBucketLabel(candidate)}</span>
                             <span className="line-clamp-2 text-xs leading-5 text-slate-600">{reason}</span>
@@ -1755,15 +1758,15 @@ export default function SearchResultPage() {
                   <aside className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="mb-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Candidate queue
+                        {t("Candidate queue")}
                       </p>
                         <h3 className="mt-2 text-lg font-semibold text-slate-950">
                           {selectedPoolLabel} ({visibleCandidates.length})
                         </h3>
                         <p className="mt-1 text-sm text-slate-600">
                         {poolView === "full_pool"
-                          ? "Scan the full ranked pool with lower-priority context preserved."
-                          : "Open a candidate to review the recommendation, evidence, risk, and outreach."}
+                          ? t("Scan the full ranked pool with lower-priority context preserved.")
+                          : t("Open a candidate to review the recommendation, evidence, risk, and outreach.")}
                       </p>
                     </div>
                     <div className="space-y-3">
@@ -1808,8 +1811,8 @@ export default function SearchResultPage() {
                     </p>
                     <p className="mt-1 text-sm text-slate-700">
                       {poolView === "full_pool"
-                        ? "Use the full ranked pool to compare the market and recover edge cases."
-                        : poolView === "verification" ? "Open each profile to check the evidence gaps before deciding whether to contact them." : "Open each recommended profile for supporting evidence and outreach copy."}
+                        ? t("Use the full ranked pool to compare the market and recover edge cases.")
+                        : poolView === "verification" ? t("Open each profile to check the evidence gaps before deciding whether to contact them.") : t("Open each recommended profile for supporting evidence and outreach copy.")}
                   </p>
                 </div>
                 {visibleCandidates.map((c, idx) => (
@@ -1842,17 +1845,17 @@ export default function SearchResultPage() {
           {(excludedReasonCounts.length > 0 || widenPoolSuggestions.length > 0) && (
             <details className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <summary className="cursor-pointer text-sm font-semibold text-slate-900">
-                Pool diagnostics and widening levers
+                {t("Pool diagnostics and widening levers")}
               </summary>
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Why profiles landed lower
+                      {t("Why profiles landed lower")}
                     </p>
                     <p className="mt-2 text-sm text-slate-600">
                       {ruledOutCount > 0
                         ? `${ruledOutCount} deeply reviewed profiles were marked not recommended. They remain in the full pool for market coverage and manual review.`
-                        : "No lower-priority breakdown is available for this search yet."}
+                        : t("No lower-priority breakdown is available for this search yet.")}
                   </p>
                   <div className="mt-4 space-y-3">
                     {(excludedReasonCounts as Array<{ reason: ExcludedReason; count: number }>).map((item) => (
@@ -1875,10 +1878,10 @@ export default function SearchResultPage() {
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    How to widen this pool
+                    {t("How to widen this pool")}
                   </p>
                   <p className="mt-2 text-sm text-slate-600">
-                    If you need more reviewable candidates, these are the first levers worth trying.
+                    {t("If you need more reviewable candidates, these are the first levers worth trying.")}
                   </p>
                   <ul className="mt-4 space-y-2">
                     {widenPoolSuggestions.map((suggestion) => (
@@ -1897,11 +1900,11 @@ export default function SearchResultPage() {
 
       {isReviewable && !isPreResultsProcessing && allCandidates.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16">
-            <p className="text-muted">No candidates entered the ranked pool yet.</p>
+            <p className="text-muted">{t("No candidates entered the ranked pool yet.")}</p>
             <p className="mt-2 max-w-md text-center text-sm text-muted">
               {excludedReasonCounts[0]
                 ? `Hirelix deeply reviewed ${formatDisplayCount(deepReviewCompletedCount)} profiles, but ${formatExcludedReasonLabel((excludedReasonCounts[0] as { reason: ExcludedReason; count: number }).reason).toLowerCase()} was the biggest blocker.`
-                : "Hirelix did not find enough sourced profiles to build a ranked pool yet."}
+                : t("Hirelix did not find enough sourced profiles to build a ranked pool yet.")}
           </p>
           {widenPoolSuggestions.length > 0 && (
             <div className="mt-4 max-w-2xl space-y-2 px-4">
@@ -1917,16 +1920,16 @@ export default function SearchResultPage() {
             className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            Refine &amp; Retry
+            {t("Refine & Retry")}
           </Link>
         </div>
       )}
 
       {isReviewable && (
         <p className="mt-8 text-center text-xs text-slate-500">
-            Built for technical recruiters and headhunters. If your candidate pool misses the mark or your billing looks wrong, email{" "}
+            {t("Built for technical recruiters and headhunters. If your candidate pool misses the mark or your billing looks wrong, email")}{" "}
           <a className="text-primary hover:underline" href="mailto:support@hirelix.online">
-            support@hirelix.online
+            {t("support@hirelix.online")}
           </a>
           .
         </p>

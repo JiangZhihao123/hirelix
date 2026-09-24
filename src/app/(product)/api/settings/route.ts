@@ -6,6 +6,7 @@ import { account, hirelix_user_settings } from "@/db/schema";
 import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { getLogger, errorLogFields } from "@/lib/logger";
+import { isLocale } from "@/lib/locale";
 
 /** GET /api/settings — returns user settings */
 const routeLogger = getLogger({ component: "api_settings" });
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   const [settingsRows, accountRows, billing] = await Promise.all([
     db
-      .select({ company_profile: hirelix_user_settings.company_profile })
+      .select({ company_profile: hirelix_user_settings.company_profile, ui_locale: hirelix_user_settings.ui_locale })
       .from(hirelix_user_settings)
       .where(eq(hirelix_user_settings.user_id, user.id))
       .limit(1),
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     company_profile: data?.company_profile || null,
+    ui_locale: data?.ui_locale || "en",
     sign_in_methods: signInMethods,
     billing,
   });
@@ -48,17 +50,21 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
+  if (body.ui_locale !== undefined && !isLocale(body.ui_locale))
+    return NextResponse.json({ error: "Invalid language" }, { status: 400 });
   const ts = new Date();
   const baseValues = {
     user_id: user.id,
     updated_at: ts,
     ...(body.company_profile !== undefined ? { company_profile: body.company_profile } : {}),
+    ...(body.ui_locale !== undefined ? { ui_locale: body.ui_locale } : {}),
   };
 
   const setOnConflict: Record<string, unknown> = { updated_at: ts };
   if (body.company_profile !== undefined) {
     setOnConflict.company_profile = body.company_profile;
   }
+  if (body.ui_locale !== undefined) setOnConflict.ui_locale = body.ui_locale;
 
   try {
     await db

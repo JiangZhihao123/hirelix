@@ -287,8 +287,17 @@ function formatMonthDay(value: string | null) {
 
 export function getPlanStatusCopy(
   billing: BillingSummary | null,
+  locale: "en" | "zh" = "en",
 ): PlanStatusCopy {
   if (!billing) {
+    if (locale === "zh") return {
+      title: "暂时无法获取套餐信息",
+      usageLabel: "打开账单页面查看当前套餐。",
+      capabilityLabel: "暂时无法获取套餐权益和周期额度。",
+      renewalLabel: null,
+      actionLabel: "查看账单",
+      state: "unavailable",
+    };
     return {
       title: "Billing unavailable",
       usageLabel: "Open billing to check your current plan.",
@@ -306,6 +315,21 @@ export function getPlanStatusCopy(
   const clientRolesLimit = billing.usage.clientRolesLimit;
   const renewalDate = formatMonthDay(billing.subscription.renewsAt);
   const isExhausted = profileScansRemaining === 0 || clientRolesRemaining === 0;
+
+  if (locale === "zh") return {
+    title: isFreePlan ? "免费套餐" : billing.plan.name,
+    usageLabel: clientRolesRemaining === 0
+      ? "本周期客户职位额度已用完"
+      : profileScansRemaining === 0
+        ? "本周期定向人才扫描额度已用完"
+        : `剩余 ${clientRolesRemaining} / ${clientRolesLimit} 个客户职位、${profileScansRemaining} / ${profileScansLimit} 次定向扫描`,
+    capabilityLabel: isFreePlan
+      ? "包含一个排序后的候选人池，从小范围人才寻访开始"
+      : `包含 ${billing.plan.searchesPerMonth} 个客户职位、AI 人才寻访额度、LinkedIn 联络草稿、按需候选人研究、导出和客户材料`,
+    renewalLabel: renewalDate ? `额度将于 ${renewalDate} 重置` : null,
+    actionLabel: "管理",
+    state: isExhausted ? "warning" : "default",
+  };
 
   return {
     title: isFreePlan ? "Free plan" : billing.plan.name,

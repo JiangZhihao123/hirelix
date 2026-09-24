@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { CandidateRequirementEvidence } from "./CandidateRequirementEvidence";
 import { usesEvidenceRanking } from "@/lib/search/decision-contract";
 import { useEffect, useState } from "react";
@@ -108,6 +110,7 @@ export function CandidateWorkbenchDetail({
   onUpgradeClick: (surface: string) => void;
   onStatusChange: (id: string, status: string) => void;
 }) {
+  const t = useT();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState<"sell" | "evidence" | "outreach" | "profile" | "score">("sell");
   const [copied, setCopied] = useState<string | false>(false);
@@ -354,7 +357,7 @@ export function CandidateWorkbenchDetail({
                     {deliveryBucketLabel}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                    Rank #{queueRank}
+                    {t("Rank #")}{queueRank}
                   </span>
               </div>
               <p className="mt-1 text-sm text-slate-600">
@@ -376,7 +379,7 @@ export function CandidateWorkbenchDetail({
           </div>
           <div className="shrink-0">
             <label className="sr-only" htmlFor={`candidate-status-${localCandidate.id}`}>
-              Candidate status
+              {t("Candidate status")}
             </label>
             <select
               id={`candidate-status-${localCandidate.id}`}
@@ -396,21 +399,21 @@ export function CandidateWorkbenchDetail({
         {localCandidate.evidence_pack?.final_judgment && (
           <div className="mt-4 grid gap-3 border-y border-slate-200 py-4 2xl:grid-cols-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase text-slate-500">Decision</p>
+              <p className="text-[11px] font-semibold uppercase text-slate-500">{t("Decision")}</p>
               <p className="mt-1 text-sm font-semibold capitalize text-slate-950">
-                {localCandidate.final_decision || "hold"}
+                {localCandidate.final_decision || t("hold")}
               </p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase text-slate-500">Evidence</p>
+              <p className="text-[11px] font-semibold uppercase text-slate-500">{t("Evidence")}</p>
               <p className="mt-1 text-sm leading-5 text-slate-700">
-                {localCandidate.evidence_pack.final_judgment.evidence?.[0] || localCandidate.match_reasons[0] || "Evidence pending"}
+                {localCandidate.evidence_pack.final_judgment.evidence?.[0] || localCandidate.match_reasons[0] || t("Evidence pending")}
               </p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase text-slate-500">Risk to verify</p>
+              <p className="text-[11px] font-semibold uppercase text-slate-500">{t("Risk to verify")}</p>
               <p className="mt-1 text-sm leading-5 text-slate-700">
-                {localCandidate.evidence_pack.final_judgment.risks?.[0] || localCandidate.evidence_pack.final_judgment.missingInformation?.[0] || "No material risk recorded"}
+                {localCandidate.evidence_pack.final_judgment.risks?.[0] || localCandidate.evidence_pack.final_judgment.missingInformation?.[0] || t("No material risk recorded")}
               </p>
             </div>
           </div>
@@ -447,7 +450,7 @@ export function CandidateWorkbenchDetail({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                      {isRecommendedCandidate ? "Recommendation" : "Pool Review"}
+                      {isRecommendedCandidate ? t("Recommendation") : t("Pool Review")}
                       </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -457,7 +460,7 @@ export function CandidateWorkbenchDetail({
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
                       >
                         {copied === "opener" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                        Copy opener
+                        {t("Copy opener")}
                       </button>
                     )}
                     {clientBriefText && canCopyClientBrief && (
@@ -466,13 +469,13 @@ export function CandidateWorkbenchDetail({
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
                       >
                         {copied === "brief" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                        Copy client brief
+                        {t("Copy client brief")}
                       </button>
                     )}
                     {clientBriefText && !canCopyClientBrief && (
                       <PaddleCheckoutButton
                         checkout={{ type: "plan", planCode: "starter_monthly" }}
-                        label="Upgrade to Starter for client brief"
+                        label={t("Upgrade to Starter for client brief")}
                         onClick={() => onUpgradeClick("workbench_client_brief_button")}
                         onError={(message) => setEnrichError(message)}
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
@@ -486,7 +489,7 @@ export function CandidateWorkbenchDetail({
                 {isRecommendedCandidate && sellingKit?.outreach_opener && (
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Copy-ready opener
+                      {t("Copy-ready opener")}
                     </p>
                     <p className="mt-2">{sellingKit.outreach_opener}</p>
                   </div>
@@ -494,21 +497,21 @@ export function CandidateWorkbenchDetail({
                 {isRecommendedCandidate && sellingKit?.client_brief && (
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Client brief preview
+                      {t("Client brief preview")}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-700">
                       {sellingKit.client_brief.positioning}
                     </p>
                     {!clientBriefEnabled && (
                       <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-                        Full client-ready brief export is included on Pro.
+                        {t("Full client-ready brief export is included on Pro.")}
                       </p>
                     )}
                   </div>
                 )}
                 <div className="mt-5 border-t border-slate-200 pt-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Why this candidate
+                    {t("Why this candidate")}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-700">
                     {audit.rankingReason}
@@ -517,7 +520,7 @@ export function CandidateWorkbenchDetail({
                 {isRecommendedCandidate && (
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      Outreach context
+                      {t("Outreach context")}
                     </p>
                     {moveLikelihoodReasons.length > 0 ? (
                       <ul className="mt-2 space-y-1">
@@ -527,7 +530,7 @@ export function CandidateWorkbenchDetail({
                       </ul>
                     ) : (
                       <p className="mt-2 text-sm leading-6 text-slate-700">
-                        No reliable movement signal appears in the profile. Confirm motivation during first contact.
+                        {t("No reliable movement signal appears in the profile. Confirm motivation during first contact.")}
                       </p>
                     )}
                   </div>
@@ -536,7 +539,7 @@ export function CandidateWorkbenchDetail({
               <div className="space-y-4">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700">
-                    Assessment basis
+                    {t("Assessment basis")}
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-950">
                     {audit.trust.label}
@@ -548,8 +551,8 @@ export function CandidateWorkbenchDetail({
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     {isRecommendedCandidate
-                      ? sellingEvidenceItems.length > 0 ? "Research evidence" : "Profile evidence"
-                      : "Why this is not higher"}
+                      ? sellingEvidenceItems.length > 0 ? t("Research evidence") : t("Profile evidence")
+                      : t("Why this is not higher")}
                   </p>
                   {!isRecommendedCandidate ? (
                     <ul className="mt-2 space-y-2">
@@ -587,7 +590,7 @@ export function CandidateWorkbenchDetail({
                 </div>
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-                    {isRecommendedCandidate ? "Verify before pitching" : "Manual review notes"}
+                    {isRecommendedCandidate ? t("Verify before pitching") : t("Manual review notes")}
                   </p>
                   {verificationChecklist.length > 0 ? (
                     <ul className="mt-2 space-y-1">
@@ -598,14 +601,14 @@ export function CandidateWorkbenchDetail({
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-amber-900">
                       {isRecommendedCandidate
-                        ? "No material profile-specific risk was identified. Confirm availability during outreach."
-                        : "Keep this profile as market coverage unless a recruiter manually promotes it."}
+                        ? t("No material profile-specific risk was identified. Confirm availability during outreach.")
+                        : t("Keep this profile as market coverage unless a recruiter manually promotes it.")}
                     </p>
                   )}
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Next action
+                    {t("Next action")}
                   </p>
                   <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
                     {audit.nextAction}
@@ -619,10 +622,10 @@ export function CandidateWorkbenchDetail({
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <CandidateRequirementEvidence candidate={localCandidate} />
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Research sources
+                {t("Research sources")}
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Selling evidence is separated from identity support so recruiters do not overstate the proof.
+                {t("Selling evidence is separated from identity support so recruiters do not overstate the proof.")}
               </p>
               <div className="mt-4 space-y-3">
                 {publicEvidenceItems.length > 0 ? publicEvidenceItems.slice(0, 6).map((item, index) => (
@@ -636,13 +639,13 @@ export function CandidateWorkbenchDetail({
                     <p className="mt-2 text-sm leading-6 text-slate-700">{item.evidence_summary}</p>
                     {item.source_url && (
                       <a href={item.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-semibold text-sky-700 hover:text-sky-900">
-                        Source
+                        {t("Source")}
                       </a>
                     )}
                   </div>
                 )) : (
                   <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                    Candidate research has not been run for this candidate yet.
+                    {t("Candidate research has not been run for this candidate yet.")}
                   </p>
                 )}
                 {publicEvidenceItems.length === 0 && (
@@ -650,20 +653,20 @@ export function CandidateWorkbenchDetail({
                     <div className="flex flex-wrap items-center gap-3">
                       <p className="flex-1 text-sm text-slate-600">
                         {requiresPublicEvidenceUpgrade
-                          ? "Upgrade to research the candidates you choose."
-                          : "Research this candidate when they are worth a closer look."}
+                          ? t("Upgrade to research the candidates you choose.")
+                          : t("Research this candidate when they are worth a closer look.")}
                       </p>
                       {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
-                          label="Upgrade to Starter"
+                          label={t("Upgrade to Starter")}
                           onClick={() => onUpgradeClick("workbench_public_evidence_gate")}
                           onError={(message) => setEnrichError(message)}
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                         />
                       ) : publicEvidenceDeepDivesRemaining <= 0 ? (
                         <span className="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
-                          Limit reached
+                          {t("Limit reached")}
                         </span>
                       ) : (
                         <button
@@ -673,7 +676,7 @@ export function CandidateWorkbenchDetail({
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {publicEvidenceQueueing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                          {publicEvidenceQueueing ? "Queued" : "Research"}
+                          {publicEvidenceQueueing ? t("Queued") : t("Research")}
                         </button>
                       )}
                     </div>
@@ -688,12 +691,12 @@ export function CandidateWorkbenchDetail({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {isRecommendedCandidate ? "Personalized outreach" : "Outreach not prepared by default"}
+                    {isRecommendedCandidate ? t("Personalized outreach") : t("Outreach not prepared by default")}
                   </p>
                   <p className="mt-2 text-sm text-slate-600">
                     {isRecommendedCandidate
                       ? `Current basis: ${publicEvidenceSourceLabel}`
-                      : "Lower-priority profiles stay available for review, but Hirelix does not treat them as ready-to-contact recommendations."}
+                      : t("Lower-priority profiles stay available for review, but Hirelix does not treat them as ready-to-contact recommendations.")}
                   </p>
                 </div>
                 {isRecommendedCandidate ? (
@@ -702,17 +705,17 @@ export function CandidateWorkbenchDetail({
                     className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                   >
                     <Send className="h-4 w-4" />
-                    Open outreach editor
+                    {t("Open outreach editor")}
                   </button>
                 ) : (
                   <span className="inline-flex rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
-                    Review first
+                    {t("Review first")}
                   </span>
                 )}
               </div>
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Best opening angle
+                  {t("Best opening angle")}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-700">{bestOpeningAngle}</p>
               </div>
@@ -722,38 +725,38 @@ export function CandidateWorkbenchDetail({
           {activeDetailTab === "profile" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                LinkedIn resume
+                {t("LinkedIn resume")}
               </p>
               <div className="mt-4 grid gap-6 lg:grid-cols-2">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Work history</p>
+                  <p className="text-sm font-semibold text-slate-900">{t("Work history")}</p>
                   <div className="mt-3 space-y-3">
                     {displayableWorkHistory.length > 0 ? displayableWorkHistory.map((job, index) => (
                       <div key={index} className="flex items-start gap-3">
                         <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{job.title || "Unknown role"}</p>
+                          <p className="text-sm font-medium text-slate-900">{job.title || t("Unknown role")}</p>
                           <p className="text-xs text-slate-500">{[job.company, job.start_date].filter(Boolean).join(" · ")}</p>
                         </div>
                       </div>
                     )) : (
-                      <p className="text-sm text-slate-500">No work history available.</p>
+                      <p className="text-sm text-slate-500">{t("No work history available.")}</p>
                     )}
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Education</p>
+                  <p className="text-sm font-semibold text-slate-900">{t("Education")}</p>
                   <div className="mt-3 space-y-3">
                     {displayableEducation.length > 0 ? displayableEducation.map((edu, index) => (
                       <div key={index} className="flex items-start gap-3">
                         <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{edu.school || "Education"}</p>
+                          <p className="text-sm font-medium text-slate-900">{edu.school || t("Education")}</p>
                           <p className="text-xs text-slate-500">{[edu.degree, edu.major].filter(Boolean).join(" · ")}</p>
                         </div>
                       </div>
                     )) : (
-                      <p className="text-sm text-slate-500">No education details available.</p>
+                      <p className="text-sm text-slate-500">{t("No education details available.")}</p>
                     )}
                   </div>
                 </div>
@@ -765,14 +768,14 @@ export function CandidateWorkbenchDetail({
           {activeDetailTab === "score" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                {usesEvidenceRanking(localCandidate) ? "Role evidence" : "Scorecard"}
+                {usesEvidenceRanking(localCandidate) ? t("Role evidence") : t("Scorecard")}
               </p>
               <CandidateRequirementEvidence candidate={localCandidate} />
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {scoreMetrics.map((metric) => (
                   <div key={metric.key} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      {metric.label}
+                      {t(metric.label)}
                     </p>
                     <p className="mt-2 text-lg font-semibold text-slate-950">
                       {typeof metric.score === "number" ? metric.score : "—"} · {formatDimensionLabel(metric.score)}
@@ -782,7 +785,7 @@ export function CandidateWorkbenchDetail({
                 ))}
               </div>
               <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900">Why contact this person</p>
+                <p className="text-sm font-semibold text-slate-900">{t("Why contact this person")}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-700">{whyContactSummary}</p>
               </div>
             </div>
@@ -796,7 +799,7 @@ export function CandidateWorkbenchDetail({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-                      Candidate Selling Kit
+                      {t("Candidate Selling Kit")}
                     </p>
                     <p className="mt-1 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
                       {deliveryBucketLabel}
@@ -810,7 +813,7 @@ export function CandidateWorkbenchDetail({
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
                     >
                       {enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                      Regenerate with research
+                      {t("Regenerate with research")}
                     </button>
                   )}
                   {sellingKit?.outreach_opener && (
@@ -819,7 +822,7 @@ export function CandidateWorkbenchDetail({
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
                     >
                       {copied === "opener" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      Copy opener
+                      {t("Copy opener")}
                     </button>
                   )}
                   {clientBriefText && canCopyClientBrief && (
@@ -828,13 +831,13 @@ export function CandidateWorkbenchDetail({
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
                     >
                       {copied === "brief" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      Copy brief
+                      {t("Copy brief")}
                     </button>
                   )}
                   {clientBriefText && !canCopyClientBrief && (
                     <PaddleCheckoutButton
                       checkout={{ type: "plan", planCode: "starter_monthly" }}
-                      label="Upgrade to Starter for brief"
+                      label={t("Upgrade to Starter for brief")}
                       onClick={() => onUpgradeClick("workbench_client_brief_button_compact")}
                       onError={(message) => setEnrichError(message)}
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -848,7 +851,7 @@ export function CandidateWorkbenchDetail({
               <div className="mt-3 grid gap-3 md:grid-cols-[1.05fr,0.95fr]">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                    Best usable proof
+                    {t("Best usable proof")}
                   </p>
                   {sellingEvidenceItems.length > 0 ? (
                     <ul className="mt-2 space-y-1">
@@ -874,13 +877,13 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-slate-700">
-                      Candidate research has not been run yet. Use the profile fit notes, or research this candidate before citing outside sources.
+                      {t("Candidate research has not been run yet. Use the profile fit notes, or research this candidate before citing outside sources.")}
                     </p>
                   )}
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
-                    Verify before pitching
+                    {t("Verify before pitching")}
                   </p>
                   {verificationChecklist.length > 0 ? (
                     <ul className="mt-2 space-y-1">
@@ -892,7 +895,7 @@ export function CandidateWorkbenchDetail({
                     </ul>
                   ) : (
                     <p className="mt-2 text-sm leading-6 text-amber-900">
-                      Confirm current interest, compensation range, and role scope before submitting.
+                      {t("Confirm current interest, compensation range, and role scope before submitting.")}
                     </p>
                   )}
                 </div>
@@ -900,7 +903,7 @@ export function CandidateWorkbenchDetail({
               {sellingKit?.outreach_opener && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                    Copy-ready opener
+                    {t("Copy-ready opener")}
                   </p>
                   <p className="mt-2">{sellingKit.outreach_opener}</p>
                 </div>
@@ -910,7 +913,7 @@ export function CandidateWorkbenchDetail({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Client brief preview
+                        {t("Client brief preview")}
                       </p>
                       <p className="mt-2 text-sm leading-6 text-slate-700">
                         {sellingKit.client_brief.positioning}
@@ -957,7 +960,7 @@ export function CandidateWorkbenchDetail({
                   })}
                   {!clientBriefEnabled && (
                     <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-                      Start a subscription when you need the full client-ready brief.
+                      {t("Start a subscription when you need the full client-ready brief.")}
                     </p>
                   )}
                 </div>
@@ -968,10 +971,10 @@ export function CandidateWorkbenchDetail({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {usesEvidenceRanking(localCandidate) ? "Role evidence" : "Scorecard"}
+                    {usesEvidenceRanking(localCandidate) ? t("Role evidence") : t("Scorecard")}
                   </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Overall ranks the candidate pool; the three dimensions explain why.
+                      {t("Overall ranks the candidate pool; the three dimensions explain why.")}
                     </p>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
@@ -982,7 +985,7 @@ export function CandidateWorkbenchDetail({
                 {scoreMetrics.map((metric) => (
                   <div key={metric.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      {metric.label}
+                      {t(metric.label)}
                     </p>
                     <p className="mt-2 text-lg font-semibold text-slate-950">
                       {typeof metric.score === "number" ? metric.score : "—"} · {formatDimensionLabel(metric.score)}
@@ -992,13 +995,13 @@ export function CandidateWorkbenchDetail({
                 ))}
               </div>
               <p className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
-                Candidate research can strengthen technical fit and outreach confidence when you choose to run it.
+                {t("Candidate research can strengthen technical fit and outreach confidence when you choose to run it.")}
               </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Why contact this person
+                {t("Why contact this person")}
               </p>
               <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">
                 {whyContactSummary}
@@ -1017,10 +1020,10 @@ export function CandidateWorkbenchDetail({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Research sources
+                    {t("Research sources")}
                   </p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Selling evidence is separated from identity support so recruiters do not overstate the proof.
+                    {t("Selling evidence is separated from identity support so recruiters do not overstate the proof.")}
                   </p>
                 </div>
                 <Sparkles className="h-5 w-5 text-slate-400" />
@@ -1052,7 +1055,7 @@ export function CandidateWorkbenchDetail({
                         )}
                         {item.source_url && (
                           <a href={item.source_url} target="_blank" rel="noreferrer" className="ml-2 font-medium text-sky-700 hover:text-sky-900">
-                            Source
+                            {t("Source")}
                           </a>
                         )}
                       </span>
@@ -1063,7 +1066,7 @@ export function CandidateWorkbenchDetail({
               {identityEvidenceItems.length > 0 && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Identity support only
+                    {t("Identity support only")}
                   </p>
                   <ul className="mt-2 space-y-1">
                     {identityEvidenceItems.slice(0, 3).map((item, index) => (
@@ -1075,7 +1078,7 @@ export function CandidateWorkbenchDetail({
                         ) : (
                           <span className="font-semibold text-slate-700">{citationLabelForItem(item, index)}</span>
                         )}{" "}
-                        {item.evidence_summary || "Useful for identity corroboration, not for a technical selling claim."}
+                        {item.evidence_summary || t("Useful for identity corroboration, not for a technical selling claim.")}
                       </li>
                     ))}
                   </ul>
@@ -1084,7 +1087,7 @@ export function CandidateWorkbenchDetail({
               {publicEvidenceItems.some((item) => item.source_url) && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Sources
+                    {t("Sources")}
                   </p>
                   <ol className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
                     {publicEvidenceItems.slice(0, 5).map((item, index) => item.source_url ? (
@@ -1101,7 +1104,7 @@ export function CandidateWorkbenchDetail({
               {primaryEvidenceItem?.outreach_angle && (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Outreach angle
+                    {t("Outreach angle")}
                   </p>
                   <p className="mt-2">{primaryEvidenceItem.outreach_angle}</p>
                 </div>
@@ -1110,7 +1113,7 @@ export function CandidateWorkbenchDetail({
                 {publicEvidenceCards.map((item) => (
                   <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      {item.label}
+                      {t(item.label)}
                     </p>
                     <p className="mt-2 text-sm font-medium text-slate-900">{item.value}</p>
                   </div>
@@ -1120,24 +1123,24 @@ export function CandidateWorkbenchDetail({
                 <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-3">
                   <p className="text-sm text-slate-500">
                     {publicEvidence?.status === "queued" || publicEvidence?.status === "running"
-                      ? "Candidate research is pending. Current ranking stays based on profile fit and risk signals until the background check finishes."
+                      ? t("Candidate research is pending. Current ranking stays based on profile fit and risk signals until the background check finishes.")
                       : requiresPublicEvidenceUpgrade
-                        ? "Upgrade to research selected candidates. The current ranking is based on profile fit and risk signals."
-                        : "Candidate research has not been run yet. Current ranking stays based on profile fit and risk signals."}
+                        ? t("Upgrade to research selected candidates. The current ranking is based on profile fit and risk signals.")
+                        : t("Candidate research has not been run yet. Current ranking stays based on profile fit and risk signals.")}
                   </p>
                   {publicEvidence?.status !== "queued" && publicEvidence?.status !== "running" && (
                     <div className="mt-3">
                       {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
-                          label="Upgrade to Starter"
+                          label={t("Upgrade to Starter")}
                           onClick={() => onUpgradeClick("workbench_evidence_empty_gate")}
                           onError={(message) => setEnrichError(message)}
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
                         />
                       ) : publicEvidenceDeepDivesRemaining <= 0 ? (
                         <span className="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
-                          Limit reached
+                          {t("Limit reached")}
                         </span>
                       ) : (
                         <button
@@ -1147,7 +1150,7 @@ export function CandidateWorkbenchDetail({
                           className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {publicEvidenceQueueing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                          {publicEvidenceQueueing ? "Queued" : "Research candidate"}
+                          {publicEvidenceQueueing ? t("Queued") : t("Research candidate")}
                         </button>
                       )}
                     </div>
@@ -1159,7 +1162,7 @@ export function CandidateWorkbenchDetail({
             {whyNotHigher.length > 0 && (
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Why not higher
+                  {t("Why not higher")}
                 </p>
                 <ul className="mt-3 space-y-2">
                   {whyNotHigher.map((reason) => (
@@ -1174,18 +1177,18 @@ export function CandidateWorkbenchDetail({
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                LinkedIn resume
+                {t("LinkedIn resume")}
               </p>
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Work history</p>
+                  <p className="text-sm font-semibold text-slate-900">{t("Work history")}</p>
                   <div className="mt-3 space-y-3">
                     {displayableWorkHistory.length > 0 ? displayableWorkHistory.map((job, index) => (
                       <div key={index} className="flex items-start gap-3">
                         <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                         <div>
                           <p className="text-sm font-medium text-slate-900">
-                            {job.title || "Unknown role"}
+                            {job.title || t("Unknown role")}
                           </p>
                           <p className="text-xs text-slate-500">
                             {[job.company, job.start_date].filter(Boolean).join(" · ")}
@@ -1200,19 +1203,19 @@ export function CandidateWorkbenchDetail({
                         </div>
                       </div>
                     )) : (
-                      <p className="text-sm text-slate-500">No work history available.</p>
+                      <p className="text-sm text-slate-500">{t("No work history available.")}</p>
                     )}
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Education</p>
+                  <p className="text-sm font-semibold text-slate-900">{t("Education")}</p>
                   <div className="mt-3 space-y-3">
                     {displayableEducation.length > 0 ? displayableEducation.map((edu, index) => (
                       <div key={index} className="flex items-start gap-3">
                         <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                         <div>
                           <p className="text-sm font-medium text-slate-900">
-                            {edu.school || "Education"}
+                            {edu.school || t("Education")}
                           </p>
                           <p className="text-xs text-slate-500">
                             {[edu.degree, edu.major].filter(Boolean).join(" · ")}
@@ -1220,7 +1223,7 @@ export function CandidateWorkbenchDetail({
                         </div>
                       </div>
                     )) : (
-                      <p className="text-sm text-slate-500">No education details available.</p>
+                      <p className="text-sm text-slate-500">{t("No education details available.")}</p>
                     )}
                   </div>
                 </div>
@@ -1231,18 +1234,18 @@ export function CandidateWorkbenchDetail({
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Personalized outreach
+                {t("Personalized outreach")}
               </p>
               <div className="mt-3 grid gap-3">
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Research basis
+                    {t("Research basis")}
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">{publicEvidenceSourceLabel}</p>
                 </div>
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Best opening angle
+                    {t("Best opening angle")}
                   </p>
                   <p className="mt-2 text-sm text-slate-700">
                     {bestOpeningAngle}
@@ -1250,7 +1253,7 @@ export function CandidateWorkbenchDetail({
                 </div>
                 <div className="rounded-2xl border border-white bg-white px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Overall score
+                    {t("Overall score")}
                   </p>
                   <p className="mt-2 text-sm font-semibold text-slate-900">
                     {overallScore} · {formatDimensionLabel(overallScore)}
@@ -1262,7 +1265,7 @@ export function CandidateWorkbenchDetail({
             {(verificationChecklist.length > 0 || requiredSkills.length > 0) && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
-                  What to verify before outreach
+                  {t("What to verify before outreach")}
                 </p>
                 <ul className="mt-3 space-y-2">
                   {verificationChecklist.map((reason) => (
@@ -1279,7 +1282,7 @@ export function CandidateWorkbenchDetail({
                         key={skill}
                         className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] text-amber-800"
                       >
-                        Check {skill}
+                        {t("Check")} {skill}
                       </span>
                     ))}
                   </div>
@@ -1294,7 +1297,7 @@ export function CandidateWorkbenchDetail({
           className="absolute bottom-6 right-6 inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
         >
           <Send className="h-4 w-4" />
-          Generate outreach
+          {t("Generate outreach")}
         </button>
       </div>
       </div>
@@ -1305,14 +1308,14 @@ export function CandidateWorkbenchDetail({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Personalized outreach
+                  {t("Personalized outreach")}
                 </p>
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">{localDisplayName}</h3>
                 <p className="mt-1 text-sm text-slate-600">
-                  Lead with verified public engineering evidence when available; otherwise use the strongest profile-based fit signal.
+                  {t("Lead with verified public engineering evidence when available; otherwise use the strongest profile-based fit signal.")}
                 </p>
                 <p className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700">
-                  Current basis: {publicEvidenceSourceLabel}
+                  {t("Current basis:")} {publicEvidenceSourceLabel}
                 </p>
               </div>
               <button
@@ -1327,10 +1330,10 @@ export function CandidateWorkbenchDetail({
               <div className="mt-6 rounded-2xl border border-dashed border-slate-200 p-6 text-center">
                 <Send className="mx-auto h-8 w-8 text-slate-400" />
                 <p className="mt-4 text-sm font-medium text-slate-900">
-                  LinkedIn outreach is not ready yet
+                  {t("LinkedIn outreach is not ready yet")}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Generate a grounded LinkedIn InMail from the candidate profile and current research evidence.
+                  {t("Generate a grounded LinkedIn InMail from the candidate profile and current research evidence.")}
                 </p>
                 <button
                   onClick={handleRegenerateOutreach}
@@ -1338,7 +1341,7 @@ export function CandidateWorkbenchDetail({
                   className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
                 >
                   {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Generate LinkedIn draft
+                  {t("Generate LinkedIn draft")}
                 </button>
                 {enrichError && (
                   <p className="mt-3 text-sm text-red-500">{enrichError}</p>
@@ -1348,14 +1351,14 @@ export function CandidateWorkbenchDetail({
               <div className="mt-6 space-y-4">
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-[#0077B5]/10 px-3 py-1 text-xs font-medium text-[#0077B5]">
-                    LinkedIn
+                    {t("LinkedIn")}
                   </span>
                   <button
                     onClick={copyAll}
                     className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
                   >
                     {copied === "all" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                    {copied === "all" ? "Copied" : "Copy all"}
+                    {copied === "all" ? t("Copied") : t("Copy all")}
                   </button>
                   {canRegenerateWithPublicEvidence && (
                     <button
@@ -1364,14 +1367,14 @@ export function CandidateWorkbenchDetail({
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
                     >
                       {enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                      Regenerate
+                      {t("Regenerate")}
                     </button>
                   )}
                 </div>
 
                 <div>
                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    InMail subject
+                    {t("InMail subject")}
                   </label>
                   <input
                     type="text"
@@ -1383,7 +1386,7 @@ export function CandidateWorkbenchDetail({
 
                 <div>
                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Message
+                    {t("Message")}
                   </label>
                   <textarea
                     value={editedLinkedin}
@@ -1401,7 +1404,7 @@ export function CandidateWorkbenchDetail({
                     className="inline-flex items-center gap-2 rounded-lg bg-[#0077B5] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#005582]"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    Open LinkedIn profile
+                    {t("Open LinkedIn profile")}
                   </a>
                 )}
               </div>

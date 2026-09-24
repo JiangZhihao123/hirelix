@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { CheckCircle2, FileText, LockKeyhole, Sparkles, X } from "lucide-react";
@@ -30,6 +32,7 @@ export function AuthModal({
   onSuccessStart: () => void;
   onFailure: () => void;
 }) {
+  const t = useT();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = "landing-auth-modal-title";
@@ -88,7 +91,7 @@ export function AuthModal({
     <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 py-6">
       <button
         type="button"
-        aria-label="Close sign in dialog backdrop"
+        aria-label={t("Close sign in dialog backdrop")}
         onClick={onClose}
         className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
       />
@@ -105,7 +108,7 @@ export function AuthModal({
         <button
           ref={closeButtonRef}
           type="button"
-          aria-label="Close sign in dialog"
+          aria-label={t("Close sign in dialog")}
           onClick={onClose}
           className="absolute right-4 top-4 z-10 rounded-lg border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition-colors hover:border-slate-300 hover:text-slate-950"
         >
@@ -117,30 +120,30 @@ export function AuthModal({
             <div className="relative">
               <div className="flex items-start justify-between gap-4 pr-12">
                 <div className="flex items-center gap-2.5">
-                  <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
-                  <span className="text-xl font-bold tracking-tight text-slate-950">Hirelix</span>
+                  <Image src="/logo.svg" alt={t("Hirelix")} width={28} height={28} />
+                  <span className="text-xl font-bold tracking-tight text-slate-950">{t("Hirelix")}</span>
                 </div>
               </div>
 
               <div className="mt-3 lg:mt-8">
                 <p className="hidden items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 lg:inline-flex">
                   <Sparkles className="h-3.5 w-3.5" />
-                  {isSearchAuthIntent ? "Your JD is ready" : "Welcome back"}
+                  {isSearchAuthIntent ? t("Your JD is ready") : t("Welcome back")}
                 </p>
                 <h2 id={titleId} className="max-w-[20ch] text-xl font-bold tracking-tight text-slate-950 lg:mt-4 lg:max-w-[14ch] lg:text-4xl">
                   {isSearchAuthIntent ? (
                     <>
-                      <span className="lg:hidden">Continue with this role.</span>
-                      <span className="hidden lg:inline">One more step to build your sourcing brief.</span>
+                      <span className="lg:hidden">{t("Continue with this role.")}</span>
+                      <span className="hidden lg:inline">{t("One more step to build your sourcing brief.")}</span>
                     </>
                   ) : (
-                    "Sign in and keep moving."
+                    t("Sign in and keep moving.")
                   )}
                 </h2>
                 <p className="mt-4 hidden max-w-xl text-sm leading-6 text-slate-600 lg:block lg:text-base lg:leading-7">
                   {isSearchAuthIntent
-                    ? "Sign in to continue with this JD and build your sourcing brief."
-                    : "Use your account to continue into the next candidate pool flow without losing context."}
+                    ? t("Sign in to continue with this JD and build your sourcing brief.")
+                    : t("Use your account to continue into the next candidate pool flow without losing context.")}
                 </p>
               </div>
 
@@ -150,7 +153,7 @@ export function AuthModal({
                     <div>
                       <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
                         <FileText className="h-3.5 w-3.5 text-indigo-700" />
-                        Your JD
+                        {t("Your JD")}
                       </p>
                       <p
                         data-testid="landing-auth-preview-title"
@@ -160,7 +163,7 @@ export function AuthModal({
                       </p>
                     </div>
                     <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                      {pendingIntentPath === "sample" ? "Sample role" : "Your JD"}
+                      {pendingIntentPath === "sample" ? t("Sample role") : t("Your JD")}
                     </span>
                   </div>
                   <p className="mt-4 hidden max-h-28 overflow-hidden whitespace-pre-wrap text-sm leading-6 text-slate-600 lg:block">
@@ -171,24 +174,24 @@ export function AuthModal({
                 <div className="mt-6 hidden rounded-lg border border-slate-200 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.07)] lg:block">
                   <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
                     <div>
-                      <p className="text-xs font-semibold text-slate-500">Next step</p>
+                      <p className="text-xs font-semibold text-slate-500">{t("Next step")}</p>
                       <p className="mt-1 text-sm font-semibold text-slate-950">
-                        Open your workspace
+                        {t("Open your workspace")}
                       </p>
                     </div>
                     <span className="rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">
-                      Secure
+                      {t("Secure")}
                     </span>
                   </div>
                   <div className="mt-3 grid gap-2 text-sm text-slate-600">
                     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                      Saved searches
+                      {t("Saved searches")}
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                      Ranked candidates
+                      {t("Ranked candidates")}
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                      Outreach drafts
+                      {t("Outreach drafts")}
                     </div>
                   </div>
                 </div>
@@ -205,13 +208,13 @@ export function AuthModal({
 
               <div className="mt-5 hidden flex-wrap gap-2 text-xs lg:flex">
                 <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-700">
-                  No credit card
+                  {t("No credit card")}
                 </span>
                 <span className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1 font-medium text-indigo-700">
-                  Private JD handoff
+                  {t("Private JD handoff")}
                 </span>
                 <span className="rounded-lg border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700">
-                  Evidence-based ranking
+                  {t("Evidence-based ranking")}
                 </span>
               </div>
             </div>
@@ -221,20 +224,20 @@ export function AuthModal({
             <div className="mx-auto max-w-md">
               <div className="mb-4 hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 lg:inline-flex">
                 <LockKeyhole className="h-3.5 w-3.5 text-indigo-700" />
-                Secure sign in
+                {t("Secure sign in")}
               </div>
               <LoginForm
                 variant="modal"
                 redirectPath={pendingRedirectPath}
                 contextTitle={
                   isSearchAuthIntent
-                    ? "Sign in to continue"
-                    : "Sign in to your workspace"
+                    ? t("Sign in to continue")
+                    : t("Sign in to your workspace")
                 }
                 contextBody={
                   isSearchAuthIntent
-                    ? "Your JD stays attached while you build the sourcing brief."
-                    : "Use Google or email to sign in without breaking the flow."
+                    ? t("Your JD stays attached while you build the sourcing brief.")
+                    : t("Use Google or email to sign in without breaking the flow.")
                 }
                 onSuccessStart={onSuccessStart}
                 onFailure={onFailure}

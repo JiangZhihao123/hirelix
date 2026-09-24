@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
@@ -71,6 +73,7 @@ export function CandidateCard({
   onUpgradeClick: (surface: string) => void;
   isNew?: boolean;
 }) {
+  const t = useT();
   const displayName = sanitizeDisplayName(candidate.name);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState<string | false>(false);
@@ -237,7 +240,7 @@ export function CandidateCard({
             <p className="truncate text-sm font-semibold">{displayName}</p>
             {isNew && (
               <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
-                New
+                {t("New")}
               </span>
             )}
             <ActionabilityBadge candidate={candidate} />
@@ -252,12 +255,12 @@ export function CandidateCard({
               <span
                 className={`text-xs font-medium capitalize ${statusColors[candidate.status] || ""}`}
               >
-                {CANDIDATE_STATUS_LABELS[candidate.status as keyof typeof CANDIDATE_STATUS_LABELS] || candidate.status}
+                {t(CANDIDATE_STATUS_LABELS[candidate.status as keyof typeof CANDIDATE_STATUS_LABELS] || candidate.status)}
               </span>
             )}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted">
-            {currentRole || (candidate.skills.length > 0 ? candidate.skills.slice(0, 3).join(" · ") : "Professional")}
+            {currentRole || (candidate.skills.length > 0 ? candidate.skills.slice(0, 3).join(" · ") : t("Professional"))}
           </p>
           {currentCompany && (
             <p className="mt-1 truncate text-[11px] text-muted-light">{currentCompany}</p>
@@ -275,10 +278,10 @@ export function CandidateCard({
           )}
           <div className="mt-2 grid gap-1.5">
             <div className="rounded-lg border border-sky-100 bg-sky-50 px-2.5 py-2 text-[11px] leading-5 text-sky-800">
-              <span className="font-semibold">Proof:</span> {audit.proofLines[0]}
+              <span className="font-semibold">{t("Proof:")}</span> {audit.proofLines[0]}
             </div>
             <div className="rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-800">
-              <span className="font-semibold">Risk:</span> {audit.riskLines[0]}
+              <span className="font-semibold">{t("Risk:")}</span> {audit.riskLines[0]}
             </div>
             <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold leading-5 text-emerald-800">
               {audit.nextAction}
@@ -351,7 +354,7 @@ export function CandidateCard({
             <div className="min-w-0 space-y-4 break-words">
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                  Details
+                  {t("Details")}
                 </p>
                 <div className="space-y-2 text-sm">
                   {candidate.location && (
@@ -363,7 +366,7 @@ export function CandidateCard({
                   {candidate.experience_years && (
                     <div className="flex items-center gap-2 text-muted">
                       <Briefcase className="h-3.5 w-3.5" />
-                      {candidate.experience_years} years experience
+                      {candidate.experience_years} {t("years experience")}
                     </div>
                   )}
                   {candidate.profile_url && (
@@ -374,7 +377,7 @@ export function CandidateCard({
                       className="flex items-center gap-2 text-primary hover:underline"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
-                      LinkedIn
+                      {t("LinkedIn")}
                     </a>
                   )}
                 </div>
@@ -383,11 +386,11 @@ export function CandidateCard({
               {(candidate.metadata?.constraint_verdicts || candidate.metadata?.suitability?.constraint_verdicts) && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Constraint fit
+                    {t("Constraint fit")}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Location fit</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">{t("Location fit")}</p>
                       <p className="mt-1 text-sm font-medium text-foreground">
                         {formatConstraintValue(
                           candidate.metadata?.constraint_verdicts?.location_fit ||
@@ -396,7 +399,7 @@ export function CandidateCard({
                       </p>
                     </div>
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Work model fit</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">{t("Work model fit")}</p>
                       <p className="mt-1 text-sm font-medium text-foreground">
                         {formatConstraintValue(
                           candidate.metadata?.constraint_verdicts?.work_model_fit ||
@@ -405,7 +408,7 @@ export function CandidateCard({
                       </p>
                     </div>
                     <div className="rounded-lg border border-border bg-surface px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">Must-have coverage</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">{t("Must-have coverage")}</p>
                       <p className="mt-1 text-sm font-medium text-foreground">
                         {formatConstraintValue(
                           candidate.metadata?.constraint_verdicts?.must_have_coverage ||
@@ -420,12 +423,12 @@ export function CandidateCard({
               {scoringBreakdown && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Scorecard
+                    {t("Scorecard")}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {scoreMetrics.map((metric) => (
                       <div key={metric.key} className="rounded-lg border border-border bg-surface px-3 py-2">
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">{metric.label}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-light">{t(metric.label)}</p>
                         <p className="mt-1 text-sm font-semibold text-foreground">
                           {typeof metric.score === "number" ? metric.score : "—"} · {formatDimensionLabel(metric.score)}
                         </p>
@@ -434,23 +437,23 @@ export function CandidateCard({
                     ))}
                   </div>
                   <div className="mt-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">
-                    <span className="font-semibold">Profile fit reviewed</span>
-                    <span> · Research this candidate when you need citable proof.</span>
+                    <span className="font-semibold">{t("Profile fit reviewed")}</span>
+                    <span> {t("· Research this candidate when you need citable proof.")}</span>
                   </div>
                   {publicEvidenceItems.length === 0 && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      <span className="flex-1">Research this candidate when this profile is worth a closer look.</span>
+                      <span className="flex-1">{t("Research this candidate when this profile is worth a closer look.")}</span>
                       {requiresPublicEvidenceUpgrade ? (
                         <PaddleCheckoutButton
                           checkout={{ type: "plan", planCode: "starter_monthly" }}
-                          label="Upgrade to Starter"
+                          label={t("Upgrade to Starter")}
                           onClick={() => onUpgradeClick("candidate_public_evidence_gate")}
                           onError={(message) => setEnrichError(message)}
                           className="inline-flex items-center rounded-md bg-slate-950 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-800"
                         />
                       ) : publicEvidenceDeepDivesRemaining <= 0 ? (
                         <span className="inline-flex rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600">
-                          Limit reached
+                          {t("Limit reached")}
                         </span>
                       ) : (
                         <button
@@ -460,7 +463,7 @@ export function CandidateCard({
                           className="inline-flex items-center gap-1 rounded-md bg-slate-950 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {publicEvidenceQueueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          {publicEvidenceQueueing ? "Queued" : "Research"}
+                          {publicEvidenceQueueing ? t("Queued") : t("Research")}
                         </button>
                       )}
                     </div>
@@ -471,7 +474,7 @@ export function CandidateCard({
               {blockingConstraints.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Blocking constraints
+                    {t("Blocking constraints")}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {blockingConstraints.map((constraint) => (
@@ -492,7 +495,7 @@ export function CandidateCard({
 
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                  Skills
+                  {t("Skills")}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {[...candidate.skills]
@@ -519,11 +522,11 @@ export function CandidateCard({
                 <div>
                     <div className="mb-2 flex items-center gap-2">
                       <p className="text-xs font-medium uppercase tracking-wider text-muted-light">
-                        Pool note
+                        {t("Pool note")}
                       </p>
                       {candidate.metadata?.preliminary && (
                         <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
-                          Preliminary
+                          {t("Preliminary")}
                         </span>
                       )}
                   </div>
@@ -545,7 +548,7 @@ export function CandidateCard({
                 </ul>
                 {candidate.metadata?.preliminary && (
                   <p className="mt-2 text-xs text-muted">
-                    These reasons are already usable for review. Hirelix may refine the ranking and rationale as richer profile data comes in.
+                    {t("These reasons are already usable for review. Hirelix may refine the ranking and rationale as richer profile data comes in.")}
                   </p>
                 )}
               </div>
@@ -553,7 +556,7 @@ export function CandidateCard({
               {joinLikelihoodReasons.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Outreach context
+                    {t("Outreach context")}
                   </p>
                   <ul className="space-y-1.5">
                     {joinLikelihoodReasons.map((reason, i) => (
@@ -569,7 +572,7 @@ export function CandidateCard({
               {Array.isArray(candidate.metadata?.why_not_higher) && candidate.metadata.why_not_higher.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Why not higher
+                    {t("Why not higher")}
                   </p>
                   <ul className="space-y-1.5">
                     {candidate.metadata.why_not_higher.map((reason, i) => (
@@ -585,7 +588,7 @@ export function CandidateCard({
               {riskFlags.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Advancement risks
+                    {t("Advancement risks")}
                   </p>
                   <ul className="space-y-1.5">
                     {riskFlags.map((reason, i) => (
@@ -602,16 +605,16 @@ export function CandidateCard({
               {displayableWorkHistory.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Work History
+                    {t("Work History")}
                   </p>
                   <div className="space-y-2">
                     {displayableWorkHistory.map((job, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
                         <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-light" />
                         <div>
-                          <p className="font-medium text-foreground">{job.title || "Unknown Role"}</p>
+                          <p className="font-medium text-foreground">{job.title || t("Unknown Role")}</p>
                           <p className="text-xs text-muted">
-                            {job.company || "Unknown Company"}
+                            {job.company || t("Unknown Company")}
                             {job.start_date && (
                               <span className="text-muted-light"> · {job.start_date.includes(" - ") ? job.start_date : (job.end_date ? `${job.start_date} – ${job.end_date}` : `${job.start_date} – Present`)}</span>
                             )}
@@ -630,7 +633,7 @@ export function CandidateCard({
               {displayableEducation.length > 0 && (
                 <div>
                   <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                    Education
+                    {t("Education")}
                   </p>
                   <div className="space-y-2">
                     {displayableEducation.map((edu, i) => (
@@ -657,7 +660,7 @@ export function CandidateCard({
 
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-light">
-                  Status
+                  {t("Status")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {CANDIDATE_STATUS_OPTIONS.map((s) => (
@@ -683,9 +686,9 @@ export function CandidateCard({
                 // Fallback if the main pipeline did not persist outreach copy
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-8 text-center">
                   <Send className="mb-3 h-8 w-8 text-muted-light" />
-                  <p className="mb-1 text-sm font-medium text-foreground">LinkedIn outreach is not ready yet</p>
+                  <p className="mb-1 text-sm font-medium text-foreground">{t("LinkedIn outreach is not ready yet")}</p>
                   <p className="mb-4 text-xs text-muted">
-                    Generate a grounded LinkedIn InMail from the candidate profile and current research evidence.
+                    {t("Generate a grounded LinkedIn InMail from the candidate profile and current research evidence.")}
                   </p>
                   <button
                     onClick={handleRegenerateOutreach}
@@ -693,7 +696,7 @@ export function CandidateCard({
                     className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {enriching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Generate LinkedIn draft
+                    {t("Generate LinkedIn draft")}
                   </button>
                   {enrichError && (
                     <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -708,7 +711,7 @@ export function CandidateCard({
                       className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors"
                     >
                       <ExternalLink className="h-3 w-3" />
-                      Open LinkedIn Profile
+                      {t("Open LinkedIn Profile")}
                     </a>
                   )}
                 </div>
@@ -717,7 +720,7 @@ export function CandidateCard({
                 <>
                   <div className="flex items-center justify-between">
                     <span className="rounded-md bg-[#0077B5]/10 px-2.5 py-1 text-xs font-medium text-[#0077B5]">
-                      LinkedIn
+                      {t("LinkedIn")}
                     </span>
                     <button
                       onClick={copyAll}
@@ -726,21 +729,21 @@ export function CandidateCard({
                       {copied === "all" ? (
                         <>
                           <Check className="h-3 w-3 text-green-500" />
-                          Copied
+                          {t("Copied")}
                         </>
                       ) : (
                         <>
                           <Copy className="h-3 w-3" />
-                          Copy All
+                          {t("Copy All")}
                         </>
                       )}
                     </button>
                   </div>
                   <div>
                     <div className="mb-1 flex items-center justify-between">
-                      <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">InMail subject</label>
+                      <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">{t("InMail subject")}</label>
                       <button onClick={() => copyText(editedSubject, "subject")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
-                        {copied === "subject" ? "Copied" : "Copy"}
+                        {copied === "subject" ? t("Copied") : t("Copy")}
                       </button>
                     </div>
                     <input
@@ -753,10 +756,10 @@ export function CandidateCard({
                   <div>
                     <div className="mb-1 flex items-center justify-between">
                       <label className="text-[10px] font-medium uppercase tracking-wider text-muted-light">
-                        Message
+                        {t("Message")}
                       </label>
                       <button onClick={() => copyText(editedLinkedin, "body")} className="text-[10px] cursor-pointer text-muted hover:text-foreground transition-colors">
-                        {copied === "body" ? "Copied" : "Copy"}
+                        {copied === "body" ? t("Copied") : t("Copy")}
                       </button>
                     </div>
                     <textarea
@@ -774,7 +777,7 @@ export function CandidateCard({
                       className="inline-flex items-center gap-2 rounded-lg bg-[#0077B5] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#005582]"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
-                      Open LinkedIn Profile
+                      {t("Open LinkedIn Profile")}
                     </a>
                   )}
                 </>
@@ -786,7 +789,7 @@ export function CandidateCard({
             className="mt-4 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-xs text-muted hover:bg-surface hover:text-foreground transition-colors"
           >
             <ChevronsUp className="h-3 w-3" />
-            Collapse
+            {t("Collapse")}
           </button>
         </div>
       )}

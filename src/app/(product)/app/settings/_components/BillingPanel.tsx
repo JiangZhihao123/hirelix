@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import {
   BriefcaseBusiness,
@@ -37,6 +39,7 @@ export function BillingPanel({
   billing: BillingSummary;
   onBillingChange: (billing: BillingSummary) => void;
 }) {
+  const t = useT();
   const [billingMessage, setBillingMessage] = useState<MessageState>(null);
   const isPaddleSubscription = billing.access.source === "paddle";
   const isRedemptionAccess = billing.access.source === "redemption";
@@ -71,47 +74,47 @@ export function BillingPanel({
   return (
     <SettingsSection
       id="billing"
-      eyebrow="Billing"
-      title="Billing and usage"
-      description="Usage is based on AI sourcing budget and candidate research runs you choose to start."
+      eyebrow={t("Billing")}
+      title={t("Billing and usage")}
+      description={t("Usage is based on AI sourcing budget and candidate research runs you choose to start.")}
     >
       <div className="space-y-5">
         <SettingsFieldGroup
-          title="Current plan"
-          description="This is the active plan and renewal state for your account."
+          title={t("Current plan")}
+          description={t("This is the active plan and renewal state for your account.")}
         >
           <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
             <div className="space-y-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xl font-semibold text-slate-950">{billing.plan.name}</p>
+                  <p className="text-xl font-semibold text-slate-950">{t(billing.plan.name)}</p>
                   <p className="mt-1 text-sm text-slate-600">{billing.plan.description}</p>
                 </div>
                 <div className="text-left sm:text-right">
                   <p className="text-lg font-semibold text-slate-950">
-                    {isRedemptionAccess ? "Beta access" : billing.plan.priceLabel}
+                    {isRedemptionAccess ? t("Beta access") : billing.plan.priceLabel}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {isRedemptionAccess ? "No charge" : billing.plan.cadenceLabel}
+                    {isRedemptionAccess ? t("No charge") : billing.plan.cadenceLabel}
                   </p>
                 </div>
               </div>
               <div className="grid gap-4 border-t border-slate-200/80 pt-4 sm:grid-cols-2">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    Access
+                    {t("Access")}
                   </p>
                   <p className="mt-2 text-sm font-medium text-slate-950">
                     {isRedemptionAccess
-                      ? "Starter beta access"
+                      ? t("Starter beta access")
                       : billing.subscription.status === "active"
-                      ? "Subscription active"
-                      : billing.subscription.status}
+                      ? t("Subscription active")
+                      : t(billing.subscription.status)}
                   </p>
                 </div>
                 <div className="sm:text-right">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    {isRedemptionAccess ? "Ends" : "Renewal"}
+                    {isRedemptionAccess ? t("Ends") : t("Renewal")}
                   </p>
                   <p className="mt-2 text-sm text-slate-600">
                     {formatDateLabel(billing.subscription.renewsAt)}
@@ -120,7 +123,7 @@ export function BillingPanel({
               </div>
               {isRedemptionAccess ? (
                 <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-                  This 30-day Starter access does not renew automatically.
+                  {t("This 30-day Starter access does not renew automatically.")}
                 </div>
               ) : null}
               {isPaddleSubscription ? (
@@ -131,14 +134,14 @@ export function BillingPanel({
                     />
                   ) : (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      Billing portal is not configured yet. Email{" "}
+                      {t("Billing portal is not configured yet. Email")}{" "}
                       <a
                         className="font-medium underline decoration-amber-400 underline-offset-2"
                         href="mailto:support@hirelix.online"
                       >
-                        support@hirelix.online
+                        {t("support@hirelix.online")}
                       </a>{" "}
-                      for plan changes or invoices.
+                      {t("for plan changes or invoices.")}
                     </div>
                   )}
                 </div>
@@ -158,15 +161,15 @@ export function BillingPanel({
         ) : null}
 
         <SettingsFieldGroup
-          title="Usage"
-          description="Track this billing cycle across the work that creates real product cost."
+          title={t("Usage")}
+          description={t("Track this billing cycle across the work that creates real product cost.")}
         >
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <BriefcaseBusiness className="h-4 w-4 text-slate-400" />
-                  Client roles
+                  {t("Client roles")}
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.clientRolesUsed}/{billing.usage.clientRolesLimit}
@@ -181,7 +184,7 @@ export function BillingPanel({
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.clientRolesRemaining} client roles left this cycle
+                {billing.usage.clientRolesRemaining} {t("client roles left this cycle")}
               </p>
             </div>
 
@@ -189,7 +192,7 @@ export function BillingPanel({
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <ScanSearch className="h-4 w-4 text-slate-400" />
-                  Targeted profile scan budget
+                  {t("Targeted profile scan budget")}
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.profileScansUsed}/{billing.usage.profileScansLimit}
@@ -204,7 +207,7 @@ export function BillingPanel({
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.profileScansRemaining} targeted scans left this cycle
+                {billing.usage.profileScansRemaining} {t("targeted scans left this cycle")}
               </p>
             </div>
 
@@ -212,7 +215,7 @@ export function BillingPanel({
               <div className="flex items-center justify-between text-sm">
                 <span className="inline-flex items-center gap-2 font-medium text-slate-800">
                   <Sparkles className="h-4 w-4 text-slate-400" />
-                  Candidate research
+                  {t("Candidate research")}
                 </span>
                 <span className="text-slate-500">
                   {billing.usage.publicEvidenceDeepDivesUsed}/{billing.usage.publicEvidenceDeepDivesLimit}
@@ -230,23 +233,23 @@ export function BillingPanel({
                 />
               </div>
               <p className="mt-3 text-sm text-slate-600">
-                {billing.usage.publicEvidenceDeepDivesRemaining} research runs left this cycle
+                {billing.usage.publicEvidenceDeepDivesRemaining} {t("research runs left this cycle")}
               </p>
             </div>
           </div>
         </SettingsFieldGroup>
 
         <SettingsFieldGroup
-          title="Subscription"
-          description="Choose a client-role tier. Annual gives you the lower monthly rate."
+          title={t("Subscription")}
+          description={t("Choose a client-role tier. Annual gives you the lower monthly rate.")}
         >
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Hirelix is built for technical headhunters. For billing issues, missing credits, or candidate pool problems, email{" "}
+            {t("Hirelix is built for technical headhunters. For billing issues, missing credits, or candidate pool problems, email")}{" "}
             <a
               className="font-medium underline decoration-amber-400 underline-offset-2"
               href="mailto:support@hirelix.online"
             >
-              support@hirelix.online
+              {t("support@hirelix.online")}
             </a>
             .
           </div>
@@ -272,11 +275,11 @@ export function BillingPanel({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-semibold text-slate-950">{plan.name}</h3>
-                      <p className="mt-1 text-xs text-slate-600">{tier.note}</p>
+                      <p className="mt-1 text-xs text-slate-600">{t(tier.note)}</p>
                     </div>
                     {plan.featured ? (
                       <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                        Popular
+                        {t("Popular")}
                       </span>
                     ) : null}
                   </div>
@@ -285,7 +288,7 @@ export function BillingPanel({
                     <p className="text-xl font-bold text-slate-950">{plan.priceLabel}</p>
                     <p className="text-xs text-slate-500">{plan.cadenceLabel}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Or {monthlyPlan.priceLabel} month to month
+                      {t("Or")} {monthlyPlan.priceLabel} {t("month to month")}
                     </p>
                   </div>
 
@@ -309,14 +312,14 @@ export function BillingPanel({
                   <div className="mt-5 grid gap-2 sm:grid-cols-2">
                     <PlanCheckoutAction
                       planCode={annualPlanCode}
-                      label={isCurrentPlan(annualPlanCode) ? "Current annual" : plan.ctaLabel}
+                      label={isCurrentPlan(annualPlanCode) ? t("Current annual") : plan.ctaLabel}
                       isCurrent={isCurrentPlan(annualPlanCode)}
                       onError={(message) => setBillingMessage({ type: "error", text: message })}
                       primary={!tierIsCurrent || isCurrentPlan(annualPlanCode)}
                     />
                     <PlanCheckoutAction
                       planCode={monthlyPlanCode}
-                      label={isCurrentPlan(monthlyPlanCode) ? "Current monthly" : monthlyPlan.ctaLabel}
+                      label={isCurrentPlan(monthlyPlanCode) ? t("Current monthly") : monthlyPlan.ctaLabel}
                       isCurrent={isCurrentPlan(monthlyPlanCode)}
                       onError={(message) => setBillingMessage({ type: "error", text: message })}
                       primary={isCurrentPlan(monthlyPlanCode)}
@@ -341,6 +344,7 @@ function RedeemBetaCode({
   onSuccess: (billing: BillingSummary, message: string) => void;
   onError: (message: string) => void;
 }) {
+  const t = useT();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -377,19 +381,19 @@ function RedeemBetaCode({
 
   return (
     <SettingsFieldGroup
-      title="Redeem beta access"
-      description="Use a private beta code to unlock Starter for 30 days. No card required."
+      title={t("Redeem beta access")}
+      description={t("Use a private beta code to unlock Starter for 30 days. No card required.")}
     >
       <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
         <label htmlFor="beta-redemption-code" className="text-sm font-medium text-slate-900">
-          Beta code
+          {t("Beta code")}
         </label>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
             id="beta-redemption-code"
             value={code}
             onChange={(event) => setCode(event.target.value)}
-            placeholder="HIRELIX-BETA-XXXX-XXXX"
+            placeholder={t("HIRELIX-BETA-XXXX-XXXX")}
             autoComplete="off"
             spellCheck={false}
             className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm uppercase text-slate-950 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
@@ -401,11 +405,11 @@ function RedeemBetaCode({
             className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <TicketCheck className="h-4 w-4" />}
-            {loading ? "Redeeming..." : "Redeem"}
+            {loading ? t("Redeeming...") : t("Redeem")}
           </button>
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          One redemption per account. Access ends automatically after 30 days.
+          {t("One redemption per account. Access ends automatically after 30 days.")}
         </p>
       </div>
     </SettingsFieldGroup>
@@ -413,6 +417,7 @@ function RedeemBetaCode({
 }
 
 function BillingPortalButton({ onError }: { onError: (message: string) => void }) {
+  const t = useT();
   const [loading, setLoading] = useState(false);
 
   async function openPortal() {
@@ -458,12 +463,12 @@ function BillingPortalButton({ onError }: { onError: (message: string) => void }
       {loading ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" />
-          Opening billing...
+          {t("Opening billing...")}
         </>
       ) : (
         <>
           <ExternalLink className="h-4 w-4" />
-          Manage billing
+          {t("Manage billing")}
         </>
       )}
     </button>

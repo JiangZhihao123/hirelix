@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import {
   getDisplayNameColorSeed,
   getDisplayNameInitials,
@@ -24,6 +26,7 @@ export function InitialsAvatar({ name }: { name: string }) {
 }
 
 export function ScoreBadge({ score }: { score: number }) {
+  const t = useT();
   const color =
     score >= 90
       ? "bg-green-100 text-green-700"
@@ -36,12 +39,13 @@ export function ScoreBadge({ score }: { score: number }) {
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}
     >
-      {score}% overall
+      {score}{t("% overall")}
     </span>
   );
 }
 
 export function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
+  const t = useT();
   const actionability = candidate.metadata?.suitability?.actionability;
   const fitDecision = candidate.metadata?.suitability?.fit_decision;
   const advanceRecommendation = candidate.metadata?.advance_recommendation ||
@@ -52,7 +56,7 @@ export function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
   if (advanceRecommendation === "reject" && blockingSeverity === "hard") {
     return (
       <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-        Hard blocker
+        {t("Hard blocker")}
       </span>
     );
   }
@@ -60,7 +64,7 @@ export function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
   if (blockingSeverity === "soft" || advanceRecommendation === "hold") {
     return (
       <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-        Needs review
+        {t("Needs review")}
       </span>
     );
   }
@@ -68,7 +72,7 @@ export function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
   if (fitDecision === "risky_fit" || actionability === "not_actionable") {
     return (
       <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-        Constraint risk
+        {t("Constraint risk")}
       </span>
     );
   }
@@ -76,14 +80,14 @@ export function ActionabilityBadge({ candidate }: { candidate: CandidateRow }) {
   if (actionability === "needs_review" || fitDecision === "viable_fit") {
     return (
       <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-        Needs review
+        {t("Needs review")}
       </span>
     );
   }
 
   return (
     <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-      Ready to act
+      {t("Ready to act")}
     </span>
   );
 }

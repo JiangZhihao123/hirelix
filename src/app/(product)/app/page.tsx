@@ -1,4 +1,6 @@
 "use client";
+
+import { useT } from "@/components/LanguageProvider";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -71,6 +73,7 @@ function AssistantWorkspace({
   initialPrompt: string;
   onOpen: (id: string) => void;
 }) {
+  const t = useT();
   const list = useQuery<{ conversations: Conversation[] }>("/conversations"),
     roles = useQuery<{ roles: Role[] }>("/roles");
   const query = useQuery<Detail>(
@@ -208,24 +211,23 @@ function AssistantWorkspace({
   return (
     <div className="ws-page ws-assistant-page">
       <div className="ws-assistant-body">
-        <section className="ws-conversation" aria-label="My assistant">
+        <section className="ws-conversation" aria-label={t("My assistant")}>
           <header className="ws-conversation-header">
             <div>
-              <span className="ws-eyebrow">YOUR PRIVATE ASSISTANT</span>
+              <span className="ws-eyebrow">{t("YOUR PRIVATE ASSISTANT")}</span>
               <h1>
                 {conversationId
-                  ? "Let’s pick up the work."
-                  : "What are we working on?"}
+                  ? t("Let’s pick up the work.")
+                  : t("What are we working on?")}
               </h1>
               <p>
-                Keep your candidates, client roles and recommendations
-                connected.
+                {t("Keep your candidates, client roles and recommendations connected.")}
               </p>
             </div>
             {conversationId && (
               <Link className="ws-button" href="/app">
                 <Plus size={14} />
-                New conversation
+                {t("New conversation")}
               </Link>
             )}
           </header>
@@ -247,24 +249,22 @@ function AssistantWorkspace({
           >
             {conversationId && !query.data ? (
               query.loading ? (
-                <Loading>Opening your conversation…</Loading>
+                <Loading>{t("Opening your conversation…")}</Loading>
               ) : null
             ) : !count ? (
               <div className="ws-assistant-start">
                 <div className="ws-assistant-mark">
                   <MessageSquare size={20} />
                 </div>
-                <h2>Your work can start here.</h2>
+                <h2>{t("Your work can start here.")}</h2>
                 <p>
-                  Bring a client’s JD, a conversation with a candidate, or a
-                  recommendation you need to prepare. I’ll help you work with
-                  what you have.
+                  {t("Bring a client’s JD, a conversation with a candidate, or a recommendation you need to prepare. I’ll help you work with what you have.")}
                 </p>
                 <div className="ws-starters">
                   <button
                     onClick={() => prompt("Find a candidate in my pool who ")}
                   >
-                    Find a candidate <ArrowUpRight size={14} />
+                    {t("Find a candidate")} <ArrowUpRight size={14} />
                   </button>
                   <button
                     onClick={() =>
@@ -273,23 +273,23 @@ function AssistantWorkspace({
                       )
                     }
                   >
-                    Work on a client role <ArrowUpRight size={14} />
+                    {t("Work on a client role")} <ArrowUpRight size={14} />
                   </button>
                   <button
                     onClick={() =>
                       prompt("Help me prepare a candidate submission for ")
                     }
                   >
-                    Draft a submission <ArrowUpRight size={14} />
+                    {t("Draft a submission")} <ArrowUpRight size={14} />
                   </button>
                 </div>
                 <div className="ws-first-step">
-                  <span>Starting with your existing candidates?</span>
+                  <span>{t("Starting with your existing candidates?")}</span>
                   <button
                     className="ws-link"
                     onClick={() => fileInput.current?.click()}
                   >
-                    Attach a CSV or CV <ArrowUpRight size={13} />
+                    {t("Attach a CSV or CV")} <ArrowUpRight size={13} />
                   </button>
                 </div>
               </div>
@@ -302,7 +302,7 @@ function AssistantWorkspace({
                     key={message.id}
                   >
                     <div className="ws-message-label">
-                      {message.role === "user" ? "You" : "Hirelix"}
+                      {message.role === "user" ? t("You") : t("Hirelix")}
                       <time>{date(message.created_at)}</time>
                     </div>
                     <div className="ws-message-prose">
@@ -338,14 +338,14 @@ function AssistantWorkspace({
                           <strong>{action.title}</strong>
                           <small>
                             {action.status === "saved"
-                              ? "Saved to your workspace"
+                              ? t("Saved to your workspace")
                               : action.kind === "create_role"
-                                ? "Review the role details before saving"
+                                ? t("Review the role details before saving")
                                 : action.kind === "update_role_brief"
-                                  ? "Review the proposed requirements before applying"
+                                  ? t("Review the proposed requirements before applying")
                                   : action.kind === "add_record"
-                                    ? "Review this record before adding it"
-                                    : "Choose the people and source material to include"}
+                                    ? t("Review this record before adding it")
+                                    : t("Choose the people and source material to include")}
                           </small>
                         </div>
                         {action.href ? (
@@ -353,7 +353,7 @@ function AssistantWorkspace({
                             {action.status === "saved" ? (
                               <Check size={13} />
                             ) : null}
-                            {action.status === "saved" ? "Open" : "Prepare"}
+                            {action.status === "saved" ? t("Open") : t("Prepare")}
                             <ArrowUpRight size={13} />
                           </Link>
                         ) : (
@@ -363,7 +363,7 @@ function AssistantWorkspace({
                               setReview({ messageId: message.id, action })
                             }
                           >
-                            Review & save
+                            {t("Review & save")}
                           </button>
                         )}
                       </div>
@@ -376,9 +376,9 @@ function AssistantWorkspace({
               <div className="ws-assistant-working" role="status">
                 <Loader2 size={14} className="animate-spin" />
                 {sending
-                  ? "Saving your message…"
-                  : job?.progress || "Working on your request…"}
-                <span>You can leave this page and return.</span>
+                  ? t("Saving your message…")
+                  : job?.progress || t("Working on your request…")}
+                <span>{t("You can leave this page and return.")}</span>
               </div>
             )}
             {job?.status === "error" && (
@@ -406,7 +406,7 @@ function AssistantWorkspace({
               ref={fileInput}
               className="sr-only"
               tabIndex={-1}
-              aria-label="Attach candidate file"
+              aria-label={t("Attach candidate file")}
               type="file"
               accept=".csv,.pdf,.docx"
               onChange={(e) => chooseFile(e.target.files?.[0])}
@@ -420,13 +420,13 @@ function AssistantWorkspace({
                     {attachment.size < 1024
                       ? `${attachment.size} bytes`
                       : `${(attachment.size / 1024).toFixed(0)} KB`}{" "}
-                    · Candidate import
+                    {t("· Candidate import")}
                   </small>
                 </span>
                 <button
                   className="ws-icon"
                   type="button"
-                  aria-label="Remove attachment"
+                  aria-label={t("Remove attachment")}
                   disabled={sending}
                   onClick={() => {
                     setAttachment(null);
@@ -441,13 +441,13 @@ function AssistantWorkspace({
             {!conversationId && (
               <div className="ws-composer-context">
                 <label>
-                  Working on{" "}
+                  {t("Working on")}{" "}
                   <select
-                    aria-label="Conversation role"
+                    aria-label={t("Conversation role")}
                     value={roleId}
                     onChange={(e) => setRoleId(e.target.value)}
                   >
-                    <option value="">My workspace</option>
+                    <option value="">{t("My workspace")}</option>
                     {roles.data?.roles.map((role) => (
                       <option key={role.id} value={role.id}>
                         {role.client_name} · {role.title}
@@ -469,10 +469,10 @@ function AssistantWorkspace({
             )}
             <textarea
               ref={composer}
-              aria-label="Message your assistant"
+              aria-label={t("Message your assistant")}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Ask, paste a JD, or share a conversation note…"
+              placeholder={t("Ask, paste a JD, or share a conversation note…")}
               rows={3}
               maxLength={50000}
               disabled={sending}
@@ -491,13 +491,13 @@ function AssistantWorkspace({
                 onClick={() => fileInput.current?.click()}
               >
                 <Paperclip size={14} />
-                Attach candidates
+                {t("Attach candidates")}
               </button>
-              <span>⌘ / Ctrl + Enter to send</span>
+              <span>{t("⌘ / Ctrl + Enter to send")}</span>
               <button
                 type="submit"
                 className="ws-button ws-button-primary"
-                aria-label="Send message"
+                aria-label={t("Send message")}
                 disabled={
                   (!draft.trim() && !attachment) ||
                   sending ||
@@ -510,9 +510,9 @@ function AssistantWorkspace({
             </div>
           </form>
         </section>
-        <aside className="ws-assistant-context" aria-label="Current work">
+        <aside className="ws-assistant-context" aria-label={t("Current work")}>
           <section>
-            <h2>Working on</h2>
+            <h2>{t("Working on")}</h2>
             {activeRole ? (
               <>
                 <Link
@@ -522,34 +522,33 @@ function AssistantWorkspace({
                   <span>{activeRole.client_name}</span>
                   <strong>{activeRole.title}</strong>
                   <small>
-                    {activeRole.status} <ArrowUpRight size={12} />
+                    {t(activeRole.status)} <ArrowUpRight size={12} />
                   </small>
                 </Link>
                 {roleDetail.data && (
                   <p>
-                    {roleDetail.data.people.length} candidates ·{" "}
-                    {roleDetail.data.records.length} records
+                    {roleDetail.data.people.length} {t("candidates ·")}{" "}
+                    {roleDetail.data.records.length} {t("records")}
                   </p>
                 )}
                 <Link
                   className="ws-detail-link"
                   href={`/app/submissions/new?role=${activeRole.id}`}
                 >
-                  Prepare a submission <ArrowUpRight size={12} />
+                  {t("Prepare a submission")} <ArrowUpRight size={12} />
                 </Link>
               </>
             ) : (
               <>
                 <p>
-                  Select a role when your conversation relates to a client
-                  assignment.
+                  {t("Select a role when your conversation relates to a client assignment.")}
                 </p>
                 <button
                   className="ws-text-button"
                   onClick={() => setAddingRole(true)}
                 >
                   <Plus size={13} />
-                  Add a role
+                  {t("Add a role")}
                 </button>
               </>
             )}
@@ -565,7 +564,7 @@ function AssistantWorkspace({
           </section>
           <section>
             <h2>
-              Client roles <Link href="/app/roles">View all</Link>
+              {t("Client roles")} <Link href="/app/roles">{t("View all")}</Link>
             </h2>
             {roles.data?.roles
               .filter((r) => r.status === "active")
@@ -581,13 +580,13 @@ function AssistantWorkspace({
                 </Link>
               ))}
             {roles.data && !roles.data.roles.length && (
-              <p>Add your first client role from its JD.</p>
+              <p>{t("Add your first client role from its JD.")}</p>
             )}
           </section>
           {roleDetail.data?.deliverables.filter((d) => d.status === "draft")
             .length ? (
             <section>
-              <h2>Drafts to finish</h2>
+              <h2>{t("Drafts to finish")}</h2>
               {roleDetail.data.deliverables
                 .filter((d) => d.status === "draft")
                 .map((d) => (
@@ -607,7 +606,7 @@ function AssistantWorkspace({
           ) : null}
           <section>
             <h2>
-              Recent conversations <Link href="/app">New</Link>
+              {t("Recent conversations")} <Link href="/app">{t("New")}</Link>
             </h2>
             <ErrorNotice error={list.error} retry={list.refresh} />
             {list.data?.conversations.slice(0, 8).map((c) => (
@@ -622,7 +621,7 @@ function AssistantWorkspace({
               </Link>
             ))}
             {list.data && !list.data.conversations.length && (
-              <p>Your saved conversations will appear here.</p>
+              <p>{t("Your saved conversations will appear here.")}</p>
             )}
           </section>
         </aside>
@@ -667,6 +666,7 @@ function ActionReview({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [fields, setFields] = useState(action.fields),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
@@ -706,17 +706,17 @@ function ActionReview({
     <Dialog
       title={
         action.kind === "create_role"
-          ? "Review new role"
+          ? t("Review new role")
           : action.kind === "update_role_brief"
-            ? "Review updated requirements"
-            : "Review conversation record"
+            ? t("Review updated requirements")
+            : t("Review conversation record")
       }
       onClose={close}
       wide
     >
       <form className="ws-form" onSubmit={save} autoComplete="off">
         <ErrorNotice error={error} />
-        <Field label="Title">
+        <Field label={t("Title")}>
           <input
             required
             value={String(fields.title || "")}
@@ -730,15 +730,13 @@ function ActionReview({
             {action.kind === "update_role_brief" && (
               <section className="ws-panel">
                 <p className="ws-muted">
-                  The original JD is preserved. Review the complete requirements
-                  below; accepting saves a new version and the original
-                  feedback.
+                  {t("The original JD is preserved. Review the complete requirements below; accepting saves a new version and the original feedback.")}
                 </p>
                 <p className="whitespace-pre-wrap">
                   {String(fields.feedback || "")}
                 </p>
                 <details>
-                  <summary>Previous requirements</summary>
+                  <summary>{t("Previous requirements")}</summary>
                   {(["priorities", "flexible", "unknowns"] as const).map(
                     (key) => (
                       <div key={key}>
@@ -768,14 +766,14 @@ function ActionReview({
             )}
             {action.kind === "create_role" && (
               <>
-                <Field label="Client">
+                <Field label={t("Client")}>
                   <input
                     required
                     value={String(fields.client_name || "")}
                     onChange={(e) => set("client_name", e.target.value)}
                   />
                 </Field>
-                <Field label="Original job description">
+                <Field label={t("Original job description")}>
                   <textarea
                     required
                     rows={9}
@@ -812,7 +810,7 @@ function ActionReview({
           </>
         ) : (
           <>
-            <Field label="Record type">
+            <Field label={t("Record type")}>
               <select
                 value={String(fields.kind)}
                 onChange={(e) => set("kind", e.target.value)}
@@ -822,7 +820,7 @@ function ActionReview({
                 ))}
               </select>
             </Field>
-            <Field label="Record">
+            <Field label={t("Record")}>
               <textarea
                 required
                 rows={9}
@@ -831,8 +829,8 @@ function ActionReview({
               />
             </Field>
             <Field
-              label="When it happened"
-              hint="Leave empty if the date was not recorded. Saving time is kept separately."
+              label={t("When it happened")}
+              hint={t("Leave empty if the date was not recorded. Saving time is kept separately.")}
             >
               <input
                 type="datetime-local"
@@ -868,16 +866,16 @@ function ActionReview({
             onClick={close}
             disabled={saving}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button className="ws-button ws-button-primary" disabled={saving}>
             {saving
-              ? "Saving…"
+              ? t("Saving…")
               : action.kind === "create_role"
-                ? "Save role"
+                ? t("Save role")
                 : action.kind === "update_role_brief"
-                  ? "Apply requirements"
-                  : "Save record"}
+                  ? t("Apply requirements")
+                  : t("Save record")}
           </button>
         </div>
       </form>

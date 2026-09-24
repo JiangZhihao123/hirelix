@@ -1,3 +1,7 @@
+"use client";
+
+
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import {
   BILLING_PLANS,
@@ -32,6 +36,19 @@ export function PricingSection({
   onStart: () => void;
   onSelectPlan: (planCode: Exclude<BillingPlanCode, "free">) => void;
 }) {
+  const t = useT();
+  const { locale } = useLanguage();
+  const bullet = (value: string) => {
+    if (locale === "zh") {
+      const roles = value.match(/^(\d+) client roles per month$/);
+      if (roles) return `每月 ${roles[1]} 个客户职位`;
+      const scans = value.match(/^([\d,]+) targeted profile scan budget$/);
+      if (scans) return `${scans[1]} 次定向人才画像扫描额度`;
+      const research = value.match(/^([\d,]+) candidate research runs$/);
+      if (research) return `${research[1]} 次候选人深度研究`;
+    }
+    return t(value);
+  };
   const freePlan = BILLING_PLANS.free;
   const starterAnnualPlan = BILLING_PLANS.starter_annual;
   const starterMonthlyPlan = BILLING_PLANS.starter_monthly;
@@ -106,13 +123,13 @@ export function PricingSection({
       <div className="mx-auto max-w-6xl px-6">
         <div className="mx-auto max-w-3xl text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-            Pricing
+            {t("Pricing")}
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Add sourcing capacity when you need it.
+            {t("Add sourcing capacity when you need it.")}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            Your private agent and candidate memory are available after sign-in. These plans govern the existing profile search and research capacity.
+            {t("Your private assistant and candidate workspace are available after sign-in. These plans govern the existing profile search and research capacity.")}
           </p>
         </div>
 
@@ -131,24 +148,24 @@ export function PricingSection({
               >
                 {plan.featured ? (
                   <span className="absolute right-5 top-5 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-700">
-                    Recommended
+                    {t("Recommended")}
                   </span>
                 ) : null}
-                <h3 className="text-lg font-semibold">{plan.name}</h3>
+                <h3 className="text-lg font-semibold">{t(plan.name)}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {plan.description}
+                  {t(plan.description)}
                 </p>
                 <div className="mt-6">
                   <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
                   <p className="mt-1 text-sm text-slate-500">
-                    {plan.cadence}
+                    {t(plan.cadence)}
                   </p>
                 </div>
                 <div className="mt-6 grid gap-3 text-sm">
                   {plan.bullets.map((item) => (
                     <div key={item} className="flex items-start gap-2">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                      <span className="text-slate-700">{item}</span>
+                      <span className="text-slate-700">{bullet(item)}</span>
                     </div>
                   ))}
                 </div>
@@ -167,7 +184,7 @@ export function PricingSection({
                       : "bg-slate-950 text-white hover:bg-slate-800"
                   }`}
                 >
-                  {plan.cta}
+                  {t(plan.cta)}
                   <ArrowRight className="h-4 w-4" />
                 </button>
                 {monthlyPlanCode ? (
@@ -180,7 +197,7 @@ export function PricingSection({
                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                     }`}
                   >
-                    Prefer monthly? {plan.monthlyPrice} / month
+                    {t("Prefer monthly?")} {plan.monthlyPrice} {t("/ month")}
                   </button>
                 ) : null}
               </div>
@@ -189,7 +206,7 @@ export function PricingSection({
         </div>
 
         <p className="mx-auto mt-7 max-w-2xl text-center text-sm leading-6 text-slate-600">
-          Targeted profile scans are AI sourcing budget, not a guaranteed final candidate count. Hirelix observes the pool, adjusts sourcing angles, dedupes useful profiles, and ranks the strongest candidates found within your plan budget.
+          {t("Targeted profile scans are AI sourcing budget, not a guaranteed final candidate count. Hirelix observes the pool, adjusts sourcing angles, dedupes useful profiles, and ranks the strongest candidates found within your plan budget.")}
         </p>
       </div>
     </section>

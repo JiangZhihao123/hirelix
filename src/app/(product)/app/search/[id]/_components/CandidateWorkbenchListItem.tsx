@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { sanitizeDisplayName } from "@/lib/display-name";
 import type { CandidateRow } from "./types";
 import {
@@ -31,6 +33,7 @@ export function CandidateWorkbenchListItem({
   billingPlanCode: import("@/lib/billing").BillingPlanCode;
   isNew?: boolean;
 }) {
+  const t = useT();
   const hidePublicEvidence = billingPlanCode === "free";
   const currentCompany = deriveCurrentCompany(candidate);
   const currentRole = deriveCurrentRole(candidate);
@@ -74,7 +77,7 @@ export function CandidateWorkbenchListItem({
             )}
             {isNew && (
               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
-                New
+                {t("New")}
               </span>
             )}
           </div>
@@ -110,7 +113,7 @@ export function CandidateWorkbenchListItem({
             )}
             {candidate.email && (
               <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600">
-                Contact ready
+                {t("Contact ready")}
               </span>
             )}
           </div>

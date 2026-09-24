@@ -1,4 +1,7 @@
+"use client";
+
 import { Loader2 } from "lucide-react";
+import { useT } from "@/components/LanguageProvider";
 
 export function GoogleAuthButton({
   loading,
@@ -11,6 +14,7 @@ export function GoogleAuthButton({
   onClick: () => void;
   className: string;
 }) {
+  const t = useT();
   return (
     <button onClick={onClick} disabled={loading || disabled} className={className}>
       {loading ? (
@@ -35,7 +39,7 @@ export function GoogleAuthButton({
               fill="#EA4335"
             />
           </svg>
-          Continue with Google
+          {t("Continue with Google")}
         </>
       )}
     </button>

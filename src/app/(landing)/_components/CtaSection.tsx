@@ -1,3 +1,7 @@
+"use client";
+
+
+import { useT } from "@/components/LanguageProvider";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -12,18 +16,19 @@ export function CtaSection({
   onSignIn: () => void;
   desktopFooterCtaLabel: string;
 }) {
+  const t = useT();
   return (
     <>
       <section data-growth-section="底部行动" className="relative overflow-hidden border-t border-slate-200 bg-white py-20 sm:py-28">
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-            For technical recruiters
+            {t("For technical recruiters")}
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-            Keep the context behind every candidate conversation.
+            {t("Keep the context behind every candidate conversation.")}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            Bring your client roles and your own candidate knowledge to one private agent. Ask better questions and prepare stronger recommendations.
+            {t("Bring your client roles and your own candidate knowledge to one private agent. Ask better questions and prepare stronger recommendations.")}
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-4">
@@ -31,23 +36,23 @@ export function CtaSection({
               href="#hero-form"
               className="hidden items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:inline-flex"
             >
-              {desktopFooterCtaLabel} <ArrowRight className="h-4 w-4" />
+              {t(desktopFooterCtaLabel)} <ArrowRight className="h-4 w-4" />
             </a>
             <button
               type="button"
               onClick={onTrySample}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition-all hover:-translate-y-0.5 hover:bg-slate-800 sm:hidden"
             >
-              See a search example <ArrowRight className="h-4 w-4" />
+              {t("See a search example")} <ArrowRight className="h-4 w-4" />
             </button>
             <p className="text-sm text-slate-600">
-              Already have an account?{" "}
+              {t("Already have an account?")}{" "}
               <button
                 type="button"
                 onClick={onSignIn}
                 className="font-medium text-indigo-700 hover:underline"
               >
-                Sign in
+                {t("Sign in")}
               </button>
             </p>
           </div>
@@ -55,15 +60,15 @@ export function CtaSection({
           <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-600">
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-indigo-700" />
-              Private candidate memory
+              {t("Your private candidate pool")}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-              JD-specific judgment
+              {t("JD-specific judgment")}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              Recommendation drafts
+              {t("Recommendation drafts")}
             </span>
           </div>
         </div>
@@ -73,20 +78,20 @@ export function CtaSection({
         <div className="mx-auto grid max-w-6xl gap-8 px-6 text-sm text-slate-600 sm:grid-cols-[1.2fr_1fr]">
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <Image src="/logo.svg" alt="Hirelix" width={20} height={20} />
-              <span className="font-semibold text-slate-950">Hirelix</span>
+              <Image src="/logo.svg" alt={t("Hirelix")} width={20} height={20} />
+              <span className="font-semibold text-slate-950">{t("Hirelix")}</span>
             </div>
-            <p>A private recruiting agent for the people and roles you know.</p>
-            <p>Built for technical headhunters.</p>
-            <p>Support: <a className="text-indigo-700 hover:text-indigo-900" href="mailto:support@hirelix.online">support@hirelix.online</a></p>
-            <p>Subscriptions renew automatically until canceled.</p>
-            <p>Cancel anytime from billing settings or by emailing support@hirelix.online.</p>
+            <p>{t("Your private AI assistant for the candidates and roles you know.")}</p>
+            <p>{t("Built for technical headhunters.")}</p>
+            <p>{t("Support:")} <a className="text-indigo-700 hover:text-indigo-900" href="mailto:support@hirelix.online">{t("support@hirelix.online")}</a></p>
+            <p>{t("Subscriptions renew automatically until canceled.")}</p>
+            <p>{t("Cancel anytime from billing settings or by emailing support@hirelix.online.")}</p>
           </div>
 
           <div className="grid gap-2 sm:justify-self-end sm:text-right">
             {legalLinks.map((link) => (
               <Link key={link.href} href={link.href} className="transition-colors hover:text-slate-950">
-                {link.label}
+                {t(link.label)}
               </Link>
             ))}
           </div>

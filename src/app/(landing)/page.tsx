@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import {
   startTransition,
   type FormEvent,
@@ -51,6 +53,7 @@ function getCookieValue(name: string) {
 }
 
 export default function Home() {
+  const t = useT();
   const router = useRouter();
   const { user } = useAuth();
   const experiments = getDefaultLandingExperimentState();
@@ -623,15 +626,15 @@ export default function Home() {
       {/* Nav */}
       <nav className="fixed top-0 z-50 w-full border-b border-slate-200/80 bg-white/92 backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-[96rem] items-center justify-between px-5 sm:px-6">
-          <Link href="/" onClick={handleHomeReload} className="flex items-center gap-2.5 transition-opacity hover:opacity-80" aria-label="Hirelix home">
-            <Image src="/logo.svg" alt="Hirelix" width={28} height={28} />
-            <span className="text-xl font-bold tracking-tight text-slate-950">Hirelix</span>
+          <Link href="/" onClick={handleHomeReload} className="flex items-center gap-2.5 transition-opacity hover:opacity-80" aria-label={t("Hirelix home")}>
+            <Image src="/logo.svg" alt={t("Hirelix")} width={28} height={28} />
+            <span className="text-xl font-bold tracking-tight text-slate-950">{t("Hirelix")}</span>
           </Link>
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
-            <Link href="/" onClick={handleHomeReload} className="transition-colors hover:text-slate-950">Home</Link>
-            <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
-            <a href="#features" className="transition-colors hover:text-slate-950">Features</a>
-            <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>
+            <Link href="/" onClick={handleHomeReload} className="transition-colors hover:text-slate-950">{t("Home")}</Link>
+            <a href="#how-it-works" className="transition-colors hover:text-slate-950">{t("How it works")}</a>
+            <a href="#features" className="transition-colors hover:text-slate-950">{t("Features")}</a>
+            <a href="#pricing" className="transition-colors hover:text-slate-950">{t("Pricing")}</a>
           </div>
           <div className="flex items-center gap-2.5">
             <button
@@ -639,7 +642,7 @@ export default function Home() {
               onClick={handleGenericSignIn}
               className="inline-flex rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 transition-colors hover:text-slate-950 sm:px-4"
             >
-              Sign in
+              {t("Sign in")}
             </button>
             <button
               type="button"
@@ -647,8 +650,8 @@ export default function Home() {
               data-testid="nav-primary-cta"
               className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
             >
-              <span className="sm:hidden">Open agent</span>
-              <span className="hidden sm:inline">Open your agent</span>
+              <span className="sm:hidden">{t("Open agent")}</span>
+              <span className="hidden sm:inline">{t("Open your agent")}</span>
             </button>
           </div>
         </div>
@@ -664,19 +667,19 @@ export default function Home() {
           <div className="mx-auto max-w-4xl text-center">
             <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
               <Sparkles className="h-3.5 w-3.5" />
-              Built for professional headhunters
+              {t("Built for professional headhunters")}
             </div>
 
             <h1 className="mt-4 text-4xl font-extrabold leading-[1.06] text-slate-950 sm:text-[3rem] lg:text-[3.5rem]">
-              Your private agent for{" "}
-              <span className="text-indigo-700">every candidate conversation.</span>
+              {t("Your private agent for")}{" "}
+              <span className="block text-indigo-700">{t("every candidate conversation.")}</span>
             </h1>
 
             <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold text-slate-800">
-              The people you know become lasting recruiting intelligence.
+              {t("The people you know become lasting recruiting intelligence.")}
             </p>
             <p className="mx-auto mt-2 max-w-2xl text-base leading-7 text-slate-600">
-              Keep your own candidate memory, ask sharper questions against each JD, and draft client recommendations from evidence you can explain.
+              {t("Build your own candidate pool, ask sharper questions against each JD, and draft client recommendations from evidence you can explain.")}
             </p>
 
             <div className="mt-6 flex flex-col justify-center gap-2.5 sm:flex-row">
@@ -686,7 +689,7 @@ export default function Home() {
                 data-testid="hero-sample-link"
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
               >
-                Open your private agent
+                {t("Open your private agent")}
                 <ArrowRight className="h-4 w-4" />
               </button>
               <button
@@ -694,7 +697,7 @@ export default function Home() {
                 onClick={focusHeroJd}
                 className="inline-flex min-h-12 items-center justify-center rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-950 transition-colors hover:bg-slate-50"
               >
-                Start with a client JD
+                {t("Start with a client JD")}
               </button>
             </div>
           </div>
@@ -702,19 +705,19 @@ export default function Home() {
           <div className="mt-8 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-[0_20px_55px_rgba(15,23,42,0.08)] lg:grid-cols-[1.45fr_0.85fr] lg:p-6">
             <div className="rounded-xl border border-slate-200 bg-white p-5 text-left sm:p-7">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950"><Sparkles className="h-4 w-4 text-indigo-700" /> Ask your agent</div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">Private to your account</span>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950"><Sparkles className="h-4 w-4 text-indigo-700" /> {t("Ask your agent")}</div>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">{t("Private to your account")}</span>
               </div>
-              <div className="mt-6 ml-auto max-w-[85%] rounded-2xl bg-slate-900 px-4 py-3 text-sm leading-6 text-white">Who in my own candidate memory might fit this new client JD?</div>
+              <div className="mt-6 ml-auto max-w-[85%] rounded-2xl bg-slate-900 px-4 py-3 text-sm leading-6 text-white">{t("Who in my candidate pool might fit this new client JD?")}</div>
               <div className="mt-4 max-w-[92%] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700">
-                I can compare the role with people you saved, show which facts support each potential fit, and point out what still needs verification. I will keep your notes distinct from profile claims.
+                {t("I can compare the role with people you saved, show which facts support each potential fit, and point out what still needs verification. I will keep your notes distinct from profile claims.")}
               </div>
-              <div className="mt-7 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-500">Ask about a JD, a person, or your candidate memory…</div>
+              <div className="mt-7 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-500">{t("Ask about a JD, a person, or your candidate pool…")}</div>
             </div>
             <div className="grid gap-3 text-left">
-              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">01 · Memory</p><h3 className="mt-2 text-base font-semibold text-slate-950">Your people and observations</h3><p className="mt-1 text-sm leading-6 text-slate-600">Save the context that usually disappears between assignments.</p></div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">02 · Judgment</p><h3 className="mt-2 text-base font-semibold text-slate-950">One JD at a time</h3><p className="mt-1 text-sm leading-6 text-slate-600">Ask why someone may fit this role and what evidence is missing.</p></div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">03 · Deliverable</p><h3 className="mt-2 text-base font-semibold text-slate-950">A brief you can defend</h3><p className="mt-1 text-sm leading-6 text-slate-600">Review and edit the agent’s recommendation draft before sharing.</p></div>
+              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">{t("01 · Candidates")}</p><h3 className="mt-2 text-base font-semibold text-slate-950">{t("Your people and observations")}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{t("Save the context that usually disappears between assignments.")}</p></div>
+              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">{t("02 · Judgment")}</p><h3 className="mt-2 text-base font-semibold text-slate-950">{t("One JD at a time")}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{t("Ask why someone may fit this role and what evidence is missing.")}</p></div>
+              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">{t("03 · Deliverable")}</p><h3 className="mt-2 text-base font-semibold text-slate-950">{t("A brief you can defend")}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{t("Review and edit the agent’s recommendation draft before sharing.")}</p></div>
             </div>
           </div>
         </div>
@@ -723,21 +726,21 @@ export default function Home() {
       <section data-growth-section="开始试用" className="border-b border-slate-200 bg-white py-9 sm:py-11">
         <div className="mx-auto grid max-w-6xl gap-5 px-5 sm:px-6 lg:grid-cols-[minmax(14rem,0.55fr)_minmax(0,1.45fr)] lg:items-center">
           <div>
-            <p className="text-xs font-semibold uppercase text-indigo-700">Your client role</p>
-            <h2 className="mt-2 text-2xl font-bold text-slate-950">Paste one real client role.</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">A JD is one useful starting point. Your agent can also work from people you already know.</p>
+            <p className="text-xs font-semibold uppercase text-indigo-700">{t("Your client role")}</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-950">{t("Paste one real client role.")}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{t("A JD is one useful starting point. Your agent can also work from people you already know.")}</p>
             <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-1">
               <li className="flex items-center gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">1</span>
-                Paste one real JD
+                {t("Paste one real JD")}
               </li>
               <li className="flex items-center gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">2</span>
-                Sign in to save the role
+                {t("Sign in to save the role")}
               </li>
               <li className="flex items-center gap-2">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">3</span>
-                Continue with your agent
+                {t("Continue with your assistant")}
               </li>
             </ol>
           </div>
@@ -747,15 +750,15 @@ export default function Home() {
               <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
                   <FileText className="h-4 w-4 text-indigo-700" />
-                  Paste one client JD
+                  {t("Paste one client JD")}
                 </div>
-                {wordCount > 0 ? <span className="text-xs font-medium text-emerald-700">{wordCount} words</span> : null}
+                {wordCount > 0 ? <span className="text-xs font-medium text-emerald-700">{wordCount} {t("words")}</span> : null}
               </div>
               <textarea
                 ref={heroJdTextareaRef}
                 value={jdText}
                 onChange={(e) => handleJdInput(e.target.value)}
-                placeholder="Paste a real client job description here..."
+                placeholder={t("Paste a real client job description here...")}
                 rows={2}
                 className="min-h-24 w-full resize-none border-0 bg-white px-4 py-3 text-sm leading-6 text-slate-950 outline-none placeholder:text-slate-500 focus:bg-slate-50"
               />
@@ -765,10 +768,10 @@ export default function Home() {
                     {wordCount > 0
                       ? canSubmit
                         ? `${wordCount} words ready to analyze`
-                        : "Paste at least 50 characters to continue."
-                      : "Your JD stays attached after sign in."}
+                        : t("Paste at least 50 characters to continue.")
+                      : t("Your JD stays attached after sign in.")}
                   </span>
-                  <span className="block text-slate-500">1 free client role · No credit card</span>
+                  <span className="block text-slate-500">{t("1 free client role · No credit card")}</span>
                 </div>
                 <button
                   type="submit"
@@ -781,7 +784,7 @@ export default function Home() {
                       : "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)] hover:-translate-y-0.5 hover:bg-slate-800"
                   }`}
                 >
-                  {isSubmitting ? "Preparing your role..." : "Start with this JD"}
+                  {isSubmitting ? t("Preparing your role...") : t("Start with this JD")}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -796,10 +799,10 @@ export default function Home() {
             <div className="grid gap-4 rounded-lg border border-indigo-100 bg-indigo-50/70 p-4 shadow-[0_18px_50px_rgba(67,56,202,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
               <div>
                 <p className="text-sm font-semibold text-indigo-950">
-                  Want to become an early Hirelix user?
+                  {t("Want to become an early Hirelix user?")}
                 </p>
                 <p className="mt-1 text-sm leading-6 text-indigo-900/80">
-                  We are building a private recruiting agent for professional headhunters and inviting a small early-user group.
+                  {t("We are building a private AI assistant for professional headhunters and inviting a small early-user group.")}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <a
@@ -807,14 +810,14 @@ export default function Home() {
                     onClick={handleBookFeedbackClick}
                     className="inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:border-indigo-300 hover:text-indigo-900"
                   >
-                    Book 10 min feedback
+                    {t("Book 10 min feedback")}
                   </a>
                   <a
                     href="mailto:jzh_spring@163.com?subject=Re%3A%20Hirelix"
                     onClick={handleReplyEmailClick}
                     className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:text-indigo-900 hover:underline"
                   >
-                    Reply by email
+                    {t("Reply by email")}
                   </a>
                 </div>
               </div>
@@ -829,9 +832,9 @@ export default function Home() {
                       setPreviewSubmitted(false);
                       setPreviewRequestStatus("idle");
                     }}
-                    placeholder="Your work email"
+                    placeholder={t("Your work email")}
                     className="min-h-11 rounded-lg border border-indigo-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100"
-                    aria-label="Work email for preview reply"
+                    aria-label={t("Work email for preview reply")}
                   />
                   <input
                     type="text"
@@ -841,20 +844,20 @@ export default function Home() {
                       setPreviewSubmitted(false);
                       setPreviewRequestStatus("idle");
                     }}
-                    placeholder="Role title or JD snippet"
+                    placeholder={t("Role title or JD snippet")}
                     className="min-h-11 rounded-lg border border-indigo-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100"
-                    aria-label="Role title or job description snippet"
+                    aria-label={t("Role title or job description snippet")}
                   />
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs leading-5 text-indigo-900/70" aria-live="polite">
                     {previewRequestStatus === "submitting"
-                      ? "Sending request..."
+                      ? t("Sending request...")
                       : previewSubmitted
-                        ? "Request noted. I will reply with the next step."
+                        ? t("Request noted. I will reply with the next step.")
                         : previewRequestStatus === "error"
-                          ? "Could not record this here. Please use Reply by email instead."
-                          : "A short title is enough; a JD snippet is better."}
+                          ? t("Could not record this here. Please use Reply by email instead.")
+                          : t("A short title is enough; a JD snippet is better.")}
                   </p>
                   <button
                     type="submit"
@@ -866,7 +869,7 @@ export default function Home() {
                         : "cursor-not-allowed bg-indigo-100 text-indigo-400"
                     }`}
                   >
-                    {previewRequestStatus === "submitting" ? "Sending..." : "Join the early-user group"}
+                    {previewRequestStatus === "submitting" ? t("Sending...") : t("Join the early-user group")}
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -882,13 +885,13 @@ export default function Home() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
-                  Illustrative candidate review
+                  {t("Illustrative candidate review")}
                 </p>
                 <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
-                  What a technical headhunter reviews after a client JD.
+                  {t("What a technical headhunter reviews after a client JD.")}
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  These fictional, anonymized profiles show the review format only. Run your own role when you want Hirelix to build a real ranked candidate pool.
+                  {t("These fictional, anonymized profiles show the review format only. Run your own role when you want Hirelix to build a real ranked candidate pool.")}
                 </p>
               </div>
               <button
@@ -896,16 +899,16 @@ export default function Home() {
                 onClick={focusHeroJd}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
               >
-                Run one real role free
+                {t("Run one real role free")}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
             <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
               <div className="grid grid-cols-[minmax(0,1.1fr)_8rem_minmax(0,1.4fr)_10rem] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 max-lg:hidden">
-                <span>Candidate</span>
-                <span>Decision</span>
-                <span>Why / risk</span>
-                <span>Paid action</span>
+                <span>{t("Candidate")}</span>
+                <span>{t("Decision")}</span>
+                <span>{t("Why / risk")}</span>
+                <span>{t("Paid action")}</span>
               </div>
               {candidateRows.map((candidate, index) => (
                 <div
@@ -929,16 +932,16 @@ export default function Home() {
                         ? "bg-indigo-50 text-indigo-700"
                         : "bg-amber-50 text-amber-700"
                   }`}>
-                    {index === 0 ? "Reach out first" : index === 1 ? "Worth reviewing" : "Risk to verify"}
+                    {index === 0 ? t("Reach out first") : index === 1 ? t("Worth reviewing") : t("Risk to verify")}
                   </span>
                   <div className="space-y-1 text-xs leading-5 text-slate-600">
                     <p className="font-medium text-slate-800">{candidate.matchReasons[0]}</p>
                     <p className="text-amber-700">{candidate.riskReasons[0]}</p>
                   </div>
                   <div className="flex flex-wrap gap-1.5 text-[11px] text-slate-600">
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">Contact unlock</span>
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">Export</span>
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">Client brief</span>
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{t("Contact unlock")}</span>
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{t("Export")}</span>
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{t("Client brief")}</span>
                   </div>
                 </div>
               ))}

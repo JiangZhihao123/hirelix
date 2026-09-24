@@ -1,10 +1,15 @@
+"use client";
+
+
+import { useT } from "@/components/LanguageProvider";
 import { BookUser, FileText, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 export function ObjectionsSection() {
+  const t = useT();
   const items = [
     {
       icon: BookUser,
-      title: "Whose candidate memory is this?",
+      title: "Who owns this candidate pool?",
       desc: "Yours. You decide whom to save and what private observations the agent can use across roles.",
     },
     {
@@ -34,13 +39,13 @@ export function ObjectionsSection() {
       <div className="mx-auto max-w-5xl px-6">
         <div className="text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-700">
-            Questions
+            {t("Questions")}
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Questions about your private agent
+            {t("Questions about your private agent")}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-            What the agent remembers, how it handles evidence, and what stays in your hands.
+            {t("What the agent remembers, how it handles evidence, and what stays in your hands.")}
           </p>
         </div>
 
@@ -55,12 +60,12 @@ export function ObjectionsSection() {
               </div>
               <div>
                 <h3 className="text-base font-semibold text-slate-950">
-                  <span className="mr-1.5 text-indigo-700">Q.</span>
-                  {item.title}
+                  <span className="mr-1.5 text-indigo-700">{t("Q.")}</span>
+                  {t(item.title)}
                 </h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                  <span className="mr-1.5 font-semibold text-emerald-600">A.</span>
-                  {item.desc}
+                  <span className="mr-1.5 font-semibold text-emerald-600">{t("A.")}</span>
+                  {t(item.desc)}
                 </p>
               </div>
             </div>

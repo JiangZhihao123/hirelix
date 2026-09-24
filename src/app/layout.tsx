@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import { LanguageProvider } from "@/components/LanguageProvider";
 import { GrowthTracker } from "@/components/GrowthTracker";
 
 const inter = localFont({
@@ -81,8 +82,10 @@ export default function RootLayout({
           `}
         </Script>
         <AuthProvider>
-          <GrowthTracker />
-          {children}
+          <LanguageProvider>
+            <GrowthTracker />
+            {children}
+          </LanguageProvider>
         </AuthProvider>
       </body>
     </html>

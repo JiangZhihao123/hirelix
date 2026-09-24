@@ -1,3 +1,6 @@
+"use client";
+
+import { useT } from "@/components/LanguageProvider";
 import type { ReactNode } from "react";
 
 export interface HeadhunterProfile {
@@ -15,7 +18,7 @@ export const EMPTY_PROFILE: HeadhunterProfile = {
 };
 
 export type MessageState = { type: "success" | "error"; text: string } | null;
-export type SettingsSectionId = "account" | "billing" | "profile";
+export type SettingsSectionId = "account" | "billing" | "profile" | "language";
 
 export function SettingsSection({
   id,
@@ -68,6 +71,7 @@ export function SettingsFieldGroup({
 }
 
 export function MessageBanner({ message }: { message: MessageState }) {
+  const t = useT();
   if (!message) return null;
   return (
     <div
@@ -77,7 +81,7 @@ export function MessageBanner({ message }: { message: MessageState }) {
           : "border-red-200 bg-red-50 text-red-700"
       }`}
     >
-      {message.text}
+      {t(message.text)}
     </div>
   );
 }

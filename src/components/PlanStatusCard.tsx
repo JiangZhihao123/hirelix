@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { BillingSummary } from "@/lib/billing";
 import { getPlanStatusCopy } from "@/lib/billing";
+import { useLanguage } from "@/components/LanguageProvider";
 import {
   ANALYTICS_EVENTS,
   getAnalyticsContextFromBrowser,
@@ -25,7 +26,8 @@ export function PlanStatusCard({
   href = "/app/settings#billing",
 }: PlanStatusCardProps) {
   const pathname = usePathname();
-  const copy = getPlanStatusCopy(billing);
+  const { locale } = useLanguage();
+  const copy = getPlanStatusCopy(billing, locale);
 
   useEffect(() => {
     if (loading || typeof window === "undefined") return;

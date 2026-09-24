@@ -1,4 +1,6 @@
 "use client";
+
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
@@ -10,6 +12,8 @@ import {
 } from "@/components/workspace/client";
 import type { Deliverable } from "@/lib/workspace/types";
 export default function Submissions() {
+  const t = useT();
+  const { locale } = useLanguage();
   const query = useQuery<{
     deliverables: Array<
       Deliverable & { role_title: string; client_name: string }
@@ -29,9 +33,9 @@ export default function Submissions() {
     <div className="ws-page">
       <header className="ws-page-header">
         <div>
-          <h1>Candidate submissions</h1>
+          <h1>{t("Candidate submissions")}</h1>
           <p>
-            Prepare candidate submissions and keep a record of what you share.
+            {t("Prepare candidate submissions and keep a record of what you share.")}
           </p>
         </div>
         <Link
@@ -39,14 +43,14 @@ export default function Submissions() {
           href="/app/submissions/new"
         >
           <Plus size={14} />
-          Prepare submission
+          {t("Prepare submission")}
         </Link>
       </header>
       <div className="ws-toolbar">
         <input
           className="ws-search"
-          aria-label="Find a submission"
-          placeholder="Search by candidate, client or role"
+          aria-label={t("Find a submission")}
+          placeholder={t("Search by candidate, client or role")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -62,7 +66,7 @@ export default function Submissions() {
               aria-pressed={filter === key}
               onClick={() => setFilter(key)}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
@@ -85,10 +89,10 @@ export default function Submissions() {
                 </p>
               </div>
               <span className="ws-status">
-                {d.status === "draft" ? "Draft" : "Submitted"}
+                {d.status === "draft" ? t("Draft") : t("Submitted")}
               </span>
               <span className="ws-role-count text-xs ws-muted">
-                {d.person_ids.length} candidates
+                {locale === "zh" ? `${d.person_ids.length} 位候选人` : `${d.person_ids.length} candidates`}
               </span>
               <span className="ws-role-count text-xs ws-muted">
                 {date(d.submitted_at || d.updated_at)}
@@ -100,17 +104,15 @@ export default function Submissions() {
         <div className="ws-empty">
           <h2>
             {search || filter !== "all"
-              ? "No submissions match this view."
-              : "A clear introduction for every candidate."}
+              ? t("No submissions match this view.")
+              : t("A clear introduction for every candidate.")}
           </h2>
           <p>
-            Choose a client role and one or more candidates. Prepare a draft
-            from the information you decide to share, then review and edit it
-            before sending it yourself.
+            {t("Choose a client role and one or more candidates. Prepare a draft from the information you decide to share, then review and edit it before sending it yourself.")}
           </p>
           <div className="ws-actions">
             <Link className="ws-button" href="/app/submissions/new">
-              Prepare candidate submission
+              {t("Prepare candidate submission")}
             </Link>
           </div>
         </div>

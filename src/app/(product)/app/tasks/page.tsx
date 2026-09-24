@@ -1,4 +1,6 @@
 "use client";
+
+import { useT } from "@/components/LanguageProvider";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, RotateCcw, ArrowUpRight } from "lucide-react";
@@ -21,6 +23,7 @@ const names: Record<Job["kind"], string> = {
   brief_proposal: "Review role requirements",
 };
 export default function Tasks() {
+  const t = useT();
   const query = useQuery<{ jobs: Job[] }>("/jobs");
   const [error, setError] = useState(""),
     [busy, setBusy] = useState<string | null>(null);
@@ -47,14 +50,14 @@ export default function Tasks() {
     <div className="ws-page">
       <header className="ws-page-header">
         <div>
-          <h1>Tasks</h1>
+          <h1>{t("Tasks")}</h1>
           <p>
-            Your work continues here, including tasks started in the assistant.
+            {t("Your work continues here, including tasks started in the assistant.")}
           </p>
         </div>
         <button className="ws-button" onClick={query.refresh}>
           <RotateCcw size={14} />
-          Refresh
+          {t("Refresh")}
         </button>
       </header>
       <ErrorNotice error={error || query.error} retry={query.refresh} />
@@ -85,21 +88,20 @@ export default function Tasks() {
                 <article className="ws-record" key={job.id}>
                   <div className="ws-inspector-heading">
                     <div>
-                      <h4>{names[job.kind]}</h4>
+                      <h4>{t(names[job.kind])}</h4>
                       <small>{date(job.created_at, true)}</small>
                     </div>
-                    <span className="ws-tag">{job.status}</span>
+                    <span className="ws-tag">{t(job.status)}</span>
                   </div>
                   <p className="ws-inline-meta">
                     {["queued", "running"].includes(job.status) && (
                       <Loader2 size={14} className="animate-spin" />
                     )}
-                    {job.error || job.progress}
+                    {t(job.error || job.progress)}
                   </p>
                   {result.superseded === true && (
                     <p className="ws-warning">
-                      The source changed while this task was running. Review the
-                      latest information and prepare it again.
+                      {t("The source changed while this task was running. Review the latest information and prepare it again.")}
                     </p>
                   )}
                   <div className="ws-actions mt-3">
@@ -110,12 +112,12 @@ export default function Tasks() {
                         onClick={() => retry(job.id)}
                       >
                         <RotateCcw size={13} />
-                        Retry task
+                        {t("Retry task")}
                       </button>
                     )}
                     {href && (
                       <Link className="ws-link" href={href}>
-                        Open work <ArrowUpRight size={13} />
+                        {t("Open work")} <ArrowUpRight size={13} />
                       </Link>
                     )}
                   </div>
@@ -124,10 +126,9 @@ export default function Tasks() {
             })
           ) : (
             <div className="ws-empty">
-              <h2>No tasks yet.</h2>
+              <h2>{t("No tasks yet.")}</h2>
               <p>
-                Imports, candidate searches and drafts will appear here. You can
-                leave a page and return to its result later.
+                {t("Imports, candidate searches and drafts will appear here. You can leave a page and return to its result later.")}
               </p>
             </div>
           )}

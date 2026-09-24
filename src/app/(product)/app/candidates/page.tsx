@@ -1,4 +1,6 @@
 "use client";
+
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -62,6 +64,8 @@ type Details = {
   >;
 };
 export default function Candidates() {
+  const t = useT();
+  const { locale } = useLanguage();
   const router = useRouter(),
     params = useSearchParams();
   const selected = params.get("person"),
@@ -142,22 +146,22 @@ export default function Candidates() {
     <div className="ws-page">
       <header className="ws-page-header">
         <div>
-          <h1>Candidates</h1>
-          <p>People, conversations and context, kept together.</p>
+          <h1>{t("Candidates")}</h1>
+          <p>{t("People, conversations and context, kept together.")}</p>
         </div>
         <div className="ws-actions">
           <Link
             className="ws-button"
-            href="/app?prompt=Please%20help%20me%20import%20my%20candidates."
+            href={`/app?prompt=${encodeURIComponent(locale === "zh" ? "请帮我导入候选人。" : "Please help me import my candidates.")}`}
           >
-            Import
+            {t("Import")}
           </Link>
           <button
             className="ws-button ws-button-primary"
             onClick={() => setAdding(true)}
           >
             <Plus size={15} />
-            Add candidate
+            {t("Add candidate")}
           </button>
         </div>
       </header>
@@ -165,31 +169,31 @@ export default function Candidates() {
         <div className="ws-search">
           <Search size={16} className="ws-muted" />
           <input
-            aria-label="Search candidates"
+            aria-label={t("Search candidates")}
             placeholder={
               mode === "fields"
-                ? "Search people, companies or your notes"
-                : "Describe the experience or past conversation you remember"
+                ? t("Search people, companies or your notes")
+                : t("Describe the experience or past conversation you remember")
             }
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
           <button className="ws-link" disabled={busy}>
-            {busy ? "Starting…" : "Search"}
+            {busy ? t("Starting…") : t("Search")}
           </button>
         </div>
         <div className="ws-filters">
           <select
-            aria-label="Search method"
+            aria-label={t("Search method")}
             value={mode}
             onChange={(event) => setMode(event.target.value)}
           >
-            <option value="fields">Names & fields</option>
-            <option value="semantic">By meaning</option>
+            <option value="fields">{t("Names & fields")}</option>
+            <option value="semantic">{t("By meaning")}</option>
           </select>
           <input
-            aria-label="Filter by location"
-            placeholder="Location"
+            aria-label={t("Filter by location")}
+            placeholder={t("Location")}
             value={location}
             onChange={(event) => {
               setLocation(event.target.value);
@@ -197,8 +201,8 @@ export default function Candidates() {
             }}
           />
           <input
-            aria-label="Filter by expertise"
-            placeholder="Expertise"
+            aria-label={t("Filter by expertise")}
+            placeholder={t("Expertise")}
             value={expertise}
             onChange={(event) => {
               setExpertise(event.target.value);
@@ -207,7 +211,9 @@ export default function Candidates() {
           />
           <span className="ws-count">
             {people.data
-              ? `${people.data.total} ${people.data.total === 1 ? "candidate" : "candidates"}`
+              ? locale === "zh"
+                ? `${people.data.total} 位候选人`
+                : `${people.data.total} ${people.data.total === 1 ? "candidate" : "candidates"}`
               : ""}
           </span>
         </div>
@@ -229,56 +235,55 @@ export default function Candidates() {
       {task &&
         (!job.data || ["queued", "running"].includes(job.data.job.status)) && (
           <Loading>
-            {job.data?.job.progress || "Loading search…"} ·{" "}
+            {job.data?.job.progress ? t(job.data.job.progress) : t("Loading search…")} ·{" "}
             <Link className="ws-link" href="/app/tasks">
-              View tasks
+              {t("View tasks")}
             </Link>
           </Loading>
         )}
       {semantic && (
         <div className="ws-notice">
-          {semantic.matches.length} suggestions from {semantic.coverage.indexed}{" "}
-          of {semantic.coverage.total} indexed candidates.
+          {semantic.matches.length} {t("suggestions from")} {semantic.coverage.indexed}{" "}
+          {t("of")} {semantic.coverage.total} {t("indexed candidates.")}
           {semantic.coverage.pending > 0
             ? ` ${semantic.coverage.pending} candidates have updates being indexed.`
             : ""}{" "}
           {semantic.coverage.failed > 0
             ? `${semantic.coverage.failed} indexing tasks need attention.`
             : ""}{" "}
-          Open a source to check why a person was found. Similarity does not
-          establish fit for a role.
+          {t("Open a source to check why a person was found. Similarity does not establish fit for a role.")}
         </div>
       )}
       <div className="ws-split" data-selected={!!selected}>
-        <section className="ws-list" aria-label="Candidate list">
+        <section className="ws-list" aria-label={t("Candidate list")}>
           <div className="ws-table-head">
-            <span>Name / role</span>
-            <span className="ws-list-location">Location</span>
-            <span>Last contact</span>
+            <span>{t("Name / role")}</span>
+            <span className="ws-list-location">{t("Location")}</span>
+            <span>{t("Last contact")}</span>
           </div>
           {people.loading && !semantic ? (
-            <Loading>Loading candidates…</Loading>
+            <Loading>{t("Loading candidates…")}</Loading>
           ) : shown.length === 0 ? (
             <div className="ws-empty">
               <h2>
                 {filter
-                  ? "No matching candidates"
-                  : "Start with the people you know."}
+                  ? t("No matching candidates")
+                  : t("Start with the people you know.")}
               </h2>
               <p>
                 {filter
-                  ? "Try another name, or search by meaning for experience and past conversations."
-                  : "Add a person or import your existing records. Their notes and relationships stay with them across roles."}
+                  ? t("Try another name, or search by meaning for experience and past conversations.")
+                  : t("Add a person or import your existing records. Their notes and relationships stay with them across roles.")}
               </p>
               <div className="ws-actions">
                 <button className="ws-button" onClick={() => setAdding(true)}>
-                  Add a candidate
+                  {t("Add a candidate")}
                 </button>
                 <Link
                   className="ws-link"
                   href="/app?prompt=Please%20help%20me%20import%20my%20candidates."
                 >
-                  Import existing candidates <ArrowUpRight size={14} />
+                  {t("Import existing candidates")} <ArrowUpRight size={14} />
                 </Link>
               </div>
             </div>
@@ -301,7 +306,7 @@ export default function Candidates() {
                       <div>
                         <strong>{person.name}</strong>
                         <small>
-                          {person.headline || "No current role recorded"}
+                          {person.headline || t("No current role recorded")}
                         </small>
                       </div>
                     </span>
@@ -311,7 +316,7 @@ export default function Candidates() {
                     <span className="ws-muted">
                       {person.last_contact
                         ? date(person.last_contact)
-                        : "Not recorded"}
+                        : t("Not recorded")}
                     </span>
                   </button>
                   {match && (
@@ -323,7 +328,7 @@ export default function Candidates() {
                           select(person.id, match.record_id || undefined)
                         }
                       >
-                        Open source <ArrowUpRight size={13} />
+                        {t("Open source")} <ArrowUpRight size={13} />
                       </button>
                     </div>
                   )}
@@ -335,18 +340,18 @@ export default function Candidates() {
             <div className="ws-pagination">
               <button
                 className="ws-icon"
-                aria-label="Previous page"
+                aria-label={t("Previous page")}
                 disabled={page <= 1}
                 onClick={() => setPage((value) => value - 1)}
               >
                 <ChevronLeft size={16} />
               </button>
               <span>
-                Page {page} of {Math.ceil(people.data.total / 50)}
+                {t("Page")} {page} {t("of")} {Math.ceil(people.data.total / 50)}
               </span>
               <button
                 className="ws-icon"
-                aria-label="Next page"
+                aria-label={t("Next page")}
                 disabled={page * 50 >= people.data.total}
                 onClick={() => setPage((value) => value + 1)}
               >
@@ -355,7 +360,7 @@ export default function Candidates() {
             </div>
           )}
         </section>
-        <aside className="ws-inspector" aria-label="Candidate details">
+        <aside className="ws-inspector" aria-label={t("Candidate details")}>
           {selected ? (
             <CandidateDetails
               key={selected}
@@ -366,10 +371,9 @@ export default function Candidates() {
             />
           ) : (
             <div className="ws-empty">
-              <h2>A complete picture, over time.</h2>
+              <h2>{t("A complete picture, over time.")}</h2>
               <p>
-                Select a candidate to see their profile, original notes, and the
-                roles you have discussed with them.
+                {t("Select a candidate to see their profile, original notes, and the roles you have discussed with them.")}
               </p>
             </div>
           )}
@@ -399,6 +403,7 @@ function CandidateDetails({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const t = useT();
   const details = useQuery<Details>(`/people/${id}`),
     allRoles = useQuery<{ roles: Role[] }>("/roles");
   const [tab, setTab] = useState(highlight ? "records" : "overview"),
@@ -465,7 +470,7 @@ function CandidateDetails({
       setBusy(false);
     }
   }
-  if (details.loading) return <Loading>Opening candidate…</Loading>;
+  if (details.loading) return <Loading>{t("Opening candidate…")}</Loading>;
   if (details.error || !details.data)
     return (
       <ErrorNotice
@@ -484,20 +489,20 @@ function CandidateDetails({
     <>
       <button className="ws-link mb-4 ws-mobile-only" onClick={onClose}>
         <ArrowLeft size={14} />
-        Back to candidates
+        {t("Back to candidates")}
       </button>
       <div className="ws-inspector-heading">
         <div>
           <h2>{person.name}</h2>
-          <p>{person.headline || "No current role recorded"}</p>
-          <p>{person.location || "Location not recorded"}</p>
+          <p>{person.headline || t("No current role recorded")}</p>
+          <p>{person.location || t("Location not recorded")}</p>
         </div>
         <button className="ws-link" onClick={() => setEdit(true)}>
           <Pencil size={13} />
-          Edit
+          {t("Edit")}
         </button>
       </div>
-      <div className="ws-tabs" role="tablist" aria-label="Candidate sections">
+      <div className="ws-tabs" role="tablist" aria-label={t("Candidate sections")}>
         {[
           ["overview", "Overview"],
           ["records", "Conversations & sources"],
@@ -509,7 +514,7 @@ function CandidateDetails({
             aria-selected={tab === value}
             onClick={() => setTab(value)}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -518,39 +523,39 @@ function CandidateDetails({
         <>
           {person.profile?.summary && (
             <section className="ws-section">
-              <h3>Profile</h3>
+              <h3>{t("Profile")}</h3>
               <p>{person.profile.summary}</p>
             </section>
           )}
           <section className="ws-section">
-            <h3>Latest conversation</h3>
+            <h3>{t("Latest conversation")}</h3>
             {conversation ? (
               <>
                 <small>
                   {date(conversation.occurred_at)} ·{" "}
-                  {conversation.kind === "call" ? "Call note" : "Email record"}
+                  {conversation.kind === "call" ? t("Call note") : t("Email record")}
                 </small>
                 <p className="mt-2">{conversation.content}</p>
                 <button
                   className="ws-link mt-3"
                   onClick={() => setTab("records")}
                 >
-                  View original record
+                  {t("View original record")}
                 </button>
               </>
             ) : (
-              <p className="ws-muted">No conversation recorded yet.</p>
+              <p className="ws-muted">{t("No conversation recorded yet.")}</p>
             )}
           </section>
           {person.note && (
             <section className="ws-section">
-              <h3>Your private note</h3>
+              <h3>{t("Your private note")}</h3>
               <p>{person.note}</p>
             </section>
           )}
           {(person.skills || []).length > 0 && (
             <section className="ws-section">
-              <h3>Expertise</h3>
+              <h3>{t("Expertise")}</h3>
               <div className="ws-tags">
                 {person.skills.map((skill, index) => (
                   <span className="ws-tag" key={`${skill}-${index}`}>
@@ -562,7 +567,7 @@ function CandidateDetails({
           )}
           {(person.profile?.experience || []).length > 0 && (
             <section className="ws-section">
-              <h3>Experience</h3>
+              <h3>{t("Experience")}</h3>
               {person.profile.experience.map((item, index) => (
                 <div className="ws-record" key={index}>
                   <h4>
@@ -575,7 +580,7 @@ function CandidateDetails({
             </section>
           )}
           <section className="ws-section">
-            <h3>Sources</h3>
+            <h3>{t("Sources")}</h3>
             {sources.length ? (
               sources.map((source) => (
                 <button
@@ -584,11 +589,11 @@ function CandidateDetails({
                   onClick={() => setTab("records")}
                 >
                   <strong>{source.title}</strong>
-                  <small>Added {date(source.created_at)}</small>
+                  <small>{t("Added")} {date(source.created_at)}</small>
                 </button>
               ))
             ) : (
-              <p className="ws-muted">No CV or profile source added.</p>
+              <p className="ws-muted">{t("No CV or profile source added.")}</p>
             )}
             {person.profile_url && (
               <a
@@ -597,13 +602,13 @@ function CandidateDetails({
                 target="_blank"
                 rel="noreferrer"
               >
-                Open profile <ArrowUpRight size={13} />
+                {t("Open profile")} <ArrowUpRight size={13} />
               </a>
             )}
           </section>
           {(person.email || person.phone) && (
             <section className="ws-section">
-              <h3>Contact</h3>
+              <h3>{t("Contact")}</h3>
               {person.email && (
                 <p>
                   <a className="ws-link" href={`mailto:${person.email}`}>
@@ -617,21 +622,21 @@ function CandidateDetails({
           <div className="ws-actions mt-5">
             <button className="ws-button" onClick={() => setRecord("new")}>
               <Plus size={14} />
-              Add record
+              {t("Add record")}
             </button>
             <button
               className="ws-link"
               onClick={() => setHistory({ kind: "person", id })}
             >
               <HistoryIcon size={14} />
-              History
+              {t("History")}
             </button>
           </div>
           <Link
             className="ws-button ws-button-primary mt-4 w-full"
             href={`/app?person=${id}`}
           >
-            Ask about {person.name.split(" ")[0]} <ArrowUpRight size={14} />
+            {t("Ask about")} {person.name.split(" ")[0]} <ArrowUpRight size={14} />
           </Link>
         </>
       )}
@@ -640,7 +645,7 @@ function CandidateDetails({
           <div className="ws-actions mt-5 mb-3">
             <button className="ws-button" onClick={() => setRecord("new")}>
               <Plus size={14} />
-              Add record
+              {t("Add record")}
             </button>
           </div>
           {records.length ? (
@@ -670,7 +675,7 @@ function CandidateDetails({
                   </button>
                 </div>
                 <small>
-                  Happened {date(item.occurred_at, true)} · Added{" "}
+                  {t("Happened")} {date(item.occurred_at, true)} {t("· Added")}{" "}
                   {date(item.created_at, true)}
                 </small>
                 <p>{item.content}</p>
@@ -681,7 +686,7 @@ function CandidateDetails({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Original source <ArrowUpRight size={13} />
+                    {t("Original source")} <ArrowUpRight size={13} />
                   </a>
                 )}
                 {item.file_id && (
@@ -689,7 +694,7 @@ function CandidateDetails({
                     className="ws-link mt-3"
                     href={`/api/workspace/files/${item.file_id}`}
                   >
-                    Download source file
+                    {t("Download source file")}
                   </a>
                 )}
               </article>
@@ -697,8 +702,7 @@ function CandidateDetails({
           ) : (
             <div className="ws-empty">
               <p>
-                Keep call notes, messages and source material here. Each record
-                keeps its original date.
+                {t("Keep call notes, messages and source material here. Each record keeps its original date.")}
               </p>
             </div>
           )}
@@ -709,7 +713,7 @@ function CandidateDetails({
           <div className="ws-actions mt-5">
             <button className="ws-button" onClick={() => setLinking(true)}>
               <Plus size={14} />
-              Link to a role
+              {t("Link to a role")}
             </button>
           </div>
           {roles.length ? (
@@ -722,10 +726,10 @@ function CandidateDetails({
                 <strong>{role.title}</strong>
                 <small>{role.client_name}</small>
                 <small>
-                  Sharing permission:{" "}
+                  {t("Sharing permission:")}{" "}
                   {role.permission === "unknown"
-                    ? "not confirmed"
-                    : role.permission}
+                    ? t("not confirmed")
+                    : t(role.permission)}
                 </small>
                 {role.interest && <small>{role.interest}</small>}
               </Link>
@@ -733,8 +737,7 @@ function CandidateDetails({
           ) : (
             <div className="ws-empty">
               <p>
-                This candidate is not linked to a role yet. Their profile stays
-                available between assignments.
+                {t("This candidate is not linked to a role yet. Their profile stays available between assignments.")}
               </p>
             </div>
           )}
@@ -742,10 +745,10 @@ function CandidateDetails({
       )}
       <div className="ws-actions mt-8 border-t border-border pt-4">
         <a className="ws-link" href={`/api/workspace/people/${id}/export`}>
-          Export profile & records
+          {t("Export profile & records")}
         </a>
         <button className="ws-link ml-auto" disabled={busy} onClick={remove}>
-          Delete candidate
+          {t("Delete candidate")}
         </button>
       </div>
       {edit && (
@@ -772,18 +775,18 @@ function CandidateDetails({
       {history && <History {...history} onClose={() => setHistory(null)} />}
       {linking && (
         <Dialog
-          title="Link candidate to a role"
+          title={t("Link candidate to a role")}
           onClose={() => setLinking(false)}
         >
           <form className="ws-form" onSubmit={link}>
             <ErrorNotice error={error} />
-            <Field label="Role">
+            <Field label={t("Role")}>
               <select
                 required
                 value={roleId}
                 onChange={(event) => setRoleId(event.target.value)}
               >
-                <option value="">Choose a role</option>
+                <option value="">{t("Choose a role")}</option>
                 {allRoles.data?.roles.map((role) => (
                   <option key={role.id} value={role.id}>
                     {role.title} · {role.client_name}
@@ -792,14 +795,14 @@ function CandidateDetails({
               </select>
             </Field>
             <p className="ws-muted text-xs">
-              Linking a person does not confirm interest or permission to share.
+              {t("Linking a person does not confirm interest or permission to share.")}
             </p>
             <div className="ws-form-footer">
               <button
                 className="ws-button ws-button-primary"
                 disabled={busy || !roleId}
               >
-                {busy ? "Saving…" : "Link candidate"}
+                {busy ? t("Saving…") : t("Link candidate")}
               </button>
             </div>
           </form>

@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useEffect, useState, useCallback, useMemo, useRef, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -63,6 +65,7 @@ type CandidateCount = {
 };
 
 export default function DashboardPage() {
+  const t = useT();
   const { user } = useAuth();
   const { billing } = useBilling();
   const router = useRouter();
@@ -381,17 +384,17 @@ export default function DashboardPage() {
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                Active searches
+                {t("Active searches")}
               </p>
               <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                These tasks are still running in the background.
+                {t("These tasks are still running in the background.")}
               </h2>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Open any task to see the brief, the current stage, and when to come back. You do not need to keep the page open.
+                {t("Open any task to see the brief, the current stage, and when to come back. You do not need to keep the page open.")}
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              Auto-refreshes every 5 seconds while this page is visible.
+              {t("Auto-refreshes every 5 seconds while this page is visible.")}
             </p>
           </div>
           <div className="grid gap-3 lg:grid-cols-3">
@@ -412,21 +415,21 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-sm font-semibold text-slate-950">{displayTitle}</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        Started {formatRelativeTime(search.created_at)}
+                        {t("Started")} {formatRelativeTime(search.created_at)}
                       </p>
                     </div>
                     <span className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                      {getSearchTaskStageLabel(stage)}
+                      {t(getSearchTaskStageLabel(stage))}
                     </span>
                   </div>
                   <div className="mt-4 space-y-2 text-sm text-slate-600">
-                    <p>{getSearchTaskEtaCopy(search.status, stage)}</p>
+                    <p>{t(getSearchTaskEtaCopy(search.status, stage))}</p>
                     <div className="flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                        {search.parse_completed_at ? "Brief ready" : "Brief pending"}
+                        {search.parse_completed_at ? t("Brief ready") : t("Brief pending")}
                       </span>
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                        Open task
+                        {t("Open task")}
                       </span>
                     </div>
                   </div>
@@ -448,12 +451,11 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                  First client role
+                  {t("First client role")}
                 </p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">Paste a client role</h2>
+                <h2 className="mt-2 text-xl font-semibold text-slate-950">{t("Paste a client role")}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  Start with the real JD. Hirelix turns it into a brief, screens technical profiles,
-                  and opens a shortlist workbench when candidates are ready.
+                  {t("Start with the real JD. Hirelix turns it into a brief, screens technical profiles, and opens a shortlist workbench when candidates are ready.")}
                 </p>
               </div>
             </div>
@@ -461,14 +463,14 @@ export default function DashboardPage() {
               value={emptyStateJd}
               onChange={(event) => setEmptyStateJd(event.target.value)}
               rows={8}
-              placeholder="Paste the full client job description here..."
+              placeholder={t("Paste the full client job description here...")}
               className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
             />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Editable brief</span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Fit evidence</span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">Outreach-ready shortlist</span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{t("Editable brief")}</span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{t("Fit evidence")}</span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{t("Outreach-ready shortlist")}</span>
               </div>
               <button
                 type="button"
@@ -477,7 +479,7 @@ export default function DashboardPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isNavigating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Build shortlist
+                {t("Build shortlist")}
               </button>
             </div>
           </div>
@@ -487,11 +489,11 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Sourcing cockpit
+                {t("Sourcing cockpit")}
               </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Active Shortlists</h2>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{t("Active Shortlists")}</h2>
               <p className="mt-1 text-sm text-muted">
-                Pick the roles that need review, outreach, or cleanup today.
+                {t("Pick the roles that need review, outreach, or cleanup today.")}
               </p>
             </div>
             <button
@@ -500,7 +502,7 @@ export default function DashboardPage() {
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
             >
               {isNavigating && pendingHref === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              New Search
+              {t("New Search")}
             </button>
           </div>
 
@@ -523,7 +525,7 @@ export default function DashboardPage() {
                 className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  {item.label}
+                  {t(item.label)}
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-slate-950">{item.value}</p>
               </button>
@@ -538,7 +540,7 @@ export default function DashboardPage() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Filter by role or JD..."
+                placeholder={t("Filter by role or JD...")}
                 className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-light focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
             </div>
@@ -575,10 +577,10 @@ export default function DashboardPage() {
           </div>
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="grid grid-cols-[minmax(0,1fr)_130px_110px_120px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 max-lg:hidden">
-              <span>Role</span>
-              <span>Next action</span>
-              <span>Evidence</span>
-              <span className="text-right">Updated</span>
+              <span>{t("Role")}</span>
+              <span>{t("Next action")}</span>
+              <span>{t("Evidence")}</span>
+              <span className="text-right">{t("Updated")}</span>
             </div>
           {listSearches.map((s) => {
             const stats = candidateCounts[s.id];
@@ -595,7 +597,7 @@ export default function DashboardPage() {
                   ? "Export client list"
                   : "Unlock contacts"
                 : bucket === "running"
-                  ? getSearchTaskStageLabel(getSearchTaskStage(s))
+                  ? t(getSearchTaskStageLabel(getSearchTaskStage(s)))
                   : bucket === "issues"
                     ? "Needs cleanup"
                     : "Review later";
@@ -649,16 +651,16 @@ export default function DashboardPage() {
                           <span className="text-blue-500">✉ {stats.contacted}</span>
                         )}
                         {stats.replied > 0 && (
-                          <span className="text-emerald-600">Reply {stats.replied}</span>
+                          <span className="text-emerald-600">{t("Reply")} {stats.replied}</span>
                         )}
                         {stats.submitted > 0 && (
-                          <span className="text-violet-600">Submit {stats.submitted}</span>
+                          <span className="text-violet-600">{t("Submit")} {stats.submitted}</span>
                         )}
                         {stats.interview > 0 && (
-                          <span className="text-indigo-600">Interview {stats.interview}</span>
+                          <span className="text-indigo-600">{t("Interview")} {stats.interview}</span>
                         )}
                         {stats.placed > 0 && (
-                          <span className="text-emerald-700">Placed {stats.placed}</span>
+                          <span className="text-emerald-700">{t("Placed")} {stats.placed}</span>
                         )}
                       </div>
                     )}
@@ -686,7 +688,7 @@ export default function DashboardPage() {
                     onClick={(e) => deleteSearch(e, s.id)}
                     disabled={deleting === s.id}
                     className="rounded-md p-1.5 cursor-pointer text-muted-light opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                    title="Delete sourcing task"
+                    title={t("Delete sourcing task")}
                   >
                     {deleting === s.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -702,7 +704,7 @@ export default function DashboardPage() {
           {listSearches.length === 0 && (
             <div className="flex items-center justify-center rounded-xl border border-dashed border-border py-10">
               <p className="text-sm text-muted">
-                No shortlists match this view.
+                {t("No shortlists match this view.")}
               </p>
             </div>
           )}

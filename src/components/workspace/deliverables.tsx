@@ -36,6 +36,8 @@ import type {
   Job,
 } from "@/lib/workspace/types";
 import type { SubmissionCv } from "@/lib/workspace/deliverables";
+import { useLanguage, useT } from "@/components/LanguageProvider";
+import type { Locale } from "@/lib/locale";
 
 type Sources = {
   role: Role;
@@ -51,6 +53,8 @@ export function PrepareDocument({
   kind: "submission" | "search_update";
   roleId?: string;
 }) {
+  const { locale } = useLanguage();
+  const t = useT();
   const params = useSearchParams(),
     router = useRouter();
   const [roleId, setRoleId] = useState(fixedRoleId || params.get("role") || ""),
@@ -62,6 +66,7 @@ export function PrepareDocument({
     [start, setStart] = useState(""),
     [end, setEnd] = useState(""),
     [instructions, setInstructions] = useState(""),
+    [language, setLanguage] = useState<Locale | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [task, setTask] = useState(params.get("task"));
@@ -119,6 +124,7 @@ export function PrepareDocument({
       period_end:
         kind === "search_update" && end ? new Date(end).toISOString() : null,
       instructions,
+      language: language ?? locale,
     };
     const serialized = JSON.stringify(payload);
     if (retryRequest.current?.payload !== serialized)
@@ -165,18 +171,18 @@ export function PrepareDocument({
           >
             <ArrowLeft size={14} />
             {kind === "search_update"
-              ? "Back to role"
-              : "Candidate submissions"}
+              ? t("Back to role")
+              : t("Candidate submissions")}
           </Link>
           <h1>
             {kind === "submission"
-              ? "Prepare a candidate submission"
-              : "Prepare a search update"}
+              ? t("Prepare a candidate submission")
+              : t("Prepare a search update")}
           </h1>
           <p>
             {kind === "submission"
-              ? "Choose the people and supporting material you want to share."
-              : "Describe this role’s actual progress over a defined period."}
+              ? t("Choose the people and supporting material you want to share.")
+              : t("Describe this role’s actual progress over a defined period.")}
           </p>
         </div>
       </header>
@@ -184,13 +190,12 @@ export function PrepareDocument({
       {pending ? (
         <div className="ws-document-working">
           <Loader2 size={22} className="animate-spin" />
-          <h2>{job.data?.job.progress || "Preparing your draft…"}</h2>
+          <h2>{job.data?.job.progress ? t(job.data.job.progress) : t("Preparing your draft…")}</h2>
           <p>
-            Your draft is saved in the background. You can leave and return to
-            this page.
+            {t("Your draft is saved in the background. You can leave and return to this page.")}
           </p>
           <Link className="ws-link" href="/app/tasks">
-            View tasks <ArrowUpRight size={13} />
+            {t("View tasks")} <ArrowUpRight size={13} />
           </Link>
         </div>
       ) : job.data?.job.status === "error" ? (
@@ -201,7 +206,7 @@ export function PrepareDocument({
       ) : (
         <form className="ws-document-prepare" onSubmit={prepare}>
           <div className="ws-document-options">
-            <Field label="Client role">
+            <Field label={t("Client role")}>
               <select
                 required
                 value={roleId}
@@ -213,7 +218,7 @@ export function PrepareDocument({
                   setSelectedFiles({});
                 }}
               >
-                <option value="">Choose a role</option>
+                <option value="">{t("Choose a role")}</option>
                 {roles.data?.roles.map((role) => (
                   <option key={role.id} value={role.id}>
                     {role.client_name} · {role.title}
@@ -223,9 +228,9 @@ export function PrepareDocument({
             </Field>
             {kind === "search_update" && (
               <section className="ws-section">
-                <h3>Reporting period</h3>
+                <h3>{t("Reporting period")}</h3>
                 <div className="ws-fields">
-                  <Field label="From">
+                  <Field label={t("From")}>
                     <input
                       type="datetime-local"
                       required
@@ -236,7 +241,7 @@ export function PrepareDocument({
                       }}
                     />
                   </Field>
-                  <Field label="Through">
+                  <Field label={t("Through")}>
                     <input
                       type="datetime-local"
                       required
@@ -252,7 +257,7 @@ export function PrepareDocument({
                 <p className="ws-muted mt-3">
                   {sources.data?.last_submitted
                     ? `Last delivered: ${date(sources.data.last_submitted.submitted_at)}. Its report ended ${date(sources.data.last_submitted.period_end)}.`
-                    : "No previous search update delivery recorded."}
+                    : t("No previous search update delivery recorded.")}
                 </p>
               </section>
             )}
@@ -264,17 +269,17 @@ export function PrepareDocument({
                   <section className="ws-section">
                     <h3>
                       {kind === "submission"
-                        ? "Candidates to recommend"
-                        : "Candidates to include as context"}
+                        ? t("Candidates to recommend")
+                        : t("Candidates to include as context")}
                     </h3>
                     {!sources.data.people.length ? (
                       <p>
-                        No candidates linked yet.{" "}
+                        {t("No candidates linked yet.")}{" "}
                         <Link
                           className="ws-link"
                           href={`/app/roles/${roleId}?tab=candidates`}
                         >
-                          Add from your pool
+                          {t("Add from your pool")}
                         </Link>
                       </p>
                     ) : (
@@ -311,10 +316,10 @@ export function PrepareDocument({
                             <small>{person.headline}</small>
                             <small>
                               {permission === "confirmed"
-                                ? "Sharing permission confirmed"
+                                ? t("Sharing permission confirmed")
                                 : permission === "declined"
-                                  ? "Sharing declined — review before any submission"
-                                  : "Sharing permission not confirmed"}
+                                  ? t("Sharing declined — review before any submission")
+                                  : t("Sharing permission not confirmed")}
                             </small>
                           </span>
                         </label>
@@ -323,11 +328,9 @@ export function PrepareDocument({
                   </section>
                   {kind === "submission" && people.length > 0 && (
                     <section className="ws-section">
-                      <h3>CV attachments by candidate</h3>
+                      <h3>{t("CV attachments by candidate")}</h3>
                       <p className="ws-muted">
-                        Choose the exact CV version for each person. No file is
-                        attached automatically. You can save a draft while a CV
-                        is missing.
+                        {t("Choose the exact CV version for each person. No file is attached automatically. You can save a draft while a CV is missing.")}
                       </p>
                       {chosen.map(({ person }) => {
                         const options = (sources.data?.files ?? []).filter(
@@ -348,7 +351,7 @@ export function PrepareDocument({
                                   }))
                                 }
                               />
-                              <span>No CV selected</span>
+                              <span>{t("No CV selected")}</span>
                             </label>
                             {options.map((file) => (
                               <div className="ws-cv-option" key={file.id}>
@@ -369,8 +372,7 @@ export function PrepareDocument({
                                   <span>
                                     <strong>{file.name}</strong>
                                     <small>
-                                      {(file.byte_size / 1024).toFixed(0)} KB ·
-                                      stored CV
+                                      {(file.byte_size / 1024).toFixed(0)} {t("KB · stored CV")}
                                     </small>
                                   </span>
                                 </label>
@@ -380,13 +382,13 @@ export function PrepareDocument({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                 >
-                                  Review file
+                                  {t("Review file")}
                                 </a>
                               </div>
                             ))}
                             {!options.length && (
                               <p className="ws-muted">
-                                No imported CV for this person yet.
+                                {t("No imported CV for this person yet.")}
                               </p>
                             )}
                           </div>
@@ -395,11 +397,9 @@ export function PrepareDocument({
                     </section>
                   )}
                   <section className="ws-section">
-                    <h3>Supporting notes</h3>
+                    <h3>{t("Supporting notes")}</h3>
                     <p className="ws-muted">
-                      Notes are private by default. Only the notes you select
-                      below are sent to the draft writer. Original files and
-                      contact details are excluded.
+                      {t("Notes are private by default. Only the notes you select below are sent to the draft writer. Original files and contact details are excluded.")}
                     </p>
                     {eligible.map((record) => (
                       <div className="ws-source-record" key={record.id}>
@@ -418,16 +418,16 @@ export function PrepareDocument({
                           <span>
                             <strong>{record.title}</strong>
                             <small>
-                              {record.kind} ·{" "}
+                              {t(record.kind)} ·{" "}
                               {record.occurred_at
                                 ? date(record.occurred_at)
-                                : "Date not recorded"}
+                                : t("Date not recorded")}
                             </small>
                           </span>
                         </label>
                         <details>
                           <summary>
-                            Read original note before including it
+                            {t("Read original note before including it")}
                           </summary>
                           <p>{record.content}</p>
                         </details>
@@ -436,17 +436,23 @@ export function PrepareDocument({
                     {!eligible.length && (
                       <p className="ws-muted mt-3">
                         {kind === "search_update"
-                          ? "No eligible dated records in this period. The update will say that no activity was recorded."
-                          : "Select candidates to see their supporting notes."}
+                          ? t("No eligible dated records in this period. The update will say that no activity was recorded.")
+                          : t("Select candidates to see their supporting notes.")}
                       </p>
                     )}
                   </section>
                 </>
               )
             )}
+            <Field label={t("Draft language")} hint={t("This draft can use a different language from your interface.")}>
+              <select value={language ?? locale} onChange={(event) => setLanguage(event.target.value as Locale)}>
+                <option value="en">{t("English")}</option>
+                <option value="zh">中文</option>
+              </select>
+            </Field>
             <Field
-              label="Direction for this draft"
-              hint="Optional: audience, emphasis, tone or desired length."
+              label={t("Direction for this draft")}
+              hint={t("Optional: audience, emphasis, tone or desired length.")}
             >
               <textarea
                 rows={3}
@@ -470,18 +476,17 @@ export function PrepareDocument({
                 ) : (
                   <FileText size={14} />
                 )}
-                Prepare draft
+                {t("Prepare draft")}
               </button>
               <span className="ws-muted text-xs">
-                Nothing is sent to the client.
+                {t("Nothing is sent to the client.")}
               </span>
             </div>
           </div>
           <aside className="ws-selection-preview">
-            <h2>What the draft can use</h2>
+            <h2>{t("What the draft can use")}</h2>
             <p>
-              The role’s JD and working requirements, plus the candidate
-              information shown here and your selected notes.
+              {t("The role’s JD and working requirements, plus the candidate information shown here and your selected notes.")}
             </p>
             {chosen.map(({ person }) => (
               <details key={person.id} open>
@@ -512,9 +517,13 @@ export function PrepareDocument({
               </details>
             ))}
             <div className="ws-selection-count">
-              {people.length} candidates · {records.length} selected notes
+              {locale === "zh"
+                ? `${people.length} 位候选人 · 已选 ${records.length} 条备注`
+                : `${people.length} candidates · ${records.length} selected notes`}
               {kind === "submission" &&
-                ` · ${people.filter((id) => selectedFiles[id]).length} CVs selected`}
+                (locale === "zh"
+                  ? ` · 已选 ${people.filter((id) => selectedFiles[id]).length} 份简历`
+                  : ` · ${people.filter((id) => selectedFiles[id]).length} CVs selected`)}
             </div>
           </aside>
         </form>
@@ -534,6 +543,8 @@ export function DocumentPage({ id }: { id: string }) {
   return <DocumentEditor key={id} initial={query.data.deliverable} />;
 }
 function DocumentEditor({ initial }: { initial: Deliverable }) {
+  const t = useT();
+  const { locale } = useLanguage();
   const [document, setDocument] = useState(initial),
     [title, setTitle] = useState(initial.title),
     [content, setContent] = useState(initial.content),
@@ -626,6 +637,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     records?: Array<{ id: string; title: string; person_id: string | null }>;
     files?: SubmissionCv[];
     captured_at?: string;
+    language?: Locale;
   };
   return (
     <div className="ws-page">
@@ -648,13 +660,13 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           >
             <ArrowLeft size={14} />
             {document.kind === "search_update"
-              ? "Back to role"
-              : "Candidate submissions"}
+              ? t("Back to role")
+              : t("Candidate submissions")}
           </Link>
           <h1>
             {document.kind === "search_update"
-              ? "Search update"
-              : "Candidate submission"}
+              ? t("Search update")
+              : t("Candidate submission")}
           </h1>
           <p>
             {source.role?.client_name} · {source.role?.title}
@@ -663,14 +675,14 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
         <div className="ws-actions">
           <span className="ws-muted text-xs" role="status">
             {readOnly
-              ? "Submitted copy"
+              ? t("Submitted copy")
               : saving
-                ? "Saving…"
+                ? t("Saving…")
                 : error
-                  ? "Not saved"
+                  ? t("Not saved")
                   : dirty
-                    ? "Unsaved changes"
-                    : "Saved"}
+                    ? t("Unsaved changes")
+                    : t("Saved")}
           </span>
           {(["pdf", "docx"] as const).map((format) => (
             <button
@@ -679,11 +691,11 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               disabled={dirty || saving}
               onClick={() => void download(format)}
             >
-              Export {format.toUpperCase()}
+              {t("Export")} {format.toUpperCase()}
             </button>
           ))}
           <button className="ws-button" onClick={() => setPreview((p) => !p)}>
-            {preview ? "Edit draft" : "Client preview"}
+            {preview ? t("Edit draft") : t("Client preview")}
           </button>
           {document.kind === "submission" ? (
             <>
@@ -696,14 +708,14 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 ) : (
                   <Copy size={14} />
                 )}
-                {copied === "subject" ? "Subject copied" : "Copy subject"}
+                {copied === "subject" ? t("Subject copied") : t("Copy subject")}
               </button>
               <button
                 className="ws-button"
                 onClick={() => void copyText(content, "body")}
               >
                 {copied === "body" ? <Check size={14} /> : <Copy size={14} />}
-                {copied === "body" ? "Body copied" : "Copy body"}
+                {copied === "body" ? t("Body copied") : t("Copy body")}
               </button>
             </>
           ) : (
@@ -714,7 +726,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               }
             >
               {copied === "document" ? <Check size={14} /> : <Copy size={14} />}
-              {copied === "document" ? "Copied" : "Copy text"}
+              {copied === "document" ? t("Copied") : t("Copy text")}
             </button>
           )}
         </div>
@@ -734,9 +746,9 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           ) : (
             <>
               <label className="ws-editor-title">
-                <span className="sr-only">Document title</span>
+                <span className="sr-only">{t("Document title")}</span>
                 <input
-                  aria-label="Document title"
+                  aria-label={t("Document title")}
                   value={title}
                   onChange={(e) => {
                     setTitle(e.target.value);
@@ -747,7 +759,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               </label>
               <textarea
                 className="ws-document-text"
-                aria-label="Document content"
+                aria-label={t("Document content")}
                 value={content}
                 onChange={(e) => {
                   setContent(e.target.value);
@@ -774,11 +786,11 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             />
           )}
           <section className="ws-section">
-            <h3>{readOnly ? "Delivery recorded" : "Ready for your review"}</h3>
+            <h3>{readOnly ? t("Delivery recorded") : t("Ready for your review")}</h3>
             <p>
               {readOnly
                 ? `${date(document.submitted_at)}\n${document.submission_note}`
-                : "Check wording, facts and permission before you share. Copying this draft does not mark it submitted."}
+                : t("Check wording, facts and permission before you share. Copying this draft does not mark it submitted.")}
             </p>
             {!readOnly && (
               <button
@@ -786,18 +798,16 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 disabled={dirty || saving}
                 onClick={() => setSubmit(true)}
               >
-                Record actual submission
+                {t("Record actual submission")}
               </button>
             )}
           </section>
           <section className="ws-section">
             {document.kind === "submission" && (
               <>
-                <h3>CV attachments</h3>
+                <h3>{t("CV attachments")}</h3>
                 <p className="ws-muted">
-                  Only the files listed here were selected for this submission.
-                  Review and download each before sharing. PDF and DOCX exports
-                  contain the written recommendation only.
+                  {t("Only the files listed here were selected for this submission. Review and download each before sharing. PDF and DOCX exports contain the written recommendation only.")}
                 </p>
                 {source.people?.map((person) => {
                   const file = source.files?.find(
@@ -817,7 +827,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                         </a>
                       ) : (
                         <p className="ws-muted">
-                          No CV selected for this person.
+                          {t("No CV selected for this person.")}
                         </p>
                       )}
                     </div>
@@ -827,20 +837,22 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             )}
           </section>
           <section className="ws-section">
-            <h3>Source material</h3>
+            <h3>{t("Draft language")}</h3>
+            <p>{source.language === "zh" ? "中文" : t("English")}</p>
+          </section>
+          <section className="ws-section">
+            <h3>{t("Source material")}</h3>
             {source.people
               ?.filter((person) => person.sharing_permission !== "confirmed")
               .map((person) => (
                 <p key={person.id} className="ws-muted">
-                  {person.name}:{" "}
-                  {person.sharing_permission === "declined"
-                    ? "sharing permission declined"
-                    : "sharing permission not confirmed"}{" "}
-                  in this draft’s sources.
+                  {locale === "zh"
+                    ? `${person.name}：本草稿中该候选人的资料分享权限${person.sharing_permission === "declined" ? "已被拒绝" : "尚未确认"}。`
+                    : `${person.name}: sharing permission ${person.sharing_permission === "declined" ? "declined" : "not confirmed"} in this draft’s sources.`}
                 </p>
               ))}
             <p className="ws-muted">
-              Saved with this draft · Role version {source.role?.version}
+              {t("Saved with this draft · Role version")} {source.role?.version}
             </p>
             {source.people?.map((person) => (
               <Link
@@ -867,19 +879,19 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               </Link>
             ))}
             {!source.records?.length && (
-              <p className="ws-muted mt-2">No private notes selected.</p>
+              <p className="ws-muted mt-2">{t("No private notes selected.")}</p>
             )}
           </section>
           <section className="ws-section">
-            <h3>Document history</h3>
+            <h3>{t("Document history")}</h3>
             <button className="ws-link" onClick={() => setHistory(true)}>
-              View saved versions
+              {t("View saved versions")}
             </button>
             <Link
               className="ws-detail-link"
               href={`/app?role=${document.role_id}`}
             >
-              Continue with my assistant <ArrowUpRight size={12} />
+              {t("Continue with my assistant")} <ArrowUpRight size={12} />
             </Link>
           </section>
         </aside>
@@ -914,6 +926,7 @@ function RecordSubmission({
   onClose: () => void;
   onSaved: (document: Deliverable) => void;
 }) {
+  const t = useT();
   const [when, setWhen] = useState(() => {
       const d = new Date();
       return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
@@ -949,18 +962,17 @@ function RecordSubmission({
   }
   return (
     <Dialog
-      title="Record an actual submission"
+      title={t("Record an actual submission")}
       onClose={() => {
         if (!saving) onClose();
       }}
     >
       <form className="ws-form" onSubmit={save}>
         <p className="text-sm leading-7">
-          Use this after you have shared the document with your client. Hirelix
-          will preserve this copy and add the delivery to the role’s activity.
+          {t("Use this after you have shared the document with your client. Hirelix will preserve this copy and add the delivery to the role’s activity.")}
         </p>
         <ErrorNotice error={error} />
-        <Field label="When you shared it">
+        <Field label={t("When you shared it")}>
           <input
             type="datetime-local"
             required
@@ -968,12 +980,12 @@ function RecordSubmission({
             onChange={(e) => setWhen(e.target.value)}
           />
         </Field>
-        <Field label="Who received it and how">
+        <Field label={t("Who received it and how")}>
           <textarea
             required
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Recipient, channel, and any relevant context"
+            placeholder={t("Recipient, channel, and any relevant context")}
           />
         </Field>
         <div className="ws-form-footer">
@@ -983,10 +995,10 @@ function RecordSubmission({
             disabled={saving}
             onClick={onClose}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button className="ws-button ws-button-primary" disabled={saving}>
-            {saving ? "Saving…" : "Record submission"}
+            {saving ? t("Saving…") : t("Record submission")}
           </button>
         </div>
       </form>

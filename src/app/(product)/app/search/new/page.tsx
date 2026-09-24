@@ -1,5 +1,7 @@
 "use client";
 
+
+import { useT } from "@/components/LanguageProvider";
 import { useState, useEffect, useMemo, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PaddleCheckoutButton } from "@/components/PaddleCheckoutButton";
@@ -56,6 +58,7 @@ type Stage =
   | { type: "error"; message: string };
 
 export default function NewSearchPage() {
+  const t = useT();
   const { billing, refresh } = useBilling();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -295,13 +298,13 @@ export default function NewSearchPage() {
     <div className="mx-auto max-w-2xl">
       <div className="mb-8">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">
-          New candidate pool
+          {t("New candidate pool")}
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
-          Paste the client role and confirm the brief.
+          {t("Paste the client role and confirm the brief.")}
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Hirelix reads the JD, shows the sourcing brief, then builds a ranked candidate pool with a recommended shortlist inside it.
+          {t("Hirelix reads the JD, shows the sourcing brief, then builds a ranked candidate pool with a recommended shortlist inside it.")}
         </p>
       </div>
 
@@ -320,7 +323,7 @@ export default function NewSearchPage() {
             if (stage.type !== "input") setStage({ type: "input" });
           }}
           rows={14}
-          placeholder="Paste the full client job description here..."
+          placeholder={t("Paste the full client job description here...")}
           disabled={stage.type === "analyzing" || stage.type === "launching" || isNavigating}
           className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white disabled:opacity-60"
         />
@@ -330,15 +333,15 @@ export default function NewSearchPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-amber-900">
                 {isOutOfFreePreview
-                  ? "You've used your free client-role preview. Start a subscription to keep sourcing."
+                  ? t("You've used your free client-role preview. Start a subscription to keep sourcing.")
                   : isOutOfClientRoles
-                    ? "You've reached this month's client role allowance. Your next cycle will reset automatically."
-                    : "You've reached this month's targeted profile scan allowance. Your next cycle will reset automatically."}
+                    ? t("You've reached this month's client role allowance. Your next cycle will reset automatically.")
+                    : t("You've reached this month's targeted profile scan allowance. Your next cycle will reset automatically.")}
               </p>
               {billing?.plan.code === "free" ? (
                 <PaddleCheckoutButton
                   checkout={{ type: "plan", planCode: "starter_monthly" }}
-                  label="Start Starter"
+                  label={t("Start Starter")}
                   onError={(message) =>
                     setStage({ type: "error", message })
                   }
@@ -353,7 +356,7 @@ export default function NewSearchPage() {
           <p className="text-xs text-slate-400">
             {jdText.trim().length > 0
               ? `${wordCount} words`
-              : "Tip: the fuller the client role, the better the ranked pool."}
+              : t("Tip: the fuller the client role, the better the ranked pool.")}
           </p>
           {stage.type === "input" || stage.type === "error" ? (
             <button
@@ -363,7 +366,7 @@ export default function NewSearchPage() {
               className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Sparkles className="h-4 w-4" />
-              Build brief
+              {t("Build brief")}
             </button>
           ) : null}
         </div>
@@ -385,7 +388,7 @@ export default function NewSearchPage() {
               {stage.type === "analyzing" ? (
                 <span className="flex items-center gap-2 text-sm text-slate-500">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Reading JD...
+                  {t("Reading JD...")}
                 </span>
               ) : stage.type === "confirming" ? (
                 <p className="text-sm leading-relaxed text-slate-800">
@@ -394,7 +397,7 @@ export default function NewSearchPage() {
               ) : (
                 <span className="flex items-center gap-2 text-sm text-slate-500">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {isNavigating ? "Opening workbench..." : "Building candidate pool..."}
+                  {isNavigating ? t("Opening workbench...") : t("Building candidate pool...")}
                 </span>
               )}
             </div>
@@ -406,20 +409,20 @@ export default function NewSearchPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                      Confirm sourcing brief
+                      {t("Confirm sourcing brief")}
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Edit the constraints that would change who you contact first.
+                      {t("Edit the constraints that would change who you contact first.")}
                     </p>
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Ranked candidate pool
+                    {t("Ranked candidate pool")}
                   </span>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <label className="text-sm font-medium text-slate-700">
-                    Role title
+                    {t("Role title")}
                     <input
                       value={stage.brief.title}
                       onChange={(event) => updateConfirmingBrief({ title: event.target.value })}
@@ -427,40 +430,40 @@ export default function NewSearchPage() {
                     />
                   </label>
                   <label className="text-sm font-medium text-slate-700">
-                    Minimum years
+                    {t("Minimum years")}
                     <input
                       inputMode="numeric"
                       value={stage.brief.experienceYearsMin}
                       onChange={(event) => updateConfirmingBrief({ experienceYearsMin: event.target.value })}
-                      placeholder="Not specified"
+                      placeholder={t("Not specified")}
                       className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
                     />
                   </label>
                   <label className="text-sm font-medium text-slate-700">
-                    Location / remote scope
+                    {t("Location / remote scope")}
                     <input
                       value={stage.brief.locationScope}
                       onChange={(event) => updateConfirmingBrief({ locationScope: event.target.value })}
-                      placeholder="Remote, US, New York, etc."
+                      placeholder={t("Remote, US, New York, etc.")}
                       className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
                     />
                   </label>
                   <label className="text-sm font-medium text-slate-700">
-                    Work model
+                    {t("Work model")}
                     <select
                       value={stage.brief.workModel}
                       onChange={(event) => updateConfirmingBrief({ workModel: event.target.value })}
                       className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
                     >
-                      <option value="unknown">Unknown</option>
-                      <option value="remote">Remote</option>
-                      <option value="hybrid">Hybrid</option>
-                      <option value="onsite">Onsite</option>
+                      <option value="unknown">{t("Unknown")}</option>
+                      <option value="remote">{t("Remote")}</option>
+                      <option value="hybrid">{t("Hybrid")}</option>
+                      <option value="onsite">{t("Onsite")}</option>
                     </select>
                   </label>
                 </div>
                 <label className="mt-4 block text-sm font-medium text-slate-700">
-                  Must-have skills (one per line)
+                  {t("Must-have skills (one per line)")}
                   <textarea
                     rows={3}
                     value={stage.brief.requiredSkillsText}
@@ -469,12 +472,12 @@ export default function NewSearchPage() {
                   />
                 </label>
                 <label className="mt-4 block text-sm font-medium text-slate-700">
-                  Hard filters
+                  {t("Hard filters")}
                   <textarea
                     rows={3}
                     value={stage.brief.hardFiltersText}
                     onChange={(event) => updateConfirmingBrief({ hardFiltersText: event.target.value })}
-                    placeholder="One hard filter per line, only if it changes who should be sourced."
+                    placeholder={t("One hard filter per line, only if it changes who should be sourced.")}
                     className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-900 outline-none focus:border-sky-400 focus:bg-white"
                   />
                 </label>
@@ -491,13 +494,13 @@ export default function NewSearchPage() {
                       void handleReply();
                     }
                   }}
-                  placeholder="Reply to the clarification, or leave blank and launch..."
+                  placeholder={t("Reply to the clarification, or leave blank and launch...")}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-1 focus:ring-sky-400/20"
                 />
               )}
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <p className="text-xs text-slate-400">
-                  You can leave the task page after launch; Hirelix keeps building the candidate pool.
+                  {t("You can leave the task page after launch; Hirelix keeps building the candidate pool.")}
                 </p>
                 <button
                   type="button"
@@ -505,7 +508,7 @@ export default function NewSearchPage() {
                   className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   {stage.reply.trim() ? <Send className="h-4 w-4" /> : null}
-                  Launch search
+                  {t("Launch search")}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
