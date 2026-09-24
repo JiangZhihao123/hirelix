@@ -180,6 +180,8 @@ Agent 可从材料中提出下一步建议；猎头仍能直接编辑和标记�
 
 **默认结构。** 候选人身份与当前情况；为什么值得考虑；对应职位的具体经历与证据；需要讨论或核实的点；已经确认的意愿与条件；附件与下一步。缺乏依据的形容词不能代替经历。
 
+**推荐包与交付形式（2026-09-24 核对）。** 面向普通招聘委托，默认准备可直接复制到邮件的主题与简短正文，说明推荐谁、针对哪个职位、基于哪些具体经历值得面谈、已确认的条件和仍待核实的问题；猎头明确选择要附的那一版 CV。原始 CV 可以是 PDF 或 DOCX；如果猎头选择经过整理、匿名化或转成 PDF 的版本，必须先预览成品，不把格式转换视为候选人已同意分享。没有可用 CV 时显示缺口，允许先保留草稿。面向高管寻访或客户明确需要时，可进一步导出独立候选人报告，并与所选 CV 一同交付。邮件、报告、客户系统资料和电话讲解是同一次推荐的不同呈现方式；本产品以 Role、Candidate、实际提交和反馈记录连接它们，不把“生成邮件”记为已经推荐。不同客户可能要求不同收件材料，最终范围由猎头逐项确认。
+
 **编辑方式。** 用户可直接改正文，也可要求 Agent 缩短、调整顺序、改语气或补充某个有来源的点。改稿应保留原版本并说明重要事实是否改变。改成“更积极”不能把未知意向改成“积极寻求新机会”。
 
 **内外区别。** 内部资料可包含猎头私下观察；外部材料只包括用户选择分享的内容。预览页必须让用户看到客户将看到的准确文本与附件。原始私人笔记不会因为被模型引用过就默认附给客户。
@@ -488,6 +490,12 @@ S1. AESC, Global Guide to Choosing an Executive Search Firm。专业协会指南
 S2. Beacon Hill, An agency recruiter's guide to presenting a potential candidate to a client。招聘机构实践材料，用于理解候选人介绍和客户反馈。https://bhsg.com/resources/an-agency-recruiters-guide-to-presenting-a-potential-candidate-to-a-client
 
 S3. RecruiterU, Elements of a Report for Exclusive and Retained Clients。从业者经验，用于理解定期进展汇报适用情境；不是行业强制规则。https://therecruiteru.com/elements-of-a-report-for-exclusive-and-retained-clients/
+
+S4. Bullhorn, Submitting a Candidate to a Contact (Client Submission)。官方操作文档，展示职位关联的客户提交、邮件主题/正文和简历附件；这是产品支持的流程，不代表所有猎头只能用邮件。https://kb.bullhorn.com/ats/Content/BHATS/Topics/submittingCandidateToContactClientSubmission.htm
+
+S5. Crelate, Sending a Submittal Email。官方操作文档，说明推荐邮件的单人/多人模板、候选人 CV 附件选择、预览与内部备注隔离。https://help.crelate.com/en/articles/4120292-sending-a-submittal-email
+
+S6. Recruit CRM, Submit candidates to contacts。官方操作文档，列出在线候选人列表、附附件邮件和 Executive Search Report 三种交付形式。https://help.recruitcrm.io/en/articles/1801407-submit-candidates-to-contacts
 
 所有网页访问日期：2026-09-24。正文的产品范围、页面设计、数据关系、验收要求和实施顺序由本次产品讨论形成，不是上述来源的原文或行业标准。
 
