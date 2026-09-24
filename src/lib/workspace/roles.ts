@@ -9,6 +9,7 @@ import {
   rows,
   snapshot,
   WorkspaceError,
+  type Runner,
 } from "./database";
 import { addRecord } from "./records";
 import {
@@ -49,9 +50,13 @@ export async function roleDetails(userId: string, id: string) {
     schedule: schedules[0] ?? null,
   };
 }
-export async function createRole(userId: string, value: unknown) {
+export async function createRole(
+  userId: string,
+  value: unknown,
+  runner?: Runner,
+) {
   const input = roleInput.parse(value);
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     const [role] = await rows<Role>(
       sql`INSERT INTO hirelix_private_roles(user_id,title,client_name,jd_text,brief,client_contact,status) VALUES(${userId}::uuid,${input.title},${input.client_name},${input.jd_text},${json(input.brief)},${json(input.client_contact)},${input.status}) RETURNING *`,
       tx,
@@ -69,7 +74,8 @@ export async function createRole(userId: string, value: unknown) {
       tx,
     );
     return role;
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }
 export async function updateRole(
   userId: string,

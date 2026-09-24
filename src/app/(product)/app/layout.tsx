@@ -1,11 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
+import "@/components/workspace/workspace.css";
+import { initials } from "@/components/workspace/client";
 import { useAuth } from "@/components/AuthProvider";
-import { PlanStatusCard } from "@/components/PlanStatusCard";
 import { LoginForm } from "@/components/LoginForm";
 import { ProductShellSkeleton } from "@/components/ProductSkeletons";
 import {
@@ -14,13 +20,14 @@ import {
   trackEvent,
   type EntryMode,
 } from "@/lib/analytics";
-import { BillingProvider, useBilling } from "@/lib/use-billing";
+import { BillingProvider } from "@/lib/use-billing";
 import {
   Search,
-  Plus,
+  BriefcaseBusiness,
+  MessageSquare,
+  Bell,
   BookUser,
   FileText,
-  Sparkles,
   LogOut,
   Loader2,
   Menu,
@@ -42,13 +49,8 @@ export default function ProductLayout({
   );
 }
 
-function ProductLayoutShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const { user, loading, signOut } = useAuth();
-  const { billing, loading: billingLoading } = useBilling();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -82,21 +84,42 @@ function ProductLayoutShell({
   const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
   const isNewSearchRoute = pathname === "/app/search/new";
-  const isSearchDetailRoute = pathname.startsWith("/app/search/") && !isNewSearchRoute;
+  const isSearchDetailRoute =
+    pathname.startsWith("/app/search/") && !isNewSearchRoute;
   const isFreeTrialEntry = entryMode === "free_trial";
-  const isAgentRoute = pathname === "/app";
-  const isTalentRoute = pathname === "/app/talent";
-  const isBriefsRoute = pathname === "/app/briefs";
-  const isDashboardRoute = pathname === "/app/searches" || (pathname.startsWith("/app/search/") && !isNewSearchRoute);
-  const isSettingsRoute = pathname === "/app/settings";
   const authRedirectPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-
-  const getNavClassName = (isActive: boolean) =>
-    `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-      isActive
-        ? "bg-slate-900 text-white shadow-sm"
-        : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-    }`;
+  const nav = [
+    {
+      href: "/app",
+      label: "My assistant",
+      icon: MessageSquare,
+      active: pathname === "/app",
+    },
+    {
+      href: "/app/candidates",
+      label: "Candidates",
+      icon: BookUser,
+      active:
+        pathname.startsWith("/app/candidates") || pathname === "/app/talent",
+    },
+    {
+      href: "/app/roles",
+      label: "Roles",
+      icon: BriefcaseBusiness,
+      active: pathname.startsWith("/app/roles"),
+    },
+    {
+      href: "/app/submissions",
+      label: "Submissions",
+      icon: FileText,
+      active:
+        pathname.startsWith("/app/submissions") || pathname === "/app/briefs",
+    },
+  ];
+  function navigate(path: string) {
+    setSidebarOpen(false);
+    setPendingPath(path);
+  }
 
   useEffect(() => {
     if (loading || user || hasTrackedSigninViewRef.current) return;
@@ -115,9 +138,9 @@ function ProductLayoutShell({
   useEffect(() => {
     if (!user) return;
     router.prefetch("/app");
-    router.prefetch("/app/talent");
-    router.prefetch("/app/briefs");
-    router.prefetch("/app/searches");
+    router.prefetch("/app/candidates");
+    router.prefetch("/app/submissions");
+    router.prefetch("/app/roles");
     router.prefetch("/app/search/new");
     router.prefetch("/app/settings");
   }, [router, user]);
@@ -125,7 +148,7 @@ function ProductLayoutShell({
   useEffect(() => {
     if (!sidebarOpen) return;
 
-    const mediaQuery = window.matchMedia("(max-width: 1023px)");
+    const mediaQuery = window.matchMedia("(max-width: 850px)");
     if (!mediaQuery.matches) return;
 
     const previousOverflow = document.body.style.overflow;
@@ -146,21 +169,22 @@ function ProductLayoutShell({
 
   if (!user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-6">
+      <div className="private-workspace flex min-h-screen flex-col items-center justify-center gap-8 px-6">
         <div className="flex items-center gap-2.5">
-          <Image src="/logo.svg" alt="Hirelix" width={32} height={32} />
-          <span className="text-2xl font-bold tracking-tight">Hirelix</span>
+          <span className="text-3xl font-semibold tracking-tight text-primary">
+            hirelix
+          </span>
         </div>
         <h1 className="text-center text-xl font-semibold">
           {isSearchIntent
             ? "Sign in to open your shortlist"
             : isFreeTrialEntry
-              ? "Start with your private agent"
+              ? "Start with your private assistant"
               : "Sign in to Hirelix"}
         </h1>
         {isFreeTrialEntry && !isSearchIntent ? (
           <p className="-mt-5 max-w-sm text-center text-sm leading-6 text-muted">
-            Bring a client role or start with people you already know.
+            Your candidates, your roles, and the work you prepare for clients.
           </p>
         ) : null}
         {isSearchIntent && (
@@ -173,9 +197,7 @@ function ProductLayoutShell({
             </p>
           </div>
         )}
-        <LoginForm
-          redirectPath={authRedirectPath}
-        />
+        <LoginForm redirectPath={authRedirectPath} />
         <Link href="/" className="text-sm text-muted hover:text-foreground">
           &larr; Back to homepage
         </Link>
@@ -183,153 +205,123 @@ function ProductLayoutShell({
     );
   }
 
-  const sidebarContent = (
-    <>
-      <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
-        <Link
-          href="/app"
-          onClick={() => {
-            setSidebarOpen(false);
-            setPendingPath("/app");
-          }}
-          className="flex items-center gap-2.5 rounded-md transition-colors hover:text-slate-950"
-        >
-          <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
-          <span className="text-lg font-semibold tracking-tight text-slate-950">Hirelix</span>
-        </Link>
-        <button onClick={() => setSidebarOpen(false)} className="cursor-pointer text-slate-500 hover:text-slate-950 lg:hidden">
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      <nav className="flex-1 p-3">
-        <p className="px-3 pb-2 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-          Workspace
-        </p>
-        <div className="space-y-1">
-          <Link
-            href="/app"
-            onClick={() => {
-              setSidebarOpen(false);
-              setPendingPath("/app");
-            }}
-            className={getNavClassName(isAgentRoute)}
-          >
-            {effectivePendingPath === "/app" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            My agent
-          </Link>
-          <Link
-            href="/app/talent"
-            onClick={() => { setSidebarOpen(false); setPendingPath("/app/talent"); }}
-            className={getNavClassName(isTalentRoute)}
-          >
-            {effectivePendingPath === "/app/talent" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookUser className="h-4 w-4" />}
-            Talent memory
-          </Link>
-          <Link
-            href="/app/searches"
-            onClick={() => { setSidebarOpen(false); setPendingPath("/app/searches"); }}
-            className={getNavClassName(isDashboardRoute)}
-          >
-            {effectivePendingPath === "/app/searches" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Client roles
-          </Link>
-          <Link
-            href="/app/briefs"
-            onClick={() => { setSidebarOpen(false); setPendingPath("/app/briefs"); }}
-            className={getNavClassName(isBriefsRoute)}
-          >
-            {effectivePendingPath === "/app/briefs" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            Weekly briefs
-          </Link>
-          <Link
-            href="/app/search/new"
-            onClick={() => {
-              setSidebarOpen(false);
-              setPendingPath("/app/search/new");
-            }}
-            className={getNavClassName(isNewSearchRoute)}
-          >
-            {effectivePendingPath === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            New search
-          </Link>
-        </div>
-      </nav>
-
-      <div className="border-t border-slate-200 p-3">
-        <PlanStatusCard billing={billing} loading={billingLoading} />
-        <div className="mt-3 space-y-1">
-          <Link
-            href="/app/settings#billing"
-            onClick={() => {
-              setSidebarOpen(false);
-              setPendingPath("/app/settings");
-            }}
-            className={getNavClassName(isSettingsRoute)}
-          >
-            {effectivePendingPath === "/app/settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
-            Settings
-          </Link>
-        </div>
-        <div className="mt-3 truncate px-3 text-xs text-slate-500">
-          {user.email}
-        </div>
-        <button
-          onClick={() => signOut().then(() => router.push("/"))}
-          className="mt-1 flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </button>
-      </div>
-    </>
-  );
-
+  const displayName =
+    user.user_metadata?.name || user.email?.split("@")[0] || "Your account";
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      {/* Mobile top bar */}
-      <div className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 lg:hidden">
-        <Link
-          href="/app"
-          onClick={() => setPendingPath("/app")}
-          className="flex items-center gap-2.5 rounded-md transition-colors hover:text-slate-950"
-        >
-          <Image src="/logo.svg" alt="Hirelix" width={24} height={24} />
-          <span className="text-lg font-semibold tracking-tight text-slate-950">Hirelix</span>
-        </Link>
-        {sidebarOpen ? (
-          <div aria-hidden="true" className="h-7 w-7" />
-        ) : (
-          <button
-            onClick={() => setSidebarOpen((open) => !open)}
-            aria-label={sidebarOpen ? "Close navigation" : "Open navigation"}
-            className="cursor-pointer rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-950"
-          >
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        )}
-      </div>
-
-      {/* Mobile overlay */}
+    <div className="private-workspace">
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 lg:hidden"
+        <button
+          className="ws-overlay"
+          aria-label="Close navigation"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-
-      {/* Sidebar — desktop: fixed, mobile: drawer */}
       <aside
-        className={`fixed left-0 top-0 z-[60] flex h-full w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className="ws-sidebar"
+        data-open={sidebarOpen}
+        aria-label="Main navigation"
       >
-        {sidebarContent}
+        <div className="ws-brand">
+          <Link href="/app" onClick={() => navigate("/app")}>
+            hirelix
+          </Link>
+          <button
+            className="ws-icon ws-mobile-only"
+            aria-label="Close navigation"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <nav className="ws-nav">
+          {nav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => navigate(item.href)}
+              aria-current={item.active ? "page" : undefined}
+            >
+              {effectivePendingPath === item.href ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <item.icon size={16} />
+              )}
+              <span>{item.label}</span>
+            </Link>
+          ))}
+          <small>TOOLS</small>
+          <Link
+            href="/app/searches"
+            onClick={() => navigate("/app/searches")}
+            aria-current={
+              pathname.startsWith("/app/search") ? "page" : undefined
+            }
+          >
+            <Search size={16} />
+            Sourcing
+          </Link>
+        </nav>
+        <div className="ws-sidebar-bottom">
+          <nav className="ws-nav">
+            <Link
+              href="/app/settings"
+              onClick={() => navigate("/app/settings")}
+              aria-current={pathname === "/app/settings" ? "page" : undefined}
+            >
+              <Settings size={16} />
+              Settings
+            </Link>
+          </nav>
+          <div className="ws-account">
+            <span className="ws-avatar">{initials(String(displayName))}</span>
+            <div>
+              <strong title={user.email}>{String(displayName)}</strong>
+            </div>
+            <button
+              className="ws-icon"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={() => signOut().then(() => router.push("/"))}
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        </div>
       </aside>
-
-      {/* Main content */}
-      <main className="w-full flex-1 p-4 pt-18 sm:p-6 sm:pt-20 lg:p-8 lg:pt-8 lg:ml-64">
-        {children}
+      <main className="ws-main">
+        <div className="ws-topbar">
+          <div className="ws-actions">
+            <button
+              className="ws-icon ws-mobile-only"
+              aria-label="Open navigation"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu size={18} />
+            </button>
+            <span>{nav.find((item) => item.active)?.label || "Workspace"}</span>
+          </div>
+          <div className="ws-topbar-actions">
+            <Link
+              href="/app/candidates"
+              className="ws-icon"
+              aria-label="Search your candidates"
+            >
+              <Search size={17} />
+            </Link>
+            <Link
+              href="/app/tasks"
+              className="ws-icon"
+              aria-label="Tasks and notifications"
+            >
+              <Bell size={17} />
+            </Link>
+          </div>
+        </div>
+        {pathname.startsWith("/app/search") || pathname === "/app/settings" ? (
+          <div className="p-5 lg:p-8">{children}</div>
+        ) : (
+          children
+        )}
       </main>
     </div>
   );

@@ -6,13 +6,7 @@ import {
   generateEmbeddings,
   getEmbeddingConfig,
 } from "@/lib/candidate-index/embedding";
-import {
-  enqueue,
-  owned,
-  rows,
-  WorkspaceError,
-  type Runner,
-} from "./database";
+import { enqueue, owned, rows, WorkspaceError, type Runner } from "./database";
 import { idSchema, type Person, type SourceRecord } from "./types";
 import type { JobHandler } from "./jobs";
 

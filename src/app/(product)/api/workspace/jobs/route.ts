@@ -1,14 +1,22 @@
+import { assessmentInput } from "@/lib/workspace/assessment";
 import { NextRequest } from "next/server";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { workspaceApi, readBody } from "@/lib/workspace/http";
 import { enqueue, rows } from "@/lib/workspace/database";
 import { retrievalInput } from "@/lib/workspace/retrieval";
-const inputSchema = z.object({
-  kind: z.literal("retrieval"),
-  request_key: z.string().min(1).max(200),
-  payload: retrievalInput,
-});
+const inputSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("retrieval"),
+    request_key: z.string().min(1).max(200),
+    payload: retrievalInput,
+  }),
+  z.object({
+    kind: z.literal("assessment"),
+    request_key: z.string().min(1).max(200),
+    payload: assessmentInput,
+  }),
+]);
 export function POST(req: NextRequest) {
   return workspaceApi(req, async (user) => {
     const input = inputSchema.parse(await readBody(req));

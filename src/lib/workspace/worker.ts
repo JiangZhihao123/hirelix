@@ -1,9 +1,17 @@
 import { getLogger } from "@/lib/logger";
 import { processJob, reclaimJobs, type JobHandler } from "./jobs";
+import { prepareImport } from "./imports";
+import { assessCandidate } from "./assessment";
 import { indexCandidate, retrieveJob } from "./retrieval";
 import type { JobKind } from "./types";
+import { assistantReply } from "./conversations";
+import { generateDeliverable } from "./deliverables";
 
 export const workspaceHandlers: Partial<Record<JobKind, JobHandler>> = {
+  chat: assistantReply,
+  deliverable: generateDeliverable,
+  import: prepareImport,
+  assessment: assessCandidate,
   index: indexCandidate,
   retrieval: retrieveJob,
 };
