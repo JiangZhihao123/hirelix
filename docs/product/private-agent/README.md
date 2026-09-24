@@ -1,5 +1,7 @@
 # Hirelix：专业猎头的私人 agent
 
+> 历史设计记录。当前定位、页面命名和目标规格以 [2026-09-24 产品说明书](../overseas-recruiter-agent-v1/product-spec.md) 为准。新版使用 My assistant、Candidates、Roles、Client updates，并分别定义候选人推荐与搜寻进展更新。
+
 ## 产品判断
 
 Hirelix 的主入口是能持续理解猎头的私人 agent。JD 是当前问题的上下文；长期候选人池是猎头自己的记忆；推荐周报是 agent 依据已有证据写出的工作成果。猎头不需要在这里维护招聘流程或候选人状态。
