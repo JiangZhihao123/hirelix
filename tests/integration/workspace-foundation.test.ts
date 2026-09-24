@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import { sql } from "drizzle-orm";
-import { closeDb, db } from "../../src/db/client";
+import { closeDb } from "../../src/db/client";
 import {
   createPerson,
   updatePerson,

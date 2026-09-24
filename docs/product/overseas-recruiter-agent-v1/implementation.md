@@ -43,3 +43,5 @@
 - 本地隔离库 `hirelix_workspace_qa_20260924` 已从现有 Drizzle 基线建立；新迁移首次及重复执行均成功。生产库未改动。
 - 数据基础服务及 `/api/workspace` 候选人、职位、记录、版本路由已编写；`npx tsc --noEmit` 通过。
 - 真实 PostgreSQL 集成检查 `tests/integration/workspace-foundation.test.ts`：3 项通过，覆盖 A/B 归属、独立职位、职位专属授权、历史发生时间、版本冲突、持久请求幂等、显式合并保留资料、删除当前档案记录。API 会话及浏览器链路尚待验证。
+- 持久任务真实队列验证：2 项通过，验证并发领取互斥、租约失效不可提交/续期、恢复执行、连续中断显式失败及同任务重试。独立 worker 已加入 scheduler 入口。
+- 实际 SiliconFlow embedding + 本地 PostgreSQL：131 人全索引语义检索返回超过 120 个较新档案之前的旧候选人为首位，返回原始记录链接，A/B 检索隔离通过。网络曾发生响应读取重试，最终完整成功；尚未进行浏览器搜索体验验收。

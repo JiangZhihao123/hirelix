@@ -9,12 +9,14 @@
  */
 
 import { initializeGlobalOutboundProxy } from "../src/lib/server-outbound-proxy";
+import { startWorkspaceWorker } from "../src/lib/workspace/worker";
 import { startSearchJobScheduler } from "../src/lib/search-job-scheduler";
 
 process.title = "hirelix-scheduler";
 
 initializeGlobalOutboundProxy();
 startSearchJobScheduler();
+startWorkspaceWorker();
 
 // 保持进程存活（调度器的无限循环会保持进程运行，此行作为安全兜底）
 process.stdin.resume();

@@ -146,7 +146,8 @@ export type JobKind =
   | "assessment"
   | "deliverable"
   | "revision"
-  | "brief_proposal";
+  | "brief_proposal"
+  | "retrieval";
 export type Job = {
   id: string;
   user_id: string;
