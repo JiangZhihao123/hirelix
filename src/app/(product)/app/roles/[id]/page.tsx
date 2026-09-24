@@ -541,7 +541,7 @@ export default function RolePage({
                   onClick={() => setTab("activity")}
                 >
                   <strong>{item.title}</strong>
-                  <small>{date(item.occurred_at || item.created_at)}</small>
+                  <small>{item.occurred_at ? date(item.occurred_at) : `Recorded ${date(item.created_at)} · event date unknown`}</small>
                 </button>
               ))}
             <button className="ws-link mt-3" onClick={() => setRecord("new")}>

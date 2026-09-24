@@ -341,9 +341,11 @@ function AssistantWorkspace({
                               ? "Saved to your workspace"
                               : action.kind === "create_role"
                                 ? "Review the role details before saving"
-                                : action.kind === "add_record"
-                                  ? "Review this record before adding it"
-                                  : "Choose the people and source material to include"}
+                                : action.kind === "update_role_brief"
+                                  ? "Review the proposed requirements before applying"
+                                  : action.kind === "add_record"
+                                    ? "Review this record before adding it"
+                                    : "Choose the people and source material to include"}
                           </small>
                         </div>
                         {action.href ? (
@@ -705,7 +707,9 @@ function ActionReview({
       title={
         action.kind === "create_role"
           ? "Review new role"
-          : "Review conversation record"
+          : action.kind === "update_role_brief"
+            ? "Review updated requirements"
+            : "Review conversation record"
       }
       onClose={close}
       wide
@@ -716,26 +720,71 @@ function ActionReview({
           <input
             required
             value={String(fields.title || "")}
+            readOnly={action.kind === "update_role_brief"}
             onChange={(e) => set("title", e.target.value)}
           />
         </Field>
-        {action.kind === "create_role" ? (
+        {action.kind === "create_role" ||
+        action.kind === "update_role_brief" ? (
           <>
-            <Field label="Client">
-              <input
-                required
-                value={String(fields.client_name || "")}
-                onChange={(e) => set("client_name", e.target.value)}
-              />
-            </Field>
-            <Field label="Original job description">
-              <textarea
-                required
-                rows={9}
-                value={String(fields.jd_text || "")}
-                onChange={(e) => set("jd_text", e.target.value)}
-              />
-            </Field>
+            {action.kind === "update_role_brief" && (
+              <section className="ws-panel">
+                <p className="ws-muted">
+                  The original JD is preserved. Review the complete requirements
+                  below; accepting saves a new version and the original
+                  feedback.
+                </p>
+                <p className="whitespace-pre-wrap">
+                  {String(fields.feedback || "")}
+                </p>
+                <details>
+                  <summary>Previous requirements</summary>
+                  {(["priorities", "flexible", "unknowns"] as const).map(
+                    (key) => (
+                      <div key={key}>
+                        <strong>
+                          {
+                            {
+                              priorities: "Priorities",
+                              flexible: "Flexible requirements",
+                              unknowns: "Still to clarify",
+                            }[key]
+                          }
+                        </strong>
+                        <ul>
+                          {(
+                            (fields.previous_brief as Record<string, string[]>)[
+                              key
+                            ] || []
+                          ).map((item, index) => (
+                            <li key={index}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ),
+                  )}
+                </details>
+              </section>
+            )}
+            {action.kind === "create_role" && (
+              <>
+                <Field label="Client">
+                  <input
+                    required
+                    value={String(fields.client_name || "")}
+                    onChange={(e) => set("client_name", e.target.value)}
+                  />
+                </Field>
+                <Field label="Original job description">
+                  <textarea
+                    required
+                    rows={9}
+                    value={String(fields.jd_text || "")}
+                    onChange={(e) => set("jd_text", e.target.value)}
+                  />
+                </Field>
+              </>
+            )}
             {(["priorities", "flexible", "unknowns"] as const).map((key) => (
               <Field
                 key={key}
@@ -826,7 +875,9 @@ function ActionReview({
               ? "Saving…"
               : action.kind === "create_role"
                 ? "Save role"
-                : "Save record"}
+                : action.kind === "update_role_brief"
+                  ? "Apply requirements"
+                  : "Save record"}
           </button>
         </div>
       </form>

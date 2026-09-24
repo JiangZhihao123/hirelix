@@ -8,7 +8,7 @@ import { listRoles } from "./roles";
 import { listPeople, personDetails } from "./people";
 import { retrieveCandidates } from "./retrieval";
 import { addRecord } from "./records";
-import { createRole } from "./roles";
+import { createRole, updateRole } from "./roles";
 import {
   recordInput,
   roleInput,
@@ -30,7 +30,12 @@ export const conversationInput = z.object({
 });
 export type AssistantAction = {
   id: string;
-  kind: "create_role" | "add_record" | "submission" | "search_update";
+  kind:
+    | "create_role"
+    | "update_role_brief"
+    | "add_record"
+    | "submission"
+    | "search_update";
   title: string;
   status: "pending" | "saved";
   role_id: string | null;
@@ -162,6 +167,7 @@ const replySchema = z.object({
       z.object({
         kind: z.enum([
           "create_role",
+          "update_role_brief",
           "add_record",
           "submission",
           "search_update",
@@ -339,7 +345,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
     job.user_id,
     "private_assistant_reply",
     replySchema,
-    `Help a professional headhunter maintain their candidate relationships, work on client roles, and prepare client material. Speak as their capable personal assistant: short, direct and useful. Respect requested brevity. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless explicitly asked for diagnostics. For import summaries, distinguish add versus merge using reviewed_rows.action, and describe the current saved profile (not empty fields in the original CSV) as the current state. A merged profile can retain existing private notes while keeping imported content as a separate source; this is a completed merge, not an unresolved one. Do not turn routine completion into an unsolicited checklist. Reply in the user's language. Candidate assessment is only an auxiliary role action when actually requested. Use source_refs for every source relied upon, from the provided registry; do not invent URLs. Distinguish recorded facts from recommendations and unanswered questions. Do not claim any action was performed: actions below are proposals requiring review. add_record preserves the user's original reported facts; occurred_at is null unless the message gives a definite date/time (resolve relative dates against current_time and supplied timezone only when explicit). create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. submission/search_update opens source selection and preparation, not a claim of a saved or sent draft. No email is sent by this assistant. If the person/role is ambiguous ask one concise clarification, do not attach records arbitrarily. Do not expose private notes in any proposed client prose; client documents are prepared in the separate source selection page. Use source refs such as role_N/person_N; null for irrelevant fields. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages; make further investigation needs explicit.`,
+    `Help a professional headhunter maintain their candidate relationships, work on client roles, and prepare client material. Speak as their capable personal assistant: short, direct and useful. Respect requested brevity. For a routine save or update proposal, answer in at most 2 short sentences; put detailed changes in the review action rather than repeating every field. Do not append unsolicited reminders or statements about actions nobody requested. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless explicitly asked for diagnostics. For import summaries, distinguish add versus merge using reviewed_rows.action, and describe the current saved profile (not empty fields in the original CSV) as the current state. A merged profile can retain existing private notes while keeping imported content as a separate source; this is a completed merge, not an unresolved one. Do not turn routine completion into an unsolicited checklist. Reply in the user's language. Candidate assessment is only an auxiliary role action when actually requested. Use source_refs for every source relied upon, from the provided registry; do not invent URLs. Distinguish recorded facts from recommendations and unanswered questions. Do not claim any action was performed: actions below are proposals requiring review. add_record preserves the user's original reported facts; occurred_at is null unless the message gives a definite date/time (resolve relative dates against current_time and supplied timezone only when explicit). When the user supplies changed client requirements, propose update_role_brief for the identified existing role. Its role_draft.brief is the complete proposed brief: preserve still-valid priorities, flexible requirements and unknowns, incorporate only the reported change, and remove superseded requirements. This proposal preserves the original JD and records the original feedback when accepted. Do not also propose add_record for the same feedback. Merely asking a question about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. submission/search_update opens source selection and preparation, not a claim of a saved or sent draft. No email is sent by this assistant. If the person/role is ambiguous ask one concise clarification, do not attach records arbitrarily. Do not expose private notes in any proposed client prose; client documents are prepared in the separate source selection page. Use source refs such as role_N/person_N; null for irrelevant fields. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages; make further investigation needs explicit.`,
     {
       current_time: new Date().toISOString(),
       timezone:
@@ -372,6 +378,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
       href: string | undefined;
     if (action.kind === "create_role")
       fields = roleInput.parse(action.role_draft);
+    if (action.kind === "update_role_brief") {
+      if (!role || !action.role_draft)
+        throw new WorkspaceError("Choose the role whose requirements changed.");
+      fields = {
+        title: role.title,
+        brief: roleInput.shape.brief.parse(action.role_draft.brief),
+        previous_brief: role.brief,
+        expected_version: role.version,
+        feedback: question.content,
+        source_message_id: question.id,
+      };
+    }
     if (action.kind === "add_record") {
       if (!role && !person)
         throw new WorkspaceError(
@@ -445,6 +463,34 @@ export async function acceptAction(
       await tx.execute(
         sql`UPDATE hirelix_private_conversations SET role_id=coalesce(role_id,${role.id}::uuid),updated_at=now() WHERE user_id=${userId}::uuid AND id=${conversationId}::uuid`,
       );
+    } else if (action.kind === "update_role_brief") {
+      if (!action.role_id)
+        throw new WorkspaceError("This role is unavailable", 404);
+      const input = z.object({ brief: roleInput.shape.brief }).parse(value);
+      const prior = await owned<Role>(userId, "role", action.role_id, tx, true);
+      const role = await updateRole(
+        userId,
+        prior.id,
+        { ...prior, brief: input.brief },
+        z.number().int().positive().parse(action.fields.expected_version),
+        tx,
+      );
+      await addRecord(
+        userId,
+        {
+          role_id: role.id,
+          kind: "feedback",
+          title: "Client requirements feedback",
+          content: z.string().parse(action.fields.feedback),
+          occurred_at: null,
+          details: {
+            source_message_id: action.fields.source_message_id,
+            role_version: role.version,
+          },
+        },
+        tx,
+      );
+      action.href = `/app/roles/${role.id}`;
     } else if (action.kind === "add_record") {
       const input = recordInput.parse(value);
       if (

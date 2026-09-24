@@ -211,3 +211,104 @@ test("real database: explicit merge preserves conflicting data and deletion remo
   );
   assert.equal(count.count, 0);
 });
+
+test("reviewed client feedback updates only its role, preserves JD and rejects stale proposals", async () => {
+  const { acceptAction, sendMessage } =
+    await import("../../src/lib/workspace/conversations");
+  const { json } = await import("../../src/lib/workspace/database");
+  const role = await createRole(owner, {
+    title: "VP Product",
+    client_name: "QA Feedback",
+    jd_text: "Original client JD: domain expertise.",
+    brief: {
+      priorities: ["Domain expertise"],
+      flexible: [],
+      unknowns: ["Compensation"],
+    },
+  });
+  const conversation = await sendMessage(owner, {
+    message: "Client says team leadership matters more than domain expertise.",
+    request_key: randomUUID(),
+    role_id: role.id,
+  });
+  const conversationId = conversation.conversation_id as string;
+  async function proposal() {
+    const actionId = randomUUID(),
+      messageId = randomUUID();
+    const action = {
+      id: actionId,
+      kind: "update_role_brief",
+      status: "pending",
+      role_id: role.id,
+      person_id: null,
+      fields: {
+        expected_version: role.version,
+        feedback: "Original client feedback",
+        source_message_id: null,
+      },
+    };
+    await rows(
+      sql`INSERT INTO hirelix_agent_messages(id,user_id,role,content,conversation_id,metadata) VALUES(${messageId}::uuid,${owner}::uuid,'assistant','Please review',${conversationId}::uuid,${json({ actions: [action] })})`,
+    );
+    return { actionId, messageId };
+  }
+  const first = await proposal(),
+    stale = await proposal();
+  const revised = {
+    brief: {
+      priorities: ["Team leadership"],
+      flexible: ["Domain expertise"],
+      unknowns: ["Compensation"],
+    },
+    expected_version: 999,
+    feedback: "Tampered feedback",
+    jd_text: "Tampered JD",
+  };
+  await assert.rejects(
+    () =>
+      acceptAction(
+        other,
+        conversationId,
+        first.messageId,
+        first.actionId,
+        revised,
+      ),
+    failure(404),
+  );
+  await acceptAction(
+    owner,
+    conversationId,
+    first.messageId,
+    first.actionId,
+    revised,
+  );
+  await acceptAction(
+    owner,
+    conversationId,
+    first.messageId,
+    first.actionId,
+    revised,
+  );
+  const updated = await owned<typeof role>(owner, "role", role.id);
+  assert.equal(updated.version, 2);
+  assert.equal(updated.jd_text, role.jd_text);
+  assert.deepEqual(updated.brief, revised.brief);
+  const feedback = await rows<{ content: string; occurred_at: string | null }>(
+    sql`SELECT content,occurred_at FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND kind='feedback'`,
+  );
+  assert.equal(feedback.length, 1);
+  assert.equal(feedback[0].content, "Original client feedback");
+  assert.equal(feedback[0].occurred_at, null);
+  await assert.rejects(
+    () =>
+      acceptAction(
+        owner,
+        conversationId,
+        stale.messageId,
+        stale.actionId,
+        revised,
+      ),
+    failure(409),
+  );
+  assert.equal((await listVersions(owner, "role", role.id)).length, 2);
+});

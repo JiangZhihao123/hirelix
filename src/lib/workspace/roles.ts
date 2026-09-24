@@ -82,9 +82,10 @@ export async function updateRole(
   id: string,
   value: unknown,
   expectedVersion: number,
+  runner?: Runner,
 ) {
   const input = roleInput.parse(value);
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     const prior = await owned<Role>(userId, "role", id, tx, true);
     expectVersion(prior.version, expectedVersion);
     const [role] = await rows<Role>(
@@ -123,7 +124,8 @@ export async function updateRole(
       );
     // Schedules remain configured; the dispatcher checks current role status before every run.
     return role;
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }
 export async function linkPerson(
   userId: string,
