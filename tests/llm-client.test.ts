@@ -46,8 +46,10 @@ test("official DeepSeek normalizes OpenRouter-style model names", () => {
       SEARCH_LIGHT_MODEL: "deepseek-v4-flash",
     },
     () => {
-      assert.equal(getDefaultLlmModel(), "deepseek-v4-flash");
-      assert.equal(getLightweightLlmModel(), "deepseek-v4-flash");
+      assert.equal(getDefaultLlmModel(), "deepseek-flash");
+      assert.equal(getLightweightLlmModel(), "deepseek-flash");
+      assert.equal(normalizeLlmModelForCurrentProvider("deepseek-v4-flash"), "deepseek-flash");
+      assert.equal(normalizeLlmModelForCurrentProvider("deepseek-flash"), "deepseek-flash");
       assert.equal(
         normalizeLlmModelForCurrentProvider("deepseek/deepseek-reasoner"),
         "deepseek-v4-pro",
@@ -78,7 +80,7 @@ test("OpenRouter keeps provider-prefixed model names", () => {
 
  test("official JSON mode transmits the schema even when caller does not embed it", () => {
   const schema = { type: "object", required: ["requirements"], properties: { requirements: { type: "array" } } };
-  const body = buildOfficialDeepSeekBody({ model: "deepseek-v4-flash", system: "Extract role facts", prompt: "Backend engineer", jsonSchema: { name: "role", strict: true, schema } }, "disabled", null);
+  const body = buildOfficialDeepSeekBody({ model: "deepseek-flash", system: "Extract role facts", prompt: "Backend engineer", jsonSchema: { name: "role", strict: true, schema } }, "disabled", null);
   assert.ok(body.messages.some((message) => message.content.includes(JSON.stringify(schema))));
   assert.deepEqual(body.response_format, { type: "json_object" });
 });

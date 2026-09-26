@@ -150,7 +150,7 @@ const DEFAULT_LLM_GLOBAL_CONCURRENCY = 32;
 const DEFAULT_LLM_MAX_ATTEMPTS = 4;
 const DEFAULT_LLM_RETRY_BASE_MS = 2000;
 const DEFAULT_LLM_RETRY_MAX_MS = 30000;
-const DEFAULT_OFFICIAL_DEEPSEEK_MODEL = "deepseek-v4-flash";
+const DEFAULT_OFFICIAL_DEEPSEEK_MODEL = "deepseek-flash";
 const DEFAULT_OFFICIAL_DEEPSEEK_ARBITER_MODEL = "deepseek-v4-pro";
 
 type LlmLimiterState = {
@@ -414,7 +414,8 @@ export function normalizeLlmModelForCurrentProvider(model: string) {
 
   const normalized = trimmed.toLowerCase();
   if (normalized === "deepseek-v4-pro") return DEFAULT_OFFICIAL_DEEPSEEK_ARBITER_MODEL;
-  if (normalized === "deepseek-v4-flash") return DEFAULT_OFFICIAL_DEEPSEEK_MODEL;
+  if (normalized === "deepseek-flash" || normalized === "deepseek-v4-flash")
+    return DEFAULT_OFFICIAL_DEEPSEEK_MODEL;
   if (normalized.includes("pro") || normalized.includes("reasoner")) {
     return DEFAULT_OFFICIAL_DEEPSEEK_ARBITER_MODEL;
   }
