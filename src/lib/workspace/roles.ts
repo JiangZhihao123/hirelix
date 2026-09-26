@@ -155,9 +155,10 @@ export async function updateRelationship(
   roleId: string,
   personId: string,
   value: unknown,
+  runner?: Runner,
 ) {
   const input = relationshipInput.parse(value);
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     const [prior] = await rows<RoleCandidate>(
       sql`SELECT * FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid AND person_id=${personId}::uuid FOR UPDATE`,
       tx,
@@ -187,5 +188,6 @@ export async function updateRelationship(
     );
     await snapshot(userId, "role_candidate", link, tx);
     return link;
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }

@@ -1,5 +1,17 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Discard your edits to this proposal?": "放弃对这项提案的修改吗？",
+  "Priorities": "重点要求",
+  "note": "备注",
+  "call": "通话",
+  "email": "邮件",
+  "feedback": "反馈",
+  "Review sharing permission": "核对资料分享授权",
+  "Review the evidence and sharing permission before saving": "保存前核对授权依据和状态",
+  "Saving creates a source record and updates sharing permission for this role. It does not send a recommendation.": "保存后会同时留下依据记录并更新这个职位的资料分享授权；不会发送推荐。",
+  "Sharing permission": "资料分享授权",
+  "Save permission and record": "保存授权与依据",
+  "The proposed changes below are not saved yet. Review them before they become part of your workspace.": "下面的变更尚未保存，核对确认后才会写入工作区。",
   "Attach a file": "添加文件",
   "· Attached file": "· 对话附件",
   "Drop a file to ask your assistant": "拖入文件，交给助理处理",

@@ -1833,6 +1833,16 @@
   font-size: 14px;
   overflow-wrap: anywhere;
 }
+.ws-proposal-status {
+  width: fit-content;
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f5f7f1;
+  color: #566b57;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .ws-message-sources {
   display: flex;
   flex-wrap: wrap;

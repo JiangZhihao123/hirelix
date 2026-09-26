@@ -5,12 +5,14 @@ import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import {
+  acceptAction,
   assistantOpening,
   assistantReply,
   conversationDetails,
   sendMessage,
 } from "../../src/lib/workspace/conversations";
-import { createRole } from "../../src/lib/workspace/roles";
+import { createRole, linkPerson } from "../../src/lib/workspace/roles";
+import { createPerson } from "../../src/lib/workspace/people";
 import { readFile } from "../../src/lib/workspace/files";
 import { rows } from "../../src/lib/workspace/database";
 import { claimJob, finishJob } from "../../src/lib/workspace/jobs";
@@ -125,6 +127,7 @@ test("assistant opens with a grounded, proactive question about active work", { 
   const opening = await assistantOpening(openingOwner, "zh");
   assert.match(opening.message, /Northstar|产品|薪酬/);
   assert(opening.suggested_prompt.length > 5);
+  assert.doesNotMatch(`${opening.message} ${opening.suggested_prompt}`, /\brole_\d+\b|早上好|上午好|中午好|下午好|晚上好/i);
 });
 
 test("a simple greeting reconnects to a real active role instead of asking how to help", { timeout: 180000 }, async () => {
@@ -153,4 +156,64 @@ test("a simple greeting reconnects to a real active role instead of asking how t
   assert.match(detail.messages[1].content, /Northstar|VP Product/);
   assert.match(detail.messages[1].content, /薪酬|预算|范围/);
   assert.match(detail.messages[1].content, /？|\?/);
+});
+
+test("reported sharing consent stays pending until one review saves both evidence and role permission", { timeout: 180000 }, async () => {
+  const role = await createRole(owner, {
+    title: "Engineering Director",
+    client_name: "Harbor Labs",
+    jd_text: "Lead the engineering group at Harbor Labs.",
+  });
+  const person = await createPerson(owner, { name: "Priya Desai (QA)" });
+  const otherPerson = await createPerson(owner, { name: "Alex Chen (QA)" });
+  await linkPerson(owner, role.id, person.id);
+  await linkPerson(owner, role.id, otherPerson.id);
+  const created = await sendMessage(owner, {
+    message: "Priya 已口头同意把她的资料分享给 Harbor Labs，Alex 还没确认。先不要发送推荐。",
+    locale: "zh",
+    request_key: randomUUID(),
+    conversation_id: null,
+    role_id: role.id,
+    person_id: null,
+  });
+  const prepared = await assistantReply(created.job, async () => {});
+  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
+  const detail = await conversationDetails(owner, created.conversation_id);
+  const reply = detail.messages[1];
+  assert.doesNotMatch(reply.content, /已记录[:：]|已保存[:：]/);
+  assert.doesNotMatch(reply.content, /\b(?:role|person|source|attachment)_\d+\b/);
+  const actions = reply.metadata.actions as Array<{ id: string; kind: string; fields: Record<string, unknown> }>;
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].kind, "update_sharing_permission");
+  assert.match(String(actions[0].fields.content), /Priya|口头/);
+  assert.doesNotMatch(String(actions[0].fields.content), /Alex/);
+  const [before] = await rows<{ permission: string; permission_record_id: string | null }>(
+    sql`SELECT permission,permission_record_id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`,
+  );
+  assert.equal(before.permission, "unknown");
+  assert.equal(before.permission_record_id, null);
+  const [unsavedRecords] = await rows<{ total: number }>(
+    sql`SELECT count(*)::int AS total FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`,
+  );
+  assert.equal(unsavedRecords.total, 0);
+  await acceptAction(owner, created.conversation_id, reply.id, actions[0].id, actions[0].fields);
+  await acceptAction(owner, created.conversation_id, reply.id, actions[0].id, actions[0].fields);
+  const [afterConsent] = await rows<{ permission: string; permission_record_id: string | null; content: string }>(
+    sql`SELECT rc.permission,rc.permission_record_id,r.content FROM hirelix_private_role_candidates rc JOIN hirelix_private_records r ON r.id=rc.permission_record_id AND r.user_id=rc.user_id WHERE rc.user_id=${owner}::uuid AND rc.role_id=${role.id}::uuid AND rc.person_id=${person.id}::uuid`,
+  );
+  assert.equal(afterConsent.permission, "confirmed");
+  assert.match(afterConsent.content, /Priya|口头/);
+  const [otherConsent] = await rows<{ permission: string; permission_record_id: string | null }>(
+    sql`SELECT permission,permission_record_id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${otherPerson.id}::uuid`,
+  );
+  assert.equal(otherConsent.permission, "unknown");
+  assert.equal(otherConsent.permission_record_id, null);
+  const [records] = await rows<{ total: number }>(
+    sql`SELECT count(*)::int AS total FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`,
+  );
+  assert.equal(records.total, 1);
+  const [sent] = await rows<{ total: number }>(
+    sql`SELECT count(*)::int AS total FROM hirelix_private_deliverables WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND status='submitted'`,
+  );
+  assert.equal(sent.total, 0);
 });

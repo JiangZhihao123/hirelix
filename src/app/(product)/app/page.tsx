@@ -609,6 +609,13 @@ function AssistantWorkspace({
                       <time>{date(message.created_at, true)}</time>
                     </div>
                     <div className="ws-message-prose">
+                      {message.role === "assistant" && metadata.actions?.some(
+                        (action) => action.status === "pending" && !action.href,
+                      ) && (
+                        <p className="ws-proposal-status">
+                          {t("The proposed changes below are not saved yet. Review them before they become part of your workspace.")}
+                        </p>
+                      )}
                       <AgentText content={message.content} />
                       {message.metadata.attachment ? (
                         <a
@@ -654,6 +661,8 @@ function AssistantWorkspace({
                                     )
                                   : action.kind === "add_record"
                                     ? t("Review this record before adding it")
+                                    : action.kind === "update_sharing_permission"
+                                      ? t("Review the evidence and sharing permission before saving")
                                     : t(
                                         "Choose the people and source material to include",
                                       )}
@@ -1060,7 +1069,7 @@ function ActionReview({
   function close() {
     if (
       !saving &&
-      (!dirty || window.confirm("Discard your edits to this proposal?"))
+      (!dirty || window.confirm(t("Discard your edits to this proposal?")))
     )
       onClose();
   }
@@ -1091,6 +1100,8 @@ function ActionReview({
           ? t("Review new role")
           : action.kind === "update_role_brief"
             ? t("Review updated requirements")
+            : action.kind === "update_sharing_permission"
+              ? t("Review sharing permission")
             : t("Review conversation record")
       }
       onClose={close}
@@ -1125,13 +1136,13 @@ function ActionReview({
                     (key) => (
                       <div key={key}>
                         <strong>
-                          {
+                          {t(
                             {
                               priorities: "Priorities",
                               flexible: "Flexible requirements",
                               unknowns: "Still to clarify",
                             }[key]
-                          }
+                          )}
                         </strong>
                         <ul>
                           {(
@@ -1170,13 +1181,13 @@ function ActionReview({
             {(["priorities", "flexible", "unknowns"] as const).map((key) => (
               <Field
                 key={key}
-                label={
+                label={t(
                   {
                     priorities: "Confirmed priorities",
                     flexible: "Flexible requirements",
                     unknowns: "Still to clarify",
                   }[key]
-                }
+                )}
               >
                 <textarea
                   value={(
@@ -1194,13 +1205,26 @@ function ActionReview({
           </>
         ) : (
           <>
+            {action.kind === "update_sharing_permission" && (
+              <section className="ws-panel">
+                <p className="ws-muted">
+                  {t("Saving creates a source record and updates sharing permission for this role. It does not send a recommendation.")}
+                </p>
+                <Field label={t("Sharing permission")}>
+                  <input
+                    readOnly
+                    value={t(String(fields.permission))}
+                  />
+                </Field>
+              </section>
+            )}
             <Field label={t("Record type")}>
               <select
                 value={String(fields.kind)}
                 onChange={(e) => set("kind", e.target.value)}
               >
                 {["note", "call", "email", "feedback"].map((kind) => (
-                  <option key={kind}>{kind}</option>
+                  <option key={kind} value={kind}>{t(kind)}</option>
                 ))}
               </select>
             </Field>
@@ -1261,6 +1285,8 @@ function ActionReview({
                 ? t("Save role")
                 : action.kind === "update_role_brief"
                   ? t("Apply requirements")
+                  : action.kind === "update_sharing_permission"
+                    ? t("Save permission and record")
                   : t("Save record")}
           </button>
         </div>
