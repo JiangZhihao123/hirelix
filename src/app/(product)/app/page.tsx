@@ -495,13 +495,15 @@ function AssistantWorkspace({
                 </form>
               ) : (
                 <>
-                  <h1
-                    title={
-                      query.data?.conversation.title || t("New conversation")
-                    }
-                  >
-                    {query.data?.conversation.title || t("New conversation")}
-                  </h1>
+                  <h1>{t("Conversation")}</h1>
+                  {query.data?.conversation.title && (
+                    <span
+                      className="ws-chat-current-title"
+                      title={query.data.conversation.title}
+                    >
+                      {query.data.conversation.title}
+                    </span>
+                  )}
                   {conversationId && query.data && (
                     <button
                       type="button"

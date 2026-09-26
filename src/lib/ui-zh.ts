@@ -1217,6 +1217,7 @@ export const uiZh: Record<string, string> = {
   "AI can run more sourcing rounds per desk": "AI 可为每个职位进行更多轮寻访",
   "Start Pro": "开通 Pro 套餐",
   "Conversations": "对话",
+  "Conversation": "当前对话",
   "Conversation history": "对话历史",
   "Open conversation history": "打开对话历史",
   "Close conversation history": "关闭对话历史",

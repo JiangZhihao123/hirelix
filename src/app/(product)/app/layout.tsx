@@ -210,7 +210,9 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const displayName =
     user.user_metadata?.name || user.email?.split("@")[0] || "Your account";
   return (
-    <div className="private-workspace">
+    <div
+      className={`private-workspace ${pathname === "/app" ? "ws-assistant-layout" : ""}`}
+    >
       {sidebarOpen && (
         <button
           className="ws-overlay"
@@ -224,8 +226,15 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         aria-label={t("Main navigation")}
       >
         <div className="ws-brand">
-          <Link href="/app" onClick={() => navigate("/app")}>
-            {t("hirelix")}
+          <Link
+            href="/app"
+            onClick={() => navigate("/app")}
+            aria-label={t("hirelix")}
+          >
+            <span className="ws-brand-full">{t("hirelix")}</span>
+            <span className="ws-brand-short" aria-hidden="true">
+              h
+            </span>
           </Link>
           <button
             className="ws-icon ws-mobile-only"
@@ -242,6 +251,8 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               onClick={() => navigate(item.href)}
               aria-current={item.active ? "page" : undefined}
+              aria-label={item.label}
+              title={item.label}
             >
               {effectivePendingPath === item.href ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -255,12 +266,14 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/app/searches"
             onClick={() => navigate("/app/searches")}
+            aria-label={t("Sourcing")}
+            title={t("Sourcing")}
             aria-current={
               pathname.startsWith("/app/search") ? "page" : undefined
             }
           >
             <Search size={16} />
-            {t("Sourcing")}
+            <span>{t("Sourcing")}</span>
           </Link>
         </nav>
         <div className="ws-sidebar-bottom">
@@ -268,10 +281,12 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <Link
               href="/app/settings"
               onClick={() => navigate("/app/settings")}
+              aria-label={t("Settings")}
+              title={t("Settings")}
               aria-current={pathname === "/app/settings" ? "page" : undefined}
             >
               <Settings size={16} />
-              {t("Settings")}
+              <span>{t("Settings")}</span>
             </Link>
           </nav>
           <div className="ws-account">
