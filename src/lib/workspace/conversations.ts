@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -9,6 +9,8 @@ import { listPeople, personDetails } from "./people";
 import { retrieveCandidates } from "./retrieval";
 import { addRecord } from "./records";
 import { createRole, updateRole } from "./roles";
+import { readFile, saveFile } from "./files";
+import { extractDocument } from "./imports";
 import {
   recordInput,
   roleInput,
@@ -22,7 +24,8 @@ import {
 import type { JobHandler } from "./jobs";
 
 export const conversationInput = z.object({
-  message: z.string().trim().min(1).max(50000),
+  message: z.string().trim().max(50000),
+  locale: z.enum(["en", "zh"]).default("en"),
   request_key: z.string().min(1).max(200),
   conversation_id: z.uuid().nullable().default(null),
   role_id: z.uuid().nullable().default(null),
@@ -53,6 +56,60 @@ export async function listConversations(userId: string) {
     sql`SELECT * FROM hirelix_private_conversations WHERE user_id=${userId}::uuid ORDER BY updated_at DESC,id LIMIT 100`,
   );
 }
+const openingSchema = z.object({
+  message: z.string().min(1).max(400),
+  suggested_prompt: z.string().min(1).max(500),
+  role_ref: z.string().nullable(),
+});
+export async function assistantOpening(userId: string, locale: "en" | "zh") {
+  const [roles, pending] = await Promise.all([
+    listRoles(userId),
+    rows<{ total: number }>(
+      sql`SELECT count(*)::int AS total FROM hirelix_private_import_rows r JOIN hirelix_private_jobs j ON j.id=r.job_id AND j.user_id=r.user_id WHERE r.user_id=${userId}::uuid AND r.status='review' AND j.kind='import'`,
+    ),
+  ]);
+  const active = roles.filter((role) => role.status === "active").slice(0, 6);
+  if (!active.length && !pending[0]?.total)
+    return locale === "zh"
+      ? {
+          message: "把你正在处理的职位、候选人或客户消息交给我。我会先帮你理清重点，再一起推进下一步。",
+          suggested_prompt: "我手头有一份材料，帮我看看下一步该怎么处理",
+          role_id: null,
+        }
+      : {
+          message: "Bring me the role, candidate, or client message on your mind. I'll help make sense of it and move the work forward.",
+          suggested_prompt: "I have some material. Help me decide what to do next.",
+          role_id: null,
+        };
+  const catalog = active.map((role, index) => ({
+    ref: `role_${index + 1}`,
+    client: role.client_name,
+    title: role.title,
+    unknowns: role.brief?.unknowns || [],
+    updated_at: role.updated_at,
+  }));
+  const result = await structured(
+    userId,
+    "private_assistant_opening",
+    openingSchema,
+    "You are opening a professional headhunter's private assistant. In the requested language, proactively mention one concrete piece of work supported by the provided catalog, and ask one useful question or offer one specific action. Keep it warm, concise and natural, as a colleague who remembers the work. Prioritize actual pending candidate reviews only when present; otherwise use an active role with a real unknown. Do not fabricate urgency, recent conversations, client decisions, or work performed. suggested_prompt is a natural first-person instruction the recruiter can send to continue. Use a role_ref only if the message is about that exact catalog role; otherwise null.",
+    {
+      locale,
+      active_roles: catalog,
+      candidates_awaiting_review: pending[0]?.total || 0,
+    },
+  );
+  const selected = result.role_ref
+    ? catalog.find((entry) => entry.ref === result.role_ref)
+    : null;
+  if (result.role_ref && !selected)
+    throw new WorkspaceError("The assistant selected an unavailable role", 502);
+  return {
+    message: result.message,
+    suggested_prompt: result.suggested_prompt,
+    role_id: selected ? active[catalog.indexOf(selected)].id : null,
+  };
+}
 export async function conversationDetails(userId: string, id: string) {
   const conversation = await owned<Conversation>(userId, "conversation", id);
   const [messages, jobs] = await Promise.all([
@@ -79,8 +136,17 @@ export async function renameConversation(
   );
   return { conversation };
 }
-export async function sendMessage(userId: string, value: unknown) {
+export async function sendMessage(
+  userId: string,
+  value: unknown,
+  file?: { name: string; type: string; bytes: Uint8Array },
+) {
   const input = conversationInput.parse(value);
+  if (!input.message && !file)
+    throw new WorkspaceError("Write a message or attach a file");
+  const attachmentHash = file
+    ? createHash("sha256").update(file.bytes).digest("hex")
+    : null;
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + input.request_key},0))`,
@@ -90,24 +156,17 @@ export async function sendMessage(userId: string, value: unknown) {
       tx,
     );
     if (existing) {
-      if (
-        existing.kind !== "chat" ||
-        JSON.stringify(existing.payload.request) !==
-          JSON.stringify(JSON.parse(JSON.stringify(input)))
-      ) {
-        // JSONB key order is not stable; compare the original request in PostgreSQL.
-        const [same] = await rows<{ same: boolean }>(
-          sql`SELECT payload->'request'=${json(input)} AS same FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND id=${existing.id}::uuid`,
-          tx,
+      const [same] = await rows<{ same: boolean }>(
+        sql`SELECT payload->'request'=${json(input)} AND payload->>'attachment_sha256' IS NOT DISTINCT FROM ${attachmentHash} AS same FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND id=${existing.id}::uuid`,
+        tx,
+      );
+      if (existing.kind !== "chat" || !same.same)
+        throw new WorkspaceError(
+          "This request key was already used for another message",
+          409,
         );
-        if (existing.kind !== "chat" || !same.same)
-          throw new WorkspaceError(
-            "This request key was already used for another message",
-            409,
-          );
-      }
       return {
-        conversation_id: existing.payload.conversation_id,
+        conversation_id: z.uuid().parse(existing.payload.conversation_id),
         job: existing,
       };
     }
@@ -133,12 +192,13 @@ export async function sendMessage(userId: string, value: unknown) {
         );
     } else {
       [conversation] = await rows<Conversation>(
-        sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${input.message.slice(0, 100)},${input.role_id}::uuid,${input.person_id}::uuid) RETURNING *`,
+        sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${(input.message || file?.name || "New conversation").slice(0, 100)},${input.role_id}::uuid,${input.person_id}::uuid) RETURNING *`,
         tx,
       );
     }
+    const attachment = file ? await saveFile(userId, file, tx) : null;
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(attachment ? { attachment: { file_id: attachment.id, name: attachment.name, size: attachment.byte_size } } : {}) })}) RETURNING *`,
       tx,
     );
     await tx.execute(
@@ -152,6 +212,7 @@ export async function sendMessage(userId: string, value: unknown) {
         conversation_id: conversation.id,
         message_id: message.id,
         request: input,
+        attachment_sha256: attachmentHash,
       },
       tx,
     );
@@ -162,6 +223,20 @@ const planSchema = z.object({
   candidate_query: z.string().max(4000).nullable(),
   lookup: z.enum(["exact", "semantic", "none"]),
   role_refs: z.array(z.string()).max(5),
+  greeting_or_open_request: z.boolean(),
+  attachment_kind: z.enum([
+    "candidate_cv",
+    "candidate_list",
+    "job_description",
+    "conversation_note",
+    "other",
+    "unreadable",
+    "none",
+  ]),
+  prepare_candidate_draft: z.boolean(),
+  candidate_evidence_quote: z.string().max(500).nullable(),
+  may_propose_role_creation: z.boolean(),
+  may_propose_record: z.boolean(),
 });
 const roleDraft = z.object({
   title: z.string(),
@@ -175,6 +250,7 @@ const roleDraft = z.object({
 });
 const replySchema = z.object({
   answer: z.string().min(1).max(25000),
+  follow_up: z.string().max(500).nullable(),
   source_refs: z.array(z.string()).max(30),
   actions: z
     .array(
@@ -202,6 +278,56 @@ const replySchema = z.object({
     )
     .max(5),
 });
+const openRequestReplySchema = replySchema.extend({
+  answer: z.string().min(1).max(600),
+  follow_up: z.string().max(180).nullable(),
+  actions: replySchema.shape.actions.max(1),
+});
+type ConversationAttachment = {
+  file_id: string;
+  name: string;
+  size: number;
+};
+function attachmentFromMessage(message: Message): ConversationAttachment | null {
+  const value = message.metadata.attachment;
+  const parsed = z.object({
+    file_id: z.uuid(),
+    name: z.string(),
+    size: z.number(),
+  }).safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+async function readConversationFile(userId: string, message: Message) {
+  const attachment = attachmentFromMessage(message);
+  if (!attachment) return null;
+  const file = await readFile(userId, attachment.file_id);
+  try {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    const text = ["csv", "txt", "md"].includes(extension || "")
+      ? new TextDecoder("utf-8", { fatal: true }).decode(file.bytes).replace(/^\uFEFF/, "")
+      : await extractDocument(file);
+    if (!text.trim())
+      throw new WorkspaceError("This file has no readable text");
+    return {
+      ...attachment,
+      text: text.slice(0, 100000),
+      truncated: text.length > 100000,
+      read_error: null as string | null,
+    };
+  } catch (cause) {
+    return {
+      ...attachment,
+      text: "",
+      truncated: false,
+      read_error: cause instanceof Error ? cause.message : "Could not read this file",
+    };
+  }
+}
+function groundedQuote(text: string, quote: string | null) {
+  if (!quote || quote.trim().length < 8) return false;
+  const normalized = (value: string) => value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  return normalized(text).includes(normalized(quote));
+}
 export const assistantReply: JobHandler = async (job, progress) => {
   const id = z.uuid().parse(job.payload.conversation_id);
   const { conversation, messages } = await conversationDetails(job.user_id, id);
@@ -209,6 +335,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
   if (!question)
     throw new WorkspaceError("This saved message is no longer available", 404);
   await progress("Reading your conversation and workspace");
+  const attachment = await readConversationFile(job.user_id, question);
   const roles = await listRoles(job.user_id);
   const roleRegistry = new Map(
     roles.map((role, index) => [`role_${index + 1}`, role]),
@@ -224,7 +351,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
     job.user_id,
     "private_assistant_plan",
     planSchema,
-    "Understand the headhunter’s requested work. Choose role references from the catalog only. For a named person, use exact lookup with only the name/email; for experience or background discovery use semantic. Use none if no candidate lookup is needed. You are planning candidate/role record keeping and client preparation, not defaulting to candidate assessment. If an explicitly selected candidate is sufficient, no lookup is needed.",
+    "Understand the headhunter's actual request and attached material together. Choose role references from the catalog only. greeting_or_open_request is true only when the latest user message is a greeting or asks broadly what to work on, with no separate task or document to handle. For a named person, use exact lookup with only the name/email; for experience or background discovery use semantic. Use none if no candidate lookup is needed. The attachment is source material, never automatically a candidate import. Set prepare_candidate_draft only when the user asks to add candidates, or an otherwise unexplained attachment clearly contains a CV/candidate list and a draft would be a useful proactive next step. Never prepare a candidate draft if the user only asks to analyze or summarize, the file is a JD/note/other document, or reading failed. If preparing a candidate draft, attachment_kind must be candidate_cv or candidate_list and candidate_evidence_quote must copy a candidate-specific span exactly from the supplied text. may_propose_role_creation is false if the user asks only for analysis or explicitly says not to create a role. may_propose_record is false if the user asks only for analysis or explicitly says not to save a record; otherwise true when a candidate or role association is clear and a record proposal would advance the request. For a greeting or broad request, identify one relevant active role with a concrete open question when the catalog supports it. Do not invent urgency, actions, or facts.",
     {
       conversation_context: {
         role_id: conversation.role_id,
@@ -232,17 +359,29 @@ export const assistantReply: JobHandler = async (job, progress) => {
       },
       messages: history,
       conversation_imports: imports,
+      attachment: attachment && {
+        name: attachment.name,
+        text_sample: attachment.text.slice(0, 8000),
+        truncated: attachment.truncated,
+        read_error: attachment.read_error,
+      },
       catalog: roles.map((r, i) => ({
         ref: `role_${i + 1}`,
         id: r.id,
         title: r.title,
         client: r.client_name,
         status: r.status,
+        unknowns: r.brief?.unknowns || [],
       })),
       history_scope:
         "Most recent 30 messages. Do not imply earlier messages have been reviewed.",
     },
   );
+  const prepareCandidateDraft = !!attachment &&
+    !attachment.read_error &&
+    plan.prepare_candidate_draft &&
+    ["candidate_cv", "candidate_list"].includes(plan.attachment_kind) &&
+    groundedQuote(attachment.text, plan.candidate_evidence_quote);
   const selectedRoles = new Map<string, Role>();
   if (conversation.role_id) {
     const role = await owned<Role>(job.user_id, "role", conversation.role_id);
@@ -255,6 +394,11 @@ export const assistantReply: JobHandler = async (job, progress) => {
         "The assistant could not identify the requested role. Retry with a role selected.",
       );
     selectedRoles.set(role.id, role);
+  }
+  if (plan.greeting_or_open_request && selectedRoles.size === 0) {
+    const relevant = roles.find((role) => role.status === "active" && role.brief?.unknowns?.length) ||
+      roles.find((role) => role.status === "active");
+    if (relevant) selectedRoles.set(relevant.id, relevant);
   }
   const candidates = new Map<string, Person>();
   const importedPeople = await rows<Person>(
@@ -305,6 +449,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
     href: string;
     data: unknown;
   }> = [];
+  if (attachment) {
+    sources.push({
+      ref: "attachment_1",
+      title: attachment.name,
+      href: `/api/workspace/files/${attachment.file_id}`,
+      data: {
+        extracted_text: attachment.text,
+        truncated: attachment.truncated,
+        read_error: attachment.read_error,
+      },
+    });
+  }
   const persons = new Map<string, Person>();
   for (const person of candidates.values()) {
     const ref = `person_${persons.size + 1}`;
@@ -358,13 +514,24 @@ export const assistantReply: JobHandler = async (job, progress) => {
   const reply = await structured(
     job.user_id,
     "private_assistant_reply",
-    replySchema,
-    `Help a professional headhunter maintain their candidate relationships, work on client roles, and prepare client material. Speak as their capable personal assistant: short, direct and useful. Respect requested brevity. For a routine save or update proposal, answer in at most 2 short sentences; put detailed changes in the review action rather than repeating every field. Do not append unsolicited reminders or statements about actions nobody requested. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless explicitly asked for diagnostics. For import summaries, distinguish add versus merge using reviewed_rows.action, and describe the current saved profile (not empty fields in the original CSV) as the current state. A merged profile can retain existing private notes while keeping imported content as a separate source; this is a completed merge, not an unresolved one. Do not turn routine completion into an unsolicited checklist. Reply in the user's language. Candidate assessment is only an auxiliary role action when actually requested. Use source_refs for every source relied upon, from the provided registry; do not invent URLs. Distinguish recorded facts from recommendations and unanswered questions. Do not claim any action was performed: actions below are proposals requiring review. add_record preserves the user's original reported facts; occurred_at is null unless the message gives a definite date/time (resolve relative dates against current_time and supplied timezone only when explicit). When the user supplies changed client requirements, propose update_role_brief for the identified existing role. Its role_draft.brief is the complete proposed brief: preserve still-valid priorities, flexible requirements and unknowns, incorporate only the reported change, and remove superseded requirements. This proposal preserves the original JD and records the original feedback when accepted. Do not also propose add_record for the same feedback. Merely asking a question about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. submission/search_update opens source selection and preparation, not a claim of a saved or sent draft. No email is sent by this assistant. If the person/role is ambiguous ask one concise clarification, do not attach records arbitrarily. Do not expose private notes in any proposed client prose; client documents are prepared in the separate source selection page. Use source refs such as role_N/person_N; null for irrelevant fields. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages; make further investigation needs explicit.`,
+    plan.greeting_or_open_request ? openRequestReplySchema : replySchema,
+    `Help a professional headhunter maintain candidate relationships, work on client roles, and prepare client material. Be an attentive, proactive personal assistant, not a workflow navigator. Answer the request first, then look for the single most useful evidence-backed next move. When a key fact or association is missing, ask one specific question that lets the recruiter move forward; when a useful action can already be prepared, propose it instead of asking the recruiter to choose a process. Put that question in follow_up, or null when the work is genuinely complete or a question would be repetitive. For a greeting or open request, if an active role is in sources, reconnect the recruiter to one concrete unknown for that role. Keep it short: one focus, one useful question, no inventory of candidates or documents, and no repeated self-introduction. Do not ask a generic "how can I help" when grounded work context is available. Never add a checklist of speculative reminders. Respect requested brevity and the user's language; when the message has no language, use preferred_language. If an attached file is present, respond to its contents and the user's message together. An attachment is not automatically a CV. If it is unreadable, explain the actual limitation and offer one concrete way forward. If the file is unrelated to recruiting but the user requests a simple content task, help with that task in this conversation without creating a recruiter record. If no instruction accompanies a readable file, state what it appears to contain and proactively suggest one useful next step or ask one focused question. Candidate draft preparation is allowed only when candidate_draft_allowed is true; it is still a draft and is not saved to the pool. Do not propose add_record for an unsaved candidate draft: no candidate exists to attach a record to yet. For source material use source_refs from the registry and never invent URLs or imply the full file was read when truncated. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless asked. For import summaries, distinguish add versus merge using reviewed_rows.action; a completed merge is not an unresolved one. Distinguish recorded facts from recommendations and unanswered questions. Do not claim an action was performed when it is only a proposal requiring review. add_record preserves the user's reported facts; occurred_at is null unless the message or file gives a definite date/time. When the user supplies changed client requirements, propose update_role_brief for the identified role. Its role_draft.brief is the complete proposed brief: preserve still-valid requirements and incorporate only supported changes. This preserves the original JD and records the feedback on acceptance; do not also propose add_record for the same feedback. Merely asking about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. submission/search_update opens preparation, not a claim of a saved or sent draft. No email is sent by this assistant. If person or role identity is ambiguous, ask one concise clarification before attaching records. Do not expose private notes in proposed client prose. Use role_N/person_N/attachment_1 source refs where relevant. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages, and at most the first 100000 characters of an attachment; make any material limit explicit.`,
     {
       current_time: new Date().toISOString(),
+      preferred_language: job.payload.request && typeof job.payload.request === "object"
+        ? (job.payload.request as { locale?: string }).locale || "en"
+        : "en",
       timezone:
         "UTC (user timezone not supplied; ask if a relative local time matters)",
       history,
+      current_request: question.content,
+      greeting_or_open_request: plan.greeting_or_open_request,
+      attachment_interpretation: attachment && {
+        kind: plan.attachment_kind,
+        candidate_draft_allowed: prepareCandidateDraft,
+        read_error: attachment.read_error,
+        truncated: attachment.truncated,
+      },
       coverage,
       conversation_imports: imports,
       imported_profile_scope:
@@ -381,7 +548,16 @@ export const assistantReply: JobHandler = async (job, progress) => {
       );
     return { title: source.title, href: source.href };
   });
-  const actions: AssistantAction[] = reply.actions.map((action) => {
+  const actions: AssistantAction[] = reply.actions
+    .filter((action) => {
+      if (action.kind === "create_role") return plan.may_propose_role_creation;
+      if (action.kind === "add_record")
+        return plan.may_propose_record && (!!action.role_ref || !!action.person_ref);
+      if (action.kind === "update_role_brief" || action.kind === "submission" || action.kind === "search_update")
+        return !!action.role_ref;
+      return true;
+    })
+    .map((action) => {
     const role = action.role_ref ? roleRegistry.get(action.role_ref) : null,
       person = action.person_ref ? persons.get(action.person_ref) : null;
     if ((action.role_ref && !role) || (action.person_ref && !person))
@@ -391,7 +567,12 @@ export const assistantReply: JobHandler = async (job, progress) => {
     let fields: Record<string, unknown> = {},
       href: string | undefined;
     if (action.kind === "create_role")
-      fields = roleInput.parse(action.role_draft);
+      fields = {
+        ...roleInput.parse(action.role_draft),
+        ...(attachment && plan.attachment_kind === "job_description" && !attachment.read_error
+          ? { jd_text: attachment.text, source_file_id: attachment.file_id, source_file_name: attachment.name }
+          : {}),
+      };
     if (action.kind === "update_role_brief") {
       if (!role || !action.role_draft)
         throw new WorkspaceError("Choose the role whose requirements changed.");
@@ -400,8 +581,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
         brief: roleInput.shape.brief.parse(action.role_draft.brief),
         previous_brief: role.brief,
         expected_version: role.version,
-        feedback: question.content,
+        feedback: attachment && !attachment.read_error ? attachment.text : question.content,
         source_message_id: question.id,
+        ...(attachment && !attachment.read_error ? { source_file_id: attachment.file_id } : {}),
       };
     }
     if (action.kind === "add_record") {
@@ -413,6 +595,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         ...action.record,
         role_id: role?.id ?? null,
         person_id: person?.id ?? null,
+        file_id: attachment && !attachment.read_error ? attachment.file_id : null,
       });
     }
     if (action.kind === "submission" || action.kind === "search_update") {
@@ -435,13 +618,30 @@ export const assistantReply: JobHandler = async (job, progress) => {
       fields,
       ...(href ? { href } : {}),
     };
-  });
+    });
   return {
     result: { conversation_id: id },
     apply: async (tx) => {
       await owned(job.user_id, "conversation", id, tx, true);
+      const importJob = prepareCandidateDraft && attachment
+        ? await enqueue(
+            job.user_id,
+            "import",
+            `assistant-import:${job.id}`,
+            {
+              file_id: attachment.file_id,
+              filename: attachment.name,
+              conversation_id: id,
+              source_message_id: question.id,
+            },
+            tx,
+          )
+        : null;
+      const followUp = reply.follow_up?.trim();
+      const answer = reply.answer.trim() +
+        (followUp && !reply.answer.includes(followUp) ? `\n\n${followUp}` : "");
       const [message] = await rows<Message>(
-        sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${job.user_id}::uuid,'assistant',${reply.answer},${id}::uuid,${json({ actions, sources: cited, coverage })}) RETURNING *`,
+        sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${job.user_id}::uuid,'assistant',${answer},${id}::uuid,${json({ actions, sources: cited, coverage, ...(importJob ? { import_job_id: importJob.id } : {}) })}) RETURNING *`,
         tx,
       );
       await tx.execute(
@@ -472,6 +672,17 @@ export async function acceptAction(
     if (action.status === "saved") return { href: action.href };
     if (action.kind === "create_role") {
       const role = await createRole(userId, roleInput.parse(value), tx);
+      if (action.fields.source_file_id) {
+        const fileId = z.uuid().parse(action.fields.source_file_id);
+        await owned(userId, "file", fileId, tx);
+        await addRecord(userId, {
+          role_id: role.id,
+          file_id: fileId,
+          kind: "jd",
+          title: String(action.fields.source_file_name || "Original job description"),
+          content: String(action.fields.jd_text || ""),
+        }, tx);
+      }
       action.href = `/app/roles/${role.id}`;
       action.role_id = role.id;
       await tx.execute(
@@ -493,6 +704,7 @@ export async function acceptAction(
         userId,
         {
           role_id: role.id,
+          file_id: action.fields.source_file_id || null,
           kind: "feedback",
           title: "Client requirements feedback",
           content: z.string().parse(action.fields.feedback),
@@ -510,7 +722,7 @@ export async function acceptAction(
       if (
         input.person_id !== action.person_id ||
         input.role_id !== action.role_id ||
-        input.file_id
+        input.file_id !== (action.fields.file_id || null)
       )
         throw new WorkspaceError(
           "The record association changed. Start a new record from the correct profile.",

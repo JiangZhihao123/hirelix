@@ -695,7 +695,13 @@ function ReviewRow({
 }
 
 /** The same import review lives inside the assistant conversation. */
-export function ConversationImport({ jobId }: { jobId: string }) {
+export function ConversationImport({
+  jobId,
+  embedded = false,
+}: {
+  jobId: string;
+  embedded?: boolean;
+}) {
   const t = useT();
   const { locale } = useLanguage();
   const [page, setPage] = useState(1),
@@ -761,7 +767,7 @@ export function ConversationImport({ jobId }: { jobId: string }) {
       className="ws-chat-import"
       aria-label={t("Candidate import in conversation")}
     >
-      <div className="ws-message-label">{t("Hirelix")}</div>
+      {!embedded && <div className="ws-message-label">{t("Hirelix")}</div>}
       <ErrorNotice error={error || preview.error} retry={preview.refresh} />
       {!job ? (
         <Loading>{t("Opening your file…")}</Loading>

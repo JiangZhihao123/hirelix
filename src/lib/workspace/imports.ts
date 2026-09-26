@@ -143,6 +143,17 @@ export async function extractDocument(file: {
   bytes: Uint8Array;
 }) {
   const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "txt" || extension === "md") {
+    let content: string;
+    try {
+      content = new TextDecoder("utf-8", { fatal: true }).decode(file.bytes).replace(/^\uFEFF/, "");
+    } catch {
+      throw new WorkspaceError("This text file is not readable as UTF-8");
+    }
+    if (!content.trim())
+      throw new WorkspaceError("This text file has no readable content");
+    return content;
+  }
   if (extension === "docx") {
     // Check archive expansion before asking the OOXML reader to open it.
     let expanded = 0;
@@ -184,7 +195,7 @@ export async function extractDocument(file: {
       await pdf.loadingTask.destroy();
     }
   }
-  throw new WorkspaceError("Use a CSV, text PDF or DOCX file");
+  throw new WorkspaceError("Use a CSV, text PDF, DOCX, TXT or Markdown file");
 }
 export async function findDuplicates(
   userId: string,

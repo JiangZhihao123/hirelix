@@ -1,5 +1,9 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Attach a file": "添加文件",
+  "· Attached file": "· 对话附件",
+  "Drop a file to ask your assistant": "拖入文件，交给助理处理",
+  "Let's move the work forward.": "我们接着推进工作。",
   "% overall": "总体 %",
   "+ years": "+ 年",
   ". I’ll ask which details to keep.": "。我会询问要保留哪些细节。",

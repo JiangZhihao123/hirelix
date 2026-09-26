@@ -1,6 +1,6 @@
 "use client";
 
-import { useT } from "@/components/LanguageProvider";
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import {
   useEffect,
   useRef,
@@ -101,8 +101,14 @@ function AssistantWorkspace({
   onOpen: (id: string, text?: string) => void;
 }) {
   const t = useT();
+  const { locale } = useLanguage();
   const list = useQuery<{ conversations: Conversation[] }>("/conversations"),
     roles = useQuery<{ roles: Role[] }>("/roles");
+  const opening = useQuery<{
+    message: string;
+    suggested_prompt: string;
+    role_id: string | null;
+  }>(!conversationId ? `/conversations/opening?locale=${locale}` : null);
   const query = useQuery<Detail>(
     conversationId ? `/conversations/${conversationId}` : null,
   );
@@ -138,8 +144,8 @@ function AssistantWorkspace({
       setError("Choose a file up to 4 MB.");
       return;
     }
-    if (!/\.(csv|pdf|docx)$/i.test(file.name)) {
-      setError("Attach a CSV, text PDF or DOCX candidate file.");
+    if (!/\.(csv|pdf|docx|txt|md)$/i.test(file.name)) {
+      setError("Attach a CSV, text PDF, DOCX, TXT or Markdown file.");
       return;
     }
     setAttachment(file);
@@ -296,12 +302,12 @@ function AssistantWorkspace({
         const form = new FormData();
         form.append("file", attachment);
         form.append("request_key", attachmentKey);
-        form.append("in_conversation", "true");
         form.append("message", text);
+        form.append("locale", locale);
         if (conversationId) form.append("conversation_id", conversationId);
         if (!conversationId && roleId) form.append("role_id", roleId);
         if (!conversationId && personId) form.append("person_id", personId);
-        const uploaded = await api<{ job: Job }>("/imports", {
+        const uploaded = await api<{ conversation_id: string }>("/conversations", {
           method: "POST",
           body: form,
         });
@@ -310,7 +316,7 @@ function AssistantWorkspace({
         localStorage.removeItem(draftStorageKey);
         setAttachmentKey(crypto.randomUUID());
         if (fileInput.current) fileInput.current.value = "";
-        const target = String(uploaded.job.payload.conversation_id);
+        const target = uploaded.conversation_id;
         if (!conversationId) onOpen(target);
         else query.refresh();
         list.refresh();
@@ -320,6 +326,7 @@ function AssistantWorkspace({
         method: "POST",
         body: JSON.stringify({
           message: text,
+          locale,
           request_key: request.current.key,
           conversation_id: conversationId,
           role_id: conversationId ? null : roleId || null,
@@ -566,50 +573,21 @@ function AssistantWorkspace({
                 <span className="ws-eyebrow">
                   {t("YOUR PRIVATE ASSISTANT")}
                 </span>
-                <h2>{t("What can I help you move forward?")}</h2>
+                <h2>{t("Let's move the work forward.")}</h2>
                 <p>
-                  {t(
+                  {opening.data?.message || t(
                     "Bring a client’s JD, a conversation with a candidate, or a recommendation you need to prepare. I’ll help you work with what you have.",
                   )}
                 </p>
-                <div className="ws-starters">
+                {opening.data && (
                   <button
-                    onClick={() =>
-                      prompt(t("Find a candidate in my pool who "))
-                    }
+                    className="ws-opening-suggestion"
+                    onClick={() => prompt(opening.data!.suggested_prompt)}
                   >
-                    <span>
-                      <Search size={17} />
-                    </span>
-                    <strong>{t("Find a candidate")}</strong>
-                    <small>{t("Search the people I already know")}</small>
-                    <ArrowUpRight size={14} />
+                    <span>{opening.data.suggested_prompt}</span>
+                    <ArrowUpRight size={15} />
                   </button>
-                  <button
-                    onClick={() =>
-                      prompt(t("I have a new client role. Here is the JD:\n\n"))
-                    }
-                  >
-                    <span>
-                      <BriefcaseBusiness size={17} />
-                    </span>
-                    <strong>{t("Work on a client role")}</strong>
-                    <small>{t("Turn a JD into a clear brief")}</small>
-                    <ArrowUpRight size={14} />
-                  </button>
-                  <button
-                    onClick={() =>
-                      prompt(t("Help me prepare a candidate submission for "))
-                    }
-                  >
-                    <span>
-                      <MessageSquare size={17} />
-                    </span>
-                    <strong>{t("Draft a submission")}</strong>
-                    <small>{t("Prepare a client-ready introduction")}</small>
-                    <ArrowUpRight size={14} />
-                  </button>
-                </div>
+                )}
               </div>
             ) : (
               query.data?.messages.map((message) => {
@@ -633,18 +611,22 @@ function AssistantWorkspace({
                     <div className="ws-message-prose">
                       <AgentText content={message.content} />
                       {message.metadata.attachment ? (
-                        <span className="ws-chat-attachment">
+                        <a
+                          className="ws-chat-attachment"
+                          href={`/api/workspace/files/${String((message.metadata.attachment as { file_id: string }).file_id)}`}
+                        >
                           <Paperclip size={14} />
                           {String(
                             (message.metadata.attachment as { name: string })
                               .name,
                           )}
-                        </span>
+                        </a>
                       ) : null}
                     </div>
                     {typeof message.metadata.import_job_id === "string" && (
                       <ConversationImport
                         jobId={message.metadata.import_job_id}
+                        embedded={message.role === "assistant"}
                       />
                     )}
                     {metadata.sources?.length ? (
@@ -808,16 +790,16 @@ function AssistantWorkspace({
             {dragging && (
               <div className="ws-composer-drop-target">
                 <Paperclip size={18} />
-                {t("Drop a CSV or CV to import")}
+                {t("Drop a file to ask your assistant")}
               </div>
             )}
             <input
               ref={fileInput}
               className="sr-only"
               tabIndex={-1}
-              aria-label={t("Attach candidate file")}
+              aria-label={t("Attach a file")}
               type="file"
-              accept=".csv,.pdf,.docx"
+              accept=".csv,.pdf,.docx,.txt,.md"
               onChange={(e) => chooseFile(e.target.files?.[0])}
             />
             {attachment && (
@@ -829,7 +811,7 @@ function AssistantWorkspace({
                     {attachment.size < 1024
                       ? `${attachment.size} bytes`
                       : `${(attachment.size / 1024).toFixed(0)} KB`}{" "}
-                    {t("· Candidate import")}
+                    {t("· Attached file")}
                   </small>
                 </span>
                 <button
@@ -886,7 +868,7 @@ function AssistantWorkspace({
                 onClick={() => fileInput.current?.click()}
               >
                 <Paperclip size={14} />
-                {t("Attach candidates")}
+                {t("Attach a file")}
               </button>
               <span>
                 {pending
