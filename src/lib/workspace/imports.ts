@@ -305,7 +305,7 @@ export const prepareImport: JobHandler = async (job, progress) => {
     job.user_id,
     "private_import_cv",
     z.object({ person: personInput, warnings: z.array(z.string()) }),
-    "Extract one candidate profile from this CV. Copy supported facts faithfully. Leave unavailable fields empty, never infer availability or permission. Preserve employment dates as written. Put uncertainty in warnings. Keep note empty unless the document contains explicit recruiter notes. This is a draft the recruiter will review before saving.",
+    "Extract one candidate profile from this CV. Copy supported facts faithfully. Leave unavailable fields empty, never infer availability or permission. Preserve employment dates as written. Put only material ambiguities or transformations the recruiter must verify in warnings, as separate concise sentences. Do not list routine missing optional fields or restate that fields were left empty. Keep note empty unless the document contains explicit recruiter notes. This is a draft the recruiter will review before saving.",
     { filename: file.name, original_text: original },
   );
   const matches = await findDuplicates(job.user_id, extracted.person);

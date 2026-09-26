@@ -764,6 +764,7 @@ export const uiZh: Record<string, string> = {
   "Retrying...": "正在重试...",
   "Review": "检查",
   "Review & save": "检查并保存",
+  "Review extraction notes": "核对提取备注",
   "Review a proposed revision before replacing your draft. Your previous version is kept.": "在替换草稿前检查提议的修订。您的上一版本会保留。",
   "Review and edit the agent’s recommendation draft before sharing.": "分享前查看并编辑助理的推荐草稿。",
   "Review column mapping": "检查列映射",

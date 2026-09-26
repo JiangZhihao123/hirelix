@@ -1,6 +1,6 @@
 "use client";
 
-import { useT } from "@/components/LanguageProvider";
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -46,6 +46,22 @@ type Preview = {
   page: number;
   page_size: number;
 };
+function ImportNotes({ warnings }: { warnings?: string[] }) {
+  const t = useT();
+  if (!warnings?.length) return null;
+  return (
+    <details className="ws-import-notes">
+      <summary>
+        {t("Review extraction notes")} <span>({warnings.length})</span>
+      </summary>
+      <ul>
+        {warnings.map((warning, index) => (
+          <li key={index}>{warning}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 const labels: Record<string, string> = {
   name: "Full name",
   headline: "Current role / headline",
@@ -248,11 +264,6 @@ export function ImportCandidates() {
               {t("Download original")}
             </a>
           </div>
-          {result?.warnings?.length ? (
-            <div className="ws-warning mx-8 mb-5">
-              {result.warnings.join(" ")}
-            </div>
-          ) : null}
           {result?.format === "csv" &&
             !result.mapping_confirmed &&
             result.mapping &&
@@ -352,6 +363,9 @@ export function ImportCandidates() {
                 <ChevronRight size={16} />
               </button>
             </div>
+          </div>
+          <div className="mx-8 mb-5">
+            <ImportNotes warnings={result?.warnings} />
           </div>
         </>
       )}
@@ -556,7 +570,7 @@ function ReviewRow({
     );
   return (
     <Dialog
-      title={`Review ${row.extracted.name || `row ${row.row_number}`}`}
+      title={`${t("Review")} ${row.extracted.name || `${t("Candidate")} ${row.row_number}`}`}
       onClose={onClose}
       wide
     >
@@ -683,6 +697,7 @@ function ReviewRow({
 /** The same import review lives inside the assistant conversation. */
 export function ConversationImport({ jobId }: { jobId: string }) {
   const t = useT();
+  const { locale } = useLanguage();
   const [page, setPage] = useState(1),
     [review, setReview] = useState<ImportRow | null>(null),
     [error, setError] = useState(""),
@@ -712,6 +727,18 @@ export function ConversationImport({ jobId }: { jobId: string }) {
       preview.data?.counts
         .filter((c) => ["review", "error"].includes(c.status))
         .reduce((n, c) => n + c.count, 0) || 0;
+  const total = result?.total || 0;
+  const summary = remaining
+    ? locale === "zh"
+      ? `识别出 ${total} 位候选人${saved ? `，已保存 ${saved} 位` : ""}；还有 ${remaining} 位需要你审核。`
+      : `I found ${total} candidate ${total === 1 ? "record" : "records"}. ${saved ? `${saved} saved; ` : ""}${remaining} ${remaining === 1 ? "needs" : "need"} your review.`
+    : saved
+      ? locale === "zh"
+        ? `已将 ${saved} 位候选人保存到候选人池。你可以继续在对话中补充信息。`
+        : `${saved} ${saved === 1 ? "candidate has" : "candidates have"} been saved to your pool. You can keep adding information in this conversation.`
+      : locale === "zh"
+        ? "这份文件没有候选人被保存。"
+        : "No candidates were saved from this file.";
   async function skip(row: ImportRow) {
     setSaving(true);
     setError("");
@@ -758,14 +785,7 @@ export function ConversationImport({ jobId }: { jobId: string }) {
         </>
       ) : (
         <>
-          <p>
-            {remaining
-              ? `I found ${result?.total || 0} candidate ${result?.total === 1 ? "record" : "records"}. ${saved ? `${saved} saved; ` : ""}${remaining} ${remaining === 1 ? "needs" : "need"} your review.`
-              : `${saved} ${saved === 1 ? "candidate has" : "candidates have"} been saved to your pool. You can keep adding information in this conversation.`}
-          </p>
-          {result?.warnings?.length ? (
-            <p className="ws-warning">{result.warnings.join(" ")}</p>
-          ) : null}
+          <p>{summary}</p>
           {result?.format === "csv" &&
           !result.mapping_confirmed &&
           result.mapping &&
@@ -852,6 +872,7 @@ export function ConversationImport({ jobId }: { jobId: string }) {
               ))}
             </div>
           )}
+          <ImportNotes warnings={result?.warnings} />
           {(result?.total || 0) > 50 && (
             <div className="ws-pagination">
               <button
