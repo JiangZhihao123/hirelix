@@ -65,6 +65,20 @@ export async function conversationDetails(userId: string, id: string) {
   ]);
   return { conversation, messages, job: jobs[0] ?? null };
 }
+export async function renameConversation(
+  userId: string,
+  id: string,
+  value: unknown,
+) {
+  const { title } = z
+    .object({ title: z.string().trim().min(1).max(100) })
+    .parse(value);
+  await owned<Conversation>(userId, "conversation", id);
+  const [conversation] = await rows<Conversation>(
+    sql`UPDATE hirelix_private_conversations SET title=${title} WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`,
+  );
+  return { conversation };
+}
 export async function sendMessage(userId: string, value: unknown) {
   const input = conversationInput.parse(value);
   return db.transaction(async (tx) => {

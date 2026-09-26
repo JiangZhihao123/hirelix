@@ -1,7 +1,13 @@
 "use client";
 
 import { useT } from "@/components/LanguageProvider";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -12,6 +18,12 @@ import {
   MessageSquare,
   Check,
   Loader2,
+  PanelLeft,
+  Search,
+  Pencil,
+  Copy,
+  ChevronsDown,
+  BriefcaseBusiness,
   X,
 } from "lucide-react";
 import { AgentText } from "@/components/AgentText";
@@ -49,6 +61,10 @@ export default function AssistantHome() {
   const conversationId = params.get("conversation");
   const roleId = params.get("role"),
     personId = params.get("person");
+  const [handoff, setHandoff] = useState<{
+    conversationId: string;
+    text: string;
+  } | null>(null);
   return (
     <AssistantWorkspace
       key={`${conversationId || "new"}:${roleId || ""}:${personId || ""}`}
@@ -56,7 +72,14 @@ export default function AssistantHome() {
       initialRoleId={roleId}
       personId={personId}
       initialPrompt={params.get("prompt") || ""}
-      onOpen={(id) => router.push(`/app?conversation=${id}`)}
+      handoffText={
+        handoff?.conversationId === conversationId ? handoff.text : null
+      }
+      onHandoffSettled={() => setHandoff(null)}
+      onOpen={(id, text) => {
+        if (text) setHandoff({ conversationId: id, text });
+        router.push(`/app?conversation=${id}`);
+      }}
     />
   );
 }
@@ -65,13 +88,17 @@ function AssistantWorkspace({
   initialRoleId,
   personId,
   initialPrompt,
+  handoffText,
+  onHandoffSettled,
   onOpen,
 }: {
   conversationId: string | null;
   initialRoleId: string | null;
   personId: string | null;
   initialPrompt: string;
-  onOpen: (id: string) => void;
+  handoffText: string | null;
+  onHandoffSettled: () => void;
+  onOpen: (id: string, text?: string) => void;
 }) {
   const t = useT();
   const list = useQuery<{ conversations: Conversation[] }>("/conversations"),
@@ -90,7 +117,21 @@ function AssistantWorkspace({
     } | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentKey, setAttachmentKey] = useState(() => crypto.randomUUID());
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [showJump, setShowJump] = useState(false);
+  const [optimistic, setOptimistic] = useState<{
+    text: string;
+    priorIds: string[];
+  } | null>(handoffText ? { text: handoffText, priorIds: [] } : null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const stickToBottom = useRef(true);
   function chooseFile(file: File | undefined) {
     if (!file) return;
     if (file.size > 4 * 1024 * 1024) {
@@ -128,24 +169,126 @@ function AssistantWorkspace({
       status: string;
     }>;
   }>(activeRoleId ? `/roles/${activeRoleId}` : null);
+  const draftStorageKey = `hirelix:assistant:draft:${conversationId || "new"}`;
+  useEffect(() => {
+    if (!initialPrompt) setDraft(localStorage.getItem(draftStorageKey) || "");
+    setDraftReady(true);
+  }, [draftStorageKey, initialPrompt]);
+  useEffect(() => {
+    if (!draftReady) return;
+    if (draft) localStorage.setItem(draftStorageKey, draft);
+    else localStorage.removeItem(draftStorageKey);
+  }, [draft, draftReady, draftStorageKey]);
+  useEffect(() => {
+    const field = composer.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${Math.min(field.scrollHeight, 220)}px`;
+  }, [draft]);
+  useEffect(() => {
+    if (!contextOpen && !historyOpen) return;
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setContextOpen(false);
+        setHistoryOpen(false);
+      }
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (
+        contextOpen &&
+        event.target instanceof Element &&
+        !event.target.closest(".ws-assistant-context, .ws-chat-context-trigger")
+      ) {
+        setContextOpen(false);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [contextOpen, historyOpen]);
   useEffect(() => {
     if (!conversationId || !pending) return;
     const timer = setInterval(query.refresh, 2000);
     return () => clearInterval(timer);
   }, [conversationId, pending, query.refresh]);
+  useEffect(() => {
+    if (!optimistic || !query.data) return;
+    if (
+      query.data.messages.some(
+        (message) =>
+          message.role === "user" && !optimistic.priorIds.includes(message.id),
+      )
+    ) {
+      setOptimistic(null);
+      if (handoffText) onHandoffSettled();
+    }
+  }, [optimistic, query.data, handoffText, onHandoffSettled]);
   const count = query.data?.messages.length || 0;
   useEffect(() => {
+    if (!count && !pending && !optimistic) {
+      if (scroll.current) scroll.current.scrollTop = 0;
+      return;
+    }
+    if (stickToBottom.current && scroll.current) {
+      scroll.current.scrollTop = scroll.current.scrollHeight;
+      setShowJump(false);
+    } else if (count || pending || optimistic) setShowJump(true);
+  }, [count, pending, optimistic]);
+  function jumpToLatest() {
+    stickToBottom.current = true;
     scroll.current?.scrollTo({
       top: scroll.current.scrollHeight,
-      behavior: "instant",
+      behavior: "smooth",
     });
-  }, [count, pending]);
+    setShowJump(false);
+  }
+  async function rename(event: FormEvent) {
+    event.preventDefault();
+    if (!conversationId || !renameDraft.trim()) return;
+    try {
+      await api(`/conversations/${conversationId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: renameDraft.trim() }),
+      });
+      setRenaming(false);
+      list.refresh();
+      query.refresh();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not rename this conversation",
+      );
+    }
+  }
+  async function copyMessage(id: string, content: string) {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(id);
+      window.setTimeout(
+        () => setCopiedId((current) => (current === id ? null : current)),
+        2000,
+      );
+    } catch {
+      setError("Could not copy this message");
+    }
+  }
   async function send(event: FormEvent) {
     event.preventDefault();
     const text = draft.trim();
     if ((!text && !attachment) || sending || pending) return;
     setSending(true);
     setError("");
+    stickToBottom.current = true;
+    setShowJump(false);
+    if (!attachment)
+      setOptimistic({
+        text,
+        priorIds: query.data?.messages.map((m) => m.id) || [],
+      });
     if (request.current?.text !== text)
       request.current = { text, key: crypto.randomUUID() };
     try {
@@ -164,6 +307,7 @@ function AssistantWorkspace({
         });
         setAttachment(null);
         setDraft("");
+        localStorage.removeItem(draftStorageKey);
         setAttachmentKey(crypto.randomUUID());
         if (fileInput.current) fileInput.current.value = "";
         const target = String(uploaded.job.payload.conversation_id);
@@ -183,11 +327,13 @@ function AssistantWorkspace({
         }),
       });
       setDraft("");
+      localStorage.removeItem(draftStorageKey);
       request.current = null;
-      if (!conversationId) onOpen(result.conversation_id);
+      if (!conversationId) onOpen(result.conversation_id, text);
       else query.refresh();
       list.refresh();
     } catch (cause) {
+      setOptimistic(null);
       setError(
         cause instanceof Error ? cause.message : "Could not save your message",
       );
@@ -208,28 +354,184 @@ function AssistantWorkspace({
     setDraft(text);
     composer.current?.focus();
   }
+  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    )
+      return;
+    event.preventDefault();
+    if (!pending && !sending) event.currentTarget.form?.requestSubmit();
+  }
   return (
     <div className="ws-page ws-assistant-page">
       <div className="ws-assistant-body">
+        {historyOpen && (
+          <button
+            className="ws-history-backdrop"
+            aria-label={t("Close conversation history")}
+            onClick={() => setHistoryOpen(false)}
+          />
+        )}
+        <aside
+          className={`ws-conversation-history ${historyOpen ? "is-open" : ""}`}
+          aria-label={t("Conversation history")}
+        >
+          <div className="ws-history-heading">
+            <strong>{t("Conversations")}</strong>
+            <button
+              type="button"
+              className="ws-icon ws-history-close"
+              aria-label={t("Close conversation history")}
+              onClick={() => setHistoryOpen(false)}
+            >
+              <X size={17} />
+            </button>
+          </div>
+          <Link
+            className="ws-history-new"
+            href="/app"
+            onClick={() => setHistoryOpen(false)}
+          >
+            <Plus size={16} />
+            {t("New conversation")}
+          </Link>
+          <label className="ws-history-search">
+            <Search size={15} />
+            <input
+              value={historySearch}
+              onChange={(event) => setHistorySearch(event.target.value)}
+              placeholder={t("Search conversations")}
+              aria-label={t("Search conversations")}
+            />
+          </label>
+          <div className="ws-history-list">
+            <ErrorNotice error={list.error} retry={list.refresh} />
+            {list.data?.conversations
+              .filter((c) =>
+                c.title
+                  .toLocaleLowerCase()
+                  .includes(historySearch.toLocaleLowerCase()),
+              )
+              .map((c) => (
+                <Link
+                  className="ws-history-item"
+                  href={`/app?conversation=${c.id}`}
+                  key={c.id}
+                  aria-current={c.id === conversationId ? "page" : undefined}
+                  onClick={() => setHistoryOpen(false)}
+                >
+                  <MessageSquare size={15} />
+                  <span>
+                    <strong>{c.title}</strong>
+                    <small>{date(c.updated_at, true)}</small>
+                  </span>
+                </Link>
+              ))}
+            {list.data && !list.data.conversations.length && (
+              <p className="ws-history-empty">
+                {t("Your saved conversations will appear here.")}
+              </p>
+            )}
+            {list.data &&
+              !!list.data.conversations.length &&
+              !list.data.conversations.some((c) =>
+                c.title
+                  .toLocaleLowerCase()
+                  .includes(historySearch.toLocaleLowerCase()),
+              ) && (
+                <p className="ws-history-empty">
+                  {t("No matching conversations")}
+                </p>
+              )}
+          </div>
+        </aside>
         <section className="ws-conversation" aria-label={t("My assistant")}>
           <header className="ws-conversation-header">
-            <div>
-              <span className="ws-eyebrow">{t("YOUR PRIVATE ASSISTANT")}</span>
-              <h1>
-                {conversationId
-                  ? t("Let’s pick up the work.")
-                  : t("What are we working on?")}
-              </h1>
-              <p>
-                {t("Keep your candidates, client roles and recommendations connected.")}
-              </p>
+            <div className="ws-chat-title-row">
+              <button
+                type="button"
+                className="ws-icon ws-history-toggle"
+                aria-label={t("Open conversation history")}
+                onClick={() => setHistoryOpen(true)}
+              >
+                <PanelLeft size={18} />
+              </button>
+              {renaming ? (
+                <form className="ws-rename-form" onSubmit={rename}>
+                  <input
+                    autoFocus
+                    aria-label={t("Conversation title")}
+                    maxLength={100}
+                    value={renameDraft}
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") setRenaming(false);
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    className="ws-icon"
+                    aria-label={t("Save title")}
+                  >
+                    <Check size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="ws-icon"
+                    aria-label={t("Cancel")}
+                    onClick={() => setRenaming(false)}
+                  >
+                    <X size={16} />
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <h1
+                    title={
+                      query.data?.conversation.title || t("New conversation")
+                    }
+                  >
+                    {query.data?.conversation.title || t("New conversation")}
+                  </h1>
+                  {conversationId && query.data && (
+                    <button
+                      type="button"
+                      className="ws-icon ws-rename-button"
+                      aria-label={t("Rename conversation")}
+                      onClick={() => {
+                        setRenameDraft(query.data!.conversation.title);
+                        setRenaming(true);
+                      }}
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                </>
+              )}
             </div>
-            {conversationId && (
-              <Link className="ws-button" href="/app">
-                <Plus size={14} />
-                {t("New conversation")}
-              </Link>
-            )}
+            <div className="ws-chat-header-actions">
+              {activeRole && (
+                <Link
+                  className="ws-chat-role"
+                  href={`/app/roles/${activeRole.id}`}
+                >
+                  <BriefcaseBusiness size={14} />
+                  <span>
+                    {activeRole.client_name} · {activeRole.title}
+                  </span>
+                </Link>
+              )}
+              <button
+                type="button"
+                className={`ws-chat-context-trigger ${contextOpen ? "is-active" : ""}`}
+                aria-expanded={contextOpen}
+                onClick={() => setContextOpen(!contextOpen)}
+              >
+                {t("Workspace context")}
+              </button>
+            </div>
           </header>
           <ErrorNotice
             error={error || query.error || roles.error}
@@ -244,52 +546,68 @@ function AssistantWorkspace({
           <div
             ref={scroll}
             className="ws-conversation-scroll"
-            aria-live="polite"
-            aria-busy={pending}
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              const nearBottom =
+                el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+              stickToBottom.current = nearBottom;
+              if (nearBottom) setShowJump(false);
+            }}
           >
             {conversationId && !query.data ? (
-              query.loading ? (
+              query.loading && !optimistic ? (
                 <Loading>{t("Opening your conversation…")}</Loading>
               ) : null
-            ) : !count ? (
+            ) : !count && !optimistic ? (
               <div className="ws-assistant-start">
                 <div className="ws-assistant-mark">
                   <MessageSquare size={20} />
                 </div>
-                <h2>{t("Your work can start here.")}</h2>
+                <span className="ws-eyebrow">
+                  {t("YOUR PRIVATE ASSISTANT")}
+                </span>
+                <h2>{t("What can I help you move forward?")}</h2>
                 <p>
-                  {t("Bring a client’s JD, a conversation with a candidate, or a recommendation you need to prepare. I’ll help you work with what you have.")}
+                  {t(
+                    "Bring a client’s JD, a conversation with a candidate, or a recommendation you need to prepare. I’ll help you work with what you have.",
+                  )}
                 </p>
                 <div className="ws-starters">
                   <button
-                    onClick={() => prompt("Find a candidate in my pool who ")}
+                    onClick={() =>
+                      prompt(t("Find a candidate in my pool who "))
+                    }
                   >
-                    {t("Find a candidate")} <ArrowUpRight size={14} />
+                    <span>
+                      <Search size={17} />
+                    </span>
+                    <strong>{t("Find a candidate")}</strong>
+                    <small>{t("Search the people I already know")}</small>
+                    <ArrowUpRight size={14} />
                   </button>
                   <button
                     onClick={() =>
-                      prompt(
-                        "I have a new client role. Help me set it up from this JD:\n\nClient: \n\n",
-                      )
+                      prompt(t("I have a new client role. Here is the JD:\n\n"))
                     }
                   >
-                    {t("Work on a client role")} <ArrowUpRight size={14} />
+                    <span>
+                      <BriefcaseBusiness size={17} />
+                    </span>
+                    <strong>{t("Work on a client role")}</strong>
+                    <small>{t("Turn a JD into a clear brief")}</small>
+                    <ArrowUpRight size={14} />
                   </button>
                   <button
                     onClick={() =>
-                      prompt("Help me prepare a candidate submission for ")
+                      prompt(t("Help me prepare a candidate submission for "))
                     }
                   >
-                    {t("Draft a submission")} <ArrowUpRight size={14} />
-                  </button>
-                </div>
-                <div className="ws-first-step">
-                  <span>{t("Starting with your existing candidates?")}</span>
-                  <button
-                    className="ws-link"
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    {t("Attach a CSV or CV")} <ArrowUpRight size={13} />
+                    <span>
+                      <MessageSquare size={17} />
+                    </span>
+                    <strong>{t("Draft a submission")}</strong>
+                    <small>{t("Prepare a client-ready introduction")}</small>
+                    <ArrowUpRight size={14} />
                   </button>
                 </div>
               </div>
@@ -302,8 +620,15 @@ function AssistantWorkspace({
                     key={message.id}
                   >
                     <div className="ws-message-label">
-                      {message.role === "user" ? t("You") : t("Hirelix")}
-                      <time>{date(message.created_at)}</time>
+                      <span
+                        className={`ws-message-avatar ws-message-avatar-${message.role}`}
+                      >
+                        {message.role === "user" ? t("You").slice(0, 1) : "h"}
+                      </span>
+                      <strong>
+                        {message.role === "user" ? t("You") : t("Hirelix")}
+                      </strong>
+                      <time>{date(message.created_at, true)}</time>
                     </div>
                     <div className="ws-message-prose">
                       <AgentText content={message.content} />
@@ -342,10 +667,14 @@ function AssistantWorkspace({
                               : action.kind === "create_role"
                                 ? t("Review the role details before saving")
                                 : action.kind === "update_role_brief"
-                                  ? t("Review the proposed requirements before applying")
+                                  ? t(
+                                      "Review the proposed requirements before applying",
+                                    )
                                   : action.kind === "add_record"
                                     ? t("Review this record before adding it")
-                                    : t("Choose the people and source material to include")}
+                                    : t(
+                                        "Choose the people and source material to include",
+                                      )}
                           </small>
                         </div>
                         {action.href ? (
@@ -353,7 +682,9 @@ function AssistantWorkspace({
                             {action.status === "saved" ? (
                               <Check size={13} />
                             ) : null}
-                            {action.status === "saved" ? t("Open") : t("Prepare")}
+                            {action.status === "saved"
+                              ? t("Open")
+                              : t("Prepare")}
                             <ArrowUpRight size={13} />
                           </Link>
                         ) : (
@@ -368,17 +699,68 @@ function AssistantWorkspace({
                         )}
                       </div>
                     ))}
+                    <div className="ws-message-tools">
+                      <button
+                        type="button"
+                        onClick={() => copyMessage(message.id, message.content)}
+                        aria-label={t("Copy message")}
+                      >
+                        <Copy size={13} />
+                        {copiedId === message.id ? t("Copied") : t("Copy")}
+                      </button>
+                    </div>
                   </article>
                 );
               })
             )}
+            {optimistic &&
+              !query.data?.messages.some(
+                (message) =>
+                  message.role === "user" &&
+                  !optimistic.priorIds.includes(message.id),
+              ) && (
+                <article className="ws-message ws-message-user ws-message-optimistic">
+                  <div className="ws-message-label">
+                    <span className="ws-message-avatar ws-message-avatar-user">
+                      {t("You").slice(0, 1)}
+                    </span>
+                    <strong>{t("You")}</strong>
+                    <small>{t("Sending…")}</small>
+                  </div>
+                  <div className="ws-message-prose">
+                    <AgentText content={optimistic.text} />
+                  </div>
+                </article>
+              )}
+            {optimistic && conversationId && !query.data && (
+              <div className="ws-assistant-working" role="status">
+                <span className="ws-message-avatar ws-message-avatar-assistant">
+                  h
+                </span>
+                <div>
+                  <strong>{t("Hirelix is working")}</strong>
+                  <span>
+                    <Loader2 size={13} className="animate-spin" />
+                    {t("Opening your conversation…")}
+                  </span>
+                </div>
+              </div>
+            )}
             {(pending || sending) && (
               <div className="ws-assistant-working" role="status">
-                <Loader2 size={14} className="animate-spin" />
-                {sending
-                  ? t("Saving your message…")
-                  : job?.progress || t("Working on your request…")}
-                <span>{t("You can leave this page and return.")}</span>
+                <span className="ws-message-avatar ws-message-avatar-assistant">
+                  h
+                </span>
+                <div>
+                  <strong>{t("Hirelix is working")}</strong>
+                  <span>
+                    <Loader2 size={13} className="animate-spin" />
+                    {sending
+                      ? t("Saving your message…")
+                      : t(job?.progress || "Working on your request…")}
+                  </span>
+                  <small>{t("You can leave this page and return.")}</small>
+                </div>
               </div>
             )}
             {job?.status === "error" && (
@@ -391,17 +773,44 @@ function AssistantWorkspace({
               />
             )}
           </div>
+          {showJump && (
+            <button
+              type="button"
+              className="ws-jump-latest"
+              onClick={jumpToLatest}
+            >
+              <ChevronsDown size={15} />
+              {t("Jump to latest")}
+            </button>
+          )}
           <form
-            className="ws-composer"
+            className={`ws-composer ${dragging ? "is-dragging" : ""}`}
             onSubmit={send}
             onDragOver={(e) => {
-              if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+              if (e.dataTransfer.types.includes("Files")) {
+                e.preventDefault();
+                setDragging(true);
+              }
             }}
+            onDragLeave={() => setDragging(false)}
             onDrop={(e) => {
               e.preventDefault();
+              setDragging(false);
               if (!sending) chooseFile(e.dataTransfer.files[0]);
             }}
+            onPaste={(e) => {
+              if (e.clipboardData.files.length) {
+                e.preventDefault();
+                if (!sending) chooseFile(e.clipboardData.files[0]);
+              }
+            }}
           >
+            {dragging && (
+              <div className="ws-composer-drop-target">
+                <Paperclip size={18} />
+                {t("Drop a CSV or CV to import")}
+              </div>
+            )}
             <input
               ref={fileInput}
               className="sr-only"
@@ -458,30 +867,16 @@ function AssistantWorkspace({
                 {person.data && <span>{person.data.person.name}</span>}
               </div>
             )}
-            {conversationId && activeRole && (
-              <Link
-                className="ws-context-chip"
-                href={`/app/roles/${activeRole.id}`}
-              >
-                {activeRole.client_name} · {activeRole.title}
-                <ArrowUpRight size={12} />
-              </Link>
-            )}
             <textarea
               ref={composer}
               aria-label={t("Message your assistant")}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={t("Ask, paste a JD, or share a conversation note…")}
-              rows={3}
+              rows={1}
               maxLength={50000}
               disabled={sending}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  e.currentTarget.form?.requestSubmit();
-                }
-              }}
+              onKeyDown={onComposerKeyDown}
             />
             <div className="ws-composer-footer">
               <button
@@ -493,7 +888,13 @@ function AssistantWorkspace({
                 <Paperclip size={14} />
                 {t("Attach candidates")}
               </button>
-              <span>{t("⌘ / Ctrl + Enter to send")}</span>
+              <span>
+                {pending
+                  ? t(
+                      "Your next message can be drafted while this reply finishes",
+                    )
+                  : t("Enter to send · Shift + Enter for a new line")}
+              </span>
               <button
                 type="submit"
                 className="ws-button ws-button-primary"
@@ -510,121 +911,120 @@ function AssistantWorkspace({
             </div>
           </form>
         </section>
-        <aside className="ws-assistant-context" aria-label={t("Current work")}>
-          <section>
-            <h2>{t("Working on")}</h2>
-            {activeRole ? (
-              <>
-                <Link
-                  className="ws-context-role"
-                  href={`/app/roles/${activeRole.id}`}
-                >
-                  <span>{activeRole.client_name}</span>
-                  <strong>{activeRole.title}</strong>
-                  <small>
-                    {t(activeRole.status)} <ArrowUpRight size={12} />
-                  </small>
-                </Link>
-                {roleDetail.data && (
-                  <p>
-                    {roleDetail.data.people.length} {t("candidates ·")}{" "}
-                    {roleDetail.data.records.length} {t("records")}
-                  </p>
-                )}
-                <Link
-                  className="ws-detail-link"
-                  href={`/app/submissions/new?role=${activeRole.id}`}
-                >
-                  {t("Prepare a submission")} <ArrowUpRight size={12} />
-                </Link>
-              </>
-            ) : (
-              <>
-                <p>
-                  {t("Select a role when your conversation relates to a client assignment.")}
-                </p>
-                <button
-                  className="ws-text-button"
-                  onClick={() => setAddingRole(true)}
-                >
-                  <Plus size={13} />
-                  {t("Add a role")}
-                </button>
-              </>
-            )}
-            {person.data && (
-              <Link
-                className="ws-detail-link"
-                href={`/app/candidates?person=${person.data.person.id}`}
+        {contextOpen && (
+          <aside
+            className="ws-assistant-context"
+            aria-label={t("Current work")}
+          >
+            <div className="ws-context-heading">
+              <strong>{t("Workspace context")}</strong>
+              <button
+                type="button"
+                className="ws-icon"
+                aria-label={t("Close workspace context")}
+                onClick={() => setContextOpen(false)}
               >
-                <strong>{person.data.person.name}</strong>
-                <small>{person.data.person.headline}</small>
-              </Link>
-            )}
-          </section>
-          <section>
-            <h2>
-              {t("Client roles")} <Link href="/app/roles">{t("View all")}</Link>
-            </h2>
-            {roles.data?.roles
-              .filter((r) => r.status === "active")
-              .slice(0, 4)
-              .map((role) => (
-                <Link
-                  key={role.id}
-                  className="ws-detail-link"
-                  href={`/app?role=${role.id}`}
-                >
-                  <strong>{role.title}</strong>
-                  <small>{role.client_name}</small>
-                </Link>
-              ))}
-            {roles.data && !roles.data.roles.length && (
-              <p>{t("Add your first client role from its JD.")}</p>
-            )}
-          </section>
-          {roleDetail.data?.deliverables.filter((d) => d.status === "draft")
-            .length ? (
+                <X size={16} />
+              </button>
+            </div>
             <section>
-              <h2>{t("Drafts to finish")}</h2>
-              {roleDetail.data.deliverables
-                .filter((d) => d.status === "draft")
-                .map((d) => (
+              <h2>{t("Working on")}</h2>
+              {activeRole ? (
+                <>
+                  <Link
+                    className="ws-context-role"
+                    href={`/app/roles/${activeRole.id}`}
+                  >
+                    <span>{activeRole.client_name}</span>
+                    <strong>{activeRole.title}</strong>
+                    <small>
+                      {t(activeRole.status)} <ArrowUpRight size={12} />
+                    </small>
+                  </Link>
+                  {roleDetail.data && (
+                    <p>
+                      {roleDetail.data.people.length} {t("candidates ·")}{" "}
+                      {roleDetail.data.records.length} {t("records")}
+                    </p>
+                  )}
                   <Link
                     className="ws-detail-link"
-                    href={
-                      d.kind === "search_update"
-                        ? `/app/roles/${activeRoleId}/updates/${d.id}`
-                        : `/app/submissions/${d.id}`
-                    }
-                    key={d.id}
+                    href={`/app/submissions/new?role=${activeRole.id}`}
                   >
-                    {d.title}
+                    {t("Prepare a submission")} <ArrowUpRight size={12} />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p>
+                    {t(
+                      "Select a role when your conversation relates to a client assignment.",
+                    )}
+                  </p>
+                  <button
+                    className="ws-text-button"
+                    onClick={() => setAddingRole(true)}
+                  >
+                    <Plus size={13} />
+                    {t("Add a role")}
+                  </button>
+                </>
+              )}
+              {person.data && (
+                <Link
+                  className="ws-detail-link"
+                  href={`/app/candidates?person=${person.data.person.id}`}
+                >
+                  <strong>{person.data.person.name}</strong>
+                  <small>{person.data.person.headline}</small>
+                </Link>
+              )}
+            </section>
+            <section>
+              <h2>
+                {t("Client roles")}{" "}
+                <Link href="/app/roles">{t("View all")}</Link>
+              </h2>
+              {roles.data?.roles
+                .filter((r) => r.status === "active")
+                .slice(0, 4)
+                .map((role) => (
+                  <Link
+                    key={role.id}
+                    className="ws-detail-link"
+                    href={`/app?role=${role.id}`}
+                  >
+                    <strong>{role.title}</strong>
+                    <small>{role.client_name}</small>
                   </Link>
                 ))}
+              {roles.data && !roles.data.roles.length && (
+                <p>{t("Add your first client role from its JD.")}</p>
+              )}
             </section>
-          ) : null}
-          <section>
-            <h2>
-              {t("Recent conversations")} <Link href="/app">{t("New")}</Link>
-            </h2>
-            <ErrorNotice error={list.error} retry={list.refresh} />
-            {list.data?.conversations.slice(0, 8).map((c) => (
-              <Link
-                className="ws-detail-link ws-conversation-link"
-                href={`/app?conversation=${c.id}`}
-                key={c.id}
-                aria-current={c.id === conversationId ? "page" : undefined}
-              >
-                <strong>{c.title}</strong>
-                <small>{date(c.updated_at)}</small>
-              </Link>
-            ))}
-            {list.data && !list.data.conversations.length && (
-              <p>{t("Your saved conversations will appear here.")}</p>
-            )}
-          </section>
-        </aside>
+            {roleDetail.data?.deliverables.filter((d) => d.status === "draft")
+              .length ? (
+              <section>
+                <h2>{t("Drafts to finish")}</h2>
+                {roleDetail.data.deliverables
+                  .filter((d) => d.status === "draft")
+                  .map((d) => (
+                    <Link
+                      className="ws-detail-link"
+                      href={
+                        d.kind === "search_update"
+                          ? `/app/roles/${activeRoleId}/updates/${d.id}`
+                          : `/app/submissions/${d.id}`
+                      }
+                      key={d.id}
+                    >
+                      {d.title}
+                    </Link>
+                  ))}
+              </section>
+            ) : null}
+          </aside>
+        )}
       </div>
       {addingRole && (
         <RoleForm
@@ -730,7 +1130,9 @@ function ActionReview({
             {action.kind === "update_role_brief" && (
               <section className="ws-panel">
                 <p className="ws-muted">
-                  {t("The original JD is preserved. Review the complete requirements below; accepting saves a new version and the original feedback.")}
+                  {t(
+                    "The original JD is preserved. Review the complete requirements below; accepting saves a new version and the original feedback.",
+                  )}
                 </p>
                 <p className="whitespace-pre-wrap">
                   {String(fields.feedback || "")}
@@ -830,7 +1232,9 @@ function ActionReview({
             </Field>
             <Field
               label={t("When it happened")}
-              hint={t("Leave empty if the date was not recorded. Saving time is kept separately.")}
+              hint={t(
+                "Leave empty if the date was not recorded. Saving time is kept separately.",
+              )}
             >
               <input
                 type="datetime-local"
