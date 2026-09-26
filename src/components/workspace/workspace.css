@@ -1716,6 +1716,9 @@
   border: 0;
   background: transparent;
 }
+.private-workspace .ws-composer textarea:focus-visible {
+  outline: none;
+}
 .ws-composer textarea::placeholder {
   color: #969d94;
 }
