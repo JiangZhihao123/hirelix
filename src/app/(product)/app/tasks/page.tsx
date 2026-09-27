@@ -51,7 +51,9 @@ export default function Tasks() {
     ["queued", "running", "error"].includes(job.status),
   );
   const history = jobs.filter(
-    (job) => !["queued", "running", "error"].includes(job.status),
+    (job) =>
+      job.kind !== "chat" &&
+      !["queued", "running", "error"].includes(job.status),
   );
   function jobCard(job: Job) {
     const result = job.result || {};
@@ -132,7 +134,7 @@ export default function Tasks() {
         <Loading />
       ) : (
         <div className="px-8 pb-8">
-          {jobs.length ? (
+          {attention.length || history.length ? (
             <>
               {attention.length ? (
                 attention.map(jobCard)
