@@ -891,7 +891,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               className="ws-detail-link"
               href={`/app?role=${document.role_id}`}
             >
-              {t("Continue with my assistant")} <ArrowUpRight size={12} />
+              {t("Continue in a new conversation")} <ArrowUpRight size={12} />
             </Link>
           </section>
         </aside>

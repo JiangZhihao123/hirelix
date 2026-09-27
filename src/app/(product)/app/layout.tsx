@@ -10,7 +10,8 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "@/components/workspace/workspace.css";
-import { initials } from "@/components/workspace/client";
+import { ErrorNotice, initials, useQuery } from "@/components/workspace/client";
+import type { Conversation } from "@/lib/workspace/types";
 import { useAuth } from "@/components/AuthProvider";
 import { LoginForm } from "@/components/LoginForm";
 import { ProductShellSkeleton } from "@/components/ProductSkeletons";
@@ -25,7 +26,6 @@ import { useT } from "@/components/LanguageProvider";
 import {
   Search,
   BriefcaseBusiness,
-  MessageSquare,
   Bell,
   BookUser,
   FileText,
@@ -34,6 +34,7 @@ import {
   Menu,
   X,
   Settings,
+  Plus,
 } from "lucide-react";
 
 export default function ProductLayout({
@@ -57,6 +58,10 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [conversationSearch, setConversationSearch] = useState("");
+  const conversations = useQuery<{ conversations: Conversation[] }>(
+    user ? "/conversations" : null,
+  );
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const hasTrackedSigninViewRef = useRef(false);
   const normalizeEntryMode = (value: string | null): EntryMode => {
@@ -90,13 +95,11 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/app/search/") && !isNewSearchRoute;
   const isFreeTrialEntry = entryMode === "free_trial";
   const authRedirectPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+  const isConversationPage = pathname === "/app";
+  const currentConversationId = isConversationPage
+    ? searchParams.get("conversation")
+    : null;
   const nav = [
-    {
-      href: "/app",
-      label: t("My assistant"),
-      icon: MessageSquare,
-      active: pathname === "/app",
-    },
     {
       href: "/app/candidates",
       label: t("Candidates"),
@@ -146,6 +149,13 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     router.prefetch("/app/search/new");
     router.prefetch("/app/settings");
   }, [router, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    window.addEventListener("hirelix:conversations-changed", conversations.refresh);
+    return () =>
+      window.removeEventListener("hirelix:conversations-changed", conversations.refresh);
+  }, [user, conversations.refresh]);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -239,6 +249,15 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <X size={18} />
           </button>
         </div>
+        <Link
+          className="ws-sidebar-new"
+          href="/app"
+          onClick={() => navigate("/app")}
+          aria-current={isConversationPage && !currentConversationId ? "page" : undefined}
+        >
+          <Plus size={17} />
+          <span>{t("New conversation")}</span>
+        </Link>
         <nav className="ws-nav">
           {nav.map((item) => (
             <Link
@@ -271,6 +290,52 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>{t("Sourcing")}</span>
           </Link>
         </nav>
+        <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
+          <div className="ws-sidebar-conversations-heading">
+            <strong>{t("Conversations")}</strong>
+          </div>
+          <label className="ws-sidebar-conversation-search">
+            <Search size={15} />
+            <input
+              value={conversationSearch}
+              onChange={(event) => setConversationSearch(event.target.value)}
+              placeholder={t("Search conversations")}
+              aria-label={t("Search conversations")}
+            />
+          </label>
+          <div className="ws-sidebar-conversation-list">
+            <ErrorNotice error={conversations.error} retry={conversations.refresh} />
+            {conversations.data?.conversations
+              .filter((conversation) =>
+                conversation.title
+                  .toLocaleLowerCase()
+                  .includes(conversationSearch.toLocaleLowerCase()),
+              )
+              .map((conversation) => (
+                <Link
+                  key={conversation.id}
+                  href={`/app?conversation=${conversation.id}`}
+                  onClick={() => navigate("/app")}
+                  aria-current={
+                    conversation.id === currentConversationId ? "page" : undefined
+                  }
+                  title={conversation.title}
+                >
+                  <strong>{conversation.title}</strong>
+                </Link>
+              ))}
+            {conversations.data && !conversations.data.conversations.length && (
+              <p>{t("Your saved conversations will appear here.")}</p>
+            )}
+            {conversations.data &&
+              !!conversations.data.conversations.length &&
+              !conversations.data.conversations.some((conversation) =>
+                conversation.title
+                  .toLocaleLowerCase()
+                  .includes(conversationSearch.toLocaleLowerCase()),
+              ) && <p>{t("No matching conversations")}</p>}
+          </div>
+        </section>
         <div className="ws-sidebar-bottom">
           <nav className="ws-nav">
             <Link
@@ -301,7 +366,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className="ws-main">
-        <div className="ws-topbar">
+        <div className={`ws-topbar ${isConversationPage ? "ws-topbar-conversation" : ""}`}>
           <div className="ws-actions">
             <button
               className="ws-icon ws-mobile-only"
@@ -310,23 +375,35 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             >
               <Menu size={18} />
             </button>
-            <span>{nav.find((item) => item.active)?.label || t("Workspace")}</span>
+            <span>
+              {isConversationPage
+                ? t("hirelix")
+                : nav.find((item) => item.active)?.label || t("Workspace")}
+            </span>
           </div>
           <div className="ws-topbar-actions">
-            <Link
-              href="/app/candidates"
-              className="ws-icon"
-              aria-label={t("Search your candidates")}
-            >
-              <Search size={17} />
-            </Link>
-            <Link
-              href="/app/tasks"
-              className="ws-icon"
-              aria-label={t("Tasks and notifications")}
-            >
-              <Bell size={17} />
-            </Link>
+            {isConversationPage ? (
+              <Link href="/app" className="ws-icon" aria-label={t("New conversation")}>
+                <Plus size={18} />
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/app/candidates"
+                  className="ws-icon"
+                  aria-label={t("Search your candidates")}
+                >
+                  <Search size={17} />
+                </Link>
+                <Link
+                  href="/app/tasks"
+                  className="ws-icon"
+                  aria-label={t("Tasks and notifications")}
+                >
+                  <Bell size={17} />
+                </Link>
+              </>
+            )}
           </div>
         </div>
         {pathname.startsWith("/app/search") || pathname === "/app/settings" ? (

@@ -325,7 +325,7 @@ export default function RolePage({
                   className="ws-link"
                   href={`/app?role=${id}&prompt=${encodeURIComponent("Who from my candidates might be worth discussing for this role?")}`}
                 >
-                  {t("Ask my assistant")} <ArrowUpRight size={13} />
+                  {t("Ask about this role")} <ArrowUpRight size={13} />
                 </Link>
               </div>
               {people.length ? (

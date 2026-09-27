@@ -18,8 +18,6 @@ import {
   MessageSquare,
   Check,
   Loader2,
-  PanelLeft,
-  Search,
   Pencil,
   Copy,
   ChevronsDown,
@@ -102,8 +100,7 @@ function AssistantWorkspace({
 }) {
   const t = useT();
   const { locale } = useLanguage();
-  const list = useQuery<{ conversations: Conversation[] }>("/conversations"),
-    roles = useQuery<{ roles: Role[] }>("/roles");
+  const roles = useQuery<{ roles: Role[] }>("/roles");
   const opening = useQuery<{
     message: string;
     suggested_prompt: string;
@@ -123,9 +120,7 @@ function AssistantWorkspace({
     } | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentKey, setAttachmentKey] = useState(() => crypto.randomUUID());
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
-  const [historySearch, setHistorySearch] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -192,11 +187,10 @@ function AssistantWorkspace({
     field.style.height = `${Math.min(field.scrollHeight, 220)}px`;
   }, [draft]);
   useEffect(() => {
-    if (!contextOpen && !historyOpen) return;
+    if (!contextOpen) return;
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
         setContextOpen(false);
-        setHistoryOpen(false);
       }
     }
     function onPointerDown(event: PointerEvent) {
@@ -214,7 +208,7 @@ function AssistantWorkspace({
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [contextOpen, historyOpen]);
+  }, [contextOpen]);
   useEffect(() => {
     if (!conversationId || !pending) return;
     const timer = setInterval(query.refresh, 2000);
@@ -260,7 +254,7 @@ function AssistantWorkspace({
         body: JSON.stringify({ title: renameDraft.trim() }),
       });
       setRenaming(false);
-      list.refresh();
+      window.dispatchEvent(new Event("hirelix:conversations-changed"));
       query.refresh();
     } catch (cause) {
       setError(
@@ -317,9 +311,9 @@ function AssistantWorkspace({
         setAttachmentKey(crypto.randomUUID());
         if (fileInput.current) fileInput.current.value = "";
         const target = uploaded.conversation_id;
+        window.dispatchEvent(new Event("hirelix:conversations-changed"));
         if (!conversationId) onOpen(target);
         else query.refresh();
-        list.refresh();
         return;
       }
       const result = await api<{ conversation_id: string }>("/conversations", {
@@ -336,9 +330,9 @@ function AssistantWorkspace({
       setDraft("");
       localStorage.removeItem(draftStorageKey);
       request.current = null;
+      window.dispatchEvent(new Event("hirelix:conversations-changed"));
       if (!conversationId) onOpen(result.conversation_id, text);
       else query.refresh();
-      list.refresh();
     } catch (cause) {
       setOptimistic(null);
       setError(
@@ -374,97 +368,9 @@ function AssistantWorkspace({
   return (
     <div className="ws-page ws-assistant-page">
       <div className="ws-assistant-body">
-        {historyOpen && (
-          <button
-            className="ws-history-backdrop"
-            aria-label={t("Close conversation history")}
-            onClick={() => setHistoryOpen(false)}
-          />
-        )}
-        <aside
-          className={`ws-conversation-history ${historyOpen ? "is-open" : ""}`}
-          aria-label={t("Conversation history")}
-        >
-          <div className="ws-history-heading">
-            <strong>{t("Conversations")}</strong>
-            <button
-              type="button"
-              className="ws-icon ws-history-close"
-              aria-label={t("Close conversation history")}
-              onClick={() => setHistoryOpen(false)}
-            >
-              <X size={17} />
-            </button>
-          </div>
-          <Link
-            className="ws-history-new"
-            href="/app"
-            onClick={() => setHistoryOpen(false)}
-          >
-            <Plus size={16} />
-            {t("New conversation")}
-          </Link>
-          <label className="ws-history-search">
-            <Search size={15} />
-            <input
-              value={historySearch}
-              onChange={(event) => setHistorySearch(event.target.value)}
-              placeholder={t("Search conversations")}
-              aria-label={t("Search conversations")}
-            />
-          </label>
-          <div className="ws-history-list">
-            <ErrorNotice error={list.error} retry={list.refresh} />
-            {list.data?.conversations
-              .filter((c) =>
-                c.title
-                  .toLocaleLowerCase()
-                  .includes(historySearch.toLocaleLowerCase()),
-              )
-              .map((c) => (
-                <Link
-                  className="ws-history-item"
-                  href={`/app?conversation=${c.id}`}
-                  key={c.id}
-                  aria-current={c.id === conversationId ? "page" : undefined}
-                  onClick={() => setHistoryOpen(false)}
-                >
-                  <MessageSquare size={15} />
-                  <span>
-                    <strong>{c.title}</strong>
-                    <small>{date(c.updated_at, true)}</small>
-                  </span>
-                </Link>
-              ))}
-            {list.data && !list.data.conversations.length && (
-              <p className="ws-history-empty">
-                {t("Your saved conversations will appear here.")}
-              </p>
-            )}
-            {list.data &&
-              !!list.data.conversations.length &&
-              !list.data.conversations.some((c) =>
-                c.title
-                  .toLocaleLowerCase()
-                  .includes(historySearch.toLocaleLowerCase()),
-              ) && (
-                <p className="ws-history-empty">
-                  {t("No matching conversations")}
-                </p>
-              )}
-          </div>
-        </aside>
-        <section className="ws-conversation" aria-label={t("My assistant")}>
+        <section className="ws-conversation" aria-label={t("Conversation")}>
           <header className="ws-conversation-header">
             <div className="ws-chat-title-row">
-              <button
-                type="button"
-                className="ws-icon ws-history-toggle"
-                aria-label={t("Open conversation history")}
-                onClick={() => setHistoryOpen(true)}
-              >
-                <PanelLeft size={18} />
-              </button>
               {renaming ? (
                 <form className="ws-rename-form" onSubmit={rename}>
                   <input
@@ -495,15 +401,9 @@ function AssistantWorkspace({
                 </form>
               ) : (
                 <>
-                  <h1>{t("Conversation")}</h1>
-                  {query.data?.conversation.title && (
-                    <span
-                      className="ws-chat-current-title"
-                      title={query.data.conversation.title}
-                    >
-                      {query.data.conversation.title}
-                    </span>
-                  )}
+                  <h1 title={query.data?.conversation.title}>
+                    {query.data?.conversation.title || t("New conversation")}
+                  </h1>
                   {conversationId && query.data && (
                     <button
                       type="button"
@@ -521,16 +421,6 @@ function AssistantWorkspace({
               )}
             </div>
             <div className="ws-chat-header-actions">
-              {conversationId && (
-                <Link
-                  className="ws-icon"
-                  href="/app"
-                  aria-label={t("New conversation")}
-                  title={t("New conversation")}
-                >
-                  <Plus size={17} />
-                </Link>
-              )}
               {activeRole && (
                 <Link
                   className="ws-chat-role"
@@ -542,14 +432,16 @@ function AssistantWorkspace({
                   </span>
                 </Link>
               )}
-              <button
-                type="button"
-                className={`ws-chat-context-trigger ${contextOpen ? "is-active" : ""}`}
-                aria-expanded={contextOpen}
-                onClick={() => setContextOpen(!contextOpen)}
-              >
-                {t("Workspace context")}
-              </button>
+              {(conversationId || activeRoleId || activePersonId) && (
+                <button
+                  type="button"
+                  className={`ws-chat-context-trigger ${contextOpen ? "is-active" : ""}`}
+                  aria-expanded={contextOpen}
+                  onClick={() => setContextOpen(!contextOpen)}
+                >
+                  {t("Workspace context")}
+                </button>
+              )}
             </div>
           </header>
           <ErrorNotice
@@ -564,7 +456,7 @@ function AssistantWorkspace({
           />
           <div
             ref={scroll}
-            className="ws-conversation-scroll"
+            className={`ws-conversation-scroll ${!conversationId ? "ws-conversation-scroll-empty" : ""}`}
             onScroll={(event) => {
               const el = event.currentTarget;
               const nearBottom =
@@ -582,9 +474,6 @@ function AssistantWorkspace({
                 <div className="ws-assistant-mark">
                   <MessageSquare size={20} />
                 </div>
-                <span className="ws-eyebrow">
-                  {t("YOUR PRIVATE ASSISTANT")}
-                </span>
                 <h2>{t("Let's move the work forward.")}</h2>
                 <p>
                   {opening.data?.message || t(
@@ -850,26 +739,6 @@ function AssistantWorkspace({
               </div>
             )}
 
-            {!conversationId && (
-              <div className="ws-composer-context">
-                <label>
-                  {t("Working on")}{" "}
-                  <select
-                    aria-label={t("Conversation role")}
-                    value={roleId}
-                    onChange={(e) => setRoleId(e.target.value)}
-                  >
-                    <option value="">{t("My workspace")}</option>
-                    {roles.data?.roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.client_name} · {role.title}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {person.data && <span>{person.data.person.name}</span>}
-              </div>
-            )}
             <textarea
               ref={composer}
               aria-label={t("Message your assistant")}
@@ -1049,7 +918,7 @@ function AssistantWorkspace({
             setReview(null);
             query.refresh();
             roles.refresh();
-            list.refresh();
+            window.dispatchEvent(new Event("hirelix:conversations-changed"));
           }}
         />
       )}
