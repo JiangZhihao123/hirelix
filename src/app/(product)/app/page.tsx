@@ -521,6 +521,16 @@ function AssistantWorkspace({
               )}
             </div>
             <div className="ws-chat-header-actions">
+              {conversationId && (
+                <Link
+                  className="ws-icon"
+                  href="/app"
+                  aria-label={t("New conversation")}
+                  title={t("New conversation")}
+                >
+                  <Plus size={17} />
+                </Link>
+              )}
               {activeRole && (
                 <Link
                   className="ws-chat-role"

@@ -210,9 +210,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const displayName =
     user.user_metadata?.name || user.email?.split("@")[0] || "Your account";
   return (
-    <div
-      className={`private-workspace ${pathname === "/app" ? "ws-assistant-layout" : ""}`}
-    >
+    <div className="private-workspace">
       {sidebarOpen && (
         <button
           className="ws-overlay"
@@ -232,9 +230,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             aria-label={t("hirelix")}
           >
             <span className="ws-brand-full">{t("hirelix")}</span>
-            <span className="ws-brand-short" aria-hidden="true">
-              h
-            </span>
           </Link>
           <button
             className="ws-icon ws-mobile-only"
