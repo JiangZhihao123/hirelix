@@ -1788,34 +1788,6 @@
   line-height: 1.8;
   margin: 12px 0 20px;
 }
-.ws-assistant-start > .ws-opening-loading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 48px;
-}
-.ws-opening-suggestion {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  max-width: 640px;
-  padding: 11px 14px;
-  margin: 0 0 28px;
-  color: #315b40;
-  background: #f3f8f1;
-  border: 1px solid #d9e7d9;
-  border-radius: 10px;
-  font-size: 12px;
-  text-align: left;
-}
-.ws-opening-suggestion:hover {
-  border-color: #9cbea2;
-  background: #edf5ea;
-}
-.ws-opening-suggestion svg {
-  flex-shrink: 0;
-}
 .ws-composer {
   position: relative;
   flex-shrink: 0;

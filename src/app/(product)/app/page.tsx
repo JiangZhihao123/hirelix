@@ -114,18 +114,6 @@ function AssistantWorkspace({
   const router = useRouter();
   const { locale } = useLanguage();
   const roles = useQuery<{ roles: Role[] }>("/roles");
-  const openingParams = new URLSearchParams({ locale });
-  if (initialRoleId) openingParams.set("role_id", initialRoleId);
-  if (personId) openingParams.set("person_id", personId);
-  const opening = useQuery<{
-    message: string;
-    suggested_prompt: string;
-    role_id: string | null;
-  }>(
-    !conversationId
-      ? `/conversations/opening?${openingParams.toString()}`
-      : null,
-  );
   const query = useQuery<Detail>(
     conversationId ? `/conversations/${conversationId}` : null,
   );
@@ -425,11 +413,6 @@ function AssistantWorkspace({
       setError(cause instanceof Error ? cause.message : "Could not retry");
     }
   }
-  function prompt(text: string) {
-    if (opening.data?.role_id) setRoleId(opening.data.role_id);
-    setDraft(text);
-    composer.current?.focus();
-  }
   function removeNewConversationContext(kind: "role" | "person") {
     const params = new URLSearchParams(window.location.search);
     if (!params.has(kind)) return;
@@ -589,28 +572,8 @@ function AssistantWorkspace({
                 <div className="ws-assistant-mark">
                   <MessageSquare size={20} />
                 </div>
-                <h2>{t("Let's move the work forward.")}</h2>
-                {opening.loading ? (
-                  <p className="ws-opening-loading">
-                    <Loader2 size={15} className="animate-spin" />
-                    {t("Looking at your current work…")}
-                  </p>
-                ) : (
-                  <p>
-                    {opening.data?.message || t(
-                      "Bring a client’s JD, a conversation with a candidate, or a recommendation you need to prepare. I’ll help you work with what you have.",
-                    )}
-                  </p>
-                )}
-                {opening.data && (
-                  <button
-                    className="ws-opening-suggestion"
-                    onClick={() => prompt(opening.data!.suggested_prompt)}
-                  >
-                    <span>{opening.data.suggested_prompt}</span>
-                    <ArrowUpRight size={15} />
-                  </button>
-                )}
+                <h2>{t("What would you like to work on?")}</h2>
+                <p>{t("Ask a question, paste a JD, or add a file. I'll follow your lead.")}</p>
               </div>
             ) : (
               query.data?.messages.map((message) => {

@@ -6,7 +6,6 @@ import { db, closeDb } from "../../src/db/client";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import {
   acceptAction,
-  assistantOpening,
   assistantReply,
   conversationDetails,
   sendMessage,
@@ -112,25 +111,7 @@ test("assistant proactively prepares a candidate draft only from a grounded CV",
   assert.equal(afterImport.total, 0);
 });
 
-test("assistant opens with a grounded, proactive question about active work", { timeout: 180000 }, async () => {
-  const openingOwner = randomUUID();
-  await createRole(openingOwner, {
-    title: "VP Product",
-    client_name: "Northstar",
-    jd_text: "Build and lead the product team.",
-    brief: {
-      priorities: ["Build and lead the product team"],
-      flexible: [],
-      unknowns: ["Compensation range has not been confirmed"],
-    },
-  });
-  const opening = await assistantOpening(openingOwner, "zh");
-  assert.match(opening.message, /Northstar|产品|薪酬/);
-  assert(opening.suggested_prompt.length > 5);
-  assert.doesNotMatch(`${opening.message} ${opening.suggested_prompt}`, /\brole_\d+\b|早上好|上午好|中午好|下午好|晚上好/i);
-});
-
-test("a simple greeting reconnects to a real active role instead of asking how to help", { timeout: 180000 }, async () => {
+test("a simple greeting leaves the next topic to the recruiter", { timeout: 180000 }, async () => {
   await createRole(owner, {
     title: "VP Product",
     client_name: "Northstar",
@@ -153,9 +134,8 @@ test("a simple greeting reconnects to a real active role instead of asking how t
   await db.transaction(async (tx) => { await prepared.apply?.(tx); });
   const detail = await conversationDetails(owner, created.conversation_id);
   assert.equal(detail.messages.length, 2);
-  assert.match(detail.messages[1].content, /Northstar|VP Product/);
-  assert.match(detail.messages[1].content, /薪酬|预算|范围/);
-  assert.match(detail.messages[1].content, /？|\?/);
+  assert.match(detail.messages[1].content, /你想处理什么/);
+  assert.doesNotMatch(detail.messages[1].content, /Northstar|VP Product|薪酬/);
 });
 
 test("reported sharing consent stays pending until one review saves both evidence and role permission", { timeout: 180000 }, async () => {
