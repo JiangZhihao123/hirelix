@@ -74,3 +74,17 @@ test("analytics context attributes Hacker News referrers without UTM parameters"
   assert.equal(context.traffic_source, "hackernews");
   assert.equal(context.utm_campaign, "none");
 });
+
+test("analytics context attributes Product Hunt links and referrers", () => {
+  const queryContext = getAnalyticsContextFromParams(
+    new URLSearchParams({ ref: "producthunt" }),
+  );
+  const referrerContext = getAnalyticsContextFromParams(
+    new URLSearchParams(),
+    {},
+    "https://www.producthunt.com/products/hirelix?launch=hirelix",
+  );
+
+  assert.equal(queryContext.traffic_source, "producthunt");
+  assert.equal(referrerContext.traffic_source, "producthunt");
+});

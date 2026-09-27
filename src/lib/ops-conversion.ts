@@ -667,7 +667,7 @@ function buildSessions(events: GrowthEventRecord[]): SessionSummary[] {
     const eventAt = toDate(event.created_at);
     const metadata = event.metadata ?? {};
     const existing = sessions.get(sessionId);
-    const source = normalizeSource(readString(metadata.traffic_source) || readSourceFromUrl(event.page_url) || event.referrer || "direct");
+    const source = normalizeSource(resolveEventSource(event));
 
     const session =
       existing ??
@@ -962,7 +962,7 @@ function buildRecentHumanEvents(
       return {
         time: toDate(event.created_at).toISOString(),
         label: eventLabel(event.event_type),
-        source: sourceLabel(normalizeSource(readString(event.metadata?.traffic_source) || readSourceFromUrl(event.page_url) || event.referrer || "direct")),
+        source: sourceLabel(normalizeSource(resolveEventSource(event))),
         details: eventDetails(event),
         ip: {
           maskedIp: attribution.maskedIp,
@@ -1170,19 +1170,46 @@ function readSourceFromUrl(pageUrl: string | null) {
   if (!pageUrl) return null;
   try {
     const url = new URL(pageUrl);
-    return url.searchParams.get("traffic_source") || url.searchParams.get("utm_source");
+    const explicitSource =
+      url.searchParams.get("traffic_source") || url.searchParams.get("utm_source");
+    if (explicitSource) return explicitSource;
+    return url.searchParams.get("ref")?.toLowerCase() === "producthunt" ? "producthunt" : null;
   } catch {
     return null;
   }
 }
 
+function resolveEventSource(event: GrowthEventRecord) {
+  const pageSource = readSourceFromUrl(event.page_url);
+  if (pageSource) return pageSource;
+
+  const metadataSource = readString(event.metadata?.traffic_source);
+  if (metadataSource && metadataSource !== "direct" && metadataSource !== "none") {
+    return metadataSource;
+  }
+
+  if (event.referrer?.toLowerCase().includes("producthunt.com")) {
+    return "producthunt";
+  }
+
+  return metadataSource || event.referrer || "direct";
+}
+
 function normalizeSource(value: string) {
   const source = value.toLowerCase();
   if (source.includes("linkedin")) return "linkedin";
-  if (source.includes("cold_email") || source === "email" || source.includes("mail")) return "email";
+  if (
+    source.includes("cold_email") ||
+    source.includes("founder_outreach") ||
+    source === "email" ||
+    source.includes("mail")
+  ) {
+    return "email";
+  }
   if (source.includes("google")) return "google";
   if (source.includes("twitter") || source === "x") return "x";
   if (source.includes("reddit")) return "reddit";
+  if (source.includes("producthunt")) return "producthunt";
   if (source === "direct" || source === "none") return "direct";
   if (source === "referral") return "referral";
   return source.slice(0, 32) || "direct";
@@ -1198,6 +1225,7 @@ function sourceLabel(source: string) {
     google_organic: "Google 搜索",
     x: "Twitter/X",
     reddit: "Reddit",
+    producthunt: "Product Hunt",
     referral: "其他网站",
   };
   return labels[source] ?? source;
