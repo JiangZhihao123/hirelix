@@ -323,7 +323,7 @@ export default function RolePage({
                 </button>
                 <Link
                   className="ws-link"
-                  href={`/app?role=${id}&prompt=${encodeURIComponent("Who from my candidates might be worth discussing for this role?")}`}
+                  href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "我的候选人中，谁值得为这个职位进一步讨论？" : "Who from my candidates might be worth discussing for this role?")}`}
                 >
                   {t("Ask about this role")} <ArrowUpRight size={13} />
                 </Link>
@@ -679,7 +679,7 @@ export default function RolePage({
       )}
       {assessment && (
         <Dialog
-          title={`${assessment.person?.name} · Role assessment`}
+          title={`${assessment.person?.name} · ${t("Role assessment")}`}
           onClose={() => setAssessment(null)}
           wide
         >
@@ -800,7 +800,7 @@ function PermissionForm({
   return (
     <>
       <Dialog
-        title={`Interest & sharing · ${link.person?.name}`}
+        title={`${t("Interest & sharing")} · ${link.person?.name}`}
         onClose={onClose}
       >
         <form className="ws-form" onSubmit={save}>

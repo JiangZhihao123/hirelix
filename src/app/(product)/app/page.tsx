@@ -53,23 +53,35 @@ type Detail = {
   messages: Message[];
   job: Job | null;
 };
+function assistantDraftKey(
+  conversationId: string | null,
+  roleId: string | null,
+  personId: string | null,
+  initialPrompt = "",
+) {
+  if (conversationId) return `hirelix:assistant:draft:${conversationId}`;
+  if (!roleId && !personId && !initialPrompt)
+    return "hirelix:assistant:draft:new";
+  return `hirelix:assistant:draft:new:${roleId || "-"}:${personId || "-"}${initialPrompt ? `:prompt:${encodeURIComponent(initialPrompt)}` : ""}`;
+}
 export default function AssistantHome() {
   const params = useSearchParams(),
     router = useRouter();
   const conversationId = params.get("conversation");
   const roleId = params.get("role"),
     personId = params.get("person");
+  const initialPrompt = params.get("prompt")?.slice(0, 500) || "";
   const [handoff, setHandoff] = useState<{
     conversationId: string;
     text: string;
   } | null>(null);
   return (
     <AssistantWorkspace
-      key={`${conversationId || "new"}:${roleId || ""}:${personId || ""}`}
+      key={assistantDraftKey(conversationId, roleId, personId, initialPrompt)}
       conversationId={conversationId}
       initialRoleId={roleId}
       personId={personId}
-      initialPrompt={params.get("prompt") || ""}
+      initialPrompt={initialPrompt}
       handoffText={
         handoff?.conversationId === conversationId ? handoff.text : null
       }
@@ -180,16 +192,35 @@ function AssistantWorkspace({
       status: string;
     }>;
   }>(activeRoleId ? `/roles/${activeRoleId}` : null);
-  const draftStorageKey = `hirelix:assistant:draft:${conversationId || "new"}`;
+  const draftStorageKey = assistantDraftKey(
+    conversationId,
+    initialRoleId,
+    personId,
+    initialPrompt,
+  );
+  const draftRoleKey = `${draftStorageKey}:role`;
   useEffect(() => {
-    if (!initialPrompt) setDraft(localStorage.getItem(draftStorageKey) || "");
+    const storedDraft = localStorage.getItem(draftStorageKey) || "";
+    setDraft(storedDraft || initialPrompt);
+    setRoleId(
+      initialRoleId ||
+        (storedDraft ? localStorage.getItem(draftRoleKey) || "" : ""),
+    );
+    setLinkedPersonId(personId || "");
     setDraftReady(true);
-  }, [draftStorageKey, initialPrompt]);
+  }, [draftStorageKey, draftRoleKey, initialPrompt, initialRoleId, personId]);
   useEffect(() => {
     if (!draftReady) return;
-    if (draft) localStorage.setItem(draftStorageKey, draft);
-    else localStorage.removeItem(draftStorageKey);
-  }, [draft, draftReady, draftStorageKey]);
+    if (draft) {
+      localStorage.setItem(draftStorageKey, draft);
+      if (!conversationId && roleId && roleId !== initialRoleId)
+        localStorage.setItem(draftRoleKey, roleId);
+      else localStorage.removeItem(draftRoleKey);
+    } else {
+      localStorage.removeItem(draftStorageKey);
+      localStorage.removeItem(draftRoleKey);
+    }
+  }, [draft, draftReady, draftStorageKey, draftRoleKey, conversationId, roleId, initialRoleId]);
   useEffect(() => {
     const field = composer.current;
     if (!field) return;
@@ -349,6 +380,7 @@ function AssistantWorkspace({
         setAttachment(null);
         setDraft("");
         localStorage.removeItem(draftStorageKey);
+        localStorage.removeItem(draftRoleKey);
         setAttachmentKey(crypto.randomUUID());
         if (fileInput.current) fileInput.current.value = "";
         const target = uploaded.conversation_id;
@@ -370,6 +402,7 @@ function AssistantWorkspace({
       });
       setDraft("");
       localStorage.removeItem(draftStorageKey);
+      localStorage.removeItem(draftRoleKey);
       request.current = null;
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
       if (!conversationId) onOpen(result.conversation_id, text);
@@ -398,12 +431,31 @@ function AssistantWorkspace({
     composer.current?.focus();
   }
   function removeNewConversationContext(kind: "role" | "person") {
-    if (kind === "role") setRoleId("");
-    else setLinkedPersonId("");
     const params = new URLSearchParams(window.location.search);
     if (!params.has(kind)) return;
-    if (draft) localStorage.setItem(draftStorageKey, draft);
     params.delete(kind);
+    const nextKey = assistantDraftKey(
+      null,
+      params.get("role"),
+      params.get("person"),
+      params.get("prompt") || "",
+    );
+    const existingDraft = localStorage.getItem(nextKey);
+    if (
+      draft &&
+      existingDraft &&
+      existingDraft !== draft &&
+      !window.confirm(t("This conversation already has an unsent draft. Replace it?"))
+    )
+      return;
+    if (kind === "role") setRoleId("");
+    else setLinkedPersonId("");
+    if (draft) {
+      localStorage.setItem(nextKey, draft);
+      if (kind !== "role" && roleId && roleId !== params.get("role"))
+        localStorage.setItem(`${nextKey}:role`, roleId);
+      else localStorage.removeItem(`${nextKey}:role`);
+    }
     const remaining = params.toString();
     router.replace(`/app${remaining ? `?${remaining}` : ""}`, { scroll: false });
   }

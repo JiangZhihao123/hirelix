@@ -537,6 +537,28 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+.ws-task-calm {
+  padding: 18px 0;
+  color: var(--ws-muted);
+  font-size: 13px;
+}
+.ws-task-history {
+  margin-top: 20px;
+}
+.ws-task-history h2 {
+  margin-bottom: 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ws-task-history details {
+  margin-top: 10px;
+}
+.ws-task-history summary {
+  width: fit-content;
+  padding: 10px 0;
+  color: var(--ws-green);
+  cursor: pointer;
+}
 .ws-empty {
   padding: 38px 24px;
   max-width: 560px;
@@ -1392,7 +1414,7 @@
   color: var(--ws-muted);
   margin-bottom: 14px;
 }
-.ws-editor-title input {
+.ws-editor-title textarea {
   font-size: 24px;
   line-height: 1.5;
   font-weight: 550;
@@ -1400,7 +1422,24 @@
   width: 100%;
   outline: none;
   margin-bottom: 25px;
+  resize: none;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
+.ws-document-recovery {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 32px 18px;
+  padding: 12px 16px;
+  border: 1px solid #e5d7b2;
+  border-radius: 8px;
+  background: #fffaf0;
+  font-size: 13px;
+}
+.ws-document-recovery span { flex: 1; }
+.ws-document-recovery button { color: var(--ws-green); font-weight: 600; }
 .ws-document-text {
   width: 100%;
   min-height: 650px;
@@ -1468,9 +1507,10 @@
   .ws-document-text {
     min-height: 500px;
   }
-  .ws-editor-title input {
+  .ws-editor-title textarea {
     font-size: 20px;
   }
+  .ws-document-recovery { margin: 0 16px 18px; }
   .ws-paper h2 {
     font-size: 23px;
   }

@@ -46,6 +46,73 @@ export default function Tasks() {
       setBusy(null);
     }
   }
+  const jobs = query.data?.jobs || [];
+  const attention = jobs.filter((job) =>
+    ["queued", "running", "error"].includes(job.status),
+  );
+  const history = jobs.filter(
+    (job) => !["queued", "running", "error"].includes(job.status),
+  );
+  function jobCard(job: Job) {
+    const result = job.result || {};
+    const href =
+      job.kind === "retrieval"
+        ? `/app/candidates?task=${job.id}`
+        : job.kind === "import"
+          ? typeof job.payload.conversation_id === "string"
+            ? `/app?conversation=${job.payload.conversation_id}`
+            : `/app/candidates/import?task=${job.id}`
+          : typeof result.deliverable_id === "string"
+            ? `/app/submissions/${result.deliverable_id}`
+            : typeof job.payload.role_id === "string"
+              ? `/app/roles/${job.payload.role_id}`
+              : typeof job.payload.person_id === "string"
+                ? `/app/candidates?person=${job.payload.person_id}`
+                : typeof job.payload.conversation_id === "string"
+                  ? `/app?conversation=${job.payload.conversation_id}`
+                  : null;
+    return (
+      <article className="ws-record" key={job.id}>
+        <div className="ws-inspector-heading">
+          <div>
+            <h4>{t(names[job.kind])}</h4>
+            <small>{date(job.created_at, true)}</small>
+          </div>
+          <span className="ws-tag">{t(job.status)}</span>
+        </div>
+        {(job.error || (job.progress && job.progress !== "Complete")) && (
+          <p className="ws-inline-meta">
+            {["queued", "running"].includes(job.status) && (
+              <Loader2 size={14} className="animate-spin" />
+            )}
+            {t(job.error || job.progress)}
+          </p>
+        )}
+        {result.superseded === true && (
+          <p className="ws-warning">
+            {t("The source changed while this task was running. Review the latest information and prepare it again.")}
+          </p>
+        )}
+        <div className="ws-actions mt-3">
+          {job.status === "error" && (
+            <button
+              className="ws-button"
+              disabled={busy === job.id}
+              onClick={() => retry(job.id)}
+            >
+              <RotateCcw size={13} />
+              {t("Retry task")}
+            </button>
+          )}
+          {href && (
+            <Link className="ws-link" href={href}>
+              {t("Open work")} <ArrowUpRight size={13} />
+            </Link>
+          )}
+        </div>
+      </article>
+    );
+  }
   return (
     <div className="ws-page">
       <header className="ws-page-header">
@@ -65,65 +132,26 @@ export default function Tasks() {
         <Loading />
       ) : (
         <div className="px-8 pb-8">
-          {query.data?.jobs.length ? (
-            query.data.jobs.map((job) => {
-              const result = job.result || {},
-                href =
-                  job.kind === "retrieval"
-                    ? `/app/candidates?task=${job.id}`
-                    : job.kind === "import"
-                      ? typeof job.payload.conversation_id === "string"
-                        ? `/app?conversation=${job.payload.conversation_id}`
-                        : `/app/candidates/import?task=${job.id}`
-                      : typeof result.deliverable_id === "string"
-                        ? `/app/submissions/${result.deliverable_id}`
-                        : typeof job.payload.role_id === "string"
-                          ? `/app/roles/${job.payload.role_id}`
-                          : typeof job.payload.person_id === "string"
-                            ? `/app/candidates?person=${job.payload.person_id}`
-                            : typeof job.payload.conversation_id === "string"
-                              ? `/app?conversation=${job.payload.conversation_id}`
-                              : null;
-              return (
-                <article className="ws-record" key={job.id}>
-                  <div className="ws-inspector-heading">
-                    <div>
-                      <h4>{t(names[job.kind])}</h4>
-                      <small>{date(job.created_at, true)}</small>
-                    </div>
-                    <span className="ws-tag">{t(job.status)}</span>
-                  </div>
-                  <p className="ws-inline-meta">
-                    {["queued", "running"].includes(job.status) && (
-                      <Loader2 size={14} className="animate-spin" />
-                    )}
-                    {t(job.error || job.progress)}
-                  </p>
-                  {result.superseded === true && (
-                    <p className="ws-warning">
-                      {t("The source changed while this task was running. Review the latest information and prepare it again.")}
-                    </p>
+          {jobs.length ? (
+            <>
+              {attention.length ? (
+                attention.map(jobCard)
+              ) : (
+                <p className="ws-task-calm">{t("Nothing needs attention right now.")}</p>
+              )}
+              {history.length > 0 && (
+                <section className="ws-task-history">
+                  <h2>{t("Recent activity")}</h2>
+                  {history.slice(0, 5).map(jobCard)}
+                  {history.length > 5 && (
+                    <details>
+                      <summary>{t("Earlier work")} ({history.length - 5})</summary>
+                      {history.slice(5).map(jobCard)}
+                    </details>
                   )}
-                  <div className="ws-actions mt-3">
-                    {job.status === "error" && (
-                      <button
-                        className="ws-button"
-                        disabled={busy === job.id}
-                        onClick={() => retry(job.id)}
-                      >
-                        <RotateCcw size={13} />
-                        {t("Retry task")}
-                      </button>
-                    )}
-                    {href && (
-                      <Link className="ws-link" href={href}>
-                        {t("Open work")} <ArrowUpRight size={13} />
-                      </Link>
-                    )}
-                  </div>
-                </article>
-              );
-            })
+                </section>
+              )}
+            </>
           ) : (
             <div className="ws-empty">
               <h2>{t("No tasks yet.")}</h2>

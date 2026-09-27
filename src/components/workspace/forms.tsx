@@ -58,7 +58,7 @@ export function PersonForm({
   function close() {
     if (
       !saving &&
-      (!dirty || window.confirm("Discard your unsaved candidate changes?"))
+      (!dirty || window.confirm(t("Discard your unsaved candidate changes?")))
     )
       onClose();
   }
@@ -239,7 +239,7 @@ export function RoleForm({
   function close() {
     if (
       !saving &&
-      (!dirty || window.confirm("Discard your unsaved role changes?"))
+      (!dirty || window.confirm(t("Discard your unsaved role changes?")))
     )
       onClose();
   }
@@ -415,7 +415,7 @@ export function RecordForm({
     [error, setError] = useState(""),
     [dirty, setDirty] = useState(false);
   function close() {
-    if (!saving && (!dirty || window.confirm("Discard this unsaved record?")))
+    if (!saving && (!dirty || window.confirm(t("Discard this unsaved record?"))))
       onClose();
   }
   async function submit(event: FormEvent) {

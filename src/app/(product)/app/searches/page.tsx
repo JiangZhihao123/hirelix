@@ -281,7 +281,7 @@ export default function DashboardPage() {
   async function deleteSearch(e: React.MouseEvent, searchId: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("Delete this sourcing task and all its candidates?")) return;
+    if (!confirm(t("Delete this sourcing task and all its candidates?"))) return;
     setDeleting(searchId);
     try {
       // Backend deletes the search row; the FK cascade also removes candidates,

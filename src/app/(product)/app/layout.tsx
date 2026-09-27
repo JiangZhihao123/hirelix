@@ -32,7 +32,7 @@ import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
   Search,
   BriefcaseBusiness,
-  Bell,
+  ListChecks,
   BookUser,
   FileText,
   LogOut,
@@ -433,17 +433,25 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               <>
                 <Link
                   href="/app/candidates"
-                  className="ws-icon"
+                  className="ws-icon ws-mobile-only"
                   aria-label={t("Search your candidates")}
+                  title={t("Search your candidates")}
+                  onClick={(event) => {
+                    if (pathname === "/app/candidates") {
+                      event.preventDefault();
+                      document.getElementById("candidate-search")?.focus();
+                    }
+                  }}
                 >
                   <Search size={17} />
                 </Link>
                 <Link
                   href="/app/tasks"
                   className="ws-icon"
-                  aria-label={t("Tasks and notifications")}
+                  aria-label={t("Background tasks")}
+                  title={t("Background tasks")}
                 >
-                  <Bell size={17} />
+                  <ListChecks size={17} />
                 </Link>
               </>
             )}

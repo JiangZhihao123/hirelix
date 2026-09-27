@@ -553,12 +553,74 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     [error, setError] = useState(""),
     [history, setHistory] = useState(false),
     [submit, setSubmit] = useState(false),
+    [draftHydrated, setDraftHydrated] = useState(false),
+    [recovery, setRecovery] = useState<{
+      title: string;
+      content: string;
+    } | null>(null),
     [copied, setCopied] = useState<"subject" | "body" | "document" | null>(
       null,
     );
   const inflight = useRef(false),
+    titleField = useRef<HTMLTextAreaElement>(null),
     dirty = title !== document.title || content !== document.content,
     readOnly = document.status === "submitted";
+  const draftKey = `hirelix:deliverable:draft:${document.id}`;
+  useEffect(() => {
+    if (readOnly) {
+      localStorage.removeItem(draftKey);
+      setDraftHydrated(true);
+      return;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem(draftKey) || "null") as {
+        version?: number;
+        title?: string;
+        content?: string;
+      } | null;
+      if (stored && typeof stored.title === "string" && typeof stored.content === "string") {
+        if (stored.title === initial.title && stored.content === initial.content)
+          localStorage.removeItem(draftKey);
+        else if (stored.version === initial.version) {
+          setTitle(stored.title);
+          setContent(stored.content);
+        } else setRecovery({ title: stored.title, content: stored.content });
+      }
+    } catch {
+      localStorage.removeItem(draftKey);
+    }
+    setDraftHydrated(true);
+  }, [draftKey, initial.title, initial.content, initial.version, readOnly]);
+  useEffect(() => {
+    if (!draftHydrated || readOnly || recovery) return;
+    if (dirty)
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({ version: document.version, title, content }),
+      );
+    else localStorage.removeItem(draftKey);
+  }, [draftHydrated, readOnly, recovery, dirty, draftKey, document.version, title, content]);
+  useEffect(() => {
+    const field = titleField.current;
+    if (!field) return;
+    const fitTitle = () => {
+      field.style.height = "auto";
+      field.style.height = `${Math.min(field.scrollHeight, 180)}px`;
+    };
+    fitTitle();
+    let lastWidth = 0;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width === lastWidth) return;
+      lastWidth = entry.contentRect.width;
+      fitTitle();
+    });
+    observer.observe(field.parentElement || field);
+    window.addEventListener("resize", fitTitle);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fitTitle);
+    };
+  }, [title, preview, readOnly, recovery]);
   const save = useCallback(async () => {
     if (inflight.current || readOnly || !dirty) return;
     inflight.current = true;
@@ -587,12 +649,12 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     }
   }, [title, content, document.id, document.version, dirty, readOnly]);
   useEffect(() => {
-    if (!dirty || saving || error || readOnly) return;
+    if (!draftHydrated || recovery || !dirty || saving || error || readOnly) return;
     const timer = setTimeout(() => {
       void save();
     }, 1200);
     return () => clearTimeout(timer);
-  }, [dirty, saving, error, readOnly, save]);
+  }, [draftHydrated, recovery, dirty, saving, error, readOnly, save]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -650,13 +712,6 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 ? `/app/roles/${document.role_id}`
                 : "/app/submissions"
             }
-            onClick={(e) => {
-              if (
-                dirty &&
-                !window.confirm("This draft has unsaved changes. Leave anyway?")
-              )
-                e.preventDefault();
-            }}
           >
             <ArrowLeft size={14} />
             {document.kind === "search_update"
@@ -735,9 +790,33 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
         error={error}
         retry={dirty ? () => void save() : undefined}
       />
+      {recovery && (
+        <div className="ws-document-recovery" role="status">
+          <span>{t("You have unsaved edits from a previous visit.")}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setTitle(recovery.title);
+              setContent(recovery.content);
+              setRecovery(null);
+            }}
+          >
+            {t("Restore edits")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem(draftKey);
+              setRecovery(null);
+            }}
+          >
+            {t("Discard edits")}
+          </button>
+        </div>
+      )}
       <div className="ws-document-layout">
         <article className="ws-paper">
-          {preview || readOnly ? (
+          {preview || readOnly || recovery ? (
             <>
               <p className="ws-paper-client">{source.role?.client_name}</p>
               <h2>{title}</h2>
@@ -747,14 +826,17 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             <>
               <label className="ws-editor-title">
                 <span className="sr-only">{t("Document title")}</span>
-                <input
+                <textarea
+                  ref={titleField}
                   aria-label={t("Document title")}
                   value={title}
                   onChange={(e) => {
                     setTitle(e.target.value);
                     setCopied(null);
                   }}
+                  onBlur={() => void save()}
                   maxLength={500}
+                  rows={2}
                 />
               </label>
               <textarea
@@ -765,6 +847,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                   setContent(e.target.value);
                   setCopied(null);
                 }}
+                onBlur={() => void save()}
                 maxLength={100000}
                 spellCheck
               />

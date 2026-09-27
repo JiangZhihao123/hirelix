@@ -169,6 +169,7 @@ export default function Candidates() {
         <div className="ws-search">
           <Search size={16} className="ws-muted" />
           <input
+            id="candidate-search"
             aria-label={t("Search candidates")}
             placeholder={
               mode === "fields"
@@ -281,7 +282,7 @@ export default function Candidates() {
                 </button>
                 <Link
                   className="ws-link"
-                  href="/app?prompt=Please%20help%20me%20import%20my%20candidates."
+                  href={`/app?prompt=${encodeURIComponent(locale === "zh" ? "请帮我导入候选人。" : "Please help me import my candidates.")}`}
                 >
                   {t("Import existing candidates")} <ArrowUpRight size={14} />
                 </Link>
@@ -450,7 +451,7 @@ function CandidateDetails({
     if (
       !details.data ||
       !window.confirm(
-        "Delete this candidate and their source records? Existing client documents and conversations remain as historical work. This cannot be undone.",
+        t("Delete this candidate and their source records? Existing client documents and conversations remain as historical work. This cannot be undone."),
       )
     )
       return;
