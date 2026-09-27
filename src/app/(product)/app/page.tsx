@@ -99,17 +99,26 @@ function AssistantWorkspace({
   onOpen: (id: string, text?: string) => void;
 }) {
   const t = useT();
+  const router = useRouter();
   const { locale } = useLanguage();
   const roles = useQuery<{ roles: Role[] }>("/roles");
+  const openingParams = new URLSearchParams({ locale });
+  if (initialRoleId) openingParams.set("role_id", initialRoleId);
+  if (personId) openingParams.set("person_id", personId);
   const opening = useQuery<{
     message: string;
     suggested_prompt: string;
     role_id: string | null;
-  }>(!conversationId ? `/conversations/opening?locale=${locale}` : null);
+  }>(
+    !conversationId
+      ? `/conversations/opening?${openingParams.toString()}`
+      : null,
+  );
   const query = useQuery<Detail>(
     conversationId ? `/conversations/${conversationId}` : null,
   );
   const [roleId, setRoleId] = useState(initialRoleId || ""),
+    [linkedPersonId, setLinkedPersonId] = useState(personId || ""),
     [draft, setDraft] = useState(initialPrompt),
     [sending, setSending] = useState(false),
     [error, setError] = useState(""),
@@ -133,6 +142,7 @@ function AssistantWorkspace({
   } | null>(handoffText ? { text: handoffText, priorIds: [] } : null);
   const fileInput = useRef<HTMLInputElement>(null);
   const stickToBottom = useRef(true);
+  const scrollSize = useRef({ height: 0, viewport: 0 });
   function chooseFile(file: File | undefined) {
     if (!file) return;
     if (file.size > 4 * 1024 * 1024) {
@@ -155,7 +165,7 @@ function AssistantWorkspace({
   const pending = !!job && ["queued", "running"].includes(job.status);
   const activeRoleId = query.data?.conversation.role_id || roleId;
   const activeRole = roles.data?.roles.find((r) => r.id === activeRoleId);
-  const activePersonId = query.data?.conversation.person_id || personId;
+  const activePersonId = query.data?.conversation.person_id || linkedPersonId;
   const person = useQuery<{ person: Person }>(
     activePersonId ? `/people/${activePersonId}` : null,
   );
@@ -237,11 +247,41 @@ function AssistantWorkspace({
       setShowJump(false);
     } else if (count || pending || optimistic) setShowJump(true);
   }, [count, pending, optimistic]);
+  useEffect(() => {
+    const viewport = scroll.current;
+    if (!viewport) return;
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      if (!stickToBottom.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        viewport.scrollTop = viewport.scrollHeight;
+      });
+    });
+    observer.observe(viewport, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    const resizeObserver = new ResizeObserver(() => {
+      if (!stickToBottom.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        viewport.scrollTop = viewport.scrollHeight;
+      });
+    });
+    resizeObserver.observe(viewport);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [conversationId]);
   function jumpToLatest() {
     stickToBottom.current = true;
     scroll.current?.scrollTo({
       top: scroll.current.scrollHeight,
-      behavior: "smooth",
+      behavior: "instant",
     });
     setShowJump(false);
   }
@@ -300,7 +340,8 @@ function AssistantWorkspace({
         form.append("locale", locale);
         if (conversationId) form.append("conversation_id", conversationId);
         if (!conversationId && roleId) form.append("role_id", roleId);
-        if (!conversationId && personId) form.append("person_id", personId);
+        if (!conversationId && linkedPersonId)
+          form.append("person_id", linkedPersonId);
         const uploaded = await api<{ conversation_id: string }>("/conversations", {
           method: "POST",
           body: form,
@@ -324,7 +365,7 @@ function AssistantWorkspace({
           request_key: request.current.key,
           conversation_id: conversationId,
           role_id: conversationId ? null : roleId || null,
-          person_id: conversationId ? null : personId,
+          person_id: conversationId ? null : linkedPersonId || null,
         }),
       });
       setDraft("");
@@ -352,8 +393,19 @@ function AssistantWorkspace({
     }
   }
   function prompt(text: string) {
+    if (opening.data?.role_id) setRoleId(opening.data.role_id);
     setDraft(text);
     composer.current?.focus();
+  }
+  function removeNewConversationContext(kind: "role" | "person") {
+    if (kind === "role") setRoleId("");
+    else setLinkedPersonId("");
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has(kind)) return;
+    if (draft) localStorage.setItem(draftStorageKey, draft);
+    params.delete(kind);
+    const remaining = params.toString();
+    router.replace(`/app${remaining ? `?${remaining}` : ""}`, { scroll: false });
   }
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
@@ -439,7 +491,7 @@ function AssistantWorkspace({
                   aria-expanded={contextOpen}
                   onClick={() => setContextOpen(!contextOpen)}
                 >
-                  {t("Workspace context")}
+                  {t("Current work")}
                 </button>
               )}
             </div>
@@ -459,10 +511,21 @@ function AssistantWorkspace({
             className={`ws-conversation-scroll ${!conversationId ? "ws-conversation-scroll-empty" : ""}`}
             onScroll={(event) => {
               const el = event.currentTarget;
+              const layoutChanged =
+                scrollSize.current.height !== el.scrollHeight ||
+                scrollSize.current.viewport !== el.clientHeight;
+              scrollSize.current = {
+                height: el.scrollHeight,
+                viewport: el.clientHeight,
+              };
+              if (layoutChanged && stickToBottom.current) {
+                el.scrollTop = el.scrollHeight;
+                return;
+              }
               const nearBottom =
                 el.scrollHeight - el.scrollTop - el.clientHeight < 100;
               stickToBottom.current = nearBottom;
-              if (nearBottom) setShowJump(false);
+              setShowJump(!nearBottom);
             }}
           >
             {conversationId && !query.data ? (
@@ -475,11 +538,18 @@ function AssistantWorkspace({
                   <MessageSquare size={20} />
                 </div>
                 <h2>{t("Let's move the work forward.")}</h2>
-                <p>
-                  {opening.data?.message || t(
-                    "Bring a client’s JD, a conversation with a candidate, or a recommendation you need to prepare. I’ll help you work with what you have.",
-                  )}
-                </p>
+                {opening.loading ? (
+                  <p className="ws-opening-loading">
+                    <Loader2 size={15} className="animate-spin" />
+                    {t("Looking at your current work…")}
+                  </p>
+                ) : (
+                  <p>
+                    {opening.data?.message || t(
+                      "Bring a client’s JD, a conversation with a candidate, or a recommendation you need to prepare. I’ll help you work with what you have.",
+                    )}
+                  </p>
+                )}
                 {opening.data && (
                   <button
                     className="ws-opening-suggestion"
@@ -738,6 +808,47 @@ function AssistantWorkspace({
                 </button>
               </div>
             )}
+            {!conversationId && (roleId || linkedPersonId) && (
+              <div className="ws-composer-context-tags">
+                {roleId && (
+                  <span className="ws-composer-context-tag">
+                    <BriefcaseBusiness size={13} />
+                    <span
+                      title={
+                        activeRole
+                          ? `${activeRole.client_name} · ${activeRole.title}`
+                          : t("Role")
+                      }
+                    >
+                      {activeRole
+                        ? `${activeRole.client_name} · ${activeRole.title}`
+                        : t("Role")}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t("Remove role from conversation")}
+                      onClick={() => removeNewConversationContext("role")}
+                    >
+                      <X size={13} />
+                    </button>
+                  </span>
+                )}
+                {linkedPersonId && (
+                  <span className="ws-composer-context-tag">
+                    <span title={person.data?.person.name || t("Candidate")}>
+                      {person.data?.person.name || t("Candidate")}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t("Remove candidate from conversation")}
+                      onClick={() => removeNewConversationContext("person")}
+                    >
+                      <X size={13} />
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
 
             <textarea
               ref={composer}
@@ -789,11 +900,11 @@ function AssistantWorkspace({
             aria-label={t("Current work")}
           >
             <div className="ws-context-heading">
-              <strong>{t("Workspace context")}</strong>
+              <strong>{t("Current work")}</strong>
               <button
                 type="button"
                 className="ws-icon"
-                aria-label={t("Close workspace context")}
+                aria-label={t("Close current work panel")}
                 onClick={() => setContextOpen(false)}
               >
                 <X size={16} />
@@ -1120,7 +1231,7 @@ function ActionReview({
             <Field
               label={t("When it happened")}
               hint={t(
-                "Leave empty if the date was not recorded. Saving time is kept separately.",
+                "Leave this blank if the event date is unknown. The save time is recorded separately.",
               )}
             >
               <input

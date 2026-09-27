@@ -84,15 +84,40 @@ function assistantCopy(value: string, sources: Map<string, { title: string }>) {
     )
     .trim();
 }
-export async function assistantOpening(userId: string, locale: "en" | "zh") {
-  const [roles, pending] = await Promise.all([
+export async function assistantOpening(
+  userId: string,
+  locale: "en" | "zh",
+  requestedRoleId: string | null = null,
+  requestedPersonId: string | null = null,
+) {
+  const [roles, pending, focusedPerson, candidateRoles] = await Promise.all([
     listRoles(userId),
     rows<{ total: number }>(
       sql`SELECT count(*)::int AS total FROM hirelix_private_import_rows r JOIN hirelix_private_jobs j ON j.id=r.job_id AND j.user_id=r.user_id WHERE r.user_id=${userId}::uuid AND r.status='review' AND j.kind='import'`,
     ),
+    requestedPersonId ? owned<Person>(userId, "person", requestedPersonId) : null,
+    requestedPersonId
+      ? rows<{ role_id: string }>(
+          sql`SELECT role_id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND person_id=${requestedPersonId}::uuid`,
+        )
+      : [],
   ]);
-  const active = roles.filter((role) => role.status === "active").slice(0, 6);
-  if (!active.length && !pending[0]?.total)
+  const focusedRole = requestedRoleId
+    ? roles.find((role) => role.id === requestedRoleId)
+    : null;
+  if (requestedRoleId && !focusedRole)
+    throw new WorkspaceError("Role not found", 404);
+  const linkedRoleIds = new Set(candidateRoles.map((item) => item.role_id));
+  const active = focusedRole
+    ? [focusedRole]
+    : roles
+        .filter((role) =>
+          focusedPerson
+            ? linkedRoleIds.has(role.id)
+            : role.status === "active",
+        )
+        .slice(0, 6);
+  if (!active.length && !focusedPerson && !pending[0]?.total)
     return locale === "zh"
       ? {
           message: "把你正在处理的职位、候选人或客户消息交给我。我会先帮你理清重点，再一起推进下一步。",
@@ -115,11 +140,18 @@ export async function assistantOpening(userId: string, locale: "en" | "zh") {
     userId,
     "private_assistant_opening",
     openingSchema,
-    "You are opening a professional headhunter's private assistant. In the requested language, proactively mention one concrete piece of work supported by the provided catalog, and ask one useful question or offer one specific action. Keep it warm, concise and natural, as a colleague who remembers the work. Prioritize actual pending candidate reviews only when present; otherwise use an active role with a real unknown. Only claim facts present in the catalog; the existence of a role does not prove its materials have been organized or its candidates reviewed. Do not fabricate urgency, recent conversations, client decisions, or work performed. Do not use time-of-day greetings because the recruiter's timezone is unknown. suggested_prompt is a natural first-person instruction the recruiter can send to continue exactly the single step in message. Do not append a second deliverable or related task. The role_N values are internal references: never display them in message or suggested_prompt; use the client and title instead. Use a role_ref only if the message is about that exact catalog role; otherwise null.",
+    "You are opening a professional headhunter's private assistant. In the requested language, proactively mention one concrete piece of work supported by the provided context, and ask one useful question or offer one specific action. Keep it warm, concise and natural, as a colleague who remembers the work. If focused_candidate is present, make that candidate the subject. Only mention a role if it appears in active_roles; do not switch to unrelated assignments. Otherwise prioritize actual pending candidate reviews only when present, then an active role with a real unknown. Only claim facts present in the context; a candidate's presence does not prove their notes were reviewed, and a role's existence does not prove its materials were organized. Do not fabricate urgency, recent conversations, client decisions, or work performed. Do not use time-of-day greetings because the recruiter's timezone is unknown. suggested_prompt is a natural first-person instruction the recruiter can send to continue exactly the single step in message. Do not append a second deliverable or related task. The role_N values are internal references: never display them in message or suggested_prompt; use the client and title instead. Use a role_ref only if the message is about that exact catalog role; otherwise null.",
     {
       locale,
       active_roles: catalog,
-      candidates_awaiting_review: pending[0]?.total || 0,
+      focused_candidate: focusedPerson
+        ? {
+            name: focusedPerson.name,
+            headline: focusedPerson.headline,
+            location: focusedPerson.location,
+          }
+        : null,
+      candidates_awaiting_review: focusedRole || focusedPerson ? 0 : pending[0]?.total || 0,
     },
   );
   const selected = result.role_ref
@@ -130,7 +162,7 @@ export async function assistantOpening(userId: string, locale: "en" | "zh") {
   return {
     message: openingCopy(result.message, catalog, locale),
     suggested_prompt: openingCopy(result.suggested_prompt, catalog, locale),
-    role_id: selected ? active[catalog.indexOf(selected)].id : null,
+    role_id: focusedRole?.id || (selected ? active[catalog.indexOf(selected)].id : null),
   };
 }
 export async function conversationDetails(userId: string, id: string) {

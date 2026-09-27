@@ -146,7 +146,9 @@
 }
 .ws-sidebar-conversation-list a {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
   min-height: 36px;
   padding: 7px 10px;
   border-radius: 8px;
@@ -158,12 +160,18 @@
   color: var(--ws-green);
 }
 .ws-sidebar-conversation-list strong {
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: 12px;
   font-weight: 500;
+}
+.ws-sidebar-conversation-list small {
+  color: var(--ws-muted);
+  font-size: 10px;
+  margin-top: 2px;
 }
 .ws-sidebar-conversation-list p {
   padding: 10px;
@@ -1419,6 +1427,41 @@
   color: var(--ws-muted);
   margin-top: 4px;
 }
+.ws-composer-context-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 3px 0 8px;
+}
+.ws-composer-context-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px 5px 4px 8px;
+  border-radius: 7px;
+  background: #eef4ed;
+  color: #365b43;
+  font-size: 11px;
+}
+.ws-composer-context-tag > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ws-composer-context-tag button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 5px;
+}
+.ws-composer-context-tag button:hover {
+  background: #dbe9d9;
+}
 .ws-chat-attachment {
   display: flex;
   align-items: center;
@@ -1589,7 +1632,6 @@
   flex: 1;
   min-height: 0;
   padding: 28px max(24px, calc((100% - var(--ws-chat-width)) / 2)) 26px;
-  scroll-behavior: smooth;
 }
 .ws-conversation-scroll-empty {
   display: flex;
@@ -1630,6 +1672,12 @@
   font-size: 14px;
   line-height: 1.8;
   margin: 12px 0 20px;
+}
+.ws-assistant-start > .ws-opening-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
 }
 .ws-opening-suggestion {
   display: flex;

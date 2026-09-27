@@ -10,7 +10,12 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "@/components/workspace/workspace.css";
-import { ErrorNotice, initials, useQuery } from "@/components/workspace/client";
+import {
+  ErrorNotice,
+  date,
+  initials,
+  useQuery,
+} from "@/components/workspace/client";
 import type { Conversation } from "@/lib/workspace/types";
 import { useAuth } from "@/components/AuthProvider";
 import { LoginForm } from "@/components/LoginForm";
@@ -61,6 +66,11 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const [conversationSearch, setConversationSearch] = useState("");
   const conversations = useQuery<{ conversations: Conversation[] }>(
     user ? "/conversations" : null,
+  );
+  const duplicateConversationTitles = new Set(
+    conversations.data?.conversations
+      .map((conversation) => conversation.title)
+      .filter((title, index, titles) => titles.indexOf(title) !== index) || [],
   );
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const hasTrackedSigninViewRef = useRef(false);
@@ -322,6 +332,9 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                   title={conversation.title}
                 >
                   <strong>{conversation.title}</strong>
+                  {duplicateConversationTitles.has(conversation.title) && (
+                    <small>{date(conversation.updated_at, true)}</small>
+                  )}
                 </Link>
               ))}
             {conversations.data && !conversations.data.conversations.length && (
