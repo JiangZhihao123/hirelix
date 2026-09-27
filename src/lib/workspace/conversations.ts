@@ -58,6 +58,40 @@ export async function listConversations(userId: string) {
     sql`SELECT * FROM hirelix_private_conversations WHERE user_id=${userId}::uuid ORDER BY updated_at DESC,id LIMIT 100`,
   );
 }
+export type ConversationSearchResult = Conversation & {
+  excerpt: string | null;
+};
+export async function searchConversations(userId: string, value: string) {
+  const query = value.trim().slice(0, 100);
+  if (!query) return [];
+  const matches = await rows<Conversation & {
+    match_content: string | null;
+  }>(sql`
+    SELECT c.*, hit.content AS match_content
+    FROM hirelix_private_conversations c
+    LEFT JOIN LATERAL (
+      SELECT m.content
+      FROM hirelix_agent_messages m
+      WHERE m.user_id=${userId}::uuid AND m.conversation_id=c.id
+        AND position(lower(${query}) in lower(m.content)) > 0
+      ORDER BY m.created_at DESC, m.id DESC
+      LIMIT 1
+    ) hit ON true
+    WHERE c.user_id=${userId}::uuid
+      AND (position(lower(${query}) in lower(c.title)) > 0 OR hit.content IS NOT NULL)
+    ORDER BY CASE WHEN position(lower(${query}) in lower(c.title)) > 0 THEN 0 ELSE 1 END,
+      c.updated_at DESC, c.id
+    LIMIT 30
+  `);
+  return matches.map(({ match_content, ...conversation }): ConversationSearchResult => {
+    const index = match_content?.toLocaleLowerCase().indexOf(query.toLocaleLowerCase()) ?? -1;
+    const start = Math.max(0, index - 55);
+    const excerpt = match_content
+      ? `${start ? "…" : ""}${match_content.slice(start, start + 170).replace(/\s+/g, " ").trim()}${match_content.length > start + 170 ? "…" : ""}`
+      : null;
+    return { ...conversation, excerpt };
+  });
+}
 const openingSchema = z.object({
   message: z.string().min(1).max(400),
   suggested_prompt: z.string().min(1).max(500),

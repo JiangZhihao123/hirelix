@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { workspaceApi, readBody } from "@/lib/workspace/http";
-import { listConversations, sendMessage } from "@/lib/workspace/conversations";
+import { listConversations, searchConversations, sendMessage } from "@/lib/workspace/conversations";
 import { MAX_FILE_BYTES } from "@/lib/workspace/files";
 import { WorkspaceError } from "@/lib/workspace/database";
 export function GET(req: NextRequest) {
   return workspaceApi(req, async (user) => ({
-    conversations: await listConversations(user.id),
+    conversations: req.nextUrl.searchParams.has("q")
+      ? await searchConversations(user.id, req.nextUrl.searchParams.get("q") || "")
+      : await listConversations(user.id),
   }));
 }
 export function POST(req: NextRequest) {

@@ -28,6 +28,7 @@ import {
 } from "@/lib/analytics";
 import { BillingProvider } from "@/lib/use-billing";
 import { useT } from "@/components/LanguageProvider";
+import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
   Search,
   BriefcaseBusiness,
@@ -63,7 +64,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [conversationSearch, setConversationSearch] = useState("");
+  const [conversationSearchOpen, setConversationSearchOpen] = useState(false);
   const conversations = useQuery<{ conversations: Conversation[] }>(
     user ? "/conversations" : null,
   );
@@ -168,6 +169,19 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   }, [user, conversations.refresh]);
 
   useEffect(() => {
+    if (!user) return;
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSidebarOpen(false);
+        setConversationSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, [user]);
+
+  useEffect(() => {
     if (!sidebarOpen) return;
 
     const mediaQuery = window.matchMedia("(max-width: 850px)");
@@ -238,6 +252,17 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           onClick={() => setSidebarOpen(false)}
         />
       )}
+      {conversationSearchOpen && (
+        <ConversationSearch
+          recent={conversations.data?.conversations || []}
+          onClose={() => setConversationSearchOpen(false)}
+          onSelect={(id) => {
+            setConversationSearchOpen(false);
+            navigate("/app");
+            router.push(`/app?conversation=${id}`);
+          }}
+        />
+      )}
       <aside
         className="ws-sidebar"
         data-open={sidebarOpen}
@@ -303,24 +328,22 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
           <div className="ws-sidebar-conversations-heading">
             <strong>{t("Conversations")}</strong>
-          </div>
-          <label className="ws-sidebar-conversation-search">
-            <Search size={15} />
-            <input
-              value={conversationSearch}
-              onChange={(event) => setConversationSearch(event.target.value)}
-              placeholder={t("Search conversations")}
+            <button
+              type="button"
+              className="ws-icon"
               aria-label={t("Search conversations")}
-            />
-          </label>
+              title={t("Search conversations")}
+              onClick={() => {
+                setSidebarOpen(false);
+                setConversationSearchOpen(true);
+              }}
+            >
+              <Search size={16} />
+            </button>
+          </div>
           <div className="ws-sidebar-conversation-list">
             <ErrorNotice error={conversations.error} retry={conversations.refresh} />
             {conversations.data?.conversations
-              .filter((conversation) =>
-                conversation.title
-                  .toLocaleLowerCase()
-                  .includes(conversationSearch.toLocaleLowerCase()),
-              )
               .map((conversation) => (
                 <Link
                   key={conversation.id}
@@ -340,13 +363,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             {conversations.data && !conversations.data.conversations.length && (
               <p>{t("Your saved conversations will appear here.")}</p>
             )}
-            {conversations.data &&
-              !!conversations.data.conversations.length &&
-              !conversations.data.conversations.some((conversation) =>
-                conversation.title
-                  .toLocaleLowerCase()
-                  .includes(conversationSearch.toLocaleLowerCase()),
-              ) && <p>{t("No matching conversations")}</p>}
           </div>
         </section>
         <div className="ws-sidebar-bottom">
@@ -396,9 +412,23 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="ws-topbar-actions">
             {isConversationPage ? (
-              <Link href="/app" className="ws-icon" aria-label={t("New conversation")}>
-                <Plus size={18} />
-              </Link>
+              <>
+                <button
+                  type="button"
+                  className="ws-icon ws-mobile-only"
+                  aria-label={t("Search conversations")}
+                  onClick={() => setConversationSearchOpen(true)}
+                >
+                  <Search size={18} />
+                </button>
+                <Link
+                  href="/app"
+                  className="ws-icon"
+                  aria-label={t("New conversation")}
+                >
+                  <Plus size={18} />
+                </Link>
+              </>
             ) : (
               <>
                 <Link

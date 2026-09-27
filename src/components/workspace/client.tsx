@@ -112,11 +112,13 @@ export function Dialog({
   children,
   onClose,
   wide = false,
+  closeOnBackdrop = false,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  closeOnBackdrop?: boolean;
 }) {
   const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
@@ -135,6 +137,9 @@ export function Dialog({
       onCancel={(event) => {
         event.preventDefault();
         onClose();
+      }}
+      onClick={(event) => {
+        if (closeOnBackdrop && event.target === event.currentTarget) onClose();
       }}
       aria-label={t(title)}
     >

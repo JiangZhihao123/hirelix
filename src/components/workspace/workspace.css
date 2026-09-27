@@ -106,37 +106,21 @@
   border-top: 1px solid var(--ws-line);
 }
 .ws-sidebar-conversations-heading {
-  padding: 16px 11px 9px;
+  padding: 10px 5px 5px 11px;
   color: var(--ws-muted);
   font-size: 12px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .ws-sidebar-conversations-heading strong {
   font-weight: inherit;
 }
-.ws-sidebar-conversation-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 10px;
-  margin: 0 2px 8px;
-  border: 1px solid #dbdfd6;
-  border-radius: 8px;
+.ws-sidebar-conversations-heading .ws-icon {
+  width: 30px;
+  height: 30px;
   color: var(--ws-muted);
-  background: #f8f8f5;
-}
-.ws-sidebar-conversation-search:focus-within {
-  border-color: var(--ws-green);
-}
-.ws-sidebar-conversation-search input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ws-ink);
-  font-size: 12px;
 }
 .ws-sidebar-conversation-list {
   flex: 1;
@@ -676,6 +660,90 @@
   letter-spacing: -0.3px;
   font-weight: 600;
 }
+.ws-conversation-search {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+.ws-dialog:has(.ws-conversation-search) {
+  margin: 8dvh auto auto;
+}
+.ws-conversation-search-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 24px 12px;
+  padding: 0 14px;
+  min-height: 52px;
+  border: 1px solid var(--ws-line);
+  border-radius: 10px;
+  color: var(--ws-muted);
+}
+.ws-conversation-search-field:focus-within {
+  border-color: var(--ws-green);
+  box-shadow: 0 0 0 3px #2d554615;
+}
+.ws-conversation-search-field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ws-ink);
+  font-size: 16px;
+}
+.private-workspace .ws-conversation-search-field input:focus-visible {
+  outline: none;
+}
+.ws-conversation-search-field input::-webkit-search-cancel-button { display: none; }
+.ws-conversation-search-clear {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+.ws-conversation-search-clear:hover { background: var(--ws-selected); }
+.ws-conversation-search-results {
+  min-height: 180px;
+  max-height: min(480px, 55dvh);
+  overflow-y: auto;
+  padding: 4px 14px 16px;
+}
+.ws-conversation-search-caption {
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ws-muted);
+}
+.ws-conversation-search-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 11px;
+  border-radius: 8px;
+  color: var(--ws-ink);
+}
+.ws-conversation-search-result:hover,
+.ws-conversation-search-result[data-selected="true"] { background: #f1f4ef; }
+.ws-conversation-search-result > svg { margin-top: 2px; flex: 0 0 auto; color: var(--ws-muted); }
+.ws-conversation-search-result-copy { flex: 1; min-width: 0; }
+.ws-conversation-search-result-copy strong,
+.ws-conversation-search-result-copy small {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ws-conversation-search-result-copy strong { font-weight: 550; font-size: 14px; }
+.ws-conversation-search-result-copy small { margin-top: 2px; color: var(--ws-muted); font-size: 12px; }
+.ws-conversation-search-result-copy .ws-conversation-search-recent-time {
+  display: none;
+}
+.ws-conversation-search-result time { margin-left: 8px; white-space: nowrap; font-size: 11px; color: var(--ws-muted); }
+.ws-conversation-search-result mark { background: #dce9dc; color: inherit; border-radius: 2px; }
+.ws-conversation-search-state { padding: 20px 11px; color: var(--ws-muted); font-size: 13px; }
 .ws-form {
   padding: 24px;
   display: flex;
@@ -915,6 +983,13 @@
   }
   .ws-dialog {
     max-height: calc(100dvh - 20px);
+  }
+  .ws-conversation-search-field { margin: 12px 16px; }
+  .ws-dialog:has(.ws-conversation-search) { margin-top: 10px; }
+  .ws-conversation-search-results { padding: 4px 8px 12px; max-height: 65dvh; }
+  .ws-conversation-search-result time { display: none; }
+  .ws-conversation-search-result-copy .ws-conversation-search-recent-time {
+    display: block;
   }
   .ws-tabs {
     gap: 16px;
