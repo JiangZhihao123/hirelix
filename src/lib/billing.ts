@@ -1,4 +1,7 @@
+import { AGENT_PLAN, type AgentAccess } from "./agent-plan";
 export type BillingPlanCode =
+  | "agent_monthly"
+  | "agent_annual"
   | "free"
   | "starter_monthly"
   | "starter_annual"
@@ -84,6 +87,7 @@ export type UsageSummary = {
 };
 
 export type BillingSummary = {
+  agent?: AgentAccess;
   operator?: {
     internal: boolean;
   };
@@ -132,7 +136,14 @@ export function formatCountLabel(count: number, singular: string, plural: string
   return count === 1 ? singular : plural;
 }
 
+const agentBase = {
+  name: AGENT_PLAN.name, description: "Your personal AI agent for headhunting.",
+  profileScansPerMonth: 0, emailLookupsPerMonth: 0, publicEvidenceDeepDivesPerMonth: 0,
+  searchesPerMonth: 0, enrichesPerMonth: 0, exportEnabled: true, clientBriefEnabled: true,
+};
 export const BILLING_PLANS: Record<BillingPlanCode, BillingPlan> = {
+  agent_monthly: { ...agentBase, code: "agent_monthly", priceLabel: "$49", cadenceLabel: "per month", billingCycle: "month", priceCents: AGENT_PLAN.monthlyCents, ctaLabel: "Subscribe monthly" },
+  agent_annual: { ...agentBase, code: "agent_annual", priceLabel: "$490", cadenceLabel: "per year", billingCycle: "year", priceCents: AGENT_PLAN.annualCents, ctaLabel: "Subscribe annually" },
   free: {
     code: "free",
     name: "Free",
@@ -240,6 +251,7 @@ export function getEffectivePlanCode(
   status: string | null | undefined,
 ): BillingPlanCode {
   const validCodes = new Set<BillingPlanCode>([
+    "agent_monthly", "agent_annual",
     "starter_monthly",
     "starter_annual",
     "pro_monthly",
@@ -308,6 +320,16 @@ export function getPlanStatusCopy(
     };
   }
 
+  if (billing.agent && billing.agent.state !== "legacy") {
+    const a = billing.agent;
+    return {
+      title: a.state === "paid" ? AGENT_PLAN.name : locale === "zh" ? "私人助理试用" : "Personal Agent trial",
+      usageLabel: locale === "zh" ? `剩余 ${a.remaining} / ${a.limit} 次 AI 工作` : `${a.remaining} / ${a.limit} AI tasks remaining`,
+      capabilityLabel: locale === "zh" ? "候选人、职位与客户材料" : "Candidates, roles, and client work",
+      renewalLabel: a.periodEnd ? `${locale === "zh" ? "周期结束" : "Period ends"} ${formatMonthDay(a.periodEnd)}` : null,
+      actionLabel: locale === "zh" ? "管理" : "Manage", state: a.remaining === 0 || a.state === "expired" ? "warning" : "default",
+    };
+  }
   const isFreePlan = billing.subscription.planCode === "free";
   const profileScansRemaining = billing.usage.profileScansRemaining;
   const profileScansLimit = billing.usage.profileScansLimit;
@@ -351,6 +373,8 @@ export function getCheckoutConfig(): {
   enabled: boolean;
   environment: "sandbox" | "production";
   clientToken: string;
+  agentMonthlyPriceId: string;
+  agentAnnualPriceId: string;
   proMonthlyPriceId: string;
   proAnnualPriceId: string;
   starterMonthlyPriceId: string;
@@ -367,6 +391,8 @@ export function getCheckoutConfig(): {
     environment:
       process.env.NEXT_PUBLIC_PADDLE_ENV === "production" ? "production" : "sandbox",
     clientToken,
+    agentMonthlyPriceId: (process.env.NEXT_PUBLIC_PADDLE_AGENT_MONTHLY_PRICE_ID || "").trim(),
+    agentAnnualPriceId: (process.env.NEXT_PUBLIC_PADDLE_AGENT_ANNUAL_PRICE_ID || "").trim(),
     proMonthlyPriceId,
     proAnnualPriceId,
     starterMonthlyPriceId,

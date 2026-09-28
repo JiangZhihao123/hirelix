@@ -6,11 +6,6 @@ import { useAuth } from "@/components/AuthProvider";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
 import { getPlanStatusCopy, type BillingSummary } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
-import {
-  ANALYTICS_EVENTS,
-  getAnalyticsContextFromBrowser,
-  trackEvent,
-} from "@/lib/analytics";
 import { useBilling } from "@/lib/use-billing";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import type { Locale } from "@/lib/locale";
@@ -104,26 +99,12 @@ export default function SettingsPage() {
   }, [fetchSettings]);
 
   useEffect(() => {
-    if (searchParams.get("checkout") === "success") {
-      trackEvent(ANALYTICS_EVENTS.checkoutSuccess, {
-        ...getAnalyticsContextFromBrowser(),
-      });
-      fetchSettings();
-    }
-  }, [fetchSettings, searchParams]);
-
-  useEffect(() => {
-    if (searchParams.get("checkout") !== "success") return;
-
-    const timers = [3000, 8000, 15000].map((delay) =>
-      window.setTimeout(() => {
-        void fetchSettings();
-        void refreshBilling();
-      }, delay),
-    );
-    return () => {
-      timers.forEach((timer) => window.clearTimeout(timer));
-    };
+    if (!["success", "pending"].includes(searchParams.get("checkout") || "")) return;
+    // A redirect is not proof of payment; refresh until the signed webhook updates access.
+    const timers = [0, 3000, 8000, 15000, 30000].map((delay) => window.setTimeout(() => {
+      void fetchSettings(); void refreshBilling();
+    }, delay));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [fetchSettings, refreshBilling, searchParams]);
 
   useEffect(() => {

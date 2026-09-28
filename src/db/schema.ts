@@ -363,6 +363,7 @@ export const hirelix_user_settings = pgTable("hirelix_user_settings", {
   paddle_customer_id: text("paddle_customer_id"),
   paddle_subscription_id: text("paddle_subscription_id"),
   paddle_transaction_id: text("paddle_transaction_id"),
+  paddle_event_at: timestamp("paddle_event_at", { withTimezone: true }),
   subscription_started_at: timestamp("subscription_started_at", { withTimezone: true }),
   subscription_renews_at: timestamp("subscription_renews_at", { withTimezone: true }),
   extra_search_credits: integer("extra_search_credits").notNull().default(0),

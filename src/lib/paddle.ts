@@ -12,11 +12,13 @@ declare global {
       }) => void;
       Checkout: {
         open: (options: {
-          items: { priceId: string; quantity: number }[];
+          items?: { priceId: string; quantity: number }[];
+          transactionId?: string;
           customer?: { email?: string };
           customData?: Record<string, string>;
           settings?: {
             displayMode?: "overlay";
+            locale?: "en" | "zh-Hans";
             successUrl?: string;
           };
         }) => void;
@@ -25,21 +27,25 @@ declare global {
   }
 }
 
+let checkoutErrorHandler: ((message: string) => void) | undefined;
+function handlePaddleEvent(event: unknown) {
+  if (!event || typeof event !== "object") return;
+  const value = event as Record<string, unknown>;
+  if (value.name === "checkout.error" || value.name === "checkout.payment.error" || value.name === "checkout.payment.failed") {
+    checkoutErrorHandler?.("Paddle could not open or complete your checkout. Please try again or contact support@hirelix.online. Your subscription has not been activated.");
+  }
+}
+
 let paddlePromise: Promise<typeof window.Paddle> | null = null;
 
 export async function loadPaddle(
   clientToken: string,
   environment: "sandbox" | "production",
+  onError?: (message: string) => void,
 ) {
   if (typeof window === "undefined") return null;
 
-  if (window.Paddle) {
-    if (environment === "sandbox") {
-      window.Paddle.Environment?.set("sandbox");
-    }
-    window.Paddle.Initialize({ token: clientToken });
-    return window.Paddle;
-  }
+  checkoutErrorHandler = onError;
 
   if (!paddlePromise) {
     paddlePromise = new Promise((resolve, reject) => {
@@ -54,7 +60,7 @@ export async function loadPaddle(
         if (environment === "sandbox") {
           window.Paddle.Environment?.set("sandbox");
         }
-        window.Paddle.Initialize({ token: clientToken });
+        window.Paddle.Initialize({ token: clientToken, eventCallback: handlePaddleEvent });
         resolve(window.Paddle);
       };
       script.onerror = () => reject(new Error("Failed to load Paddle"));
@@ -62,5 +68,6 @@ export async function loadPaddle(
     });
   }
 
-  return paddlePromise;
+  try { return await paddlePromise; }
+  catch (error) { paddlePromise = null; throw error; }
 }

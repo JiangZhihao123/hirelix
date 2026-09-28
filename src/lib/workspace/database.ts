@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
+import { reserveAgentTask } from "@/lib/agent-access";
 import type { Job, JobKind } from "./types";
 
 export type Runner = Pick<typeof db, "execute">;
@@ -78,11 +79,13 @@ export async function enqueue(
   key: string,
   payload: Record<string, unknown>,
   runner: Runner = db,
-) {
-  const [job] = await rows<Job>(
-    sql`INSERT INTO hirelix_private_jobs(user_id,kind,request_key,payload) VALUES(${userId}::uuid,${kind},${key},${json(payload)}) ON CONFLICT(user_id,request_key) DO UPDATE SET request_key=excluded.request_key RETURNING *`,
+): Promise<Job> {
+  if (runner === db) return db.transaction((tx) => enqueue(userId, kind, key, payload, tx));
+  const inserted = await rows<Job>(
+    sql`INSERT INTO hirelix_private_jobs(user_id,kind,request_key,payload) VALUES(${userId}::uuid,${kind},${key},${json(payload)}) ON CONFLICT(user_id,request_key) DO NOTHING RETURNING *`,
     runner,
   );
+  const job = inserted[0] || (await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND request_key=${key}`, runner))[0];
   const [same] = await rows<{ matches: boolean }>(
     sql`SELECT payload=${json(payload)} AND kind=${kind} AS matches FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND id=${job.id}::uuid`,
     runner,
@@ -92,6 +95,11 @@ export async function enqueue(
       "This request key was already used for a different operation",
       409,
     );
+  // Internal indexing and a chat's follow-on import are included in the parent task.
+  if (inserted.length && !(await isIncludedTask(job, runner))) {
+    const reserved = await reserveAgentTask(userId, job.id, runner);
+    if (reserved === false) throw new WorkspaceError("Your AI task allowance has ended. Your saved work is still available. Open Settings → Billing to subscribe or check your allowance.", 402);
+  }
   return job;
 }
 export async function listVersions(
@@ -108,4 +116,13 @@ export async function listVersions(
   }>(
     sql`SELECT id,version,snapshot,created_at FROM hirelix_private_versions WHERE user_id=${userId}::uuid AND entity_type=${kind} AND entity_id=${id}::uuid ORDER BY version DESC`,
   );
+}
+
+// Only an internal import linked to its real parent chat is included for free.
+export async function isIncludedTask(job: Job, runner: Runner = db): Promise<boolean> {
+  if (job.kind === "index") return true;
+  if (job.kind !== "import" || !job.request_key.startsWith("assistant-import:")) return false;
+  const parentId = job.request_key.slice("assistant-import:".length);
+  const parents = await rows(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${job.user_id}::uuid AND id::text=${parentId} AND kind='chat' AND payload->>'message_id'=${String(job.payload.source_message_id || "")} AND payload->>'conversation_id'=${String(job.payload.conversation_id || "")}`, runner);
+  return parents.length > 0;
 }

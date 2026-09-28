@@ -77,23 +77,21 @@ export function BillingProvider({ children }: { children: ReactNode }) {
     }
 
     window.addEventListener("focus", handleRefresh);
+    window.addEventListener("hirelix:billing-changed", handleRefresh);
     document.addEventListener("visibilitychange", handleRefresh);
 
     return () => {
       cancelled = true;
       window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("hirelix:billing-changed", handleRefresh);
       document.removeEventListener("visibilitychange", handleRefresh);
     };
   }, [fetchBilling, user]);
 
-  const value = useMemo<BillingContextValue>(() => ({
-    billing,
-    loading,
-    refresh: async () => {
-      if (!user) return;
-      await fetchBilling();
-    },
-  }), [billing, fetchBilling, loading, user]);
+  const refresh = useCallback(async () => {
+    if (user) await fetchBilling();
+  }, [fetchBilling, user]);
+  const value = useMemo<BillingContextValue>(() => ({ billing, loading, refresh }), [billing, loading, refresh]);
 
   return <BillingContext.Provider value={value}>{children}</BillingContext.Provider>;
 }

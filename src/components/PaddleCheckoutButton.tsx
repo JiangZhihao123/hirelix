@@ -1,7 +1,7 @@
 "use client";
 
 
-import { useT } from "@/components/LanguageProvider";
+import { useT, useLanguage } from "@/components/LanguageProvider";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
@@ -11,6 +11,8 @@ import {
   trackEvent,
 } from "@/lib/analytics";
 import { getCheckoutConfig, type BillingPlanCode } from "@/lib/billing";
+import { isAgentPlan } from "@/lib/agent-plan";
+import { fetchWithUserSession } from "@/lib/client-auth";
 import { loadPaddle } from "@/lib/paddle";
 
 type CheckoutKind = { type: "plan"; planCode: Exclude<BillingPlanCode, "free"> };
@@ -33,13 +35,16 @@ export function PaddleCheckoutButton({
   onError,
 }: PaddleCheckoutButtonProps) {
   const t = useT();
+  const { locale } = useLanguage();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const config = getCheckoutConfig();
 
   const priceId =
     checkout.type === "plan"
-      ? checkout.planCode === "starter_monthly"
+      ? checkout.planCode === "agent_monthly" ? config.agentMonthlyPriceId
+        : checkout.planCode === "agent_annual" ? config.agentAnnualPriceId
+        : checkout.planCode === "starter_monthly"
         ? config.starterMonthlyPriceId
         : checkout.planCode === "starter_annual"
           ? config.starterAnnualPriceId
@@ -49,6 +54,7 @@ export function PaddleCheckoutButton({
       : "";
 
   async function handleCheckout() {
+    onError?.("");
     onClick?.();
     const purchaseType = checkout.planCode;
     trackEvent(ANALYTICS_EVENTS.checkoutStart, {
@@ -80,7 +86,7 @@ export function PaddleCheckoutButton({
 
     setLoading(true);
     try {
-      const paddle = await loadPaddle(config.clientToken, config.environment);
+      const paddle = await loadPaddle(config.clientToken, config.environment, onError);
       if (!paddle) {
         trackEvent(ANALYTICS_EVENTS.checkoutError, {
           ...getAnalyticsContextFromBrowser(),
@@ -92,21 +98,16 @@ export function PaddleCheckoutButton({
         return;
       }
 
-      const successUrl = `${window.location.origin}/app/settings?checkout=success#billing`;
-      paddle.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
-        customer: {
-          email: user.email,
-        },
-        customData: {
-          user_id: user.id,
-          purchase_type: purchaseType,
-        },
-        settings: {
-          displayMode: "overlay",
-          successUrl,
-        },
-      });
+      const successUrl = `${window.location.origin}/app/settings?section=billing&checkout=pending`;
+      if (isAgentPlan(checkout.planCode)) {
+        const response = await fetchWithUserSession("/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: checkout.planCode }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not prepare checkout.");
+        paddle.Checkout.open({ items: [{ priceId: result.priceId, quantity: 1 }], customer: result.customer, customData: result.customData, settings: { displayMode: "overlay", locale: locale === "zh" ? "zh-Hans" : "en", successUrl } });
+      } else {
+        paddle.Checkout.open({ items: [{ priceId, quantity: 1 }], customer: { email: user.email }, customData: { user_id: user.id, purchase_type: purchaseType }, settings: { displayMode: "overlay", locale: locale === "zh" ? "zh-Hans" : "en", successUrl } });
+      }
+
     } catch (err) {
       trackEvent(ANALYTICS_EVENTS.checkoutError, {
         ...getAnalyticsContextFromBrowser(),
@@ -114,21 +115,18 @@ export function PaddleCheckoutButton({
         checkout_kind: checkout.type,
         error_reason: err instanceof Error ? err.message : "unknown",
       });
-      onError?.("Checkout failed.");
+      onError?.(err instanceof Error ? err.message : "Checkout failed.");
     } finally {
       setLoading(false);
     }
   }
 
-  if (!config.enabled || !priceId) {
-    return null;
-  }
 
   return (
     <button
       type="button"
       onClick={handleCheckout}
-      disabled={disabled || loading || !priceId}
+      disabled={disabled || loading}
       className={className}
     >
       {loading ? (

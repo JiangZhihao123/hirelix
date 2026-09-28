@@ -1,3 +1,4 @@
+import { getAgentAccess } from "./agent-access";
 import { and, eq, gt, gte, lt, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
@@ -191,6 +192,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   }
 
   const summary: BillingSummary = {
+    agent: await getAgentAccess(userId),
     plan,
     subscription: {
       planCode,

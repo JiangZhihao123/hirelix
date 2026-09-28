@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { hirelix_billing_events, hirelix_user_settings, user } from "@/db/schema";
@@ -53,7 +53,7 @@ export function verifyPaddleSignature(rawBody: string, signature: string | null)
     }),
   );
 
-  if (!parts.ts || !parts.h1) return false;
+  if (!parts.ts || !parts.h1 || !/^\d+$/.test(parts.ts) || Math.abs(Date.now() / 1000 - Number(parts.ts)) > 300) return false;
 
   const expected = crypto
     .createHmac("sha256", secret)
@@ -82,6 +82,8 @@ export function getPaddlePriceIds(data: Record<string, unknown>) {
 
 export function resolvePaddlePlanCode(priceIds: string[]) {
   const config = getCheckoutConfig();
+  if (config.agentMonthlyPriceId && priceIds.includes(config.agentMonthlyPriceId)) return "agent_monthly";
+  if (config.agentAnnualPriceId && priceIds.includes(config.agentAnnualPriceId)) return "agent_annual";
   if (priceIds.includes(config.starterMonthlyPriceId)) {
     return "starter_monthly";
   }
@@ -161,6 +163,7 @@ async function notifySubscriptionAlert(params: {
   data: Record<string, unknown>;
   planCode: string;
 }) {
+  if (getCheckoutConfig().environment !== "production") return;
   const resendApiKey = process.env.RESEND_API_KEY;
   const from = getSubscriptionAlertFromEmail();
   const to = getSubscriptionAlertRecipient();
@@ -290,6 +293,7 @@ async function updateSubscription(
   executor: BillingTransaction,
   data: Record<string, unknown>,
   userId: string,
+  occurredAt: Date,
 ) {
   const priceIds = getPaddlePriceIds(data);
   const planCode = resolvePaddlePlanCode(priceIds);
@@ -300,7 +304,7 @@ async function updateSubscription(
       ? data.status
       : typeof data.scheduled_change === "string"
         ? data.scheduled_change
-        : "active";
+        : "unknown";
 
   const renewsAt =
     typeof data.next_billed_at === "string"
@@ -336,9 +340,10 @@ async function updateSubscription(
     paddle_subscription_id: subscriptionId,
     subscription_started_at: startedAt,
     subscription_renews_at: renewsAtDate,
+    paddle_event_at: occurredAt,
     updated_at: new Date(),
   };
-  await executor
+  const updated = await executor
     .insert(hirelix_user_settings)
     .values(values)
     .onConflictDoUpdate({
@@ -352,9 +357,11 @@ async function updateSubscription(
         subscription_started_at: values.subscription_started_at,
         subscription_renews_at: values.subscription_renews_at,
         updated_at: values.updated_at,
+        paddle_event_at: occurredAt,
       },
-    });
-  return planCode;
+      setWhere: sql`${hirelix_user_settings.paddle_event_at} IS NULL OR ${hirelix_user_settings.paddle_event_at} <= ${occurredAt.toISOString()}::timestamptz`,
+    }).returning({ user_id: hirelix_user_settings.user_id });
+  return updated.length ? planCode : null;
 }
 
 export async function POST(req: NextRequest) {
@@ -391,6 +398,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing event id" }, { status: 400 });
     }
 
+    const occurredAt = new Date(String(payload.occurred_at || ""));
+    if (eventType.startsWith("subscription.") && !Number.isFinite(occurredAt.getTime())) return NextResponse.json({ error: "Missing valid event timestamp" }, { status: 400 });
     const userId = await resolveUserId(data);
     const transactionResult = await db.transaction(async (tx) => {
       const duplicate = await recordEvent(tx, eventId, eventType, userId, payload);
@@ -400,7 +409,7 @@ export async function POST(req: NextRequest) {
 
       const planCode =
         userId && eventType.startsWith("subscription.") && !isTestPayment(data)
-          ? await updateSubscription(tx, data, userId)
+          ? await updateSubscription(tx, data, userId, occurredAt)
           : null;
       return { duplicate: false as const, planCode };
     });

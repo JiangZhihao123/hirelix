@@ -21,7 +21,7 @@ test("verifyPaddleSignature accepts a valid Paddle signature", () => {
   const originalSecret = process.env.PADDLE_WEBHOOK_SECRET;
   process.env.PADDLE_WEBHOOK_SECRET = "test-webhook-secret";
   const body = JSON.stringify({ event_id: "evt_123", event_type: "transaction.completed" });
-  const timestamp = "1779576000";
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = `ts=${timestamp};h1=${signPayload(process.env.PADDLE_WEBHOOK_SECRET, timestamp, body)}`;
 
   try {

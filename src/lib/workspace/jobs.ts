@@ -1,3 +1,5 @@
+import { isIncludedTask } from "./database";
+import { reserveAgentTask } from "@/lib/agent-access";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -72,9 +74,13 @@ export async function reclaimJobs() {
 }
 export async function retryJob(userId: string, id: string) {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${userId}`}, 0))`);
     const job = await owned<Job>(userId, "job", id, tx, true);
     if (job.status !== "error")
       throw new WorkspaceError("Only failed tasks can be retried", 409);
+    if (!(await isIncludedTask(job, tx))) {
+      if (await reserveAgentTask(userId, job.id, tx) === false) throw new WorkspaceError("Your AI task allowance has ended. Open Settings → Billing to continue.", 402);
+    }
     const [result] = await rows<Job>(
       sql`UPDATE hirelix_private_jobs SET status='queued',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
       tx,

@@ -1,6 +1,7 @@
 "use client";
 
 
+import { AgentBillingPanel } from "@/components/AgentBillingPanel";
 import { useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import {
@@ -70,6 +71,8 @@ export function BillingPanel({
   function isCurrentTier(annualPlanCode: PaidBillingPlanCode, monthlyPlanCode: PaidBillingPlanCode) {
     return isCurrentPlan(annualPlanCode) || isCurrentPlan(monthlyPlanCode);
   }
+
+  if (billing.agent && billing.agent.state !== "legacy") return <AgentBillingPanel billing={billing} />;
 
   return (
     <SettingsSection
