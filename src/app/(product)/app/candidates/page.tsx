@@ -52,6 +52,31 @@ type SemanticResult = {
   coverage: { total: number; indexed: number; pending: number; failed: number };
   scope: string;
 };
+function semanticExcerpt(content: string) {
+  const source = content.slice(content.indexOf("\n") + 1);
+  try {
+    const value = JSON.parse(source) as Record<string, unknown>;
+    const detail = value.content;
+    if (typeof detail === "string") {
+      try {
+        const fields = JSON.parse(detail) as Record<string, unknown>;
+        const readable = Object.entries(fields)
+          .filter(([, item]) => typeof item === "string" && item.trim())
+          .map(([key, item]) => `${key}: ${item}`)
+          .join(" · ");
+        return readable || detail;
+      } catch {
+        return detail;
+      }
+    }
+    return [value.name, value.headline, value.location, value.note, value.profile]
+      .concat(Array.isArray(value.skills) ? value.skills : [])
+      .filter((item) => typeof item === "string" && item.trim())
+      .join(" · ");
+  } catch {
+    return "";
+  }
+}
 type Details = {
   person: Person;
   records: SourceRecord[];
@@ -142,6 +167,7 @@ export default function Candidates() {
   const shown = semantic
     ? semantic.matches.map((match) => ({ ...match.person, last_contact: null }))
     : people.data?.people || [];
+  const displayCount = semantic ? semantic.matches.length : task ? null : people.data?.total;
   return (
     <div className="ws-page">
       <header className="ws-page-header">
@@ -211,10 +237,10 @@ export default function Candidates() {
             }}
           />
           <span className="ws-count">
-            {people.data
+            {displayCount != null
               ? locale === "zh"
-                ? `${people.data.total} 位候选人`
-                : `${people.data.total} ${people.data.total === 1 ? "candidate" : "candidates"}`
+                ? `${displayCount} 位候选人`
+                : `${displayCount} ${displayCount === 1 ? "candidate" : "candidates"}`
               : ""}
           </span>
         </div>
@@ -322,7 +348,7 @@ export default function Candidates() {
                   </button>
                   {match && (
                     <div className="ws-notice">
-                      <p className="line-clamp-3">{match.content}</p>
+                      <p className="line-clamp-3">{semanticExcerpt(match.content) || t("Open source")}</p>
                       <button
                         className="ws-link mt-2"
                         onClick={() =>
