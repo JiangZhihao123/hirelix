@@ -33,14 +33,18 @@ Sandbox subscription 对应用户 ID：`7cad7254-0bc6-4dbf-bee1-a9bde8e11a09`。
 | Live | pro_01m3mezh7wbzxfhdbqy54jnaet | pri_01m3mf4h660x9k2h9jq0vj27qz | pri_01m3mfw6btd1wgrqqjnbk9tshr |
 | Sandbox | pro_01m3mg912khh35sg3b5gvy4zrg | pri_01m3mgar17pdz7ft7x6dkxybp4 | pri_01m3mgch36709wdgjpa455b4e4 |
 
-Paddle.js 只需要客户端令牌；服务端 API key 用于客户账单门户，不是打开结账的必要条件。目前没有服务端 API key，自助管理/取消入口会显示联系支持，门户尚未真实验收。
+Paddle.js 只需要客户端令牌；服务端 API key 用于客户账单门户，不是打开结账的必要条件。2026-09-29 已分别创建 Hirelix 专用 Live 与 Sandbox 密钥，权限均仅为 `Customer portal sessions: Write`，到期日为 2026-12-27；密钥值只保存在 Git 忽略的本地环境文件和 Vercel Secret 中，必须在到期前轮换。
+
+Sandbox 密钥已加入 `.env.agent-qa`。在已付款的真实沙盒测试账号中，Hirelix Billing 页的 `Manage subscription` 按钮打开了 Paddle 客户门户，能看到 Hirelix Personal Agent 订阅详情、更新付款方式和取消订阅入口；未实际更改支付方式或取消订阅。门户顶部显示同一 Paddle 商户的 `YieldMirror` 品牌，且订阅总览还列出该客户的其他产品订阅，正式上线前需要处理这一跨产品品牌体验。
+
+Live 密钥已更新到 Vercel `hirelix` 项目的 Production Secret `PADDLE_API_KEY`。用不存在的客户 ID 调用 Live 客户门户接口返回预期的 `404 not_found`，证明新密钥通过认证和权限检查；尚无 Live 付费订阅可用于真实门户验收。Vercel 提示必须重新部署，新值才会进入运行中的应用。
 
 ## 发布与验收边界
 
-本次未推送、未部署、未改生产数据库。以下仍未完成：
+应用代码尚未推送或部署，也未改生产数据库；仅更新了 Vercel Production Secret。以下仍未完成：
 
 - Live 成功扣款、Live 回调开通和线上首次用户验收。
-- 自助取消、变更支付方式及退款实测。
+- 线上客户门户打开、自助取消、变更支付方式及退款实测。
 
 从 localhost 调用 Live 时实际返回 `Transaction checkout creation is blocked for this vendor.`。后台账户验证通过，`hirelix.online` 域名 Approved，默认付款页 `https://hirelix.online/` Approved。不能据此断言商户被封，也不能把 Sandbox 成功当作 Live 已恢复。发布后需从获批线上域名重新验证，若仍报错再联系 Paddle 排查。
 
@@ -50,7 +54,7 @@ Paddle.js 只需要客户端令牌；服务端 API key 用于客户账单门户�
 2. 在 Vercel 与 worker 的运行环境设置两个 Live `NEXT_PUBLIC_PADDLE_AGENT_*_PRICE_ID`；保留 Live 客户端令牌、环境和现有 webhook secret。环境变量要在构建前设置。
 3. 发布应用及 worker。确认现有 `https://hirelix.online/api/paddle/webhook` 订阅所需的 subscription 生命周期事件；后台当前目的地为 Active，有 9 项订阅事件。
 4. 用新用户从线上落地页开始验收。真实最终付款由用户操作，之后核对 Paddle、数据库和浏览器权益。
-5. 补全 API key 或经验证的客户门户配置，测试取消及付款方式管理。
+5. 重新部署后从已付款的 Live 账号打开客户门户，核验取消和付款方式管理，并在 2026-12-27 前轮换密钥。
 
 ## 本地运行与清理
 
