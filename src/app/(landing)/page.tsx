@@ -27,6 +27,7 @@ import {
 } from "@/lib/analytics";
 import { LandingAnalytics } from "./_components/LandingAnalytics";
 import "./landing.css";
+import { BrandMark as AgentMark } from "@/components/BrandMark";
 
 const scenarios = [
   {
@@ -101,20 +102,6 @@ const faqs = [
     "You can export a candidate’s saved profile and records, and delete candidate profiles from your workspace. Read our Privacy Policy for details on how information is handled.",
   ],
 ];
-
-function AgentMark({ small = false }: { small?: boolean }) {
-  return (
-    <span
-      className={`ha-mark${small ? " ha-mark-small" : ""}`}
-      aria-hidden="true"
-    >
-      <span />
-      <span />
-      <span />
-      <span />
-    </span>
-  );
-}
 
 // Keep server-rendered buttons inactive until their handlers are attached.
 const subscribeToHydration = () => () => {};
