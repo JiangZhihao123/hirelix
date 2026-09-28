@@ -1262,3 +1262,12 @@
     transition: none !important;
   }
 }
+
+.ha-pricing { max-width: 1100px; margin: 0 auto; padding: 100px 24px; }
+.ha-pricing h2 { font-size: clamp(32px, 4vw, 52px); line-height: 1.1; letter-spacing: -.04em; margin: 20px 0; }
+.ha-pricing-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin: 32px 0; }
+.ha-pricing-options article { border: 1px solid #d8ded6; border-radius: 18px; padding: 32px; background: #fffef9; }
+.ha-price strong { font-size: 48px; letter-spacing: -.04em; }
+.ha-pricing-options ul { padding-left: 20px; line-height: 1.9; margin: 24px 0; }
+.ha-pricing-terms { font-size: 13px; line-height: 1.7; color: #65716a; max-width: 850px; }
+@media(max-width: 680px) { .ha-pricing-options { grid-template-columns: 1fr; } .ha-pricing { padding: 64px 24px; } }

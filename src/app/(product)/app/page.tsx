@@ -15,7 +15,6 @@ import {
   ArrowUpRight,
   Plus,
   Paperclip,
-  MessageSquare,
   Check,
   Loader2,
   Pencil,
@@ -24,6 +23,7 @@ import {
   BriefcaseBusiness,
   X,
 } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 import { AgentText } from "@/components/AgentText";
 import {
   api,
@@ -162,6 +162,7 @@ function AssistantWorkspace({
     scroll = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null);
   const job = query.data?.job;
+  useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); }, [job?.id, job?.status]);
   const pending = !!job && ["queued", "running"].includes(job.status);
   const activeRoleId = query.data?.conversation.role_id || roleId;
   const activeRole = roles.data?.roles.find((r) => r.id === activeRoleId);
@@ -570,7 +571,7 @@ function AssistantWorkspace({
             ) : !count && !optimistic ? (
               <div className="ws-assistant-start">
                 <div className="ws-assistant-mark">
-                  <MessageSquare size={20} />
+                  <BrandMark small />
                 </div>
                 <h2>{t("What would you like to work on?")}</h2>
                 <p>{t("Ask a question, paste a JD, or add a file. I'll follow your lead.")}</p>
@@ -587,7 +588,7 @@ function AssistantWorkspace({
                       <span
                         className={`ws-message-avatar ws-message-avatar-${message.role}`}
                       >
-                        {message.role === "user" ? t("You").slice(0, 1) : "h"}
+                        {message.role === "user" ? t("You").slice(0, 1) : <BrandMark small />}
                       </span>
                       <strong>
                         {message.role === "user" ? t("You") : t("Hirelix")}
@@ -712,7 +713,7 @@ function AssistantWorkspace({
             {optimistic && conversationId && !query.data && (
               <div className="ws-assistant-working" role="status">
                 <span className="ws-message-avatar ws-message-avatar-assistant">
-                  h
+                  <BrandMark small />
                 </span>
                 <div>
                   <strong>{t("Hirelix is working")}</strong>
@@ -726,7 +727,7 @@ function AssistantWorkspace({
             {(pending || sending) && (
               <div className="ws-assistant-working" role="status">
                 <span className="ws-message-avatar ws-message-avatar-assistant">
-                  h
+                  <BrandMark small />
                 </span>
                 <div>
                   <strong>{t("Hirelix is working")}</strong>

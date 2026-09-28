@@ -2272,3 +2272,9 @@
     width: min(320px, calc(100vw - 30px));
   }
 }
+
+.agent-billing{max-width:760px;line-height:1.75}.agent-billing h2{font-size:26px;margin:10px 0 24px}.agent-billing>p{margin:16px 0;color:var(--ws-muted,#67716a);font-size:14px}.agent-billing-summary{padding:22px;border:1px solid #dce2d8;background:#f2f5ed;border-radius:10px}.agent-billing-summary p{margin:7px 0}.agent-billing-cycle{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}.agent-billing-cycle button{padding:12px 18px;border:1px solid #d5ddd0;border-radius:7px}.agent-billing-cycle button[aria-pressed=true]{background:#205846;color:white}.agent-billing [role=alert]{color:#a12d2d}.agent-billing [role=status]{padding:15px;background:#edf3e6;border-radius:7px}.agent-billing .agent-billing-terms{font-size:12px}.agent-billing a{text-decoration:underline}.agent-billing .ws-button{margin-right:12px}
+
+.ws-trial-status { display:flex; flex-direction:column; gap:4px; padding:12px; margin:8px; border:1px solid var(--ws-border, #dce3df); border-radius:10px; font-size:12px; text-decoration:none; }
+.ws-trial-status strong { font-size:13px; }
+.ws-trial-status span:last-child { font-size:11px; opacity:.7; }

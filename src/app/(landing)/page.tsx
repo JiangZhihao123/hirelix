@@ -28,6 +28,8 @@ import {
 import { LandingAnalytics } from "./_components/LandingAnalytics";
 import "./landing.css";
 import { BrandMark as AgentMark } from "@/components/BrandMark";
+import { AGENT_PLAN } from "@/lib/agent-plan";
+import { landingFaqs as faqs } from "@/lib/landing-content";
 
 const scenarios = [
   {
@@ -80,28 +82,6 @@ const scenarios = [
   },
 ];
 
-const faqs = [
-  [
-    "Who is Hirelix for?",
-    "Hirelix is built for independent headhunters and consultants at boutique search firms who manage their own candidate relationships, client roles, and submissions.",
-  ],
-  [
-    "Can I bring my existing candidates?",
-    "Yes. Upload candidate lists in CSV format or CVs in PDF and DOCX. Review the extracted details and potential duplicates before saving candidates to your pool.",
-  ],
-  [
-    "What carries over between roles?",
-    "Saved candidate profiles, original materials, and your recorded conversations remain available for future work. Each role keeps its own requirements and candidate assessments, so a decision for one role does not become a judgment for every role.",
-  ],
-  [
-    "Will the agent contact candidates or clients for me?",
-    "No. Hirelix prepares drafts for you to review, edit, copy, or export. It does not send emails on your behalf.",
-  ],
-  [
-    "Can I export or delete candidate information?",
-    "You can export a candidate’s saved profile and records, and delete candidate profiles from your workspace. Read our Privacy Policy for details on how information is handled.",
-  ],
-];
 
 // Keep server-rendered buttons inactive until their handlers are attached.
 const subscribeToHydration = () => () => {};
@@ -116,9 +96,9 @@ export default function Home() {
   const [active, setActive] = useState(0);
   const scene = scenarios[active];
 
-  function enter(source: string, signIn = false) {
+  function enter(source: string, signIn = false, plan?: string) {
     const context = getAnalyticsContextFromBrowser({
-      entry_mode: "signin",
+      entry_mode: signIn ? "signin" : "free_trial",
       page_variant: "personal-agent",
       intent_path: "signin",
     });
@@ -132,7 +112,7 @@ export default function Home() {
       utmContent: context.utm_content,
       utmTerm: context.utm_term,
       gclid: context.gclid,
-      entryMode: "signin",
+      entryMode: signIn ? "signin" : "free_trial",
     });
     trackEvent(ANALYTICS_EVENTS.personalAgentCtaClick, {
       ...context,
@@ -143,6 +123,8 @@ export default function Home() {
       cta_location: source,
       destination: "/app",
     });
+    if (plan) query.set("plan", plan);
+    if (!signIn) query.set("entry", "free_trial");
     router.push(`/app?${query.toString()}`);
   }
 
@@ -182,11 +164,12 @@ export default function Home() {
             onClick={() => window.scrollTo({ top: 0, behavior: "instant" })}
           >
             <AgentMark small />
-            hirelix<span className="ha-logo-dot">.</span>
+            Hirelix
           </Link>
           <div className="ha-nav-links">
             <a href="#how-it-works">How it works</a>
             <a href="#your-work">Your workspace</a>
+            <a href="#pricing">Pricing</a>
             <a href="#questions">FAQs</a>
           </div>
           <div className="ha-nav-actions">
@@ -548,6 +531,20 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="pricing" className="ha-pricing ha-section">
+          <p className="ha-eyebrow">ONE PERSONAL AGENT</p>
+          <h2>Start with your work.<br />Stay for what you build.</h2>
+          <p>Try it for {AGENT_PLAN.trialDays} days with {AGENT_PLAN.trialTasks} AI tasks. No card required.</p>
+          <div className="ha-pricing-options">
+            {([{ code: "agent_monthly", amount: AGENT_PLAN.monthlyCents / 100, cadence: "month", note: "Billed monthly" }, { code: "agent_annual", amount: AGENT_PLAN.annualCents / 100, cadence: "year", note: "Save $98 a year" }]).map(plan => <article key={plan.code}>
+              <h3>Personal Agent</h3><p className="ha-price"><strong>${plan.amount}</strong> / {plan.cadence}</p><p>{plan.note}</p>
+              <ul><li>{AGENT_PLAN.monthlyTasks} AI tasks each calendar month</li><li>Your candidates, roles, and conversation history</li><li>CV and CSV imports, client drafts, and exports</li></ul>
+              <button className="ha-button ha-button-primary" disabled={!hydrated} onClick={() => enter("pricing", false, plan.code)}>Start free trial <ArrowUpRight size={18} /></button>
+            </article>)}
+          </div>
+          <p className="ha-pricing-terms">USD, plus applicable tax. Subscribe when you’re ready; your trial does not automatically become a paid plan. Subscriptions renew until canceled. Each AI message, import, assessment, draft, revision, or semantic search uses one task. Automatic indexing and follow-on imports are included; failed tasks are not charged. Paid tasks reset monthly (UTC), with no rollover. Your saved work stays available when AI access ends. <Link href="/refund-policy">Refund policy</Link>.</p>
+        </section>
+
         <section
           id="questions"
           className="ha-section ha-faq-section"
@@ -625,7 +622,7 @@ export default function Home() {
           onClick={() => window.scrollTo({ top: 0, behavior: "instant" })}
         >
           <AgentMark small />
-          hirelix<span className="ha-logo-dot">.</span>
+          Hirelix
         </Link>
         <span>Your personal AI agent for headhunting.</span>
         <div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/terms" },
   title: "Terms of Service | Hirelix",
   description: "Terms of Service for Hirelix.",
 };

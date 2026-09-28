@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
 export const metadata: Metadata = {
+  alternates: { canonical: "/refund-policy" },
   title: "Refund Policy | Hirelix",
   description: "Refund Policy for Hirelix.",
 };

@@ -1,10 +1,11 @@
 User-agent: *
-Allow: /$
-Allow: /terms
-Allow: /privacy
-Allow: /refund-policy
-Allow: /contact
-Disallow: /app/
+Allow: /
+Disallow: /app
 Disallow: /api/
+Disallow: /ops/
+Disallow: /share/
+Disallow: /invite/
+Disallow: /go/
+Disallow: /o/
 
 Sitemap: https://hirelix.online/sitemap.xml

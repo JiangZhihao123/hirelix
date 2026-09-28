@@ -89,9 +89,9 @@ test.describe("Personal agent landing", () => {
     expect(url.pathname).toBe("/app");
     expect(url.searchParams.get("utm_source")).toBe("landing-qa");
     expect(url.searchParams.get("utm_campaign")).toBe("personal-agent");
-    expect(url.searchParams.get("entry")).toBe("signin");
+    expect(url.searchParams.get("entry")).toBe("free_trial");
     await expect(
-      page.getByRole("heading", { name: "Sign in to Hirelix" }),
+      page.getByRole("heading", { name: "Start with your private assistant" }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Continue with Google/ }),
