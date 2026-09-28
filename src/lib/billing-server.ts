@@ -28,11 +28,9 @@ const billingLogger = getLogger({ component: "billing_server" });
 type PaddlePortalSessionResponse = {
   data?: {
     urls?: {
-      general?: {
-        overview?: unknown;
-      };
       subscriptions?: Array<{
         id?: unknown;
+        view_subscription?: unknown;
         cancel_subscription?: unknown;
         update_subscription_payment_method?: unknown;
       }>;
@@ -346,6 +344,13 @@ export async function createBillingPortalSessionForUser(userId: string) {
   }
 
   const subscriptionId = settings?.paddle_subscription_id?.trim();
+  if (!subscriptionId) {
+    return {
+      ok: false as const,
+      status: 409,
+      error: "No active subscription is linked to this account yet.",
+    };
+  }
   const response = await fetch(
     `${getPaddleApiBaseUrl()}/customers/${encodeURIComponent(customerId)}/portal-sessions`,
     {
@@ -355,7 +360,7 @@ export async function createBillingPortalSessionForUser(userId: string) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        subscription_ids: subscriptionId ? [subscriptionId] : [],
+        subscription_ids: [subscriptionId],
       }),
     },
   );
@@ -378,15 +383,17 @@ export async function createBillingPortalSessionForUser(userId: string) {
     };
   }
 
-  const overviewUrl = payload.data?.urls?.general?.overview;
-  const subscriptionLinks = payload.data?.urls?.subscriptions?.[0];
+  const subscriptionLinks = payload.data?.urls?.subscriptions?.find(
+    (links) => links.id === subscriptionId,
+  );
+  const portalUrl = subscriptionLinks?.view_subscription;
   const cancelUrl = subscriptionLinks?.cancel_subscription;
   const updatePaymentMethodUrl = subscriptionLinks?.update_subscription_payment_method;
 
-  if (typeof overviewUrl !== "string" || !overviewUrl) {
+  if (typeof portalUrl !== "string" || !portalUrl) {
     billingLogger.warn(
-      { user_id: userId, customer_id: customerId, payload },
-      "Paddle portal session response did not include an overview URL",
+      { user_id: userId, customer_id: customerId, subscription_id: subscriptionId },
+      "Paddle portal session response did not include a subscription URL",
     );
     return {
       ok: false as const,
@@ -397,7 +404,7 @@ export async function createBillingPortalSessionForUser(userId: string) {
 
   return {
     ok: true as const,
-    portalUrl: overviewUrl,
+    portalUrl,
     cancelUrl: typeof cancelUrl === "string" ? cancelUrl : null,
     updatePaymentMethodUrl:
       typeof updatePaymentMethodUrl === "string" ? updatePaymentMethodUrl : null,
