@@ -12,6 +12,7 @@ const growthLandingLogger = getLogger({ component: "growth_landing_event" });
 
 export const ALLOWED_LANDING_EVENTS = new Set([
   "page_view",
+  "personal_agent_cta_click",
   "session_summary",
   "engaged_10s",
   "engaged_30s",

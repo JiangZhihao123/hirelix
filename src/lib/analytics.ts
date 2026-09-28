@@ -18,6 +18,7 @@ const ATTRIBUTION_QUERY_KEYS = [
 
 export const ANALYTICS_EVENTS = {
   landingView: "landing_view",
+  personalAgentCtaClick: "personal_agent_cta_click",
   heroPrimaryCtaClick: "hero_primary_cta_click",
   sampleCtaClick: "sample_cta_click",
   heroJdInputStart: "hero_jd_input_start",

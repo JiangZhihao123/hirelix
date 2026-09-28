@@ -24,6 +24,7 @@ export default defineConfig({
   reporter: "html",
   use: {
     baseURL,
+    channel: process.env.PLAYWRIGHT_CHANNEL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     actionTimeout: 15_000,

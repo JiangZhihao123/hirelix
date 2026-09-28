@@ -1,358 +1,143 @@
 "use client";
 
-
-import { useT } from "@/components/LanguageProvider";
-import {
-  startTransition,
-  type FormEvent,
-  type MouseEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
+import { useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
+  ArrowUpRight,
   ArrowRight,
+  ArrowUp,
+  Check,
+  Plus,
+  Paperclip,
   FileText,
-  Sparkles,
+  Users,
+  BriefcaseBusiness,
+  MessageSquare,
+  PanelLeft,
+  ShieldCheck,
+  Download,
+  ChevronDown,
 } from "lucide-react";
-import { useAuth } from "@/components/AuthProvider";
 import {
-  ANALYTICS_EVENTS,
   buildAttributionQuery,
   getAnalyticsContextFromBrowser,
-  getDefaultLandingExperimentState,
   trackEvent,
-  type IntentPath,
+  ANALYTICS_EVENTS,
 } from "@/lib/analytics";
-import { getJdLengthBucket } from "@/lib/growth-client";
-import {
-  ENGAGEMENT_EVENT_THRESHOLDS,
-  hasReachedEngagementThreshold,
-} from "@/lib/growth-engagement";
-import type { BillingPlanCode } from "@/lib/billing";
-import { candidateRows } from "./_components/data";
-import { AuthModal } from "./_components/AuthModal";
-import { CtaSection } from "./_components/CtaSection";
-import {
-  FeaturesSection,
-  HowItWorksSection,
-} from "./_components/FeaturesSection";
-import { ObjectionsSection } from "./_components/ObjectionsSection";
-import { PricingSection } from "./_components/PricingSection";
+import { LandingAnalytics } from "./_components/LandingAnalytics";
+import "./landing.css";
 
-function getCookieValue(name: string) {
-  if (typeof document === "undefined") return null;
-  const entry = document.cookie
-    .split("; ")
-    .find((item) => item.startsWith(`${name}=`));
-  return entry ? decodeURIComponent(entry.slice(name.length + 1)) : null;
+const scenarios = [
+  {
+    label: "Find the right people",
+    title: "Start with the people you already know.",
+    description:
+      "Ask about the candidates in your own pool. Bring their experience, your past conversations, and the role requirements into the same view.",
+    prompt:
+      "Who in my candidates should I revisit for Northstar’s VP Product role?",
+    answer:
+      "Priya is worth another conversation. Your notes mention the team-building experience Northstar is looking for.",
+    result: "Priya Shah",
+    subtitle: "Product leader · In your candidates",
+    note: "Built a product team from 4 to 18. Location was the concern in your last conversation; this role offers hybrid working.",
+    footnote: "Confirm her current interest and location preferences.",
+    source: "Your call notes · Saved CV",
+    kind: "person",
+  },
+  {
+    label: "Keep a role moving",
+    title: "Pick up where the conversation left off.",
+    description:
+      "Bring in a client message or a call note. Prepare an update to the role requirements, with the original brief and feedback kept in view.",
+    prompt:
+      "Northstar now cares more about team building than exact industry experience. Update the brief.",
+    answer:
+      "I’ve prepared a change to the role brief for you to review. The original JD will be kept.",
+    result: "Northstar · VP Product",
+    subtitle: "Proposed change · Awaiting your review",
+    note: "Prioritize evidence of hiring and developing a product team. Consider adjacent industries when the leadership experience is relevant.",
+    footnote: "Review the proposal before saving it to the role.",
+    source: "Client feedback · Original role brief",
+    kind: "role",
+  },
+  {
+    label: "Prepare client work",
+    title: "Turn your assessment into a client draft.",
+    description:
+      "Prepare a candidate submission around the role, choose the supporting CVs, and refine the draft before you share it with your client.",
+    prompt:
+      "Draft a recommendation for Priya for Northstar. Focus on her team-building experience.",
+    answer:
+      "Here’s a client email draft based on the role and your saved records. Please review the details before sharing.",
+    result: "Candidate introduction: Priya Shah",
+    subtitle: "Client email · Draft",
+    note: "Hi Alex, I’d like to introduce Priya for the VP Product role. Her experience building a product team from 4 to 18 is particularly relevant to Northstar’s next stage.",
+    footnote: "Edit, copy, or export your draft. You decide when to share.",
+    source: "Role requirements · Candidate records",
+    kind: "draft",
+  },
+];
+
+const faqs = [
+  [
+    "Who is Hirelix for?",
+    "Hirelix is built for independent headhunters and consultants at boutique search firms who manage their own candidate relationships, client roles, and submissions.",
+  ],
+  [
+    "Can I bring my existing candidates?",
+    "Yes. Upload candidate lists in CSV format or CVs in PDF and DOCX. Review the extracted details and potential duplicates before saving candidates to your pool.",
+  ],
+  [
+    "What carries over between roles?",
+    "Saved candidate profiles, original materials, and your recorded conversations remain available for future work. Each role keeps its own requirements and candidate assessments, so a decision for one role does not become a judgment for every role.",
+  ],
+  [
+    "Will the agent contact candidates or clients for me?",
+    "No. Hirelix prepares drafts for you to review, edit, copy, or export. It does not send emails on your behalf.",
+  ],
+  [
+    "Can I export or delete candidate information?",
+    "You can export a candidate’s saved profile and records, and delete candidate profiles from your workspace. Read our Privacy Policy for details on how information is handled.",
+  ],
+];
+
+function AgentMark({ small = false }: { small?: boolean }) {
+  return (
+    <span
+      className={`ha-mark${small ? " ha-mark-small" : ""}`}
+      aria-hidden="true"
+    >
+      <span />
+      <span />
+      <span />
+      <span />
+    </span>
+  );
 }
 
+// Keep server-rendered buttons inactive until their handlers are attached.
+const subscribeToHydration = () => () => {};
+
 export default function Home() {
-  const t = useT();
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
   const router = useRouter();
-  const { user } = useAuth();
-  const experiments = getDefaultLandingExperimentState();
-  const [jdText, setJdText] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [sampleShortlistOpen, setSampleShortlistOpen] = useState(false);
-  const [authIntent, setAuthIntent] = useState<"search" | "signin">("search");
-  const [pendingJd, setPendingJd] = useState("");
-  const [pendingIntentPath, setPendingIntentPath] = useState<IntentPath>("direct_jd");
-  const [pendingRedirectPath, setPendingRedirectPath] = useState("");
-  const [pendingSelectedPlan, setPendingSelectedPlan] = useState<BillingPlanCode | null>(null);
-  const [isColdEmailVisitor, setIsColdEmailVisitor] = useState(false);
-  const [previewEmail, setPreviewEmail] = useState("");
-  const [previewRole, setPreviewRole] = useState("");
-  const [previewRequestStatus, setPreviewRequestStatus] = useState<
-    "idle" | "submitting" | "submitted" | "error"
-  >("idle");
-  const [previewSubmitted, setPreviewSubmitted] = useState(false);
-  const hasTrackedInputRef = useRef(false);
-  const hasTrackedLandingViewRef = useRef(false);
-  const hasTrackedGrowthInputRef = useRef(false);
-  const hasTrackedGrowthSampleRef = useRef(false);
-  const lastAuthTriggerRef = useRef<HTMLElement | null>(null);
-  const heroJdTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [active, setActive] = useState(0);
+  const scene = scenarios[active];
 
-  const trimmedJd = jdText.trim();
-  const trimmedPreviewEmail = previewEmail.trim();
-  const trimmedPreviewRole = previewRole.trim();
-  const wordCount = trimmedJd ? trimmedJd.split(/\s+/).filter(Boolean).length : 0;
-  const canSubmit = trimmedJd.length >= 50;
-  const canSubmitPreviewRequest =
-    trimmedPreviewEmail.includes("@") && trimmedPreviewRole.length >= 12;
-  const heroPrimaryDisabled = !canSubmit || isSubmitting;
-  const modalPreviewTitle = useMemo(() => {
-    const firstMeaningfulLine = pendingJd
-      .split("\n")
-      .map((line) => line.trim())
-      .find(Boolean);
-    return firstMeaningfulLine || "Selected job description";
-  }, [pendingJd]);
-
-  useEffect(() => {
-    router.prefetch("/app/search/new");
-
-    if (!hasTrackedLandingViewRef.current) {
-      hasTrackedLandingViewRef.current = true;
-      trackEvent(ANALYTICS_EVENTS.landingView, {
-        ...getAnalyticsContextFromBrowser({
-          entry_mode: "landing",
-          page_variant: experiments.pageVariant,
-        }),
-        headline_variant: experiments.headline,
-        cta_variant: experiments.cta,
-        proof_variant: experiments.proof,
-      });
-    }
-  }, [experiments, router]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const params = new URLSearchParams(window.location.search);
-    const attribution = getAnalyticsContextFromBrowser({
-      entry_mode: "landing",
-      page_variant: experiments.pageVariant,
-    });
-    const trafficSource = params.get("traffic_source") || params.get("utm_source");
-    const isColdEmailVisitor =
-      trafficSource === "cold_email" || params.get("utm_medium") === "email";
-
-    let revealColdEmailPanelFrame: number | null = null;
-    if (isColdEmailVisitor) {
-      revealColdEmailPanelFrame = window.requestAnimationFrame(() => {
-        setIsColdEmailVisitor(true);
-      });
-    }
-
-    const visitorKey = "hirelix.growth.visitor_id";
-    const existingVisitorId = window.localStorage.getItem(visitorKey);
-    const visitorId = existingVisitorId || crypto.randomUUID();
-    if (!existingVisitorId) {
-      window.localStorage.setItem(visitorKey, visitorId);
-    }
-
-    const existingSessionId = window.__hirelixGrowthIdentity?.session_id;
-    const sessionId = existingSessionId || crypto.randomUUID();
-    const previousGrowthTrack = window.__hirelixGrowthTrack;
-    const previousGrowthIdentity = window.__hirelixGrowthIdentity;
-    window.__hirelixGrowthIdentity = {
-      visitor_id: visitorId,
-      session_id: sessionId,
-      invite_code: getCookieValue("hirelix_invite_code"),
-    };
-
-    const startedAt = Date.now();
-    let activeReadSeconds = 0;
-    let lastTickAt = startedAt;
-    let interactionCount = 0;
-    let maxScrollDepth = 0;
-    const seenSections = new Set<string>();
-    const common = {
-      visitor_id: visitorId,
-      session_id: sessionId,
-      email_id: params.get("utm_content"),
-      batch_id: params.get("batch"),
-      recipient: params.get("to"),
-      company: params.get("company"),
-      page_url: window.location.href,
-      referrer: document.referrer,
-      metadata: {
-        utm_source: attribution.utm_source ?? null,
-        utm_medium: attribution.utm_medium ?? null,
-        utm_campaign: attribution.utm_campaign,
-        utm_content: attribution.utm_content ?? null,
-        utm_term: attribution.utm_term ?? null,
-        gclid: attribution.gclid ?? null,
-        traffic_source: attribution.traffic_source,
-        page_variant: params.get("page_variant") || experiments.pageVariant,
-        intent_path: params.get("intent_path"),
-        invite_code: getCookieValue("hirelix_invite_code"),
-        device_type: window.innerWidth < 768 ? "mobile" : "desktop",
-      },
-    };
-
-    async function sendGrowthEvent(
-      eventType: string,
-      metadata: Record<string, string | number | boolean | null> = {},
-      options: { awaitResponse?: boolean } = {},
-    ) {
-      const payload = JSON.stringify({
-        ...common,
-        event_type: eventType,
-        metadata: {
-          ...common.metadata,
-          ...metadata,
-        },
-      });
-
-      if (!options.awaitResponse && navigator.sendBeacon) {
-        const blob = new Blob([payload], { type: "application/json" });
-        navigator.sendBeacon("/api/growth/landing-event", blob);
-        return true;
-      }
-
-      try {
-        const response = await fetch("/api/growth/landing-event", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-          keepalive: !options.awaitResponse,
-        });
-        return response.ok;
-      } catch {
-        return false;
-      }
-    }
-
-    function getMaxScrollDepth() {
-      const scrollable = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      return Math.min(100, Math.max(0, Math.round((window.scrollY / scrollable) * 100)));
-    }
-
-    function getSessionMetadata() {
-      const pageStaySeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-      return {
-        page_stay_seconds: pageStaySeconds,
-        active_read_seconds: activeReadSeconds,
-        max_scroll_depth: Math.max(maxScrollDepth, getMaxScrollDepth()),
-        interaction_count: interactionCount,
-        section_view_count: seenSections.size,
-        visibility_state: document.visibilityState,
-      };
-    }
-
-    function markInteraction() {
-      interactionCount += 1;
-      maxScrollDepth = Math.max(maxScrollDepth, getMaxScrollDepth());
-    }
-
-    function sendSessionSummary() {
-      void sendGrowthEvent("session_summary", getSessionMetadata());
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === "hidden") sendSessionSummary();
-    }
-
-    sendGrowthEvent("page_view", {
-      viewport_width: window.innerWidth,
-      viewport_height: window.innerHeight,
-    });
-
-    const activeTimer = window.setInterval(() => {
-      const now = Date.now();
-      const elapsed = Math.max(0, Math.round((now - lastTickAt) / 1000));
-      if (document.visibilityState === "visible") {
-        activeReadSeconds += elapsed;
-      }
-      lastTickAt = now;
-      maxScrollDepth = Math.max(maxScrollDepth, getMaxScrollDepth());
-    }, 1000);
-
-    const recordedEngagementEvents = new Set<string>();
-    const engagementTimer = window.setInterval(() => {
-      const sessionMetadata = getSessionMetadata();
-      for (const eventType of Object.keys(ENGAGEMENT_EVENT_THRESHOLDS)) {
-        if (recordedEngagementEvents.has(eventType)) continue;
-        if (!hasReachedEngagementThreshold({
-          eventType,
-          activeReadSeconds: sessionMetadata.active_read_seconds,
-          pageStaySeconds: sessionMetadata.page_stay_seconds,
-        })) {
-          continue;
-        }
-        recordedEngagementEvents.add(eventType);
-        void sendGrowthEvent(eventType, sessionMetadata);
-      }
-    }, 1000);
-
-    const interactionEvents = ["pointermove", "pointerdown", "keydown", "touchstart", "scroll"] as const;
-    for (const eventName of interactionEvents) {
-      window.addEventListener(eventName, markInteraction, { passive: true });
-    }
-
-    const sectionObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const element = entry.target as HTMLElement;
-          const sectionId = element.dataset.growthSection || element.id;
-          if (!sectionId || seenSections.has(sectionId)) continue;
-          seenSections.add(sectionId);
-          void sendGrowthEvent("section_view", {
-            section_id: sectionId,
-            page_stay_seconds: Math.round((Date.now() - startedAt) / 1000),
-            max_scroll_depth: getMaxScrollDepth(),
-          });
-        }
-      },
-      { threshold: 0.35 },
-    );
-
-    window.requestAnimationFrame(() => {
-      document.querySelectorAll<HTMLElement>("[data-growth-section]").forEach((element) => {
-        sectionObserver.observe(element);
-      });
-    });
-
-    window.addEventListener("pagehide", sendSessionSummary);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    window.__hirelixGrowthTrack = sendGrowthEvent;
-
-    return () => {
-      if (revealColdEmailPanelFrame !== null) {
-        window.cancelAnimationFrame(revealColdEmailPanelFrame);
-      }
-      window.clearInterval(activeTimer);
-      window.clearInterval(engagementTimer);
-      for (const eventName of interactionEvents) {
-        window.removeEventListener(eventName, markInteraction);
-      }
-      sectionObserver.disconnect();
-      window.removeEventListener("pagehide", sendSessionSummary);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      sendSessionSummary();
-      if (window.__hirelixGrowthTrack === sendGrowthEvent) {
-        window.__hirelixGrowthTrack = previousGrowthTrack;
-      }
-      if (window.__hirelixGrowthIdentity?.session_id === sessionId) {
-        window.__hirelixGrowthIdentity = previousGrowthIdentity;
-      }
-    };
-  }, [experiments.pageVariant]);
-
-  useEffect(() => {
-    if (!authModalOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [authModalOpen]);
-
-  function buildTrackedHref(
-    pathname: string,
-    intentPath: IntentPath,
-    extra?: Record<string, string | number>,
-    entryMode: "landing" | "signin" | "free_trial" | "workspace" = "landing",
-  ) {
+  function enter(source: string, signIn = false) {
     const context = getAnalyticsContextFromBrowser({
-      entry_mode: entryMode,
-      page_variant: experiments.pageVariant,
-      intent_path: intentPath,
+      entry_mode: "signin",
+      page_variant: "personal-agent",
+      intent_path: "signin",
     });
     const query = buildAttributionQuery({
-      intentPath,
-      pageVariant: context.page_variant,
+      intentPath: "signin",
+      pageVariant: "personal-agent",
       trafficSource: context.traffic_source,
       utmCampaign: context.utm_campaign,
       utmSource: context.utm_source,
@@ -360,618 +145,509 @@ export default function Home() {
       utmContent: context.utm_content,
       utmTerm: context.utm_term,
       gclid: context.gclid,
-      entryMode: context.entry_mode,
-      extra,
+      entryMode: "signin",
     });
-    return `${pathname}?${query.toString()}`;
+    trackEvent(ANALYTICS_EVENTS.personalAgentCtaClick, {
+      ...context,
+      cta_location: source,
+      cta_label: signIn ? "Sign in" : "Get started",
+    });
+    void window.__hirelixGrowthTrack?.("personal_agent_cta_click", {
+      cta_location: source,
+      destination: "/app",
+    });
+    router.push(`/app?${query.toString()}`);
   }
 
-  function goToSearch(prefill: string, intentPath: Extract<IntentPath, "sample" | "direct_jd">) {
-    startTransition(() => {
-      router.push(buildTrackedHref("/app/search/new", intentPath, { jd: prefill }));
-    });
-  }
-
-  function openAuthModal(
-    intentPath: IntentPath,
-    options?: {
-      authIntent?: "search" | "signin";
-      prefill?: string;
-      redirectPath?: string;
-      selectedPlan?: BillingPlanCode;
-    },
-  ) {
-    const authIntentValue = options?.authIntent ?? "search";
-    const prefill = options?.prefill ?? "";
-    const redirectPath =
-      options?.redirectPath ??
-      buildTrackedHref("/app/search/new", intentPath, { jd: prefill });
-    const selectedPlan = options?.selectedPlan ?? null;
-
-    lastAuthTriggerRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setAuthIntent(authIntentValue);
-    setPendingJd(prefill);
-    setPendingIntentPath(intentPath);
-    setPendingRedirectPath(redirectPath);
-    setPendingSelectedPlan(selectedPlan);
-    setAuthModalOpen(true);
-    setIsSubmitting(false);
-
-    trackEvent(ANALYTICS_EVENTS.signinView, {
-      ...getAnalyticsContextFromBrowser({
-        entry_mode: "landing",
-        page_variant: experiments.pageVariant,
-        intent_path: intentPath,
-      }),
-      route: "/",
-      has_prefilled_jd: Boolean(prefill),
-      signin_surface: "landing_modal",
-      selected_plan: selectedPlan,
-    });
-    window.__hirelixGrowthTrack?.("signin_view", {
-      intent_path: intentPath,
-      has_prefilled_jd: Boolean(prefill),
-      selected_plan: selectedPlan,
+  function selectScenario(index: number) {
+    setActive(index);
+    void window.__hirelixGrowthTrack?.("sample_view", {
+      sample_type: "personal_agent",
+      scenario: scenarios[index].kind,
     });
   }
 
-  function closeAuthModal() {
-    setAuthModalOpen(false);
-    setIsSubmitting(false);
-    window.requestAnimationFrame(() => {
-      lastAuthTriggerRef.current?.focus();
-      lastAuthTriggerRef.current = null;
-    });
-  }
-
-  function handleGenericSignIn() {
-    router.push(buildTrackedHref("/app", "signin", undefined, "signin"));
-  }
-
-  function handleHomeReload(event: MouseEvent<HTMLAnchorElement>) {
+  function tabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % scenarios.length;
+    else if (event.key === "ArrowLeft")
+      next = (index + scenarios.length - 1) % scenarios.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = scenarios.length - 1;
+    else return;
     event.preventDefault();
-    window.location.assign("/");
-  }
-
-  function handleTryForFree() {
-    const href = buildTrackedHref("/app", "signin", undefined, "free_trial");
-    trackEvent(ANALYTICS_EVENTS.heroPrimaryCtaClick, {
-      ...getAnalyticsContextFromBrowser({
-        entry_mode: "free_trial",
-        page_variant: experiments.pageVariant,
-        intent_path: "signin",
-      }),
-      cta_surface: "nav_try_for_free",
-    });
-    window.__hirelixGrowthTrack?.("try_for_free_click", {
-      surface: "nav",
-      intent_path: "signin",
-    });
-    router.push(href);
-  }
-
-  function handlePricingStart() {
-    const href = buildTrackedHref("/app/search/new", "signin", undefined, "free_trial");
-    trackEvent(ANALYTICS_EVENTS.pricingPlanSelect, {
-      ...getAnalyticsContextFromBrowser({
-        entry_mode: "free_trial",
-        page_variant: experiments.pageVariant,
-        intent_path: "signin",
-      }),
-      plan_code: "free",
-      pricing_surface: "landing",
-    });
-    window.__hirelixGrowthTrack?.("pricing_plan_select", {
-      plan_code: "free",
-      surface: "landing_pricing",
-    });
-    router.push(href);
-  }
-
-  function handlePricingPlanSelect(planCode: Exclude<BillingPlanCode, "free">) {
-    const href = buildTrackedHref(
-      "/app/settings",
-      "signin",
-      { plan: planCode, section: "billing" },
-      "signin",
-    );
-    trackEvent(ANALYTICS_EVENTS.pricingPlanSelect, {
-      ...getAnalyticsContextFromBrowser({
-        entry_mode: "signin",
-        page_variant: experiments.pageVariant,
-        intent_path: "signin",
-      }),
-      plan_code: planCode,
-      pricing_surface: "landing",
-    });
-    window.__hirelixGrowthTrack?.("pricing_plan_select", {
-      plan_code: planCode,
-      surface: "landing_pricing",
-    });
-    router.push(`${href}#billing`);
-  }
-
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!canSubmit || isSubmitting) return;
-    setIsSubmitting(true);
-
-    const eventContext = getAnalyticsContextFromBrowser({
-      entry_mode: "landing",
-      page_variant: experiments.pageVariant,
-      intent_path: "direct_jd",
-    });
-    trackEvent(ANALYTICS_EVENTS.heroPrimaryCtaClick, {
-      ...eventContext,
-      cta_variant: experiments.cta,
-      jd_word_count: wordCount,
-    });
-    trackEvent(ANALYTICS_EVENTS.heroJdSubmitAttempt, {
-      ...eventContext,
-      jd_word_count: wordCount,
-    });
-    window.__hirelixGrowthTrack?.("hero_submit_attempt", {
-      jd_length_bucket: getJdLengthBucket(trimmedJd),
-      is_authenticated: Boolean(user),
-    });
-
-    if (user) {
-      goToSearch(trimmedJd, "direct_jd");
-      return;
-    }
-    openAuthModal("direct_jd", { authIntent: "search", prefill: trimmedJd });
-  }
-
-  function handleTrySample() {
-    const eventContext = getAnalyticsContextFromBrowser({
-      entry_mode: "landing",
-      page_variant: experiments.pageVariant,
-      intent_path: "sample",
-    });
-    trackEvent(ANALYTICS_EVENTS.sampleCtaClick, {
-      ...eventContext,
-      sample_name: "senior_software_engineer",
-    });
-    trackEvent(ANALYTICS_EVENTS.sampleShortlistView, {
-      ...eventContext,
-      sample_name: "senior_software_engineer",
-    });
-    if (!hasTrackedGrowthSampleRef.current) {
-      hasTrackedGrowthSampleRef.current = true;
-      window.__hirelixGrowthTrack?.("sample_view", {
-        sample_name: "senior_software_engineer",
-      });
-    }
-
-    setSampleShortlistOpen(true);
-    window.requestAnimationFrame(() => {
-      document.getElementById("sample-pool")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  }
-
-  function focusHeroJd() {
-    document.getElementById("hero-form")?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-    window.requestAnimationFrame(() => heroJdTextareaRef.current?.focus());
-  }
-
-  function handlePreviewRequestClick() {
-    window.__hirelixGrowthTrack?.("preview_request_click", {
-      surface: "cold_email_conversion_panel",
-    });
-  }
-
-  async function handlePreviewRequestSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canSubmitPreviewRequest || previewRequestStatus === "submitting") return;
-
-    handlePreviewRequestClick();
-    setPreviewRequestStatus("submitting");
-    const recorded = await window.__hirelixGrowthTrack?.("preview_request_submit", {
-      surface: "cold_email_conversion_panel",
-      reply_email: trimmedPreviewEmail.slice(0, 160),
-      role_preview: trimmedPreviewRole.slice(0, 500),
-      role_length: trimmedPreviewRole.length,
-    }, { awaitResponse: true });
-    if (recorded) {
-      setPreviewSubmitted(true);
-      setPreviewRequestStatus("submitted");
-      return;
-    }
-
-    setPreviewSubmitted(false);
-    setPreviewRequestStatus("error");
-  }
-
-  function handleBookFeedbackClick() {
-    window.__hirelixGrowthTrack?.("book_feedback_click", {
-      surface: "cold_email_conversion_panel",
-    });
-  }
-
-  function handleReplyEmailClick() {
-    window.__hirelixGrowthTrack?.("reply_email_click", {
-      surface: "cold_email_conversion_panel",
-    });
-  }
-
-  function handleJdInput(value: string) {
-    setJdText(value);
-    if (!hasTrackedInputRef.current && value.trim().length > 0) {
-      hasTrackedInputRef.current = true;
-      trackEvent(ANALYTICS_EVENTS.heroJdInputStart, {
-        ...getAnalyticsContextFromBrowser({
-          entry_mode: "landing",
-          page_variant: experiments.pageVariant,
-          intent_path: "direct_jd",
-        }),
-      });
-    }
-    if (!hasTrackedGrowthInputRef.current && value.trim().length > 0) {
-      hasTrackedGrowthInputRef.current = true;
-      window.__hirelixGrowthTrack?.("hero_input_start", {
-        jd_length_bucket: getJdLengthBucket(value),
-      });
-    }
+    selectScenario(next);
+    document.getElementById(`scenario-tab-${next}`)?.focus();
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      {/* Nav */}
-      <nav className="fixed top-0 z-50 w-full border-b border-slate-200/80 bg-white/92 backdrop-blur-xl">
-        <div className="mx-auto flex h-[4.5rem] max-w-[96rem] items-center justify-between px-5 sm:px-6">
-          <Link href="/" onClick={handleHomeReload} className="flex items-center gap-2.5 transition-opacity hover:opacity-80" aria-label={t("Hirelix home")}>
-            <Image src="/logo.svg" alt={t("Hirelix")} width={28} height={28} />
-            <span className="text-xl font-bold tracking-tight text-slate-950">{t("Hirelix")}</span>
+    <div className="ha-landing">
+      <LandingAnalytics />
+      <a className="ha-skip" href="#main">
+        Skip to content
+      </a>
+      <header className="ha-header">
+        <nav className="ha-nav ha-wrap" aria-label="Main navigation">
+          <Link
+            className="ha-logo"
+            href="/"
+            aria-label="Hirelix home"
+            onClick={() => window.scrollTo({ top: 0, behavior: "instant" })}
+          >
+            <AgentMark small />
+            hirelix<span className="ha-logo-dot">.</span>
           </Link>
-          <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 lg:flex">
-            <Link href="/" onClick={handleHomeReload} className="transition-colors hover:text-slate-950">{t("Home")}</Link>
-            <a href="#how-it-works" className="transition-colors hover:text-slate-950">{t("How it works")}</a>
-            <a href="#features" className="transition-colors hover:text-slate-950">{t("Features")}</a>
-            <a href="#pricing" className="transition-colors hover:text-slate-950">{t("Pricing")}</a>
+          <div className="ha-nav-links">
+            <a href="#how-it-works">How it works</a>
+            <a href="#your-work">Your workspace</a>
+            <a href="#questions">FAQs</a>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="ha-nav-actions">
             <button
-              type="button"
-              onClick={handleGenericSignIn}
-              className="inline-flex rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 transition-colors hover:text-slate-950 sm:px-4"
+              disabled={!hydrated}
+              className="ha-signin"
+              onClick={() => enter("nav_signin", true)}
             >
-              {t("Sign in")}
+              Sign in
             </button>
             <button
-              type="button"
-              onClick={handleTryForFree}
+              disabled={!hydrated}
+              className="ha-button ha-button-small"
               data-testid="nav-primary-cta"
-              className="inline-flex items-center justify-center rounded-lg border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
+              onClick={() => enter("nav")}
             >
-              <span className="sm:hidden">{t("Open agent")}</span>
-              <span className="hidden sm:inline">{t("Open your agent")}</span>
+              Get started <ArrowUpRight size={15} />
             </button>
           </div>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section
-        id="product"
-        data-growth-section="首屏"
-        className="relative overflow-hidden border-b border-slate-200 bg-white pt-24 pb-6 sm:pb-8"
-      >
-        <div className="mx-auto w-full max-w-6xl px-5 sm:px-6">
-          <div className="mx-auto max-w-4xl text-center">
-            <div className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-              <Sparkles className="h-3.5 w-3.5" />
-              {t("Built for professional headhunters")}
-            </div>
-
-            <h1 className="mt-4 text-4xl font-extrabold leading-[1.06] text-slate-950 sm:text-[3rem] lg:text-[3.5rem]">
-              {t("Your private agent for")}{" "}
-              <span className="block text-indigo-700">{t("every candidate conversation.")}</span>
+        </nav>
+      </header>
+      <main id="main">
+        <section className="ha-hero ha-wrap" data-growth-section="hero">
+          <div className="ha-hero-copy">
+            <p className="ha-eyebrow">
+              <span className="ha-status-dot" /> BUILT AROUND YOUR WORK
+            </p>
+            <h1>
+              Your personal AI agent
+              <br className="ha-desktop-break" /> for <span>headhunting.</span>
             </h1>
-
-            <p className="mx-auto mt-4 max-w-2xl text-lg font-semibold text-slate-800">
-              {t("The people you know become lasting recruiting intelligence.")}
+            <p className="ha-lead">
+              Your candidates. Your client roles. Your next move.
+              <br className="ha-desktop-break" /> Work with an agent that keeps
+              it all in context.
             </p>
-            <p className="mx-auto mt-2 max-w-2xl text-base leading-7 text-slate-600">
-              {t("Build your own candidate pool, ask sharper questions against each JD, and draft client recommendations from evidence you can explain.")}
+            <div className="ha-hero-actions">
+              <button
+                disabled={!hydrated}
+                className="ha-button"
+                data-testid="hero-primary-cta"
+                onClick={() => enter("hero")}
+              >
+                Meet your agent <ArrowUpRight size={18} />
+              </button>
+              <a className="ha-text-link" href="#how-it-works">
+                See it at work <ArrowRight size={16} />
+              </a>
+            </div>
+            <p className="ha-hero-caption">
+              Bring your experience. Build on it every day.
             </p>
-
-            <div className="mt-6 flex flex-col justify-center gap-2.5 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleTryForFree}
-                data-testid="hero-sample-link"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-slate-950 px-5 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(15,23,42,0.2)] transition-all hover:-translate-y-0.5 hover:bg-slate-800"
+          </div>
+          <div className="ha-preview" aria-label="Illustrative agent workspace">
+            <div className="ha-preview-top">
+              <span>
+                <AgentMark small /> My assistant
+              </span>
+              <span className="ha-example-label">
+                PRODUCT WALKTHROUGH · FICTIONAL EXAMPLE
+              </span>
+              <PanelLeft size={16} />
+            </div>
+            <div className="ha-preview-body">
+              <aside
+                className="ha-preview-sidebar"
+                aria-label="Example workspace context"
               >
-                {t("Open your private agent")}
-                <ArrowRight className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={focusHeroJd}
-                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-950 transition-colors hover:bg-slate-50"
-              >
-                {t("Start with a client JD")}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-8 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-[0_20px_55px_rgba(15,23,42,0.08)] lg:grid-cols-[1.45fr_0.85fr] lg:p-6">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 text-left sm:p-7">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950"><Sparkles className="h-4 w-4 text-indigo-700" /> {t("Ask your agent")}</div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">{t("Private to your account")}</span>
-              </div>
-              <div className="mt-6 ml-auto max-w-[85%] rounded-2xl bg-slate-900 px-4 py-3 text-sm leading-6 text-white">{t("Who in my candidate pool might fit this new client JD?")}</div>
-              <div className="mt-4 max-w-[92%] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700">
-                {t("I can compare the role with people you saved, show which facts support each potential fit, and point out what still needs verification. I will keep your notes distinct from profile claims.")}
-              </div>
-              <div className="mt-7 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-500">{t("Ask about a JD, a person, or your candidate pool…")}</div>
-            </div>
-            <div className="grid gap-3 text-left">
-              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">{t("01 · Candidates")}</p><h3 className="mt-2 text-base font-semibold text-slate-950">{t("Your people and observations")}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{t("Save the context that usually disappears between assignments.")}</p></div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">{t("02 · Judgment")}</p><h3 className="mt-2 text-base font-semibold text-slate-950">{t("One JD at a time")}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{t("Ask why someone may fit this role and what evidence is missing.")}</p></div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">{t("03 · Deliverable")}</p><h3 className="mt-2 text-base font-semibold text-slate-950">{t("A brief you can defend")}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{t("Review and edit the agent’s recommendation draft before sharing.")}</p></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section data-growth-section="开始试用" className="border-b border-slate-200 bg-white py-9 sm:py-11">
-        <div className="mx-auto grid max-w-6xl gap-5 px-5 sm:px-6 lg:grid-cols-[minmax(14rem,0.55fr)_minmax(0,1.45fr)] lg:items-center">
-          <div>
-            <p className="text-xs font-semibold uppercase text-indigo-700">{t("Your client role")}</p>
-            <h2 className="mt-2 text-2xl font-bold text-slate-950">{t("Paste one real client role.")}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{t("A JD is one useful starting point. Your agent can also work from people you already know.")}</p>
-            <ol className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-1">
-              <li className="flex items-center gap-2">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">1</span>
-                {t("Paste one real JD")}
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">2</span>
-                {t("Sign in to save the role")}
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[10px] font-bold text-white">3</span>
-                {t("Continue with your assistant")}
-              </li>
-            </ol>
-          </div>
-
-          <form id="hero-form" onSubmit={handleSubmit} className="min-w-0">
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,23,42,0.07)]">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                  <FileText className="h-4 w-4 text-indigo-700" />
-                  {t("Paste one client JD")}
+                <p className="ha-mini-label">YOUR WORKSPACE</p>
+                <div className="ha-sidebar-item ha-selected">
+                  <MessageSquare size={15} /> My assistant
                 </div>
-                {wordCount > 0 ? <span className="text-xs font-medium text-emerald-700">{wordCount} {t("words")}</span> : null}
-              </div>
-              <textarea
-                ref={heroJdTextareaRef}
-                value={jdText}
-                onChange={(e) => handleJdInput(e.target.value)}
-                placeholder={t("Paste a real client job description here...")}
-                rows={2}
-                className="min-h-24 w-full resize-none border-0 bg-white px-4 py-3 text-sm leading-6 text-slate-950 outline-none placeholder:text-slate-500 focus:bg-slate-50"
-              />
-              <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1 text-xs text-slate-600">
-                  <span className="block">
-                    {wordCount > 0
-                      ? canSubmit
-                        ? `${wordCount} words ready to analyze`
-                        : t("Paste at least 50 characters to continue.")
-                      : t("Your JD stays attached after sign in.")}
-                  </span>
-                  <span className="block text-slate-500">{t("1 free client role · No credit card")}</span>
+                <div className="ha-sidebar-item">
+                  <Users size={15} /> Candidates
                 </div>
+                <div className="ha-sidebar-item">
+                  <BriefcaseBusiness size={15} /> Roles
+                </div>
+                <div className="ha-sidebar-item">
+                  <FileText size={15} /> Submissions
+                </div>
+                <div className="ha-sidebar-rule" />
+                <p className="ha-mini-label">IN CONTEXT</p>
+                <div className="ha-context-card">
+                  <span className="ha-context-icon">N</span>
+                  <div>
+                    Northstar<span>VP Product</span>
+                  </div>
+                </div>
+                <div className="ha-context-card">
+                  <span className="ha-avatar">PS</span>
+                  <div>
+                    Priya Shah<span>Candidate</span>
+                  </div>
+                </div>
+                <div className="ha-sidebar-bottom">
+                  <span className="ha-tiny-dot" /> Your work, connected.
+                </div>
+              </aside>
+              <div className="ha-preview-chat">
+                <div className="ha-chat-context">
+                  <BriefcaseBusiness size={13} /> Northstar · VP Product{" "}
+                  <ChevronDown size={12} />
+                </div>
+                <div className="ha-user-message">
+                  Who in my candidates should I revisit for Northstar’s VP
+                  Product role?
+                </div>
+                <div className="ha-agent-response">
+                  <AgentMark small />
+                  <div>
+                    <p>
+                      Start with Priya. Your previous conversations point to the
+                      team-building experience Northstar needs.
+                    </p>
+                    <div className="ha-person-card">
+                      <div className="ha-person-heading">
+                        <span className="ha-avatar">PS</span>
+                        <div>
+                          <strong>Priya Shah</strong>
+                          <span>Product leader · In your candidates</span>
+                        </div>
+                        <ArrowUpRight size={16} />
+                      </div>
+                      <p>
+                        Built a product team from 4 to 18. Your last call
+                        focused on her interest in a broader leadership role.
+                      </p>
+                      <div className="ha-source">
+                        <FileText size={12} /> Your call notes <span>·</span>{" "}
+                        Saved CV
+                      </div>
+                    </div>
+                    <p className="ha-response-note">
+                      Her current interest still needs confirming.
+                    </p>
+                  </div>
+                </div>
+                <div className="ha-example-composer">
+                  <span>Ask about your people or your work…</span>
+                  <div>
+                    <Paperclip size={16} />
+                    <span className="ha-send">
+                      <ArrowUp size={15} />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="ha-audience">
+            <span>MADE FOR THE WAY YOU WORK</span>
+            <p>
+              Independent headhunters <span>·</span> Boutique search consultants{" "}
+              <span>·</span> Your own recruiting desk
+            </p>
+          </div>
+        </section>
+
+        <section
+          id="how-it-works"
+          className="ha-section ha-work-section"
+          data-growth-section="how-it-works"
+        >
+          <div className="ha-wrap">
+            <div className="ha-section-heading">
+              <p className="ha-eyebrow">AN AGENT FOR YOUR EVERYDAY WORK</p>
+              <h2>What’s on your desk?</h2>
+              <p>
+                A new brief. A familiar candidate. A client waiting for an
+                update.
+                <br /> Bring it to your agent and keep the work moving.
+              </p>
+            </div>
+            <div
+              className="ha-tabs"
+              role="tablist"
+              aria-label="Explore agent workflows"
+            >
+              {scenarios.map((item, index) => (
                 <button
-                  type="submit"
-                  disabled={heroPrimaryDisabled}
-                  data-testid="hero-primary-cta"
-                  aria-busy={isSubmitting}
-                  className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-all ${
-                    heroPrimaryDisabled
-                      ? "cursor-not-allowed bg-slate-200 text-slate-500"
-                      : "bg-slate-950 text-white shadow-[0_12px_26px_rgba(15,23,42,0.16)] hover:-translate-y-0.5 hover:bg-slate-800"
-                  }`}
+                  disabled={!hydrated}
+                  key={item.kind}
+                  id={`scenario-tab-${index}`}
+                  role="tab"
+                  aria-selected={active === index}
+                  aria-controls="scenario-panel"
+                  tabIndex={active === index ? 0 : -1}
+                  onKeyDown={(event) => tabKey(event, index)}
+                  onClick={() => selectScenario(index)}
                 >
-                  {isSubmitting ? t("Preparing your role...") : t("Start with this JD")}
-                  <ArrowRight className="h-4 w-4" />
+                  <span>0{index + 1}</span>
+                  {item.label}
+                  <ArrowUpRight size={16} />
                 </button>
-              </div>
+              ))}
             </div>
-          </form>
-        </div>
-      </section>
-
-      {isColdEmailVisitor && (
-        <section className="border-b border-slate-200 bg-white py-5">
-          <div className="mx-auto max-w-[96rem] px-5 sm:px-6">
-            <div className="grid gap-4 rounded-lg border border-indigo-100 bg-indigo-50/70 p-4 shadow-[0_18px_50px_rgba(67,56,202,0.08)] lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:items-start">
-              <div>
-                <p className="text-sm font-semibold text-indigo-950">
-                  {t("Want to become an early Hirelix user?")}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-indigo-900/80">
-                  {t("We are building a private AI assistant for professional headhunters and inviting a small early-user group.")}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <a
-                    href="mailto:jzh_spring@163.com?subject=Hirelix%2010%20minute%20feedback%20chat&body=Hi%20Noah%2C%0A%0AI%20can%20do%20a%20short%20feedback%20chat%20about%20Hirelix.%0A%0ATimes%20that%20work%3A%0A"
-                    onClick={handleBookFeedbackClick}
-                    className="inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:border-indigo-300 hover:text-indigo-900"
-                  >
-                    {t("Book 10 min feedback")}
-                  </a>
-                  <a
-                    href="mailto:jzh_spring@163.com?subject=Re%3A%20Hirelix"
-                    onClick={handleReplyEmailClick}
-                    className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-semibold text-indigo-700 transition-colors hover:text-indigo-900 hover:underline"
-                  >
-                    {t("Reply by email")}
-                  </a>
+            <div
+              id="scenario-panel"
+              role="tabpanel"
+              aria-labelledby={`scenario-tab-${active}`}
+              className="ha-scenario"
+              tabIndex={0}
+            >
+              <div className="ha-scenario-copy">
+                <span className="ha-step">
+                  0{active + 1} / YOUR AGENT AT WORK
+                </span>
+                <h3>{scene.title}</h3>
+                <p>{scene.description}</p>
+                <div className="ha-work-note">
+                  <Check size={16} />
+                  <span>Grounded in the records you save.</span>
                 </div>
               </div>
-
-              <form onSubmit={handlePreviewRequestSubmit} className="grid gap-2">
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-                  <input
-                    type="email"
-                    value={previewEmail}
-                    onChange={(event) => {
-                      setPreviewEmail(event.target.value);
-                      setPreviewSubmitted(false);
-                      setPreviewRequestStatus("idle");
-                    }}
-                    placeholder={t("Your work email")}
-                    className="min-h-11 rounded-lg border border-indigo-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100"
-                    aria-label={t("Work email for preview reply")}
-                  />
-                  <input
-                    type="text"
-                    value={previewRole}
-                    onChange={(event) => {
-                      setPreviewRole(event.target.value);
-                      setPreviewSubmitted(false);
-                      setPreviewRequestStatus("idle");
-                    }}
-                    placeholder={t("Role title or JD snippet")}
-                    className="min-h-11 rounded-lg border border-indigo-100 bg-white px-3 text-sm text-slate-950 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-4 focus:ring-indigo-100"
-                    aria-label={t("Role title or job description snippet")}
-                  />
+              <div className="ha-scenario-demo" key={scene.kind}>
+                <p className="ha-mini-label">ILLUSTRATIVE EXAMPLE</p>
+                <div className="ha-user-message">{scene.prompt}</div>
+                <div className="ha-demo-answer">
+                  <AgentMark small />
+                  <p>{scene.answer}</p>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs leading-5 text-indigo-900/70" aria-live="polite">
-                    {previewRequestStatus === "submitting"
-                      ? t("Sending request...")
-                      : previewSubmitted
-                        ? t("Request noted. I will reply with the next step.")
-                        : previewRequestStatus === "error"
-                          ? t("Could not record this here. Please use Reply by email instead.")
-                          : t("A short title is enough; a JD snippet is better.")}
-                  </p>
-                  <button
-                    type="submit"
-                    disabled={!canSubmitPreviewRequest || previewRequestStatus === "submitting"}
-                    aria-busy={previewRequestStatus === "submitting"}
-                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
-                      canSubmitPreviewRequest && previewRequestStatus !== "submitting"
-                        ? "bg-slate-950 text-white hover:bg-slate-800"
-                        : "cursor-not-allowed bg-indigo-100 text-indigo-400"
-                    }`}
-                  >
-                    {previewRequestStatus === "submitting" ? t("Sending...") : t("Join the early-user group")}
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
+                <div className="ha-result">
+                  <span className="ha-result-type">{scene.subtitle}</span>
+                  <h4>{scene.result}</h4>
+                  <p>{scene.note}</p>
+                  <div className="ha-source">
+                    <FileText size={12} />
+                    {scene.source}
+                  </div>
                 </div>
-              </form>
+                <p className="ha-demo-footnote">{scene.footnote}</p>
+              </div>
             </div>
           </div>
         </section>
-      )}
 
-      {sampleShortlistOpen && (
-        <section id="sample-pool" data-growth-section="产品示例" className="scroll-mt-24 border-b border-slate-200 bg-white py-12">
-          <div className="mx-auto max-w-6xl px-5 sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">
-                  {t("Illustrative candidate review")}
-                </p>
-                <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
-                  {t("What a technical headhunter reviews after a client JD.")}
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  {t("These fictional, anonymized profiles show the review format only. Run your own role when you want Hirelix to build a real ranked candidate pool.")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={focusHeroJd}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-              >
-                {t("Run one real role free")}
-                <ArrowRight className="h-4 w-4" />
-              </button>
+        <section
+          id="your-work"
+          className="ha-section ha-memory-section"
+          data-growth-section="your-work"
+        >
+          <div className="ha-wrap ha-memory-grid">
+            <div className="ha-memory-copy">
+              <p className="ha-eyebrow">YOUR WORK, OVER TIME</p>
+              <h2>
+                Ten years of relationships.
+                <br />
+                <span>Ready for what’s next.</span>
+              </h2>
+              <p>
+                Your candidate pool has a history. Bring in the CVs, lists, and
+                notes you’ve collected, then keep adding to them as you work.
+              </p>
+              <p>
+                When the next role comes in, your agent can work with those
+                saved records. The conversation starts with what you already
+                know.
+              </p>
+              <a className="ha-text-link" href="#get-started">
+                Bring your work to Hirelix <ArrowRight size={16} />
+              </a>
             </div>
-            <div className="mt-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              <div className="grid grid-cols-[minmax(0,1.1fr)_8rem_minmax(0,1.4fr)_10rem] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 max-lg:hidden">
-                <span>{t("Candidate")}</span>
-                <span>{t("Decision")}</span>
-                <span>{t("Why / risk")}</span>
-                <span>{t("Paid action")}</span>
-              </div>
-              {candidateRows.map((candidate, index) => (
-                <div
-                  key={candidate.name}
-                  className="grid gap-4 border-b border-slate-100 px-4 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1.1fr)_8rem_minmax(0,1.4fr)_10rem] lg:items-center"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-950 text-xs font-bold text-white">
-                        {index + 1}
-                      </span>
-                      <p className="truncate text-sm font-semibold text-slate-950">{candidate.name}</p>
-                    </div>
-                    <p className="mt-1 truncate text-xs text-slate-600">{candidate.role}</p>
-                    <p className="mt-1 truncate text-[11px] text-slate-500">{candidate.location}</p>
-                  </div>
-                  <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    index === 0
-                      ? "bg-emerald-50 text-emerald-700"
-                      : index === 1
-                        ? "bg-indigo-50 text-indigo-700"
-                        : "bg-amber-50 text-amber-700"
-                  }`}>
-                    {index === 0 ? t("Reach out first") : index === 1 ? t("Worth reviewing") : t("Risk to verify")}
-                  </span>
-                  <div className="space-y-1 text-xs leading-5 text-slate-600">
-                    <p className="font-medium text-slate-800">{candidate.matchReasons[0]}</p>
-                    <p className="text-amber-700">{candidate.riskReasons[0]}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 text-[11px] text-slate-600">
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{t("Contact unlock")}</span>
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{t("Export")}</span>
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{t("Client brief")}</span>
-                  </div>
+            <div className="ha-history">
+              <div className="ha-history-heading">
+                <span className="ha-avatar">PS</span>
+                <div>
+                  <strong>Priya Shah</strong>
+                  <span>A relationship beyond a single role</span>
                 </div>
+              </div>
+              <div className="ha-timeline">
+                <div>
+                  <span className="ha-timeline-dot" />
+                  <p className="ha-mini-label">THE FIRST CONVERSATION</p>
+                  <h4>More than a CV.</h4>
+                  <p>
+                    Save her experience alongside your call notes and
+                    observations.
+                  </p>
+                  <span className="ha-record-chip">
+                    <FileText size={12} /> CV + conversation notes
+                  </span>
+                </div>
+                <div>
+                  <span className="ha-timeline-dot" />
+                  <p className="ha-mini-label">AS THINGS CHANGE</p>
+                  <h4>Keep the relationship up to date.</h4>
+                  <p>
+                    Add a new conversation. Keep the earlier context and its
+                    source.
+                  </p>
+                  <span className="ha-record-chip">
+                    <MessageSquare size={12} /> A new note, with its history
+                  </span>
+                </div>
+                <div>
+                  <span className="ha-timeline-dot ha-timeline-active" />
+                  <p className="ha-mini-label">THE NEXT OPPORTUNITY</p>
+                  <h4>A new role. A familiar person.</h4>
+                  <p>
+                    Revisit her experience against the new brief, with past
+                    conversations at hand.
+                  </p>
+                  <span className="ha-record-chip">
+                    <BriefcaseBusiness size={12} /> Northstar · VP Product
+                  </span>
+                </div>
+              </div>
+              <p className="ha-example-disclaimer">
+                Illustrative timeline. Candidate and company are fictional.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="ha-control ha-section"
+          data-growth-section="control"
+        >
+          <div className="ha-wrap">
+            <div className="ha-section-heading">
+              <p className="ha-eyebrow">YOUR AGENT. YOUR CALL.</p>
+              <h2>
+                Help with the work.
+                <br />
+                Control over the decisions.
+              </h2>
+            </div>
+            <div className="ha-control-grid">
+              <article>
+                <ShieldCheck />
+                <h3>Review before saving.</h3>
+                <p>
+                  Your agent proposes changes to records and role requirements.
+                  You review them before they are applied.
+                </p>
+              </article>
+              <article>
+                <FileText />
+                <h3>Choose what clients see.</h3>
+                <p>
+                  Review the recommendation, edit the wording, and choose the
+                  CVs. Client drafts are yours to share.
+                </p>
+              </article>
+              <article>
+                <Download />
+                <h3>Keep hold of your records.</h3>
+                <p>
+                  Export candidate profiles and records, or delete a candidate
+                  from your workspace.
+                </p>
+                <Link href="/privacy">
+                  Read our privacy policy <ArrowUpRight size={13} />
+                </Link>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="questions"
+          className="ha-section ha-faq-section"
+          data-growth-section="questions"
+        >
+          <div className="ha-wrap ha-faq-grid">
+            <div>
+              <p className="ha-eyebrow">A FEW THINGS TO KNOW</p>
+              <h2>
+                Before you <br />
+                settle in.
+              </h2>
+              <Link className="ha-text-link" href="/contact">
+                Talk to us <ArrowUpRight size={15} />
+              </Link>
+            </div>
+            <div className="ha-faqs">
+              {faqs.map(([question, answer]) => (
+                <details key={question}>
+                  <summary>
+                    {question}
+                    <Plus size={18} />
+                  </summary>
+                  <p>
+                    {answer}
+                    {question ===
+                      "Can I export or delete candidate information?" && (
+                      <>
+                        {" "}
+                        <Link href="/privacy">
+                          Privacy Policy <ArrowUpRight size={12} />
+                        </Link>
+                      </>
+                    )}
+                  </p>
+                </details>
               ))}
             </div>
           </div>
         </section>
-      )}
 
-      <HowItWorksSection />
-      <FeaturesSection />
-      <PricingSection onStart={handlePricingStart} onSelectPlan={handlePricingPlanSelect} />
-      <ObjectionsSection />
-      <CtaSection
-        onTrySample={handleTrySample}
-        onSignIn={handleGenericSignIn}
-        desktopFooterCtaLabel="Start with a client JD"
-      />
-
-      <AuthModal
-        open={authModalOpen}
-        onClose={closeAuthModal}
-        authIntent={authIntent}
-        pendingJd={pendingJd}
-        pendingIntentPath={pendingIntentPath}
-        pendingRedirectPath={pendingRedirectPath}
-        pendingSelectedPlan={pendingSelectedPlan}
-        modalPreviewTitle={modalPreviewTitle}
-        onSuccessStart={() => setIsSubmitting(true)}
-        onFailure={() => setIsSubmitting(false)}
-      />
+        <section
+          id="get-started"
+          className="ha-final-section"
+          data-growth-section="get-started"
+        >
+          <div className="ha-wrap ha-final">
+            <AgentMark />
+            <p className="ha-eyebrow">MAKE IT YOURS</p>
+            <h2>
+              Your next role.
+              <br />
+              Your own AI agent.
+            </h2>
+            <p>
+              Start with a candidate, a client brief, or a question.
+              <br />
+              Keep building from there.
+            </p>
+            <button
+              disabled={!hydrated}
+              className="ha-button ha-button-light"
+              onClick={() => enter("footer")}
+            >
+              Meet your agent <ArrowUpRight size={18} />
+            </button>
+          </div>
+        </section>
+      </main>
+      <footer className="ha-footer ha-wrap">
+        <Link
+          className="ha-logo"
+          href="/"
+          aria-label="Hirelix home"
+          onClick={() => window.scrollTo({ top: 0, behavior: "instant" })}
+        >
+          <AgentMark small />
+          hirelix<span className="ha-logo-dot">.</span>
+        </Link>
+        <span>Your personal AI agent for headhunting.</span>
+        <div>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/contact">Contact</Link>
+        </div>
+        <small>© {new Date().getFullYear()} Hirelix</small>
+      </footer>
     </div>
   );
 }

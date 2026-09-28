@@ -1,251 +1,126 @@
 import { test, expect } from "@playwright/test";
 
-const validJd =
-  "We need a senior software engineer with API, distributed systems, PostgreSQL, cloud infrastructure, observability, and strong product engineering experience for a fast-moving SaaS team.";
-
-test.describe("Landing Page", () => {
-  test.skip(({ isMobile }) => isMobile, "Desktop-only landing assertions are covered in responsive tests.");
-
+test.describe("Personal agent landing", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/", { waitUntil: "domcontentloaded" });
   });
 
-  test("should display the core landing sections and CTAs", async ({ page }) => {
-    await expect(page.getByAltText("Hirelix").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: /Sign in/i }).first()).toBeVisible();
-    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Start a role preview/i);
-    await expect(page.getByRole("heading", { name: /AI sourcing and screening for technical recruiters/i })).toBeVisible();
-    await expect(page.getByTestId("hero-primary-cta")).toHaveText(/Build ranked shortlist/i);
-    await expect(page.getByTestId("hero-sample-link")).toHaveText(/See how candidates are ranked/i);
-    await expect(page.getByRole("link", { name: "Hirelix home" })).toHaveAttribute("href", "/");
-    await expect(page.getByText("No setup required")).toHaveCount(0);
-    await expect(page.getByText("Beta access")).toHaveCount(0);
-    await expect(page.getByText("Invite-only beta")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "/");
-    await expect(page.getByRole("link", { name: "How it works" })).toHaveAttribute("href", "#how-it-works");
-    await expect(page.getByRole("link", { name: "Features" })).toHaveAttribute("href", "#features");
-    await expect(page.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "#pricing");
-    await expect(page.getByRole("link", { name: "Resources" })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "From client role to ranked candidate pool." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Pick the client-role volume you need." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
-    await expect(page.getByText("Sample feedback")).toHaveCount(0);
-    await expect(page.getByText("184", { exact: true })).toBeVisible();
-    await expect(page.locator("#features").getByText("GitHub, papers, technical blogs")).toBeVisible();
-    await expect(page.getByText("patent")).toHaveCount(0);
-    await expect(page.getByText("news reporting")).toHaveCount(0);
-  });
-
-  test("hero CTA should clearly communicate the disabled state", async ({ page }) => {
-    const cta = page.getByTestId("hero-primary-cta");
-
-    await expect(cta).toBeDisabled();
-    await expect(page.getByText("Your JD stays attached after sign in.")).toBeVisible();
-
-    await page.getByPlaceholder("Paste a real client job description here...").fill("Too short");
-
-    await expect(cta).toBeDisabled();
-    await expect(page.getByText("Paste at least 50 characters to continue.")).toBeVisible();
-  });
-
-  test("desktop primary CTA should open an accessible landing auth modal", async ({ page }) => {
-    await page.getByPlaceholder("Paste a real client job description here...").fill(validJd);
-
+  test("explains the personal agent without advertising external sourcing", async ({
+    page,
+  }) => {
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Your personal AI agent for headhunting.",
+    );
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
-    await page.getByTestId("hero-primary-cta").click();
-
-    const modal = page.getByTestId("landing-auth-modal");
-    await expect(page).toHaveURL("/");
-    await expect(modal).toBeVisible();
-    await expect(modal).toHaveAttribute("role", "dialog");
-    await expect(modal).toHaveAttribute("aria-modal", "true");
-    await expect(page.getByRole("heading", { name: "One more step to build your sourcing brief." })).toBeVisible();
-    await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
-    await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Use password instead" })).toBeVisible();
-    await expect(modal.getByRole("button", { name: "Close sign in dialog" })).toBeFocused();
-
-    await page.keyboard.press("Escape");
-    await expect(modal).toHaveCount(0);
-    await expect(page.getByTestId("hero-primary-cta")).toBeFocused();
+    await expect(
+      page.getByRole("heading", { name: /Ten years of relationships/ }),
+    ).toBeVisible();
+    await expect(page.getByRole("main")).not.toContainText(
+      /profile scan|ranked shortlist|Start Starter|Start Pro|AI sourcing/i,
+    );
+    await expect(
+      page.getByText("PRODUCT WALKTHROUGH · FICTIONAL EXAMPLE"),
+    ).toBeVisible();
+    await expect(page.locator('a[href*="search/new"]')).toHaveCount(0);
   });
 
-  test("sample path should reveal the static shortlist without opening auth", async ({ page }) => {
-    await page.getByTestId("hero-sample-link").click();
-
-    await expect(page).toHaveURL("/");
-    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "What a technical headhunter reviews after a client JD." })).toBeVisible();
-    const sampleShortlist = page.locator("#sample-pool");
-    await expect(sampleShortlist.getByText("Candidate A")).toBeVisible();
-    await expect(sampleShortlist.getByText(/fictional, anonymized profiles/i)).toBeVisible();
-    await expect(sampleShortlist.getByText("Client brief")).toHaveCount(3);
+  test("landing stays English when the product language is Chinese", async ({
+    page,
+  }) => {
+    await page.evaluate(() =>
+      localStorage.setItem("hirelix:ui-language", "zh"),
+    );
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page).toHaveTitle(
+      "Hirelix | Your Personal AI Agent for Headhunting",
+    );
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Your personal AI agent for headhunting.",
+    );
   });
 
-  test("Google OAuth should request better-auth social sign in with the intended callback", async ({ page }) => {
-    const signInPayloads: Array<Record<string, unknown>> = [];
-    await page.route("**/api/auth/sign-in/social", async (route) => {
-      signInPayloads.push(JSON.parse(route.request().postData() || "{}") as Record<string, unknown>);
-      await route.fulfill({ json: { redirect: false, url: null } });
+  test("switches complete workflow examples with clicks and keyboard", async ({
+    page,
+  }) => {
+    const roleTab = page.getByRole("tab", { name: /Keep a role moving/ });
+    await roleTab.click();
+    await expect(roleTab).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tabpanel")).toContainText(
+      "Awaiting your review",
+    );
+    await roleTab.press("ArrowRight");
+    await expect(
+      page.getByRole("tab", { name: /Prepare client work/ }),
+    ).toBeFocused();
+    await expect(page.getByRole("tabpanel")).toContainText(
+      "Client email · Draft",
+    );
+    await page.getByRole("tab", { name: /Prepare client work/ }).press("Home");
+    await expect(page.getByRole("tabpanel")).toContainText(
+      "Confirm her current interest",
+    );
+  });
+
+  test("FAQ opens and closes with the real privacy link", async ({ page }) => {
+    const question = page
+      .locator("summary")
+      .filter({ hasText: "Can I export or delete candidate information?" });
+    await question.click();
+    const details = page.locator("details").filter({ has: question });
+    await expect(details).toHaveAttribute("open", "");
+    await expect(
+      details.getByRole("link", { name: /Privacy Policy/ }),
+    ).toHaveAttribute("href", "/privacy");
+    await question.click();
+    await expect(details).not.toHaveAttribute("open", "");
+  });
+
+  test("primary entry reaches assistant sign-in and preserves campaign attribution", async ({
+    page,
+  }) => {
+    await page.goto("/?utm_source=landing-qa&utm_campaign=personal-agent", {
+      waitUntil: "domcontentloaded",
     });
-
-    await page.getByRole("button", { name: /Sign in/i }).first().click();
-    await expect(page).toHaveURL(/\/app\?.*entry=signin/);
-    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
-    await page.getByRole("button", { name: /Continue with Google/i }).click();
-
-    await expect.poll(() => signInPayloads.length).toBe(1);
-    const payload = signInPayloads[0];
-    expect(payload).toMatchObject({
-      provider: "google",
-    });
-    expect(String(payload.callbackURL)).toContain("/app");
-    expect(String(payload.callbackURL)).toContain("entry=signin");
-  });
-
-  test("nav Try for free should enter the free-trial flow", async ({ page }) => {
-    await page.getByTestId("nav-primary-cta").click();
-
-    await expect(page).toHaveURL(/\/app\/search\/new\?.*entry=free_trial/);
-    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
-    await expect(page.getByText("Preview one client role before you pay.")).toBeVisible();
-  });
-
-  test("pricing CTAs should enter product sign-up and billing flows", async ({ page }) => {
-    await page.getByRole("heading", { name: "Pick the client-role volume you need." }).scrollIntoViewIfNeeded();
-    const pricing = page.locator("#pricing");
-    await expect(pricing.getByText("Free", { exact: true })).toBeVisible();
-    await expect(pricing.getByText("Starter", { exact: true })).toBeVisible();
-    await expect(pricing.getByText("Pro", { exact: true })).toBeVisible();
-    await expect(pricing.getByText("Run a real preview before you pay.")).toBeVisible();
-    await expect(pricing.getByText("No candidate email lookup")).toHaveCount(0);
-    await expect(pricing.getByText("contact lookups")).toHaveCount(0);
-    await expect(pricing.getByText("LinkedIn outreach drafts for recommended candidates")).toHaveCount(2);
-    await expect(pricing.getByText("CSV export and client-ready briefs")).toHaveCount(2);
-    await expect(pricing.getByText("3 client roles per month")).toBeVisible();
-    await expect(pricing.getByText("10 client roles per month")).toBeVisible();
-
-    await pricing.getByRole("button", { name: "Try first role" }).click();
-
-    await expect(page).toHaveURL(/\/app\/search\/new\?.*entry=free_trial/);
-    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
-
-    await page.goto("/");
-    await page.getByRole("heading", { name: "Pick the client-role volume you need." }).scrollIntoViewIfNeeded();
-    await page.locator("#pricing").getByRole("button", { name: "Start Starter", exact: true }).click();
-
-    await expect(page).toHaveURL(/\/app\/settings\?.*plan=starter_annual.*section=billing/);
-    await expect(page.getByRole("heading", { name: "Sign in to Hirelix" })).toBeVisible();
-
-    await page.goto("/");
-    await page.getByRole("heading", { name: "Pick the client-role volume you need." }).scrollIntoViewIfNeeded();
-    await page.locator("#pricing").getByRole("button", { name: "Start Pro", exact: true }).click();
-
-    await expect(page).toHaveURL(/\/app\/settings\?.*plan=pro_annual.*section=billing/);
-  });
-
-  test("public landing should not ask visitors to compare pricing plans", async ({ page }) => {
-    await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Start annual Pro" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Start Solo" })).toHaveCount(0);
-    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-  });
-
-  test("section anchors should not leave a large blank gap below the fixed nav", async ({ page }) => {
-    await page.getByRole("link", { name: "Features" }).click();
-    await expect(page).toHaveURL(/#features$/);
-
-    await expect
-      .poll(async () => {
-        const navBox = await page.locator("nav").boundingBox();
-        const sectionBox = await page.locator("#features").boundingBox();
-        const eyebrowBox = await page.locator("#features").getByText("Features", { exact: true }).boundingBox();
-
-        if (!navBox || !sectionBox || !eyebrowBox) {
-          return Number.POSITIVE_INFINITY;
-        }
-
-        return Math.max(sectionBox.y - navBox.height, eyebrowBox.y - navBox.height);
-      })
-      .toBeLessThanOrEqual(80);
-  });
-
-  test("nav sections should use content-driven height", async ({ page }) => {
-    await page.getByRole("link", { name: "How it works" }).click();
-    await expect(page).toHaveURL(/#how-it-works$/);
-
-    await expect
-      .poll(async () => {
-        const sectionBox = await page.locator("#how-it-works").boundingBox();
-        const nextSectionBox = await page.locator("#features").boundingBox();
-
-        if (!sectionBox || !nextSectionBox) {
-          return Number.POSITIVE_INFINITY;
-        }
-
-        const sectionBottom = sectionBox.y + sectionBox.height;
-        return Math.abs(nextSectionBox.y - sectionBottom);
-      })
-      .toBeLessThanOrEqual(2);
-  });
-
-  test("Home and logo links should reload the landing root", async ({ page }) => {
-    await page.getByRole("link", { name: "Features" }).click();
-    await expect(page).toHaveURL(/#features$/);
-
-    await page.getByRole("link", { name: "Home", exact: true }).click();
-    await expect(page).toHaveURL("/");
-
-    await page.getByRole("link", { name: "Features" }).click();
-    await expect(page).toHaveURL(/#features$/);
-
-    await page.getByRole("link", { name: "Hirelix home" }).click();
-    await expect(page).toHaveURL("/");
-  });
-});
-
-test.describe("Landing Page mobile responsiveness", () => {
-  test.use({ viewport: { width: 390, height: 844 }, isMobile: true });
-
-  test.beforeEach(async ({ page }) => {
-    await page.goto("/");
-  });
-
-  test("should show the JD and sign-in actions together on mobile", async ({ page }) => {
-    await page.getByPlaceholder("Paste a real client job description here...").fill(validJd);
     await page.getByTestId("hero-primary-cta").click();
-
-    await expect(page.getByTestId("landing-auth-modal")).toBeVisible();
-    await expect(page.getByTestId("landing-auth-modal").locator("p").filter({ hasText: /^Your JD$/ })).toBeVisible();
-    await expect(page.getByTestId("landing-auth-preview-title")).toContainText("senior software engineer");
-    await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
-    await expect(page.getByPlaceholder("you@company.com")).toBeInViewport();
-    await expect(page.getByRole("button", { name: "Continue with email" })).toBeInViewport();
-
-    await page.getByRole("button", { name: "Use password instead" }).click();
-    await expect(page.getByRole("button", { name: "Sign in with password" })).toBeInViewport();
+    await expect(page).toHaveURL(/\/app\?/);
+    const url = new URL(page.url());
+    expect(url.pathname).toBe("/app");
+    expect(url.searchParams.get("utm_source")).toBe("landing-qa");
+    expect(url.searchParams.get("utm_campaign")).toBe("personal-agent");
+    expect(url.searchParams.get("entry")).toBe("signin");
+    await expect(
+      page.getByRole("heading", { name: "Sign in to Hirelix" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Continue with Google/ }),
+    ).toBeVisible();
   });
 
-  test("should keep mobile pricing focused on the first run", async ({ page }) => {
-    await page.getByRole("heading", { name: "Pick the client-role volume you need." }).scrollIntoViewIfNeeded();
-    const pricing = page.locator("#pricing");
-
-    await expect(pricing.getByText("Free", { exact: true })).toBeVisible();
-    await expect(pricing.getByText("250 targeted profile scan budget")).toBeVisible();
-    await expect(pricing.getByText("Top recommendations with outreach drafts", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Start free" })).toHaveCount(0);
-  });
-});
-
-test.describe("Auth routes", () => {
-  test("should expose better-auth session endpoint instead of a legacy callback bridge", async ({ request }) => {
-    const response = await request.get("/api/auth/get-session");
-
-    expect([200, 401]).toContain(response.status());
+  test("fits small screens and keeps navigation and demo usable", async ({
+    page,
+  }) => {
+    for (const width of [360, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.getByTestId("nav-primary-cta")).toBeInViewport();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+      await page.getByRole("tab", { name: /Prepare client work/ }).click();
+      await expect(page.getByRole("tabpanel")).toContainText(
+        "Client email · Draft",
+      );
+      expect(
+        await page
+          .getByRole("tabpanel")
+          .evaluate((el) => el.scrollWidth <= el.clientWidth),
+      ).toBeTruthy();
+      await page
+        .getByRole("link", { name: "Hirelix home", exact: true })
+        .first()
+        .click();
+      await expect(page.getByRole("heading", { level: 1 })).toBeInViewport();
+    }
   });
 });

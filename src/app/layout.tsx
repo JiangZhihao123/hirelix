@@ -20,9 +20,9 @@ export const metadata: Metadata = {
   verification: {
     google: "4o3NyYXO-oCyTIei_hlKZfz87B49ELEuTPkvz-uFzQo",
   },
-  title: "Hirelix | Private AI Agent for Professional Headhunters",
+  title: "Hirelix | Your Personal AI Agent for Headhunting",
   description:
-    "A private recruiting agent that remembers your candidates, reasons against each client JD, and drafts evidence-backed recommendation briefs.",
+    "Work with your candidates, manage ongoing client roles, and prepare submissions with a personal AI agent that keeps your work in context.",
   alternates: {
     canonical: "/",
   },
@@ -34,27 +34,27 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Hirelix | Private AI Agent for Professional Headhunters",
+    title: "Hirelix | Your Personal AI Agent for Headhunting",
     description:
-      "A private recruiting agent that remembers your candidates, reasons against each client JD, and drafts evidence-backed recommendation briefs.",
+      "Work with your candidates, manage ongoing client roles, and prepare submissions with a personal AI agent that keeps your work in context.",
     type: "website",
     url: "https://hirelix.online",
     siteName: "Hirelix",
     images: [
       {
-        url: "https://hirelix.online/og-image.png",
+        url: "https://hirelix.online/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Hirelix private AI agent for professional headhunters",
+        alt: "Hirelix — your personal AI agent for headhunting",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Hirelix | Private AI Agent for Professional Headhunters",
+    title: "Hirelix | Your Personal AI Agent for Headhunting",
     description:
-      "A private recruiting agent that remembers your candidates, reasons against each client JD, and drafts evidence-backed recommendation briefs.",
-    images: ["https://hirelix.online/og-image.png"],
+      "Work with your candidates, manage ongoing client roles, and prepare submissions with a personal AI agent that keeps your work in context.",
+    images: ["https://hirelix.online/opengraph-image"],
   },
 };
 

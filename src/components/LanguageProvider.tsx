@@ -58,8 +58,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
+    if (pathname === "/") {
+      document.documentElement.lang = "en";
+      document.title = "Hirelix | Your Personal AI Agent for Headhunting";
+      return;
+    }
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
-    if (pathname === "/" || pathname.startsWith("/app")) {
+    if (pathname.startsWith("/app")) {
       document.title = locale === "zh"
         ? "Hirelix｜专业猎头的私人助理"
         : "Hirelix | Private AI Agent for Professional Headhunters";
