@@ -42,6 +42,7 @@ type PeopleResult = {
   page_size: number;
 };
 type SemanticResult = {
+  query?: string;
   matches: Array<{
     person: Person;
     person_id: string;
@@ -99,7 +100,7 @@ export default function Candidates() {
     highlight = params.get("record");
   const [query, setQuery] = useState(""),
     [filter, setFilter] = useState(""),
-    [mode, setMode] = useState("fields"),
+    [mode, setMode] = useState(task ? "semantic" : "fields"),
     [location, setLocation] = useState(""),
     [expertise, setExpertise] = useState(""),
     [page, setPage] = useState(1),
@@ -110,6 +111,12 @@ export default function Candidates() {
     `/people?${new URLSearchParams({ q: filter, page: String(page), location, expertise })}`,
   );
   const job = useQuery<{ job: Job }>(task ? `/jobs/${task}` : null);
+  useEffect(() => {
+    if (!task || job.data?.job.status !== "done") return;
+    const result = job.data.job.result as SemanticResult | null;
+    setMode("semantic");
+    if (result?.query) setQuery(result.query);
+  }, [task, job.data]);
   useEffect(() => {
     if (
       !task ||
