@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { usePathname } from "next/navigation";
 import type { BillingSummary } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
 
@@ -31,6 +32,7 @@ const BillingContext = createContext<BillingContextValue>({
 
 export function BillingProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -73,20 +75,22 @@ export function BillingProvider({ children }: { children: ReactNode }) {
 
     function handleRefresh() {
       if (document.visibilityState === "hidden") return;
-      void load();
+      void fetchBilling().catch(() => {});
     }
 
     window.addEventListener("focus", handleRefresh);
     window.addEventListener("hirelix:billing-changed", handleRefresh);
     document.addEventListener("visibilitychange", handleRefresh);
+    const timer = window.setInterval(handleRefresh, 30_000);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
       window.removeEventListener("focus", handleRefresh);
       window.removeEventListener("hirelix:billing-changed", handleRefresh);
       document.removeEventListener("visibilitychange", handleRefresh);
     };
-  }, [fetchBilling, user]);
+  }, [fetchBilling, pathname, user]);
 
   const refresh = useCallback(async () => {
     if (user) await fetchBilling();
