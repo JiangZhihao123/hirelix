@@ -123,6 +123,8 @@ export function PrepareDocument({
           : null,
       period_end:
         kind === "search_update" && end ? new Date(end).toISOString() : null,
+      period_local_start: kind === "search_update" && start ? start.slice(0, 10) : null,
+      period_local_end: kind === "search_update" && end ? end.slice(0, 10) : null,
       instructions,
       language: language ?? locale,
     };
