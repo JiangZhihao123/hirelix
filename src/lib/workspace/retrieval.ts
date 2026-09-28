@@ -182,8 +182,9 @@ export async function retrieveCandidates(userId: string, value: unknown) {
     content: string;
     distance: number;
     person: Person;
+    last_contact: string | null;
   }>(
-    sql`WITH ranked AS (SELECT e.person_id,e.record_id,e.content,e.embedding<=>${vector}::vector AS distance,to_jsonb(p) AS person,row_number() OVER(PARTITION BY e.person_id ORDER BY e.embedding<=>${vector}::vector,e.id) AS position FROM hirelix_private_embeddings e JOIN hirelix_agent_people p ON p.user_id=e.user_id AND p.id=e.person_id WHERE e.user_id=${userId}::uuid AND e.model=${model} AND (${!input.location} OR p.location=${input.location}) AND (${!input.expertise} OR ${input.expertise}=ANY(p.skills))) SELECT person_id,record_id,content,distance,person FROM ranked WHERE position=1 ORDER BY distance,person_id LIMIT ${input.limit}`,
+    sql`WITH ranked AS (SELECT e.person_id,e.record_id,e.content,e.embedding<=>${vector}::vector AS distance,to_jsonb(p) AS person,(SELECT max(r.occurred_at) FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id AND r.kind IN ('call','email')) AS last_contact,row_number() OVER(PARTITION BY e.person_id ORDER BY e.embedding<=>${vector}::vector,e.id) AS position FROM hirelix_private_embeddings e JOIN hirelix_agent_people p ON p.user_id=e.user_id AND p.id=e.person_id WHERE e.user_id=${userId}::uuid AND e.model=${model} AND (${!input.location} OR p.location=${input.location}) AND (${!input.expertise} OR ${input.expertise}=ANY(p.skills))) SELECT person_id,record_id,content,distance,person,last_contact FROM ranked WHERE position=1 ORDER BY distance,person_id LIMIT ${input.limit}`,
   );
   return {
     query: input.query,

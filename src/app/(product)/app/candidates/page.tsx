@@ -48,6 +48,7 @@ type SemanticResult = {
     record_id: string | null;
     content: string;
     source_href: string;
+    last_contact?: string | null;
   }>;
   coverage: { total: number; indexed: number; pending: number; failed: number };
   scope: string;
@@ -165,7 +166,12 @@ export default function Candidates() {
       ? (job.data.job.result as SemanticResult | null)
       : null;
   const shown = semantic
-    ? semantic.matches.map((match) => ({ ...match.person, last_contact: null }))
+    ? semantic.matches.map((match) => ({
+        ...match.person,
+        last_contact:
+          people.data?.people.find((person) => person.id === match.person_id)
+            ?.last_contact ?? match.last_contact ?? null,
+      }))
     : people.data?.people || [];
   const displayCount = semantic ? semantic.matches.length : task ? null : people.data?.total;
   return (
