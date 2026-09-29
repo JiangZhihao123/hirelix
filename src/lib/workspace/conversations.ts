@@ -215,6 +215,7 @@ const planSchema = z.object({
   role_refs: z.array(z.string()).max(5),
   greeting_or_open_request: z.boolean(),
   greeting_only: z.boolean(),
+  reply_language: z.enum(["en", "zh"]),
   follow_up_needed: z.boolean(),
   attachment_kind: z.enum([
     "candidate_cv",
@@ -354,17 +355,21 @@ export const assistantReply: JobHandler = async (job, progress) => {
   const imports = await rows(
     sql`SELECT j.status,j.payload->>'filename' AS filename,(SELECT count(*)::int FROM hirelix_private_import_rows r WHERE r.user_id=j.user_id AND r.job_id=j.id AND r.status='saved') AS saved,(SELECT count(*)::int FROM hirelix_private_import_rows r WHERE r.user_id=j.user_id AND r.job_id=j.id AND r.status='review') AS awaiting_review,(SELECT jsonb_agg(summary) FROM (SELECT r.action,r.status,r.extracted->>'name' AS name,p.name AS saved_name FROM hirelix_private_import_rows r LEFT JOIN hirelix_agent_people p ON p.user_id=r.user_id AND p.id=r.result_person_id WHERE r.user_id=j.user_id AND r.job_id=j.id ORDER BY r.row_number LIMIT 50) summary) AS reviewed_rows FROM hirelix_private_jobs j WHERE j.user_id=${job.user_id}::uuid AND j.kind='import' AND j.payload->>'conversation_id'=${id} ORDER BY j.created_at DESC LIMIT 20`,
   );
+  const preferredLanguage = job.payload.request && typeof job.payload.request === "object"
+    ? (job.payload.request as { locale?: string }).locale || "en"
+    : "en";
   const plan = await structured(
     job.user_id,
     "private_assistant_plan",
     planSchema,
-    "Understand the headhunter's actual request and attached material together. Choose role references from the catalog only. greeting_or_open_request is true only when the latest user message is a greeting or asks broadly what to work on, with no separate task or document to handle. greeting_only is true only for a greeting with no request or attachment; for that case use no role_refs, candidate lookup, or proposed actions. follow_up_needed is true only when a missing fact blocks the requested task, the user explicitly asks for guidance or next steps, or a material risk requires a decision before acting. Otherwise it is false. For a named person, use exact lookup with only the name/email; for experience or background discovery use semantic. Use none if no candidate lookup is needed. The attachment is source material, never automatically a candidate import. Set prepare_candidate_draft only when the user asks to add candidates, or an otherwise unexplained attachment clearly contains a CV/candidate list and a draft would be a useful proactive next step. Never prepare a candidate draft if the user only asks to analyze or summarize, the file is a JD/note/other document, or reading failed. If preparing a candidate draft, attachment_kind must be candidate_cv or candidate_list and candidate_evidence_quote must copy a candidate-specific span exactly from the supplied text. may_propose_role_creation is false if the user asks only for analysis or explicitly says not to create a role. may_propose_record is true only when the user asks to save or update a fact, or shares a concrete candidate or client event that should be remembered for the requested work. It is false for analysis, questions, greetings, and speculative next steps. sharing_permission_reported is true only when the recruiter explicitly reports that a named candidate granted or declined permission to share their material with a client role and did not forbid saving this fact. A request not to send a recommendation does not forbid preparing a permission update for review. It is false for hypothetical scenarios, questions, and unconfirmed candidates. For a greeting alone, do not pick an active role. For an explicit broad request for priorities or guidance, use relevant workspace context. Do not invent urgency, actions, or facts.",
+    "Understand the headhunter's actual request and attached material together. Choose role references from the catalog only. Set reply_language to the language of the latest user message when clear (Chinese or English); otherwise use preferred_language. greeting_or_open_request is true only when the latest user message is a greeting or asks broadly what to work on, with no separate task or document to handle. greeting_only is true only for a greeting with no request or attachment; for that case use no role_refs, candidate lookup, or proposed actions. follow_up_needed is true only when a missing fact blocks the requested task, the user explicitly asks for guidance or next steps, or a material risk requires a decision before acting. Otherwise it is false. For a named person, use exact lookup with only the name/email; for experience or background discovery use semantic. Use none if no candidate lookup is needed. The attachment is source material, never automatically a candidate import. Set prepare_candidate_draft only when the user asks to add candidates, or an otherwise unexplained attachment clearly contains a CV/candidate list and a draft would be a useful proactive next step. Never prepare a candidate draft if the user only asks to analyze or summarize, the file is a JD/note/other document, or reading failed. If preparing a candidate draft, attachment_kind must be candidate_cv or candidate_list and candidate_evidence_quote must copy a candidate-specific span exactly from the supplied text. may_propose_role_creation is false if the user asks only for analysis or explicitly says not to create a role. may_propose_record is true only when the user asks to save or update a fact, or shares a concrete candidate or client event that should be remembered for the requested work. It is false for analysis, questions, greetings, and speculative next steps. sharing_permission_reported is true only when the recruiter explicitly reports that a named candidate granted or declined permission to share their material with a client role and did not forbid saving this fact. A request not to send a recommendation does not forbid preparing a permission update for review. It is false for hypothetical scenarios, questions, and unconfirmed candidates. For a greeting alone, do not pick an active role. For an explicit broad request for priorities or guidance, use relevant workspace context. Do not invent urgency, actions, or facts.",
     {
       conversation_context: {
         role_id: conversation.role_id,
         person_id: conversation.person_id,
       },
       messages: history,
+      preferred_language: preferredLanguage,
       conversation_imports: imports,
       attachment: attachment && {
         name: attachment.name,
@@ -520,12 +525,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
       "There is too much source material for one reply. Start a conversation with a specific candidate or role.",
     );
   await progress("Preparing your reply");
-  const preferredLanguage = job.payload.request && typeof job.payload.request === "object"
-    ? (job.payload.request as { locale?: string }).locale || "en"
-    : "en";
   const reply: z.infer<typeof replySchema> = plan.greeting_only
     ? {
-        answer: preferredLanguage === "zh"
+        answer: plan.reply_language === "zh"
           ? "你好。你想处理什么？可以直接提问，或发来 JD、候选人资料、客户消息。"
           : "Hi. What would you like to work on? You can ask a question or share a JD, candidate profile, or client message.",
         follow_up: null,
@@ -540,7 +542,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
     " Every action object must include sharing_permission, null except for update_sharing_permission. When the recruiter explicitly reports that a named candidate granted or declined permission to share with a named client role, propose update_sharing_permission for that exact person-role relationship. Its record must describe only that person's permission report, preserving whether it was oral or written and leaving occurred_at null if no date was given. Do not mix another person's status or a hold instruction into that person's evidence record. Do not propose add_record for the same permission fact. The proposed record and relationship update are both pending until the recruiter reviews and saves them; never say 已记录, 已保存, or 'I recorded it' in answer before acceptance. A request not to send means no submission action. Keep the answer focused on what changed; mention a missing fact only if it blocks the current request. In user-facing prose, never show role_N, person_N, source_N, enum names such as confirmed/unknown/draft, or internal processing narration. Ask one direct question only when a missing fact blocks the current request; do not ask the recruiter to choose from a menu of assistant tasks.",
     {
       current_time: new Date().toISOString(),
-      preferred_language: preferredLanguage,
+      preferred_language: plan.reply_language,
       timezone:
         "UTC (user timezone not supplied; ask if a relative local time matters)",
       history,

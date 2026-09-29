@@ -111,7 +111,7 @@ test("assistant proactively prepares a candidate draft only from a grounded CV",
   assert.equal(afterImport.total, 0);
 });
 
-test("a simple greeting leaves the next topic to the recruiter", { timeout: 180000 }, async () => {
+test("a Chinese greeting follows the message language even in an English interface", { timeout: 180000 }, async () => {
   await createRole(owner, {
     title: "VP Product",
     client_name: "Northstar",
@@ -124,7 +124,7 @@ test("a simple greeting leaves the next topic to the recruiter", { timeout: 1800
   });
   const created = await sendMessage(owner, {
     message: "你好",
-    locale: "zh",
+    locale: "en",
     request_key: randomUUID(),
     conversation_id: null,
     role_id: null,

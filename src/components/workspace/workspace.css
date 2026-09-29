@@ -1914,16 +1914,26 @@
   color: #626f63;
 }
 .ws-message-user {
-  max-width: min(var(--ws-chat-width), 82%);
-  margin-left: auto;
+  max-width: var(--ws-chat-width);
+}
+.ws-message-user .ws-message-label {
+  justify-content: flex-end;
 }
 .ws-message-user .ws-message-prose {
+  width: fit-content;
+  max-width: min(620px, 78%);
+  margin-left: auto;
   background: #f1f4ef;
   border-radius: 14px;
   padding: 12px 16px;
 }
 .ws-message-user .ws-agent-text {
   white-space: pre-wrap;
+}
+.ws-message-assistant .ws-message-prose {
+  max-width: 66ch;
+  font-size: 15px;
+  line-height: 1.7;
 }
 .ws-message-prose {
   line-height: 1.75;
@@ -2259,8 +2269,8 @@
   .ws-composer-footer > span {
     display: none;
   }
-  .ws-message-user {
-    max-width: 92%;
+  .ws-message-user .ws-message-prose {
+    max-width: 88%;
   }
   .ws-action-proposal {
     align-items: flex-start;
