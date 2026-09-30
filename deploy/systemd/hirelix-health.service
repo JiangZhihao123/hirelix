@@ -1,0 +1,8 @@
+[Unit]
+Description=Check Hirelix service, private queue and backups
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/hirelix/deploy/hirelix-health.sh
+TimeoutStartSec=45s

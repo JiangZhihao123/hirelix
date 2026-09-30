@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Hirelix database backup daily
+
+[Timer]
+OnCalendar=*-*-* 19:00:00 UTC
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
