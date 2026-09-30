@@ -194,6 +194,18 @@ export function AccountSection({
             <MessageBanner message={passwordMessage} />
           </form>
         </SettingsFieldGroup>
+        <SettingsFieldGroup
+          title={t("Support and privacy requests")}
+          description={t("Contact support for account-wide export or deletion. Requests are reviewed after ownership verification; this does not delete your account automatically.")}
+        >
+          <div className="flex flex-wrap gap-4 text-sm">
+            <a className="text-primary underline" href="mailto:support@hirelix.online?subject=Hirelix%20account%20support">
+              support@hirelix.online
+            </a>
+            <a className="text-primary underline" href="/privacy">{t("Privacy Policy")}</a>
+            <a className="text-primary underline" href="/terms">{t("Terms of Service")}</a>
+          </div>
+        </SettingsFieldGroup>
       </div>
     </SettingsSection>
   );

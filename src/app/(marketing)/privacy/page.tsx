@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Privacy Policy"
       description="This policy explains what information Hirelix, a product operated by YieldMirror, collects, how we use it, which service providers help us operate the product, and how to contact us with privacy questions."
-      effectiveDate="March 13, 2026"
+      effectiveDate="October 1, 2026"
       sections={[
         {
           title: "Who operates Hirelix",
@@ -32,13 +32,17 @@ export default function PrivacyPage() {
             <>
               <p>
                 We collect account details such as your email address and authentication
-                identifiers, product usage data such as searches, shortlist actions, and billing
-                state, and support information you send to us directly.
+                identifiers, task and usage records, billing state, and support information you
+                send to us directly. Google sign-in provides account information needed to
+                authenticate you.
               </p>
               <p>
-                When you use Hirelix to search and enrich candidate records, we also process job
-                descriptions, candidate shortlist data, company profile information, and related
-                workflow metadata needed to operate the service.
+                Your private workspace can contain uploaded CVs and candidate lists, candidate
+                profiles, recruiter notes, job descriptions, client requirements and feedback,
+                conversations, source records, and generated drafts with their saved versions.
+                We store this material to provide your workspace and keep it available between
+                visits. Optional sourcing and candidate research also process search criteria,
+                public profile evidence, and related workflow records.
               </p>
             </>
           ),
@@ -49,12 +53,16 @@ export default function PrivacyPage() {
             <>
               <p>
                 We use your information to provide the Hirelix product, authenticate users,
-                generate candidate matches and outreach drafts, manage subscriptions and add-ons,
+                retrieve and assess candidates for a specific role, prepare client materials,
+                manage subscriptions and usage allowances,
                 improve product performance, prevent abuse, and respond to support requests.
               </p>
               <p>
-                We may also use aggregated and de-identified usage signals to understand product
-                reliability and improve the onboarding and search experience.
+                AI tasks send relevant conversation text and selected workspace evidence to our
+                AI providers. Candidate retrieval sends candidate text and queries to an
+                embedding provider. Client drafts use the profile information and supporting
+                notes selected in preparation. Preparing or copying a draft does not send it to
+                a client or candidate.
               </p>
             </>
           ),
@@ -65,14 +73,21 @@ export default function PrivacyPage() {
             <>
               <p>
                 We rely on third-party providers to operate the service, including Vercel for
-                hosting, a self-hosted PostgreSQL database for application and authentication
-                records, Paddle for billing, Anthropic and DeepSeek for AI generation, Serper for
-                search results, Apollo and Hunter for contact enrichment, and Bright Data for web
-                data access.
+                hosting, Google for sign-in, and a self-hosted PostgreSQL database for workspace
+                files, application and authentication records. DeepSeek handles AI generation;
+                OpenRouter may provide fallback model access. SiliconFlow provides embeddings
+                used for candidate retrieval. Paddle handles payments and subscriptions. Resend
+                supports account and configured product emails. Optional sourcing and research
+                use services such as Bright Data, Serper, GitHub, Apollo and Hunter when those
+                features are used and configured.
               </p>
               <p>
-                These providers may process data on our behalf only as needed to deliver the
-                product or related support and billing functions.
+                Providers process the information needed for their functions under their own
+                terms and privacy policies, and may operate in countries different from yours.
+                Payment details are entered into Paddle checkout; Hirelix stores customer,
+                subscription and transaction references rather than full card details. See{" "}
+                <a href="https://www.paddle.com/legal/privacy">Paddle&apos;s privacy policy</a>
+                {" "}and <a href="https://openrouter.ai/privacy">OpenRouter&apos;s privacy policy</a>.
               </p>
             </>
           ),
@@ -86,6 +101,31 @@ export default function PrivacyPage() {
                 accounting requirements, resolve disputes, and enforce our agreements. We take
                 reasonable technical and organizational measures to protect data, but no system can
                 guarantee absolute security.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "Access, export and deletion requests",
+          body: (
+            <>
+              <p>
+                Candidate records can be exported from the candidate workspace, and generated
+                client materials can be downloaded. For account-wide access, correction, export
+                or deletion requests, email{" "}
+                <a href="mailto:support@hirelix.online?subject=Hirelix%20privacy%20request">
+                  support@hirelix.online
+                </a>
+                {" "}from the address used for your account. These requests are handled by support;
+                there is no instant self-service account deletion control. We verify ownership
+                before acting. Deleted information may remain in restricted backups until they
+                rotate out, and billing records may need to be retained for accounting or legal
+                obligations.
+              </p>
+              <p>
+                Upload and share candidate information only when you have the authority to do
+                so. Candidate availability, interest and permission to share with a client are
+                separate facts; Hirelix does not infer them from a saved profile.
               </p>
             </>
           ),

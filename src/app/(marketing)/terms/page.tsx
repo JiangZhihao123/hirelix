@@ -13,15 +13,16 @@ export default function TermsPage() {
       eyebrow="Terms"
       title="Terms of Service"
       description="These terms govern your use of Hirelix, a product operated by YieldMirror, including your account, subscriptions, and product usage."
-      effectiveDate="March 13, 2026"
+      effectiveDate="October 1, 2026"
       sections={[
         {
           title: "Using the service",
           body: (
             <>
               <p>
-                Hirelix is a software product operated by YieldMirror for candidate sourcing,
-                shortlist review, and outreach drafting. These terms form an agreement between you
+                Hirelix is a personal AI workspace operated by YieldMirror for professional
+                headhunters to work with candidate information, client roles and reviewed client
+                materials. Optional sourcing and research support this work. These terms form an agreement between you
                 and YieldMirror for your use of Hirelix.
               </p>
               <p>
@@ -39,6 +40,27 @@ export default function TermsPage() {
                 You are responsible for your account, login method, and all activity under your
                 account. You must provide accurate information and keep your access credentials
                 secure.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "Your information and AI-assisted work",
+          body: (
+            <>
+              <p>
+                You are responsible for having permission to upload and process candidate and
+                client information, and for checking the facts, suitability and sharing permission
+                before using an AI-generated assessment or draft. Generated content can be
+                incomplete or inaccurate and does not establish a candidate&apos;s interest,
+                availability or consent. You remain responsible for recruiting decisions.
+              </p>
+              <p>
+                Creating, saving, exporting or copying a draft does not send it to a client or
+                candidate. Recording a submission is a record of an action you took outside
+                Hirelix. Task allowances and any additional sourcing limits are shown in the
+                product and billing settings; access to stored material is separate from the
+                allowance to start new AI tasks.
               </p>
             </>
           ),

@@ -1,5 +1,7 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Support and privacy requests": "支持与隐私请求",
+  "Contact support for account-wide export or deletion. Requests are reviewed after ownership verification; this does not delete your account automatically.": "如需导出整个账户的数据或删除账户，请联系支持。确认账户归属后人工处理；此入口不会自动删除账户。",
   "Discard your edits to this proposal?": "放弃对这项提案的修改吗？",
   "Priorities": "重点要求",
   "note": "备注",
