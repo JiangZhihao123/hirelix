@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # ============ CI: 编译与测试 ============
   build-and-test:
@@ -57,18 +61,24 @@ jobs:
     steps:
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.0
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
+          envs: DEPLOY_SHA
           script: |
+            set -eu
             echo "=== 开始部署调度器 ==="
             cd /opt/hirelix
 
-            # 拉取最新代码
+            # 保留服务器上的未提交修改；只部署本次通过 CI 的版本。
+            test -z "$(sudo git status --porcelain)"
             sudo git fetch origin
-            sudo git reset --hard origin/main
+            sudo git merge --ff-only "$DEPLOY_SHA"
+            test "$(sudo git rev-parse HEAD)" = "$DEPLOY_SHA"
 
             # 安装依赖（如有新增）
             sudo npm ci
@@ -78,7 +88,8 @@ jobs:
 
             # 检查状态
             sleep 3
-            sudo systemctl is-active hirelix-scheduler && echo "✅ 调度器运行正常" || echo "❌ 调度器启动失败"
+            sudo systemctl is-active --quiet hirelix-scheduler
+            echo "✅ 调度器运行正常"
 
             echo "=== 部署完成 ==="
             echo "当前版本: $(sudo git rev-parse --short HEAD)"
