@@ -211,6 +211,7 @@ export async function sendMessage(
 }
 const planSchema = z.object({
   candidate_query: z.string().max(4000).nullable(),
+  candidate_names: z.array(z.string().trim().min(1).max(300)).max(20),
   lookup: z.enum(["exact", "semantic", "none"]),
   role_refs: z.array(z.string()).max(5),
   greeting_or_open_request: z.boolean(),
@@ -362,7 +363,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
     job.user_id,
     "private_assistant_plan",
     planSchema,
-    "Understand the headhunter's actual request and attached material together. Choose role references from the catalog only. Set reply_language to the language of the latest user message when clear (Chinese or English); otherwise use preferred_language. greeting_or_open_request is true only when the latest user message is a greeting or asks broadly what to work on, with no separate task or document to handle. greeting_only is true only for a greeting with no request or attachment; for that case use no role_refs, candidate lookup, or proposed actions. follow_up_needed is true only when a missing fact blocks the requested task, the user explicitly asks for guidance or next steps, or a material risk requires a decision before acting. Otherwise it is false. For a named person, use exact lookup with only the name/email; for experience or background discovery use semantic. Use none if no candidate lookup is needed. The attachment is source material, never automatically a candidate import. Set prepare_candidate_draft only when the user asks to add candidates, or an otherwise unexplained attachment clearly contains a CV/candidate list and a draft would be a useful proactive next step. Never prepare a candidate draft if the user only asks to analyze or summarize, the file is a JD/note/other document, or reading failed. If preparing a candidate draft, attachment_kind must be candidate_cv or candidate_list and candidate_evidence_quote must copy a candidate-specific span exactly from the supplied text. may_propose_role_creation is false if the user asks only for analysis or explicitly says not to create a role. may_propose_record is true only when the user asks to save or update a fact, or shares a concrete candidate or client event that should be remembered for the requested work. It is false for analysis, questions, greetings, and speculative next steps. sharing_permission_reported is true only when the recruiter explicitly reports that a named candidate granted or declined permission to share their material with a client role and did not forbid saving this fact. A request not to send a recommendation does not forbid preparing a permission update for review. It is false for hypothetical scenarios, questions, and unconfirmed candidates. For a greeting alone, do not pick an active role. For an explicit broad request for priorities or guidance, use relevant workspace context. Do not invent urgency, actions, or facts.",
+    "Understand the headhunter's actual request and attached material together. Choose role references from the catalog only. Set reply_language to the language of the latest user message when clear (Chinese or English); otherwise use preferred_language. greeting_or_open_request is true only when the latest user message is a greeting or asks broadly what to work on, with no separate task or document to handle. greeting_only is true only for a greeting with no request or attachment; for that case use no role_refs, candidate lookup, or proposed actions. follow_up_needed is true only when a missing fact blocks the requested task, the user explicitly asks for guidance or next steps, or a material risk requires a decision before acting. Otherwise it is false. For named people, use exact lookup and put each individual name or email in candidate_names as a separate entry, including every person in a comparison. Never combine multiple identities into one query. candidate_query is only for semantic experience or background discovery; use null for exact or none. candidate_names is empty for semantic or none. Use none if no candidate lookup is needed. Exact lookup covers at most 20 names and 50 matches per name; make a material limit explicit rather than saying an unsearched person is absent. The attachment is source material, never automatically a candidate import. Set prepare_candidate_draft only when the user asks to add candidates, or an otherwise unexplained attachment clearly contains a CV/candidate list and a draft would be a useful proactive next step. Never prepare a candidate draft if the user only asks to analyze or summarize, the file is a JD/note/other document, or reading failed. If preparing a candidate draft, attachment_kind must be candidate_cv or candidate_list and candidate_evidence_quote must copy a candidate-specific span exactly from the supplied text. may_propose_role_creation is false if the user asks only for analysis or explicitly says not to create a role. may_propose_record is true only when the user asks to save or update a fact, or shares a concrete candidate or client event that should be remembered for the requested work. It is false for analysis, questions, greetings, and speculative next steps. sharing_permission_reported is true only when the recruiter explicitly reports that a named candidate granted or declined permission to share their material with a client role and did not forbid saving this fact. A request not to send a recommendation does not forbid preparing a permission update for review. It is false for hypothetical scenarios, questions, and unconfirmed candidates. For a greeting alone, do not pick an active role. For an explicit broad request for priorities or guidance, use relevant workspace context. Do not invent urgency, actions, or facts.",
     {
       conversation_context: {
         role_id: conversation.role_id,
@@ -423,30 +424,29 @@ export const assistantReply: JobHandler = async (job, progress) => {
       conversation.person_id,
       await owned<Person>(job.user_id, "person", conversation.person_id),
     );
-  if (plan.candidate_query && plan.lookup !== "none") {
+  if (plan.lookup === "exact" && plan.candidate_names.length) {
     await progress("Finding candidates in your private pool");
-    if (plan.lookup === "exact") {
-      const result = await listPeople(job.user_id, plan.candidate_query);
-      result.people.forEach((p) => candidates.set(p.id, p));
-      coverage = {
-        lookup: "exact",
-        query: plan.candidate_query,
-        total: result.total,
-        returned: result.people.length,
-      };
-    } else {
-      const result = await retrieveCandidates(job.user_id, {
-        query: plan.candidate_query,
-        limit: 20,
-      });
-      result.matches.forEach((m) => candidates.set(m.person.id, m.person));
-      coverage = {
-        lookup: "semantic",
-        ...result.coverage,
-        returned: result.matches.length,
-        scope: result.scope,
-      };
-    }
+    const lookups = await Promise.all(
+      [...new Set(plan.candidate_names)].map(async (name) => {
+        const result = await listPeople(job.user_id, name);
+        result.people.forEach((person) => candidates.set(person.id, person));
+        return { query: name, total: result.total, returned: result.people.length };
+      }),
+    );
+    coverage = { lookup: "exact", lookups };
+  } else if (plan.candidate_query && plan.lookup === "semantic") {
+    await progress("Finding candidates in your private pool");
+    const result = await retrieveCandidates(job.user_id, {
+      query: plan.candidate_query,
+      limit: 20,
+    });
+    result.matches.forEach((m) => candidates.set(m.person.id, m.person));
+    coverage = {
+      lookup: "semantic",
+      ...result.coverage,
+      returned: result.matches.length,
+      scope: result.scope,
+    };
   }
   // Explicit role relationships are useful for progress and drafting even without a pool search.
   for (const role of selectedRoles.values()) {

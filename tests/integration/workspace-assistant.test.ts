@@ -138,6 +138,46 @@ test("a Chinese greeting follows the message language even in an English interfa
   assert.doesNotMatch(detail.messages[1].content, /Northstar|VP Product|薪酬/);
 });
 
+test("named comparison retrieves each saved person independently, without role links or another owner's evidence", { timeout: 180000 }, async () => {
+  const first = await createPerson(owner, {
+    name: "QA Morgan Reed",
+    note: "Fictional QA profile. Led 12 product managers in enterprise B2B SaaS. Availability and consent unknown.",
+  });
+  const second = await createPerson(owner, {
+    name: "QA Taylor Park",
+    note: "Fictional QA profile. Corporate accounting and tax director. No product leadership evidence. Availability and consent unknown.",
+  });
+  const outsider = await createPerson(randomUUID(), {
+    name: "QA Taylor Park",
+    note: "Other account's private candidate evidence.",
+  });
+  const role = await createRole(owner, {
+    title: "QA VP Product comparison",
+    client_name: "QA comparison client",
+    jd_text: "Lead a team of 12 product managers in enterprise B2B SaaS. Accounting alone does not meet this role.",
+  });
+  const created = await sendMessage(owner, {
+    message: "Compare QA Morgan Reed and QA Taylor Park from my saved pool for this role. Cite both profiles, distinguish missing evidence, and do not assume availability or consent. These are fictional QA profiles.",
+    locale: "en",
+    request_key: randomUUID(),
+    role_id: role.id,
+  });
+  const prepared = await assistantReply(created.job, async () => {});
+  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
+  const reply = (await conversationDetails(owner, created.conversation_id)).messages[1];
+  const coverage = reply.metadata.coverage as { lookup: string; lookups: Array<{ total: number; returned: number }> };
+  assert.equal(coverage.lookup, "exact");
+  assert.equal(coverage.lookups.length, 2);
+  assert(coverage.lookups.every((lookup) => lookup.total === 1 && lookup.returned === 1));
+  const sources = reply.metadata.sources as Array<{ href: string }>;
+  assert(sources.some((source) => source.href.includes(first.id)));
+  assert(sources.some((source) => source.href.includes(second.id)));
+  assert(!sources.some((source) => source.href.includes(outsider.id)));
+  assert.match(reply.content, /Morgan Reed/);
+  assert.match(reply.content, /Taylor Park/);
+  assert.match(reply.content, /accounting|tax/i);
+});
+
 test("reported sharing consent stays pending until one review saves both evidence and role permission", { timeout: 180000 }, async () => {
   const role = await createRole(owner, {
     title: "Engineering Director",
