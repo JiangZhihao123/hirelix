@@ -1,5 +1,6 @@
 import { isIncludedTask } from "./database";
 import { reserveAgentTask } from "@/lib/agent-access";
+import { getLogger } from "@/lib/logger";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -7,6 +8,7 @@ import { json, owned, rows, WorkspaceError, type Runner } from "./database";
 import type { Job, JobKind } from "./types";
 
 const LEASE_SECONDS = 120;
+const logger = getLogger({ component: "private_workspace_jobs" });
 export type PreparedJob = {
   result: Record<string, unknown>;
   apply?: (tx: Runner) => Promise<Record<string, unknown> | void>;
@@ -114,13 +116,25 @@ export async function processJob(
     if (leaseLost) throw new LostLease();
     await finishJob(job, prepared);
   } catch (error) {
-    if (!(error instanceof LostLease))
+    const fields = {
+      job_id: job.id,
+      kind: job.kind,
+      attempt: job.attempts,
+      error_type: error instanceof Error ? error.name : "Unknown",
+    };
+    // Provider errors can contain private source material or credentials.
+    // Log identifiers and the error class, never its message or payload.
+    if (error instanceof LostLease) {
+      logger.warn(fields, "Private workspace task lost its lease");
+    } else {
+      logger.error(fields, "Private workspace task failed");
       await failJob(
         job,
         error instanceof WorkspaceError
           ? error.message
           : "This task could not finish. Your source material is saved. Retry the task or review the input.",
       );
+    }
   } finally {
     clearInterval(timer);
   }

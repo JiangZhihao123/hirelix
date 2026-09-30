@@ -12,6 +12,7 @@ import {
   LostLease,
   heartbeat,
   failJob,
+  processJob,
 } from "../../src/lib/workspace/jobs";
 import type { Job } from "../../src/lib/workspace/types";
 const database = new URL(
@@ -93,4 +94,23 @@ test("real queue: repeated interruption is visible and manual retry keeps the sa
     sql`SELECT count(*)::int AS count FROM hirelix_private_jobs WHERE user_id=${owner}::uuid AND request_key=${created.request_key}`,
   );
   assert.equal(count.count, 1);
+});
+
+test("real queue: handler failure preserves a safe visible error and can be retried once", async () => {
+  const created = await enqueue(owner, "assessment", randomUUID(), {});
+  await processJob({ assessment: async () => {
+    throw new Error("QA_SECRET_PROVIDER_PAYLOAD_DO_NOT_LOG");
+  } });
+  const failed = await owned<Job>(owner, "job", created.id);
+  assert.equal(failed.status, "error");
+  assert.equal(failed.lease_token, null);
+  assert.equal(failed.lease_until, null);
+  assert.match(failed.error ?? "", /source material is saved/);
+  assert.doesNotMatch(failed.error ?? "", /QA_SECRET/);
+  const retried = await retryJob(owner, created.id);
+  assert.equal(retried.id, created.id);
+  await processJob({ assessment: async () => ({ result: { recovered: true } }) });
+  const recovered = await owned<Job>(owner, "job", created.id);
+  assert.equal(recovered.status, "done");
+  assert.deepEqual(recovered.result, { recovered: true });
 });
