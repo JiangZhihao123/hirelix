@@ -17,12 +17,12 @@
 | 要求 | 必须取得的证据 | 本轮状态 |
 | --- | --- | --- |
 | 新用户入口与 OAuth | Chrome 从首页到 Google 回跳和空工作区 | local real chain：真实 Google OAuth 新账户、20 tasks 空工作区 |
-| 文件导入与持久化 | 预览、确认、重复处理、刷新、原文和文件回读 | 未验证 |
+| 文件导入与持久化 | 预览、确认、重复处理、刷新、原文和文件回读 | local real chain：CSV、PDF CV、DOCX CV、TXT JD，原文件 SHA 对应，重新 OAuth 后可读；同 source 接受幂等 |
 | 职位与真实助理 | 真实模型、正确上下文、持久任务和结果 | 未验证 |
-| JD 判断与来源 | 不同职位独立判断、引用可核对、未知信息保留 | local real chain：同 JD 双人比较和来源通过；第二职位仍待浏览器验证 |
-| Submission / Search update | 编辑、修订、保存、重开、复制、实际 PDF/DOCX 导出 | local real chain：Submission 生成、编辑、修订接受、3 版历史、复制、PDF/DOCX 下载渲染通过；CV 和 Search update 待验 |
+| JD 判断与来源 | 不同职位独立判断、引用可核对、未知信息保留 | local real chain：产品／财务两 JD 双人比较通过，来源正确且未知意向／授权保留 |
+| Submission / Search update | 编辑、修订、保存、重开、复制、实际 PDF/DOCX 导出 | local real chain：Submission 生成、编辑、修订接受、3 版历史、复制、PDF/DOCX 下载渲染通过；Search update 编辑、修订、历史、重开及 PDF/DOCX 实际下载渲染通过；Submission 精确选择 Morgan CV 原文件下载 SHA 一致 |
 | 客户反馈与历史 | 反馈确认保存、同职位继续工作、历史依据保留 | local real chain：Chrome 确认反馈更新同职位 v2/v3、原 JD 保留、原 Submission source.role.version=1；完整时间修复通过 |
-| 故障与重试 | 中断、租约回收、worker 重启、幂等、额度一致 | 未验证 |
+| 故障与重试 | 中断、租约回收、worker 重启、幂等、额度一致 | local real chain：真实 provider 鉴权失败返还、Chrome Offline 重试失败不重复、恢复网络同 job 完成；停止 worker 时排队、重启消费通过；运行中租约恢复进行中 |
 | 桌面和移动端 | 关键路径、空状态、运行中、失败和重试可操作 | 未验证 |
 | 试用与额度 | 真实 PG 并发、到期、退款和已存资料可读 | 未验证 |
 | Paddle Sandbox | 官方成功/拒付、真实签名回调、权益和继续使用 | 未验证 |
@@ -59,24 +59,27 @@
 17. 公开说明修复 `1f6e225`：Chrome 隐私页和设置实际渲染、支持 mailto／政策链接正确；已通过 typecheck／lint。支持邮箱收件状态已向用户询问，未擅自发邮件。
 18. 反馈日期缺陷：`update_role_brief` 接受时硬编码 occurred_at=null。修复 `6675f9c` 将模型提案中的明确时间带入审阅，提供发生时间输入，按审阅值保存；只有日期、无确切时间时仍不猜测时区／时间。Chrome 反馈 `2026-10-01T04:45:00+08:00` 审阅显示 04:45，保存后 SQL 为上海 04:45，绑定 role v3。未知日期、跨账户和陈旧版本回归保留；本轮 assistant+foundation 11/11 通过，含真实模型。
 19. Search update 首次 Chrome 结果 `6caeef0f-1007-47f3-91f0-a751da9a773a` 存在质量缺陷：把“未记录”说成“未发生”，并重新质疑已确认薪酬。已修正 prompt，真实模型测试 `workspace-search-update.test.ts` 比较无活动记录／选中反馈两种情况通过；Chrome 新任务 `83974d73-34c9-44e4-87b4-9c1e081141cd` 选中 v3 反馈、报告 9/30–10/1，复验通过，新报告 `76fcb824-8cf6-4876-801c-70d1248559f7` 正确记录选中反馈、165,000–180,000 薪酬、v3 来源与未知授权；修复提交 `3db0713`。导出和后续编辑待验。不得把首轮报告当验收成功证据。
-20. 当前已提交 main 比远端领先 9 个提交，尚未推送。typecheck／lint 最新通过；unit 339 pass/1 skip，实际 PG integration 另行启用通过。date/prompt 最新变更后 production build exit 0。任何本地结果都未替代最终生产复验。
+20. 截至 06:00 当前已提交 main 比远端领先 12 个提交，尚未推送。typecheck／lint 最新通过；unit 339 pass/1 skip，实际 PG integration 另行启用通过。date/prompt 最新变更后 production build exit 0。任何本地结果都未替代最终生产复验。
+
+21. PDF CV 与 DOCX CV 使用明确标记的虚构 QA 样本，真实 Chrome 上传、真实模型提取、合并已有候选人并保留原记录，文件 SHA 与实际下载一致。Morgan PDF 首次暴露重复保存建议：导入 review 和 assistant add_record 同时存在，接受两者可重复 source。根因为 assistant 仅禁止新候选人的 add_record。修复 `dc48993` 在导入草稿期间统一由 import owner 保存来源；真实模型＋PG 幂等接受回归 1/1、Chrome Taylor DOCX 合并后仅一个 CV source。保留首次错误样本作为复现证据，未删除断言或真实资料。
+22. Taylor DOCX 与 Morgan PDF 实际打开／渲染一页，视觉可读。Submission `b569d77d-24d9-4604-ae27-5162ab928616` 精确选择 Morgan PDF，未选 Taylor CV 或私人笔记；原 CV 单独下载，SHA-256 一致。已有材料导出验证不能被替代为 CV 内嵌导出；界面明确分开。
+23. 修复后的 Search update `76fcb824-8cf6-4876-801c-70d1248559f7` 已实际编辑、模型修订接受、刷新重开、PDF 1,641 bytes／DOCX 6,328,221 bytes 下载，各渲染一页目视通过。复制按钮已点击，独立成功提示未观察到，复制验收暂不算完成。
+24. 真实 Chrome 导入第二个财务 JD 建立 QA Southbank Finance Director `779879c4-e6bd-4d7e-9cd7-f0332452d536`。SQL 角色 JD 与 TXT 文件原文相等，产品职位 v3 未变。真实比较明确 Taylor 的会计／财报／税务和 8 人团队更符合财务职位，Morgan 产品证据不足，引用两人 CV 和正确 JD，不作全局候选人好坏标签。
+25. Chrome Sign out → Google OAuth → 返回原工作区，SQL 确认新 session，两候选人及 DOCX CV source 可读。393×600、100% Chrome 手机宽度下发送、失败提示和重试实际操作通过；尚不声明真机验收或所有触屏路径通过。
+26. 隔离 QA 使用无效测试 key 请求真实 DeepSeek endpoint，job `352fe32f-16a2-4ad8-b1ec-8f36c425c081` 进入 error，额度 4→5 返还、页面可重试；安全日志仅记录 DeepSeekApiError，无 provider payload。Chrome Offline 点击重试显示 Failed to fetch，DB 没有新消息／计费；恢复网络，同 job 重试完成，仅一用户消息、一回复和一次额度记录。生产配置未修改。
+27. worker 停止时新 job `7e9f957e-c2e7-4755-ad13-38f22ae395a4` 排队，重启后完成。下一项 `f6f4725c-15d2-43c4-906d-f4816d8dbdda` 于 06:01 被领取后立即停止进程（exit 130），DB running/attempt=1，租约至 06:03:09；新 worker 已启动，等待自然到期恢复，未人为更改租约。
+28. `99294ad` 首批用户英文工作流程说明已保存。最新代码检查：typecheck-cv、lint-cv exit 0；unit-cv 339 pass/1 显式 PG skip（另行实际启用已通过）；build-cv exit 0；cv-import-owner-recheck 1/1 实际模型＋PG 无 skip。首次只加载 .env.local 缺少 key 的失败日志仍保留。
 
 ## 下次继续位置
 
-- Chrome 本地标签页停在修复后的 Search update，事实与来源已复验通过；原 Submission 与生产 Live checkout 标签页仍保留。
-- 本地 dev server / QA worker 运行，库 `hirelix_workspace_qa_launch_20261001`。证据集中 `output/launch-20261001/`；切勿原样打印服务日志中的账户／OAuth 信息。
-- 下一步：新报告编辑／复制／导出／视觉 QA；补 PDF/DOCX CV 导入与精确附件、重复导入、重新登录、第二 JD、移动和故障恢复；Sandbox 拒付与回调／门户；生产配置和最终 gates→授权部署→生产核心任务、大文件下载与 billing 复验。
-- 用户侧仍待 Live 实际付款或已有真实订阅，以及支持邮箱收件确认。不能据 Sandbox 或 checkout 打开声明收费验收完成。
-
-## 当前执行句柄（仅为续跑线索，必须重新核对）
-
-- Next dev session `62371`，localhost:3000，QA 库；worker session `76735`，只消费 private workspace，legacy search 禁用。
-- 最新检查输出：`typecheck-current.log`、`lint-current.log`、`unit-current.log`、`build-current.log`、`assistant-current.log`（11/11）、`search-update-current.log`（1/1）均已结束。
-- 操作修复：`cd08901`、`b1f3c2a`；旧验收 fixture `ce53194`；OAuth 请求日志 `c918388`；任务安全日志 `5013a47`；多人检索 `3f6b941`；隐私入口 `1f6e225`；反馈日期 `6675f9c`；进展报告 `3db0713`。
-- 未执行生产发布；未安装 daily backup／health timers；未更改生产 schema。真实 Live 付款仍待用户。
+- Next dev server live，QA 库 `hirelix_workspace_qa_launch_20261001`，private worker session `5778`（必须重新核对）。生产仍 baseline `8d363f7`；本地 `99294ad`，远端差异 0/12。
+- 下一步：自然租约恢复及一次结果／计费，手机触屏路径，Search update 复制、重复导入；当前候选 Sandbox 实际回调／门户；发布备份和回滚→授权推送→生产核心任务、大文件下载与 billing 复验。
+- 用户侧待 Live 实际付款或已有真实订阅，以及支持邮箱收件确认。不能据 Sandbox 或 checkout 打开声明收费验收完成。
 
 ## 发布、回滚和交接
 
-未发布本轮变更。发布前记录数据库备份、候选版本、迁移和配置顺序及应用/worker 回滚办法。生产异常优先恢复服务，数据回滚不得覆盖新写入。
+待发布候选代码 `99294ad` 加上线记录提交。所有当前代码差异不改变 schema；不需要新迁移或模型／支付环境变量。VPS 与应用可独立部署，接口／持久表保持兼容。发布前再建数据库快照，生产保持既有配置，CI 完成后部署准确 SHA；再安装 backup／health timers 并实际执行。
 
-最终上线结论：**尚未完成**。后续持续更新本文件。
+应用回滚：上一版 Vercel deployment `6752313582`（`hirelix-ojyqoxfb4-noahs-projects-292679b9.vercel.app`）对应 `8d363f7b6009d0471005655acbada3128542e9c3`。worker 在服务器工作区干净时切换该 SHA、npm ci、restart Hirelix scheduler，并复验消费；保留数据库及发布期间写入。Vercel 管理访问尚待本轮刷新；不得声称回滚演练已完成。
+
+未执行生产发布；未安装 timers；未更改生产 schema。最终上线结论：**尚未完成**。
