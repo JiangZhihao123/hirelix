@@ -237,3 +237,34 @@ test("reported sharing consent stays pending until one review saves both evidenc
   );
   assert.equal(sent.total, 0);
 });
+
+test("dated client feedback preserves the reviewed event time with its role update", { timeout: 180000 }, async () => {
+  const role = await createRole(owner, {
+    title: "QA Product Leader",
+    client_name: "QA Dated Feedback",
+    jd_text: "Product leadership; compensation not confirmed.",
+  });
+  const eventTime = "2026-10-01T09:15:00+08:00";
+  const created = await sendMessage(owner, {
+    message: `Fictional QA feedback received at ${eventTime}: the client confirmed compensation of GBP 160,000–180,000. Prepare an update to this role's requirements for review and preserve the feedback event time. Do not send anything.`,
+    locale: "en",
+    request_key: randomUUID(),
+    role_id: role.id,
+  });
+  const prepared = await assistantReply(created.job, async () => {});
+  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
+  const reply = (await conversationDetails(owner, created.conversation_id)).messages[1];
+  const actions = reply.metadata.actions as Array<{ id: string; kind: string; fields: Record<string, unknown> }>;
+  const action = actions.find((item) => item.kind === "update_role_brief");
+  assert(action);
+  assert.equal(new Date(String(action.fields.occurred_at)).getTime(), new Date(eventTime).getTime());
+  const reviewedTime = "2026-10-01T09:20:00+08:00";
+  await acceptAction(owner, created.conversation_id, reply.id, action.id, { ...action.fields, occurred_at: reviewedTime });
+  await acceptAction(owner, created.conversation_id, reply.id, action.id, { ...action.fields, occurred_at: reviewedTime });
+  const records = await rows<{ occurred_at: string; content: string }>(
+    sql`SELECT occurred_at,content FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND kind='feedback'`,
+  );
+  assert.equal(records.length, 1);
+  assert.equal(new Date(records[0].occurred_at).getTime(), new Date(reviewedTime).getTime());
+  assert.match(records[0].content, /160,000/);
+});

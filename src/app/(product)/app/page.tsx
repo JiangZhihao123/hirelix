@@ -1244,11 +1244,15 @@ function ActionReview({
                 onChange={(e) => set("content", e.target.value)}
               />
             </Field>
-            <Field
-              label={t("When it happened")}
-              hint={t(
-                "Leave this blank if the event date is unknown. The save time is recorded separately.",
-              )}
+          </>
+        )}
+        {action.kind !== "create_role" && (
+          <Field
+            label={t("When it happened")}
+            hint={t(
+              "Leave this blank if the event date is unknown. The save time is recorded separately.",
+
+        )}
             >
               <input
                 type="datetime-local"
@@ -1275,7 +1279,6 @@ function ActionReview({
                 }
               />
             </Field>
-          </>
         )}
         <div className="ws-form-footer">
           <button
