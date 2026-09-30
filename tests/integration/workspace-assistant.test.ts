@@ -15,7 +15,7 @@ import { createPerson } from "../../src/lib/workspace/people";
 import { readFile } from "../../src/lib/workspace/files";
 import { rows } from "../../src/lib/workspace/database";
 import { claimJob, finishJob } from "../../src/lib/workspace/jobs";
-import { prepareImport } from "../../src/lib/workspace/imports";
+import { importDetails, prepareImport, reviewImportRow } from "../../src/lib/workspace/imports";
 
 const database = new URL(process.env.DATABASE_URL ?? "postgresql://invalid/invalid");
 if (
@@ -267,4 +267,48 @@ test("dated client feedback preserves the reviewed event time with its role upda
   assert.equal(records.length, 1);
   assert.equal(new Date(records[0].occurred_at).getTime(), new Date(reviewedTime).getTime());
   assert.match(records[0].content, /160,000/);
+});
+
+test("an existing candidate CV has one import review and one retained source after repeated acceptance", { timeout: 240000 }, async () => {
+  const person = await createPerson(owner, {
+    name: "QA Rowan Ellis",
+    email: "rowan.qa@example.test",
+    headline: "Product Director",
+    note: "Fictional QA relationship note. Sharing consent remains unknown.",
+  });
+  const reply = await askWithFile(
+    "Import this fictional QA CV for QA Rowan Ellis, who already exists in my pool. Let me review a merge; preserve the original and do not create a duplicate or assume sharing permission.",
+    "rowan-cv.txt",
+    "QA Rowan Ellis\nFictional Hirelix QA CV only.\nrowan.qa@example.test\nProduct Director, Atlas Software, 2021-2025. Led 12 product managers in enterprise B2B SaaS.\nAvailability, interest and sharing consent are not confirmed.",
+  );
+  assert.equal(typeof reply.metadata.import_job_id, "string");
+  assert.deepEqual(reply.metadata.actions, []);
+  const [job] = await rows<import("../../src/lib/workspace/types").Job>(
+    sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${owner}::uuid AND id=${String(reply.metadata.import_job_id)}::uuid`,
+  );
+  const prepared = await prepareImport(job, async () => {});
+  await db.transaction(async (tx) => {
+    await prepared.apply?.(tx);
+    await tx.execute(sql`UPDATE hirelix_private_jobs SET status='done',result=${JSON.stringify(prepared.result)}::jsonb WHERE id=${job.id}::uuid`);
+  });
+  const preview = await importDetails(owner, job.id);
+  assert.equal(preview.items.length, 1);
+  assert(preview.items[0].matches.some((match) => match.id === person.id));
+  const value = {
+    action: "merge",
+    fields: { ...preview.items[0].extracted, name: person.name, note: person.note },
+    target_person_id: person.id,
+    expected_version: person.version,
+  };
+  await reviewImportRow(owner, job.id, preview.items[0].id, value);
+  await reviewImportRow(owner, job.id, preview.items[0].id, value);
+  const sources = await rows<{ file_id: string; kind: string }>(
+    sql`SELECT file_id,kind FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${person.id}::uuid AND file_id=${String(job.payload.file_id)}::uuid`,
+  );
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].kind, "cv");
+  const matches = await rows<{ id: string }>(
+    sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='rowan.qa@example.test'`,
+  );
+  assert.deepEqual(matches.map((item) => item.id), [person.id]);
 });
