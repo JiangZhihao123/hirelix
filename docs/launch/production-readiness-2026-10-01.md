@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | 新用户入口与 OAuth | Chrome 从首页到 Google 回跳和空工作区 | local real chain：真实 Google OAuth 新账户、20 tasks 空工作区 |
 | 文件导入与持久化 | 预览、确认、重复处理、刷新、原文和文件回读 | local real chain：CSV、PDF CV、DOCX CV、TXT JD，原文件 SHA 对应，重新 OAuth 后可读；同 source 接受幂等 |
-| 职位与真实助理 | 真实模型、正确上下文、持久任务和结果 | 未验证 |
+| 职位与真实助理 | 真实模型、正确上下文、持久任务和结果 | local real chain 已验；production：真实 JD 职位及正确角色下双人比较 done/1、来源正确 |
 | JD 判断与来源 | 不同职位独立判断、引用可核对、未知信息保留 | local real chain：产品／财务两 JD 双人比较通过，来源正确且未知意向／授权保留 |
 | Submission / Search update | 编辑、修订、保存、重开、复制、实际 PDF/DOCX 导出 | local real chain：Submission 生成、编辑、修订接受、3 版历史、复制、PDF/DOCX 下载渲染通过；Search update 编辑、修订、历史、重开及 PDF/DOCX 实际下载渲染通过；Submission 精确选择 Morgan CV 原文件下载 SHA 一致 |
 | 客户反馈与历史 | 反馈确认保存、同职位继续工作、历史依据保留 | local real chain：Chrome 确认反馈更新同职位 v2/v3、原 JD 保留、原 Submission source.role.version=1；完整时间修复通过 |
@@ -28,12 +28,12 @@
 | Paddle Sandbox | 官方成功/拒付、真实签名回调、权益和继续使用 | 本轮 Chrome Test Mode 拒付→成功→三类真实 webhook 200→active/300→真实 AI done/299；门户详情、付款方式表单、取消审阅可打开 |
 | Paddle Live | 真实付款、回调、权益、继续使用、客户门户 | 未验证，付款需用户操作 |
 | 数据安全 | 两账户 HTTP/数据库隔离、文件和导出权限、内部鉴权 | local real chain：42 项实际 HTTP 检查；两 PG 账户及签名 session fixture，非两次 OAuth |
-| 生产运行 | 兼容 schema、持久文件、worker 自启动/恢复和队列消费 | 部分：服务 active 不代表消费正常 |
+| 生产运行 | 兼容 schema、持久文件、worker 自启动/恢复和队列消费 | production：最终应用／worker 44a6f1f、生产真实 chat/import done/1；实际停机故障探针已验，较大导出待验 |
 | 备份与恢复 | 实际备份文件与隔离恢复检查 | production chain：完整快照及独立 QA 库恢复、文件哈希检查通过 |
 | 健康与故障识别 | 后台停止消费时可发现，日志可定位 | production：backup/health timer active/enabled，实际备份及每分钟 health 成功；实际停机发现并修复漏报；`3e804b9` 停机 status 3／恢复 status 0 通过 |
 | 公开说明与支持 | 价格、隐私、条款、联系和删除入口符合实际 | 未验证 |
-| 发布候选检查 | typecheck、lint、unit、build、相关真实集成 | `9ea8331` 本地 gates／相关真实链路通过，GitHub CI/CD 36783812497 success |
-| 生产复验 | 最终应用/worker 版本，生产核心任务、文件及账单 | 未验证 |
+| 发布候选检查 | typecheck、lint、unit、build、相关真实集成 | `44a6f1f` 本地 gates 通过；unit 341 pass/1 显式 PG skip，实际 PG／模型另验；CI/CD 36791131014 success |
+| 生产复验 | 最终应用/worker 版本，生产核心任务、文件及账单 | 部分：44a6f1f 应用／worker 一致，OAuth／CSV／JD／CV／真实比较／修复后附件导航已验；较大导出和 Live 链路待验 |
 
 ## 当前进展、缺陷和下一步
 
@@ -88,19 +88,25 @@
 41. 附件导航定位：临时浏览器执行标记确认 response processed、onOpen entered/returned、branch finished 均实际运行，没有异常，production build 的 router.push 仍停留旧查询。仅更换 handoff、仅更换 layout 查询读取、仅更换 History API 的尝试均未通过，未将其单独当修复。最终统一 layout 到 useSearchParams，并在纯客户端对话页使用 Next 官方支持的 history.pushState 更新同路径 query；没有自建路由状态或整页跳转兜底。临时 console 标记已移除。
 42. 最终导航候选 `db81c6d`：localhost:3200 production build＋QA PG＋真实 Chrome，带 entry 参数的附件＋说明对话 `29df35ac-26ba-428d-ad89-b81dbd1f0faa` 自动进入、真实回复且正确 12 人／165–180k；完整首页登录参数、只有附件的对话 `7cab73e5-2a13-471c-aa26-6fb94fca084f` 自动进入，返回旧新建页／前进恢复已保存回复；纯文字 `ec78713d-0052-40b8-8767-ccf638b4ff51` 自动进入。navigation-final-real-chain.log 保存 job done/1。typecheck-navigation-final、lint-navigation-final、unit-navigation-final、build-navigation-combined exit 0；unit 341 pass/1 显式 PG skip，PG 真实链路另验。本次导航回归是实际浏览器验证，没有用源码镜像断言代替。官方路由依据 https://nextjs.org/docs/app/getting-started/linking-and-navigating#native-history-api 。生产复验待发布。
 
+43. 导航候选最终发布 `44a6f1fce11d443fdef5bdd65edc4a725d75e8e0`：CI/CD 36791131014 build-and-test＋deploy-scheduler success；Vercel deployment 6772408965 success，URL hirelix-2l6xz215v-noahs-projects-292679b9.vercel.app；VPS 当前 SHA 精确一致、工作区干净、四项 Hirelix service/timer active。发布前 daily-20260930T232612Z.dump 49,555,005 bytes，backup Result=success/status 0。生产完整首页参数 CV 提交自动进入 `d94dcfd1-487b-4e30-a211-3fc391754aac`，job `6a34ff74-3267-405e-93d7-7135c5f77185` done/1。真实模型识别重复资料且没有新保存建议；PG 候选人仍 cv/note/profile 各 1。证据 production-navigation-version.log、production-navigation-recheck.log（最后附带 jd 字段名误读失败；核心状态已输出，正确原文比对在 production-role-link.log 为 true）。
+44. 生产 CV 原导入通过逐项合并审阅保留 Product Director 与私人备注，原 CV 唯一 source `c27981da-80c5-49e7-8f17-c34c8d01268b`，production-cv-merge.log。生产真实 JD 双人比较对话 `7fc22ff0-cfce-41d0-9b79-7928ed1cddaf`，job `b1401f12-8255-4078-9aad-0c248120ccab` done/1：明确产品部门 12 PM／B2B SaaS 与财务 8 会计的区别、正确引用职位和各人记录，当前状态／hybrid／薪酬期望／兴趣／分享许可保持未知，没有发送。
+45. 通过 Chrome 把 Product 候选人关联到 QA 职位，PG permission=unknown、interest 空（未知），没有确认授权。推荐准备页精确选择 production-cv.pdf，四个可选笔记均未选；材料语言 English，生成指令明确 Fictional production QA、未知意向／授权、不含联系方式／私人笔记、不发送。生产实际生成任务已启动，后续验收见第 46 项。
+
+46. 生产 Submission `d4330b09-813b-4429-8caa-e73f324a8d5e`：Chrome 编辑标题自动保存 v2，真实模型修订提案确认完整正文后接受为 v3，状态仍 draft（未发送）。修订明确 Fictional QA、London 并不确认 hybrid 意愿、兴趣／授权／薪资期望未知。最初 AX 文本截取只显示到 T，但 PG result 是完整句子；用真实输出核对，未把 AX 截取误报为模型截断。production-submission-revision-first.log、production-submission-saved.log 保存 v1/v2/v3、record_ids 空、选中文件 1、source.role.version=1、正文没有 example.test 邮箱。Chrome 复制正文显示“正文已复制”；版本历史实际列出 1/2/3，展开 v1 可读初始标题／正文，刷新重开仍 v3。线上实际 PDF 2,452 bytes、DOCX 6,328,659 bytes 下载完成（Downloads/Fictional production QA — VP Product candidate review），均渲染一页并目视无裁切／乱码，正文及未知信息对应；production-submission-pdf.png、production-submission-docx/page-1.png。大 DOCX 实际通过 Vercel 下载，不能把本地导出代替这一结论。推荐材料的原 CV 单独下载 SHA 与上传文件均 ac4413f88e91109eddf483781ab0fc18031345700cdeaf407748f5a3bed20471，不宣称内嵌在 PDF／DOCX 中。
+
 ## 下次继续位置
 
-- Next dev server live，QA 库 `hirelix_workspace_qa_launch_20261001`，private worker session `44619`（必须重新核对）。生产应用／worker `3e804b9`，本地代码与远端一致；后续上线记录提交单独保存。
-- 下一步：当前优先完成 production build 附件导航缺陷 A/B 复验及新候选发布，再接受生产 CV 合并→JD 比较→材料／大下载。后续手机触屏路径、Search update 复制、重复导入。
+- Next dev server live，QA 库 `hirelix_workspace_qa_launch_20261001`，private worker session `44619`（必须重新核对）。生产应用／worker `44a6f1f`，本地代码与远端一致；后续上线记录提交单独保存。
+- 下一步：附件导航修复已发布并生产复验；生产 CV 合并／JD 比较已完成。Chrome 当前生产 Submission 版本历史弹窗；Submission 编辑／修订／复制／大下载已验。下一步生产反馈保存→Search update 生成编辑修订、历史来源→手机触屏关键路径。隔离 Search update 的复制成功提示仍待独立观察。
 - 最终导航 gates 已全部 exit 0；3200 production server session `52269`、3000 dev `62371`、QA worker `44619` 保留，必须重新核对进程后继续，不得重启仅因观测超时。
 - 用户侧待 Live 实际付款或已有真实订阅，以及支持邮箱收件确认。不能据 Sandbox 或 checkout 打开声明收费验收完成。
 
 ## 发布、回滚和交接
 
-已发布代码 `3e804b9`；新增导航候选 `db81c6d` 加上线记录提交正在发布。所有当前代码差异不改变 schema；不需要新迁移或模型／支付环境变量。VPS 与应用可独立部署，接口／持久表保持兼容。发布前再建数据库快照，生产保持既有配置，CI 完成后部署准确 SHA；再安装 backup／health timers 并实际执行。
+当前发布代码 `44a6f1f`（含导航修复 db81c6d）。所有当前代码差异不改变 schema；不需要新迁移或模型／支付环境变量。VPS 与应用可独立部署，接口／持久表保持兼容。发布前再建数据库快照，生产保持既有配置，CI 完成后部署准确 SHA；再安装 backup／health timers 并实际执行。
 
 应用回滚：上一版 Vercel deployment `6752313582`（`hirelix-ojyqoxfb4-noahs-projects-292679b9.vercel.app`）对应 `8d363f7b6009d0471005655acbada3128542e9c3`。worker 在服务器工作区干净时切换该 SHA、npm ci、restart Hirelix scheduler，并复验消费；保留数据库及发布期间写入。Vercel 管理页本轮已实际访问，Production Ready 与 Instant Rollback 入口可见；未执行回滚演练。Hirelix Node.js=24.x，构建未覆盖命令；配置页真实检查 DATABASE_URL、DEEPSEEK_API_KEY、PADDLE_API_KEY、PADDLE_WEBHOOK_SECRET 存在，公共月付／年付 ID 对应 Live 商品，NEXT_PUBLIC_PADDLE_ENV=production；未读取密钥。
 
 发布前新增备份 `/var/backups/hirelix/pre-release-20261001-2206.dump` 49,506,261 bytes、600，pg_restore 目录可读。VPS 当前工作区干净、旧版 `8d363f7`，scheduler/PostgreSQL active，队列 16 done、无待处理。生产 private worker 默认启用，官方 DeepSeek／SiliconFlow key 已配置。
 
-代码已发布 `3e804b9`，timers 已启用；未更改生产 schema。生产核心用户链路复验进行中。最终上线结论：**尚未完成**，Live 完整付款／门户及支持邮箱确认仍缺少证据。
+代码已发布 `44a6f1f`，timers 已启用；未更改生产 schema。生产核心用户链路复验进行中。最终上线结论：**尚未完成**，Live 完整付款／门户及支持邮箱确认仍缺少证据。
