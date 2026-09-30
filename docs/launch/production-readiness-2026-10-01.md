@@ -24,15 +24,15 @@
 | 客户反馈与历史 | 反馈确认保存、同职位继续工作、历史依据保留 | local real chain：Chrome 确认反馈更新同职位 v2/v3、原 JD 保留、原 Submission source.role.version=1；完整时间修复通过 |
 | 故障与重试 | 中断、租约回收、worker 重启、幂等、额度一致 | local real chain：真实 provider 鉴权失败返还、Chrome Offline 重试失败不重复、恢复网络同 job 完成；停止 worker 时排队、重启消费通过；运行中停止进程→自然租约到期→第 2 次领取完成，单回复／单额度通过 |
 | 桌面和移动端 | 关键路径、空状态、运行中、失败和重试可操作 | 未验证 |
-| 试用与额度 | 真实 PG 并发、到期、退款和已存资料可读 | 未验证 |
-| Paddle Sandbox | 官方成功/拒付、真实签名回调、权益和继续使用 | 未验证 |
+| 试用与额度 | 真实 PG 并发、到期、退款和已存资料可读 | local real chain：显式 PG 集成 1/1 无 skip；到期 HTTP 10 个已有对象／导出可读，新 AI 402 且无额外 job |
+| Paddle Sandbox | 官方成功/拒付、真实签名回调、权益和继续使用 | 本轮 Chrome Test Mode 拒付→成功→三类真实 webhook 200→active/300→真实 AI done/299；门户详情、付款方式表单、取消审阅可打开 |
 | Paddle Live | 真实付款、回调、权益、继续使用、客户门户 | 未验证，付款需用户操作 |
 | 数据安全 | 两账户 HTTP/数据库隔离、文件和导出权限、内部鉴权 | local real chain：42 项实际 HTTP 检查；两 PG 账户及签名 session fixture，非两次 OAuth |
 | 生产运行 | 兼容 schema、持久文件、worker 自启动/恢复和队列消费 | 部分：服务 active 不代表消费正常 |
 | 备份与恢复 | 实际备份文件与隔离恢复检查 | production chain：完整快照及独立 QA 库恢复、文件哈希检查通过 |
-| 健康与故障识别 | 后台停止消费时可发现，日志可定位 | 未验证 |
+| 健康与故障识别 | 后台停止消费时可发现，日志可定位 | production：backup/health timer active/enabled，实际备份及每分钟 health 成功；异常识别逻辑仍需故障分支证据 |
 | 公开说明与支持 | 价格、隐私、条款、联系和删除入口符合实际 | 未验证 |
-| 发布候选检查 | typecheck、lint、unit、build、相关真实集成 | 进行中 |
+| 发布候选检查 | typecheck、lint、unit、build、相关真实集成 | `9ea8331` 本地 gates／相关真实链路通过，GitHub CI/CD 36783812497 success |
 | 生产复验 | 最终应用/worker 版本，生产核心任务、文件及账单 | 未验证 |
 
 ## 当前进展、缺陷和下一步
@@ -70,10 +70,17 @@
 27. worker 停止时新 job `7e9f957e-c2e7-4755-ad13-38f22ae395a4` 排队，重启后完成。下一项 `f6f4725c-15d2-43c4-906d-f4816d8dbdda` 于 06:01 被领取后立即停止进程（exit 130），DB running/attempt=1，租约至 06:03:09；新 worker 已启动，06:03:09 自然到期后第 2 次领取，06:03:58 已 done。SQL user_messages=1、assistant_messages=1、usage_rows=1；Chrome 刷新结果可读、2 tasks 剩余。证据 worker-interruption-recovery.log。未人为更改租约。
 28. `99294ad` 首批用户英文工作流程说明已保存。最新代码检查：typecheck-cv、lint-cv exit 0；unit-cv 339 pass/1 显式 PG skip（另行实际启用已通过）；build-cv exit 0；cv-import-owner-recheck 1/1 实际模型＋PG 无 skip。首次只加载 .env.local 缺少 key 的失败日志仍保留。
 
+29. 发布提交 `9ea8331ccd9c8cb835156bdf89740d13483f59db` 已推送 main。GitHub Actions `36783812497` build-and-test／deploy-scheduler 均 success；Vercel Production deployment `6771261787` success，对应同 SHA，URL `hirelix-flp3moqxo-noahs-projects-292679b9.vercel.app`。生产域名仍 hirelix.online，VPS 实际 git SHA 一致、工作区干净、scheduler active/running、NRestarts=0；此时队列 16 done。尚未因此声明核心业务生产复验完成。
+30. 生产 backup／health service+timer 已安装、enabled/active。实际 daily 备份 `daily-20260930T221306Z.dump` 49,506,261 bytes 成功；health 手动及后续定时均 Result=success/exit 0。证据 production-timers.log、production-version-health.log。不提供主动外部告警，只通过 systemd failed/journal 识别故障；异地备份仍无。
+31. 本轮显式启用 `AGENT_BILLING_INTEGRATION=true`：agent-billing-enabled.log 1/1 pass、0 skip，实际 PG 21 并发只接受 20、退款／重试、到期、签名鉴权、重复和乱序事件通过。这里事件是自建签名 fixture，不是 Paddle 平台回调。
+32. 本轮当前候选真实 Sandbox：Chrome Test Mode 49 USD/月、官方拒付卡显示 declined，DB subscription_status 未开通；官方成功卡完成交易，实际收到 subscription.created、subscription.activated、transaction.completed 各一次，原始签名透传、应用返回 200，DB active，自动回跳页面 300 tasks。真实 worker 任务 `9ea115ad-c10e-44ad-81da-6578d12afbb5` 完成、一次 usage，Chrome 299 tasks／正确 JD＋CV 来源。证据 sandbox-decline-db.log、sandbox-success-db.log、sandbox-paid-use.log、sandbox-webhook-proxy.log。不是 Live 扣款。
+33. 当前 Sandbox 订阅通过 Hirelix 入口实际打开门户，详情与产品正确，付款方式表单及取消前审阅可打开；未实际更换卡或取消。共享门户仍 YieldMirror。复用了原 Hirelix 临时 QA destination，更新地址与描述后启用；验收后已确认 Inactive，cloudflared session 13728 exit 0、proxy 60145 exit 130，其他通知未改动。官方测试卡来源 https://developer.paddle.com/sdks/sandbox/ 。不记录门户会话 URL 或密钥。
+34. 到期隔离 HTTP 复验：人工设置 PG 试用开始八天前的 fixture，10 个本人已有资源／PDF 导出返回 200，新 AI POST 402、job 数不增加。http-expired-access-recheck.log。首轮计数断言错误假设只存在一个 index job；createPerson/addRecord 自动索引实际共四项。已改为请求前后计数相等，保留首次失败，不删断言或隐藏访问。
+
 ## 下次继续位置
 
-- Next dev server live，QA 库 `hirelix_workspace_qa_launch_20261001`，private worker session `5778`（必须重新核对）。生产仍 baseline `8d363f7`；本地 `99294ad`，远端差异 0/12。
-- 下一步：自然租约恢复及一次结果／计费，手机触屏路径，Search update 复制、重复导入；当前候选 Sandbox 实际回调／门户；发布备份和回滚→授权推送→生产核心任务、大文件下载与 billing 复验。
+- Next dev server live，QA 库 `hirelix_workspace_qa_launch_20261001`，private worker session `44619`（必须重新核对）。生产应用／worker `9ea8331`，本地代码与远端一致；后续上线记录提交单独保存。
+- 下一步：生产首页、Google OAuth、新建明确虚构 QA 数据→真实任务→文件／材料大下载复验；手机触屏路径、Search update 复制、重复导入；健康异常识别验证。
 - 用户侧待 Live 实际付款或已有真实订阅，以及支持邮箱收件确认。不能据 Sandbox 或 checkout 打开声明收费验收完成。
 
 ## 发布、回滚和交接
@@ -84,4 +91,4 @@
 
 发布前新增备份 `/var/backups/hirelix/pre-release-20261001-2206.dump` 49,506,261 bytes、600，pg_restore 目录可读。VPS 当前工作区干净、旧版 `8d363f7`，scheduler/PostgreSQL active，队列 16 done、无待处理。生产 private worker 默认启用，官方 DeepSeek／SiliconFlow key 已配置。
 
-准备推送当前提交触发现有 CI/CD 和 Vercel 发布，部署准确 SHA。未安装 timers；未更改生产 schema。最终上线结论：**尚未完成**。
+代码已发布 `9ea8331`，timers 已启用；未更改生产 schema。生产核心用户链路复验进行中。最终上线结论：**尚未完成**，Live 完整付款／门户及支持邮箱确认仍缺少证据。
