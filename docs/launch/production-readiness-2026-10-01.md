@@ -30,7 +30,7 @@
 | 数据安全 | 两账户 HTTP/数据库隔离、文件和导出权限、内部鉴权 | local real chain：42 项实际 HTTP 检查；两 PG 账户及签名 session fixture，非两次 OAuth |
 | 生产运行 | 兼容 schema、持久文件、worker 自启动/恢复和队列消费 | 部分：服务 active 不代表消费正常 |
 | 备份与恢复 | 实际备份文件与隔离恢复检查 | production chain：完整快照及独立 QA 库恢复、文件哈希检查通过 |
-| 健康与故障识别 | 后台停止消费时可发现，日志可定位 | production：backup/health timer active/enabled，实际备份及每分钟 health 成功；异常识别逻辑仍需故障分支证据 |
+| 健康与故障识别 | 后台停止消费时可发现，日志可定位 | production：backup/health timer active/enabled，实际备份及每分钟 health 成功；实际停机发现并修复漏报；`3e804b9` 停机 status 3／恢复 status 0 通过 |
 | 公开说明与支持 | 价格、隐私、条款、联系和删除入口符合实际 | 未验证 |
 | 发布候选检查 | typecheck、lint、unit、build、相关真实集成 | `9ea8331` 本地 gates／相关真实链路通过，GitHub CI/CD 36783812497 success |
 | 生产复验 | 最终应用/worker 版本，生产核心任务、文件及账单 | 未验证 |
@@ -77,18 +77,30 @@
 33. 当前 Sandbox 订阅通过 Hirelix 入口实际打开门户，详情与产品正确，付款方式表单及取消前审阅可打开；未实际更换卡或取消。共享门户仍 YieldMirror。复用了原 Hirelix 临时 QA destination，更新地址与描述后启用；验收后已确认 Inactive，cloudflared session 13728 exit 0、proxy 60145 exit 130，其他通知未改动。官方测试卡来源 https://developer.paddle.com/sdks/sandbox/ 。不记录门户会话 URL 或密钥。
 34. 到期隔离 HTTP 复验：人工设置 PG 试用开始八天前的 fixture，10 个本人已有资源／PDF 导出返回 200，新 AI POST 402、job 数不增加。http-expired-access-recheck.log。首轮计数断言错误假设只存在一个 index job；createPerson/addRecord 自动索引实际共四项。已改为请求前后计数相等，保留首次失败，不删断言或隐藏访问。
 
+35. 本轮生产重新从首页经真实 Google OAuth 登录，session 最近创建计数为 1，受控运营测试账户 ID `8ad2bad7-d8fe-4207-83a8-b6bce553b739`。只新增明确 Fictional production QA 资料，不修改原候选人或职位。CSV 导入对话 `68b65de7-9005-47e1-a1ff-d63372afd2a5`、chat `b4b8aeb5-9f16-4395-ab6c-8cd706d98d1e`、import `b3f24f94-4c12-4de3-b27d-98ad75479350` 实际生产 done/attempt 1。两候选人经字段映射／逐项确认保存，ID Product `75b63d7e-d9e6-4eed-b8b9-71e024ef4245`、Finance `fc9a97d4-1767-4629-affc-7c0a01f4f071`。文件 `6190dab6-7a64-4e5e-81ea-4376cbcfaeb6` 533 bytes，Chrome 实际下载／本地源文件／生产 sha256 均 `059c796a1153112fcc1d8675b35f793ced37d08dc5d48b2eec6b9f7b787a6550`。
+36. 生产 TXT JD 经真实模型提案、字段审阅保存为职位 `93d92ef2-046e-4d59-9fea-a864994b49d1`，对话 `be840c29-608a-420d-b47e-237e3d6aaa37`、chat `b21abe2b-e4f8-4aba-8f91-dce2a6a4aa5a` done/1。QA 职位名称、客户、原文及 165,000–180,000 已确认薪酬正确。PDF CV 上传 `da3b1aef-6ef8-4daa-964c-55d26fca8d57` 1,876 bytes、SHA `ac4413f88e91109eddf483781ab0fc18031345700cdeaf407748f5a3bed20471`，对应对话 `88f3913e-6c3e-4ee3-ac35-9b2d50970c7c`，chat/import 均 done，合并审阅尚未接受。
+37. 生产故障探针首次发现 health 漏报：停止 scheduler 后 health 仍返回 success，trap 已恢复服务。根因 `systemctl is-active --quiet postgresql hirelix-scheduler` 任一 active 即返回成功。最小修复逐项检查，2 项 shell 行为 mock regression 通过；typecheck/lint/build exit 0，unit 341 pass/1 PG skip（实际 PG 已另启用）。保留 production-health-fault.log 首次失败。提交 `3e804b9` 已发布，CI `36787314112`、Vercel deployment `6771816384` 对应同 SHA 均 success。
+38. 修复后实际生产再次停止空闲 worker（明确确认无 queued/running，trap 保证恢复），health Result=exit-code / status 3；恢复后 Result=success / status 0，scheduler/PostgreSQL/backup.timer/health.timer 全 active。production-health-fault-recheck.log。测试仅暂停 Hirelix 自己的服务及其 health timer，其他服务未停；定时器已恢复。
+39. 生产首个 CSV 上传及带首页登录追踪参数的 PDF 上传后出现新对话未自动打开：后台 done，页面仍新建对话；历史链接键盘打开可恢复完整结果。干净 `/app` 上传 JD 自动进入新对话成功。此问题并非数据丢失，但妨碍首次核心使用。隔离 production build localhost:3200 + 同一 QA PG/Cookie 复现附件新对话问题（对话 `52af29e1-5c6f-413a-ac0e-1f3959883166`，URL 留在 `?entry=signin`）；3000 dev 同 entry 的纯文字正常。尝试改用 useSearchParams 后 production build 仍复现，已撤回该无效假设。Chrome Network 确认提交 JSON 返回正确 conversation_id 且 200；正在定位附件与纯文字提交在父组件 handoff／路由更新上的差异，最终浏览器复验及发布待完成。不要把恢复后可读当作自动跳转已通过。
+
+40. Chrome 请求检查时意外输出了隔离 QA 的 session Cookie；立即在隔离库过期该用户现有 session，确认有效 session 数为 0，再经真实 Google OAuth 重新登录。生产 session 未受影响；没有将凭据写入 Git 或报告。后续只查看响应正文，避免展开请求鉴权头。
+
+41. 附件导航定位：临时浏览器执行标记确认 response processed、onOpen entered/returned、branch finished 均实际运行，没有异常，production build 的 router.push 仍停留旧查询。仅更换 handoff、仅更换 layout 查询读取、仅更换 History API 的尝试均未通过，未将其单独当修复。最终统一 layout 到 useSearchParams，并在纯客户端对话页使用 Next 官方支持的 history.pushState 更新同路径 query；没有自建路由状态或整页跳转兜底。临时 console 标记已移除。
+42. 最终导航候选 `db81c6d`：localhost:3200 production build＋QA PG＋真实 Chrome，带 entry 参数的附件＋说明对话 `29df35ac-26ba-428d-ad89-b81dbd1f0faa` 自动进入、真实回复且正确 12 人／165–180k；完整首页登录参数、只有附件的对话 `7cab73e5-2a13-471c-aa26-6fb94fca084f` 自动进入，返回旧新建页／前进恢复已保存回复；纯文字 `ec78713d-0052-40b8-8767-ccf638b4ff51` 自动进入。navigation-final-real-chain.log 保存 job done/1。typecheck-navigation-final、lint-navigation-final、unit-navigation-final、build-navigation-combined exit 0；unit 341 pass/1 显式 PG skip，PG 真实链路另验。本次导航回归是实际浏览器验证，没有用源码镜像断言代替。官方路由依据 https://nextjs.org/docs/app/getting-started/linking-and-navigating#native-history-api 。生产复验待发布。
+
 ## 下次继续位置
 
-- Next dev server live，QA 库 `hirelix_workspace_qa_launch_20261001`，private worker session `44619`（必须重新核对）。生产应用／worker `9ea8331`，本地代码与远端一致；后续上线记录提交单独保存。
-- 下一步：生产首页、Google OAuth、新建明确虚构 QA 数据→真实任务→文件／材料大下载复验；手机触屏路径、Search update 复制、重复导入；健康异常识别验证。
+- Next dev server live，QA 库 `hirelix_workspace_qa_launch_20261001`，private worker session `44619`（必须重新核对）。生产应用／worker `3e804b9`，本地代码与远端一致；后续上线记录提交单独保存。
+- 下一步：当前优先完成 production build 附件导航缺陷 A/B 复验及新候选发布，再接受生产 CV 合并→JD 比较→材料／大下载。后续手机触屏路径、Search update 复制、重复导入。
+- 最终导航 gates 已全部 exit 0；3200 production server session `52269`、3000 dev `62371`、QA worker `44619` 保留，必须重新核对进程后继续，不得重启仅因观测超时。
 - 用户侧待 Live 实际付款或已有真实订阅，以及支持邮箱收件确认。不能据 Sandbox 或 checkout 打开声明收费验收完成。
 
 ## 发布、回滚和交接
 
-待发布候选代码 `99294ad` 加上线记录提交。所有当前代码差异不改变 schema；不需要新迁移或模型／支付环境变量。VPS 与应用可独立部署，接口／持久表保持兼容。发布前再建数据库快照，生产保持既有配置，CI 完成后部署准确 SHA；再安装 backup／health timers 并实际执行。
+已发布代码 `3e804b9`；新增导航候选 `db81c6d` 加上线记录提交正在发布。所有当前代码差异不改变 schema；不需要新迁移或模型／支付环境变量。VPS 与应用可独立部署，接口／持久表保持兼容。发布前再建数据库快照，生产保持既有配置，CI 完成后部署准确 SHA；再安装 backup／health timers 并实际执行。
 
 应用回滚：上一版 Vercel deployment `6752313582`（`hirelix-ojyqoxfb4-noahs-projects-292679b9.vercel.app`）对应 `8d363f7b6009d0471005655acbada3128542e9c3`。worker 在服务器工作区干净时切换该 SHA、npm ci、restart Hirelix scheduler，并复验消费；保留数据库及发布期间写入。Vercel 管理页本轮已实际访问，Production Ready 与 Instant Rollback 入口可见；未执行回滚演练。Hirelix Node.js=24.x，构建未覆盖命令；配置页真实检查 DATABASE_URL、DEEPSEEK_API_KEY、PADDLE_API_KEY、PADDLE_WEBHOOK_SECRET 存在，公共月付／年付 ID 对应 Live 商品，NEXT_PUBLIC_PADDLE_ENV=production；未读取密钥。
 
 发布前新增备份 `/var/backups/hirelix/pre-release-20261001-2206.dump` 49,506,261 bytes、600，pg_restore 目录可读。VPS 当前工作区干净、旧版 `8d363f7`，scheduler/PostgreSQL active，队列 16 done、无待处理。生产 private worker 默认启用，官方 DeepSeek／SiliconFlow key 已配置。
 
-代码已发布 `9ea8331`，timers 已启用；未更改生产 schema。生产核心用户链路复验进行中。最终上线结论：**尚未完成**，Live 完整付款／门户及支持邮箱确认仍缺少证据。
+代码已发布 `3e804b9`，timers 已启用；未更改生产 schema。生产核心用户链路复验进行中。最终上线结论：**尚未完成**，Live 完整付款／门户及支持邮箱确认仍缺少证据。
