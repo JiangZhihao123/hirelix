@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Read-only checks. A failed oneshot remains visible in systemctl/journalctl.
 set -euo pipefail
-systemctl is-active --quiet postgresql hirelix-scheduler
+for service in postgresql hirelix-scheduler; do
+  systemctl is-active --quiet "$service"
+done
 systemctl is-enabled --quiet hirelix-scheduler
 if grep -Eq "^PRIVATE_WORKSPACE_WORKER_ENABLED=(false|\"false\"|'false')[[:space:]]*(#.*)?$" /etc/hirelix.env; then
   echo 'Hirelix private workspace worker is disabled' >&2
