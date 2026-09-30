@@ -22,7 +22,7 @@
 | JD 判断与来源 | 不同职位独立判断、引用可核对、未知信息保留 | local real chain：产品／财务两 JD 双人比较通过，来源正确且未知意向／授权保留 |
 | Submission / Search update | 编辑、修订、保存、重开、复制、实际 PDF/DOCX 导出 | local real chain：Submission 生成、编辑、修订接受、3 版历史、复制、PDF/DOCX 下载渲染通过；Search update 编辑、修订、历史、重开及 PDF/DOCX 实际下载渲染通过；Submission 精确选择 Morgan CV 原文件下载 SHA 一致 |
 | 客户反馈与历史 | 反馈确认保存、同职位继续工作、历史依据保留 | local real chain：Chrome 确认反馈更新同职位 v2/v3、原 JD 保留、原 Submission source.role.version=1；完整时间修复通过 |
-| 故障与重试 | 中断、租约回收、worker 重启、幂等、额度一致 | local real chain：真实 provider 鉴权失败返还、Chrome Offline 重试失败不重复、恢复网络同 job 完成；停止 worker 时排队、重启消费通过；运行中租约恢复进行中 |
+| 故障与重试 | 中断、租约回收、worker 重启、幂等、额度一致 | local real chain：真实 provider 鉴权失败返还、Chrome Offline 重试失败不重复、恢复网络同 job 完成；停止 worker 时排队、重启消费通过；运行中停止进程→自然租约到期→第 2 次领取完成，单回复／单额度通过 |
 | 桌面和移动端 | 关键路径、空状态、运行中、失败和重试可操作 | 未验证 |
 | 试用与额度 | 真实 PG 并发、到期、退款和已存资料可读 | 未验证 |
 | Paddle Sandbox | 官方成功/拒付、真实签名回调、权益和继续使用 | 未验证 |
@@ -67,7 +67,7 @@
 24. 真实 Chrome 导入第二个财务 JD 建立 QA Southbank Finance Director `779879c4-e6bd-4d7e-9cd7-f0332452d536`。SQL 角色 JD 与 TXT 文件原文相等，产品职位 v3 未变。真实比较明确 Taylor 的会计／财报／税务和 8 人团队更符合财务职位，Morgan 产品证据不足，引用两人 CV 和正确 JD，不作全局候选人好坏标签。
 25. Chrome Sign out → Google OAuth → 返回原工作区，SQL 确认新 session，两候选人及 DOCX CV source 可读。393×600、100% Chrome 手机宽度下发送、失败提示和重试实际操作通过；尚不声明真机验收或所有触屏路径通过。
 26. 隔离 QA 使用无效测试 key 请求真实 DeepSeek endpoint，job `352fe32f-16a2-4ad8-b1ec-8f36c425c081` 进入 error，额度 4→5 返还、页面可重试；安全日志仅记录 DeepSeekApiError，无 provider payload。Chrome Offline 点击重试显示 Failed to fetch，DB 没有新消息／计费；恢复网络，同 job 重试完成，仅一用户消息、一回复和一次额度记录。生产配置未修改。
-27. worker 停止时新 job `7e9f957e-c2e7-4755-ad13-38f22ae395a4` 排队，重启后完成。下一项 `f6f4725c-15d2-43c4-906d-f4816d8dbdda` 于 06:01 被领取后立即停止进程（exit 130），DB running/attempt=1，租约至 06:03:09；新 worker 已启动，等待自然到期恢复，未人为更改租约。
+27. worker 停止时新 job `7e9f957e-c2e7-4755-ad13-38f22ae395a4` 排队，重启后完成。下一项 `f6f4725c-15d2-43c4-906d-f4816d8dbdda` 于 06:01 被领取后立即停止进程（exit 130），DB running/attempt=1，租约至 06:03:09；新 worker 已启动，06:03:09 自然到期后第 2 次领取，06:03:58 已 done。SQL user_messages=1、assistant_messages=1、usage_rows=1；Chrome 刷新结果可读、2 tasks 剩余。证据 worker-interruption-recovery.log。未人为更改租约。
 28. `99294ad` 首批用户英文工作流程说明已保存。最新代码检查：typecheck-cv、lint-cv exit 0；unit-cv 339 pass/1 显式 PG skip（另行实际启用已通过）；build-cv exit 0；cv-import-owner-recheck 1/1 实际模型＋PG 无 skip。首次只加载 .env.local 缺少 key 的失败日志仍保留。
 
 ## 下次继续位置
@@ -80,6 +80,8 @@
 
 待发布候选代码 `99294ad` 加上线记录提交。所有当前代码差异不改变 schema；不需要新迁移或模型／支付环境变量。VPS 与应用可独立部署，接口／持久表保持兼容。发布前再建数据库快照，生产保持既有配置，CI 完成后部署准确 SHA；再安装 backup／health timers 并实际执行。
 
-应用回滚：上一版 Vercel deployment `6752313582`（`hirelix-ojyqoxfb4-noahs-projects-292679b9.vercel.app`）对应 `8d363f7b6009d0471005655acbada3128542e9c3`。worker 在服务器工作区干净时切换该 SHA、npm ci、restart Hirelix scheduler，并复验消费；保留数据库及发布期间写入。Vercel 管理访问尚待本轮刷新；不得声称回滚演练已完成。
+应用回滚：上一版 Vercel deployment `6752313582`（`hirelix-ojyqoxfb4-noahs-projects-292679b9.vercel.app`）对应 `8d363f7b6009d0471005655acbada3128542e9c3`。worker 在服务器工作区干净时切换该 SHA、npm ci、restart Hirelix scheduler，并复验消费；保留数据库及发布期间写入。Vercel 管理页本轮已实际访问，Production Ready 与 Instant Rollback 入口可见；未执行回滚演练。Hirelix Node.js=24.x，构建未覆盖命令；配置页真实检查 DATABASE_URL、DEEPSEEK_API_KEY、PADDLE_API_KEY、PADDLE_WEBHOOK_SECRET 存在，公共月付／年付 ID 对应 Live 商品，NEXT_PUBLIC_PADDLE_ENV=production；未读取密钥。
 
-未执行生产发布；未安装 timers；未更改生产 schema。最终上线结论：**尚未完成**。
+发布前新增备份 `/var/backups/hirelix/pre-release-20261001-2206.dump` 49,506,261 bytes、600，pg_restore 目录可读。VPS 当前工作区干净、旧版 `8d363f7`，scheduler/PostgreSQL active，队列 16 done、无待处理。生产 private worker 默认启用，官方 DeepSeek／SiliconFlow key 已配置。
+
+准备推送当前提交触发现有 CI/CD 和 Vercel 发布，部署准确 SHA。未安装 timers；未更改生产 schema。最终上线结论：**尚未完成**。
