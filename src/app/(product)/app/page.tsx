@@ -65,8 +65,7 @@ function assistantDraftKey(
   return `hirelix:assistant:draft:new:${roleId || "-"}:${personId || "-"}${initialPrompt ? `:prompt:${encodeURIComponent(initialPrompt)}` : ""}`;
 }
 export default function AssistantHome() {
-  const params = useSearchParams(),
-    router = useRouter();
+  const params = useSearchParams();
   const conversationId = params.get("conversation");
   const roleId = params.get("role"),
     personId = params.get("person");
@@ -88,7 +87,9 @@ export default function AssistantHome() {
       onHandoffSettled={() => setHandoff(null)}
       onOpen={(id, text) => {
         if (text) setHandoff({ conversationId: id, text });
-        router.push(`/app?conversation=${id}`);
+        // This page loads conversation data on the client. Keep this query-only
+        // change in the current route; Next synchronizes useSearchParams here.
+        window.history.pushState(null, "", `/app?conversation=${id}`);
       }}
     />
   );

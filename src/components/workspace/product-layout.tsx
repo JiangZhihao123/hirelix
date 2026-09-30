@@ -5,7 +5,6 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -83,24 +82,8 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     }
     return "workspace";
   };
-  const pendingJd = useSyncExternalStore(
-    () => () => {},
-    () => {
-      if (typeof window === "undefined") return "";
-      const params = new URLSearchParams(window.location.search);
-      return params.get("jd")?.trim() || "";
-    },
-    () => "",
-  );
-  const entryMode = useSyncExternalStore<EntryMode>(
-    () => () => {},
-    () => {
-      if (typeof window === "undefined") return "workspace";
-      const params = new URLSearchParams(window.location.search);
-      return normalizeEntryMode(params.get("entry"));
-    },
-    () => "workspace",
-  );
+  const pendingJd = searchParams.get("jd")?.trim() || "";
+  const entryMode = normalizeEntryMode(searchParams.get("entry"));
   const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
   const isNewSearchRoute = pathname === "/app/search/new";
