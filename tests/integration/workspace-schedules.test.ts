@@ -19,8 +19,10 @@ const owner = randomUUID();
 const accounts = [owner];
 afterEach(async () => { for (const account of accounts) await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${account}::uuid`); });
 after(async () => {
-  await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${owner}::uuid`);
-  await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
+  for (const account of accounts) {
+    await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${account}::uuid`);
+    await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${account}::uuid AND status IN ('queued','running')`);
+  }
   await closeDb();
 });
 const agreement = { enabled: true, timezone: "Europe/London", weekday: 5, local_time: "09:00", interval_weeks: 1, language: "en", person_ids: [], include_role_records: true, include_candidate_records: false, only_when_changed: true };
@@ -43,11 +45,17 @@ test("real PG + AI: atomic due runs, source opt-in, pause, allowance error, fail
   await assert.rejects(() => saveSchedule(randomUUID(), role.id, agreement), (e: unknown) => e instanceof WorkspaceError && e.status === 404);
   await assert.rejects(() => saveSchedule(owner, role.id, { ...agreement, timezone: "Invalid/Nowhere" }));
   await db.execute(sql`UPDATE hirelix_private_schedules SET next_run_at=${due}::timestamptz,last_period_end=${start}::timestamptz WHERE id=${schedule.id}::uuid`);
+  for (const status of ["paused", "closed", "active"]) {
+    await db.execute(sql`UPDATE hirelix_private_roles SET status=${status} WHERE id=${role.id}::uuid`);
+    if (status !== "active") assert.equal(await queueScheduledDrafts(), 0);
+  }
   const counts = await Promise.all([queueScheduledDrafts(), queueScheduledDrafts()]);
   assert.equal(counts.reduce((a, b) => a + b, 0), 1);
   const [saved] = await rows<Schedule>(sql`SELECT * FROM hirelix_private_schedules WHERE id=${schedule.id}::uuid`);
   assert(saved.last_job_id);
   const queued = await owned<Job>(owner, "job", saved.last_job_id);
+  assert.equal((queued.payload.request as { report_timezone: string }).report_timezone, agreement.timezone);
+  assert.equal((queued.payload.source as { report_timezone: string }).report_timezone, agreement.timezone);
   assert.deepEqual((queued.payload.request as { record_ids: string[] }).record_ids, [feedback.id]);
   assert.doesNotMatch(JSON.stringify(queued.payload.source), /PRIVATE UNSELECTED|private-schedule@example/);
   const job = await claimJob(["deliverable"]);

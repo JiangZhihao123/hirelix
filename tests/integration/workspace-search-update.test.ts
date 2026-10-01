@@ -36,12 +36,13 @@ test("real search update distinguishes missing activity evidence and uses the re
   const feedback = await addRecord(owner, {
     role_id: role.id, kind: "feedback", title: "Fictional QA compensation feedback",
     content: "Client confirmed GBP 160,000–180,000 compensation and two office days each week in London.",
-    occurred_at: "2026-10-01T09:20:00+08:00",
+    occurred_at: "2026-10-01T07:40:00+08:00",
   });
   const input = {
     kind: "search_update", role_id: role.id, person_ids: [], record_ids: [],
     period_start: "2026-09-30T00:00:00+08:00", period_end: "2026-10-01T23:59:00+08:00",
     period_local_start: "2026-09-30", period_local_end: "2026-10-01", language: "en",
+    report_timezone: "Asia/Shanghai",
     instructions: "Concise factual update. This is a fictional QA exercise.",
   };
   async function draft(recordIds: string[]) {
@@ -58,6 +59,9 @@ test("real search update distinguishes missing activity evidence and uses the re
   const withActivity = await draft([feedback.id]);
   assert.match(withActivity.content, /160,000/);
   assert.match(withActivity.content, /confirm/i);
+  assert.equal((withActivity.source_snapshot.records as Array<{ occurred_local_date: string }>)[0].occurred_local_date, "2026-10-01");
+  assert.match(withActivity.content, /1(?:st)? October|October 1|2026-10-01/i);
+  assert.doesNotMatch(withActivity.content, /(?:30 September|September 30).{0,100}(?:feedback|confirmed)/i);
   assert.doesNotMatch(withActivity.content, /no .*feedback.*(?:recorded|occurred|took place)/i);
   assert.doesNotMatch(withActivity.content, /no candidates? (?:has|have|was|were|had).{0,35}(?:approach|contact|submit)|no (?:outreach|interviews?|submissions?) (?:has|have|was|were|had|occurred|took place)/i);
   assert.doesNotMatch(withActivity.content, /(?:update|amend|revise|reflect).{0,35}(?:role brief|requirements).{0,80}(?:office|London)/i);

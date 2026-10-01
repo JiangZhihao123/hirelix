@@ -1298,5 +1298,6 @@ export const uiZh: Record<string, string> = {
   "Hirelix is working": "Hirelix 正在处理",
   "Jump to latest": "跳到最新消息",
   "Your next message can be drafted while this reply finishes": "可以先写下一条消息，待回复完成后再发送",
+  "Reporting timezone": "汇报时区",
   "Enter to send · Shift + Enter for a new line": "Enter 发送 · Shift + Enter 换行",
 };

@@ -125,6 +125,7 @@ export function PrepareDocument({
         kind === "search_update" && end ? new Date(end).toISOString() : null,
       period_local_start: kind === "search_update" && start ? start.slice(0, 10) : null,
       period_local_end: kind === "search_update" && end ? end.slice(0, 10) : null,
+      report_timezone: kind === "search_update" ? Intl.DateTimeFormat().resolvedOptions().timeZone : null,
       instructions,
       language: language ?? locale,
     };
@@ -256,6 +257,9 @@ export function PrepareDocument({
                     />
                   </Field>
                 </div>
+                <p className="ws-muted mt-3">
+                  {t("Reporting timezone")}: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                </p>
                 <p className="ws-muted mt-3">
                   {sources.data?.last_submitted
                     ? `Last delivered: ${date(sources.data.last_submitted.submitted_at)}. Its report ended ${date(sources.data.last_submitted.period_end)}.`
@@ -751,9 +755,11 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               {t("Export")} {format.toUpperCase()}
             </button>
           ))}
-          <button className="ws-button" onClick={() => setPreview((p) => !p)}>
-            {preview ? t("Edit draft") : t("Client preview")}
-          </button>
+          {!readOnly && (
+            <button className="ws-button" onClick={() => setPreview((p) => !p)}>
+              {preview ? t("Edit draft") : t("Client preview")}
+            </button>
+          )}
           {document.kind === "submission" ? (
             <>
               <button

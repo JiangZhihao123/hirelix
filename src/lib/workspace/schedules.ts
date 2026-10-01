@@ -89,6 +89,7 @@ export async function queueScheduledDrafts(limit = 5, now = new Date().toISOStri
           kind: "search_update", role_id: schedule.role_id, person_ids: schedule.person_ids,
           record_ids: records.map((record) => record.id), file_ids: [],
           period_start: start, period_end: now, period_local_start: dateInZone(start), period_local_end: dateInZone(now),
+          report_timezone: schedule.timezone,
           language: schedule.language, instructions: "Prepare the agreed search update for review. Only describe dated selected records as recorded activity; unrecorded activity is unknown. Nothing has been sent by this task.",
           request_key: `scheduled:${schedule.id}:${due}`,
         }, tx);
@@ -115,4 +116,3 @@ export async function retrySchedule(userId: string, roleId: string) {
   await owned(userId, "role", roleId);
   await db.execute(sql`UPDATE hirelix_private_schedules SET error=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid AND enabled`);
 }
-
