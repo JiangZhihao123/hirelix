@@ -1340,5 +1340,7 @@ export const uiZh: Record<string, string> = {
   "Jump to latest": "跳到最新消息",
   "Your next message can be drafted while this reply finishes": "可以先写下一条消息，待回复完成后再发送",
   "Reporting timezone": "汇报时区",
+  "Your AI task allowance has ended. Your saved work is still available. Open Settings → Billing to subscribe or check your allowance.": "AI 工作额度已用完。已保存的工作仍可查看。请打开 设置 → 计费，订阅或查看额度。",
+  "Your AI task allowance has ended. Open Settings → Billing to continue.": "AI 工作额度已用完。请打开 设置 → 计费 后继续。",
   "Enter to send · Shift + Enter for a new line": "Enter 发送 · Shift + Enter 换行",
 };
