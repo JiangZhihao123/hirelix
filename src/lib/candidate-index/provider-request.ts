@@ -2,6 +2,11 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger({ component: "candidate_index_provider" });
 
+function transportCode(error: unknown): string | undefined {
+  const code = error instanceof Error && error.cause && typeof error.cause === "object" && "code" in error.cause ? error.cause.code : undefined;
+  return typeof code === "string" && /^[A-Z0-9_]{1,64}$/.test(code) ? code : undefined;
+}
+
 /** Keep transport retries at the provider boundary, including response body reads. */
 export async function requestIndexJson<T>(options: {
   url: string;
@@ -32,8 +37,12 @@ export async function requestIndexJson<T>(options: {
       const retryable = status === undefined || (status >= 200 && status < 300)
         ? transportFailure
         : status === 408 || status === 429 || status >= 500;
-      if (!retryable || attempt === 3) throw error;
-      logger.warn({ attempt, status, error_type: error instanceof Error ? error.name : "unknown" }, "index provider request retrying");
+      const fields = { attempt, status, error_type: error instanceof Error ? error.name : "unknown", error_code: transportCode(error) };
+      if (!retryable || attempt === 3) {
+        logger.error(fields, "index provider request failed");
+        throw error;
+      }
+      logger.warn(fields, "index provider request retrying");
       await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
     }
   }
