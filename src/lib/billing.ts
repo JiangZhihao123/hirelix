@@ -1,4 +1,4 @@
-import { AGENT_PLAN, type AgentAccess } from "./agent-plan";
+import { AGENT_PLAN, formatCredits, type AgentAccess } from "./agent-plan";
 export type BillingPlanCode =
   | "agent_monthly"
   | "agent_annual"
@@ -324,7 +324,7 @@ export function getPlanStatusCopy(
     const a = billing.agent;
     return {
       title: a.state === "paid" ? AGENT_PLAN.name : locale === "zh" ? "私人助理试用" : "Personal Agent trial",
-      usageLabel: locale === "zh" ? `剩余 ${a.remaining} / ${a.limit} 次 AI 工作` : `${a.remaining} / ${a.limit} AI tasks remaining`,
+      usageLabel: locale === "zh" ? `剩余 ${formatCredits(a.remaining,locale)} / ${formatCredits(a.limit,locale)} AI 额度` : `${formatCredits(a.remaining,locale)} / ${formatCredits(a.limit,locale)} AI credits remaining`,
       capabilityLabel: locale === "zh" ? "候选人、职位与客户材料" : "Candidates, roles, and client work",
       renewalLabel: a.periodEnd ? `${locale === "zh" ? "周期结束" : "Period ends"} ${formatMonthDay(a.periodEnd)}` : null,
       actionLabel: locale === "zh" ? "管理" : "Manage", state: a.remaining === 0 || a.state === "expired" ? "warning" : "default",

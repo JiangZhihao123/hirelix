@@ -534,15 +534,15 @@ export default function Home() {
         <section id="pricing" className="ha-pricing ha-section">
           <p className="ha-eyebrow">ONE PERSONAL AGENT</p>
           <h2>Start with your work.<br />Stay for what you build.</h2>
-          <p>Try it for {AGENT_PLAN.trialDays} days with {AGENT_PLAN.trialTasks} AI tasks. No card required.</p>
+          <p>Try it for {AGENT_PLAN.trialDays} days with {AGENT_PLAN.trialCredits} AI credits. No card required.</p>
           <div className="ha-pricing-options">
             {([{ code: "agent_monthly", amount: AGENT_PLAN.monthlyCents / 100, cadence: "month", note: "Billed monthly" }, { code: "agent_annual", amount: AGENT_PLAN.annualCents / 100, cadence: "year", note: "Save $98 a year" }]).map(plan => <article key={plan.code}>
               <h3>Personal Agent</h3><p className="ha-price"><strong>${plan.amount}</strong> / {plan.cadence}</p><p>{plan.note}</p>
-              <ul><li>{AGENT_PLAN.monthlyTasks} AI tasks each calendar month</li><li>Your candidates, roles, and conversation history</li><li>CV and CSV imports, client drafts, and exports</li></ul>
+              <ul><li>{AGENT_PLAN.monthlyCredits} AI credits each calendar month</li><li>Your candidates, roles, and conversation history</li><li>CV and CSV imports, client drafts, and exports</li></ul>
               <button className="ha-button ha-button-primary" disabled={!hydrated} onClick={() => enter("pricing", false, plan.code)}>Start free trial <ArrowUpRight size={18} /></button>
             </article>)}
           </div>
-          <p className="ha-pricing-terms">USD, plus applicable tax. Subscribe when you’re ready; your trial does not automatically become a paid plan. Subscriptions renew until canceled. Each AI message, import, assessment, draft, revision, or semantic search uses one task. Automatic indexing and follow-on imports are included; failed tasks are not charged. Paid tasks reset monthly (UTC), with no rollover. Your saved work stays available when AI access ends. <Link href="/refund-policy">Refund policy</Link>.</p>
+          <p className="ha-pricing-terms">USD, plus applicable tax. Subscribe when you’re ready; your trial does not automatically become a paid plan. Subscriptions renew until canceled. AI work uses credits based on the services consumed. Longer or more complex work may use more credits. Only completed work is charged. System retries, automatic indexing and follow-on imports are included. Paid credits reset monthly (UTC), with no rollover. Your saved work stays available when AI access ends. <Link href="/refund-policy">Refund policy</Link>.</p>
         </section>
 
         <section

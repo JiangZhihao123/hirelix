@@ -70,7 +70,7 @@ test("real PG + AI: atomic due runs, source opt-in, pause, allowance error, fail
   assert.equal(document.status, "draft"); assert.equal(document.source_snapshot.role && (document.source_snapshot.role as { id: string }).id, role.id);
   assert.match(document.content, /165,000/); assert.match(document.content, /London/);
   assert.doesNotMatch(document.content, /PRIVATE UNSELECTED|private-schedule@example/);
-  const [totals] = await rows<{ documents: number; usage: number; notices: number }>(sql`SELECT (SELECT count(*)::int FROM hirelix_private_deliverables WHERE user_id=${owner}::uuid) documents,(SELECT count(*)::int FROM hirelix_agent_task_usage WHERE job_id=${job.id}::uuid) usage,(SELECT count(*)::int FROM hirelix_private_notifications WHERE user_id=${owner}::uuid) notices`);
+  const [totals] = await rows<{ documents: number; usage: number; notices: number }>(sql`SELECT (SELECT count(*)::int FROM hirelix_private_deliverables WHERE user_id=${owner}::uuid) documents,(SELECT count(*)::int FROM hirelix_agent_credit_usage WHERE job_id=${job.id}::uuid) usage,(SELECT count(*)::int FROM hirelix_private_notifications WHERE user_id=${owner}::uuid) notices`);
   assert.deepEqual(totals, { documents: 1, usage: 1, notices: 1 });
   await saveSchedule(owner, role.id, { ...agreement, person_ids: [person.id], enabled: false });
   await db.execute(sql`UPDATE hirelix_private_schedules SET next_run_at=${due}::timestamptz WHERE id=${schedule.id}::uuid`);

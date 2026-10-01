@@ -1,5 +1,7 @@
 import { isIncludedTask } from "./database";
-import { reserveAgentTask } from "@/lib/agent-access";
+import { reserveAgentCredits, AgentCreditError } from "@/lib/agent-access";
+import { agentCreditContext } from "@/lib/agent-credit-context";
+import { CREDIT_UNITS } from "@/lib/agent-plan";
 import { getLogger } from "@/lib/logger";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
@@ -33,6 +35,10 @@ export async function claimJob(kinds: JobKind[]): Promise<Job | null> {
       tx,
     );
     if (!job) return null;
+    // A reclaimed execution replaces its unfinished attempt; no retry costs
+    // accumulate into the customer's successful result.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
+    await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
     const [claimed] = await rows<Job>(
       sql`UPDATE hirelix_private_jobs SET status='running',progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
       tx,
@@ -81,7 +87,7 @@ export async function retryJob(userId: string, id: string) {
     if (job.status !== "error")
       throw new WorkspaceError("Only failed tasks can be retried", 409);
     if (!(await isIncludedTask(job, tx))) {
-      if (await reserveAgentTask(userId, job.id, tx) === false) throw new WorkspaceError("Your AI task allowance has ended. Open Settings → Billing to continue.", 402);
+      if (await reserveAgentCredits(userId, job.id, tx) === false) throw new WorkspaceError("Your AI credit allowance has ended. Open Settings → Billing to continue.", 402);
     }
     const [result] = await rows<Job>(
       sql`UPDATE hirelix_private_jobs SET status='queued',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
@@ -109,10 +115,10 @@ export async function processJob(
     }
   }, 30000);
   try {
-    const prepared = await handlers[job.kind]!(job, async (message) => {
+    const prepared = await agentCreditContext.run(job, () => handlers[job.kind]!(job, async (message) => {
       if (leaseLost) throw new LostLease();
       await heartbeat(job, message);
-    });
+    }));
     if (leaseLost) throw new LostLease();
     await finishJob(job, prepared);
   } catch (error) {
@@ -130,7 +136,7 @@ export async function processJob(
       logger.error(fields, "Private workspace task failed");
       await failJob(
         job,
-        error instanceof WorkspaceError
+        error instanceof WorkspaceError || error instanceof AgentCreditError
           ? error.message
           : "This task could not finish. Your source material is saved. Retry the task or review the input.",
       );

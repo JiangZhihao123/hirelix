@@ -493,7 +493,7 @@ function isOfficialDeepSeekBaseUrl(baseUrl: string) {
   }
 }
 
-function isUsingOfficialDeepSeek() {
+export function isUsingOfficialDeepSeek() {
   return isOfficialDeepSeekBaseUrl(getLlmBaseUrl());
 }
 

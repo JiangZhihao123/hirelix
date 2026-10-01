@@ -1,6 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
-import { reserveAgentTask } from "@/lib/agent-access";
+import { reserveAgentCredits } from "@/lib/agent-access";
 import type { Job, JobKind } from "./types";
 
 export type Runner = Pick<typeof db, "execute">;
@@ -97,8 +97,8 @@ export async function enqueue(
     );
   // Internal indexing and a chat's follow-on import are included in the parent task.
   if (inserted.length && !(await isIncludedTask(job, runner))) {
-    const reserved = await reserveAgentTask(userId, job.id, runner);
-    if (reserved === false) throw new WorkspaceError("Your AI task allowance has ended. Your saved work is still available. Open Settings → Billing to subscribe or check your allowance.", 402);
+    const reserved = await reserveAgentCredits(userId, job.id, runner);
+    if (reserved === false) throw new WorkspaceError("Your AI credit allowance has ended. Your saved work is still available. Open Settings → Billing to subscribe or check your allowance.", 402);
   }
   return job;
 }

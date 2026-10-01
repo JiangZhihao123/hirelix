@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AGENT_PLAN, type AgentPlanCode } from "@/lib/agent-plan";
+import { AGENT_PLAN, formatCredits, type AgentPlanCode } from "@/lib/agent-plan";
 import type { BillingSummary } from "@/lib/billing";
 import { PaddleCheckoutButton } from "./PaddleCheckoutButton";
 import { fetchWithUserSession } from "@/lib/client-auth";
@@ -36,14 +36,17 @@ export function AgentBillingPanel({ billing }: { billing: BillingSummary }) {
         : t("Waiting for payment confirmation from Paddle. Your access will update here after confirmation. If this takes longer than a minute, refresh or contact support.")}</p>}
       <div className="agent-billing-summary">
         <strong>{paid ? t("Personal Agent subscription") : access?.state === "expired" ? t("Your trial has ended") : t("7-day Personal Agent trial")}</strong>
-        <p>{t("{remaining} of {limit} AI tasks remaining.")
-          .replace("{remaining}", String(access?.remaining ?? AGENT_PLAN.trialTasks))
-          .replace("{limit}", String(access?.limit ?? AGENT_PLAN.trialTasks))}</p>
+        <p>{t("{remaining} of {limit} AI credits remaining.")
+          .replace("{remaining}", formatCredits(access?.remaining ?? AGENT_PLAN.trialCredits,locale))
+          .replace("{limit}", formatCredits(access?.limit ?? AGENT_PLAN.trialCredits,locale))}</p>
+        <p>{t("Used {used} AI credits. {reserved} reserved for work in progress.")
+          .replace("{used}",formatCredits(access?.used ?? 0,locale))
+          .replace("{reserved}",formatCredits(access?.reserved ?? 0,locale))}</p>
         <p>{access?.periodEnd
           ? t("Current allowance ends {date}.").replace("{date}", new Date(access.periodEnd).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US"))
           : t("Your trial starts with your first AI task. No card required.")}</p>
       </div>
-      <p>{t("One AI message, direct document import, assessment, draft, revision, or semantic search is one task. Automatic indexing and follow-on imports are included. Failed tasks are not charged. Paid allowances reset on the first of each month (UTC); unused tasks do not roll over.")}</p>
+      <p>{t("AI work uses credits based on the services consumed. Longer or more complex work may use more credits. Credits are reserved while work is running; only completed work is charged. System retries, automatic indexing and follow-on imports are included. Paid credits reset on the first of each month (UTC); unused credits do not roll over.")}</p>
       {paid ? (
         <>
           <p>{billing.plan.priceLabel} {t(billing.plan.cadenceLabel)}. {t("Renews automatically until canceled.")}</p>
@@ -62,7 +65,7 @@ export function AgentBillingPanel({ billing }: { billing: BillingSummary }) {
             <button aria-pressed={plan === "agent_monthly"} onClick={() => setPlan("agent_monthly")}>{t("$49 / month")}</button>
             <button aria-pressed={plan === "agent_annual"} onClick={() => setPlan("agent_annual")}>{t("$490 / year · save $98")}</button>
           </div>
-          <p>{t("Includes {count} AI tasks each calendar month. One personal workspace. Candidate records, ongoing roles, client drafts, and document exports.").replace("{count}", String(AGENT_PLAN.monthlyTasks))}</p>
+          <p>{t("Includes {count} AI credits each calendar month. One personal workspace. Candidate records, ongoing roles, client drafts, and document exports.").replace("{count}", formatCredits(AGENT_PLAN.monthlyCredits,locale))}</p>
           <PaddleCheckoutButton checkout={{ type: "plan", planCode: plan }} label={plan === "agent_monthly" ? t("Subscribe for $49 / month") : t("Subscribe for $490 / year")} className="ws-button ws-button-primary" onError={setError} />
           <p className="agent-billing-terms">
             {t("USD, plus applicable tax shown at checkout. Payment is collected now when you subscribe.")} {plan === "agent_monthly" ? t("Renews monthly until canceled.") : t("Renews annually until canceled.")} {t("Your saved work remains available when AI access ends.")} <Link href="/refund-policy">{t("Refund policy")}</Link>.

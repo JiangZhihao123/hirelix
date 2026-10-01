@@ -33,7 +33,7 @@ export function ScheduledDrafts({ role, people, schedule, refresh }: { role: Rol
   const job = task.data?.job;
   return <section className="ws-record">
     <div className="ws-inspector-heading"><h3>{t("Scheduled search updates")}</h3><button className="ws-link" onClick={() => setEditing(true)}>{t(schedule ? "Edit agreement" : "Set an agreement")}</button></div>
-    <p>{t("Prepare a draft for your review. Nothing is sent to a client. Each draft uses one AI task.")}</p>
+    <p>{t("Prepare a draft for your review. Nothing is sent to a client. Each completed draft uses AI credits.")}</p>
     {schedule && <>
       <p>{schedule.enabled && role.status === "active" ? `${t("Next draft")}: ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} (${schedule.timezone})` : t("Paused. Scheduled drafts will not be prepared.")}</p>
       <button className="ws-link" disabled={busy} onClick={pause}>{t(schedule.enabled ? "Pause agreement" : "Resume agreement")}</button>

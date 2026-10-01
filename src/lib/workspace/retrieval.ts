@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
+import { agentCreditContext } from "@/lib/agent-credit-context";
+import { reserveAgentCall, consumeAgentCredits } from "@/lib/agent-access";
+import { embeddingServiceCost, costToCreditUnits, creditMarkup, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
 import {
   generateEmbeddings,
   getEmbeddingConfig,
@@ -173,7 +176,13 @@ export async function retrieveCandidates(userId: string, value: unknown) {
       "Your candidates have not been indexed yet. Check import and indexing tasks, or use name and field search.",
       409,
     );
+  const creditJob = agentCreditContext.getStore(), multiplier = creditMarkup();
+  if (creditJob) await reserveAgentCall(creditJob,costToCreditUnits(embeddingServiceCost(model,Buffer.byteLength(input.query)+64),multiplier),512,0);
   const output = await generateEmbeddings([input.query]);
+  if (creditJob) {
+    const cost = embeddingServiceCost(output.model,output.inputTokens);
+    await consumeAgentCredits(creditJob,costToCreditUnits(cost,multiplier),cost,{ stage:"private_semantic_search",provider:"siliconflow",model:output.model,cost_usd:cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,input_tokens:output.inputTokens,cny_per_usd:Number(process.env.AGENT_CREDIT_CNY_PER_USD ?? 7),input_cny_per_million:0.28 });
+  }
   const vector = JSON.stringify(output.embeddings[0]);
   // Exact vector scan of every indexed passage owned by this user; no newest-N cutoff.
   const evidence = await rows<{

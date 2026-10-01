@@ -3,7 +3,6 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { hirelix_agent_briefs } from "@/db/schema";
 import { getUserFromApiRequest } from "@/lib/api-auth";
-import { draftPrivateBrief } from "@/lib/private-agent";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,15 +28,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!existing)
     return NextResponse.json({ error: "Brief not found" }, { status: 404 });
   try {
-    let content = typeof body?.content === "string" ? body.content.trim() : "";
+    const content = typeof body?.content === "string" ? body.content.trim() : "";
     if (typeof body?.instruction === "string" && body.instruction.trim()) {
-      const draft = await draftPrivateBrief({
-        userId: user.id,
-        searchId: existing.search_id,
-        previousDraft: existing.content,
-        instruction: body.instruction.trim(),
-      });
-      content = draft.content;
+      return NextResponse.json({ error:"Use your Personal Agent workspace to revise AI work.",workspaceUrl:"/app" },{ status:410 });
     }
     if (!content || content.length > 30000)
       return NextResponse.json(
