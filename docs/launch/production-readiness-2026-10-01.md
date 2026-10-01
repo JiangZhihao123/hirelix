@@ -147,18 +147,24 @@ Chrome 本地生产构建完整复验：通过 Prepare submission 选择 Lakesid
 
 继续用户视角检查发现中文订阅页仍大量英文：生产真实 Chrome 可复现，trial0/20，套餐价格与付款说明/订阅按钮/侧栏均为英文。修复复用 LanguageProvider/useT 与现有中文词典，覆盖侧栏、设置套餐标题、试用/已付费状态、额度、周期、月/年价格、即时付款及自动续订说明、门户管理入口。价格、权益和支付接口未改。本地生产构建真实 Sandbox paid 账户：从语言页切中文，订阅和AI用量、289/300、周期及三个门户入口正确中文显示；不执行真实修改支付方式或取消操作。试用/月年选择继续在实际生产账户发布后复验。
 
-- 最近已核对的生产发布为5930980；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
+中文订阅页发布 `dd2e448c3e10f100123b0bcd68693c16eed2be02`：CI36811060372、Vercel6775531090均success，VPS同SHA/clean/active/health通过。真实生产 Chrome 刷新后，试用0/20、额度、月年价格、即时收款及自动续订说明正确中文；点击年付后按钮与续费文字更新为年付，再恢复月付。未点击订阅或发起交易。已订阅状态来自本地真实Sandbox账户，语言切换后刷新和设置标题也正确；QA语言偏好已恢复原英文。
+
+继续材料内容验收发现旧稿把 brief.unknowns 中“办公室要求能否协商”的问题写成“要求可能不固定”，弱化了 brief.priorities 中已有的两天办公室要求。修复在 role owner 中定义共享证据规则，供会话、评估、生成和修改复用：已审核要求优先，未知问题不能变成事实或放宽条件，候选人意愿未知与客户要求明确分开。测试fixture同时保留明确要求与可协商性未知，真实模型不得把要求写为optional/not fixed；不是用关键词排除特定候选人。10项真实模型/隔离PG回归通过，341单测通过、1明确PG环境skip，typecheck/lint/build通过。真实模型曾一次返回invalid_json，原有真实重试后成功，未替换模型输出或绕过链路。
+
+Chrome 已有客户邮件再次真实修改/审核/应用为版本4，任务 `d56c4692-d516-41d0-af50-abe10a3c09fe` done/1：办公室两天要求保留，候选人五项状态未知，未提示要求可能不固定。随后实际职位评估首次仍错误把伦敦居住计为整项办公室要求满足（四项满足三项）；详情虽列未知，摘要仍误导。继续加强通用复合条件证据规则，禁止部分证据计为整体满足，并加入真实模型评估回归。最终实际 Update role review 摘要正确为两项有证据、办公室仅部分有证据、到岗意愿未知、客户预算明确而候选人薪资未知；其他职位反馈未泛化为本职位许可。数据库结果及页面截图一致，额度288→286对应两次评估，保留首次失败。最终 typecheck/lint/build 与包含评估/内部材料/客户转换的真实模型测试均通过，日志 role-evidence-*-final.log。生产部署另核对。
+
+- 最近已核对的生产发布为dd2e448；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
 - localhost3200 production build 与 QA worker 在每次修改后按最终代码重启；续跑必须核对实际进程/端口，不能复用历史句柄推断正在运行的代码。
 - QA Chrome 已保存新虚构 Role `0f0f2459-0948-4b1b-99dc-e57ac1eca850` 的约定 `fcfb4299-ee31-411b-bf1d-6fe329da52cd`：Asia/Shanghai 周四09:10，role dated records opt-in，candidate private notes关闭。自然时钟完整链路及导出已通过，现已暂停，结果见60。保留该QA资料，不再定时生成。
 - Live首笔真实交易改为后续观察，无需用户为本次QA先付款。共享商户品牌、支持邮箱收件与真机时间控件保留交接，未伪造已验结论。
 
 ## 发布、回滚和交接
 
-当前业务代码 `9140205`，包含导航修复 db81c6d、定期草稿5f2b9b6、时区与已提交材料入口修复。CI先构建/检查，再以确切SHA部署VPS；Vercel发布同一SHA。发布过程中未新增模型或支付 key，未更改其他产品或 VPS 服务。此前已实际核对 Production key存在、Live价格ID、Paddle production环境及Node24配置；不公开密钥。定期草稿兼容迁移在备份后先应用六列，随后发布；9140205仅扩展 JSON快照，无新增迁移。
+最近已核对的生产业务代码为 `dd2e448`，包含导航、定期草稿、时区、资料定位、材料用途与中文订阅页修复；后续角色证据规则候选须另核对发布结果。CI先构建/检查，再以确切SHA部署VPS；Vercel发布同一SHA。发布过程中未新增模型或支付 key，未更改其他产品或 VPS 服务。此前已实际核对 Production key存在、Live价格ID、Paddle production环境及Node24配置；不公开密钥。定期草稿兼容迁移在备份后先应用六列，随后发布；9140205仅扩展 JSON快照，无新增迁移。
 
 备份：迁移前 `/var/backups/hirelix/daily-20261001T003658Z.dump`，49,578,208 bytes；迁移及生产自然任务后 `/var/backups/hirelix/daily-20261001T005421Z.dump`，49,581,601 bytes。后者已实际恢复到全新、仅管理员连接的 `hirelix_restore_qa_release_20261001`，47表、5文件哈希正确、六新增列/约定/草稿/额度恢复。原恢复库保留；生产数据未覆盖。同VPS备份不能替代异地DR。
 
-回滚业务代码时优先上一发布 `15a4a4357a337483d817641ed27000e15dc8f8d1`，Vercel deployment6773337712，`hirelix-kcso8u3vq-noahs-projects-292679b9.vercel.app`。若需退回定期功能前版本，选 `44a6f1fce11d443fdef5bdd65edc4a725d75e8e0` / deployment6772408965。确认 `/opt/hirelix` 无需保留的未提交改动后，以对应SHA安装依赖、重启 Hirelix scheduler、核对版本和队列。暂停本次QA约定，保留兼容新增列和发布期间数据；不得机械drop column或用旧dump覆盖新写入。Vercel管理页已见Instant Rollback入口；未执行应用回滚演练。
+当前新增角色证据规则修复的回滚基线为已验 `dd2e448c3e10f100123b0bcd68693c16eed2be02` / deployment6775531090；更早时区相关发布基线为 `15a4a4357a337483d817641ed27000e15dc8f8d1`，Vercel deployment6773337712，`hirelix-kcso8u3vq-noahs-projects-292679b9.vercel.app`。若需退回定期功能前版本，选 `44a6f1fce11d443fdef5bdd65edc4a725d75e8e0` / deployment6772408965。确认 `/opt/hirelix` 无需保留的未提交改动后，以对应SHA安装依赖、重启 Hirelix scheduler、核对版本和队列。暂停本次QA约定，保留兼容新增列和发布期间数据；不得机械drop column或用旧dump覆盖新写入。Vercel管理页已见Instant Rollback入口；未执行应用回滚演练。
 
 运行维护：`hirelix-scheduler` enabled、Restart=always；daily backup与health timers enabled。`deploy/hirelix-health.sh`逐项检测服务、工作区worker启用状态、卡住任务/逾期约定及26小时备份。生产实际停机检测status3/恢复status0已验。故障先恢复服务，再从安全job_id日志定位；文件存储在PG bytea，下载流式传输。首次用户步骤见 [使用说明](../product/overseas-recruiter-agent-v1/first-user-guide.md)。
 

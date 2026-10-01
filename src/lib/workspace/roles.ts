@@ -21,6 +21,10 @@ import {
   type Schedule,
 } from "./types";
 
+// Shared evidence rules for consumers of a recruiter's reviewed role brief.
+export const ROLE_BRIEF_EVIDENCE_RULES =
+  "The current reviewed role brief takes precedence over an older JD where they differ. Its priorities are the current requirements. Only explicitly documented flexible requirements may be relaxed. Unknowns are unanswered questions, not established facts or exceptions: a question about whether an office requirement is negotiable does not make that requirement optional, flexible or not fixed. Preserve the current office-days requirement while separately saying the candidate's willingness is unconfirmed. Evaluate every part of a compound requirement: location evidence alone does not establish willingness or ability to attend an office. If one required part is unconfirmed, describe the priority as only partially evidenced; never count the whole priority as met or matched in a summary. Explicitly include such unresolved candidate conditions in assessment gaps and unconfirmed items. A question about base versus total package does not make a confirmed budget range unconfirmed. Do not turn any clarification question into a fact or silently weaken a requirement. If an older draft did so, correct it using the reviewed brief. Candidate interest, availability, compensation expectations and sharing permission remain separate from client-confirmed requirements.";
+
 export async function listRoles(userId: string) {
   return rows<Role & { candidate_count: number; submission_count: number }>(
     sql`SELECT r.*,(SELECT count(*)::int FROM hirelix_private_role_candidates c WHERE c.user_id=r.user_id AND c.role_id=r.id) AS candidate_count,(SELECT count(*)::int FROM hirelix_private_deliverables d WHERE d.user_id=r.user_id AND d.role_id=r.id AND d.kind='submission' AND d.status='submitted') AS submission_count FROM hirelix_private_roles r WHERE r.user_id=${userId}::uuid ORDER BY r.updated_at DESC,r.id`,

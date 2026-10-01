@@ -8,7 +8,8 @@ import { createPerson } from "../../src/lib/workspace/people";
 import { createRole, linkPerson } from "../../src/lib/workspace/roles";
 import { generateDeliverable, markSubmitted, prepareDeliverable } from "../../src/lib/workspace/deliverables";
 import { applyRevision, generateRevision, requestRevision } from "../../src/lib/workspace/revisions";
-import { json, owned, WorkspaceError } from "../../src/lib/workspace/database";
+import { enqueue, json, owned, WorkspaceError } from "../../src/lib/workspace/database";
+import { assessCandidate } from "../../src/lib/workspace/assessment";
 import type { Deliverable } from "../../src/lib/workspace/types";
 
 const database = new URL(process.env.DATABASE_URL ?? "postgresql://invalid/invalid");
@@ -27,6 +28,11 @@ test("real AI respects internal purpose, preserves it on revision, and defaults 
   const role = await createRole(owner, {
     title: "VP Product", client_name: "QA Lakeside",
     jd_text: "Enterprise SaaS product leader in London, leading at least ten product managers, two office days per week, GBP 165k–180k budget.",
+    brief: {
+      priorities: ["At least ten product managers led", "Enterprise SaaS", "Two office days per week in London", "Client-confirmed GBP 165k–180k budget"],
+      flexible: [],
+      unknowns: ["Whether the two-days-in-office requirement is negotiable", "Whether the budget is base salary or total package"],
+    },
   });
   const person = await createPerson(owner, {
     name: "QA Morgan Reed", location: "London",
@@ -34,6 +40,15 @@ test("real AI respects internal purpose, preserves it on revision, and defaults 
     profile: { summary: "Compensation expectations, availability, interest, office willingness and sharing permission are unconfirmed." },
   });
   await linkPerson(owner, role.id, person.id);
+  const assessmentJob = await enqueue(owner, "assessment", randomUUID(), { role_id: role.id, person_id: person.id });
+  const assessment = await assessCandidate(assessmentJob, async () => {});
+  const assessmentResult = assessment.result.assessment as {
+    summary: string; gaps: Array<{ text: string }>; unconfirmed: string[];
+  };
+  assert.doesNotMatch(assessmentResult.summary, /(?:three|3)\s+(?:of\s+(?:the\s+)?(?:four|4)|(?:out\s+of\s+)?(?:four|4))[^.]{0,100}(?:met|match)|(?:met|match)[^.]{0,100}(?:three|3)\s+of\s+(?:the\s+)?(?:four|4)/i);
+  assert.match(assessmentResult.gaps.map((gap) => gap.text).join("\n"), /office/i);
+  assert.match(assessmentResult.unconfirmed.join("\n"), /office/i);
+  await db.transaction(async (tx) => assessment.apply?.(tx));
   async function draft(kind: "submission" | "search_update", instructions: string) {
     const job = await prepareDeliverable(owner, {
       kind, role_id: role.id, person_ids: [person.id], record_ids: [], file_ids: [],
@@ -56,6 +71,7 @@ test("real AI respects internal purpose, preserves it on revision, and defaults 
   for (const fact of [/compensation/i, /availability/i, /interest/i, /office/i, /permission|consent/i])
     assert.match(internal.content, fact);
   assert.match(internal.content, /unconfirmed|unknown|not confirmed/i);
+  assert.doesNotMatch(internal.content, /(?:office|expectation|requirement)[^.!\n]{0,100}(?:not fixed|optional|may be flexible|might be flexible)/i);
   await assert.rejects(() => markSubmitted(owner, internal.id, {
     expected_version: 1, submitted_at: new Date().toISOString(), submission_note: "Must not record internal work as client delivery",
   }), (error: unknown) => error instanceof WorkspaceError && error.status === 409);
@@ -81,6 +97,7 @@ test("real AI respects internal purpose, preserves it on revision, and defaults 
   const clientRevision = await applyRevision(owner, internal.id, { job_id: conversion.id, expected_version: 2 });
   assert.equal(clientRevision.source_snapshot.audience, "client");
   assert.equal(clientRevision.version, 3);
+  assert.doesNotMatch(clientRevision.content, /(?:office|expectation|requirement)[^.!\n]{0,100}(?:not fixed|optional|may be flexible|might be flexible)/i);
   const client = await draft("submission", "Concise recommendation for the client. This is a fictional QA exercise.");
   assert.equal(client.source_snapshot.audience, "client");
   assert.match(client.content, /^(?:Dear|Hello|Hi|Good morning|Good afternoon)\b/im);

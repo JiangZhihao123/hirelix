@@ -15,6 +15,7 @@ import {
   type Runner,
 } from "./database";
 import { structured } from "./ai";
+import { ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import {
   idSchema,
   type Person,
@@ -136,7 +137,7 @@ export const assessCandidate: JobHandler = async (job, progress) => {
     job.user_id,
     "private_role_assessment",
     modelSchema,
-    "Evaluate only the supplied (role, candidate) pair. Compare role function, seniority, actual work and must-have evidence, not employer prestige or keyword overlap. Treat missing evidence as unknown. Interest or rejection for another role is not a global label. Cite source_refs only from the provided reference catalog: profile or source_N. Use an empty array when describing missing evidence. Never invent a source reference. Distinguish missing evidence from evidence of mismatch. State unconfirmed availability, conditions and sharing permission. The relationship describes only this role.",
+    "Evaluate only the supplied (role, candidate) pair. Compare role function, seniority, actual work and must-have evidence, not employer prestige or keyword overlap. Treat missing evidence as unknown. Interest or rejection for another role is not a global label. Cite source_refs only from the provided reference catalog: profile or source_N. Use an empty array when describing missing evidence. Never invent a source reference. Distinguish missing evidence from evidence of mismatch. State unconfirmed availability, conditions and sharing permission. The relationship describes only this role. " + ROLE_BRIEF_EVIDENCE_RULES,
     {
       role: {
         title: role.title,
