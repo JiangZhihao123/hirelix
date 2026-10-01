@@ -355,9 +355,9 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         <div className="ws-sidebar-bottom">
           <nav className="ws-nav">
             {billing?.agent && billing.agent.state !== "legacy" && <Link className="ws-trial-status" href="/app/settings?section=billing">
-            <strong>{billing.agent.state === "paid" ? "Personal Agent" : billing.agent.state === "expired" ? "Trial ended" : "7-day free trial"}</strong>
-            <span>{billing.agent.remaining} AI tasks remaining</span>
-            <span>{billing.agent.state === "trial_ready" ? "Starts with your first task · No card" : "View plan and subscription →"}</span>
+            <strong>{billing.agent.state === "paid" ? t("Personal Agent") : billing.agent.state === "expired" ? t("Trial ended") : t("7-day free trial")}</strong>
+            <span>{t("{count} AI tasks remaining").replace("{count}", String(billing.agent.remaining))}</span>
+            <span>{billing.agent.state === "trial_ready" ? t("Starts with your first task · No card") : t("View plan and subscription →")}</span>
           </Link>}
           <Link
               href="/app/settings"

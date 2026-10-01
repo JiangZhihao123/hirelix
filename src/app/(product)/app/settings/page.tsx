@@ -51,7 +51,7 @@ export default function SettingsPage() {
     {
       id: "billing" as const,
       label: t("Billing"),
-      detail: billing ? getPlanStatusCopy(billing, locale).title : t("Plan and usage"),
+      detail: billing ? t(getPlanStatusCopy(billing, locale).title) : t("Plan and usage"),
     },
     {
       id: "profile" as const,
@@ -203,7 +203,7 @@ export default function SettingsPage() {
         </div>
         {billing ? (
           <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm shadow-slate-200/30">
-            <span className="font-medium text-slate-950">{getPlanStatusCopy(billing, locale).title}</span>
+            <span className="font-medium text-slate-950">{t(getPlanStatusCopy(billing, locale).title)}</span>
             <span className="ml-2 text-slate-500">{getPlanStatusCopy(billing, locale).usageLabel}</span>
           </div>
         ) : null}
