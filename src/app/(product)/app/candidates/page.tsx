@@ -406,6 +406,7 @@ export default function Candidates() {
               key={selected}
               id={selected}
               highlight={highlight}
+              onOpenRecord={(recordId) => select(selected, recordId)}
               onClose={() => select(null)}
               onChanged={people.refresh}
             />
@@ -435,11 +436,13 @@ export default function Candidates() {
 function CandidateDetails({
   id,
   highlight,
+  onOpenRecord,
   onClose,
   onChanged,
 }: {
   id: string;
   highlight: string | null;
+  onOpenRecord: (recordId: string) => void;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -578,7 +581,10 @@ function CandidateDetails({
                 <p className="mt-2">{conversation.content}</p>
                 <button
                   className="ws-link mt-3"
-                  onClick={() => setTab("records")}
+                  onClick={() => {
+                    setTab("records");
+                    onOpenRecord(conversation.id);
+                  }}
                 >
                   {t("View original record")}
                 </button>
@@ -626,7 +632,10 @@ function CandidateDetails({
                 <button
                   className="ws-detail-link text-left w-full"
                   key={source.id}
-                  onClick={() => setTab("records")}
+                  onClick={() => {
+                    setTab("records");
+                    onOpenRecord(source.id);
+                  }}
                 >
                   <strong>{source.title}</strong>
                   <small>{t("Added")} {date(source.created_at)}</small>

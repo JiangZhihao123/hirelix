@@ -121,6 +121,18 @@
 
 ## 当前继续位置
 
+### 用户视角补充验收（2026-10-01）
+
+本轮从猎头的工作目标出发，用真实 Chrome Computer Use 操作及截图观察，先跟随页面引导，再查日志；不以接口成功替代使用结果。环境是 localhost:3200 的生产构建、隔离 QA 库、真实模型及已有 Sandbox 订阅，属于 local real chain。账户已有两位虚构候选人，不是空账户首次使用，未发送客户材料。
+
+- 从首页 Meet your agent 进入，用普通业务描述创建 Lakeside Search 的 VP Product 职位。会话 `3164b23a-f960-43c1-bcd3-0b8d4363d61f` 自动打开，审核表保留原文、已确认要求及未知问题。保存后页面显示 Saved to your workspace，离开进入 Roles 后能找到 `d96a3339-37d7-49a6-af09-9836e8d7a792`，返回会话仍能继续。
+- 推荐给出 Morgan 的十二人产品团队和企业 SaaS 证据，区分 Taylor 的财务经历，并保留薪资期望、意愿、到岗及分享许可未知。不同客户的旧反馈没有被作为 Lakeside 的结论。下一条自然请求得到可复制的内部审核意见，离开任务页面后返回能看到完成结果。
+- 通过 Submissions → Prepare submission → 选择职位 → Add from your pool → 加入 Morgan → Prepare submission，页面预选正确职位和候选人；准确选择已有 PDF CV，未勾选私人笔记。真实任务 `25f0d0cd-a038-4a09-bb03-ef6377ebc783` done/attempts=1，保存材料 `002bfea2-1cb2-4359-ac6b-7b1cbdf64a96`，展示原始 CV 下载入口、未知分享许可和 Role version 1。额度 296→293，对应三次 AI 工作，不是实际付款。
+- 使用摩擦：概览点击 morgan-cv.pdf 只切到整个资料列表，首屏仍是其他客户反馈，需要继续找。已复用现有 record 查询、滚动及高亮机制，让指定来源和最新沟通入口定位具体记录。localhost:3000 Chrome 实际点击 PDF 与 CSV 两份来源后，URL、目标正文及高亮都正确；这项修复的浏览器证明来自 dev 表面。typecheck-source-focus.log、lint-source-focus.log 通过；最终发布结果另行核对。
+- 输出用途限制仍存在：正式 Prepare submission 是固定的客户推荐邮件，Direction 输入“内部审核且显式保留未知状态”未改变邮件体裁；正文仍面向客户，未知许可只在来源侧栏显示。内部审核意见应在会话中准备。本轮未把正式邮件输出当作内部审核需求通过，也未修改既定邮件产品方向。这个用途边界需要更清楚的页面提示或另行讨论，而不是以任务 done 包装成全部体验合格。
+
+结论：职位审核/保存、离开返回、候选人证据及正式材料准备路径可用；资料定位摩擦已修复，内部审核与客户邮件的用途边界仍需澄清。这是一次具体工作场景验收，不代表已经证明所有新用户、设备或真实客户的使用体验。
+
 - 最近已核对的生产发布为 7d673f2，业务修改基线9140205；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
 - localhost3200 production build 与 QA worker 已按最终代码重启。当前句柄 90621/36912；3000 dev 62371。句柄只作定位，续跑必须核对实际进程/端口。
 - QA Chrome 已保存新虚构 Role `0f0f2459-0948-4b1b-99dc-e57ac1eca850` 的约定 `fcfb4299-ee31-411b-bf1d-6fe329da52cd`：Asia/Shanghai 周四09:10，role dated records opt-in，candidate private notes关闭。自然时钟完整链路及导出已通过，现已暂停，结果见60。保留该QA资料，不再定时生成。
