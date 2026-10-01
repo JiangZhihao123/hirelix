@@ -2288,3 +2288,6 @@
 .ws-trial-status { display:flex; flex-direction:column; gap:4px; padding:12px; margin:8px; border:1px solid var(--ws-border, #dce3df); border-radius:10px; font-size:12px; text-decoration:none; }
 .ws-trial-status strong { font-size:13px; }
 .ws-trial-status span:last-child { font-size:11px; opacity:.7; }
+
+.ws-checkbox { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.6; }
+.ws-checkbox input { margin-top: 4px; flex: 0 0 auto; }

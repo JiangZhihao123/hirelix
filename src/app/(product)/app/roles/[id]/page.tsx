@@ -25,6 +25,7 @@ import {
   useQuery,
 } from "@/components/workspace/client";
 import { RoleForm, RecordForm } from "@/components/workspace/forms";
+import { ScheduledDrafts } from "@/components/workspace/schedule";
 import { History } from "@/components/workspace/history";
 import { AgentText } from "@/components/AgentText";
 import type {
@@ -422,6 +423,7 @@ export default function RolePage({
           )}
           {tab === "activity" && (
             <>
+              <ScheduledDrafts role={role} people={people} schedule={query.data.schedule} refresh={query.refresh} />
               <div className="ws-actions mt-5 mb-3">
                 <button className="ws-button" onClick={() => setRecord("new")}>
                   <Plus size={14} />

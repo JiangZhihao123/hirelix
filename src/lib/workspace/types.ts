@@ -194,6 +194,12 @@ export type Schedule = {
   last_period_end: string | null;
   only_when_changed: boolean;
   last_record_digest: string | null;
+  language: "en" | "zh";
+  person_ids: string[];
+  include_role_records: boolean;
+  include_candidate_records: boolean;
+  error: string | null;
+  last_job_id: string | null;
 };
 export type ImportRow = {
   id: string;

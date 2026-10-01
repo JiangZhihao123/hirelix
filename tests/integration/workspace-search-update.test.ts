@@ -28,14 +28,14 @@ test("real search update distinguishes missing activity evidence and uses the re
     client_name: "QA Northstar",
     jd_text: "Lead product teams. Compensation has not been confirmed in this original JD.",
     brief: {
-      priorities: ["Lead 12 product managers in enterprise B2B SaaS", "Client-confirmed compensation GBP 160,000–180,000"],
+      priorities: ["Lead 12 product managers in enterprise B2B SaaS", "Client-confirmed compensation GBP 160,000–180,000", "Two office days each week in London, already confirmed and saved"],
       flexible: [],
       unknowns: ["Candidate availability and sharing permission"],
     },
   });
   const feedback = await addRecord(owner, {
     role_id: role.id, kind: "feedback", title: "Fictional QA compensation feedback",
-    content: "Client confirmed GBP 160,000–180,000 compensation.",
+    content: "Client confirmed GBP 160,000–180,000 compensation and two office days each week in London.",
     occurred_at: "2026-10-01T09:20:00+08:00",
   });
   const input = {
@@ -53,12 +53,14 @@ test("real search update distinguishes missing activity evidence and uses the re
   }
   const withoutActivity = await draft([]);
   assert.match(withoutActivity.content, /no .*activity.*recorded|no .*dated.*records/i);
-  assert.doesNotMatch(withoutActivity.content, /no .*took place|no .*occurred|compensation.*(?:unconfirmed|not confirmed|needs to be confirmed)/i);
+  assert.doesNotMatch(withoutActivity.content, /(?:^|\n)(?:Activity:\s*)?No [^\n.]*(?:took place|occurred)|compensation[^\n.]*?(?:unconfirmed|not confirmed|needs to be confirmed)/i);
   assert.match(withoutActivity.content, /160,000/);
   const withActivity = await draft([feedback.id]);
   assert.match(withActivity.content, /160,000/);
   assert.match(withActivity.content, /confirm/i);
   assert.doesNotMatch(withActivity.content, /no .*feedback.*(?:recorded|occurred|took place)/i);
+  assert.doesNotMatch(withActivity.content, /no candidates? (?:has|have|was|were|had).{0,35}(?:approach|contact|submit)|no (?:outreach|interviews?|submissions?) (?:has|have|was|were|had|occurred|took place)/i);
+  assert.doesNotMatch(withActivity.content, /(?:update|amend|revise|reflect).{0,35}(?:role brief|requirements).{0,80}(?:office|London)/i);
   assert.deepEqual(withActivity.record_ids, [feedback.id]);
   assert.deepEqual(withoutActivity.record_ids, []);
 });

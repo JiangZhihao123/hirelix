@@ -28,6 +28,7 @@ import {
 import { BillingProvider, useBilling } from "@/lib/use-billing";
 import { BrandMark } from "@/components/BrandMark";
 import { useT } from "@/components/LanguageProvider";
+import { DraftNotifications } from "@/components/workspace/notifications";
 import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
   Search,
@@ -402,6 +403,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <div className="ws-topbar-actions">
+            <DraftNotifications />
             {isConversationPage ? (
               <>
                 <button

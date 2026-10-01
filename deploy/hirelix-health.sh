@@ -11,11 +11,16 @@ if grep -Eq "^PRIVATE_WORKSPACE_WORKER_ENABLED=(false|\"false\"|'false')[[:space
 fi
 stalled=$(runuser -u postgres -- psql -X -A -t -v ON_ERROR_STOP=1 -d hirelix -c "
   SET statement_timeout='10s';
-  SELECT count(*) FROM hirelix_private_jobs
+  SELECT (SELECT count(*) FROM hirelix_private_jobs
   WHERE (status='queued' AND updated_at < now()-interval '10 minutes')
-     OR (status='running' AND lease_until < now()-interval '3 minutes');" | tail -1)
+     OR (status='running' AND lease_until < now()-interval '3 minutes'))
+  + (SELECT count(*) FROM hirelix_private_schedules s
+     JOIN hirelix_private_roles r ON r.id=s.role_id AND r.user_id=s.user_id
+     WHERE s.enabled AND s.error IS NULL AND r.status='active'
+       AND s.next_run_at < now()-interval '10 minutes'
+       AND NOT EXISTS (SELECT 1 FROM hirelix_private_jobs j WHERE j.id=s.last_job_id AND j.status='error'));" | tail -1)
 if [[ "$stalled" != 0 ]]; then
-  printf 'Hirelix queue needs attention: %s stalled private tasks\n' "$stalled" >&2
+  printf 'Hirelix queue needs attention: %s stalled private tasks or draft agreements\n' "$stalled" >&2
   exit 1
 fi
 if ! find /var/backups/hirelix -maxdepth 1 -type f -name 'daily-*.dump' -mmin -1560 -size +0c -print -quit | grep -q .; then

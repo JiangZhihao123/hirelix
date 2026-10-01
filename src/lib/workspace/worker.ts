@@ -6,6 +6,7 @@ import { indexCandidate, retrieveJob } from "./retrieval";
 import type { JobKind } from "./types";
 import { assistantReply } from "./conversations";
 import { generateRevision } from "./revisions";
+import { queueScheduledDrafts } from "./schedules";
 import { generateDeliverable } from "./deliverables";
 
 export const workspaceHandlers: Partial<Record<JobKind, JobHandler>> = {
@@ -47,5 +48,15 @@ export function startWorkspaceWorker() {
     }
   }
   for (let index = 0; index < concurrency; index++) void loop(index + 1);
+  let scheduling = false;
+  const scheduleTick = async () => {
+    if (scheduling) return;
+    scheduling = true;
+    try { await queueScheduledDrafts(); }
+    catch (error) { logger.error({ error_type: error instanceof Error ? error.name : "Unknown" }, "Scheduled draft queue failed"); }
+    finally { scheduling = false; }
+  };
+  void scheduleTick();
+  setInterval(() => void scheduleTick(), 15000);
   logger.info({ concurrency }, "Private workspace worker started");
 }
