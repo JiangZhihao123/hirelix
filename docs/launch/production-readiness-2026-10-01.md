@@ -133,6 +133,8 @@
 
 结论：职位审核/保存、离开返回、候选人证据及正式材料准备路径可用；资料定位摩擦已修复，内部审核与客户邮件的用途边界仍需澄清。这是一次具体工作场景验收，不代表已经证明所有新用户、设备或真实客户的使用体验。
 
+资料定位发布复验：初版 `bf26d69` CI 36807089959 和 Vercel deployment 6774903957 均 success，VPS 同 SHA、clean、health 通过；但生产 Chrome 点来源后 URL 未带 record，也未高亮，不能当作修复验收通过。继续定位为同路径纯客户端查询更新，改用项目已有的 Next 原生 history.replaceState 集成，保留 useSearchParams 与原有定位/高亮，不新增私有路由状态。最终 production build localhost:3200 Chrome 点击 PDF 后正确出现 record、原文、高亮，刷新恢复同一记录。build-source-focus.log、typecheck-source-focus-final.log、lint-source-focus-final.log 通过。最终生产复验仍须以该后续提交为准，初版失败截图保留在本次工具记录中。
+
 - 最近已核对的生产发布为 7d673f2，业务修改基线9140205；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
 - localhost3200 production build 与 QA worker 已按最终代码重启。当前句柄 90621/36912；3000 dev 62371。句柄只作定位，续跑必须核对实际进程/端口。
 - QA Chrome 已保存新虚构 Role `0f0f2459-0948-4b1b-99dc-e57ac1eca850` 的约定 `fcfb4299-ee31-411b-bf1d-6fe329da52cd`：Asia/Shanghai 周四09:10，role dated records opt-in，candidate private notes关闭。自然时钟完整链路及导出已通过，现已暂停，结果见60。保留该QA资料，不再定时生成。

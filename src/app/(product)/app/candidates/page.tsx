@@ -133,7 +133,7 @@ export default function Candidates() {
     else next.delete("person");
     next.delete("record");
     if (recordId) next.set("record", recordId);
-    router.replace(`/app/candidates?${next}`, { scroll: false });
+    window.history.replaceState(null, "", `/app/candidates?${next}`);
   }
   async function search(event: FormEvent) {
     event.preventDefault();
