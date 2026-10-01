@@ -1,4 +1,19 @@
-# Personal Agent 订阅与首次使用验收（2026-09-29）
+# Personal Agent 订阅与首次使用验收
+
+## 2026-10-01 当前发布验收
+
+权威细节见 [上线记录](../launch/production-readiness-2026-10-01.md) 第 31–34 项，证据在本机忽略目录 `output/launch-20261001/`。后文保留 September 历史边界。
+
+- 实际 Chrome Sandbox 月付 49 USD：官方拒付测试卡显示 declined、未开通权益；官方成功卡完成交易，实际签名 subscription.created／subscription.activated／transaction.completed 各一次且返回 200。数据库 active，自动回跳 300 tasks。sandbox-decline-db.log／sandbox-success-db.log／sandbox-webhook-proxy.log。
+- 真实 worker 继续完成已保存 JD＋CV 任务，job `9ea115ad-c10e-44ad-81da-6578d12afbb5` done、一次 usage，页面 299 tasks。不是手动写入订阅或模拟 paid use。sandbox-paid-use.log。
+- 从产品实际打开 Sandbox 门户，订阅详情、付款方式表单、取消前审阅可用；未执行实际改卡或取消。共享 YieldMirror 品牌仍存在。复用的 Hirelix QA webhook destination 验收后设 Inactive，临时转发与隧道已停止，其他产品通知未改。
+- 显式启用的 Agent billing 隔离 PG 回归 1/1、无 skip：21 并发最多 20 接受、失败返还/重试、到期、300 月度/年付、幂等及乱序；合成签名事件只证明本地处理。agent-billing-enabled.log。
+- 实际隔离到期账户的 10 个已有对象/导出仍 200，新 AI 402、无新 job。http-expired-access-recheck.log。
+- 生产 Vercel Live 环境与价格目录已核对，hirelix.online 月付收银台可打开；当前生产未找到有效 Live 付费订阅。**Live 扣款→签名回调→数据库权益→页面状态→继续 AI 使用及 Live 门户仍未验收，是公开收费阻塞。** 最终付款由用户操作。共享商户品牌需要独立商户/运营审批交接；未修改全商户品牌。
+
+价格维持 49 USD/月、490 USD/年加适用税；300 AI tasks 按 UTC 自然月，不滚存。支持邮箱 MX 存在不证明收件成功，仍需运营确认。
+
+## 2026-09-29 历史验收
 
 ## 产品口径
 
