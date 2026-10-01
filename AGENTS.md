@@ -20,6 +20,8 @@ Unit tests are in `tests/*.test.ts`, Playwright specs in `e2e/*.spec.ts`, migrat
 
 ## Architecture & Product Facts
 
+项目当前尚未正式上线，没有已有用户。产品、订阅、额度和数据结构的调整无需考虑已有用户的兼容、权益衔接或迁移，不要为此增加兼容层或迁移流程。已有部署和测试账号不代表项目已上线或存在真实用户；仍须保留用户已有代码改动，不得据此擅自删除数据。
+
 Deployment is split across Vercel and `us-2`: Vercel hosts the Next.js app/API routes; `us-2` runs PostgreSQL 17 and the `hirelix-scheduler` systemd service from `/opt/hirelix`. Auth is better-auth with Google OAuth; sessions are stored in the same Postgres database. Production domain: `hirelix.online`.
 
 Search flow:
