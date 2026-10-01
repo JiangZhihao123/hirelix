@@ -131,12 +131,20 @@
 - 使用摩擦：概览点击 morgan-cv.pdf 只切到整个资料列表，首屏仍是其他客户反馈，需要继续找。已复用现有 record 查询、滚动及高亮机制，让指定来源和最新沟通入口定位具体记录。localhost:3000 Chrome 实际点击 PDF 与 CSV 两份来源后，URL、目标正文及高亮都正确；这项修复的浏览器证明来自 dev 表面。typecheck-source-focus.log、lint-source-focus.log 通过；最终发布结果另行核对。
 - 输出用途限制仍存在：正式 Prepare submission 是固定的客户推荐邮件，Direction 输入“内部审核且显式保留未知状态”未改变邮件体裁；正文仍面向客户，未知许可只在来源侧栏显示。内部审核意见应在会话中准备。本轮未把正式邮件输出当作内部审核需求通过，也未修改既定邮件产品方向。这个用途边界需要更清楚的页面提示或另行讨论，而不是以任务 done 包装成全部体验合格。
 
-结论：职位审核/保存、离开返回、候选人证据及正式材料准备路径可用；资料定位摩擦已修复，内部审核与客户邮件的用途边界仍需澄清。这是一次具体工作场景验收，不代表已经证明所有新用户、设备或真实客户的使用体验。
+上述为首次验收的结果，内部审核失败保留为修复前证据。用户随后明确要求继续定位、修复和复验，后续结果如下；这些具体工作场景不代表已经证明所有新用户、设备或真实客户的使用体验。
 
 资料定位发布复验：初版 `bf26d69` CI 36807089959 和 Vercel deployment 6774903957 均 success，VPS 同 SHA、clean、health 通过；但生产 Chrome 点来源后 URL 未带 record，也未高亮，不能当作修复验收通过。继续定位为同路径纯客户端查询更新，改用项目已有的 Next 原生 history.replaceState 集成，保留 useSearchParams 与原有定位/高亮，不新增私有路由状态。最终 production build localhost:3200 Chrome 点击 PDF 后正确出现 record、原文、高亮，刷新恢复同一记录。build-source-focus.log、typecheck-source-focus-final.log、lint-source-focus-final.log 通过。最终生产复验仍须以该后续提交为准，初版失败截图保留在本次工具记录中。
 
-- 最近已核对的生产发布为 7d673f2，业务修改基线9140205；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
-- localhost3200 production build 与 QA worker 已按最终代码重启。当前句柄 90621/36912；3000 dev 62371。句柄只作定位，续跑必须核对实际进程/端口。
+最终资料定位发布 `5930980`：CI 36807625068、Vercel deployment 6774986902 success；VPS `/opt/hirelix` 同 SHA、clean、scheduler active、health 通过。生产真实 Chrome 点击 CSV 来源后正确定位 record `4abea2dd-7f71-41f6-b908-da2c6fb9c243`，显示对应原文并高亮。补充凭据在 `output/launch-20261001/user-perspective-receipt.json`。
+
+材料用途修复：生成器保留默认客户推荐邮件，但遵从顶层 Direction 的明确内部审核要求；来源内容不能改变用途。用途保存在原有 JSON 快照中，修改保留用途，明确转换客户材料时才更新用途，不新增业务实体或迁移。内部审核页使用材料预览/复制标题，并避免记录为客户提交。真实模型回归覆盖默认邮件、内部审核、缩短后用途及未知事实保留、原文不提前替换、版本更新、内部 Search update 和提交拦截。另加强不得仅凭职位名称推断性别或管理范围，避免初次生成中出现的无依据 IC 描述。
+
+Chrome 本地生产构建完整复验：通过 Prepare submission 选择 Lakeside、Morgan、已有 PDF，输入同一内部审核要求，任务 `9763cbaf-4174-4c59-89a2-b1ee28a469de` done/attempts=1，草稿 `2bb0263c-fc9e-4f08-a84d-4c03a9bdd37a` 正文明确内部用途、五项未知状态，无客户问候或签名占位。实际生成缩短提案、审核、应用后保存版本2，页面历史可展开版本1，数据库两版均为 internal、保留同一 CV。PDF 与 DOCX 均从页面实际下载；PDF 在真实 Chrome 打开，一页完整、无溢出，DOCX 文字回读保留用途、证据与未知事项。额度293→291对应生成与修改两次工作。此项是隔离库 + 真实模型的 local real chain，未发送给客户，未做 Live 付款。最终代码模型回归及构建日志为 document-audience-*-final.log，发布结果另外核对。
+
+继续转换复验发现修改器仍会把内部提示塞在客户邮件前后，首次提案未应用、旧稿保持版本2。补充明确的推荐邮件正文规则后，实际重新生成/审核/应用：无内部前言、无 Subject 重复、无发送/审批提示，五项未知仍在候选人段落；版本3用途为 client，页面更新为 Client preview / Copy subject / Record actual submission。内部版本1、2保留，未记录虚构客户提交。最终真实模型回归同时覆盖该转换与用途保存，全部通过；四次页面AI工作额度293→289包含两次转换提案，失败质量提案未被包装成业务成功。
+
+- 最近已核对的生产发布为5930980；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
+- localhost3200 production build 与 QA worker 在每次修改后按最终代码重启；续跑必须核对实际进程/端口，不能复用历史句柄推断正在运行的代码。
 - QA Chrome 已保存新虚构 Role `0f0f2459-0948-4b1b-99dc-e57ac1eca850` 的约定 `fcfb4299-ee31-411b-bf1d-6fe329da52cd`：Asia/Shanghai 周四09:10，role dated records opt-in，candidate private notes关闭。自然时钟完整链路及导出已通过，现已暂停，结果见60。保留该QA资料，不再定时生成。
 - Live首笔真实交易改为后续观察，无需用户为本次QA先付款。共享商户品牌、支持邮箱收件与真机时间控件保留交接，未伪造已验结论。
 

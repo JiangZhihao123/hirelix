@@ -706,7 +706,9 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     files?: SubmissionCv[];
     captured_at?: string;
     language?: Locale;
+    audience?: "client" | "internal";
   };
+  const internalReview = source.audience === "internal";
   return (
     <div className="ws-page">
       <header className="ws-page-header">
@@ -725,7 +727,9 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               : t("Candidate submissions")}
           </Link>
           <h1>
-            {document.kind === "search_update"
+            {internalReview
+              ? t("Internal review")
+              : document.kind === "search_update"
               ? t("Search update")
               : t("Candidate submission")}
           </h1>
@@ -757,7 +761,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           ))}
           {!readOnly && (
             <button className="ws-button" onClick={() => setPreview((p) => !p)}>
-              {preview ? t("Edit draft") : t("Client preview")}
+              {preview ? t("Edit draft") : internalReview ? t("Document preview") : t("Client preview")}
             </button>
           )}
           {document.kind === "submission" ? (
@@ -771,7 +775,9 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 ) : (
                   <Copy size={14} />
                 )}
-                {copied === "subject" ? t("Subject copied") : t("Copy subject")}
+                {internalReview
+                  ? copied === "subject" ? t("Title copied") : t("Copy title")
+                  : copied === "subject" ? t("Subject copied") : t("Copy subject")}
               </button>
               <button
                 className="ws-button"
@@ -881,9 +887,11 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             <p>
               {readOnly
                 ? `${date(document.submitted_at)}\n${document.submission_note}`
-                : t("Check wording, facts and permission before you share. Copying this draft does not mark it submitted.")}
+                : internalReview
+                  ? t("For internal review. Use the assistant to prepare client material before recording a client submission. Unknown facts and sharing permission still need confirmation.")
+                  : t("Check wording, facts and permission before you share. Copying this draft does not mark it submitted.")}
             </p>
-            {!readOnly && (
+            {!readOnly && !internalReview && (
               <button
                 className="ws-button mt-4"
                 disabled={dirty || saving}
