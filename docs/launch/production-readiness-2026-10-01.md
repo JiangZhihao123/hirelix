@@ -155,18 +155,22 @@ Chrome 已有客户邮件再次真实修改/审核/应用为版本4，任务 `d5
 
 生产真实零额度入口：中文页面提交明确虚构的 QA 消息，请求被额度规则拦截，输入内容保留、没有伪造回复；错误提示仍英文。补全原有词典中的新任务与重试两条额度错误翻译，不改服务端规则或权益。typecheck/lint/build通过，发布后再实际复验中文提示及已保存工作可读。
 
-- 最近已核对的生产发布为dd2e448；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
+角色证据规则95813f5已发布：CI36812356868、Vercel6775736951均success，VPS同完整SHA、clean、active、health通过。额度文案f057a47已发布：CI36812623829、Vercel6775778165均success，VPS同SHA及健康通过；实际生产Chrome零额度请求正确显示中文、输入保留，数据库没有保存被拒的新对话。已有客户邮件仍可预览并下载PDF 2,452 bytes，文字回读保留预算、未知事实及同一人选。未发起付款。
+
+实际 Lakeside Search update 任务a135c6c9-083a-4c78-bd74-6c4c2f6fa8f9 done/1，草稿7f20cae8-1e56-4a82-a8de-9c408a317f24：本地日期24 September–1 October正确，无选中活动时明确不能报告活动；但把 brief 中 London-based / able to work office 的斜杠缩写误解释成or。原JD明确伦敦与办公室两天，继续修复共享规则：不得从标点推断二选一，明确JD可澄清未经明示更改的摘要歧义。真实模型测试fixture保留该斜杠并验证评估/生成/修改不放宽；一次invalid_json经原有真实重试后通过。typecheck/lint/build通过。实际普通缩短指令的提案正确恢复组合要求，审核应用为版本2，保留版本1、零活动及下一步建议边界，额度286→284为生成和修改两次任务。未外发。首次错误保存在role-logic-first.log，最终PG回读role-logic-final.log。发布结果另核对。
+
+- 最近已核对的生产发布为f057a47；兼容迁移已应用，生产 QA 约定暂停且通知已读。日期修复本地完整复验已通过，生产下一次正常任务时观察。
 - localhost3200 production build 与 QA worker 在每次修改后按最终代码重启；续跑必须核对实际进程/端口，不能复用历史句柄推断正在运行的代码。
 - QA Chrome 已保存新虚构 Role `0f0f2459-0948-4b1b-99dc-e57ac1eca850` 的约定 `fcfb4299-ee31-411b-bf1d-6fe329da52cd`：Asia/Shanghai 周四09:10，role dated records opt-in，candidate private notes关闭。自然时钟完整链路及导出已通过，现已暂停，结果见60。保留该QA资料，不再定时生成。
 - Live首笔真实交易改为后续观察，无需用户为本次QA先付款。共享商户品牌、支持邮箱收件与真机时间控件保留交接，未伪造已验结论。
 
 ## 发布、回滚和交接
 
-最近已核对的生产业务代码为 `dd2e448`，包含导航、定期草稿、时区、资料定位、材料用途与中文订阅页修复；后续角色证据规则候选须另核对发布结果。CI先构建/检查，再以确切SHA部署VPS；Vercel发布同一SHA。发布过程中未新增模型或支付 key，未更改其他产品或 VPS 服务。此前已实际核对 Production key存在、Live价格ID、Paddle production环境及Node24配置；不公开密钥。定期草稿兼容迁移在备份后先应用六列，随后发布；9140205仅扩展 JSON快照，无新增迁移。
+最近已核对的生产业务代码为 `f057a47`，包含导航、定期草稿、时区、资料定位、材料用途与中文订阅页修复；包含角色证据规则95813f5；后续组合条件逻辑候选须另核对发布结果。CI先构建/检查，再以确切SHA部署VPS；Vercel发布同一SHA。发布过程中未新增模型或支付 key，未更改其他产品或 VPS 服务。此前已实际核对 Production key存在、Live价格ID、Paddle production环境及Node24配置；不公开密钥。定期草稿兼容迁移在备份后先应用六列，随后发布；9140205仅扩展 JSON快照，无新增迁移。
 
 备份：迁移前 `/var/backups/hirelix/daily-20261001T003658Z.dump`，49,578,208 bytes；迁移及生产自然任务后 `/var/backups/hirelix/daily-20261001T005421Z.dump`，49,581,601 bytes。后者已实际恢复到全新、仅管理员连接的 `hirelix_restore_qa_release_20261001`，47表、5文件哈希正确、六新增列/约定/草稿/额度恢复。原恢复库保留；生产数据未覆盖。同VPS备份不能替代异地DR。
 
-当前新增角色证据规则修复的回滚基线为已验 `dd2e448c3e10f100123b0bcd68693c16eed2be02` / deployment6775531090；更早时区相关发布基线为 `15a4a4357a337483d817641ed27000e15dc8f8d1`，Vercel deployment6773337712，`hirelix-kcso8u3vq-noahs-projects-292679b9.vercel.app`。若需退回定期功能前版本，选 `44a6f1fce11d443fdef5bdd65edc4a725d75e8e0` / deployment6772408965。确认 `/opt/hirelix` 无需保留的未提交改动后，以对应SHA安装依赖、重启 Hirelix scheduler、核对版本和队列。暂停本次QA约定，保留兼容新增列和发布期间数据；不得机械drop column或用旧dump覆盖新写入。Vercel管理页已见Instant Rollback入口；未执行应用回滚演练。
+当前组合条件逻辑修复的回滚基线为已验 `f057a47117af0360e86195b361a4682bfddf4258` / deployment6775778165；更早时区相关发布基线为 `15a4a4357a337483d817641ed27000e15dc8f8d1`，Vercel deployment6773337712，`hirelix-kcso8u3vq-noahs-projects-292679b9.vercel.app`。若需退回定期功能前版本，选 `44a6f1fce11d443fdef5bdd65edc4a725d75e8e0` / deployment6772408965。确认 `/opt/hirelix` 无需保留的未提交改动后，以对应SHA安装依赖、重启 Hirelix scheduler、核对版本和队列。暂停本次QA约定，保留兼容新增列和发布期间数据；不得机械drop column或用旧dump覆盖新写入。Vercel管理页已见Instant Rollback入口；未执行应用回滚演练。
 
 运行维护：`hirelix-scheduler` enabled、Restart=always；daily backup与health timers enabled。`deploy/hirelix-health.sh`逐项检测服务、工作区worker启用状态、卡住任务/逾期约定及26小时备份。生产实际停机检测status3/恢复status0已验。故障先恢复服务，再从安全job_id日志定位；文件存储在PG bytea，下载流式传输。首次用户步骤见 [使用说明](../product/overseas-recruiter-agent-v1/first-user-guide.md)。
 

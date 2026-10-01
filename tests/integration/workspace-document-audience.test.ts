@@ -29,7 +29,7 @@ test("real AI respects internal purpose, preserves it on revision, and defaults 
     title: "VP Product", client_name: "QA Lakeside",
     jd_text: "Enterprise SaaS product leader in London, leading at least ten product managers, two office days per week, GBP 165k–180k budget.",
     brief: {
-      priorities: ["At least ten product managers led", "Enterprise SaaS", "Two office days per week in London", "Client-confirmed GBP 165k–180k budget"],
+      priorities: ["At least ten product managers led", "Enterprise SaaS", "London-based / able to work in the office two days a week", "Client-confirmed GBP 165k–180k budget"],
       flexible: [],
       unknowns: ["Whether the two-days-in-office requirement is negotiable", "Whether the budget is base salary or total package"],
     },
@@ -104,5 +104,6 @@ test("real AI respects internal purpose, preserves it on revision, and defaults 
   assert.match(client.content, /\[Your name\]/);
   const update = await draft("search_update", "Internal review of the selected evidence for the period. Do not address the client.");
   assert.equal(update.source_snapshot.audience, "internal");
+  assert.doesNotMatch(update.content, /London[- ]based\s+or\s+(?:able|willing)|(?:either|alternatively)[^.\n]{0,80}(?:London|office)/i);
   assert.doesNotMatch(update.content, /^(?:Dear|Hello|Hi)\b/im);
 });
