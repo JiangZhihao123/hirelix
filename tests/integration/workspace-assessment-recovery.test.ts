@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import {randomUUID} from "node:crypto";
+import {after,test} from "node:test";
+import {sql} from "drizzle-orm";
+import {db,closeDb} from "../../src/db/client";
+import {createRole,roleDetails} from "../../src/lib/workspace/roles";
+import {enqueue} from "../../src/lib/workspace/database";
+const database=new URL(process.env.DATABASE_URL||"postgresql://invalid/invalid");
+assert.ok(["localhost","127.0.0.1"].includes(database.hostname)&&database.pathname.startsWith("/hirelix_workspace_qa_"));
+const owner=randomUUID();
+after(async()=>{await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);await closeDb();});
+test("real DB: returning to a role restores its latest unresolved assessment without resurfacing superseded errors",async()=>{
+ const role=await createRole(owner,{title:"Recovery role",client_name:"QA",jd_text:"Evidence"});
+ const person=randomUUID();
+ const old=await enqueue(owner,"assessment",randomUUID(),{role_id:role.id,person_id:person});
+ await db.execute(sql`UPDATE hirelix_private_jobs SET status='error' WHERE id=${old.id}::uuid`);
+ assert.equal((await roleDetails(owner,role.id)).assessment_job?.id,old.id);
+ const next=await enqueue(owner,"assessment",randomUUID(),{role_id:role.id,person_id:person});
+ await db.execute(sql`UPDATE hirelix_private_jobs SET status='done' WHERE id=${next.id}::uuid`);
+ assert.equal((await roleDetails(owner,role.id)).assessment_job?.id,next.id);
+ await assert.rejects(()=>roleDetails(randomUUID(),role.id),/not found/);
+});

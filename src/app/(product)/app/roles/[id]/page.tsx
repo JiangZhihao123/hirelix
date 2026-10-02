@@ -44,6 +44,7 @@ type Detail = {
   records: SourceRecord[];
   deliverables: Deliverable[];
   schedule: Schedule | null;
+  assessment_job: Job | null;
 };
 type Assessment = {
   decision: string;
@@ -81,7 +82,8 @@ export default function RolePage({
     [busy, setBusy] = useState(false),
     [assessment, setAssessment] = useState<RoleCandidate | null>(null),
     [permission, setPermission] = useState<RoleCandidate | null>(null),
-    [jobId, setJobId] = useState<string | null>(null);
+    [startedJobId, setJobId] = useState<string | null>(null);
+  const jobId = startedJobId || query.data?.assessment_job?.id || null;
   const job = useQuery<{ job: Job }>(jobId ? `/jobs/${jobId}` : null),
     filteredPool = useQuery<{ people: Person[] }>(
       personFilter ? `/people?q=${encodeURIComponent(personFilter)}` : null,
@@ -146,7 +148,7 @@ export default function RolePage({
         body: JSON.stringify({
           kind: "assessment",
           request_key: crypto.randomUUID(),
-          payload: { role_id: id, person_id: personId },
+          payload: { role_id: id, person_id: personId, locale },
         }),
       });
       setJobId(result.job.id);

@@ -19,6 +19,7 @@ import {
   type SourceRecord,
   type Deliverable,
   type Schedule,
+  type Job,
 } from "./types";
 
 // Shared evidence rules for consumers of a recruiter's reviewed role brief.
@@ -32,7 +33,7 @@ export async function listRoles(userId: string) {
 }
 export async function roleDetails(userId: string, id: string) {
   const role = await owned<Role>(userId, "role", id);
-  const [people, records, deliverables, schedules] = await Promise.all([
+  const [people, records, deliverables, schedules, assessments] = await Promise.all([
     rows<RoleCandidate>(
       sql`SELECT rc.*,to_jsonb(p) AS person FROM hirelix_private_role_candidates rc JOIN hirelix_agent_people p ON p.user_id=rc.user_id AND p.id=rc.person_id WHERE rc.user_id=${userId}::uuid AND rc.role_id=${id}::uuid ORDER BY rc.created_at`,
     ),
@@ -45,6 +46,9 @@ export async function roleDetails(userId: string, id: string) {
     rows<Schedule>(
       sql`SELECT * FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND role_id=${id}::uuid`,
     ),
+    rows<Job>(
+      sql`SELECT * FROM (SELECT DISTINCT ON (payload->>'person_id') * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='assessment' AND payload->>'role_id'=${id} ORDER BY payload->>'person_id',created_at DESC,id DESC) latest ORDER BY (status IN ('queued','running','error')) DESC,created_at DESC LIMIT 1`,
+    ),
   ]);
   return {
     role,
@@ -52,6 +56,7 @@ export async function roleDetails(userId: string, id: string) {
     records,
     deliverables,
     schedule: schedules[0] ?? null,
+    assessment_job: assessments[0] ?? null,
   };
 }
 export async function createRole(
