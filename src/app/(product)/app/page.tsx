@@ -48,6 +48,9 @@ import type {
   AssistantMeta,
 } from "@/lib/workspace/conversations";
 
+import { attachmentError, MAX_CONVERSATION_FILES, messageAttachments, messageImportJobs } from "@/lib/workspace/attachments";
+
+type PendingFile = { id: string; file: File; fileId?: string; status: "ready" | "uploading" | "uploaded" | "error"; error?: string };
 type Detail = {
   conversation: Conversation;
   messages: Message[];
@@ -128,8 +131,8 @@ function AssistantWorkspace({
       messageId: string;
       action: AssistantAction;
     } | null>(null);
-  const [attachment, setAttachment] = useState<File | null>(null);
-  const [attachmentKey, setAttachmentKey] = useState(() => crypto.randomUUID());
+  const [attachments, setAttachments] = useState<PendingFile[]>([]);
+  const dragDepth = useRef(0);
   const [contextOpen, setContextOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
@@ -144,20 +147,36 @@ function AssistantWorkspace({
   const fileInput = useRef<HTMLInputElement>(null);
   const stickToBottom = useRef(true);
   const scrollSize = useRef({ height: 0, viewport: 0 });
-  function chooseFile(file: File | undefined) {
-    if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      setError("Choose a file up to 4 MB.");
+  function chooseFiles(files: FileList | null) {
+    if (!files) return;
+    const incoming = Array.from(files);
+    if (attachments.length + incoming.length > MAX_CONVERSATION_FILES) {
+      setError(t("Add up to 20 files per message."));
       return;
     }
-    if (!/\.(csv|pdf|docx|txt|md)$/i.test(file.name)) {
-      setError("Attach a CSV, text PDF, DOCX, TXT or Markdown file.");
-      return;
-    }
-    setAttachment(file);
-    setAttachmentKey(crypto.randomUUID());
+    setAttachments((current) => [...current, ...incoming.map((file): PendingFile => {
+      const error = attachmentError(file.name, file.size);
+      return { id: crypto.randomUUID(), file, status: error ? "error" : "ready", ...(error ? { error } : {}) };
+    })]);
     setError("");
+    if (fileInput.current) fileInput.current.value = "";
     composer.current?.focus();
+  }
+  async function uploadFile(item: PendingFile): Promise<string | null> {
+    if (item.fileId) return item.fileId;
+    const validation = attachmentError(item.file.name, item.file.size);
+    if (validation) return null;
+    setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, status: "uploading", error: undefined } : entry));
+    try {
+      const body = new FormData();
+      body.append("file", item.file);
+      const result = await api<{ file: { file_id: string } }>("/files", { method: "POST", body });
+      setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, fileId: result.file.file_id, status: "uploaded" } : entry));
+      return result.file.file_id;
+    } catch (cause) {
+      setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, status: "error", error: cause instanceof Error ? cause.message : "Could not upload file" } : entry));
+      return null;
+    }
   }
   const request = useRef<{ text: string; key: string } | null>(null),
     scroll = useRef<HTMLDivElement>(null),
@@ -340,49 +359,34 @@ function AssistantWorkspace({
   async function send(event: FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if ((!text && !attachment) || sending || pending) return;
+    if ((!text && !attachments.length) || sending || pending || attachments.some((item) => item.status === "uploading")) return;
     setSending(true);
     setError("");
     stickToBottom.current = true;
     setShowJump(false);
-    if (!attachment)
+    if (!attachments.length)
       setOptimistic({
         text,
         priorIds: query.data?.messages.map((m) => m.id) || [],
       });
-    if (request.current?.text !== text)
-      request.current = { text, key: crypto.randomUUID() };
     try {
-      if (attachment) {
-        const form = new FormData();
-        form.append("file", attachment);
-        form.append("request_key", attachmentKey);
-        form.append("message", text);
-        form.append("locale", locale);
-        if (conversationId) form.append("conversation_id", conversationId);
-        if (!conversationId && roleId) form.append("role_id", roleId);
-        if (!conversationId && linkedPersonId)
-          form.append("person_id", linkedPersonId);
-        const uploaded = await api<{ conversation_id: string }>("/conversations", {
-          method: "POST",
-          body: form,
-        });
-        setAttachment(null);
-        setDraft("");
-        localStorage.removeItem(draftStorageKey);
-        localStorage.removeItem(draftRoleKey);
-        setAttachmentKey(crypto.randomUUID());
-        if (fileInput.current) fileInput.current.value = "";
-        const target = uploaded.conversation_id;
-        window.dispatchEvent(new Event("hirelix:conversations-changed"));
-        if (!conversationId) onOpen(target);
-        else query.refresh();
+      const fileIds: string[] = [];
+      for (const item of attachments) {
+        const fileId = await uploadFile(item);
+        if (fileId) fileIds.push(fileId);
+      }
+      if (fileIds.length !== attachments.length) {
+        setError(t("Some files need attention. Retry or remove them, then send. Your other files are ready."));
         return;
       }
+      const signature = JSON.stringify({ text, fileIds });
+      if (request.current?.text !== signature)
+        request.current = { text: signature, key: crypto.randomUUID() };
       const result = await api<{ conversation_id: string }>("/conversations", {
         method: "POST",
         body: JSON.stringify({
           message: text,
+          file_ids: fileIds,
           locale,
           request_key: request.current.key,
           conversation_id: conversationId,
@@ -391,11 +395,12 @@ function AssistantWorkspace({
         }),
       });
       setDraft("");
+      setAttachments([]);
       localStorage.removeItem(draftStorageKey);
       localStorage.removeItem(draftRoleKey);
       request.current = null;
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
-      if (!conversationId) onOpen(result.conversation_id, text);
+      if (!conversationId) onOpen(result.conversation_id, attachments.length ? undefined : text);
       else query.refresh();
     } catch (cause) {
       setOptimistic(null);
@@ -457,7 +462,13 @@ function AssistantWorkspace({
   return (
     <div className="ws-page ws-assistant-page">
       <div className="ws-assistant-body">
-        <section className="ws-conversation" aria-label={t("Conversation")}>
+        <section className={`ws-conversation ${dragging ? "is-dragging" : ""}`} aria-label={t("Conversation")}
+          onDragEnter={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); dragDepth.current++; setDragging(true); } }}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
+          onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}
+          onDrop={(event) => { event.preventDefault(); dragDepth.current = 0; setDragging(false); if (!sending) chooseFiles(event.dataTransfer.files); }}
+        >
+          {dragging && <div className="ws-conversation-drop-target"><Paperclip size={28} /><strong>{t("Drop files here")}</strong><span>{t("Share the material. Tell me what you want done.")}</span></div>}
           <header className="ws-conversation-header">
             <div className="ws-chat-title-row">
               {renaming ? (
@@ -576,7 +587,7 @@ function AssistantWorkspace({
                   <BrandMark small />
                 </div>
                 <h2>{t("What would you like to work on?")}</h2>
-                <p>{t("Ask a question, paste a JD, or add a file. I'll follow your lead.")}</p>
+                <p>{t("Tell me what you want to get done. Drop in CVs, JDs and notes together.")}</p>
               </div>
             ) : (
               query.data?.messages.map((message) => {
@@ -606,25 +617,15 @@ function AssistantWorkspace({
                         </p>
                       )}
                       <AgentText content={message.content} />
-                      {message.metadata.attachment ? (
-                        <a
-                          className="ws-chat-attachment"
-                          href={`/api/workspace/files/${String((message.metadata.attachment as { file_id: string }).file_id)}`}
-                        >
-                          <Paperclip size={14} />
-                          {String(
-                            (message.metadata.attachment as { name: string })
-                              .name,
-                          )}
+                      {messageAttachments(message.metadata).map((file) => (
+                        <a key={file.file_id} className="ws-chat-attachment" href={`/api/workspace/files/${file.file_id}`}>
+                          <Paperclip size={14} />{file.name}
                         </a>
-                      ) : null}
+                      ))}
                     </div>
-                    {typeof message.metadata.import_job_id === "string" && (
-                      <ConversationImport
-                        jobId={message.metadata.import_job_id}
-                        embedded={message.role === "assistant"}
-                      />
-                    )}
+                    {messageImportJobs(message.metadata).map((jobId) => (
+                      <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={job?.status === "done" ? job.id : undefined} />
+                    ))}
                     {metadata.sources?.length ? (
                       <div className="ws-message-sources">
                         {metadata.sources.map((source, index) => (
@@ -739,7 +740,7 @@ function AssistantWorkspace({
                       ? t("Saving your message…")
                       : t(job?.progress || "Working on your request…")}
                   </span>
-                  <small>{t("You can leave this page and return.")}</small>
+                  <small>{t(sending ? "Keep this page open until your files and message are sent." : "You can leave this page and return.")}</small>
                 </div>
               </div>
             )}
@@ -766,64 +767,36 @@ function AssistantWorkspace({
           <form
             className={`ws-composer ${dragging ? "is-dragging" : ""}`}
             onSubmit={send}
-            onDragOver={(e) => {
-              if (e.dataTransfer.types.includes("Files")) {
-                e.preventDefault();
-                setDragging(true);
-              }
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              if (!sending) chooseFile(e.dataTransfer.files[0]);
-            }}
             onPaste={(e) => {
               if (e.clipboardData.files.length) {
                 e.preventDefault();
-                if (!sending) chooseFile(e.clipboardData.files[0]);
+                if (!sending) chooseFiles(e.clipboardData.files);
               }
             }}
           >
-            {dragging && (
-              <div className="ws-composer-drop-target">
-                <Paperclip size={18} />
-                {t("Drop a file to ask your assistant")}
-              </div>
-            )}
             <input
               ref={fileInput}
               className="sr-only"
               tabIndex={-1}
-              aria-label={t("Attach a file")}
+              aria-label={t("Add files")}
               type="file"
+              multiple
+              disabled={sending}
               accept=".csv,.pdf,.docx,.txt,.md"
-              onChange={(e) => chooseFile(e.target.files?.[0])}
+              onChange={(e) => chooseFiles(e.target.files)}
             />
-            {attachment && (
-              <div className="ws-composer-attachment">
-                <Paperclip size={14} />
-                <span>
-                  {attachment.name}
-                  <small>
-                    {attachment.size < 1024
-                      ? `${attachment.size} bytes`
-                      : `${(attachment.size / 1024).toFixed(0)} KB`}{" "}
-                    {t("· Attached file")}
-                  </small>
-                </span>
-                <button
-                  className="ws-icon"
-                  type="button"
-                  aria-label={t("Remove attachment")}
-                  disabled={sending}
-                  onClick={() => {
-                    setAttachment(null);
-                    if (fileInput.current) fileInput.current.value = "";
-                  }}
-                >
-                  <X size={14} />
-                </button>
+            {attachments.length > 0 && (
+              <div className="ws-composer-files" aria-live="polite">
+                {attachments.map((item) => (
+                  <div key={item.id} className={`ws-composer-attachment ${item.status === "error" ? "has-error" : ""}`}>
+                    {item.status === "uploading" ? <Loader2 size={14} className="animate-spin" /> : item.status === "uploaded" ? <Check size={14} /> : <Paperclip size={14} />}
+                    <span title={item.file.name}>{item.file.name}<small>{item.error ? t(item.error) : item.status === "uploading" ? t("Uploading…") : item.status === "uploaded" ? t("Ready") : `${Math.ceil(item.file.size / 1024)} KB`}</small></span>
+                    {item.status === "error" && !attachmentError(item.file.name, item.file.size) && (
+                      <button type="button" className="ws-link" disabled={sending} onClick={() => void uploadFile(item)}>{t("Retry")}</button>
+                    )}
+                    <button className="ws-icon" type="button" aria-label={`${t("Remove attachment")}: ${item.file.name}`} disabled={sending || item.status === "uploading"} onClick={() => setAttachments((items) => items.filter((entry) => entry.id !== item.id))}><X size={14} /></button>
+                  </div>
+                ))}
               </div>
             )}
             {!conversationId && (roleId || linkedPersonId) && (
@@ -887,7 +860,7 @@ function AssistantWorkspace({
                 onClick={() => fileInput.current?.click()}
               >
                 <Paperclip size={14} />
-                {t("Attach a file")}
+                {t("Add files")}
               </button>
               <span>
                 {pending
@@ -901,8 +874,9 @@ function AssistantWorkspace({
                 className="ws-button ws-button-primary"
                 aria-label={t("Send message")}
                 disabled={
-                  (!draft.trim() && !attachment) ||
+                  (!draft.trim() && !attachments.length) ||
                   sending ||
+                  attachments.some((item) => item.status === "uploading") ||
                   pending ||
                   job?.status === "error"
                 }

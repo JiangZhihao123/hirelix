@@ -196,13 +196,13 @@ export default function Candidates() {
         </div>
         <div className="ws-actions">
           <Link
-            className="ws-button"
-            href="/app/candidates/import"
+            className="ws-button ws-button-primary"
+            href={`/app?prompt=${encodeURIComponent(t("Help me organize these candidate files into my workspace."))}`}
           >
-            {t("Import")}
+            {t("Give files to assistant")}
           </Link>
           <button
-            className="ws-button ws-button-primary"
+            className="ws-button"
             onClick={() => setAdding(true)}
           >
             <Plus size={15} />
@@ -331,9 +331,9 @@ export default function Candidates() {
                 </button>
                 <Link
                   className="ws-link"
-                  href="/app/candidates/import"
+                  href={`/app?prompt=${encodeURIComponent(t("Help me organize these candidate files into my workspace."))}`}
                 >
-                  {t("Import existing candidates")} <ArrowUpRight size={14} />
+                  {t("Give files to assistant")} <ArrowUpRight size={14} />
                 </Link>
               </div>
             </div>

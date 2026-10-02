@@ -22,6 +22,8 @@ Unit tests are in `tests/*.test.ts`, Playwright specs in `e2e/*.spec.ts`, migrat
 
 项目当前尚未正式上线，没有已有用户。产品、订阅、额度和数据结构的调整无需考虑已有用户的兼容、权益衔接或迁移，不要为此增加兼容层或迁移流程。已有部署和测试账号不代表项目已上线或存在真实用户；仍须保留用户已有代码改动，不得据此擅自删除数据。
 
+Hirelix 的主要交互是 AI Agent：用户交代目标和资料，Agent 理解、执行并交付结果；文件是任务上下文，候选人和职位是工作沉淀。不要把批量资料入口做成聊天外观的导入向导。明确授权的无歧义整理应直接完成，只有身份、事实冲突或影响当前任务的缺失信息才要求用户决定；分析请求不得擅自修改资料。
+
 Deployment is split across Vercel and `us-2`: Vercel hosts the Next.js app/API routes; `us-2` runs PostgreSQL 17 and the `hirelix-scheduler` systemd service from `/opt/hirelix`. Auth is better-auth with Google OAuth; sessions are stored in the same Postgres database. Production domain: `hirelix.online`.
 
 Search flow:

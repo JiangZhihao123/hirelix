@@ -698,9 +698,11 @@ function ReviewRow({
 export function ConversationImport({
   jobId,
   embedded = false,
+  refreshToken,
 }: {
   jobId: string;
   embedded?: boolean;
+  refreshToken?: string;
 }) {
   const t = useT();
   const { locale } = useLanguage();
@@ -710,6 +712,8 @@ export function ConversationImport({
     [saving, setSaving] = useState(false),
     [expanded, setExpanded] = useState(false);
   const preview = useQuery<Preview>(`/imports/${jobId}?page=${page}`);
+  const refreshPreview = preview.refresh;
+  useEffect(() => { if (refreshToken) refreshPreview(); }, [refreshToken, refreshPreview]);
   const job = preview.data?.job,
     result = job?.result as
       | {
@@ -768,6 +772,7 @@ export function ConversationImport({
       aria-label={t("Candidate import in conversation")}
     >
       {!embedded && <div className="ws-message-label">{t("Hirelix")}</div>}
+      {job && <small className="ws-muted">{String(job.payload.filename || "")}</small>}
       <ErrorNotice error={error || preview.error} retry={preview.refresh} />
       {!job ? (
         <Loading>{t("Opening your file…")}</Loading>

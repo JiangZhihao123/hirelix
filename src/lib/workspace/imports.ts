@@ -228,6 +228,30 @@ function mappedPerson(
       .filter(Boolean),
   };
 }
+// Agent tasks can save unambiguous new profiles when the recruiter requested it.
+// Serialize each user's identity check + write so parallel files cannot add duplicates.
+async function saveUnambiguousRows(job: Job, tx: Runner, filename: string, format: string, needsClarification = false) {
+  const current = await owned<Job>(job.user_id, "job", job.id, tx);
+  if (current.payload.save_new_candidates !== true || needsClarification) return false;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${"candidate-intake:" + job.user_id},0))`);
+  const items = await rows<ImportRow>(sql`SELECT * FROM hirelix_private_import_rows WHERE user_id=${job.user_id}::uuid AND job_id=${job.id}::uuid AND status='review' ORDER BY row_number FOR UPDATE`, tx);
+  for (const item of items) {
+    const parsed = personInput.safeParse(item.extracted);
+    if (!parsed.success) continue;
+    const matches = await findDuplicates(job.user_id, parsed.data, tx);
+    if (matches.length) {
+      await tx.execute(sql`UPDATE hirelix_private_import_rows SET matches=${json(matches)} WHERE id=${item.id}::uuid AND user_id=${job.user_id}::uuid`);
+      continue;
+    }
+    const person = await createPerson(job.user_id, parsed.data, tx);
+    await addRecord(job.user_id, {
+      person_id: person.id, file_id: item.file_id, kind: format === "csv" ? "profile" : "cv", title: filename,
+      content: item.raw_text, details: { import_job_id: job.id, import_row: item.id, imported_fields: item.extracted },
+    }, tx);
+    await tx.execute(sql`UPDATE hirelix_private_import_rows SET status='saved',action='add',target_person_id=${person.id}::uuid,result_person_id=${person.id}::uuid,error=NULL WHERE user_id=${job.user_id}::uuid AND id=${item.id}::uuid`);
+  }
+  return true;
+}
 export const prepareImport: JobHandler = async (job, progress) => {
   const file = await readFile(job.user_id, idSchema.parse(job.payload.file_id));
   await progress(`Reading ${file.name}`);
@@ -291,7 +315,7 @@ export const prepareImport: JobHandler = async (job, progress) => {
         headers,
         mapping,
         total: rawRows.length,
-        mapping_confirmed: false,
+        mapping_confirmed: job.payload.save_new_candidates === true,
       },
       apply: async (tx) => {
         for (let index = 0; index < rawRows.length; index++) {
@@ -303,6 +327,8 @@ export const prepareImport: JobHandler = async (job, progress) => {
             sql`INSERT INTO hirelix_private_import_rows(user_id,job_id,row_number,file_id,raw_text,extracted,matches) VALUES(${job.user_id}::uuid,${job.id}::uuid,${index + 1},${file.id}::uuid,${JSON.stringify(rawRows[index])},${json(fields)},${json(matches)}) ON CONFLICT(job_id,row_number) DO NOTHING`,
           );
         }
+        const savedByAgent = await saveUnambiguousRows(job, tx, file.name, "csv");
+        if (savedByAgent) return { mapping_confirmed: true };
       },
     };
   }
@@ -315,27 +341,36 @@ export const prepareImport: JobHandler = async (job, progress) => {
   const extracted = await structured(
     job.user_id,
     "private_import_cv",
-    z.object({ person: personInput, warnings: z.array(z.string()) }),
-    "Extract one candidate profile from this CV. Copy supported facts faithfully. Leave unavailable fields empty, never infer availability or permission. Preserve employment dates as written. Put only material ambiguities or transformations the recruiter must verify in warnings, as separate concise sentences. Do not list routine missing optional fields or restate that fields were left empty. Keep note empty unless the document contains explicit recruiter notes. This is a draft the recruiter will review before saving.",
+    z.object({ people: z.array(personInput).min(1).max(100), warnings: z.array(z.string()), needs_clarification: z.boolean() }),
+    "Extract every candidate profile from this document, one entry per distinct person. Copy supported facts faithfully. Leave unavailable fields empty, never infer availability or permission. Preserve employment dates as written. Put only material ambiguities or transformations in warnings, as separate concise sentences. Do not list routine missing optional fields. Keep note empty unless the document contains explicit recruiter notes. Do not treat references, interviewers, or employers as candidate profiles. Report ambiguity instead of guessing identities. Set needs_clarification true only for unresolved identity or conflicting source facts that prevent faithful extraction. Missing optional details, formatting notes, and explicitly supplied fictional/sample data are not blocking ambiguities.",
     { filename: file.name, original_text: original },
   );
-  const matches = await findDuplicates(job.user_id, extracted.person);
   return {
     result: {
-      file_id: file.id,
-      filename: file.name,
-      format: extension,
-      total: 1,
-      warnings: extracted.warnings,
-      mapping_confirmed: true,
+      file_id: file.id, filename: file.name, format: extension,
+      total: extracted.people.length, warnings: extracted.warnings, needs_clarification: extracted.needs_clarification, mapping_confirmed: true,
     },
     apply: async (tx) => {
-      await tx.execute(
-        sql`INSERT INTO hirelix_private_import_rows(user_id,job_id,row_number,file_id,raw_text,extracted,matches) VALUES(${job.user_id}::uuid,${job.id}::uuid,1,${file.id}::uuid,${original},${json(extracted.person)},${json(matches)}) ON CONFLICT(job_id,row_number) DO NOTHING`,
-      );
+      for (const [index, person] of extracted.people.entries()) {
+        const matches = await findDuplicates(job.user_id, person, tx);
+        await tx.execute(
+          sql`INSERT INTO hirelix_private_import_rows(user_id,job_id,row_number,file_id,raw_text,extracted,matches) VALUES(${job.user_id}::uuid,${job.id}::uuid,${index + 1},${file.id}::uuid,${original},${json(person)},${json(matches)}) ON CONFLICT(job_id,row_number) DO NOTHING`,
+        );
+      }
+      await saveUnambiguousRows(job, tx, file.name, extension || "cv", extracted.needs_clarification);
     },
   };
 };
+export async function saveRequestedCandidateDrafts(userId: string, jobId: string, tx: Runner) {
+  const job = await owned<Job>(userId, "job", jobId, tx, true);
+  if (job.kind !== "import" || job.status !== "done") return;
+  const needsClarification = job.result?.needs_clarification === true ||
+    (job.result?.needs_clarification === undefined && Array.isArray(job.result?.warnings) && job.result.warnings.length > 0);
+  await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || '{"save_new_candidates":true}'::jsonb WHERE id=${jobId}::uuid AND user_id=${userId}::uuid`);
+  await saveUnambiguousRows({ ...job, payload: { ...job.payload, save_new_candidates: true } }, tx,
+    String(job.payload.filename || "Candidate source"), String(job.result?.format || "cv"), needsClarification);
+  await tx.execute(sql`UPDATE hirelix_private_jobs SET result=result || '{"mapping_confirmed":true}'::jsonb,updated_at=now() WHERE id=${jobId}::uuid AND user_id=${userId}::uuid`);
+}
 export async function importDetails(userId: string, id: string, page = 1) {
   const job = await owned<Job>(userId, "job", id);
   if (job.kind !== "import")

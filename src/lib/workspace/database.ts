@@ -122,7 +122,7 @@ export async function listVersions(
 export async function isIncludedTask(job: Job, runner: Runner = db): Promise<boolean> {
   if (job.kind === "index") return true;
   if (job.kind !== "import" || !job.request_key.startsWith("assistant-import:")) return false;
-  const parentId = job.request_key.slice("assistant-import:".length);
+  const parentId = job.request_key.slice("assistant-import:".length).split(":")[0];
   const parents = await rows(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${job.user_id}::uuid AND id::text=${parentId} AND kind='chat' AND payload->>'message_id'=${String(job.payload.source_message_id || "")} AND payload->>'conversation_id'=${String(job.payload.conversation_id || "")}`, runner);
   return parents.length > 0;
 }

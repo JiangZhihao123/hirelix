@@ -6,7 +6,8 @@ import { db } from "@/db/client";
 import { rows, WorkspaceError, type Runner } from "./database";
 import { personDetails } from "./people";
 
-export const MAX_FILE_BYTES = 4 * 1024 * 1024;
+import { MAX_ATTACHMENT_BYTES, attachmentError } from "./attachments";
+export const MAX_FILE_BYTES = MAX_ATTACHMENT_BYTES;
 export type PrivateFile = {
   id: string;
   user_id: string;
@@ -30,6 +31,18 @@ export async function saveFile(
     tx,
   );
   return saved;
+}
+// Retry the same upload without retaining another copy of its bytes.
+export async function uploadConversationFile(userId: string, file: { name: string; type: string; bytes: Uint8Array }) {
+  const error = attachmentError(file.name, file.bytes.byteLength);
+  if (error) throw new WorkspaceError(error);
+  const name = path.basename(file.name).slice(0, 250);
+  const hash = createHash("sha256").update(file.bytes).digest("hex");
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + hash + name},0))`);
+    const [existing] = await rows<PrivateFile>(sql`SELECT id,user_id,name,media_type,byte_size,sha256,created_at FROM hirelix_private_files WHERE user_id=${userId}::uuid AND sha256=${hash} AND name=${name} ORDER BY created_at LIMIT 1`, tx);
+    return existing || saveFile(userId, file, tx);
+  });
 }
 export async function readFile(userId: string, id: string) {
   const [file] = await rows<PrivateFile & { encoded: string }>(
