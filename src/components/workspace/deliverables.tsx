@@ -197,9 +197,6 @@ export function PrepareDocument({
           <p>
             {t("Your draft is saved in the background. You can leave and return to this page.")}
           </p>
-          <Link className="ws-link" href="/app/tasks">
-            {t("View tasks")} <ArrowUpRight size={13} />
-          </Link>
         </div>
       ) : job.data?.job.status === "error" ? (
         <ErrorNotice

@@ -985,7 +985,7 @@ export const uiZh: Record<string, string> = {
   "Search your candidates": "搜索你的候选人",
   "What would you like to work on?": "今天想处理什么？",
   "Ask a question, paste a JD, or add a file. I'll follow your lead.": "直接提问、粘贴 JD，或添加文件。我会按你的需求来。",
-  "Background tasks": "后台任务",
+  "You can return to this page to review the result. Your original file is saved.": "你可以回到此页查看结果，原始文件已保存。",
   "Nothing needs attention right now.": "目前没有需要处理的任务。",
   "Earlier work": "更早的工作",
   "Discard your unsaved candidate changes?": "放弃尚未保存的候选人修改？",

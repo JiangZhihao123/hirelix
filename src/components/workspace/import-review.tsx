@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Upload,
   Check,
-  ArrowUpRight,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -241,11 +240,8 @@ export function ImportCandidates() {
         <div className="px-8">
           <Loading>{t(preview.data.job.progress)}</Loading>
           <p className="ws-muted text-sm">
-            {t("You can leave this page. This import and its original file will remain available in Tasks.")}
+            {t("You can return to this page to review the result. Your original file is saved.")}
           </p>
-          <Link className="ws-link mt-4" href="/app/tasks">
-            {t("View tasks")} <ArrowUpRight size={13} />
-          </Link>
         </div>
       ) : (
         <>

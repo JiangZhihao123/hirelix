@@ -38,7 +38,7 @@ export function ScheduledDrafts({ role, people, schedule, refresh }: { role: Rol
       <p>{schedule.enabled && role.status === "active" ? `${t("Next draft")}: ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} (${schedule.timezone})` : t("Paused. Scheduled drafts will not be prepared.")}</p>
       <button className="ws-link" disabled={busy} onClick={pause}>{t(schedule.enabled ? "Pause agreement" : "Resume agreement")}</button>
       <ErrorNotice error={schedule.error || job?.error || error || task.error} retry={schedule.error || job?.status === "error" ? retry : undefined} />
-      {job && <p>{t(job.status === "done" ? "Draft prepared for review" : job.status === "error" ? "Draft needs attention" : job.progress)} {job.status === "done" && typeof job.result?.href === "string" ? <Link className="ws-link" href={job.result.href}>{t("Open draft")}</Link> : <Link className="ws-link" href="/app/tasks">{t("Background tasks")}</Link>}</p>}
+      {job && <p>{t(job.status === "done" ? "Draft prepared for review" : job.status === "error" ? "Draft needs attention" : job.progress)} {job.status === "done" && typeof job.result?.href === "string" ? <Link className="ws-link" href={job.result.href}>{t("Open draft")}</Link> : null}</p>}
     </>}
     {!schedule && <ErrorNotice error={error} />}
     {editing && <Dialog title={t("Search update agreement")} onClose={() => setEditing(false)}><ScheduleForm role={role} people={people} schedule={schedule} done={() => { setEditing(false); refresh(); }} /></Dialog>}

@@ -285,10 +285,7 @@ export default function Candidates() {
       {task &&
         (!job.data || ["queued", "running"].includes(job.data.job.status)) && (
           <Loading>
-            {job.data?.job.progress ? t(job.data.job.progress) : t("Loading search…")} ·{" "}
-            <Link className="ws-link" href="/app/tasks">
-              {t("View tasks")}
-            </Link>
+            {job.data?.job.progress ? t(job.data.job.progress) : t("Loading search…")}
           </Loading>
         )}
       {semantic && (

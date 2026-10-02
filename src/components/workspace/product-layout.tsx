@@ -35,7 +35,6 @@ import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
   Search,
   BriefcaseBusiness,
-  ListChecks,
   BookUser,
   FileText,
   LogOut,
@@ -314,10 +313,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 <span>{item.label}</span>
               </Link>
             ))}
-            <small>{t("TOOLS")}</small>
-            <Link href="/app/tasks" onClick={() => navigate("/app/tasks")} aria-current={pathname === "/app/tasks" ? "page" : undefined}>
-              <ListChecks size={16} /><span>{t("Background tasks")}</span>
-            </Link>
           </nav>
           {isConversationPage && <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
             <div className="ws-sidebar-conversations-heading">
@@ -432,7 +427,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>
               {isConversationPage
                 ? "Hirelix"
-                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/tasks" ? t("Background tasks") : pathname.startsWith("/app/search") ? t("Past sourcing results") : t("Workspace"))}
+                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname.startsWith("/app/search") ? t("Past sourcing results") : t("Workspace"))}
             </span>
           </div>
           <div className="ws-topbar-actions">
