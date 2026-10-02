@@ -106,7 +106,7 @@ export const uiZh: Record<string, string> = {
   "Saving creates a source record and updates sharing permission for this role. It does not send a recommendation.": "保存后会同时留下依据记录并更新这个职位的资料分享授权；不会发送推荐。",
   "Sharing permission": "资料分享授权",
   "Save permission and record": "保存授权与依据",
-  "The proposed changes below are not saved yet. Review them before they become part of your workspace.": "下面的变更尚未保存，核对确认后才会写入工作区。",
+  "Open saved item": "打开",
   "Attach a file": "添加文件",
   "· Attached file": "· 对话附件",
   "Drop a file to ask your assistant": "拖入文件，交给助理处理",

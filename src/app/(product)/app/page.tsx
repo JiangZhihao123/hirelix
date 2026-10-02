@@ -610,13 +610,6 @@ function AssistantWorkspace({
                       <time>{date(message.created_at, true)}</time>
                     </div>
                     <div className="ws-message-prose">
-                      {message.role === "assistant" && metadata.actions?.some(
-                        (action) => action.status === "pending" && !action.href,
-                      ) && (
-                        <p className="ws-proposal-status">
-                          {t("The proposed changes below are not saved yet. Review them before they become part of your workspace.")}
-                        </p>
-                      )}
                       <AgentText content={message.content} />
                       {messageAttachments(message.metadata).map((file) => (
                         <a key={file.file_id} className="ws-chat-attachment" href={`/api/workspace/files/${file.file_id}`}>
@@ -665,7 +658,7 @@ function AssistantWorkspace({
                               <Check size={13} />
                             ) : null}
                             {action.status === "saved"
-                              ? t("Open")
+                              ? t("Open saved item")
                               : t("Prepare")}
                             <ArrowUpRight size={13} />
                           </Link>
