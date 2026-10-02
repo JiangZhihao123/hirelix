@@ -56,7 +56,7 @@ export async function preparationSources(userId: string, roleId: string) {
     sql`SELECT r.* FROM hirelix_private_records r WHERE r.user_id=${userId}::uuid AND (r.role_id=${roleId}::uuid OR r.person_id IN (SELECT person_id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid)) ORDER BY r.occurred_at DESC NULLS LAST,r.created_at DESC`,
   );
   const files = await rows<SubmissionCv>(
-    sql`SELECT DISTINCT ON (r.person_id,f.id) f.id,r.person_id,r.id AS record_id,f.name,f.media_type,f.byte_size,f.sha256 FROM hirelix_private_records r JOIN hirelix_private_files f ON f.user_id=r.user_id AND f.id=r.file_id WHERE r.user_id=${userId}::uuid AND r.kind='cv' AND r.person_id IN (SELECT person_id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid) AND lower(f.name) ~ '\\.(pdf|docx)$' ORDER BY r.person_id,f.id,r.created_at DESC`,
+    sql`SELECT DISTINCT ON (r.person_id,f.id) f.id,r.person_id,r.id AS record_id,f.name,f.media_type,f.byte_size,f.sha256 FROM hirelix_private_records r JOIN hirelix_private_files f ON f.user_id=r.user_id AND f.id=r.file_id WHERE r.user_id=${userId}::uuid AND r.kind='cv' AND r.person_id IN (SELECT person_id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid) AND lower(f.name) ~ '\\.(pdf|docx|txt|md)$' ORDER BY r.person_id,f.id,r.created_at DESC`,
   );
   const [lastSubmitted] = await rows<Deliverable>(
     sql`SELECT * FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid AND kind='search_update' AND status='submitted' ORDER BY submitted_at DESC LIMIT 1`,
@@ -181,7 +181,7 @@ export async function prepareDeliverable(
     const coveredPeople = new Set<string>();
     for (const id of input.file_ids) {
       const [file] = await rows<SubmissionCv>(
-        sql`SELECT r.person_id,r.id AS record_id,f.id,f.name,f.media_type,f.byte_size,f.sha256 FROM hirelix_private_files f JOIN hirelix_private_records r ON r.user_id=f.user_id AND r.file_id=f.id WHERE f.user_id=${userId}::uuid AND f.id=${id}::uuid AND r.kind='cv' AND r.person_id = ANY(${uuidArray(input.person_ids)}) AND lower(f.name) ~ '\\.(pdf|docx)$' ORDER BY r.created_at DESC LIMIT 1`,
+        sql`SELECT r.person_id,r.id AS record_id,f.id,f.name,f.media_type,f.byte_size,f.sha256 FROM hirelix_private_files f JOIN hirelix_private_records r ON r.user_id=f.user_id AND r.file_id=f.id WHERE f.user_id=${userId}::uuid AND f.id=${id}::uuid AND r.kind='cv' AND r.person_id = ANY(${uuidArray(input.person_ids)}) AND lower(f.name) ~ '\\.(pdf|docx|txt|md)$' ORDER BY r.created_at DESC LIMIT 1`,
         tx,
       );
       if (!file)

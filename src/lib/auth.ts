@@ -114,6 +114,7 @@ export const auth = betterAuth({
       google: {
         clientId: readEnv("GOOGLE_CLIENT_ID"),
         clientSecret: readEnv("GOOGLE_CLIENT_SECRET"),
+        accessType: "offline",
       },
     },
     emailAndPassword: {

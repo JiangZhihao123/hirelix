@@ -106,7 +106,7 @@ export function RevisionPanel({
       )}
       {running && (
         <p role="status" className="ws-muted">
-          {job.progress || t("Preparing your revision")}{t(". You can return to this draft later.")}
+          {t(job.progress || "Preparing your revision")}{t(". You can return to this draft later.")}
         </p>
       )}
       {job?.status === "error" && (

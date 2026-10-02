@@ -25,6 +25,7 @@ import {
   Dialog,
   date,
 } from "./client";
+import { RecommendationDelivery } from "./recommendation-delivery";
 import { RevisionPanel } from "./revision";
 import { History } from "./history";
 import { AgentText } from "@/components/AgentText";
@@ -375,7 +376,7 @@ export function PrepareDocument({
                                   <span>
                                     <strong>{file.name}</strong>
                                     <small>
-                                      {(file.byte_size / 1024).toFixed(0)} {t("KB · stored CV")}
+                                      {Math.max(1, Math.ceil(file.byte_size / 1024))} {t("KB · stored CV")}
                                     </small>
                                   </span>
                                 </label>
@@ -761,7 +762,9 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               {preview ? t("Edit draft") : internalReview ? t("Document preview") : t("Client preview")}
             </button>
           )}
-          {document.kind === "submission" ? (
+          {document.kind === "submission" && !internalReview ? (
+            <RecommendationDelivery document={document} disabled={dirty || saving || !!recovery} onSent={() => { void api<{ deliverable: Deliverable }>(`/deliverables/${document.id}`).then(result => setDocument(result.deliverable)); }} />
+          ) : document.kind === "submission" ? (
             <>
               <button
                 className="ws-button"
