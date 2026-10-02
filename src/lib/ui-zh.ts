@@ -510,6 +510,8 @@ export const uiZh: Record<string, string> = {
   "AI assistant": "AI 助手",
   "Ask AI assistant": "询问 AI 助手",
   "Try a different search or clear your filters.": "试试其他搜索词，或清除筛选条件。",
+  "Review search brief": "确认寻访需求",
+  "Paste at least 50 characters to review your search brief.": "填写至少 50 个字符，即可进入寻访需求确认。",
   "Clear filters": "清除筛选",
   "Account menu": "账户菜单",
   "Interview": "面试",

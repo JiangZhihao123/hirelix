@@ -379,8 +379,9 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
+      <header className="ws-page-header !px-0 !pt-0"><h1 className="text-2xl font-semibold tracking-tight">{t("Sourcing")}</h1></header>
       {activeSearches.length > 0 && (
-        <div className="mb-8 rounded-3xl border border-sky-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5faff_100%)] p-5 shadow-[0_16px_40px_rgba(14,165,233,0.08)]">
+        <div className="mb-6 rounded-lg border border-border bg-surface p-5">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
@@ -443,23 +444,21 @@ export default function DashboardPage() {
       {loading ? (
         <DashboardPageSkeleton />
     ) : searches.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-lg border border-border bg-white p-5">
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 text-white shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <FileText className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                  {t("First client role")}
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-slate-950">{t("Paste a client role")}</h2>
+                <h2 className="text-lg font-semibold text-foreground">{t("Paste a client role")}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                   {t("Start with the real JD. Hirelix turns it into a brief, screens technical profiles, and opens a shortlist workbench when candidates are ready.")}
                 </p>
               </div>
             </div>
             <textarea
+              aria-label={t("Job description")}
               value={emptyStateJd}
               onChange={(event) => setEmptyStateJd(event.target.value)}
               rows={8}
@@ -467,11 +466,7 @@ export default function DashboardPage() {
               className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-400 focus:bg-white"
             />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{t("Editable brief")}</span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{t("Fit evidence")}</span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{t("Outreach-ready shortlist")}</span>
-              </div>
+              <p className="text-xs text-muted">{t("Paste at least 50 characters to review your search brief.")}</p>
               <button
                 type="button"
                 onClick={handleEmptyStateBuild}
@@ -479,7 +474,7 @@ export default function DashboardPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isNavigating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {t("Build shortlist")}
+                {t("Review search brief")}
               </button>
             </div>
           </div>
@@ -488,9 +483,6 @@ export default function DashboardPage() {
         <div className="space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                {t("Sourcing cockpit")}
-              </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{t("Active Shortlists")}</h2>
               <p className="mt-1 text-sm text-muted">
                 {t("Pick the roles that need review, outreach, or cleanup today.")}
