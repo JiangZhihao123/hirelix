@@ -43,6 +43,8 @@ import {
   Menu,
   X,
   Settings,
+  CreditCard,
+  ChevronUp,
   ChevronRight,
   Plus,
 } from "lucide-react";
@@ -70,6 +72,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const [conversationSearchOpen, setConversationSearchOpen] = useState(false);
   const conversations = useQuery<{ conversations: Conversation[] }>(
     user ? "/conversations" : null,
@@ -183,6 +186,18 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    const closeMenu = () => accountMenuRef.current?.hidePopover();
+    window.addEventListener("resize", closeMenu);
+    return () => window.removeEventListener("resize", closeMenu);
+  }, []);
+
+  useEffect(() => {
+    if (!sidebarOpen && window.matchMedia("(max-width: 850px)").matches) {
+      accountMenuRef.current?.hidePopover();
+    }
   }, [sidebarOpen]);
 
   if (loading && isSearchDetailRoute) {
@@ -371,32 +386,42 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 <ChevronRight size={14} aria-hidden="true" />
               </Link>
             )}
-            <div className="ws-sidebar-controls">
-              <Link
-                href="/app/settings"
-                onClick={() => navigate("/app/settings")}
-                aria-label={t("Settings")}
-                title={t("Settings")}
-                aria-current={pathname === "/app/settings" ? "page" : undefined}
-              >
-                <Settings size={16} />
-                <span>{t("Settings")}</span>
+          </nav>
+          <button
+            type="button"
+            className="ws-account-trigger"
+            popoverTarget="workspace-account-menu"
+            aria-label={t("Account menu")}
+          >
+            <span className="ws-avatar">{initials(String(displayName))}</span>
+            <strong title={user.email}>{String(displayName)}</strong>
+            <ChevronUp size={16} aria-hidden="true" />
+          </button>
+          <div
+            ref={accountMenuRef}
+            id="workspace-account-menu"
+            popover="auto"
+            className="ws-account-menu"
+            aria-label={t("Account menu")}
+          >
+            <nav className="ws-nav">
+              <Link href="/app/settings" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
+                <Settings size={16} />{t("Settings")}
               </Link>
+              <Link href="/app/settings?section=billing" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
+                <CreditCard size={16} />{t("Billing")}
+              </Link>
+            </nav>
+            <div className="ws-account-language">
+              <span>{t("Language")}</span>
               <LanguageSelect className="ws-language-control" />
             </div>
-          </nav>
-          <div className="ws-account">
-            <span className="ws-avatar">{initials(String(displayName))}</span>
-            <div>
-              <strong title={user.email}>{String(displayName)}</strong>
-            </div>
             <button
-              className="ws-icon"
-              aria-label={t("Sign out")}
-              title={t("Sign out")}
-              onClick={() => signOut().then(() => router.push("/"))}
+              type="button"
+              className="ws-account-logout"
+              onClick={() => { accountMenuRef.current?.hidePopover(); void signOut().then(() => router.push("/")); }}
             >
-              <LogOut size={15} />
+              <LogOut size={16} />{t("Sign out")}
             </button>
           </div>
         </div>

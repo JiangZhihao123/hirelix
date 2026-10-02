@@ -507,6 +507,7 @@ export const uiZh: Record<string, string> = {
   "Interest in this role": "对该职位的兴趣",
   "Interest in this role has not been recorded.": "尚未记录对该职位的兴趣。",
   "Interface language": "界面语言",
+  "Account menu": "账户菜单",
   "Interview": "面试",
   "interview": "面试中",
   "Invalid code.": "验证码无效。",
