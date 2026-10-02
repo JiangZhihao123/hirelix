@@ -530,7 +530,7 @@ function CandidateDetails({
   );
   return (
     <>
-      <button className="ws-link mb-4 ws-mobile-only" onClick={onClose}>
+      <button className="ws-link mb-4 ws-split-back" onClick={onClose}>
         <ArrowLeft size={14} />
         {t("Back to candidates")}
       </button>

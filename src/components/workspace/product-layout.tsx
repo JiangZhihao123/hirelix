@@ -42,6 +42,7 @@ import {
   Menu,
   X,
   Settings,
+  Languages,
   Plus,
 } from "lucide-react";
 
@@ -273,87 +274,89 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <X size={18} />
           </button>
         </div>
-        <Link
-          className="ws-sidebar-new"
-          href="/app"
-          onClick={() => navigate("/app")}
-          aria-current={isConversationPage && !currentConversationId ? "page" : undefined}
-        >
-          <Plus size={17} />
-          <span>{t("New conversation")}</span>
-        </Link>
-        <nav className="ws-nav">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => navigate(item.href)}
-              aria-current={item.active ? "page" : undefined}
-              aria-label={item.label}
-              title={item.label}
-            >
-              {effectivePendingPath === item.href ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <item.icon size={16} />
-              )}
-              <span>{item.label}</span>
-            </Link>
-          ))}
-          <small>{t("TOOLS")}</small>
+        <div className="ws-sidebar-scroll">
           <Link
-            href="/app/searches"
-            onClick={() => navigate("/app/searches")}
-            aria-label={t("Sourcing")}
-            title={t("Sourcing")}
-            aria-current={
-              pathname.startsWith("/app/search") ? "page" : undefined
-            }
+            className="ws-sidebar-new"
+            href="/app"
+            onClick={() => navigate("/app")}
+            aria-current={isConversationPage && !currentConversationId ? "page" : undefined}
           >
-            <Search size={16} />
-            <span>{t("Sourcing")}</span>
+            <Plus size={17} />
+            <span>{t("New conversation")}</span>
           </Link>
-        </nav>
-        <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
-          <div className="ws-sidebar-conversations-heading">
-            <strong>{t("Conversations")}</strong>
-            <button
-              type="button"
-              className="ws-icon"
-              aria-label={t("Search conversations")}
-              title={t("Search conversations")}
-              onClick={() => {
-                setSidebarOpen(false);
-                setConversationSearchOpen(true);
-              }}
+          <nav className="ws-nav">
+            {nav.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => navigate(item.href)}
+                aria-current={item.active ? "page" : undefined}
+                aria-label={item.label}
+                title={item.label}
+              >
+                {effectivePendingPath === item.href ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <item.icon size={16} />
+                )}
+                <span>{item.label}</span>
+              </Link>
+            ))}
+            <small>{t("TOOLS")}</small>
+            <Link
+              href="/app/searches"
+              onClick={() => navigate("/app/searches")}
+              aria-label={t("Sourcing")}
+              title={t("Sourcing")}
+              aria-current={
+                pathname.startsWith("/app/search") ? "page" : undefined
+              }
             >
               <Search size={16} />
-            </button>
-          </div>
-          <div className="ws-sidebar-conversation-list">
-            <ErrorNotice error={conversations.error} retry={conversations.refresh} />
-            {conversations.data?.conversations
-              .map((conversation) => (
-                <Link
-                  key={conversation.id}
-                  href={`/app?conversation=${conversation.id}`}
-                  onClick={() => navigate("/app")}
-                  aria-current={
-                    conversation.id === currentConversationId ? "page" : undefined
-                  }
-                  title={conversation.title}
-                >
-                  <strong>{conversation.title}</strong>
-                  {duplicateConversationTitles.has(conversation.title) && (
-                    <small>{date(conversation.updated_at, true)}</small>
-                  )}
-                </Link>
-              ))}
-            {conversations.data && !conversations.data.conversations.length && (
-              <p>{t("Your saved conversations will appear here.")}</p>
-            )}
-          </div>
-        </section>
+              <span>{t("Sourcing")}</span>
+            </Link>
+          </nav>
+          <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
+            <div className="ws-sidebar-conversations-heading">
+              <strong>{t("Conversations")}</strong>
+              <button
+                type="button"
+                className="ws-icon"
+                aria-label={t("Search conversations")}
+                title={t("Search conversations")}
+                onClick={() => {
+                  setSidebarOpen(false);
+                  setConversationSearchOpen(true);
+                }}
+              >
+                <Search size={16} />
+              </button>
+            </div>
+            <div className="ws-sidebar-conversation-list">
+              <ErrorNotice error={conversations.error} retry={conversations.refresh} />
+              {conversations.data?.conversations
+                .map((conversation) => (
+                  <Link
+                    key={conversation.id}
+                    href={`/app?conversation=${conversation.id}`}
+                    onClick={() => navigate("/app")}
+                    aria-current={
+                      conversation.id === currentConversationId ? "page" : undefined
+                    }
+                    title={conversation.title}
+                  >
+                    <strong>{conversation.title}</strong>
+                    {duplicateConversationTitles.has(conversation.title) && (
+                      <small>{date(conversation.updated_at, true)}</small>
+                    )}
+                  </Link>
+                ))}
+              {conversations.data && !conversations.data.conversations.length && (
+                <p>{t("Your saved conversations will appear here.")}</p>
+              )}
+            </div>
+          </section>
+        </div>
         <div className="ws-sidebar-bottom">
           <nav className="ws-nav">
             {billing?.agent && billing.agent.state !== "legacy" && <Link className="ws-trial-status" href="/app/settings?section=billing">
@@ -370,6 +373,16 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             >
               <Settings size={16} />
               <span>{t("Settings")}</span>
+          </Link>
+          <Link
+              href="/app/settings?section=language"
+              onClick={() => navigate("/app/settings")}
+              aria-label={t("Language")}
+              title={t("Language")}
+            >
+              <Languages size={16} />
+              <span>{t("Language")}</span>
+              <span className="ws-sidebar-language">{locale === "zh" ? "中文" : "English"}</span>
             </Link>
           </nav>
           <div className="ws-account">

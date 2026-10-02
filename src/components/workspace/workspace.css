@@ -42,7 +42,18 @@
   display: flex;
   flex-direction: column;
   z-index: 60;
-  padding: 20px 12px 14px;
+  padding: 20px 12px max(14px, env(safe-area-inset-bottom));
+}
+.ws-sidebar-scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ws-sidebar-scroll > :not(.ws-sidebar-conversations) {
+  flex-shrink: 0;
 }
 .ws-brand {
   font-size: 25px;
@@ -101,7 +112,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: 0;
+  min-height: 120px;
   margin-top: 22px;
   border-top: 1px solid var(--ws-line);
 }
@@ -163,11 +174,19 @@
   font-size: 12px;
 }
 .ws-sidebar-bottom {
-  padding-top: 18px;
+  flex-shrink: 0;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  padding-top: 12px;
   border-top: 1px solid var(--ws-line);
 }
+.ws-sidebar-language {
+  margin-left: auto;
+  color: var(--ws-muted);
+  font-size: 12px;
+}
 .ws-account {
-  padding: 16px 13px 0;
+  padding: 8px 13px 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -219,11 +238,31 @@
 }
 .ws-topbar-actions {
   display: flex;
-  gap: 14px;
+  gap: 8px;
+  min-width: 0;
   align-items: center;
+}
+.ws-notifications {
+  position: relative;
+}
+.ws-notifications > summary {
+  white-space: nowrap;
+}
+.ws-notifications-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: min(288px, calc(100vw - 24px));
+  max-height: min(420px, calc(100dvh - 76px));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 .ws-mobile-only {
   display: none !important;
+}
+.ws-split-back {
+  display: none;
 }
 .ws-icon {
   display: inline-flex;
@@ -867,6 +906,10 @@
   font-size: 15px;
   font-weight: 550;
 }
+.ws-role-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .ws-role-row p {
   color: var(--ws-muted);
   font-size: 12px;
@@ -898,6 +941,10 @@
   }
 }
 @media (max-width: 1150px) {
+  .ws-role-row {
+    grid-template-columns: minmax(0, 1fr) 110px 90px 75px;
+    gap: 14px;
+  }
   .ws-split {
     grid-template-columns: minmax(310px, 1fr) minmax(300px, 1fr);
   }
@@ -913,10 +960,12 @@
 }
 @media (max-width: 850px) {
   .ws-sidebar {
+    visibility: hidden;
     transform: translateX(-100%);
-    transition: transform 0.18s;
+    transition: transform 0.18s, visibility 0.18s;
   }
   .ws-sidebar[data-open="true"] {
+    visibility: visible;
     transform: translateX(0);
   }
   .ws-main {
@@ -934,6 +983,11 @@
   }
   .ws-topbar-conversation {
     display: flex;
+  }
+  .ws-notifications-panel {
+    position: fixed;
+    top: 52px;
+    right: 12px;
   }
   .ws-overlay {
     position: fixed;
@@ -957,7 +1011,7 @@
     padding: 0 20px 24px;
   }
 }
-@media (max-width: 620px) {
+@media (max-width: 1000px) {
   .ws-split {
     display: block;
   }
@@ -971,6 +1025,11 @@
     border-left: 0;
     min-height: 0;
   }
+  .ws-split-back {
+    display: inline-flex;
+  }
+}
+@media (max-width: 620px) {
   .ws-page h1 {
     font-size: 24px;
   }
@@ -982,7 +1041,7 @@
   }
   .ws-table-head,
   .ws-person-row {
-    grid-template-columns: minmax(160px, 1fr) 95px;
+    grid-template-columns: minmax(0, 1fr) 95px;
     padding-left: 20px;
     padding-right: 20px;
   }
@@ -1088,7 +1147,7 @@
     grid-template-columns: 1fr;
   }
 }
-@media (min-width: 621px) {
+@media (min-width: 1001px) {
   .ws-split {
     height: calc(100dvh - 264px);
     min-height: 300px;
@@ -2285,7 +2344,7 @@
 
 .agent-billing{max-width:760px;line-height:1.75}.agent-billing h2{font-size:26px;margin:10px 0 24px}.agent-billing>p{margin:16px 0;color:var(--ws-muted,#67716a);font-size:14px}.agent-billing-summary{padding:22px;border:1px solid #dce2d8;background:#f2f5ed;border-radius:10px}.agent-billing-summary p{margin:7px 0}.agent-billing-cycle{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}.agent-billing-cycle button{padding:12px 18px;border:1px solid #d5ddd0;border-radius:7px}.agent-billing-cycle button[aria-pressed=true]{background:#205846;color:white}.agent-billing [role=alert]{color:#a12d2d}.agent-billing [role=status]{padding:15px;background:#edf3e6;border-radius:7px}.agent-billing .agent-billing-terms{font-size:12px}.agent-billing a{text-decoration:underline}.agent-billing .ws-button{margin-right:12px}
 
-.ws-trial-status { display:flex; flex-direction:column; gap:4px; padding:12px; margin:8px; border:1px solid var(--ws-border, #dce3df); border-radius:10px; font-size:12px; text-decoration:none; }
+.ws-nav .ws-trial-status { display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:12px; margin:0 0 8px; border:1px solid var(--ws-line); border-radius:10px; font-size:12px; text-decoration:none; }
 .ws-trial-status strong { font-size:13px; }
 .ws-trial-status span:last-child { font-size:11px; opacity:.7; }
 
