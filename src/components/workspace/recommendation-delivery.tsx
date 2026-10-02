@@ -340,6 +340,9 @@ function DeliveryOptions({
                   "Connect your Google account to send this reviewed recommendation through Gmail. Hirelix requests sending permission, not inbox access.",
                 )}
               </p>
+              <a className="ws-link" href="/privacy" target="_blank" rel="noreferrer">
+                {t("Gmail data use and privacy")}
+              </a>
               <button
                 className="ws-button ws-button-primary"
                 disabled={busy || gmail.loading}
@@ -351,7 +354,7 @@ function DeliveryOptions({
           ) : (
             <form className="ws-form" onSubmit={send}>
               <p>
-                {t("From")}: {gmail.data.email}
+                {t("Sender email")}: {gmail.data.email}
               </p>
               <Field label={t("Recipient email")}>
                 <input

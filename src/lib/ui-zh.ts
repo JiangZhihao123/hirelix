@@ -508,6 +508,8 @@ export const uiZh: Record<string, string> = {
   "For technical recruiters": "适合技术招聘人员",
   "Free plan": "免费套餐",
   "From": "开始时间",
+  "Sender email": "发件人邮箱",
+  "Gmail data use and privacy": "Gmail 数据使用与隐私说明",
   "Full client-ready brief export is included on Pro.": "Pro 版包含完整的可直接交付客户的简报导出。",
   "Full name": "姓名",
   "Full pool": "完整人才池",
