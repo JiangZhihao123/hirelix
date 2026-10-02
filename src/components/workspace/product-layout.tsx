@@ -153,7 +153,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     router.prefetch("/app/candidates");
     router.prefetch("/app/submissions");
     router.prefetch("/app/roles");
-    router.prefetch("/app/search/new");
     router.prefetch("/app/settings");
   }, [router, user]);
 
@@ -316,18 +315,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
             <small>{t("TOOLS")}</small>
-            <Link
-              href="/app/searches"
-              onClick={() => navigate("/app/searches")}
-              aria-label={t("Sourcing")}
-              title={t("Sourcing")}
-              aria-current={
-                pathname.startsWith("/app/search") ? "page" : undefined
-              }
-            >
-              <Search size={16} />
-              <span>{t("Sourcing")}</span>
-            </Link>
             <Link href="/app/tasks" onClick={() => navigate("/app/tasks")} aria-current={pathname === "/app/tasks" ? "page" : undefined}>
               <ListChecks size={16} /><span>{t("Background tasks")}</span>
             </Link>
@@ -411,6 +398,9 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               <Link href="/app/settings" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
                 <Settings size={16} />{t("Settings")}
               </Link>
+              <Link href="/app/searches" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/searches"); }}>
+                <FileText size={16} />{t("Past sourcing results")}
+              </Link>
               <Link href="/app/settings?section=billing" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
                 <CreditCard size={16} />{t("Billing")}
               </Link>
@@ -442,7 +432,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>
               {isConversationPage
                 ? "Hirelix"
-                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/tasks" ? t("Background tasks") : pathname.startsWith("/app/search") ? t("Sourcing") : t("Workspace"))}
+                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/tasks" ? t("Background tasks") : pathname.startsWith("/app/search") ? t("Past sourcing results") : t("Workspace"))}
             </span>
           </div>
           <div className="ws-topbar-actions">

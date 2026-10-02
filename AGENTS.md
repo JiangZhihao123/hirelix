@@ -26,7 +26,9 @@ Hirelix 的主要交互是 AI Agent：用户交代目标和资料，Agent 理解
 
 Deployment is split across Vercel and `us-2`: Vercel hosts the Next.js app/API routes; `us-2` runs PostgreSQL 17 and the `hirelix-scheduler` systemd service from `/opt/hirelix`. Auth is better-auth with Google OAuth; sessions are stored in the same Postgres database. Production domain: `hirelix.online`.
 
-Search flow:
+独立的外部付费人才寻访已退出产品默认流程：不提供新建、扩展、重跑入口，API 和任务执行器均禁止启动该链路。保留历史结果和底层代码供核查；私人候选人库搜索、匹配和 Agent 工作继续正常运行。不要通过重开旧入口、环境变量或内部操作员身份绕过此产品边界。
+
+Historical search flow:
 
 ```text
 queued -> parsing -> searching -> screening -> deep_scoring -> done

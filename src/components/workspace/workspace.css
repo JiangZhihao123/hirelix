@@ -2456,3 +2456,6 @@
 .ws-composer-files .has-error { border-color: #b55b4e; }
 .ws-composer-files .has-error small { white-space: normal; color: #a54436; }
 .ws-chat-attachment { max-width: 100%; overflow-wrap: anywhere; }
+
+.ws-history-result { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--ws-border, #e5e7e4); }
+.ws-history-result small { display: block; margin-top: 6px; opacity: .65; }

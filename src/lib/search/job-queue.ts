@@ -1,3 +1,4 @@
+import { EXTERNAL_SOURCING_ENABLED, EXTERNAL_SOURCING_RETIRED_MESSAGE } from "../external-sourcing";
 import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
@@ -79,6 +80,7 @@ export function kickSearchJobRunner(
   baseUrl: string,
   options?: { searchId?: string | null },
 ) {
+  if (!EXTERNAL_SOURCING_ENABLED) return;
   const kickEnabled = process.env.SEARCH_JOB_RUNNER_KICK_ENABLED;
   if (kickEnabled != null) {
     const normalized = kickEnabled.trim().toLowerCase();
@@ -292,6 +294,7 @@ export async function enqueueSearchJob(input: {
   jdText: string;
   candidateCount: number;
 }) {
+  if (!EXTERNAL_SOURCING_ENABLED) throw new Error(EXTERNAL_SOURCING_RETIRED_MESSAGE);
   const ts = new Date();
   const values = {
     search_id: input.searchId,

@@ -170,7 +170,7 @@ export function InviteActivationClient({
               <div>
                 <p className="font-semibold">Seat activated.</p>
                 <p className="mt-1 text-sm leading-6">
-                  You have 1 free client-role preview and {activation.referralPasses} invite passes for other technical headhunters.
+                  Your workspace is ready. Share your materials and tell your assistant what you want to get done.
                 </p>
                 {activation.emailMismatch ? (
                   <p className="mt-2 text-xs text-emerald-800">
@@ -181,10 +181,10 @@ export function InviteActivationClient({
             </div>
           </div>
           <Link
-            href="/app/search/new"
+            href="/app"
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Start your first shortlist
+            Open your personal assistant
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

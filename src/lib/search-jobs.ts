@@ -1,3 +1,4 @@
+import { EXTERNAL_SOURCING_ENABLED } from "./external-sourcing";
 import {
   BrightDataRequestTimeoutError,
   BrightDataSnapshotNotReadyError,
@@ -3458,6 +3459,7 @@ function getPositiveInt(value: unknown) {
 }
 
 export async function processNextSearchJob(preferredSearchId?: string | null) {
+  if (!EXTERNAL_SOURCING_ENABLED) return { processed: false, hasMore: false };
   const job = await claimSearchJob({
     preferredSearchId,
     reclaimStaleRunningJobs,

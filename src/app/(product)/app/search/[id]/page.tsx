@@ -1,4 +1,5 @@
 "use client";
+import { EXTERNAL_SOURCING_ENABLED } from "@/lib/external-sourcing";
 
 
 import { useT } from "@/components/LanguageProvider";
@@ -823,14 +824,14 @@ export default function SearchResultPage() {
     reqs && typeof reqs.recall_metadata === "object" && reqs.recall_metadata
       ? (reqs.recall_metadata as RecallMetadataView)
       : null;
-  const canRerunScoringFromCache = search.status === "done" && Boolean(recallMetadata?.snapshot_id || reqs?.decision_contract);
+  const canRerunScoringFromCache = EXTERNAL_SOURCING_ENABLED && search.status === "done" && Boolean(recallMetadata?.snapshot_id || reqs?.decision_contract);
   const currentProfileScanBudget =
     positiveInt(reqs?.profile_scan_budget) ??
     positiveInt(rawDisplayStats?.bright_profiles_requested) ??
     positiveInt(recallMetadata?.bright_profiles_requested) ??
     null;
   const canExpandCandidatePool =
-    isReviewable &&
+    EXTERNAL_SOURCING_ENABLED && isReviewable &&
     !isRunningSearchStatus(search.status) &&
     billing?.plan.code !== "free" &&
     (billing?.usage.profileScansRemaining ?? 0) > 0;
@@ -896,7 +897,7 @@ export default function SearchResultPage() {
     Math.abs(deepReviewCompletedCount - allCandidates.length) <= 1;
   const poolCoverageCopy = hasCompleteRankedPool
     ? `${deliveredCandidateCount} evaluated profiles remain available in the full pool.`
-    : `This older run shows ${deliveredCandidateCount} saved profiles, with ${recommendedCount} marked for first-pass review. Run or expand the role to build a fresh full pool.`;
+    : `This older run shows ${deliveredCandidateCount} saved profiles, with ${recommendedCount} marked for first-pass review. These are historical results; use your assistant to work with your saved candidates.`;
   const selectedPoolLabel = poolView === "full_pool" ? "Full pool" : poolView === "verification" ? "Verify first" : "Recommended";
   const taskStage = getSearchTaskStage({
     ...search,
@@ -936,11 +937,6 @@ export default function SearchResultPage() {
   const briefReadyLabel = formatElapsedMinutes(timeToBriefReadyMs);
   const standardRecallReadyLabel = formatElapsedMinutes(timeToStandardRecallReadyMs);
   const errorPresentation = getSearchErrorPresentation(search.parsed_requirements);
-  const entryQuery =
-    analyticsContext.entry_mode === "workspace"
-      ? ""
-      : `?entry=${analyticsContext.entry_mode}`;
-  const encodedJd = encodeURIComponent(search.jd_text);
 
   return (
     <div className="mx-auto w-full max-w-7xl">
@@ -993,7 +989,7 @@ export default function SearchResultPage() {
                   </span>
                   <span className="sm:hidden">{t("Expand")}</span>
                 </button>
-              ) : billing?.plan.code === "free" && isReviewable ? (
+              ) : EXTERNAL_SOURCING_ENABLED && billing?.plan.code === "free" && isReviewable ? (
                 <Link
                   href="/app/settings#billing"
                   onClick={() => handleUpgradeClick("results_expand_pool_gate")}
@@ -1037,11 +1033,11 @@ export default function SearchResultPage() {
                 </button>
               )}
               <Link
-                href={`/app/search/new${entryQuery}`}
+                href="/app"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
               >
                 <Search className="h-3 w-3" />
-                {t("New search")}
+                {t("Ask your assistant")}
               </Link>
             </div>
           )}
@@ -1186,11 +1182,11 @@ export default function SearchResultPage() {
                   {t("Back to dashboard")}
                 </Link>
                 <Link
-                  href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
+                  href="/app"
                   className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
                 >
                   <FileText className="h-4 w-4" />
-                  {t("Refine JD")}
+                  {t("Ask your assistant")}
                 </Link>
               </div>
             </div>
@@ -1595,24 +1591,26 @@ export default function SearchResultPage() {
                 {errorPresentation.body}
               </p>
               <p className="mt-2 text-xs text-red-600/90">
-                {errorPresentation.hint}
+                {EXTERNAL_SOURCING_ENABLED ? errorPresentation.hint : t("External sourcing has been retired. Your previous results are kept here.")}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {EXTERNAL_SOURCING_ENABLED && (
               <button
                 type="button"
                 onClick={retryFailedSearch}
-                disabled={retrySubmitting}
+                disabled={!EXTERNAL_SOURCING_ENABLED || retrySubmitting}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-800 disabled:cursor-wait disabled:opacity-60"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 {retrySubmitting ? t("Retrying...") : t("Retry this search")}
               </button>
+              )}
               <Link
-                href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
+                href="/app"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
               >
-                {t("Refine JD and search again")}
+                {t("Ask your assistant")}
               </Link>
             </div>
           </div>
@@ -1906,7 +1904,7 @@ export default function SearchResultPage() {
                 ? `Hirelix deeply reviewed ${formatDisplayCount(deepReviewCompletedCount)} profiles, but ${formatExcludedReasonLabel((excludedReasonCounts[0] as { reason: ExcludedReason; count: number }).reason).toLowerCase()} was the biggest blocker.`
                 : t("Hirelix did not find enough sourced profiles to build a ranked pool yet.")}
           </p>
-          {widenPoolSuggestions.length > 0 && (
+          {EXTERNAL_SOURCING_ENABLED && widenPoolSuggestions.length > 0 && (
             <div className="mt-4 max-w-2xl space-y-2 px-4">
               {widenPoolSuggestions.map((suggestion) => (
                 <p key={suggestion} className="text-center text-sm text-muted">
@@ -1916,11 +1914,11 @@ export default function SearchResultPage() {
             </div>
           )}
           <Link
-            href={`/app/search/new?jd=${encodedJd}${analyticsContext.entry_mode === "workspace" ? "" : `&entry=${analyticsContext.entry_mode}`}`}
+            href="/app"
             className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            {t("Refine & Retry")}
+            {t("Ask your assistant")}
           </Link>
         </div>
       )}

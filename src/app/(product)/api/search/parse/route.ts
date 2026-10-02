@@ -1,3 +1,4 @@
+import { EXTERNAL_SOURCING_ENABLED, EXTERNAL_SOURCING_RETIRED_MESSAGE } from "@/lib/external-sourcing";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import {
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!EXTERNAL_SOURCING_ENABLED) {
+    return NextResponse.json({ error: EXTERNAL_SOURCING_RETIRED_MESSAGE, code: "external_sourcing_retired" }, { status: 410 });
   }
 
   try {
