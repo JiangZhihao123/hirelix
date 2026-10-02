@@ -29,6 +29,7 @@ import {
 import { BillingProvider, useBilling } from "@/lib/use-billing";
 import { BrandMark } from "@/components/BrandMark";
 import { useT, useLanguage } from "@/components/LanguageProvider";
+import { LanguageSelect } from "@/components/LanguageSelect";
 import { DraftNotifications } from "@/components/workspace/notifications";
 import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
@@ -42,7 +43,6 @@ import {
   Menu,
   X,
   Settings,
-  Languages,
   Plus,
 } from "lucide-react";
 
@@ -359,31 +359,25 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         </div>
         <div className="ws-sidebar-bottom">
           <nav className="ws-nav">
-            {billing?.agent && billing.agent.state !== "legacy" && <Link className="ws-trial-status" href="/app/settings?section=billing">
-            <strong>{billing.agent.state === "paid" ? t("Personal Agent") : billing.agent.state === "expired" ? t("Trial ended") : t("7-day free trial")}</strong>
-            <span>{t("{count} AI credits remaining").replace("{count}", formatCredits(billing.agent.remaining,locale))}</span>
-            <span>{billing.agent.state === "trial_ready" ? t("Starts with your first task · No card") : t("View plan and subscription →")}</span>
-          </Link>}
-          <Link
-              href="/app/settings"
-              onClick={() => navigate("/app/settings")}
-              aria-label={t("Settings")}
-              title={t("Settings")}
-              aria-current={pathname === "/app/settings" ? "page" : undefined}
-            >
-              <Settings size={16} />
-              <span>{t("Settings")}</span>
-          </Link>
-          <Link
-              href="/app/settings?section=language"
-              onClick={() => navigate("/app/settings")}
-              aria-label={t("Language")}
-              title={t("Language")}
-            >
-              <Languages size={16} />
-              <span>{t("Language")}</span>
-              <span className="ws-sidebar-language">{locale === "zh" ? "中文" : "English"}</span>
-            </Link>
+            {billing?.agent && billing.agent.state !== "legacy" && (
+              <Link className="ws-trial-status" href="/app/settings?section=billing">
+                <strong>{billing.agent.state === "paid" ? t("Personal Agent") : billing.agent.state === "expired" ? t("Trial ended") : t("7-day free trial")}</strong>
+                <span>{t("{count} AI credits remaining").replace("{count}", formatCredits(billing.agent.remaining, locale))}</span>
+              </Link>
+            )}
+            <div className="ws-sidebar-controls">
+              <Link
+                href="/app/settings"
+                onClick={() => navigate("/app/settings")}
+                aria-label={t("Settings")}
+                title={t("Settings")}
+                aria-current={pathname === "/app/settings" ? "page" : undefined}
+              >
+                <Settings size={16} />
+                <span>{t("Settings")}</span>
+              </Link>
+              <LanguageSelect className="ws-language-control" />
+            </div>
           </nav>
           <div className="ws-account">
             <span className="ws-avatar">{initials(String(displayName))}</span>

@@ -180,10 +180,31 @@
   padding-top: 12px;
   border-top: 1px solid var(--ws-line);
 }
-.ws-sidebar-language {
-  margin-left: auto;
-  color: var(--ws-muted);
-  font-size: 12px;
+.ws-sidebar-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  align-items: center;
+  gap: 8px;
+}
+.ws-language-control select,
+.ws-settings-language select {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--ws-line);
+  border-radius: 6px;
+  background: white;
+  color: var(--ws-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ws-settings-language {
+  max-width: 280px;
+}
+.ws-language-control select:disabled,
+.ws-settings-language select:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 .ws-account {
   padding: 8px 13px 0;
@@ -2346,7 +2367,6 @@
 
 .ws-nav .ws-trial-status { display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:12px; margin:0 0 8px; border:1px solid var(--ws-line); border-radius:10px; font-size:12px; text-decoration:none; }
 .ws-trial-status strong { font-size:13px; }
-.ws-trial-status span:last-child { font-size:11px; opacity:.7; }
 
 .ws-checkbox { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.6; }
 .ws-checkbox input { margin-top: 4px; flex: 0 0 auto; }

@@ -8,7 +8,7 @@ import { getPlanStatusCopy, type BillingSummary } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import { useLanguage, useT } from "@/components/LanguageProvider";
-import type { Locale } from "@/lib/locale";
+import { LanguageSelect } from "@/components/LanguageSelect";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
 import { RecruiterProfileSection } from "./_components/RecruiterProfileSection";
@@ -266,22 +266,7 @@ export default function SettingsPage() {
 }
 
 function LanguageSection() {
-  const { locale, setLocale } = useLanguage();
   const t = useT();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function change(next: Locale) {
-    if (next === locale) return;
-    setBusy(true);
-    setError("");
-    try {
-      await setLocale(next);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save language preference");
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <SettingsSection
       id="language"
@@ -289,23 +274,7 @@ function LanguageSection() {
       title={t("Language")}
       description={t("Choose the language used throughout your workspace. Candidate records and your own notes keep their original wording.")}
     >
-      <div className="space-y-3" role="radiogroup" aria-label={t("Interface language")}>
-        {(["en", "zh"] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={locale === value}
-            disabled={busy}
-            onClick={() => void change(value)}
-            className={`flex w-full items-center justify-between rounded-md border px-4 py-3 text-left text-sm transition-colors ${locale === value ? "border-slate-900 bg-slate-50 text-slate-950" : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"}`}
-          >
-            <span>{value === "en" ? t("English") : "中文"}</span>
-            <span className="text-xs text-slate-500">{locale === value ? t("Selected") : ""}</span>
-          </button>
-        ))}
-      </div>
-      {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+      <LanguageSelect className="ws-settings-language" />
       <p className="mt-4 text-sm text-slate-600">{t("Client drafts use this language by default. You can choose a different language when preparing each draft.")}</p>
     </SettingsSection>
   );
