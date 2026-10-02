@@ -1,7 +1,7 @@
 "use client";
 
 
-import { useT } from "@/components/LanguageProvider";
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useEffect, useState, useCallback, useMemo, useRef, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -66,6 +66,7 @@ type CandidateCount = {
 
 export default function DashboardPage() {
   const t = useT();
+  const { locale } = useLanguage();
   const { user } = useAuth();
   const { billing } = useBilling();
   const router = useRouter();
@@ -313,11 +314,11 @@ export default function DashboardPage() {
   const formatRelativeTime = (value: string) => {
     const date = new Date(value).getTime();
     const diffMinutes = Math.max(1, Math.round((relativeTimeNow - date) / 60000));
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 60) return locale === "zh" ? `${diffMinutes} 分钟前` : `${diffMinutes}m ago`;
     const diffHours = Math.round(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return locale === "zh" ? `${diffHours} 小时前` : `${diffHours}h ago`;
     const diffDays = Math.round(diffHours / 24);
-    return `${diffDays}d ago`;
+    return locale === "zh" ? `${diffDays} 天前` : `${diffDays}d ago`;
   };
 
   const buildSearchPreview = (title: string, jdText: string) => {
@@ -335,14 +336,14 @@ export default function DashboardPage() {
 
   const getSearchContextLabel = (status: string, createdAt: string, updatedAt: string) => {
     if (["queued", "parsing", "searching", "screening"].includes(status)) {
-      return `Still running · started ${formatRelativeTime(createdAt)}`;
+      return `${t("Running")} · ${formatRelativeTime(createdAt)}`;
     }
     if (status === "deep_scoring") {
-      return `Review now, refining in background · updated ${formatRelativeTime(updatedAt)}`;
+      return `${t("Review now, refining in background")} · ${formatRelativeTime(updatedAt)}`;
     }
-    if (status === "done") return `Ready to review · created ${formatRelativeTime(createdAt)}`;
-    if (status === "error") return `Failed · updated ${formatRelativeTime(updatedAt)}`;
-    return `Started ${formatRelativeTime(createdAt)}`;
+    if (status === "done") return `${t("Ready to review")} · ${formatRelativeTime(createdAt)}`;
+    if (status === "error") return `${t("Failed")} · ${formatRelativeTime(updatedAt)}`;
+    return `${t("Started")} ${formatRelativeTime(createdAt)}`;
   };
 
   const handlePrimaryCtaClick = (surface: string, searchId?: string | null) => {
@@ -379,7 +380,12 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <header className="ws-page-header !px-0 !pt-0"><h1 className="text-2xl font-semibold tracking-tight">{t("Sourcing")}</h1></header>
+      <header className="ws-page-header !px-0 !pt-0">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("Sourcing")}</h1>
+        {searches.length > 0 && <button type="button" className="ws-button ws-button-primary" onClick={() => navigateTo("/app/search/new", "dashboard_new_search")}>
+          {isNavigating && pendingHref === "/app/search/new" ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}{t("New Search")}
+        </button>}
+      </header>
       {activeSearches.length > 0 && (
         <div className="mb-6 rounded-lg border border-border bg-surface p-5">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -481,93 +487,16 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{t("Active Shortlists")}</h2>
-              <p className="mt-1 text-sm text-muted">
-                {t("Pick the roles that need review, outreach, or cleanup today.")}
-              </p>
+          <div className="ws-toolbar !px-0">
+            <div className="ws-search"><Search size={16} /><input aria-label={t("Filter by role or JD...")} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Filter by role or JD...")} /></div>
+            <div className="ws-filters">
+              <select aria-label={t("Status")} value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
+                {(["active", "ready", "running", "issues", "archived"] as const).map((value) => <option key={value} value={value}>{t({active: "Active", ready: "Ready", running: "Running", issues: "Issues", archived: "Archived"}[value])} ({dashboardCounts[value]})</option>)}
+              </select>
+              {(query || filter !== "active") && <button type="button" className="ws-link" onClick={() => { setQuery(""); setFilter("active"); }}>{t("Clear filters")}</button>}
             </div>
-            <button
-              type="button"
-              onClick={() => navigateTo("/app/search/new", "dashboard_new_search")}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
-            >
-              {isNavigating && pendingHref === "/app/search/new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              {t("New Search")}
-            </button>
           </div>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            {[
-                  { label: "Completed searches", value: dashboardCounts.ready },
-              { label: "Archived", value: dashboardCounts.archived },
-              { label: "Running", value: dashboardCounts.running },
-              { label: "Issues", value: dashboardCounts.issues },
-            ].map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => {
-                  if (item.label === "Completed searches") setFilter("ready");
-                  else if (item.label === "Running") setFilter("running");
-                  else if (item.label === "Issues") setFilter("issues");
-                  else setFilter("active");
-                }}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  {t(item.label)}
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-slate-950">{item.value}</p>
-              </button>
-            ))}
-          </div>
-
-          {/* Search + status filter */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[160px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-light pointer-events-none" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("Filter by role or JD...")}
-                className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-light focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
-            </div>
-          <div className="flex flex-wrap gap-1 rounded-lg bg-surface p-1">
-            {(["active", "ready", "running", "issues", "archived"] as const).map((f) => {
-              const count = dashboardCounts[f];
-              const labels = {
-                active: "Active",
-                ready: "Ready",
-                running: "Running",
-                issues: "Issues",
-                archived: "Archived",
-              };
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`flex items-center gap-1.5 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    filter === f
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted hover:text-foreground"
-                  }`}
-                >
-                  {labels[f]}
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                    filter === f ? "bg-primary/10 text-primary" : "bg-gray-100 text-muted-light"
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          </div>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-lg border border-border bg-white">
             <div className="grid grid-cols-[minmax(0,1fr)_130px_110px_120px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 max-lg:hidden">
               <span>{t("Role")}</span>
               <span>{t("Next action")}</span>
@@ -593,8 +522,8 @@ export default function DashboardPage() {
                   : bucket === "issues"
                     ? "Needs cleanup"
                     : "Review later";
-            const evidenceLabel = outcome ? `${outcome.contactCount} recommended · ${outcome.reviewCount} to verify` : stats
-              ? `${stats.total} candidates`
+            const evidenceLabel = outcome ? (locale === "zh" ? `${outcome.contactCount} 位推荐 · ${outcome.reviewCount} 位待核实` : `${outcome.contactCount} recommended · ${outcome.reviewCount} to verify`) : stats
+              ? (locale === "zh" ? `${stats.total} 位候选人` : `${stats.total} candidates`)
               : bucket === "running"
                 ? "Pending"
                 : bucket === "ready"
@@ -671,9 +600,9 @@ export default function DashboardPage() {
                         ? "bg-amber-50 text-amber-700"
                         : "bg-slate-100 text-slate-600"
                 }`}>
-                  {nextAction}
+                  {t(nextAction)}
                 </span>
-                <span className="text-xs text-slate-500">{evidenceLabel}</span>
+                <span className="text-xs text-slate-500">{t(evidenceLabel)}</span>
                 <div className="flex items-center justify-between gap-2 lg:justify-end">
                   <span className="text-xs text-slate-500">{formatRelativeTime(s.updated_at)}</span>
                   <button
