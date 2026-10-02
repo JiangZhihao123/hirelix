@@ -37,9 +37,7 @@ export default function Roles() {
       <header className="ws-page-header">
         <div>
           <h1>{t("Roles")}</h1>
-          <p>
-            {t("Your assignments, with the requirements and conversations behind them.")}
-          </p>
+
         </div>
         <button
           className="ws-button ws-button-primary"
@@ -73,7 +71,7 @@ export default function Roles() {
               </option>
             ))}
           </select>
-          <span className="ws-count">{locale === "zh" ? `${roles.length} 个职位` : `${roles.length} roles`}</span>
+          <span className="ws-count">{!query.loading && (locale === "zh" ? `${roles.length} 个职位` : `${roles.length} roles`)}</span>
         </div>
       </div>
       <ErrorNotice error={query.error} retry={query.refresh} />
@@ -81,6 +79,7 @@ export default function Roles() {
         <Loading>{t("Loading roles…")}</Loading>
       ) : roles.length ? (
         <div className="ws-role-grid">
+          <div className="ws-role-table-head" aria-hidden="true"><span>{t("Role")}</span><span>{t("Candidates")}</span><span>{t("Updated")}</span><span>{t("Status")}</span></div>
           {roles.map((role) => (
             <Link
               className="ws-role-row"
@@ -96,7 +95,6 @@ export default function Roles() {
                 <p>{locale === "zh" ? `已记录 ${role.submission_count} 次推荐` : `${role.submission_count} submissions recorded`}</p>
               </div>
               <div className="ws-role-count">
-                <p>{t("Updated")}</p>
                 <p>{date(role.updated_at)}</p>
               </div>
               <div>
@@ -109,13 +107,11 @@ export default function Roles() {
         </div>
       ) : (
         <div className="ws-empty">
-          <h2>{filter ? t("No matching roles") : t("Start with a client’s JD.")}</h2>
+          <h2>{filter || status !== "all" ? t("No matching roles") : t("Start with a client’s JD.")}</h2>
           <p>
-            {t("Keep the original requirements, candidate discussions and client material together. You can add people from your existing candidate pool.")}
+            {filter || status !== "all" ? t("Try a different search or clear your filters.") : t("Keep the original requirements, candidate discussions and client material together. You can add people from your existing candidate pool.")}
           </p>
-          <button className="ws-button mt-5" onClick={() => setAdding(true)}>
-            {t("Add your first role")}
-          </button>
+          {filter || status !== "all" ? <button className="ws-button mt-5" onClick={() => { setFilter(""); setStatus("all"); }}>{t("Clear filters")}</button> : <button className="ws-button mt-5" onClick={() => setAdding(true)}>{t("Add your first role")}</button>}
         </div>
       )}
       {adding && (

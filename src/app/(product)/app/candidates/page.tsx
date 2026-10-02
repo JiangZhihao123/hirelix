@@ -1,7 +1,7 @@
 "use client";
 
 import { useLanguage, useT } from "@/components/LanguageProvider";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -127,13 +127,19 @@ export default function Candidates() {
     const timer = setInterval(job.refresh, 1500);
     return () => clearInterval(timer);
   }, [task, job.data, job.refresh]);
+  const listScroll = useRef(0);
+  useEffect(() => {
+    window.scrollTo({ top: selected ? 0 : listScroll.current, behavior: "instant" });
+  }, [selected]);
   function select(id: string | null, recordId?: string) {
+    if (id && !selected) listScroll.current = window.scrollY;
     const next = new URLSearchParams(params.toString());
     if (id) next.set("person", id);
     else next.delete("person");
     next.delete("record");
     if (recordId) next.set("record", recordId);
-    window.history.replaceState(null, "", `/app/candidates?${next}`);
+    if (id && id !== selected) window.history.pushState(null, "", `/app/candidates?${next}`);
+    else window.history.replaceState(null, "", `/app/candidates?${next}`);
   }
   async function search(event: FormEvent) {
     event.preventDefault();
@@ -182,16 +188,16 @@ export default function Candidates() {
     : people.data?.people || [];
   const displayCount = semantic ? semantic.matches.length : task ? null : people.data?.total;
   return (
-    <div className="ws-page">
+    <div className="ws-page ws-candidates-page" data-detail={!!selected}>
       <header className="ws-page-header">
         <div>
           <h1>{t("Candidates")}</h1>
-          <p>{t("People, conversations and context, kept together.")}</p>
+
         </div>
         <div className="ws-actions">
           <Link
             className="ws-button"
-            href={`/app?prompt=${encodeURIComponent(locale === "zh" ? "请帮我导入候选人。" : "Please help me import my candidates.")}`}
+            href="/app/candidates/import"
           >
             {t("Import")}
           </Link>
@@ -249,6 +255,10 @@ export default function Candidates() {
               setPage(1);
             }}
           />
+          {(query || filter || location || expertise || task) && <button type="button" className="ws-link" onClick={() => {
+            setQuery(""); setFilter(""); setLocation(""); setExpertise(""); setPage(1); setMode("fields");
+            router.replace("/app/candidates", { scroll: false });
+          }}>{t("Clear filters")}</button>}
           <span className="ws-count">
             {displayCount != null
               ? locale === "zh"
@@ -306,12 +316,12 @@ export default function Candidates() {
           ) : shown.length === 0 ? (
             <div className="ws-empty">
               <h2>
-                {filter
+                {filter || location || expertise || semantic
                   ? t("No matching candidates")
                   : t("Start with the people you know.")}
               </h2>
               <p>
-                {filter
+                {filter || location || expertise || semantic
                   ? t("Try another name, or search by meaning for experience and past conversations.")
                   : t("Add a person or import your existing records. Their notes and relationships stay with them across roles.")}
               </p>
@@ -321,7 +331,7 @@ export default function Candidates() {
                 </button>
                 <Link
                   className="ws-link"
-                  href={`/app?prompt=${encodeURIComponent(locale === "zh" ? "请帮我导入候选人。" : "Please help me import my candidates.")}`}
+                  href="/app/candidates/import"
                 >
                   {t("Import existing candidates")} <ArrowUpRight size={14} />
                 </Link>
@@ -336,7 +346,6 @@ export default function Candidates() {
                 <div key={person.id}>
                   <button
                     className="ws-person-row"
-                    aria-pressed={selected === person.id}
                     onClick={() =>
                       select(person.id, match?.record_id || undefined)
                     }
@@ -400,8 +409,8 @@ export default function Candidates() {
             </div>
           )}
         </section>
-        <aside className="ws-inspector" aria-label={t("Candidate details")}>
-          {selected ? (
+        {selected && <aside className="ws-inspector" aria-label={t("Candidate details")}>
+            <button className="ws-link mb-4 ws-split-back" onClick={() => select(null)}><ArrowLeft size={14} />{t("Back to candidates")}</button>
             <CandidateDetails
               key={selected}
               id={selected}
@@ -410,15 +419,7 @@ export default function Candidates() {
               onClose={() => select(null)}
               onChanged={people.refresh}
             />
-          ) : (
-            <div className="ws-empty">
-              <h2>{t("A complete picture, over time.")}</h2>
-              <p>
-                {t("Select a candidate to see their profile, original notes, and the roles you have discussed with them.")}
-              </p>
-            </div>
-          )}
-        </aside>
+        </aside>}
       </div>
       {adding && (
         <PersonForm
@@ -530,20 +531,16 @@ function CandidateDetails({
   );
   return (
     <>
-      <button className="ws-link mb-4 ws-split-back" onClick={onClose}>
-        <ArrowLeft size={14} />
-        {t("Back to candidates")}
-      </button>
       <div className="ws-inspector-heading">
         <div>
-          <h2>{person.name}</h2>
+          <h1>{person.name}</h1>
           <p>{person.headline || t("No current role recorded")}</p>
           <p>{person.location || t("Location not recorded")}</p>
         </div>
-        <button className="ws-link" onClick={() => setEdit(true)}>
-          <Pencil size={13} />
-          {t("Edit")}
-        </button>
+        <div className="ws-actions">
+          <button className="ws-button" onClick={() => setEdit(true)}><Pencil size={14} />{t("Edit")}</button>
+          <Link className="ws-button ws-button-primary" href={`/app?person=${id}`}>{t("Ask AI assistant")}<ArrowUpRight size={14} /></Link>
+        </div>
       </div>
       <div className="ws-tabs" role="tablist" aria-label={t("Candidate sections")}>
         {[
@@ -681,12 +678,7 @@ function CandidateDetails({
               {t("History")}
             </button>
           </div>
-          <Link
-            className="ws-button ws-button-primary mt-4 w-full"
-            href={`/app?person=${id}`}
-          >
-            {t("Ask about")} {person.name.split(" ")[0]} <ArrowUpRight size={14} />
-          </Link>
+
         </>
       )}
       {tab === "records" && (

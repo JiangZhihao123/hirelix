@@ -47,6 +47,7 @@ import {
   ChevronUp,
   ChevronRight,
   Plus,
+  MessageSquare,
 } from "lucide-react";
 
 export default function ProductLayout({
@@ -104,6 +105,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     ? searchParams.get("conversation")
     : null;
   const nav = [
+    { href: "/app", label: t("AI assistant"), icon: MessageSquare, active: isConversationPage },
     {
       href: "/app/candidates",
       label: t("Candidates"),
@@ -126,6 +128,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     },
   ];
   function navigate(path: string) {
+    accountMenuRef.current?.hidePopover();
     setSidebarOpen(false);
     setPendingPath(path);
   }
@@ -182,14 +185,17 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSidebarOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
     };
   }, [sidebarOpen]);
 
   useEffect(() => {
-    const closeMenu = () => accountMenuRef.current?.hidePopover();
+    const closeMenu = () => { accountMenuRef.current?.hidePopover(); setSidebarOpen(false); };
     window.addEventListener("resize", closeMenu);
     return () => window.removeEventListener("resize", closeMenu);
   }, []);
@@ -291,15 +297,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <div className="ws-sidebar-scroll">
-          <Link
-            className="ws-sidebar-new"
-            href="/app"
-            onClick={() => navigate("/app")}
-            aria-current={isConversationPage && !currentConversationId ? "page" : undefined}
-          >
-            <Plus size={17} />
-            <span>{t("New conversation")}</span>
-          </Link>
           <nav className="ws-nav">
             {nav.map((item) => (
               <Link
@@ -331,10 +328,15 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               <Search size={16} />
               <span>{t("Sourcing")}</span>
             </Link>
+            <Link href="/app/tasks" onClick={() => navigate("/app/tasks")} aria-current={pathname === "/app/tasks" ? "page" : undefined}>
+              <ListChecks size={16} /><span>{t("Background tasks")}</span>
+            </Link>
           </nav>
-          <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
+          {isConversationPage && <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
             <div className="ws-sidebar-conversations-heading">
               <strong>{t("Conversations")}</strong>
+              <div className="ws-actions">
+                <Link href="/app" className="ws-icon" onClick={() => navigate("/app")} aria-label={t("New conversation")} title={t("New conversation")}><Plus size={16} /></Link>
               <button
                 type="button"
                 className="ws-icon"
@@ -347,6 +349,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               >
                 <Search size={16} />
               </button>
+              </div>
             </div>
             <div className="ws-sidebar-conversation-list">
               <ErrorNotice error={conversations.error} retry={conversations.refresh} />
@@ -371,22 +374,9 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 <p>{t("Your saved conversations will appear here.")}</p>
               )}
             </div>
-          </section>
+          </section>}
         </div>
         <div className="ws-sidebar-bottom">
-          <nav className="ws-nav">
-            {billing?.agent && billing.agent.state !== "legacy" && (
-              <Link
-                className="ws-credit-status"
-                href="/app/settings?section=billing"
-                title={t("View plan and subscription →")}
-                onClick={() => navigate("/app/settings")}
-              >
-                <span>{t("{count} AI credits remaining").replace("{count}", formatCredits(billing.agent.remaining, locale))}</span>
-                <ChevronRight size={14} aria-hidden="true" />
-              </Link>
-            )}
-          </nav>
           <button
             type="button"
             className="ws-account-trigger"
@@ -404,6 +394,19 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             className="ws-account-menu"
             aria-label={t("Account menu")}
           >
+          <nav className="ws-nav">
+            {billing?.agent && billing.agent.state !== "legacy" && (
+              <Link
+                className="ws-credit-status"
+                href="/app/settings?section=billing"
+                title={t("View plan and subscription →")}
+                onClick={() => navigate("/app/settings")}
+              >
+                <span>{t("{count} AI credits remaining").replace("{count}", formatCredits(billing.agent.remaining, locale))}</span>
+                <ChevronRight size={14} aria-hidden="true" />
+              </Link>
+            )}
+          </nav>
             <nav className="ws-nav">
               <Link href="/app/settings" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
                 <Settings size={16} />{t("Settings")}
@@ -426,7 +429,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </aside>
-      <main className="ws-main">
+      <main className="ws-main" inert={sidebarOpen}>
         <div className={`ws-topbar ${isConversationPage ? "ws-topbar-conversation" : ""}`}>
           <div className="ws-actions">
             <button
@@ -439,7 +442,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>
               {isConversationPage
                 ? "Hirelix"
-                : nav.find((item) => item.active)?.label || t("Workspace")}
+                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/tasks" ? t("Background tasks") : pathname.startsWith("/app/search") ? t("Sourcing") : t("Workspace"))}
             </span>
           </div>
           <div className="ws-topbar-actions">
@@ -479,12 +482,12 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                   <Search size={17} />
                 </Link>
                 <Link
-                  href="/app/tasks"
-                  className="ws-icon"
-                  aria-label={t("Background tasks")}
-                  title={t("Background tasks")}
+                  href="/app"
+                  className="ws-topbar-task"
+                  aria-label={t("AI assistant")}
+                  title={t("AI assistant")}
                 >
-                  <ListChecks size={17} />
+                  <MessageSquare size={17} /><span>{t("AI assistant")}</span>
                 </Link>
               </>
             )}

@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
-import { getPlanStatusCopy, type BillingSummary } from "@/lib/billing";
+import { type BillingSummary } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
-import { useLanguage, useT } from "@/components/LanguageProvider";
+import { useT } from "@/components/LanguageProvider";
 import { LanguageSelect } from "@/components/LanguageSelect";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
@@ -22,7 +22,6 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
 
 export default function SettingsPage() {
   const t = useT();
-  const { locale } = useLanguage();
   const { user } = useAuth();
   const { billing: sharedBilling, refresh: refreshBilling } = useBilling();
   const searchParams = useSearchParams();
@@ -46,22 +45,18 @@ export default function SettingsPage() {
     {
       id: "account" as const,
       label: t("Account"),
-      detail: signInMethods.includes("credential") ? t("Password enabled") : t("Set password"),
     },
     {
       id: "billing" as const,
       label: t("Billing"),
-      detail: billing ? t(getPlanStatusCopy(billing, locale).title) : t("Plan and usage"),
     },
     {
       id: "profile" as const,
       label: t("Outreach identity"),
-      detail: headhunterProfile.recruiter_name || t("Recruiter details"),
     },
     {
       id: "language" as const,
       label: t("Language"),
-      detail: t("Choose your interface language"),
     },
   ];
 
@@ -188,79 +183,14 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-            {t("Workspace")}
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-            {t("Settings")}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-            {t("Manage your login, plan, usage, and outreach identity.")}
-          </p>
-        </div>
-        {billing ? (
-          <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm shadow-slate-200/30">
-            <span className="font-medium text-slate-950">{t(getPlanStatusCopy(billing, locale).title)}</span>
-            <span className="ml-2 text-slate-500">{getPlanStatusCopy(billing, locale).usageLabel}</span>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-        {sectionNav.map((item) => {
-          const isActive = activeSection === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => selectSection(item.id)}
-              className={`inline-flex shrink-0 items-center rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950"
-              }`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,840px)] lg:gap-8">
-        <aside className="hidden lg:block">
-          <nav className="sticky top-8 rounded-lg border border-slate-200 bg-white p-2 shadow-sm shadow-slate-200/30">
-            <div className="space-y-1">
-              {sectionNav.map((item) => {
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => selectSection(item.id)}
-                    className={`block w-full rounded-md px-3 py-2.5 text-left transition-colors ${
-                      isActive
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                    }`}
-                    >
-                      <p className={`text-sm ${isActive ? "font-semibold" : "font-medium"}`}>
-                        {item.label}
-                      </p>
-                      <p className={`mt-1 text-xs ${isActive ? "text-slate-300" : "text-slate-500"}`}>
-                        {item.detail}
-                      </p>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        </aside>
-
-        <div>{selectedSection}</div>
-      </div>
+    <div className="ws-settings-page">
+      <header className="ws-page-header"><div><h1>{t("Settings")}</h1><p>{t("Manage your login, plan, usage, and outreach identity.")}</p></div></header>
+      <nav className="ws-tabs ws-settings-tabs" aria-label={t("Settings")}>
+        {sectionNav.map((item) => (
+          <button key={item.id} type="button" aria-current={activeSection === item.id ? "page" : undefined} onClick={() => selectSection(item.id)}>{item.label}</button>
+        ))}
+      </nav>
+      <div className="ws-settings-content">{selectedSection}</div>
     </div>
   );
 }

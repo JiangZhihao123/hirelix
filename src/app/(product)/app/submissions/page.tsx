@@ -3,7 +3,7 @@
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import {
   useQuery,
   ErrorNotice,
@@ -34,9 +34,7 @@ export default function Submissions() {
       <header className="ws-page-header">
         <div>
           <h1>{t("Candidate submissions")}</h1>
-          <p>
-            {t("Prepare candidate submissions and keep a record of what you share.")}
-          </p>
+
         </div>
         <Link
           className="ws-button ws-button-primary"
@@ -47,35 +45,25 @@ export default function Submissions() {
         </Link>
       </header>
       <div className="ws-toolbar">
-        <input
-          className="ws-search"
+        <div className="ws-search"><Search size={16} /><input
           aria-label={t("Find a submission")}
           placeholder={t("Search by candidate, client or role")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-        />
-        <div className="ws-actions">
-          {[
-            ["all", "All"],
-            ["draft", "Drafts"],
-            ["submitted", "Submitted"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              className="ws-button"
-              aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
-            >
-              {t(label)}
-            </button>
-          ))}
+        /></div>
+        <div className="ws-filters">
+          <select aria-label={t("Status")} value={filter} onChange={(event) => setFilter(event.target.value)}>
+            <option value="all">{t("All")}</option><option value="draft">{t("Drafts")}</option><option value="submitted">{t("Submitted")}</option>
+          </select>
+          <span className="ws-count">{!query.loading && (locale === "zh" ? `${items.length} 份推荐` : `${items.length} submissions`)}</span>
         </div>
       </div>
       <ErrorNotice error={query.error} retry={query.refresh} />
       {query.loading && !query.data ? (
         <Loading />
       ) : items.length ? (
-        <div className="ws-role-grid">
+        <div className="ws-role-grid ws-submissions-grid">
+          <div className="ws-role-table-head" aria-hidden="true"><span>{t("Candidate submissions")}</span><span>{t("Status")}</span><span>{t("Candidates")}</span><span>{t("Updated")}</span></div>
           {items.map((d) => (
             <Link
               key={d.id}
@@ -108,12 +96,10 @@ export default function Submissions() {
               : t("A clear introduction for every candidate.")}
           </h2>
           <p>
-            {t("Choose a client role and one or more candidates. Prepare a draft from the information you decide to share, then review and edit it before sending it yourself.")}
+            {search || filter !== "all" ? t("Try a different search or clear your filters.") : t("Choose a client role and one or more candidates. Prepare a draft from the information you decide to share, then review and edit it before sending it yourself.")}
           </p>
           <div className="ws-actions">
-            <Link className="ws-button" href="/app/submissions/new">
-              {t("Prepare candidate submission")}
-            </Link>
+            {search || filter !== "all" ? <button className="ws-button" onClick={() => { setSearch(""); setFilter("all"); }}>{t("Clear filters")}</button> : <Link className="ws-button" href="/app/submissions/new">{t("Prepare candidate submission")}</Link>}
           </div>
         </div>
       )}

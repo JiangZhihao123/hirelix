@@ -491,7 +491,7 @@ function AssistantWorkspace({
               ) : (
                 <>
                   <h1 title={query.data?.conversation.title}>
-                    {query.data?.conversation.title || t("New conversation")}
+                    {query.data?.conversation.title || t("AI assistant")}
                   </h1>
                   {conversationId && query.data && (
                     <button
@@ -510,6 +510,7 @@ function AssistantWorkspace({
               )}
             </div>
             <div className="ws-chat-header-actions">
+              {conversationId && <Link className="ws-button ws-chat-new" href="/app"><Plus size={14} /><span>{t("New conversation")}</span></Link>}
               {activeRole && (
                 <Link
                   className="ws-chat-role"
