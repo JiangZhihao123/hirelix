@@ -186,6 +186,22 @@
   align-items: center;
   gap: 8px;
 }
+.ws-nav .ws-credit-status {
+  min-height: 32px;
+  padding: 6px 11px;
+  margin-bottom: 4px;
+  gap: 6px;
+  color: var(--ws-muted);
+  font-size: 12px;
+}
+.ws-credit-status span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ws-credit-status svg {
+  flex-shrink: 0;
+}
 .ws-language-control select,
 .ws-settings-language select {
   width: 100%;
@@ -2364,9 +2380,6 @@
 }
 
 .agent-billing{max-width:760px;line-height:1.75}.agent-billing h2{font-size:26px;margin:10px 0 24px}.agent-billing>p{margin:16px 0;color:var(--ws-muted,#67716a);font-size:14px}.agent-billing-summary{padding:22px;border:1px solid #dce2d8;background:#f2f5ed;border-radius:10px}.agent-billing-summary p{margin:7px 0}.agent-billing-cycle{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}.agent-billing-cycle button{padding:12px 18px;border:1px solid #d5ddd0;border-radius:7px}.agent-billing-cycle button[aria-pressed=true]{background:#205846;color:white}.agent-billing [role=alert]{color:#a12d2d}.agent-billing [role=status]{padding:15px;background:#edf3e6;border-radius:7px}.agent-billing .agent-billing-terms{font-size:12px}.agent-billing a{text-decoration:underline}.agent-billing .ws-button{margin-right:12px}
-
-.ws-nav .ws-trial-status { display:flex; flex-direction:column; align-items:flex-start; gap:4px; padding:12px; margin:0 0 8px; border:1px solid var(--ws-line); border-radius:10px; font-size:12px; text-decoration:none; }
-.ws-trial-status strong { font-size:13px; }
 
 .ws-checkbox { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.6; }
 .ws-checkbox input { margin-top: 4px; flex: 0 0 auto; }

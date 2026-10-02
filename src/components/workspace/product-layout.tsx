@@ -43,6 +43,7 @@ import {
   Menu,
   X,
   Settings,
+  ChevronRight,
   Plus,
 } from "lucide-react";
 
@@ -360,9 +361,14 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         <div className="ws-sidebar-bottom">
           <nav className="ws-nav">
             {billing?.agent && billing.agent.state !== "legacy" && (
-              <Link className="ws-trial-status" href="/app/settings?section=billing">
-                <strong>{billing.agent.state === "paid" ? t("Personal Agent") : billing.agent.state === "expired" ? t("Trial ended") : t("7-day free trial")}</strong>
+              <Link
+                className="ws-credit-status"
+                href="/app/settings?section=billing"
+                title={t("View plan and subscription →")}
+                onClick={() => navigate("/app/settings")}
+              >
                 <span>{t("{count} AI credits remaining").replace("{count}", formatCredits(billing.agent.remaining, locale))}</span>
+                <ChevronRight size={14} aria-hidden="true" />
               </Link>
             )}
             <div className="ws-sidebar-controls">
