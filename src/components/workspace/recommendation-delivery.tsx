@@ -35,7 +35,7 @@ export function RecommendationDelivery({
   return (
     <>
       <button
-        className="ws-button primary"
+        className="ws-button ws-button-primary"
         disabled={disabled}
         onClick={() => setOpen(true)}
       >
@@ -200,7 +200,7 @@ function DeliveryOptions({
           [
             ["link", "Share link", LinkIcon],
             ["copy", "Copy email", Copy],
-            ["gmail", "Send with Gmail", Mail],
+            ["gmail", "Gmail", Mail],
           ] as const
         ).map(([key, label, Icon]) => (
           <button
@@ -293,7 +293,7 @@ function DeliveryOptions({
             </>
           ) : (
             <button
-              className="ws-button primary mt-4"
+              className="ws-button ws-button-primary"
               disabled={busy || share.loading}
               onClick={() => void publish()}
             >
@@ -341,7 +341,7 @@ function DeliveryOptions({
                 )}
               </p>
               <button
-                className="ws-button primary mt-4"
+                className="ws-button ws-button-primary"
                 disabled={busy || gmail.loading}
                 onClick={() => void connect()}
               >
@@ -387,7 +387,7 @@ function DeliveryOptions({
               )}
               <button
                 type="submit"
-                className="ws-button primary"
+                className="ws-button ws-button-primary"
                 disabled={busy || !!delivery}
               >
                 {t(busy ? "Sending through Gmail…" : "Send email")}
