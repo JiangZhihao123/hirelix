@@ -3,6 +3,9 @@ export const uiZh: Record<string, string> = {
   "Help me organize these candidate files into my workspace.": "帮我把这些候选人资料整理并保存到资料库。",
   "Give files to assistant": "交给助理整理",
   "Keep this page open until your files and message are sent.": "文件和消息发送完成前，请保持此页面打开。",
+  "Retry": "重试",
+  "Ready to send": "待发送",
+  "Upload failed. Check your connection and retry.": "上传失败，请检查网络后重试。",
   "Add files": "添加资料",
   "Drop files here": "把资料放在这里",
   "Share the material. Tell me what you want done.": "把资料交给我，告诉我你想完成什么。",
@@ -10,7 +13,7 @@ export const uiZh: Record<string, string> = {
   "Add up to 20 files per message.": "每条消息最多添加 20 个文件。",
   "Use CSV, PDF, DOCX, TXT or Markdown files.": "支持 CSV、PDF、DOCX、TXT 和 Markdown 文件。",
   "Each file must be non-empty and up to 4 MB.": "每个文件须非空，且不超过 4 MB。",
-  "Some files need attention. Retry or remove them, then send. Your other files are ready.": "部分文件需要处理，请重试或移除后发送。其他文件已经准备好。",
+  "Some files need attention. Retry or remove them, then send. Uploaded files are kept.": "部分文件需要处理，请重试或移除后发送。已上传的文件会保留。",
 
   "PERSONAL AGENT": "私人助理",
   "per year": "每年",

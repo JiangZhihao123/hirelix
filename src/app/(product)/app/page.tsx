@@ -172,9 +172,10 @@ function AssistantWorkspace({
       body.append("file", item.file);
       const result = await api<{ file: { file_id: string } }>("/files", { method: "POST", body });
       setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, fileId: result.file.file_id, status: "uploaded" } : entry));
+      setError("");
       return result.file.file_id;
     } catch (cause) {
-      setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, status: "error", error: cause instanceof Error ? cause.message : "Could not upload file" } : entry));
+      setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, status: "error", error: cause instanceof TypeError ? "Upload failed. Check your connection and retry." : cause instanceof Error ? cause.message : "Could not upload file" } : entry));
       return null;
     }
   }
@@ -376,7 +377,7 @@ function AssistantWorkspace({
         if (fileId) fileIds.push(fileId);
       }
       if (fileIds.length !== attachments.length) {
-        setError(t("Some files need attention. Retry or remove them, then send. Your other files are ready."));
+        setError(t("Some files need attention. Retry or remove them, then send. Uploaded files are kept."));
         return;
       }
       const signature = JSON.stringify({ text, fileIds });
@@ -790,7 +791,7 @@ function AssistantWorkspace({
                 {attachments.map((item) => (
                   <div key={item.id} className={`ws-composer-attachment ${item.status === "error" ? "has-error" : ""}`}>
                     {item.status === "uploading" ? <Loader2 size={14} className="animate-spin" /> : item.status === "uploaded" ? <Check size={14} /> : <Paperclip size={14} />}
-                    <span title={item.file.name}>{item.file.name}<small>{item.error ? t(item.error) : item.status === "uploading" ? t("Uploading…") : item.status === "uploaded" ? t("Ready") : `${Math.ceil(item.file.size / 1024)} KB`}</small></span>
+                    <span title={item.file.name}>{item.file.name}<small>{item.error ? t(item.error) : item.status === "uploading" ? t("Uploading…") : item.status === "uploaded" ? t("Ready to send") : `${Math.ceil(item.file.size / 1024)} KB`}</small></span>
                     {item.status === "error" && !attachmentError(item.file.name, item.file.size) && (
                       <button type="button" className="ws-link" disabled={sending} onClick={() => void uploadFile(item)}>{t("Retry")}</button>
                     )}
