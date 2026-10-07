@@ -1,6 +1,7 @@
 "use client";
 
 
+import { LanguageSelect } from "@/components/LanguageSelect";
 import { useT } from "@/components/LanguageProvider";
 import { useState, type FormEvent } from "react";
 import { Check, KeyRound, Loader2 } from "lucide-react";
@@ -116,7 +117,7 @@ export function AccountSection({
       id="account"
       eyebrow={t("Account")}
       title={t("Account")}
-      description={t("Manage password sign-in for this account.")}
+      description={t("Manage your sign-in and personal preferences.")}
     >
       <div className="space-y-5">
         <SettingsFieldGroup
@@ -193,6 +194,15 @@ export function AccountSection({
 
             <MessageBanner message={passwordMessage} />
           </form>
+        </SettingsFieldGroup>
+        <SettingsFieldGroup title={t("Preferences")}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-slate-800">{t("Interface language")}</p>
+              <p className="mt-1 text-sm text-slate-500">{t("Choose the language for menus and controls.")}</p>
+            </div>
+            <LanguageSelect className="ws-settings-language" />
+          </div>
         </SettingsFieldGroup>
         <SettingsFieldGroup
           title={t("Support and privacy requests")}

@@ -196,7 +196,6 @@
 .ws-credit-status svg {
   flex-shrink: 0;
 }
-.ws-language-control select,
 .ws-settings-language select {
   width: 100%;
   min-height: 38px;
@@ -211,7 +210,6 @@
 .ws-settings-language {
   max-width: 280px;
 }
-.ws-language-control select:disabled,
 .ws-settings-language select:disabled {
   opacity: 0.5;
   cursor: wait;
@@ -258,17 +256,6 @@
   background: white;
   color: var(--ws-ink);
   box-shadow: 0 10px 35px #25302626;
-}
-.ws-account-language {
-  margin-top: 8px;
-  padding: 12px 11px;
-  border-top: 1px solid var(--ws-line);
-}
-.ws-account-language > span {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--ws-muted);
-  font-size: 12px;
 }
 .ws-account-logout {
   display: flex;

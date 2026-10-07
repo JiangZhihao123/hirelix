@@ -29,7 +29,6 @@ import {
 import { BillingProvider, useBilling } from "@/lib/use-billing";
 import { BrandMark } from "@/components/BrandMark";
 import { useT, useLanguage } from "@/components/LanguageProvider";
-import { LanguageSelect } from "@/components/LanguageSelect";
 import { DraftNotifications } from "@/components/workspace/notifications";
 import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
@@ -400,10 +399,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 <CreditCard size={16} />{t("Billing")}
               </Link>
             </nav>
-            <div className="ws-account-language">
-              <span>{t("Language")}</span>
-              <LanguageSelect className="ws-language-control" />
-            </div>
             <button
               type="button"
               className="ws-account-logout"

@@ -8,13 +8,12 @@ import { type BillingSummary } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import { useT } from "@/components/LanguageProvider";
-import { LanguageSelect } from "@/components/LanguageSelect";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
 import { RecruiterProfileSection } from "./_components/RecruiterProfileSection";
-import { EMPTY_PROFILE, SettingsSection, type HeadhunterProfile, type SettingsSectionId } from "./_components/shared";
+import { EMPTY_PROFILE, type HeadhunterProfile, type SettingsSectionId } from "./_components/shared";
 
-const SETTINGS_SECTION_IDS = ["account", "billing", "profile", "language"] as const satisfies readonly SettingsSectionId[];
+const SETTINGS_SECTION_IDS = ["account", "billing", "profile"] as const satisfies readonly SettingsSectionId[];
 
 function isSettingsSectionId(value: string): value is SettingsSectionId {
   return SETTINGS_SECTION_IDS.includes(value as SettingsSectionId);
@@ -53,10 +52,6 @@ export default function SettingsPage() {
     {
       id: "profile" as const,
       label: t("Outreach identity"),
-    },
-    {
-      id: "language" as const,
-      label: t("Language"),
     },
   ];
 
@@ -138,7 +133,6 @@ export default function SettingsPage() {
   }
 
   const selectedSection = (() => {
-    if (activeSection === "language") return <LanguageSection />;
     if (activeSection === "billing") {
       return billing ? (
         <BillingPanel
@@ -192,20 +186,5 @@ export default function SettingsPage() {
       </nav>
       <div className="ws-settings-content">{selectedSection}</div>
     </div>
-  );
-}
-
-function LanguageSection() {
-  const t = useT();
-  return (
-    <SettingsSection
-      id="language"
-      eyebrow={t("Language")}
-      title={t("Language")}
-      description={t("Choose the language used throughout your workspace. Candidate records and your own notes keep their original wording.")}
-    >
-      <LanguageSelect className="ws-settings-language" />
-      <p className="mt-4 text-sm text-slate-600">{t("Client drafts use this language by default. You can choose a different language when preparing each draft.")}</p>
-    </SettingsSection>
   );
 }
