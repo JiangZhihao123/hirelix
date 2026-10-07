@@ -32,8 +32,12 @@ after(async () => {
 
 test(
   "real embeddings: semantic retrieval returns an older candidate beyond 120 newer profiles, with owner isolation and sources",
-  { timeout: 180000 },
+  // This fixture embeds 130 profiles in multiple real provider batches. Each
+  // request retains its own 60s timeout and bounded retries; allow the whole
+  // journey to finish instead of cancelling it midway through those batches.
+  { timeout: 600000 },
   async () => {
+    const started = Date.now();
     const person = await createPerson(owner, {
       name: "QA Maya Chen",
       headline: "Product director",
@@ -69,6 +73,7 @@ test(
     const output = await generateEmbeddings(
       distractors.map((item) => item.content),
     );
+    console.log(JSON.stringify({ stage: "fixture_embeddings", elapsed_ms: Date.now() - started, profiles: distractors.length }));
     await db.execute(
       sql`INSERT INTO hirelix_private_embeddings(user_id,person_id,content,content_hash,model,embedding) VALUES ${sql.join(
         distractors.map(
@@ -105,6 +110,7 @@ test(
         returned_oldest: result.matches[0].person.name,
         source_record: result.matches[0].record_id !== null,
         owner_isolation: true,
+        elapsed_ms: Date.now() - started,
       }),
     );
     const [jobs] = await rows<{ count: number }>(
