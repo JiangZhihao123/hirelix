@@ -31,6 +31,7 @@ export function POST(req: NextRequest) {
         conversation_id: form.get("conversation_id") || null,
         role_id: form.get("role_id") || null,
         person_id: form.get("person_id") || null,
+        document_id: form.get("document_id") || null,
       },
       {
         name: selected.name,
