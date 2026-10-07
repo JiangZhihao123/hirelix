@@ -1321,7 +1321,7 @@ export const uiZh: Record<string, string> = {
   "Your candidates have not been indexed yet. Check import and indexing tasks, or use name and field search.": "你的候选人尚未建立索引。请检查导入和索引任务，或使用姓名和字段搜索。",
   "Your candidates, your roles, and the work you prepare for clients.": "你的候选人、你的职位，以及你为客户准备的工作。",
   "Your client role": "你的客户职位",
-  "Your draft is saved in the background. You can leave and return to this page.": "你的草稿已在后台保存。你可以离开并返回此页面。",
+  "Your request is saved. You can leave and return here for progress and the completed draft.": "你的请求已保存。你可以离开，返回此页面查看进度和完成后的草稿。",
   "Your imports will appear here so you can resume a review.": "你的导入将显示在这里，以便你继续查看。",
   "Your JD": "你的 JD",
   "Your JD is ready": "你的 JD 已就绪",

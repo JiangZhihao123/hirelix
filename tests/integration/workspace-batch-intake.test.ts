@@ -48,6 +48,8 @@ test("real mixed batch: upload ownership, retry, independent extraction, request
   assert.equal(messageAttachments(detail.messages[0].metadata).length, 4);
   const assistant = detail.messages.find((m) => m.role === "assistant")!;
   assert.match(assistant.content, /broken|PDF|无法|读取/);
+  assert.doesNotMatch(assistant.content, /已(?:经)?(?:[^。\n]{0,20})(?:入库|保存到|建档)|已经保存/, "Queued candidate processing is not a completed save");
+  assert.doesNotMatch(assistant.content, /本次回复|进入队列|回复保存|not_started|save_new_candidates/, "The reply explains the recruiter's work, not internal execution sequencing");
   const ids = messageImportJobs(assistant.metadata);
   assert.equal(ids.length, 1, "only CV should become candidate processing");
   const [job] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE id=${ids[0]}::uuid`);

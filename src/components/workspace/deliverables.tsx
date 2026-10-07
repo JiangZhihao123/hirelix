@@ -196,7 +196,7 @@ export function PrepareDocument({
           <Loader2 size={22} className="animate-spin" />
           <h2>{job.data?.job.progress ? t(job.data.job.progress) : t("Preparing your draft…")}</h2>
           <p>
-            {t("Your draft is saved in the background. You can leave and return to this page.")}
+            {t("Your request is saved. You can leave and return here for progress and the completed draft.")}
           </p>
         </div>
       ) : job.data?.job.status === "error" ? (
