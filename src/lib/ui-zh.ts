@@ -1,5 +1,7 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Google could not verify this connection request. It may have expired or been replaced by another request. Click Connect Gmail to start again, and complete the Google screens within 5 minutes.": "Google 无法验证这次连接请求，可能已过期或被另一请求替换。请点击连接 Gmail 重新开始，并在 5 分钟内完成 Google 页面上的操作。",
+  "Google did not complete the Gmail connection. Click Connect Gmail to try again and allow sending permission.": "Google 未完成 Gmail 连接。请点击连接 Gmail 重试并允许发送邮件权限。",
   "Deliver to client": "交付给客户",
   "Delivery method": "交付方式",
   "Share link": "分享链接",

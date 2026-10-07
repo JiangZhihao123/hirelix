@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Copy,
   Link as LinkIcon,
@@ -31,6 +32,11 @@ export function RecommendationDelivery({
   onSent: () => void;
 }) {
   const t = useT();
+  const params = useSearchParams();
+  const router = useRouter();
+  const oauthError = params.get("error");
+  const returnedFromGmail = params.get("delivery") === "gmail" ||
+    oauthError === "state_mismatch";
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -42,9 +48,18 @@ export function RecommendationDelivery({
         <Mail size={14} />
         {t("Deliver to client")}
       </button>
-      {open && (
-        <Dialog title={t("Deliver to client")} onClose={() => setOpen(false)}>
-          <DeliveryOptions document={document} onSent={onSent} />
+      {(open || returnedFromGmail) && (
+        <Dialog title={t("Deliver to client")} onClose={() => {
+          setOpen(false);
+          if (returnedFromGmail) {
+            const next = new URL(window.location.href);
+            next.searchParams.delete("delivery");
+            next.searchParams.delete("error");
+            router.replace(`${next.pathname}${next.search}${next.hash}`, { scroll: false });
+          }
+        }}>
+          <DeliveryOptions document={document} onSent={onSent}
+            returnedFromGmail={returnedFromGmail} oauthError={oauthError} />
         </Dialog>
       )}
     </>
@@ -53,12 +68,16 @@ export function RecommendationDelivery({
 function DeliveryOptions({
   document,
   onSent,
+  returnedFromGmail,
+  oauthError,
 }: {
   document: Deliverable;
   onSent: () => void;
+  returnedFromGmail: boolean;
+  oauthError: string | null;
 }) {
   const t = useT();
-  const [mode, setMode] = useState<"link" | "copy" | "gmail">("link"),
+  const [mode, setMode] = useState<"link" | "copy" | "gmail">(returnedFromGmail ? "gmail" : "link"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [copied, setCopied] = useState(""),
@@ -139,8 +158,8 @@ function DeliveryOptions({
         provider: "google",
         scopes: ["https://www.googleapis.com/auth/gmail.send"],
         disableRedirect: true,
-        callbackURL: window.location.pathname,
-        errorCallbackURL: window.location.pathname,
+        callbackURL: `${window.location.pathname}?delivery=gmail`,
+        errorCallbackURL: `${window.location.pathname}?delivery=gmail`,
       });
       if (result.error) throw new Error(result.error.message);
       if (result.data?.url) {
@@ -221,6 +240,11 @@ function DeliveryOptions({
       <ErrorNotice
         error={error || share.error || gmail.error || receipts.error}
       />
+      {mode === "gmail" && returnedFromGmail && oauthError && !gmail.data?.connected && (
+        <ErrorNotice error={t(oauthError === "state_mismatch"
+          ? "Google could not verify this connection request. It may have expired or been replaced by another request. Click Connect Gmail to start again, and complete the Google screens within 5 minutes."
+          : "Google did not complete the Gmail connection. Click Connect Gmail to try again and allow sending permission.")} />
+      )}
       {mode === "link" && (
         <section>
           <p>
