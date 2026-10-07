@@ -8,8 +8,8 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    ".next/**",
-    ".next-agent-qa/**",
+    // NEXT_DIST_DIR also uses .next-prefixed directories for isolated QA builds.
+    ".next*/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
