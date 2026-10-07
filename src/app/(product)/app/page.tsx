@@ -618,19 +618,18 @@ function AssistantWorkspace({
                 return (
                   <article
                     className={`ws-message ws-message-${message.role}`}
+                    aria-label={message.role === "user" ? t("Your message") : t("Hirelix")}
                     key={message.id}
                   >
-                    <div className="ws-message-label">
-                      <span
-                        className={`ws-message-avatar ws-message-avatar-${message.role}`}
-                      >
-                        {message.role === "user" ? t("You").slice(0, 1) : <BrandMark small />}
-                      </span>
-                      <strong>
-                        {message.role === "user" ? t("You") : t("Hirelix")}
-                      </strong>
-                      <time>{date(message.created_at, true)}</time>
-                    </div>
+                    {message.role === "assistant" && (
+                      <div className="ws-message-label">
+                        <span className="ws-message-avatar ws-message-avatar-assistant">
+                          <BrandMark small />
+                        </span>
+                        <strong>{t("Hirelix")}</strong>
+                        <time dateTime={message.created_at}>{date(message.created_at, true)}</time>
+                      </div>
+                    )}
                     <div className="ws-message-prose">
                       <AgentText content={message.content} />
                       {messageAttachments(message.metadata).map((file) => (
@@ -703,6 +702,7 @@ function AssistantWorkspace({
                       </div>
                     ))}
                     <div className="ws-message-tools">
+                      {message.role === "user" && <time dateTime={message.created_at}>{date(message.created_at, true)}</time>}
                       <button
                         type="button"
                         onClick={() => copyMessage(message.id, message.content)}
@@ -722,16 +722,12 @@ function AssistantWorkspace({
                   message.role === "user" &&
                   !optimistic.priorIds.includes(message.id),
               ) && (
-                <article className="ws-message ws-message-user ws-message-optimistic">
-                  <div className="ws-message-label">
-                    <span className="ws-message-avatar ws-message-avatar-user">
-                      {t("You").slice(0, 1)}
-                    </span>
-                    <strong>{t("You")}</strong>
-                    <small>{t("Sending…")}</small>
-                  </div>
+                <article className="ws-message ws-message-user ws-message-optimistic" aria-label={t("Your message")}>
                   <div className="ws-message-prose">
                     <AgentText content={optimistic.text} />
+                  </div>
+                  <div className="ws-message-tools">
+                    <small className="ws-message-status" role="status">{t("Sending…")}</small>
                   </div>
                 </article>
               )}

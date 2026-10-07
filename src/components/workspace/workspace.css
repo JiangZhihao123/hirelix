@@ -2010,15 +2010,8 @@
   font-family: Georgia, serif;
   font-size: 17px;
 }
-.ws-message-avatar-user {
-  background: #eef0ed;
-  color: #626f63;
-}
 .ws-message-user {
   max-width: var(--ws-chat-width);
-}
-.ws-message-user .ws-message-label {
-  justify-content: flex-end;
 }
 .ws-message-user .ws-message-prose {
   width: fit-content;
@@ -2059,9 +2052,16 @@
 }
 .ws-message-tools {
   display: flex;
+  align-items: center;
   justify-content: flex-start;
   gap: 8px;
   margin-top: 9px;
+}
+.ws-message-tools time,
+.ws-message-status {
+  color: #98a197;
+  font-size: 10px;
+  font-weight: 400;
 }
 .ws-message-user .ws-message-tools {
   justify-content: flex-end;

@@ -1,5 +1,6 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Your message": "你的消息",
   "Preferences": "偏好设置",
   "Manage your sign-in and personal preferences.": "管理登录方式与个人偏好。",
   "Choose the language for menus and controls.": "选择菜单和界面的显示语言。",
