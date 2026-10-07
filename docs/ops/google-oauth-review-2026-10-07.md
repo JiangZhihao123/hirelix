@@ -1,6 +1,6 @@
 # Hirelix Google OAuth review packet — 7 October 2026
 
-Status: prepared text and capture plan only. Fresh new-client Gmail consent and owner-only self-send/receipt succeeded at 21:06:47 +08:00 (message `1a11679402b5cb00`, SENT and INBOX). No usable recording, YouTube upload or verification submission has completed in this acceptance run. Do not resend the completed self-test merely to repeat a take; plan a separately authorized recording test if required. The Google Console currently requires the scope justification and demonstration URL. Do not submit a placeholder video or reuse the old-client recording.
+Status: prepared text and capture plan only. Fresh new-client Gmail consent and owner-only self-send/receipt succeeded at 21:06:47 +08:00 (message `1a11679402b5cb00`, SENT and INBOX). No usable recording, YouTube upload or verification submission has completed in this acceptance run. Do not resend the completed self-test merely to repeat a take; plan a separately authorized recording test if required. The scope justification was saved and read back in the Google Console on October 7. The formal submission summary now reports only the demonstration video as missing; Confirm is disabled. Do not submit a placeholder video or reuse the old-client recording.
 
 ## Production identity
 
@@ -20,7 +20,7 @@ Brand verification is published; sensitive data-access verification remains inco
 
 ## Scope justification
 
-The following is below the Console's 1,000-character limit. It is prepared here and has not been saved into the current Console form.
+The following is below the Console's 1,000-character limit. It has been saved into the Console and read back in the formal verification summary.
 
 > Hirelix is a personal AI assistant for headhunters. The optional Gmail integration sends a recommendation only after the user reviews the recipient, subject, body and selected CV attachments and clicks Send email. We use gmail.send only for this user-initiated send. Hirelix does not read or search inboxes, manage Gmail drafts or monitor replies. Basic sign-in scopes cannot send email; the add-on compose scope is for Workspace add-ons and cannot support this standalone web app. Broader gmail.compose, gmail.modify and mail.google.com access is unnecessary. Users can disconnect Gmail and still use copied email text or revocable client links. The demonstration sends verification text to the owner only, without candidate data or attachments.
 
@@ -50,3 +50,9 @@ If the send is uncertain, check Sent/receipt before any retry. Never replay a su
 Inspect the complete recording locally for legible English consent, exact production client, scope use, reviewed send and receipt. Upload the inspected recording as unlisted only within the owner's authorized review workflow. Put the real YouTube URL and the justification into the Console, save and read back, then review the verification summary before submitting. No URL exists for this run yet.
 
 Google's [sensitive-scope verification guide](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification) describes the scope justification and demonstration requirements. The [Gmail scope reference](https://developers.google.com/workspace/gmail/api/auth/scopes) identifies gmail.send and its sensitivity. The live Console is the final source for requested fields and current submission state.
+
+## Submission attempt after owner authorization
+
+The owner explicitly requested submission. The scope justification (746/1000 characters) was saved successfully. The formal submission page confirms the correct production identity and justification, but reports only “missing demonstration video”; Confirm remains disabled. Evidence: `output/acceptance-20261007/google-submit-video-required.png`. No submission has occurred.
+
+Native Screenshot/QuickTime recording is available, but remote recording-window selection was unreliable. A 36.77-second homepage trial is incomplete. A later 46.08-second screen recording contains unrelated desktop/app content and is rejected for upload; neither has been uploaded. The owner was asked to start a recording of only the dedicated Hirelix Chrome window so the actual English OAuth and reviewed send demonstration can continue. There is no active recording at the last process check.
