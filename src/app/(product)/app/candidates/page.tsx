@@ -1,5 +1,7 @@
 "use client";
 
+import { SourceContent } from "@/components/workspace/source-content";
+
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -716,7 +718,7 @@ function CandidateDetails({
                   {t("Happened")} {date(item.occurred_at, true)} {t("· Added")}{" "}
                   {date(item.created_at, true)}
                 </small>
-                <p>{item.content}</p>
+                <SourceContent content={item.content} />
                 {item.source_url && (
                   <a
                     className="ws-link mt-3"

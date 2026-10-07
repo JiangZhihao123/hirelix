@@ -273,7 +273,6 @@ export default function RolePage({
                     [
                       ["priorities", "Confirmed priorities"],
                       ["flexible", "Flexible requirements"],
-                      ["unknowns", "Still to clarify"],
                     ] as const
                   ).map(([key, label]) => (
                     <div key={key}>

@@ -206,6 +206,36 @@ export function PrepareDocument({
         />
       ) : (
         <form className="ws-document-prepare" onSubmit={prepare}>
+            <div className="ws-preparation-actions">
+              <button
+                className="ws-button ws-button-primary"
+                disabled={
+                  busy ||
+                  !roleId ||
+                  !sources.data ||
+                  (kind === "submission" && !people.length)
+                }
+              >
+                {busy ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <FileText size={14} />
+                )}
+                {t("Prepare draft")}
+              </button>
+              <span className="ws-muted text-xs">
+                {t("Nothing is sent to the client.")}
+              </span>
+            <div className="ws-selection-count">
+              {locale === "zh"
+                ? `${people.length} 位候选人 · 已选 ${records.length} 条备注`
+                : `${people.length} candidates · ${records.length} selected notes`}
+              {kind === "submission" &&
+                (locale === "zh"
+                  ? ` · 已选 ${people.filter((id) => selectedFiles[id]).length} 份简历`
+                  : ` · ${people.filter((id) => selectedFiles[id]).length} CVs selected`)}
+            </div>
+            </div>
           <div className="ws-document-options">
             <Field label={t("Client role")}>
               <select
@@ -465,29 +495,10 @@ export function PrepareDocument({
                 maxLength={6000}
               />
             </Field>
-            <div className="ws-actions mt-5">
-              <button
-                className="ws-button ws-button-primary"
-                disabled={
-                  busy ||
-                  !roleId ||
-                  !sources.data ||
-                  (kind === "submission" && !people.length)
-                }
-              >
-                {busy ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <FileText size={14} />
-                )}
-                {t("Prepare draft")}
-              </button>
-              <span className="ws-muted text-xs">
-                {t("Nothing is sent to the client.")}
-              </span>
-            </div>
+
           </div>
           <aside className="ws-selection-preview">
+
             <h2>{t("What the draft can use")}</h2>
             <p>
               {t("The role’s JD and working requirements, plus the candidate information shown here and your selected notes.")}
@@ -520,15 +531,7 @@ export function PrepareDocument({
                 )}
               </details>
             ))}
-            <div className="ws-selection-count">
-              {locale === "zh"
-                ? `${people.length} 位候选人 · 已选 ${records.length} 条备注`
-                : `${people.length} candidates · ${records.length} selected notes`}
-              {kind === "submission" &&
-                (locale === "zh"
-                  ? ` · 已选 ${people.filter((id) => selectedFiles[id]).length} 份简历`
-                  : ` · ${people.filter((id) => selectedFiles[id]).length} CVs selected`)}
-            </div>
+
           </aside>
         </form>
       )}
@@ -986,12 +989,12 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             <button className="ws-link" onClick={() => setHistory(true)}>
               {t("View saved versions")}
             </button>
-            <Link
+            {dirty || saving || recovery ? <p className="ws-muted mt-3">{t("Save your current edits before continuing in a new conversation.")}</p> : <Link
               className="ws-detail-link"
-              href={`/app?role=${document.role_id}`}
+              href={`/app?document=${document.id}&role=${document.role_id}`}
             >
               {t("Continue in a new conversation")} <ArrowUpRight size={12} />
-            </Link>
+            </Link>}
           </section>
         </aside>
       </div>

@@ -10,14 +10,18 @@ export function RevisionPanel({
   document,
   disabled,
   onApplied,
+  jobId,
+  embedded = false,
 }: {
   document: Deliverable;
+  jobId?: string;
+  embedded?: boolean;
   disabled: boolean;
   onApplied: (value: Deliverable) => void;
 }) {
   const t = useT();
   const query = useQuery<{ job: Job | null }>(
-    `/deliverables/${document.id}/revision`,
+    jobId ? `/jobs/${jobId}` : `/deliverables/${document.id}/revision`,
   );
   const [review, setReview] = useState(false);
   const [instructions, setInstructions] = useState("");
@@ -85,7 +89,7 @@ export function RevisionPanel({
         {t("Review a proposed revision before replacing your draft. Your previous version is kept.")}
       </p>
       <ErrorNotice error={error || query.error} />
-      <Field label={t("What would you like to change?")}>
+      {!embedded && <><Field label={t("What would you like to change?")}>
         <textarea
           rows={3}
           value={instructions}
@@ -101,6 +105,7 @@ export function RevisionPanel({
         {" "}
         {running ? t("Preparing revision…") : t("Prepare revision")}
       </button>
+      </>}
       {disabled && (
         <p className="ws-muted">{t("Save your current edits before revising.")}</p>
       )}

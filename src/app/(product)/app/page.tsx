@@ -36,7 +36,11 @@ import {
 } from "@/components/workspace/client";
 import { ConversationImport } from "@/components/workspace/import-review";
 import { RoleForm } from "@/components/workspace/forms";
+import { RecentWork } from "@/components/workspace/recent-work";
+import { RevisionPanel } from "@/components/workspace/revision";
+import { PersonalMemories } from "@/components/workspace/memories";
 import type {
+  Deliverable,
   Conversation,
   Message,
   Job,
@@ -55,23 +59,26 @@ type Detail = {
   conversation: Conversation;
   messages: Message[];
   job: Job | null;
+  document: Deliverable | null;
 };
 function assistantDraftKey(
   conversationId: string | null,
   roleId: string | null,
   personId: string | null,
   initialPrompt = "",
+  documentId: string | null = null,
 ) {
   if (conversationId) return `hirelix:assistant:draft:${conversationId}`;
-  if (!roleId && !personId && !initialPrompt)
+  if (!roleId && !personId && !initialPrompt && !documentId)
     return "hirelix:assistant:draft:new";
-  return `hirelix:assistant:draft:new:${roleId || "-"}:${personId || "-"}${initialPrompt ? `:prompt:${encodeURIComponent(initialPrompt)}` : ""}`;
+  return `hirelix:assistant:draft:new:${roleId || "-"}:${personId || "-"}:${documentId || "-"}${initialPrompt ? `:prompt:${encodeURIComponent(initialPrompt)}` : ""}`;
 }
 export default function AssistantHome() {
   const params = useSearchParams();
   const conversationId = params.get("conversation");
   const roleId = params.get("role"),
     personId = params.get("person");
+  const documentId = params.get("document");
   const initialPrompt = params.get("prompt")?.slice(0, 500) || "";
   const [handoff, setHandoff] = useState<{
     conversationId: string;
@@ -79,8 +86,9 @@ export default function AssistantHome() {
   } | null>(null);
   return (
     <AssistantWorkspace
-      key={assistantDraftKey(conversationId, roleId, personId, initialPrompt)}
+      key={assistantDraftKey(conversationId, roleId, personId, initialPrompt, documentId)}
       conversationId={conversationId}
+      documentId={documentId}
       initialRoleId={roleId}
       personId={personId}
       initialPrompt={initialPrompt}
@@ -99,6 +107,7 @@ export default function AssistantHome() {
 }
 function AssistantWorkspace({
   conversationId,
+  documentId,
   initialRoleId,
   personId,
   initialPrompt,
@@ -107,6 +116,7 @@ function AssistantWorkspace({
   onOpen,
 }: {
   conversationId: string | null;
+  documentId: string | null;
   initialRoleId: string | null;
   personId: string | null;
   initialPrompt: string;
@@ -134,6 +144,9 @@ function AssistantWorkspace({
   const [attachments, setAttachments] = useState<PendingFile[]>([]);
   const dragDepth = useRef(0);
   const [contextOpen, setContextOpen] = useState(false);
+  const memoryRequested = useSearchParams().has("memories");
+  const [memoriesOpen, setMemoriesOpen] = useState(false);
+  useEffect(() => { if (memoryRequested) setMemoriesOpen(true); }, [memoryRequested]);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -183,9 +196,11 @@ function AssistantWorkspace({
     scroll = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null);
   const job = query.data?.job;
-  useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); }, [job?.id, job?.status]);
+  useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = !!job && ["queued", "running"].includes(job.status);
-  const activeRoleId = query.data?.conversation.role_id || roleId;
+  const linkedDocument = useQuery<{ deliverable: Deliverable }>(documentId && !conversationId ? `/deliverables/${documentId}` : null);
+  const currentDocument = query.data?.document || linkedDocument.data?.deliverable;
+  const activeRoleId = currentDocument?.role_id || query.data?.conversation.role_id || roleId;
   const activeRole = roles.data?.roles.find((r) => r.id === activeRoleId);
   const activePersonId = query.data?.conversation.person_id || linkedPersonId;
   const person = useQuery<{ person: Person }>(
@@ -207,6 +222,7 @@ function AssistantWorkspace({
     initialRoleId,
     personId,
     initialPrompt,
+    documentId,
   );
   const draftRoleKey = `${draftStorageKey}:role`;
   useEffect(() => {
@@ -290,7 +306,7 @@ function AssistantWorkspace({
   }, [count, pending, optimistic]);
   useEffect(() => {
     const viewport = scroll.current;
-    if (!viewport) return;
+    if (!viewport || !conversationId) return;
     let frame = 0;
     const observer = new MutationObserver(() => {
       if (!stickToBottom.current) return;
@@ -393,6 +409,7 @@ function AssistantWorkspace({
           conversation_id: conversationId,
           role_id: conversationId ? null : roleId || null,
           person_id: conversationId ? null : linkedPersonId || null,
+          document_id: conversationId ? null : documentId,
         }),
       });
       setDraft("");
@@ -430,6 +447,7 @@ function AssistantWorkspace({
       params.get("role"),
       params.get("person"),
       params.get("prompt") || "",
+      params.get("document"),
     );
     const existingDraft = localStorage.getItem(nextKey);
     if (
@@ -534,7 +552,7 @@ function AssistantWorkspace({
                   </span>
                 </Link>
               )}
-              {(conversationId || activeRoleId || activePersonId) && (
+              {(
                 <button
                   type="button"
                   className={`ws-chat-context-trigger ${contextOpen ? "is-active" : ""}`}
@@ -546,8 +564,9 @@ function AssistantWorkspace({
               )}
             </div>
           </header>
+          {currentDocument && <Link className="ws-linked-document" href={currentDocument.kind === "search_update" ? `/app/roles/${currentDocument.role_id}/updates/${currentDocument.id}` : `/app/submissions/${currentDocument.id}`}><Paperclip size={14} /><span>{currentDocument.title}</span><small>{t("Saved document")}</small><ArrowUpRight size={14} /></Link>}
           <ErrorNotice
-            error={error || query.error || roles.error}
+            error={error || query.error || roles.error || linkedDocument.error}
             retry={
               query.error
                 ? query.refresh
@@ -560,6 +579,7 @@ function AssistantWorkspace({
             ref={scroll}
             className={`ws-conversation-scroll ${!conversationId ? "ws-conversation-scroll-empty" : ""}`}
             onScroll={(event) => {
+              if (!conversationId) return;
               const el = event.currentTarget;
               const layoutChanged =
                 scrollSize.current.height !== el.scrollHeight ||
@@ -588,7 +608,9 @@ function AssistantWorkspace({
                   <BrandMark small />
                 </div>
                 <h2>{t("What would you like to work on?")}</h2>
-                <p>{t("Tell me what you want to get done. Drop in CVs, JDs and notes together.")}</p>
+                <p>{currentDocument ? t("This saved document is ready to discuss or revise. Tell me what you want to change.") : t("Tell me what you want to get done. Drop in CVs, JDs and notes together.")}</p>
+                {!activeRoleId && !activePersonId && !documentId && <RecentWork />}
+                <button className="ws-link ws-home-memory" onClick={() => setMemoriesOpen(true)}>{t("What I remember")} <ArrowUpRight size={13} /></button>
               </div>
             ) : (
               query.data?.messages.map((message) => {
@@ -620,6 +642,7 @@ function AssistantWorkspace({
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={job?.status === "done" ? job.id : undefined} />
                     ))}
+                    {metadata.revision && currentDocument && metadata.revision.document_id === currentDocument.id && <RevisionPanel document={currentDocument} disabled={currentDocument.status !== "draft"} jobId={metadata.revision.job_id} embedded onApplied={() => { query.refresh(); linkedDocument.refresh(); }} />}
                     {metadata.sources?.length ? (
                       <div className="ws-message-sources">
                         {metadata.sources.map((source, index) => (
@@ -630,6 +653,11 @@ function AssistantWorkspace({
                         ))}
                       </div>
                     ) : null}
+                    {!!metadata.memories?.length && <div className="ws-memory-receipts">
+                      {metadata.memories.map(memory => <button key={memory.id} type="button" onClick={() => setMemoriesOpen(true)}>
+                        <Check size={13} />{t(memory.operation === "forget" ? "Forgotten" : memory.operation === "update" ? "Agreement updated" : "Remembered")} · {memory.title}
+                      </button>)}
+                    </div>}
                     {metadata.actions?.map((action) => (
                       <div className="ws-action-proposal" key={action.id}>
                         <div>
@@ -809,13 +837,13 @@ function AssistantWorkspace({
                         ? `${activeRole.client_name} · ${activeRole.title}`
                         : t("Role")}
                     </span>
-                    <button
+                    {!documentId && <button
                       type="button"
                       aria-label={t("Remove role from conversation")}
                       onClick={() => removeNewConversationContext("role")}
                     >
                       <X size={13} />
-                    </button>
+                    </button>}
                   </span>
                 )}
                 {linkedPersonId && (
@@ -843,7 +871,7 @@ function AssistantWorkspace({
               placeholder={t("Ask, paste a JD, or share a conversation note…")}
               rows={1}
               maxLength={50000}
-              disabled={sending}
+              disabled={sending || !draftReady}
               onKeyDown={onComposerKeyDown}
             />
             <div className="ws-composer-footer">
@@ -950,6 +978,11 @@ function AssistantWorkspace({
               )}
             </section>
             <section>
+              <h2>{t("About our work")}</h2>
+              <button type="button" className="ws-text-button" onClick={() => setMemoriesOpen(true)}>{t("What I remember")}</button>
+              <p>{t("Your working preferences carry across conversations.")}</p>
+            </section>
+            <section>
               <h2>
                 {t("Client roles")}{" "}
                 <Link href="/app/roles">{t("View all")}</Link>
@@ -1005,6 +1038,7 @@ function AssistantWorkspace({
           }}
         />
       )}
+      {memoriesOpen && <PersonalMemories onClose={() => setMemoriesOpen(false)} />}
       {review && conversationId && (
         <ActionReview
           conversationId={conversationId}
