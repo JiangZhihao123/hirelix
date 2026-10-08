@@ -39,11 +39,11 @@ test.describe("Authentication Page", () => {
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeEnabled();
   });
 
-  test("should frame the free-trial entry as a first candidate pool", async ({ page }) => {
-    await page.goto("/app/search/new?entry=free_trial");
+  test("should frame the free-trial entry around the personal AI assistant", async ({ page }) => {
+    await page.goto("/app?entry=free_trial");
 
-    await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
-    await expect(page.getByText("Preview one client role before you pay.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start with your private AI assistant" })).toBeVisible();
+    await expect(page.getByText("Your candidates, your roles, and the work you prepare for clients.")).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible();
     await expect(page.getByPlaceholder("you@company.com")).toBeVisible();
   });

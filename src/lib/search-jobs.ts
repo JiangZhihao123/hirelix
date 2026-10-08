@@ -27,7 +27,6 @@ import {
   type SearchExecutionProfile,
   type SearchPlanCode,
 } from "@/lib/search-execution";
-import { queueOrSendSearchNotification } from "@/lib/search-notifications";
 import {
   BRIGHTDATA_STANDARD_LIMIT,
   DEEP_SCORING_BATCH_SIZE,
@@ -3359,15 +3358,6 @@ async function markSearchReviewable(
     parsed_requirements: reqs,
     error_message: null,
   });
-  void queueOrSendSearchNotification(context.searchId, "first_shortlist_ready").catch((error) => {
-    searchJobLogger.error(
-      {
-        search_id: context.searchId,
-        ...errorLogFields(error),
-      },
-      "Failed to queue first shortlist notification",
-    );
-  });
 }
 
 
@@ -3428,18 +3418,6 @@ async function failSearch(searchId: string, error?: unknown) {
         ? "The available profile pool was too small for a reliable candidate review. Retry with broader criteria."
       : PUBLIC_SEARCH_FAILURE_MESSAGE,
   });
-
-  if (candidateCount === 0) {
-    void queueOrSendSearchNotification(searchId, "search_failed").catch((error) => {
-      searchJobLogger.error(
-        {
-          search_id: searchId,
-          ...errorLogFields(error),
-        },
-        "Failed to queue search failure notification",
-      );
-    });
-  }
 }
 
 async function getSearchRowsForFailureBilling(searchId: string) {

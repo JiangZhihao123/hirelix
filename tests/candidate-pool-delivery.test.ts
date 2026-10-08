@@ -15,13 +15,6 @@ import type {
   ScoredCandidateAssessment,
   SearchDisplayStats,
 } from "@/lib/search/types";
-import {
-  compareCandidatesForRecruiterRanking,
-  getCandidateDeliveryBucket,
-  getCandidateDisplayTier,
-  getSearchErrorPresentation,
-} from "@/app/(product)/app/search/[id]/_components/utils";
-import type { CandidateRow } from "@/app/(product)/app/search/[id]/_components/types";
 
 function profile(index: number): BrightDataProfile {
   return {
@@ -217,64 +210,6 @@ test("search quality diagnosis passes when actionable-delivery bar is met", () =
   assert.equal(diagnosis.recommended_count, 7);
 });
 
-test("legacy reach-first metadata is downgraded when reachability is low", () => {
-  const candidate = {
-    id: "candidate-1",
-    name: "Low Reachability Engineer",
-    headline: "Staff Software Engineer",
-    location: "San Francisco",
-    skills: [],
-    experience_years: null,
-    match_score: 82,
-    match_reasons: [],
-    profile_url: "https://www.linkedin.com/in/low-reachability",
-    github_url: null,
-    email: null,
-    outreach_draft: null,
-    status: "new",
-    metadata: {
-      delivery_bucket: "reach_first",
-      scoring_breakdown: {
-        capability_score: 90,
-        relevance_score: 92,
-        join_likelihood_score: 25,
-      },
-    },
-  } satisfies CandidateRow;
-
-  assert.equal(getCandidateDisplayTier(candidate), "worth_reviewing");
-  assert.equal(getCandidateDeliveryBucket(candidate), "review_next");
-});
-
-test("legacy reach-first metadata is downgraded for active job-search profiles", () => {
-  const candidate = {
-    id: "candidate-active",
-    name: "Active Search Engineer",
-    headline: "Actively looking for new positions | Senior Data Engineer | Kafka | Spark",
-    location: "United States",
-    skills: [],
-    experience_years: null,
-    match_score: 88,
-    match_reasons: [],
-    profile_url: "https://www.linkedin.com/in/active-search",
-    github_url: null,
-    email: null,
-    outreach_draft: null,
-    status: "new",
-    metadata: {
-      delivery_bucket: "reach_first",
-      scoring_breakdown: {
-        capability_score: 88,
-        relevance_score: 90,
-        join_likelihood_score: 80,
-      },
-    },
-  } satisfies CandidateRow;
-
-  assert.equal(getCandidateDisplayTier(candidate), "worth_reviewing");
-  assert.equal(getCandidateDeliveryBucket(candidate), "review_next");
-});
-
 function candidateRow(index: number, deliveryBucket: CandidateRowInput["metadata"]["delivery_bucket"]): CandidateRowInput {
   return {
     name: `Candidate ${index}`,
@@ -353,97 +288,6 @@ test("tagPoolRows keeps recruiter recommendations first and sorts same bucket by
       "High Trigger Review Next",
       "High Trigger Lower Priority",
     ],
-  );
-});
-
-test("client recruiter ranking preserves delivery buckets and quality before raw match score", () => {
-  const candidates = [
-    {
-      id: "lower-priority",
-      status: "new",
-      ...candidateRow(0, "lower_priority"),
-      name: "High Match Lower Priority",
-      match_score: 99,
-      metadata: {
-        delivery_bucket: "lower_priority",
-        quality_score: 99,
-        advance_score: 99,
-        subscription_trigger_score: 99,
-      },
-    },
-    {
-      id: "reach-first",
-      status: "new",
-      ...candidateRow(1, "reach_first"),
-      name: "Reach First Candidate",
-      match_score: 80,
-      metadata: {
-        delivery_bucket: "reach_first",
-        quality_score: 86,
-        advance_score: 80,
-        subscription_trigger_score: 70,
-      },
-    },
-    {
-      id: "review-next-quality",
-      status: "new",
-      ...candidateRow(2, "review_next"),
-      name: "High Quality Review Next",
-      match_score: 82,
-      metadata: {
-        delivery_bucket: "review_next",
-        quality_score: 92,
-        advance_score: 82,
-        subscription_trigger_score: 40,
-      },
-    },
-    {
-      id: "review-next-trigger",
-      status: "new",
-      ...candidateRow(3, "review_next"),
-      name: "High Trigger Review Next",
-      match_score: 84,
-      metadata: {
-        delivery_bucket: "review_next",
-        quality_score: 75,
-        advance_score: 89,
-        subscription_trigger_score: 98,
-      },
-    },
-  ] satisfies CandidateRow[];
-
-  assert.deepEqual(
-    [...candidates].sort(compareCandidatesForRecruiterRanking).map((candidate) => candidate.name),
-    [
-      "Reach First Candidate",
-      "High Quality Review Next",
-      "High Trigger Review Next",
-      "High Match Lower Priority",
-    ],
-  );
-});
-
-test("client recruiter ranking keeps lower delivery tiers below recommended candidates", () => {
-  const candidates = [
-    {
-      id: "rejected-rank-one",
-      status: "new",
-      ...candidateRow(0, "not_recommended"),
-      name: "Rejected Rank One",
-      final_rank: 1,
-    },
-    {
-      id: "recommended-rank-twenty",
-      status: "new",
-      ...candidateRow(1, "reach_first"),
-      name: "Recommended Rank Twenty",
-      final_rank: 20,
-    },
-  ] satisfies CandidateRow[];
-
-  assert.deepEqual(
-    [...candidates].sort(compareCandidatesForRecruiterRanking).map((candidate) => candidate.name),
-    ["Recommended Rank Twenty", "Rejected Rank One"],
   );
 });
 
@@ -534,11 +378,4 @@ test("completeSearch upserts the full pool and drafts outreach only for recommen
   assert.equal(finalStats.ruled_out_count, 1);
   assert.equal(finalStats.do_not_show_count, 1);
   assert.ok(events.includes("public_evidence_available_on_demand"));
-});
-
-test("zero recall error presentation explains released client role allowance", () => {
-  const presentation = getSearchErrorPresentation({ search_error_type: "zero_recall" });
-
-  assert.equal(presentation.title, "No matching profiles were found");
-  assert.match(presentation.hint, /released from your client-role allowance/);
 });

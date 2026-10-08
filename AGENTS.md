@@ -28,7 +28,7 @@ Agent 工作进度、结果和失败重试应留在对应对话中；从职位�
 
 Deployment is split across Vercel and `us-2`: Vercel hosts the Next.js app/API routes; `us-2` runs PostgreSQL 17 and the `hirelix-scheduler` systemd service from `/opt/hirelix`. Auth is better-auth with Google OAuth; sessions are stored in the same Postgres database. Production domain: `hirelix.online`.
 
-独立的外部付费人才寻访已退出产品默认流程：不提供新建、扩展、重跑入口，API 和任务执行器均禁止启动该链路。保留历史结果和底层代码供核查；私人候选人库搜索、匹配和 Agent 工作继续正常运行。不要通过重开旧入口、环境变量或内部操作员身份绕过此产品边界。
+独立的外部付费人才寻访已退出产品：已删除新建、结果列表、结果详情及旧结果分享页面和专属产品 API，不保留旧路由跳转或历史结果兼容。任务执行器禁止启动该链路；私人候选人库搜索、匹配和 Agent 工作继续正常运行。未上线产品无需为测试数据保留废弃功能。不要通过重开旧入口、环境变量或内部操作员身份绕过此产品边界。
 
 Historical search flow:
 
@@ -43,7 +43,7 @@ Important tables: `hirelix_searches`, `hirelix_candidates`, `hirelix_search_jobs
 
 ## API Route Map
 
-Product APIs live under `src/app/(product)/api/` and require authentication. Key entrypoints include `search/create`, `search/parse`, `search/clarify`, `search/[id]/retry`, `candidates/[id]`, `candidates/[id]/enrich`, `settings/ai-company`, and `billing/*`.
+Product APIs live under `src/app/(product)/api/` and require authentication. Key entrypoints include `workspace/*`, `candidates/[id]`, `candidates/[id]/enrich`, `settings/ai-company`, and `billing/*`. The retired external sourcing product APIs under `search/*` and `searches/*` have been removed.
 
 Internal APIs live under `src/app/api/` and are triggered by services or webhooks: `internal/search-jobs/run` for search execution, `internal/public-evidence-jobs/run` for on-demand candidate research, and `paddle/webhook` for billing events. Auth routes are mounted at `src/app/api/auth/[...all]/route.ts`.
 

@@ -89,13 +89,8 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     }
     return "workspace";
   };
-  const pendingJd = searchParams.get("jd")?.trim() || "";
   const entryMode = normalizeEntryMode(searchParams.get("entry"));
-  const isSearchIntent = pathname === "/app/search/new" && Boolean(pendingJd);
   const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
-  const isNewSearchRoute = pathname === "/app/search/new";
-  const isSearchDetailRoute =
-    pathname.startsWith("/app/search/") && !isNewSearchRoute;
   const isFreeTrialEntry = entryMode === "free_trial";
   const authRedirectPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   const isConversationPage = pathname === "/app";
@@ -140,10 +135,10 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         entry_mode: entryMode,
       }),
       route: pathname,
-      has_prefilled_jd: isSearchIntent,
+      has_prefilled_jd: false,
       signin_surface: "product_page",
     });
-  }, [entryMode, isSearchIntent, loading, pathname, user]);
+  }, [entryMode, loading, pathname, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -203,10 +198,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     }
   }, [sidebarOpen]);
 
-  if (loading && isSearchDetailRoute) {
-    return <div className="min-h-screen bg-background">{children}</div>;
-  }
-
   if (loading) {
     return <ProductShellSkeleton />;
   }
@@ -221,27 +212,15 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           </span>
         </div>
         <h1 className="text-center text-xl font-semibold">
-          {isSearchIntent
-            ? t("Sign in to open your shortlist")
-            : isFreeTrialEntry
-              ? t("Start with your private AI assistant")
-              : t("Sign in to Hirelix")}
+          {isFreeTrialEntry
+            ? t("Start with your private AI assistant")
+            : t("Sign in to Hirelix")}
         </h1>
-        {isFreeTrialEntry && !isSearchIntent ? (
+        {isFreeTrialEntry ? (
           <p className="-mt-5 max-w-sm text-center text-sm leading-6 text-muted">
             {t("Your candidates, your roles, and the work you prepare for clients.")}
           </p>
         ) : null}
-        {isSearchIntent && (
-          <div className="w-full max-w-xl rounded-xl border border-border bg-surface p-4 text-left">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-light">
-              {t("Your JD is saved")}
-            </p>
-            <p className="mt-2 max-h-32 overflow-hidden whitespace-pre-wrap text-sm text-foreground">
-              {pendingJd}
-            </p>
-          </div>
-        )}
         <LoginForm redirectPath={authRedirectPath} />
         <Link href="/" className="text-sm text-muted hover:text-foreground">
           {t("← Back to homepage")}
@@ -392,9 +371,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               <Link href="/app/settings" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
                 <Settings size={16} />{t("Settings")}
               </Link>
-              <Link href="/app/searches" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/searches"); }}>
-                <FileText size={16} />{t("Past sourcing results")}
-              </Link>
               <Link href="/app/settings?section=billing" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
                 <CreditCard size={16} />{t("Billing")}
               </Link>
@@ -422,7 +398,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>
               {isConversationPage
                 ? "Hirelix"
-                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname.startsWith("/app/search") ? t("Past sourcing results") : t("Workspace"))}
+                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : t("Workspace"))}
             </span>
           </div>
           <div className="ws-topbar-actions">
@@ -473,7 +449,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </div>
-        {pathname.startsWith("/app/search") || pathname === "/app/settings" ? (
+        {pathname === "/app/settings" ? (
           <div className="p-5 lg:p-8">{children}</div>
         ) : (
           children

@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeAssessment, resolveCandidateDecision, buildSearchOutcome, type SearchDecisionContract } from "@/lib/search/decision-contract";
-import { getCandidateDeliveryBucket, getCandidateScoreMetrics } from "@/app/(product)/app/search/[id]/_components/utils";
-import type { CandidateRow } from "@/app/(product)/app/search/[id]/_components/types";
 import { selectCandidatesForFinalReview } from "@/lib/candidate-index/workflow";
 import type { Qualification } from "@/lib/candidate-index/judgment";
 import { planSearchNextAction } from "@/lib/candidate-index/search-agent";
@@ -34,11 +32,6 @@ test("recovery from uncertain qualification requires an explicit reconciliation"
   const args = { contract, assessment: assessment(), modelDecision: "contact" as const, previousDecision: "maybe" };
   assert.equal(resolveCandidateDecision(args).decision, "review");
   assert.equal(resolveCandidateDecision({ ...args, reconciliation: "Current role provides direct ownership evidence absent from the preliminary summary." }).decision, "contact");
-});
-test("result page preserves canonical contact regardless of legacy willingness score", () => {
-  const candidate = { final_decision: "contact", match_score: null, headline: "Open to work", metadata: { analysis_stage: "candidate_index_v2", delivery_bucket: "reach_first", scoring_breakdown: { join_likelihood_score: 10 } } } as unknown as CandidateRow;
-  assert.equal(getCandidateDeliveryBucket(candidate), "reach_first");
-  assert.deepEqual(getCandidateScoreMetrics(candidate), []);
 });
 test("final review prioritizes supported core work beyond initial rank and excludes rejects", () => {
   const input = [{ profileId: "reject", decision: "reject", assessment: { coreFit: "direct" } }, { profileId: "adjacent", decision: "maybe", assessment: { coreFit: "adjacent" } }, { profileId: "direct", decision: "maybe", assessment: { coreFit: "direct" } }] as Qualification[];

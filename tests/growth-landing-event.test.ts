@@ -104,7 +104,7 @@ test("growth landing event records sourcing brief generation as an activation ev
       utm_campaign: "us_recruiter_search",
       jd_length_bucket: "500+",
     },
-    pageUrl: "https://hirelix.online/app/search/new",
+    pageUrl: "https://hirelix.online/app",
   });
 
   assert.equal(decision.action, "record");
