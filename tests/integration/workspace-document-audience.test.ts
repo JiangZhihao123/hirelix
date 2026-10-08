@@ -24,6 +24,31 @@ after(async () => {
   await closeDb();
 });
 
+test("real AI applies a word budget to the complete internal recommendation", { timeout: 180000 }, async () => {
+  const role = await createRole(owner, {
+    title: "Head of Product", client_name: "QA Harbor",
+    jd_text: "Enterprise analytics SaaS leadership; manage four PMs and improve onboarding. London office Tuesday and Thursday. GBP 140,000–160,000. Reporting line and interview stages unknown.",
+  });
+  const person = await createPerson(owner, {
+    name: "QA Mira Stone", location: "Manchester",
+    headline: "Director of Product, Fictional Atlas Metrics, 2022–present",
+    profile: { summary: "Eight years in enterprise SaaS product. Leads four PMs, owns quarterly priorities and partners with customer success. Cut onboarding from 14 to 6 days. Can attend London Tuesday and Thursday without relocation. Salary expectations, notice period, interest and sharing permission unconfirmed." },
+  });
+  await linkPerson(owner, role.id, person.id);
+  const job = await prepareDeliverable(owner, {
+    kind: "submission", role_id: role.id, person_ids: [person.id], record_ids: [], file_ids: [],
+    period_start: null, period_end: null,
+    language: "en", instructions: "Prepare an internal-review recommendation under 180 words. Retain role-fit evidence, office attendance and all candidate and client unknowns. Draft only; do not share.", request_key: randomUUID(),
+  });
+  const generated = await generateDeliverable(job, async () => {});
+  const saved = await db.transaction(async (tx) => generated.apply?.(tx));
+  const document = await owned<Deliverable>(owner, "deliverable", String(saved?.deliverable_id));
+  assert.equal(document.source_snapshot.audience, "internal");
+  assert.ok(document.content.trim().split(/\s+/).length < 180, document.content);
+  for (const fact of [/14.*6/s, /Tuesday/i, /Thursday/i, /salary|compensation/i, /notice/i, /interest/i, /permission|consent/i, /reporting/i, /interview/i])
+    assert.match(document.content, fact);
+});
+
 test("real AI respects internal purpose, preserves it on revision, and defaults to a client email", { timeout: 360000 }, async () => {
   const role = await createRole(owner, {
     title: "VP Product", client_name: "QA Lakeside",
