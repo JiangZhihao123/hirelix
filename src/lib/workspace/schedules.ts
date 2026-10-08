@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { owned, rows, uuidArray, WorkspaceError, type Runner } from "./database";
+import { owned, rows, json, uuidArray, WorkspaceError, type Runner } from "./database";
 import { prepareDeliverable } from "./deliverables";
 import type { Role, Schedule } from "./types";
 
@@ -41,9 +41,9 @@ export async function nextScheduleRun(
   return new Date(item.instant).toISOString();
 }
 
-export async function saveSchedule(userId: string, roleId: string, value: unknown) {
+export async function saveSchedule(userId: string, roleId: string, value: unknown, runner: Runner = db) {
   const input = scheduleInput.parse(value);
-  return db.transaction(async (tx) => {
+  const save = async (tx: Runner) => {
     await owned<Role>(userId, "role", roleId, tx, true);
     for (const id of input.person_ids) {
       const linked = await rows(sql`SELECT person_id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid AND person_id=${id}::uuid`, tx);
@@ -59,7 +59,8 @@ export async function saveSchedule(userId: string, roleId: string, value: unknow
       ON CONFLICT(user_id,role_id) DO UPDATE SET enabled=excluded.enabled,timezone=excluded.timezone,weekday=excluded.weekday,local_time=excluded.local_time,interval_weeks=excluded.interval_weeks,next_run_at=excluded.next_run_at,only_when_changed=excluded.only_when_changed,language=excluded.language,person_ids=excluded.person_ids,include_role_records=excluded.include_role_records,include_candidate_records=excluded.include_candidate_records,error=NULL,updated_at=now()
       RETURNING *`, tx);
     return saved;
-  });
+  };
+  return runner === db ? db.transaction(save) : save(runner);
 }
 
 // One transaction includes locking the agreement, capturing evidence, reserving
@@ -94,6 +95,10 @@ export async function queueScheduledDrafts(limit = 5, now = new Date().toISOStri
           request_key: `scheduled:${schedule.id}:${due}`,
         }, tx);
         const digest = createHash("sha256").update(JSON.stringify({ ...(job.payload.source as object), period_start: undefined, period_end: undefined, period_local_start: undefined, period_local_end: undefined, captured_at: undefined })).digest("hex");
+        const [origin] = await rows<{ conversation_id: string }>(sql`SELECT m.conversation_id FROM hirelix_agent_messages m
+          WHERE m.user_id=${schedule.user_id}::uuid AND EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(m.metadata->'schedules','[]'::jsonb)) receipt WHERE receipt->>'id'=${schedule.id})
+          ORDER BY m.created_at DESC,m.id DESC LIMIT 1`, tx);
+        if (origin) await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || ${json({ conversation_id: origin.conversation_id })} WHERE id=${job.id}::uuid`);
         await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || jsonb_build_object('schedule_id',${schedule.id}::text,'notify_ready',${!schedule.only_when_changed || digest !== schedule.last_record_digest}::boolean,'record_digest',${digest}::text) WHERE id=${job.id}::uuid`);
         const next = await nextScheduleRun(schedule, now, due, tx);
         await tx.execute(sql`UPDATE hirelix_private_schedules SET next_run_at=${next}::timestamptz,last_period_end=${now}::timestamptz,last_job_id=${job.id}::uuid,updated_at=now() WHERE id=${schedule.id}::uuid`);

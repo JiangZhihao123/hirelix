@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { enqueue, json, owned, rows, WorkspaceError } from "./database";
+import { enqueue, json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { structured } from "./ai";
 import { listRoles, updateRelationship, ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import { listPeople, personDetails } from "./people";
@@ -28,15 +28,19 @@ import { requestRevision } from "./revisions";
 import type { JobHandler } from "./jobs";
 import { applyMemoryChanges, listPersonalMemories, memoryChangeSchema, PERSONAL_MEMORY_RULES, prepareMemoryChanges, type MemoryReceipt } from "./memories";
 
+import { assistantWorkSchema, executeAssistantWork, quotedAuthorization, ASSISTANT_WORK_RULES, type AssistantWorkReceipt, type AssistantScheduleReceipt } from "./assistant-work";
+
 export const conversationInput = z.object({
   message: z.string().trim().max(50000),
   file_ids: z.array(z.uuid()).max(MAX_CONVERSATION_FILES).default([]),
   locale: z.enum(["en", "zh"]).default("en"),
+  timezone: z.string().max(100).refine(zone => { try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; } }).default("UTC"),
   request_key: z.string().min(1).max(200),
   conversation_id: z.uuid().nullable().default(null),
   role_id: z.uuid().nullable().default(null),
   person_id: z.uuid().nullable().default(null),
   document_id: z.uuid().nullable().default(null),
+  work_document_id: z.uuid().nullable().default(null),
 });
 export type AssistantAction = {
   id: string;
@@ -52,9 +56,12 @@ export type AssistantAction = {
   role_id: string | null;
   person_id: string | null;
   fields: Record<string, unknown>;
+  direct_save_quote?: string | null;
   href?: string;
 };
 export type AssistantMeta = {
+  work?: AssistantWorkReceipt[];
+  schedules?: AssistantScheduleReceipt[];
   actions?: AssistantAction[];
   sources?: Array<{ title: string; href: string }>;
   coverage?: Record<string, unknown>;
@@ -110,17 +117,21 @@ function assistantCopy(value: string, sources: Map<string, { title: string }>) {
 }
 export async function conversationDetails(userId: string, id: string) {
   const conversation = await owned<Conversation>(userId, "conversation", id);
-  const [messages, jobs] = await Promise.all([
+  const [messages, jobs, work] = await Promise.all([
     rows<Message>(
       sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${id}::uuid ORDER BY created_at,id`,
     ),
     rows<Job>(
       sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${id} ORDER BY created_at DESC LIMIT 1`,
     ),
+    rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='deliverable' AND payload->>'conversation_id'=${id} ORDER BY created_at DESC,id DESC LIMIT 100`),
   ]);
-  const documentId = messages.find(message => message.role === "user" && typeof message.metadata.document_id === "string")?.metadata.document_id;
+  work.reverse();
+  const latestWork = [...work].reverse().find(item => item.status === "done" && item.result?.deliverable_id);
+  const selected = [...messages].reverse().find(message => message.role === "user" && typeof message.metadata.work_document_id === "string");
+  const documentId = selected && (!latestWork || new Date(selected.created_at) > new Date(latestWork.created_at)) ? selected.metadata.work_document_id : latestWork?.result?.deliverable_id || messages.find(message => message.role === "user" && typeof message.metadata.document_id === "string")?.metadata.document_id;
   const document = documentId ? await owned<Deliverable>(userId, "deliverable", z.uuid().parse(documentId)) : null;
-  return { conversation, messages, document, job: jobs[0] ?? null };
+  return { conversation, messages, document, work, job: jobs[0] ?? null };
 }
 export async function renameConversation(
   userId: string,
@@ -211,8 +222,14 @@ export async function sendMessage(
         tx,
       );
     }
+    if (input.work_document_id) {
+      await owned(userId, "deliverable", input.work_document_id, tx);
+      const linked = await rows(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='deliverable' AND payload->>'conversation_id'=${conversation.id} AND result->>'deliverable_id'=${input.work_document_id}`, tx);
+      const original = await rows(sql`SELECT id FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid AND metadata->>'document_id'=${input.work_document_id}`, tx);
+      if (!linked.length && !original.length) throw new WorkspaceError("Choose a document from this conversation", 409);
+    }
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(input.work_document_id ? { work_document_id: input.work_document_id } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,
     );
     await tx.execute(
@@ -269,6 +286,7 @@ const roleDraft = z.object({
 const replySchema = z.object({
   answer: z.string().min(1).max(25000),
   follow_up: z.string().max(500).nullable(),
+  work: z.array(assistantWorkSchema).max(5).default([]),
   source_refs: z.array(z.string()).max(30),
   actions: z
     .array(
@@ -282,6 +300,7 @@ const replySchema = z.object({
           "search_update",
         ]),
         title: z.string().max(300),
+        direct_save_quote: z.string().max(1000).nullable().default(null),
         role_ref: z.string().nullable(),
         person_ref: z.string().nullable(),
         attachment_ref: z.string().nullable(),
@@ -308,6 +327,7 @@ const sharingPermissionProposalSchema = z.object({
   actions: z.array(z.object({
     kind: z.literal("update_sharing_permission"),
     title: z.string().max(300),
+    direct_save_quote: z.string().max(1000).nullable().default(null),
     role_ref: z.string(),
     person_ref: z.string(),
     attachment_ref: z.null(),
@@ -552,7 +572,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
       ref,
       title: `${role.client_name} · ${role.title}`,
       href: `/app/roles/${role.id}`,
-      data: { role, links, documents },
+      data: { role, links, documents, schedule: (await rows(sql`SELECT * FROM hirelix_private_schedules WHERE user_id=${job.user_id}::uuid AND role_id=${role.id}::uuid`))[0] ?? null },
     });
     for (const record of records)
       sources.push({
@@ -575,6 +595,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
           : "Hi. What would you like to work on? You can ask a question or share a JD, candidate profile, or client message.",
         follow_up: null,
         source_refs: [],
+        work: [],
         actions: [],
       }
     : await structured(
@@ -582,13 +603,12 @@ export const assistantReply: JobHandler = async (job, progress) => {
     "private_assistant_reply",
     plan.greeting_or_open_request ? openRequestReplySchema : replySchema,
     PERSONAL_MEMORY_RULES + " " +
-    `Help a professional headhunter maintain candidate relationships, work on client roles, and prepare client material. Be a capable personal assistant who respects the recruiter's attention and direction. Answer the actual request and stop when it is complete. Do not append a next step, question, or action merely because workspace context exists. Set follow_up to null unless follow_up_needed is true; even then ask at most one question only if it helps with the current request. If the user explicitly asks what to prioritize or do next, use relevant workspace evidence and give a concise recommendation. For a greeting alone, respond briefly and invite the user to tell you what they need; do not bring up a role, candidate, or unfinished task. Do not introduce an unrelated assignment, manufacture urgency, or repeatedly offer to draft an email. Propose an action only when the user requested it or it is the direct, necessary preparation of information they just supplied. Never add a checklist of speculative reminders. Respect requested brevity and the user's language; when the message has no language, use preferred_language. If an attached file is present, respond to its contents and the user's message together. An attachment is not automatically a CV. If it is unreadable, explain the actual limitation and offer one concrete way forward. If the file is unrelated to recruiting but the user requests a simple content task, help with that task in this conversation without creating a recruiter record. For a batch, explain the useful combined result and identify each file and any reading failure. With no instruction, prepare clearly supported candidate drafts and role proposals; ask only about ambiguity that blocks useful work. Never claim proposals are saved. A failed file must not prevent handling readable files. Every action must include attachment_ref, the exact source file ref or null for facts from the message. Never bind one file to another file’s action. Candidate processing is allowed only when candidate_draft_allowed is true. save_new_candidates is authorization for a later candidate-processing step, never evidence that a profile exists or has been saved. Read candidate_processing_state for each attachment: not_started means processing will be queued only after this reply is saved; queued/running means still in progress; done permits a completion claim only for saved rows explicitly present in conversation_imports. These state labels and execution sequencing are only for your reasoning. For not_started/queued/running, tell the recruiter simply that you are organizing the supported profiles and will ask about duplicates or blocking ambiguities. Do not narrate queueing, reply storage, internal states, or the timing of the processing step. Do not use completed-tense wording such as 已入库、已保存、已建档、已处理完成 or saved/added/created for those profiles. The per-file result will show actual saved profiles after processing. Otherwise it is a draft, not saved to the pool. When candidate_draft_allowed is true, candidate processing is the only save path for this file, including merges into existing candidates. If save_new_candidates is true do not instruct the recruiter to review every field or go through an import preview; the agent will save clear new profiles and surface only duplicates or blocking ambiguities. Do not propose add_record for the same attachment or claim a separate record will merge profile fields. Only when save_new_candidates is false explain that the extracted profiles remain drafts; the recruiter can ask to save them in conversation. For duplicates ask about the specific identity or conflicting facts. Original sources are retained. For source material use source_refs from the registry and never invent URLs or imply the full file was read when truncated. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless asked. For import summaries, distinguish add versus merge using reviewed_rows.action; a completed merge is not an unresolved one. Distinguish recorded facts from recommendations and unanswered questions. Do not claim an action was performed when it is only a proposal requiring review. add_record preserves the user's reported facts; occurred_at is null unless the message or file gives a definite date/time. When the user supplies changed client requirements, propose update_role_brief for the identified role. Its role_draft.brief is the complete proposed brief: preserve still-valid requirements and incorporate only supported changes. For update_role_brief, include record.occurred_at when the supplied feedback has a definite event timestamp with a timezone; otherwise leave it null so the recruiter can confirm it during review. Do not invent a time or timezone from a date alone. This preserves the original JD and records the feedback on acceptance; do not also propose add_record for the same feedback. Merely asking about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. submission/search_update opens preparation, not a claim of a saved or sent draft. No email is sent by this assistant. If person or role identity is ambiguous, ask one concise clarification before attaching records. Do not expose private notes in proposed client prose. Use role_N/person_N/attachment_N source refs where relevant. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages, and at most the 100000 characters across the latest attachment batch; make any material limit explicit.` +
-    " Every action object must include sharing_permission, null except for update_sharing_permission. When the recruiter explicitly reports that a named candidate granted or declined permission to share with a named client role, propose update_sharing_permission for that exact person-role relationship. Its record must describe only that person's permission report, preserving whether it was oral or written and leaving occurred_at null if no date was given. Do not mix another person's status or a hold instruction into that person's evidence record. Do not propose add_record for the same permission fact. The proposed record and relationship update are both pending until the recruiter reviews and saves them; never say 已记录, 已保存, or 'I recorded it' in answer before acceptance. A request not to send means no submission action. Keep the answer focused on what changed; mention a missing fact only if it blocks the current request. In user-facing prose, never show role_N, person_N, source_N, enum names such as confirmed/unknown/draft, or internal processing narration. Ask one direct question only when a missing fact blocks the current request; do not ask the recruiter to choose from a menu of assistant tasks. " + ROLE_BRIEF_EVIDENCE_RULES,
+    `Help a professional headhunter maintain candidate relationships, work on client roles, and prepare client material. Be a capable personal assistant who respects the recruiter's attention and direction. Answer the actual request and stop when it is complete. Do not append a next step, question, or action merely because workspace context exists. Set follow_up to null unless follow_up_needed is true; even then ask at most one question only if it helps with the current request. If the user explicitly asks what to prioritize or do next, use relevant workspace evidence and give a concise recommendation. For a greeting alone, respond briefly and invite the user to tell you what they need; do not bring up a role, candidate, or unfinished task. Do not introduce an unrelated assignment, manufacture urgency, or repeatedly offer to draft an email. Propose an action only when the user requested it or it is the direct, necessary preparation of information they just supplied. Never add a checklist of speculative reminders. Respect requested brevity and the user's language; when the message has no language, use preferred_language. If an attached file is present, respond to its contents and the user's message together. An attachment is not automatically a CV. If it is unreadable, explain the actual limitation and offer one concrete way forward. If the file is unrelated to recruiting but the user requests a simple content task, help with that task in this conversation without creating a recruiter record. For a batch, explain the useful combined result and identify each file and any reading failure. With no instruction, prepare clearly supported candidate drafts and role proposals; ask only about ambiguity that blocks useful work. Never claim proposals are saved. A failed file must not prevent handling readable files. Every action must include attachment_ref, the exact source file ref or null for facts from the message. Never bind one file to another file’s action. Candidate processing is allowed only when candidate_draft_allowed is true. save_new_candidates is authorization for a later candidate-processing step, never evidence that a profile exists or has been saved. Read candidate_processing_state for each attachment: not_started means processing will be queued only after this reply is saved; queued/running means still in progress; done permits a completion claim only for saved rows explicitly present in conversation_imports. These state labels and execution sequencing are only for your reasoning. For not_started/queued/running, tell the recruiter simply that you are organizing the supported profiles and will ask about duplicates or blocking ambiguities. Do not narrate queueing, reply storage, internal states, or the timing of the processing step. Do not use completed-tense wording such as 已入库、已保存、已建档、已处理完成 or saved/added/created for those profiles. The per-file result will show actual saved profiles after processing. Otherwise it is a draft, not saved to the pool. When candidate_draft_allowed is true, candidate processing is the only save path for this file, including merges into existing candidates. If save_new_candidates is true do not instruct the recruiter to review every field or go through an import preview; the agent will save clear new profiles and surface only duplicates or blocking ambiguities. Do not propose add_record for the same attachment or claim a separate record will merge profile fields. Only when save_new_candidates is false explain that the extracted profiles remain drafts; the recruiter can ask to save them in conversation. For duplicates ask about the specific identity or conflicting facts. Original sources are retained. For source material use source_refs from the registry and never invent URLs or imply the full file was read when truncated. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless asked. For import summaries, distinguish add versus merge using reviewed_rows.action; a completed merge is not an unresolved one. Distinguish recorded facts from recommendations and unanswered questions. Do not claim an action was performed when it is only a proposal requiring review. add_record preserves the user's reported facts; occurred_at is null unless the message or file gives a definite date/time. When the user supplies changed client requirements, propose update_role_brief for the identified role. Its role_draft.brief is the complete proposed brief: preserve still-valid requirements and incorporate only supported changes. For update_role_brief, include record.occurred_at when the supplied feedback has a definite event timestamp with a timezone; otherwise leave it null so the recruiter can confirm it during review. Do not invent a time or timezone from a date alone. This preserves the original JD and records the feedback on acceptance; do not also propose add_record for the same feedback. Merely asking about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. For document preparation use work; never emit submission/search_update actions. Do not claim a draft is finished before its actual generation. No email is sent by this assistant. If person or role identity is ambiguous, ask one concise clarification before attaching records. Do not expose private notes in proposed client prose. Use role_N/person_N/attachment_N source refs where relevant. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages, and at most the 100000 characters across the latest attachment batch; make any material limit explicit.` +
+    " Every action object must include sharing_permission, null except for update_sharing_permission. When the recruiter explicitly reports that a named candidate granted or declined permission to share with a named client role, propose update_sharing_permission for that exact person-role relationship. Its record must describe only that person's permission report, preserving whether it was oral or written and leaving occurred_at null if no date was given. Do not mix another person's status or a hold instruction into that person's evidence record. Do not propose add_record for the same permission fact. The proposed record and relationship update are both pending until the recruiter reviews and saves them; never say 已记录, 已保存, or 'I recorded it' in answer before acceptance. A request not to send means no submission action. Keep the answer focused on what changed; mention a missing fact only if it blocks the current request. In user-facing prose, never show role_N, person_N, source_N, enum names such as confirmed/unknown/draft, or internal processing narration. Ask one direct question only when a missing fact blocks the current request; do not ask the recruiter to choose from a menu of assistant tasks. " + ROLE_BRIEF_EVIDENCE_RULES + " " + ASSISTANT_WORK_RULES,
     {
       current_time: new Date().toISOString(),
       preferred_language: plan.reply_language,
-      timezone:
-        "UTC (user timezone not supplied; ask if a relative local time matters)",
+      timezone: (job.payload.request as { timezone?: string })?.timezone || "UTC",
       history,
       personal_memories: effectiveMemories,
       memory_changes: memoryChanges.map(({ operation, title, content }) => ({ operation, title, content })),
@@ -665,6 +685,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
   });
   const actions: AssistantAction[] = reply.actions
     .filter((action) => {
+      if (action.kind === "submission" || action.kind === "search_update") return false;
       if (action.kind === "create_role") return plan.may_propose_role_creation;
       if (action.kind === "add_record")
         // Import review owns both profile merging and retention of the CV source.
@@ -673,7 +694,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
       if (action.kind === "update_sharing_permission") {
         return plan.sharing_permission_reported && validPermissionAction(action);
       }
-      if (action.kind === "update_role_brief" || action.kind === "submission" || action.kind === "search_update")
+      if (action.kind === "update_role_brief")
         return !!action.role_ref;
       return true;
     })
@@ -759,6 +780,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
       role_id: role?.id ?? null,
       person_id: person?.id ?? null,
       fields,
+      direct_save_quote: action.direct_save_quote,
       ...(href ? { href } : {}),
     };
     });
@@ -784,12 +806,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
         }
         importJobIds.push(importJob.id);
       }
+      for (const action of actions) {
+        if (action.kind !== "update_sharing_permission" && quotedAuthorization(question.content, action.direct_save_quote))
+          await applyAssistantAction(job.user_id, id, action, action.fields, tx);
+      }
+      const work = await executeAssistantWork(job.user_id, id, job.id, question.content, reply.work,
+        { roles: roleRegistry, people: persons, records: new Map(sources.filter(source => source.ref.startsWith("source_")).map(source => [source.ref, source.data as SourceRecord])) }, tx);
       const answerText = assistantCopy(reply.answer, sourceMap);
       const followUp = reply.follow_up && assistantCopy(reply.follow_up, sourceMap);
       const answer = answerText +
         (followUp && !answerText.includes(followUp) ? `\n\n${followUp}` : "");
       const [message] = await rows<Message>(
-        sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${job.user_id}::uuid,'assistant',${answer},${id}::uuid,${json({ actions, sources: cited, coverage, ...(revision ? { revision: { document_id: document!.id, job_id: revision.id } } : {}), ...(memoryReceipts.length ? { memories: memoryReceipts } : {}), ...(importJobIds.length ? { import_job_ids: importJobIds } : {}) })}) RETURNING *`,
+        sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${job.user_id}::uuid,'assistant',${answer},${id}::uuid,${json({ actions, sources: cited, coverage, work: work.jobs, schedules: work.schedules, ...(revision ? { revision: { document_id: document!.id, job_id: revision.id } } : {}), ...(memoryReceipts.length ? { memories: memoryReceipts } : {}), ...(importJobIds.length ? { import_job_ids: importJobIds } : {}) })}) RETURNING *`,
         tx,
       );
       await tx.execute(
@@ -818,109 +846,114 @@ export async function acceptAction(
     if (!action)
       throw new WorkspaceError("This proposed action was not found", 404);
     if (action.status === "saved") return { href: action.href };
-    if (action.kind === "create_role") {
-      const role = await createRole(userId, roleInput.parse(value), tx);
-      if (action.fields.source_file_id) {
-        const fileId = z.uuid().parse(action.fields.source_file_id);
-        await owned(userId, "file", fileId, tx);
-        await addRecord(userId, {
-          role_id: role.id,
-          file_id: fileId,
-          kind: "jd",
-          title: String(action.fields.source_file_name || "Original job description"),
-          content: String(action.fields.jd_text || ""),
-        }, tx);
-      }
-      action.href = `/app/roles/${role.id}`;
-      action.role_id = role.id;
-      await tx.execute(
-        sql`UPDATE hirelix_private_conversations SET role_id=coalesce(role_id,${role.id}::uuid),updated_at=now() WHERE user_id=${userId}::uuid AND id=${conversationId}::uuid`,
-      );
-    } else if (action.kind === "update_role_brief") {
-      if (!action.role_id)
-        throw new WorkspaceError("This role is unavailable", 404);
-      const input = z.object({
-        brief: roleInput.shape.brief,
-        occurred_at: z.iso.datetime({ offset: true }).nullable().default(null),
-      }).parse(value);
-      const prior = await owned<Role>(userId, "role", action.role_id, tx, true);
-      const role = await updateRole(
-        userId,
-        prior.id,
-        { ...prior, brief: input.brief },
-        z.number().int().positive().parse(action.fields.expected_version),
-        tx,
-      );
-      await addRecord(
-        userId,
-        {
-          role_id: role.id,
-          file_id: action.fields.source_file_id || null,
-          kind: "feedback",
-          title: "Client requirements feedback",
-          content: z.string().parse(action.fields.feedback),
-          occurred_at: input.occurred_at,
-          details: {
-            source_message_id: action.fields.source_message_id,
-            role_version: role.version,
-          },
-        },
-        tx,
-      );
-      action.href = `/app/roles/${role.id}`;
-    } else if (action.kind === "add_record") {
-      const input = recordInput.parse(value);
-      if (
-        input.person_id !== action.person_id ||
-        input.role_id !== action.role_id ||
-        input.file_id !== (action.fields.file_id || null)
-      )
-        throw new WorkspaceError(
-          "The record association changed. Start a new record from the correct profile.",
-        );
-      const record = await addRecord(userId, input, tx);
-      action.href = record.person_id
-        ? `/app/candidates?person=${record.person_id}&record=${record.id}`
-        : `/app/roles/${record.role_id}?tab=activity&record=${record.id}`;
-    } else if (action.kind === "update_sharing_permission") {
-      const input = recordInput.parse(value);
-      if (
-        !action.role_id || !action.person_id ||
-        input.role_id !== action.role_id ||
-        input.person_id !== action.person_id ||
-        input.file_id !== (action.fields.file_id || null)
-      )
-        throw new WorkspaceError("The candidate and role association changed.");
-      const permission = z.enum(["confirmed", "declined"]).parse(action.fields.permission);
-      const relationship = await owned<RoleCandidate>(
-        userId,
-        "role_candidate",
-        z.uuid().parse(action.fields.relationship_id),
-        tx,
-        true,
-      );
-      if (relationship.role_id !== action.role_id || relationship.person_id !== action.person_id)
-        throw new WorkspaceError("This candidate is no longer linked to the selected role.", 409);
-      const record = await addRecord(userId, {
-        ...input,
-        details: { ...input.details, source_message_id: action.fields.source_message_id },
-      }, tx);
-      await updateRelationship(userId, action.role_id, action.person_id, {
-        permission,
-        permission_record_id: record.id,
-        interest: relationship.interest,
-        notes: relationship.notes,
-        expected_version: z.number().int().positive().parse(action.fields.expected_version),
-      }, tx);
-      action.href = `/app/roles/${action.role_id}`;
-    } else
-      throw new WorkspaceError(
-        "Open the document preparation page to continue",
-      );
-    action.status = "saved";
+    await applyAssistantAction(userId, conversationId, action, value, tx);
     await tx.execute(
       sql`UPDATE hirelix_agent_messages SET metadata=${json(metadata)} WHERE user_id=${userId}::uuid AND id=${message.id}::uuid`,
     );
     return { href: action.href };
   });
+}
+
+async function applyAssistantAction(userId: string, conversationId: string, action: AssistantAction, value: unknown, tx: Runner) {
+  if (action.kind === "create_role") {
+    const role = await createRole(userId, roleInput.parse(value), tx);
+    if (action.fields.source_file_id) {
+      const fileId = z.uuid().parse(action.fields.source_file_id);
+      await owned(userId, "file", fileId, tx);
+      await addRecord(userId, {
+        role_id: role.id,
+        file_id: fileId,
+        kind: "jd",
+        title: String(action.fields.source_file_name || "Original job description"),
+        content: String(action.fields.jd_text || ""),
+      }, tx);
+    }
+    action.href = `/app/roles/${role.id}`;
+    action.role_id = role.id;
+    await tx.execute(
+      sql`UPDATE hirelix_private_conversations SET role_id=coalesce(role_id,${role.id}::uuid),updated_at=now() WHERE user_id=${userId}::uuid AND id=${conversationId}::uuid`,
+    );
+  } else if (action.kind === "update_role_brief") {
+    if (!action.role_id)
+      throw new WorkspaceError("This role is unavailable", 404);
+    const input = z.object({
+      brief: roleInput.shape.brief,
+      occurred_at: z.iso.datetime({ offset: true }).nullable().default(null),
+    }).parse(value);
+    const prior = await owned<Role>(userId, "role", action.role_id, tx, true);
+    const role = await updateRole(
+      userId,
+      prior.id,
+      { ...prior, brief: input.brief },
+      z.number().int().positive().parse(action.fields.expected_version),
+      tx,
+    );
+    await addRecord(
+      userId,
+      {
+        role_id: role.id,
+        file_id: action.fields.source_file_id || null,
+        kind: "feedback",
+        title: "Client requirements feedback",
+        content: z.string().parse(action.fields.feedback),
+        occurred_at: input.occurred_at,
+        details: {
+          source_message_id: action.fields.source_message_id,
+          role_version: role.version,
+        },
+      },
+      tx,
+    );
+    action.href = `/app/roles/${role.id}`;
+  } else if (action.kind === "add_record") {
+    const input = recordInput.parse(value);
+    if (
+      input.person_id !== action.person_id ||
+      input.role_id !== action.role_id ||
+      input.file_id !== (action.fields.file_id || null)
+    )
+      throw new WorkspaceError(
+        "The record association changed. Start a new record from the correct profile.",
+      );
+    const record = await addRecord(userId, input, tx);
+    action.href = record.person_id
+      ? `/app/candidates?person=${record.person_id}&record=${record.id}`
+      : `/app/roles/${record.role_id}?tab=activity&record=${record.id}`;
+  } else if (action.kind === "update_sharing_permission") {
+    const input = recordInput.parse(value);
+    if (
+      !action.role_id || !action.person_id ||
+      input.role_id !== action.role_id ||
+      input.person_id !== action.person_id ||
+      input.file_id !== (action.fields.file_id || null)
+    )
+      throw new WorkspaceError("The candidate and role association changed.");
+    const permission = z.enum(["confirmed", "declined"]).parse(action.fields.permission);
+    const relationship = await owned<RoleCandidate>(
+      userId,
+      "role_candidate",
+      z.uuid().parse(action.fields.relationship_id),
+      tx,
+      true,
+    );
+    if (relationship.role_id !== action.role_id || relationship.person_id !== action.person_id)
+      throw new WorkspaceError("This candidate is no longer linked to the selected role.", 409);
+    const record = await addRecord(userId, {
+      ...input,
+      details: { ...input.details, source_message_id: action.fields.source_message_id },
+    }, tx);
+    await updateRelationship(userId, action.role_id, action.person_id, {
+      permission,
+      permission_record_id: record.id,
+      interest: relationship.interest,
+      notes: relationship.notes,
+      expected_version: z.number().int().positive().parse(action.fields.expected_version),
+    }, tx);
+    action.href = `/app/roles/${action.role_id}`;
+  } else
+    throw new WorkspaceError(
+      "Open the document preparation page to continue",
+    );
+  action.status = "saved";
+
 }
