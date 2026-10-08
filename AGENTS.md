@@ -20,6 +20,8 @@ Unit tests are in `tests/*.test.ts`, Playwright specs in `e2e/*.spec.ts`, migrat
 
 ## Architecture & Product Facts
 
+产品定位、核心场景与交互设计依据见 [猎头 Personal Agent 的核心场景与设计原则](docs/product/personal-agent-core-scenarios.md)。涉及产品功能规划、首页、对话、工作推进及资料/成果入口的设计与开发时，先阅读该文档；它描述目标体验，不代表能力已实现或通过验收。
+
 首版面向电脑端使用，发布验收以桌面浏览器体验为范围；手机和实体移动设备不属于首版放行条件。
 
 项目当前尚未正式上线，没有已有用户。产品、订阅、额度和数据结构的调整无需考虑已有用户的兼容、权益衔接或迁移，不要为此增加兼容层或迁移流程。已有部署和测试账号不代表项目已上线或存在真实用户；仍须保留用户已有代码改动，不得据此擅自删除数据。
