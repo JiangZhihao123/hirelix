@@ -4,7 +4,7 @@
 
 版本：1.4 ｜ 日期：2026-09-25 ｜ 文档性质：产品方向与目标体验规格
 
-> 2026-10-08 更新说明：本文保留历史规格与业务细节。产品定位、主入口和交互机制以[核心场景 v2](../personal-agent-core-scenarios.md)及[架构与交互方案 v2](../personal-agent-architecture-and-interaction.md)为准；本文涉及待办中心、待审核草稿、固定审核流程或默认 Submissions 主导航的旧方案不再作为实现依据。已有资料、成果版本和具体动作授权边界继续保留。
+> 2026-10-08 更新说明：本文保留历史规格与业务细节。产品定位、主入口和交互机制以[核心场景 v3](../personal-agent-core-scenarios.md)及[架构与交互方案 v3](../personal-agent-architecture-and-interaction.md)为准；本文涉及待办中心、待审核草稿、固定审核流程或默认 Submissions 主导航的旧方案不再作为实现依据。已有资料、成果版本和具体动作授权边界继续保留。记忆与知识库按 v3 收敛为 JD/简历检索和显式偏好，技术取舍以稳定、低复杂度为先。
 
 对外英文表达：**Your private AI assistant. Built for headhunters.**
 
