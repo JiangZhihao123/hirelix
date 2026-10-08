@@ -7,7 +7,7 @@ This directory is the home for project documentation.
 ### Product
 
 - [`product/personal-agent-core-scenarios.md`](./product/personal-agent-core-scenarios.md): 猎头 Personal Agent 的八个核心场景与设计原则
-- [`product/personal-agent-architecture-and-interaction.md`](./product/personal-agent-architecture-and-interaction.md): 基于八个场景的技术架构与产品交互设计方案（待评审）
+- [`product/personal-agent-architecture-and-interaction.md`](./product/personal-agent-architecture-and-interaction.md): 基于五项 Agent 能力支撑八个场景的架构与交互方案 v2（剔除待办/草稿工作流，具体实现待评审）
 
 ### Strategy
 

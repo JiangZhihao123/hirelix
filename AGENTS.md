@@ -22,7 +22,7 @@ Unit tests are in `tests/*.test.ts`, Playwright specs in `e2e/*.spec.ts`, migrat
 
 产品定位、核心场景与交互设计依据见 [猎头 Personal Agent 的核心场景与设计原则](docs/product/personal-agent-core-scenarios.md)。涉及产品功能规划、首页、对话、工作推进及资料/成果入口的设计与开发时，先阅读该文档；它描述目标体验，不代表能力已实现或通过验收。
 
-配套的[技术架构与产品交互设计方案](docs/product/personal-agent-architecture-and-interaction.md)定义八个场景的目标交互、模块责任、工作状态、数据/API 契约与分阶段验收。该方案当前待评审，阅读它不构成对界面重构、数据库变更或部署的自动授权。
+配套的[技术架构与产品交互设计方案](docs/product/personal-agent-architecture-and-interaction.md)以持续对话、业务记忆、工具执行、长期委托和成果交付支撑八个场景。目标设计剔除待办中心、待审核草稿和通用“生成—审核—应用”流程，不以其他名称重建这些机制；后台执行状态、成果版本与具体动作授权仍须保留。具体实现待评审，文档方向不代表产品已实现或通过验收。
 
 首版面向电脑端使用，发布验收以桌面浏览器体验为范围；手机和实体移动设备不属于首版放行条件。
 
