@@ -45,7 +45,7 @@ test("real AI applies a word budget to the complete internal recommendation", { 
   const document = await owned<Deliverable>(owner, "deliverable", String(saved?.deliverable_id));
   assert.equal(document.source_snapshot.audience, "internal");
   assert.ok(document.content.trim().split(/\s+/).length < 180, document.content);
-  for (const fact of [/14.*6/s, /Tuesday/i, /Thursday/i, /salary|compensation/i, /notice/i, /interest/i, /permission|consent/i, /reporting/i, /interview/i])
+  for (const fact of [/14[\s\S]*6/, /Tuesday/i, /Thursday/i, /salary|compensation/i, /notice/i, /interest/i, /permission|consent/i, /reporting/i, /interview/i])
     assert.match(document.content, fact);
 });
 
