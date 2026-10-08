@@ -13,7 +13,9 @@ import {
 import {
   requestRevision,
   applyRevision,
+  generateRevision,
 } from "../../src/lib/workspace/revisions";
+import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import { updateDeliverable } from "../../src/lib/workspace/deliverables";
 import type { Deliverable } from "../../src/lib/workspace/types";
 const database = new URL(
@@ -25,6 +27,28 @@ if (
 )
   throw new Error("Use an isolated local QA database");
 after(closeDb);
+
+test("real AI: explicit separate unknowns list overrides the default recommendation email layout", { skip: process.env.WORKSPACE_REAL_AI_TEST !== "true", timeout: 180000 }, async () => {
+  initializeGlobalOutboundProxy();
+  const owner = randomUUID();
+  const personId = randomUUID();
+  const role = await createRole(owner, { title: "VP Product", client_name: "Fictional QA", jd_text: "London, Monday and Thursday office attendance. Annual base GBP 155,000–175,000." });
+  const [draft] = await rows<Deliverable>(sql`INSERT INTO hirelix_private_deliverables(user_id,role_id,kind,title,content,source_snapshot) VALUES(${owner}::uuid,${role.id}::uuid,'submission','Fictional QA recommendation','Dear team, QA Rowan Lake led six product managers. Availability, salary expectations, engineering collaboration, Monday/Thursday attendance, interest, and sharing permission are unconfirmed. Kind regards, [Your name]',${json({ audience: "client", language: "en", role: { title: role.title, client_name: role.client_name, brief: { priorities: ["London office on Mondays and Thursdays", "Annual base GBP 155,000–175,000"] } }, people: [{ id: personId, name: "QA Rowan Lake", location: "London", summary: "Led six product managers for enterprise SaaS onboarding.", sharing_permission: "unknown" }], records: [] })}) RETURNING *`);
+  const job = await requestRevision(owner, draft.id, { expected_version: draft.version, request_key: randomUUID(), instructions: "Keep this client recommendation under 220 words. Use a short evidence paragraph, then a separate Markdown bullet list of exactly six unconfirmed items: availability, salary expectations, engineering collaboration, Monday/Thursday attendance willingness, interest, and permission to share. Keep six product managers led and the client-confirmed GBP 155,000–175,000. London location does not confirm attendance. Do not send anything." });
+  try {
+    const proposal = await generateRevision(job, async () => {});
+    const content = String(proposal.result.content);
+    const bullets = content.split(/\r?\n/).filter(line => /^\s*(?:[-*]|\d+\.)\s+/.test(line));
+    assert.equal(bullets.length, 6, content);
+    assert.ok(content.trim().split(/\s+/).length < 220, content);
+    assert.match(content, /six product managers|6 product managers/i);
+    assert.match(content, /155,000[–-]175,000/);
+    assert.equal(proposal.result.audience, "client");
+    assert.equal((await owned<Deliverable>(owner, "deliverable", draft.id)).version, 1, "generation remains a proposal until reviewed");
+  } finally {
+    await rows(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE id=${job.id}::uuid AND status='queued'`);
+  }
+});
 const failure = (status: number) => (error: unknown) =>
   error instanceof WorkspaceError && error.status === status;
 test("revision proposals preserve draft, fence concurrent edits and apply exactly once", async () => {
