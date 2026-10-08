@@ -535,7 +535,7 @@ function AssistantWorkspace({
               ) : (
                 <>
                   <h1 title={query.data?.conversation.title}>
-                    {query.data?.conversation.title || t("Assistant")}
+                    {query.data?.conversation.title || t("AI assistant")}
                   </h1>
                   {conversationId && query.data && (
                     <button
@@ -622,7 +622,7 @@ function AssistantWorkspace({
                   <BrandMark small />
                 </div>
                 <h2>{t("What would you like me to take care of?")}</h2>
-                <p>{currentDocument ? t("This saved document is ready to discuss or revise. Tell me what you want to change.") : t("Your personal headhunting assistant. Share the goal and the context; I’ll carry the work forward.")}</p>
+                <p>{currentDocument ? t("This saved document is ready to discuss or revise. Tell me what you want to change.") : t("Your personal AI assistant for headhunting. Share the goal and the context; I’ll carry the work forward.")}</p>
                 {!activeRoleId && !activePersonId && !documentId && <RecentWork />}
                 <button className="ws-link ws-home-memory" onClick={() => setMemoriesOpen(true)}>{t("What I remember")} <ArrowUpRight size={13} /></button>
               </div>
@@ -879,7 +879,7 @@ function AssistantWorkspace({
 
             <textarea
               ref={composer}
-              aria-label={t("Message your assistant")}
+              aria-label={t("Message your AI assistant")}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={t("Ask, paste a JD, or share a conversation note…")}

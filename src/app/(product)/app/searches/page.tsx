@@ -30,7 +30,7 @@ export default function PastSourcingResults() {
   return <div className="ws-page">
     <header className="ws-page-header"><div><h1>{t("Past sourcing results")}</h1>
       <p>{t("External sourcing has been retired. Your previous results are kept here.")}</p></div>
-      <Link className="ws-button ws-button-primary" href="/app">{t("Ask your assistant")}<ArrowUpRight size={14} /></Link>
+      <Link className="ws-button ws-button-primary" href="/app">{t("Ask your AI assistant")}<ArrowUpRight size={14} /></Link>
     </header>
     <ErrorNotice error={error} retry={load} />
     {loading ? <Loading /> : !error && !searches.length ? <p className="ws-muted">{t("No previous sourcing results.")}</p> : (

@@ -897,7 +897,7 @@ export default function SearchResultPage() {
     Math.abs(deepReviewCompletedCount - allCandidates.length) <= 1;
   const poolCoverageCopy = hasCompleteRankedPool
     ? `${deliveredCandidateCount} evaluated profiles remain available in the full pool.`
-    : `This older run shows ${deliveredCandidateCount} saved profiles, with ${recommendedCount} marked for first-pass review. These are historical results; use your assistant to work with your saved candidates.`;
+    : `This older run shows ${deliveredCandidateCount} saved profiles, with ${recommendedCount} marked for first-pass review. These are historical results; use your AI assistant to work with your saved candidates.`;
   const selectedPoolLabel = poolView === "full_pool" ? "Full pool" : poolView === "verification" ? "Verify first" : "Recommended";
   const taskStage = getSearchTaskStage({
     ...search,
@@ -1037,7 +1037,7 @@ export default function SearchResultPage() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors"
               >
                 <Search className="h-3 w-3" />
-                {t("Ask your assistant")}
+                {t("Ask your AI assistant")}
               </Link>
             </div>
           )}
@@ -1186,7 +1186,7 @@ export default function SearchResultPage() {
                   className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
                 >
                   <FileText className="h-4 w-4" />
-                  {t("Ask your assistant")}
+                  {t("Ask your AI assistant")}
                 </Link>
               </div>
             </div>
@@ -1610,7 +1610,7 @@ export default function SearchResultPage() {
                 href="/app"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100"
               >
-                {t("Ask your assistant")}
+                {t("Ask your AI assistant")}
               </Link>
             </div>
           </div>
@@ -1918,7 +1918,7 @@ export default function SearchResultPage() {
             className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            {t("Ask your assistant")}
+            {t("Ask your AI assistant")}
           </Link>
         </div>
       )}

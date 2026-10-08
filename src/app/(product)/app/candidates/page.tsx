@@ -201,7 +201,7 @@ export default function Candidates() {
             className="ws-button ws-button-primary"
             href={`/app?prompt=${encodeURIComponent(t("Help me organize these candidate files into my workspace."))}`}
           >
-            {t("Give files to assistant")}
+            {t("Give files to AI assistant")}
           </Link>
           <button
             className="ws-button"
@@ -332,7 +332,7 @@ export default function Candidates() {
                   className="ws-link"
                   href={`/app?prompt=${encodeURIComponent(t("Help me organize these candidate files into my workspace."))}`}
                 >
-                  {t("Give files to assistant")} <ArrowUpRight size={14} />
+                  {t("Give files to AI assistant")} <ArrowUpRight size={14} />
                 </Link>
               </div>
             </div>
@@ -538,7 +538,7 @@ function CandidateDetails({
         </div>
         <div className="ws-actions">
           <button className="ws-button" onClick={() => setEdit(true)}><Pencil size={14} />{t("Edit")}</button>
-          <Link className="ws-button ws-button-primary" href={`/app?person=${id}`}>{t("Ask your assistant")}<ArrowUpRight size={14} /></Link>
+          <Link className="ws-button ws-button-primary" href={`/app?person=${id}`}>{t("Ask your AI assistant")}<ArrowUpRight size={14} /></Link>
         </div>
       </div>
       <div className="ws-tabs" role="tablist" aria-label={t("Candidate sections")}>

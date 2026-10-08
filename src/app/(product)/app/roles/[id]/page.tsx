@@ -204,7 +204,7 @@ export default function RolePage({
             className="ws-button ws-button-primary"
             href={`/app?role=${id}`}
           >
-            {t("Ask your assistant")}
+            {t("Ask your AI assistant")}
           </Link>
         </div>
       </header>

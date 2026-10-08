@@ -96,7 +96,7 @@ export default function Submissions() {
               : t("A clear introduction for every candidate.")}
           </h2>
           <p>
-            {search || filter !== "all" ? t("Try a different search or clear your filters.") : t("Tell your assistant which candidate and client role the recommendation is for. Review the prepared draft here or continue refining it in the conversation.")}
+            {search || filter !== "all" ? t("Try a different search or clear your filters.") : t("Tell your AI assistant which candidate and client role the recommendation is for. Review the prepared draft here or continue refining it in the conversation.")}
           </p>
           <div className="ws-actions">
             {search || filter !== "all" ? <button className="ws-button" onClick={() => { setSearch(""); setFilter("all"); }}>{t("Clear filters")}</button> : <Link className="ws-button" href={`/app?prompt=${encodeURIComponent(locale === "zh" ? "请帮我准备一份候选人推荐稿。" : "Help me prepare a candidate recommendation.")}`}>{t("Prepare candidate submission")}</Link>}

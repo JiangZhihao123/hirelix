@@ -323,7 +323,7 @@ export function getPlanStatusCopy(
   if (billing.agent && billing.agent.state !== "legacy") {
     const a = billing.agent;
     return {
-      title: a.state === "paid" ? AGENT_PLAN.name : locale === "zh" ? "私人助理试用" : "Personal Agent trial",
+      title: a.state === "paid" ? AGENT_PLAN.name : locale === "zh" ? "私人 AI 助理试用" : "Personal Agent trial",
       usageLabel: locale === "zh" ? `剩余 ${formatCredits(a.remaining,locale)} / ${formatCredits(a.limit,locale)} AI 额度` : `${formatCredits(a.remaining,locale)} / ${formatCredits(a.limit,locale)} AI credits remaining`,
       capabilityLabel: locale === "zh" ? "候选人、职位与客户材料" : "Candidates, roles, and client work",
       renewalLabel: a.periodEnd ? `${locale === "zh" ? "周期结束" : "Period ends"} ${formatMonthDay(a.periodEnd)}` : null,

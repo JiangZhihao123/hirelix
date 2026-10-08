@@ -129,7 +129,7 @@ export function PricingSection({
             {t("Add sourcing capacity when you need it.")}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            {t("Your private assistant and candidate workspace are available after sign-in. These plans govern the existing profile search and research capacity.")}
+            {t("Your private AI assistant and candidate workspace are available after sign-in. These plans govern the existing profile search and research capacity.")}
           </p>
         </div>
 

@@ -39,7 +39,7 @@ export async function executeAssistantWork(
   const jobs: AssistantWorkReceipt[] = [], schedules: AssistantScheduleReceipt[] = [];
   for (const [index, item] of work.entries()) {
     if (!quotedAuthorization(message, item.authorization_quote))
-      throw new WorkspaceError("The work request could not be verified. Please tell your assistant what to prepare.");
+      throw new WorkspaceError("The work request could not be verified. Please tell your AI assistant what to prepare.");
     const role = catalog.roles.get(item.role_ref);
     const people = item.person_refs.map(ref => catalog.people.get(ref));
     const records = item.record_refs.map(ref => catalog.records.get(ref));

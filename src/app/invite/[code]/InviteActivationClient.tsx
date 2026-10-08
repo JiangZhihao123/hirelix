@@ -170,7 +170,7 @@ export function InviteActivationClient({
               <div>
                 <p className="font-semibold">Seat activated.</p>
                 <p className="mt-1 text-sm leading-6">
-                  Your workspace is ready. Share your materials and tell your assistant what you want to get done.
+                  Your workspace is ready. Share your materials and tell your AI assistant what you want to get done.
                 </p>
                 {activation.emailMismatch ? (
                   <p className="mt-2 text-xs text-emerald-800">

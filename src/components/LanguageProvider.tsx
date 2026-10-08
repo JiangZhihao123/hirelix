@@ -66,7 +66,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
     if (pathname.startsWith("/app")) {
       document.title = locale === "zh"
-        ? "Hirelix｜专业猎头的私人助理"
+        ? "Hirelix｜专业猎头的私人 AI 助理"
         : "Hirelix | Private AI Agent for Professional Headhunters";
     }
   }, [locale, pathname]);

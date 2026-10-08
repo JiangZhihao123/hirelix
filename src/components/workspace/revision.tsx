@@ -84,7 +84,7 @@ export function RevisionPanel({
   }
   return (
     <section className="ws-panel mt-6">
-      <h2>{t("Revise with your assistant")}</h2>
+      <h2>{t("Revise with your AI assistant")}</h2>
       <p className="ws-muted">
         {t("Review a proposed revision before replacing your draft. Your previous version is kept.")}
       </p>
