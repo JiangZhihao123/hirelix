@@ -55,7 +55,7 @@ export default function Submissions() {
           <select aria-label={t("Status")} value={filter} onChange={(event) => setFilter(event.target.value)}>
             <option value="all">{t("All")}</option><option value="draft">{t("Drafts")}</option><option value="submitted">{t("Submitted")}</option>
           </select>
-          <span className="ws-count">{!query.loading && (locale === "zh" ? `${items.length} 份推荐` : `${items.length} submissions`)}</span>
+          <span className="ws-count">{!query.loading && (locale === "zh" ? `${items.length} 份推荐` : `${items.length} ${items.length === 1 ? "submission" : "submissions"}`)}</span>
         </div>
       </div>
       <ErrorNotice error={query.error} retry={query.refresh} />
@@ -80,7 +80,7 @@ export default function Submissions() {
                 {d.status === "draft" ? t("Draft") : t("Submitted")}
               </span>
               <span className="ws-role-count text-xs ws-muted">
-                {locale === "zh" ? `${d.person_ids.length} 位候选人` : `${d.person_ids.length} candidates`}
+                {locale === "zh" ? `${d.person_ids.length} 位候选人` : `${d.person_ids.length} ${d.person_ids.length === 1 ? "candidate" : "candidates"}`}
               </span>
               <span className="ws-role-count text-xs ws-muted">
                 {date(d.submitted_at || d.updated_at)}

@@ -229,11 +229,11 @@ export function PrepareDocument({
             <div className="ws-selection-count">
               {locale === "zh"
                 ? `${people.length} 位候选人 · 已选 ${records.length} 条备注`
-                : `${people.length} candidates · ${records.length} selected notes`}
+                : `${people.length} ${people.length === 1 ? "candidate" : "candidates"} · ${records.length} selected ${records.length === 1 ? "note" : "notes"}`}
               {kind === "submission" &&
                 (locale === "zh"
                   ? ` · 已选 ${people.filter((id) => selectedFiles[id]).length} 份简历`
-                  : ` · ${people.filter((id) => selectedFiles[id]).length} CVs selected`)}
+                  : ` · ${people.filter((id) => selectedFiles[id]).length} ${people.filter((id) => selectedFiles[id]).length === 1 ? "CV" : "CVs"} selected`)}
             </div>
             </div>
           <div className="ws-document-options">
