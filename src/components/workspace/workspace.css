@@ -2520,3 +2520,17 @@
 .ws-recent-conversations h3 { grid-column: 1 / -1; }
 .ws-recent-work small svg { display: inline; vertical-align: -2px; }
 @media (max-width: 680px) { .ws-recent-work .ws-recent-conversations { grid-template-columns: minmax(0, 1fr); } }
+
+/* The conversation remains the working surface while evidence is inspected. */
+.ws-source-panel { flex: 0 0 360px; min-width: 0; height: 100%; overflow: auto; padding: 24px; border-left: 1px solid #dce4d9; background: #fcfdfb; font-size: 14px; line-height: 1.65; }
+.ws-source-panel > header { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 24px; }
+.ws-source-panel h3 { font-size: 20px; margin: 16px 0; }
+.ws-source-panel h4 { font-weight: 600; margin: 20px 0 8px; }
+.ws-source-panel details { padding: 14px 0; border-top: 1px solid #e1e7dd; }
+.ws-source-panel > .ws-link { display: inline-flex; margin-top: 24px; }
+.ws-message-sources button { display: inline-flex; gap: 5px; align-items: center; border: 1px solid #dce4d9; border-radius: 6px; padding: 4px 8px; color: #47684d; font-size: 12px; background: #f8faf5; cursor: pointer; }
+@media (max-width: 1000px) { .ws-source-panel { flex-basis: 300px; } }
+@media (max-width: 850px) { .ws-source-panel { position: fixed; inset: 54px 0 0; width: 100%; z-index: 40; } }
+.ws-assistant-body { display: flex; }
+.ws-conversation { flex: 1; }
+.ws-unread-dot { color: #3c7556; padding-left: 5px; }

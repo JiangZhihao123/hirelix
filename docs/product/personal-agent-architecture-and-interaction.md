@@ -1,10 +1,10 @@
 # Hirelix Personal Agent：技术架构与产品交互设计方案
 
-日期：2026-10-08 · 版本：3 · 状态：产品方向已按本轮讨论修订，具体实现待评审
+日期：2026-10-08 · 版本：3 · 状态：核心链路已在本地实现，生产尚未部署
 
 依据：[八个核心场景与设计原则](personal-agent-core-scenarios.md)。目标用户是海外英语市场的独立猎头与精品猎头顾问，界面以英文为默认，首版聚焦桌面浏览器。
 
-现有能力的代码核对基线为 `a3a1a6f`；外部产品依据为 2026-10-08 的 Exa 调研，来源见文末。本文描述目标设计，不代表产品已实现、已部署或已通过真实链路验收。
+现有能力的代码核对基线为 `a3a1a6f`；外部产品依据为 2026-10-08 的 Exa 调研，来源见文末。本文描述目标设计；实际已实现范围、测试证据与未验收边界见[实现与验收记录](personal-agent-v3-verification.md)，不能将目标设计等同生产可用性。
 
 ## 1. 本次修订的产品决定
 
@@ -325,4 +325,4 @@ S7 首版只支持**指定日期的一次提醒**与**固定周期的进展报�
 - [记忆](../../src/lib/workspace/memories.ts)、[调度](../../src/lib/workspace/schedules.ts)
 - [任务执行](../../src/lib/workspace/jobs.ts)、[worker](../../src/lib/workspace/worker.ts)
 - [成果](../../src/lib/workspace/deliverables.ts)、[修改](../../src/lib/workspace/revisions.ts)、[发送](../../src/lib/workspace/gmail.ts)
-- [待替换的首页聚合](../../src/app/(product)/api/workspace/overview/route.ts)、[待调整的列表](../../src/components/workspace/recent-work.tsx)
+- [持续对话工作区](../../src/components/workspace/assistant-workspace.tsx)、[资料与成果面板](../../src/components/workspace/context-panel.tsx)（旧首页草稿聚合已移除）

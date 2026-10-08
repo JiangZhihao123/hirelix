@@ -28,6 +28,12 @@ export function RevisionPanel({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const job = query.data?.job;
+  const appliedVersion = job?.result?.applied_version;
+  useEffect(() => {
+    if (appliedVersion && Number(appliedVersion) > document.version) {
+      api<{ deliverable: Deliverable }>(`/deliverables/${document.id}`).then(result => onApplied(result.deliverable)).catch(cause => setError(cause instanceof Error ? cause.message : "Could not load updated document"));
+    }
+  }, [appliedVersion, document.id, document.version, onApplied]);
   const running = job?.status === "queued" || job?.status === "running";
   useEffect(() => {
     if (!running) return;
@@ -86,7 +92,7 @@ export function RevisionPanel({
     <section className="ws-panel mt-6">
       <h2>{t("Revise with your AI assistant")}</h2>
       <p className="ws-muted">
-        {t("Review a proposed revision before replacing your draft. Your previous version is kept.")}
+        {t("Requested changes are saved directly. Your previous version is kept.")}
       </p>
       <ErrorNotice error={error || query.error} />
       {!embedded && <><Field label={t("What would you like to change?")}>
@@ -114,6 +120,13 @@ export function RevisionPanel({
           {t(job.progress || "Preparing your revision")}{t(". You can return to this draft later.")}
         </p>
       )}
+      {running && <button className="ws-button" disabled={busy} onClick={async () => {
+        setBusy(true); setError("");
+        try { await api(`/jobs/${job.id}`, { method: "DELETE" }); query.refresh(); }
+        catch (cause) { setError(cause instanceof Error ? cause.message : "Could not stop revision"); }
+        finally { setBusy(false); }
+      }}>{t("Stop")}</button>}
+      {job?.status === "cancelled" && <p role="status">{t("Stopped. Your saved document is unchanged.")}</p>}
       {job?.status === "error" && (
         <>
           <ErrorNotice

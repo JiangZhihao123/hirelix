@@ -11,6 +11,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "@/components/workspace/workspace.css";
 import {
+  api,
   ErrorNotice,
   date,
   initials,
@@ -29,13 +30,11 @@ import {
 import { BillingProvider, useBilling } from "@/lib/use-billing";
 import { BrandMark } from "@/components/BrandMark";
 import { useT, useLanguage } from "@/components/LanguageProvider";
-import { DraftNotifications } from "@/components/workspace/notifications";
 import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
   Search,
   BriefcaseBusiness,
   BookUser,
-  FileText,
   LogOut,
   Loader2,
   Menu,
@@ -76,6 +75,17 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const conversations = useQuery<{ conversations: Conversation[] }>(
     user ? "/conversations" : null,
   );
+  useEffect(() => {
+    if (!user) return;
+    const timer = setInterval(conversations.refresh, 15000);
+    return () => clearInterval(timer);
+  }, [user, conversations.refresh]);
+  useEffect(() => {
+    const id = searchParams.get("conversation");
+    if (pathname === "/app" && id && conversations.data?.conversations.some(item => item.id === id && item.unread)) {
+      api("/notifications", {method:"POST",body:JSON.stringify({conversation_id:id})}).then(conversations.refresh).catch(() => {});
+    }
+  }, [pathname, searchParams, conversations.data, conversations.refresh]);
   const duplicateConversationTitles = new Set(
     conversations.data?.conversations
       .map((conversation) => conversation.title)
@@ -112,13 +122,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
       icon: BriefcaseBusiness,
       active: pathname.startsWith("/app/roles"),
     },
-    {
-      href: "/app/submissions",
-      label: t("Submissions"),
-      icon: FileText,
-      active:
-        pathname.startsWith("/app/submissions") || pathname === "/app/briefs",
-    },
+
   ];
   function navigate(path: string) {
     accountMenuRef.current?.hidePopover();
@@ -292,16 +296,16 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          {isConversationPage && <section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
+          {<section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
             <div className="ws-sidebar-conversations-heading">
               <strong>{t("Conversations")}</strong>
               <div className="ws-actions">
-                <Link href="/app" className="ws-icon" onNavigate={(event) => {
+                <Link href="/app?new=1" className="ws-icon" onNavigate={(event) => {
                   if (pathname === "/app") {
                     event.preventDefault();
                     // Conversation changes are client-owned query changes,
                     // just like opening a newly saved conversation.
-                    window.history.pushState(null, "", "/app");
+                    window.history.pushState(null, "", "/app?new=1");
                   }
                   navigate("/app");
                 }} aria-label={t("New conversation")} title={t("New conversation")}><Plus size={16} /></Link>
@@ -332,7 +336,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                     }
                     title={conversation.title}
                   >
-                    <strong>{conversation.title}</strong>
+                    <strong>{conversation.title}{conversation.unread && <span className="ws-unread-dot" aria-label={t("Unread result")}> •</span>}</strong>
                     {duplicateConversationTitles.has(conversation.title) && (
                       <small>{date(conversation.updated_at, true)}</small>
                     )}
@@ -410,7 +414,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <div className="ws-topbar-actions">
-            <DraftNotifications />
             {isConversationPage ? (
               <>
                 <button
@@ -422,7 +425,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                   <Search size={18} />
                 </button>
                 <Link
-                  href="/app"
+                  href="/app?new=1"
                   className="ws-icon"
                   aria-label={t("New conversation")}
                 >

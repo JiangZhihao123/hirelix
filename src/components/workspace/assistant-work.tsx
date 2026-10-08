@@ -15,7 +15,7 @@ export function ConversationRevision({ revision, onApplied }: { revision: { docu
   return query.data ? <RevisionPanel document={query.data.deliverable} disabled={query.data.deliverable.status !== "draft"} jobId={revision.job_id} embedded onApplied={() => { query.refresh(); onApplied(); window.dispatchEvent(new Event("hirelix:document-changed")); }} /> : <ErrorNotice error={query.error} retry={query.refresh} />;
 }
 
-export function AssistantWork({ receipt, onReady, onRevise }: { receipt: AssistantWorkReceipt; onReady: () => void; onRevise: (document: Deliverable) => void }) {
+export function AssistantWork({ receipt, onReady, onRevise, onOpen }: { receipt: AssistantWorkReceipt; onReady: () => void; onRevise: (document: Deliverable) => void; onOpen?: (document: Deliverable) => void }) {
   const t = useT();
   const query = useQuery<{ job: Job }>(`/jobs/${receipt.job_id}`);
   const job = query.data?.job;
@@ -33,6 +33,12 @@ export function AssistantWork({ receipt, onReady, onRevise }: { receipt: Assista
     }
   }, [job?.status, job, refresh]);
   useEffect(() => { if (documentId && ready.current !== documentId) { ready.current = documentId; onReady(); } }, [documentId, onReady]);
+  async function stop() {
+    setBusy(true); setError("");
+    try { await api(`/jobs/${receipt.job_id}`, { method: "DELETE" }); query.refresh(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not stop work"); }
+    finally { setBusy(false); }
+  }
   async function retry() {
     setBusy(true); setError("");
     try { await api(`/jobs/${receipt.job_id}`, { method: "POST" }); query.refresh(); }
@@ -41,9 +47,10 @@ export function AssistantWork({ receipt, onReady, onRevise }: { receipt: Assista
   }
   const draft = document.data?.deliverable;
   return <section className="ws-assistant-delivery" aria-label={t("Prepared work")}>
-    <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : job?.status === "error" ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{t(receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</strong><small>{receipt.title}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Ready for your review" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
+    <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : ["error", "cancelled"].includes(job?.status || "") ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{t(receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</strong><small>{receipt.title}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Saved" : job?.status === "cancelled" ? "Stopped" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
     <ErrorNotice error={error || query.error || job?.error || document.error} retry={job?.status === "error" && !busy ? retry : query.error ? query.refresh : document.error ? document.refresh : undefined} />
-    {draft && <><details open><summary>{draft.title}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details><footer><small>{t(draft.status === "submitted" ? "Marked as submitted" : "Saved draft · Nothing has been sent")}</small><div><button className="ws-button" onClick={() => onRevise(draft)}>{t("Ask for a revision")}</button><Link className="ws-button" href={draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`}>{t("Open document")}<ArrowUpRight size={13} /></Link></div></footer></>}
+    {job && ["queued", "running"].includes(job.status) && <button className="ws-button" disabled={busy} onClick={stop}>{t("Stop")}</button>}
+    {draft && <><details open><summary>{draft.title}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details><footer><small>{t(draft.status === "submitted" ? "Marked as submitted" : "Saved · Nothing has been sent")}</small><div><button className="ws-button" onClick={() => onRevise(draft)}>{t("Ask for a revision")}</button><button className="ws-button" onClick={() => onOpen ? onOpen(draft) : window.location.assign(draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`)}>{t("Open document")}<ArrowUpRight size={13} /></button><Link className="ws-button" href={draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`}>{t("Edit, export or send")}<ArrowUpRight size={13} /></Link></div></footer></>}
     {job?.status === "done" && !draft && !document.error && <p>{t("Opening your draft…")}</p>}
   </section>;
 }
@@ -69,5 +76,5 @@ export function AssistantAgreement({ receipt }: { receipt: AssistantScheduleRece
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not retry draft"); }
     finally { setBusy(false); }
   }
-  return <section className="ws-assistant-agreement"><Clock3 size={18} /><div><strong>{t("Search update agreement")}</strong><p>{receipt.title}</p>{schedule && <><small>{schedule.enabled ? `${t("Next draft")}: ${new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} · ${schedule.timezone}` : t("Agreement paused")}</small><small>{t("Role requirements")} · {schedule.person_ids.length} {t("candidate profiles")}{schedule.include_role_records ? ` · ${t("Role records included")}` : ""}{schedule.include_candidate_records ? ` · ${t("Candidate notes included")}` : ""}{!schedule.include_role_records && !schedule.include_candidate_records ? ` · ${t("No private notes")}` : ""}</small></>}<ErrorNotice error={error || query.error || schedule?.error || ""} retry={query.error ? query.refresh : schedule?.error && !busy ? retry : undefined} /></div>{schedule && <button className="ws-link" disabled={busy} onClick={toggle}>{t(schedule.enabled ? "Pause agreement" : "Resume agreement")}</button>}</section>;
+  return <section className="ws-assistant-agreement"><Clock3 size={18} /><div><strong>{t("Search update agreement")}</strong><p>{receipt.title}</p>{schedule && <><small>{schedule.enabled ? `${t("Next update")}: ${new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} · ${schedule.timezone}` : t("Agreement paused")}</small><small>{t("Role requirements")} · {schedule.person_ids.length} {t("candidate profiles")}{schedule.include_role_records ? ` · ${t("Role records included")}` : ""}{schedule.include_candidate_records ? ` · ${t("Candidate notes included")}` : ""}{!schedule.include_role_records && !schedule.include_candidate_records ? ` · ${t("No private notes")}` : ""}</small></>}<ErrorNotice error={error || query.error || schedule?.error || ""} retry={query.error ? query.refresh : schedule?.error && !busy ? retry : undefined} /></div>{schedule && <button className="ws-link" disabled={busy} onClick={toggle}>{t(schedule.enabled ? "Pause agreement" : "Resume agreement")}</button>}</section>;
 }
