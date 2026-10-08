@@ -1209,7 +1209,7 @@ function ActionReview({
                     {(action.fields.role_records as Array<{ title: string; content: string; occurred_at: string | null }>).map((record, index) => (
                       <div key={index}>
                         <strong>{record.title}</strong>
-                        <p className="ws-muted">{record.occurred_at ? date(record.occurred_at) : t("Event time not recorded")}</p>
+                        <p className="ws-muted">{record.occurred_at ? date(record.occurred_at, true) : t("Event time not recorded")}</p>
                         <p className="whitespace-pre-wrap">{record.content}</p>
                       </div>
                     ))}
