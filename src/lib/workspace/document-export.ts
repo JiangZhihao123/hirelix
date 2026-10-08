@@ -54,7 +54,7 @@ export async function renderDocument(
               size: 22,
               color: "242824",
             },
-            paragraph: { spacing: { after: 280, line: 480 } },
+            paragraph: { spacing: { after: 160, line: 276 } },
           },
         },
       },
