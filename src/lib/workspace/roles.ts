@@ -63,6 +63,7 @@ export async function createRole(
   userId: string,
   value: unknown,
   runner?: Runner,
+  source?: { file_id: string; title: string },
 ) {
   const input = roleInput.parse(value);
   const run = async (tx: Runner) => {
@@ -75,8 +76,9 @@ export async function createRole(
       userId,
       {
         role_id: role.id,
+        file_id: source?.file_id,
         kind: "jd",
-        title: "Original JD",
+        title: source?.title || "Original JD",
         content: input.jd_text,
         details: { role_version: 1 },
       },

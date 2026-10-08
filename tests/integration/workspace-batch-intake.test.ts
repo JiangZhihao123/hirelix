@@ -141,6 +141,10 @@ test("a new role retains its dated client note only when the reviewed proposal i
   // The immutable reviewed source wins over altered browser payload metadata.
   const accepted = await acceptAction(owner, sent.conversation_id, message.id, action.id, { ...action.fields, role_records: [] });
   const roleId = accepted.href!.split("/").at(-1)!;
+  const jdRecords = await rows<{ file_id: string; content: string }>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${roleId}::uuid AND kind='jd'`);
+  assert.equal(jdRecords.length, 1, "one uploaded JD creates one source record");
+  assert.equal(jdRecords[0].file_id, jd.id);
+  assert.equal(jdRecords[0].content, jdText);
   const records = await rows<{ file_id: string; content: string; occurred_at: string }>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${roleId}::uuid AND file_id=${note.id}::uuid`);
   assert.equal(records.length, 1);
   assert.equal(records[0].content, noteText);
