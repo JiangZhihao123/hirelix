@@ -296,7 +296,15 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <div className="ws-sidebar-conversations-heading">
               <strong>{t("Conversations")}</strong>
               <div className="ws-actions">
-                <Link href="/app" className="ws-icon" onClick={() => navigate("/app")} aria-label={t("New conversation")} title={t("New conversation")}><Plus size={16} /></Link>
+                <Link href="/app" className="ws-icon" onNavigate={(event) => {
+                  if (pathname === "/app") {
+                    event.preventDefault();
+                    // Conversation changes are client-owned query changes,
+                    // just like opening a newly saved conversation.
+                    window.history.pushState(null, "", "/app");
+                  }
+                  navigate("/app");
+                }} aria-label={t("New conversation")} title={t("New conversation")}><Plus size={16} /></Link>
               <button
                 type="button"
                 className="ws-icon"
