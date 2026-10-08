@@ -155,7 +155,7 @@ export function AssistantWorkspace({
   const job = query.data?.job;
   useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = !!job && ["queued", "running"].includes(job.status);
-  const hasAgreement = query.data?.messages.some(message => (message.metadata as AssistantMeta).schedules?.length);
+  const hasAgreement = query.data?.messages.some(message => ((message.metadata as AssistantMeta).schedules?.length || (message.metadata as AssistantMeta).reminders?.length || (message.metadata as AssistantMeta).question?.status === "waiting"));
   const delegatedPending = query.data?.work?.some(work => ["queued", "running"].includes(work.status));
   const refreshConversation = query.refresh;
   useEffect(() => {

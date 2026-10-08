@@ -1,3 +1,4 @@
+import { clarificationSchema } from "./conversation-questions";
 import { reminderActionSchema } from "./reminders";
 import { z } from "zod";
 import { MAX_CONVERSATION_FILES } from "./attachments";
@@ -40,6 +41,7 @@ const roleDraft = z.object({
 });
 export const replySchema = z.object({
   answer: z.string().min(1).max(25000),
+  clarification: clarificationSchema.nullable().default(null),
   reminders: z.array(reminderActionSchema).max(5).default([]),
   follow_up: z.string().max(500).nullable(),
   work: z.array(assistantWorkSchema).max(5).default([]),

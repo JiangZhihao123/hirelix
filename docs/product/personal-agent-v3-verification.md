@@ -64,3 +64,19 @@
 这些证据支持上述桌面核心链路，不等于全部发布验收完成：本轮没有重验真实邮件发送、公开分享、所有文件格式、全部错误恢复组合、大规模召回质量或生产部署。周期报告在证据不变时仍生成保存成果，只抑制重复通知；没有增加复杂的变更追踪机制。
 
 历史静态原型仍在 [prototypes/personal-agent-v3.html](prototypes/personal-agent-v3.html)，只用于设计对照，不计入本轮实际实现验收。
+
+## 2026-10-08：执行中向用户提问并接续
+
+已实现对话内的 `Your answer is needed` 卡片：必要信息缺失时保存问题、选项与原始目标，结束当前 worker 作业；回答后通过现有聊天任务接续。选择不会自动提交，也可自由输入或直接在聊天框回答。等待状态、回答和取消状态保存在消息 metadata；未提交的输入在本机浏览器保留。复用现有未读通知，不新增待办中心、通用审批流或执行检查点，无数据库迁移。
+
+验证环境仍为独立本地 QA PostgreSQL，真实 DeepSeek、独立 worker 与已登录 Chrome。未部署生产。
+
+- 新增集成测试 3 项通过：真实模型的提醒缺时间提问与精确时间接续；真实 PostgreSQL 的隔离、取消和过期回答拒绝；真实模型的职位缺客户提问、普通聊天只回答客户名后完成原目标。
+- 原有 assistant-work / reminders 回归 4 项最终通过；包含重复请求去重、歧义时不写业务数据、定时提醒。全量单元测试 341 通过、2 跳过；lint、TypeScript、最终生产构建通过。
+- Chrome：实际提交两客户歧义的职位，显示两个选项；选中后刷新，选项和回答保留；点击 Continue 后原目标继续，Product Director 保存至 Fictional Cedar Labs。没有重新输入 JD。
+- Chrome：提醒缺日期时间时显示问题；点击 Cancel request 后显示 Request cancelled。数据库读回问题为 cancelled，关联提醒数量为 0。浏览器控制台无 error/warn。
+- 未读状态由集成测试验证；本轮 Chrome 切换时问题已到达，未将此操作计作跨会话未读提示的额外证明。原有提醒的 Chrome 未读证据见上文。
+
+证据目录：`output/conversation-questions/`。截图为 `01-waiting.png`、`02-continued.png`、`03-cancelled.png`；测试日志为 `real.log`、`jd-resume.log`、`regression.log`、`ambiguity-provider-retry.log`，最终构建为 `build-final.log`。
+
+失败证据保留：回归发现等待回答分支缺少空的 schedules/work 等数组，修复返回结构后重测通过。首次针对性复测遇到 DeepSeek 空响应，记录在 `ambiguity-retest.log`；再次同一测试通过，没有以 mock 替代真实服务。模型生成的选项文案仍可能不理想（Chrome 提醒例子包含当天已过去的时间建议）；真正创建提醒仍由原有未来时间校验约束，本轮未扩展为时间选项生成器。分享授权歧义也接入同一提问卡片，但本轮未单独重验该模型分支。

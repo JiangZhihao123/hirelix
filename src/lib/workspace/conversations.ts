@@ -1,7 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
+import type { ConversationQuestion } from "./conversation-questions";
+import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
 import { enqueue, json, owned, rows, WorkspaceError } from "./database";
 import { groundedReplySchema, planSchema, replySchema, openRequestReplySchema, sharingPermissionProposalSchema } from "./conversation-schema";
 import { listReminders, saveReminder, type Reminder } from "./reminders";
@@ -10,7 +10,7 @@ import { listRoles, ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import { listPeople, personDetails } from "./people";
 import { retrieveRoles } from "./role-retrieval";
 import { retrieveCandidates } from "./retrieval";
-import { readFile, saveFile, type PrivateFile } from "./files";
+import { readFile } from "./files";
 import { MAX_CONVERSATION_FILES, messageAttachments, type ConversationAttachment } from "./attachments";
 import { extractDocument, saveRequestedCandidateDrafts } from "./imports";
 import {
@@ -35,6 +35,7 @@ import { executeAssistantWork, quotedAuthorization, ASSISTANT_WORK_RULES, type A
 
 export const conversationInput = z.object({
   message: z.string().trim().max(50000),
+  question_message_id: z.uuid().nullable().default(null),
   file_ids: z.array(z.uuid()).max(MAX_CONVERSATION_FILES).default([]),
   locale: z.enum(["en", "zh"]).default("en"),
   timezone: z.string().max(100).refine(zone => { try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; } }).default("UTC"),
@@ -63,6 +64,7 @@ export type AssistantAction = {
   href?: string;
 };
 export type AssistantMeta = {
+  question?: ConversationQuestion;
   reminders?: Reminder[];
   work?: AssistantWorkReceipt[];
   schedules?: AssistantScheduleReceipt[];
@@ -151,109 +153,7 @@ export async function renameConversation(
   );
   return { conversation };
 }
-export async function sendMessage(
-  userId: string,
-  value: unknown,
-  file?: { name: string; type: string; bytes: Uint8Array },
-) {
-  const input = conversationInput.parse(value);
-  if (!input.message && !file && !input.file_ids.length)
-    throw new WorkspaceError("Write a message or attach a file");
-  const attachmentHash = file
-    ? createHash("sha256").update(file.bytes).digest("hex")
-    : null;
-  return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + input.request_key},0))`,
-    );
-    const [existing] = await rows<Job>(
-      sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND request_key=${input.request_key}`,
-      tx,
-    );
-    if (existing) {
-      const [same] = await rows<{ same: boolean }>(
-        sql`SELECT payload->'request'=${json(input)} AND payload->>'attachment_sha256' IS NOT DISTINCT FROM ${attachmentHash} AS same FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND id=${existing.id}::uuid`,
-        tx,
-      );
-      if (existing.kind !== "chat" || !same.same)
-        throw new WorkspaceError(
-          "This request key was already used for another message",
-          409,
-        );
-      return {
-        conversation_id: z.uuid().parse(existing.payload.conversation_id),
-        job: existing,
-      };
-    }
-    const attachments: ConversationAttachment[] = [];
-    for (const fileId of new Set(input.file_ids)) {
-      const [saved] = await rows<PrivateFile>(sql`SELECT id,name,byte_size FROM hirelix_private_files WHERE user_id=${userId}::uuid AND id=${fileId}::uuid`, tx);
-      if (!saved) throw new WorkspaceError("This file was not found", 404);
-      attachments.push({ file_id: saved.id, name: saved.name, size: saved.byte_size });
-    }
-    if (file) {
-      const saved = await saveFile(userId, file, tx);
-      attachments.push({ file_id: saved.id, name: saved.name, size: saved.byte_size });
-    }
-    if (attachments.length > MAX_CONVERSATION_FILES) throw new WorkspaceError("Attach up to 20 files per message");
-    const document = input.document_id ? await owned<Deliverable>(userId, "deliverable", input.document_id, tx) : null;
-    if (document && input.conversation_id) throw new WorkspaceError("Start a document conversation from the saved draft");
-    if (document && input.role_id && document.role_id !== input.role_id) throw new WorkspaceError("This document belongs to another role", 409);
-    const resolvedRoleId = document?.role_id || input.role_id;
-    if (input.role_id) await owned(userId, "role", input.role_id, tx);
-    if (input.person_id) await owned(userId, "person", input.person_id, tx);
-    let conversation: Conversation;
-    if (input.conversation_id) {
-      conversation = await owned<Conversation>(
-        userId,
-        "conversation",
-        input.conversation_id,
-        tx,
-        true,
-      );
-      const [pending] = await rows(
-        sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${conversation.id} AND status IN ('queued','running','error') LIMIT 1`,
-        tx,
-      );
-      if (pending)
-        throw new WorkspaceError(
-          "Finish or retry the previous reply before sending another message",
-          409,
-        );
-    } else {
-      [conversation] = await rows<Conversation>(
-        sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${(input.message || attachments.map((item) => item.name).join(", ") || "New conversation").slice(0, 100)},${resolvedRoleId}::uuid,${input.person_id}::uuid) RETURNING *`,
-        tx,
-      );
-    }
-    if (input.work_document_id) {
-      await owned(userId, "deliverable", input.work_document_id, tx);
-      const linked = await rows(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='deliverable' AND payload->>'conversation_id'=${conversation.id} AND result->>'deliverable_id'=${input.work_document_id}`, tx);
-      const original = await rows(sql`SELECT id FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid AND metadata->>'document_id'=${input.work_document_id}`, tx);
-      if (!linked.length && !original.length) throw new WorkspaceError("Choose a document from this conversation", 409);
-    }
-    const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(input.work_document_id ? { work_document_id: input.work_document_id } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
-      tx,
-    );
-    await tx.execute(
-      sql`UPDATE hirelix_private_conversations SET updated_at=now() WHERE id=${conversation.id}::uuid AND user_id=${userId}::uuid`,
-    );
-    const job = await enqueue(
-      userId,
-      "chat",
-      input.request_key,
-      {
-        conversation_id: conversation.id,
-        message_id: message.id,
-        request: input,
-        attachment_sha256: attachmentHash,
-      },
-      tx,
-    );
-    return { conversation_id: conversation.id, job };
-  });
-}
+export { sendMessage } from "./conversation-send";
 async function readConversationFile(userId: string, attachment: ConversationAttachment, limit: number) {
   try {
     const file = await readFile(userId, attachment.file_id);
@@ -286,9 +186,11 @@ function groundedQuote(text: string, quote: string | null) {
 export const assistantReply: JobHandler = async (job, progress) => {
   const id = z.uuid().parse(job.payload.conversation_id);
   const { conversation, messages, document } = await conversationDetails(job.user_id, id);
-  const question = messages.find((m) => m.id === job.payload.message_id);
+  let question = messages.find((m) => m.id === job.payload.message_id);
   if (!question)
     throw new WorkspaceError("This saved message is no longer available", 404);
+  const continuation = question.metadata.continuation as {request?: string} | undefined;
+  if (continuation?.request) question = {...question, content: continuation.request};
   await progress("Reading your conversation and workspace");
   const currentFiles = messageAttachments(question.metadata);
   // Follow-up questions retain the latest batch, while new files define a new batch.
@@ -312,7 +214,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
   const history = messages
     .filter((m) => new Date(m.created_at) <= new Date(question.created_at))
     .slice(-30)
-    .map((m) => ({ role: m.role, content: m.content, metadata: m.metadata }));
+    .map((m) => ({ role: m.role, content: m.id === question.id ? question.content : m.content, metadata: m.metadata }));
   const imports = await rows<{ file_id: string; status: Job["status"] }>(
     sql`SELECT j.id,j.payload->>'file_id' AS file_id,j.status,j.payload->>'filename' AS filename,(SELECT count(*)::int FROM hirelix_private_import_rows r WHERE r.user_id=j.user_id AND r.job_id=j.id AND r.status='saved') AS saved,(SELECT count(*)::int FROM hirelix_private_import_rows r WHERE r.user_id=j.user_id AND r.job_id=j.id AND r.status='review') AS awaiting_review,(SELECT jsonb_agg(summary) FROM (SELECT r.action,r.status,r.extracted->>'name' AS name,p.name AS saved_name FROM hirelix_private_import_rows r LEFT JOIN hirelix_agent_people p ON p.user_id=r.user_id AND p.id=r.result_person_id WHERE r.user_id=j.user_id AND r.job_id=j.id ORDER BY r.row_number LIMIT 50) summary) AS reviewed_rows FROM hirelix_private_jobs j WHERE j.user_id=${job.user_id}::uuid AND j.kind='import' AND j.payload->>'conversation_id'=${id} ORDER BY j.created_at DESC LIMIT 20`,
   );
@@ -520,6 +422,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
           ? "你好。你想处理什么？可以直接提问，或发来 JD、候选人资料、客户消息。"
           : "Hi. What would you like to work on? You can ask a question or share a JD, candidate profile, or client message.",
         follow_up: null,
+        clarification: null,
         reminders: [],
         source_refs: [],
         work: [],
@@ -534,6 +437,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         roles: [...roleRegistry.keys()], people: [...persons.keys()],
         records: sources.filter(source => source.ref.startsWith("source_")).map(source => source.ref),
       }),
+    "If missing information or ambiguous identity prevents completing the delegated request, set clarification to one concrete blocking question and 0–4 useful answer options, allowing free text. Set actions, work, reminders to empty; do not claim any save or execution. The task will wait and resume after the user answers. Do not use clarification for optional suggestions, general advice, or routine approval of clearly authorized work. If the current request includes User clarification, continue the original goal using that answer; it is not a new standalone task. If the user cancels or changes direction, respect that and do not execute the earlier goal. " +
     PERSONAL_MEMORY_RULES + " " +
     `Help a professional headhunter maintain candidate relationships, work on client roles, and prepare client material. Be a capable personal assistant who respects the recruiter's attention and direction. Answer the actual request and stop when it is complete. Do not append a next step, question, or action merely because workspace context exists. Set follow_up to null unless follow_up_needed is true; even then ask at most one question only if it helps with the current request. If the user explicitly asks what to prioritize or do next, use relevant workspace evidence and give a concise recommendation. For a greeting alone, respond briefly and invite the user to tell you what they need; do not bring up a role, candidate, or unfinished task. Do not introduce an unrelated assignment, manufacture urgency, or repeatedly offer to draft an email. Propose an action only when the user requested it or it is the direct, necessary preparation of information they just supplied. Never add a checklist of speculative reminders. Respect requested brevity and the user's language; when the message has no language, use preferred_language. If an attached file is present, respond to its contents and the user's message together. An attachment is not automatically a CV. If it is unreadable, explain the actual limitation and offer one concrete way forward. If the file is unrelated to recruiting but the user requests a simple content task, help with that task in this conversation without creating a recruiter record. For a batch, explain the useful combined result and identify each file and any reading failure. With no instruction, prepare clearly supported candidate drafts and role proposals; ask only about ambiguity that blocks useful work. Never claim proposals are saved. A failed file must not prevent handling readable files. Every action must include attachment_ref, the exact source file ref or null for facts from the message. Never bind one file to another file’s action. Candidate processing is allowed only when candidate_draft_allowed is true. save_new_candidates is authorization for a later candidate-processing step, never evidence that a profile exists or has been saved. Read candidate_processing_state for each attachment: not_started means processing will be queued only after this reply is saved; queued/running means still in progress; done permits a completion claim only for saved rows explicitly present in conversation_imports. These state labels and execution sequencing are only for your reasoning. For not_started/queued/running, tell the recruiter simply that you are organizing the supported profiles and will ask about duplicates or blocking ambiguities. Do not narrate queueing, reply storage, internal states, or the timing of the processing step. Do not use completed-tense wording such as 已入库、已保存、已建档、已处理完成 or saved/added/created for those profiles. The per-file result will show actual saved profiles after processing. Otherwise it is a draft, not saved to the pool. When candidate_draft_allowed is true, candidate processing is the only save path for this file, including merges into existing candidates. If save_new_candidates is true do not instruct the recruiter to review every field or go through an import preview; the agent will save clear new profiles and surface only duplicates or blocking ambiguities. Do not propose add_record for the same attachment or claim a separate record will merge profile fields. Only when save_new_candidates is false explain that the extracted profiles remain drafts; the recruiter can ask to save them in conversation. For duplicates ask about the specific identity or conflicting facts. Original sources are retained. For source material use source_refs from the registry and never invent URLs or imply the full file was read when truncated. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless asked. For import summaries, distinguish add versus merge using reviewed_rows.action; a completed merge is not an unresolved one. Distinguish recorded facts from recommendations and unanswered questions. Do not claim an action was performed when it is only a proposal requiring review. add_record preserves the user's reported facts; occurred_at is null unless the message or file gives a definite date/time. When the user supplies changed client requirements, propose update_role_brief for the identified role. Its role_draft.brief is the complete proposed brief: preserve still-valid requirements and incorporate only supported changes. For update_role_brief, include record.occurred_at when the supplied feedback has a definite event timestamp with a timezone; otherwise leave it null so the recruiter can confirm it during review. Do not invent a time or timezone from a date alone. This preserves the original JD and records the feedback on acceptance; do not also propose add_record for the same feedback. Merely asking about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. For document preparation use work; never emit submission/search_update actions. Do not claim a draft is finished before its actual generation. No email is sent by this assistant. If person or role identity is ambiguous, ask one concise clarification before attaching records. Do not expose private notes in proposed client prose. Use role_N/person_N/attachment_N source refs where relevant. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages, and at most the 100000 characters across the latest attachment batch; make any material limit explicit.` +
     " For create_role, include related client notes/events the recruiter asked to preserve in role_records. Each entry has its own exact attachment_ref (or null for a fact from the user's message), kind, title, content, and occurred_at. Preserve the supplied event time with its timezone; use null when absent. These records belong to the new role and are saved together when directly authorized. Only an explicitly requested preview stays unsaved. Do not use add_record with an invented role reference for a role that does not yet exist. Describe the intended save; actual completion is shown by the action receipt. For other action kinds role_records is empty. " +
@@ -568,6 +472,16 @@ export const assistantReply: JobHandler = async (job, progress) => {
       sources,
     },
   );
+  const waitForAnswer = (): import("./jobs").PreparedJob => ({
+    result: {conversation_id: id, waiting_for_input: true},
+    apply: async tx => {
+      await owned(job.user_id, "conversation", id, tx, true);
+      const [message] = await rows<Message>(sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${job.user_id}::uuid,'assistant',${reply.answer},${id}::uuid,${json({actions: [], work: [], schedules: [], reminders: [], question: {...reply.clarification, status: "waiting", request: question.content}})}) RETURNING *`, tx);
+      await tx.execute(sql`UPDATE hirelix_private_conversations SET title=CASE WHEN title=${conversation.title} AND NOT EXISTS(SELECT 1 FROM hirelix_agent_messages WHERE conversation_id=${id}::uuid AND user_id=${job.user_id}::uuid AND role='assistant' AND id<>${message.id}::uuid) THEN ${plan.conversation_title} ELSE title END,updated_at=now() WHERE id=${id}::uuid AND user_id=${job.user_id}::uuid`);
+      return {message_id: message.id};
+    },
+  });
+  if (reply.clarification) return waitForAnswer();
   if (!plan.follow_up_needed) reply.follow_up = null;
   const validPermissionAction = (action: z.infer<typeof replySchema>["actions"][number]) => {
     if (action.kind !== "update_sharing_permission") return false;
@@ -606,6 +520,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
           ? "我还不能确定授权对应的候选人和职位。请补充姓名和职位，我再准备可审核的变更。"
           : "I cannot safely match that permission report to a candidate and role. Please clarify the person and role.");
       reply.follow_up = null;
+      reply.clarification = {question: reply.answer, options: []};
+      return waitForAnswer();
     }
   }
   const sourceMap = new Map(sources.map((s) => [s.ref, s]));

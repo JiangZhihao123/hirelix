@@ -2534,3 +2534,13 @@
 .ws-assistant-body { display: flex; }
 .ws-conversation { flex: 1; }
 .ws-unread-dot { color: #3c7556; padding-left: 5px; }
+
+.ws-question-card { margin: 18px 0; padding: 20px; border: 1px solid #9aaf9d; border-left: 3px solid #456b50; border-radius: 12px; background: #f6f9f4; }
+.ws-question-card > strong { display: block; color: #345c40; }
+.ws-question-card p { margin: 10px 0; }
+.ws-question-options { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+.ws-question-options [aria-pressed="true"] { border-color: #456b50; background: #e1eddf; }
+.ws-question-card label { display: block; font-size: 13px; }
+.ws-question-card textarea { display: block; width: 100%; min-height: 76px; margin: 6px 0 12px; padding: 10px; border: 1px solid #ccd7c8; border-radius: 8px; background: white; }
+.ws-question-card footer { display: flex; gap: 8px; margin-bottom: 12px; }
+.ws-question-card small { color: #637060; }
