@@ -2435,7 +2435,6 @@
 
 .ws-role-row > .ws-status { justify-self: start; }
 
-@media (max-width: 850px) { .ws-chat-new { display: none; } }
 
 @media (max-width: 620px) {
   .ws-settings-tabs { gap: 16px; }
