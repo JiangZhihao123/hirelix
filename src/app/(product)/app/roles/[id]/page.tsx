@@ -202,9 +202,9 @@ export default function RolePage({
           </button>
           <Link
             className="ws-button ws-button-primary"
-            href={`/app/roles/${id}/updates/new`}
+            href={`/app?role=${id}`}
           >
-            {t("Prepare search update")}
+            {t("Ask your assistant")}
           </Link>
         </div>
       </header>
@@ -369,7 +369,7 @@ export default function RolePage({
                         </button>
                         <Link
                           className="ws-link"
-                          href={`/app/submissions/new?role=${id}&people=${link.person_id}`}
+                          href={`/app?role=${id}&person=${link.person_id}&prompt=${encodeURIComponent(locale === "zh" ? `请给这个职位准备 ${link.person?.name || "这位候选人"} 的推荐稿，先给我审核，不要发送。` : `Prepare a recommendation for ${link.person?.name || "this candidate"} for this role, for my review. Do not send it.`)}`}
                         >
                           {t("Prepare submission")} <ArrowUpRight size={13} />
                         </Link>
@@ -427,7 +427,7 @@ export default function RolePage({
                   <Plus size={14} />
                   {t("Add record")}
                 </button>
-                <Link className="ws-link" href={`/app/roles/${id}/updates/new`}>
+                <Link className="ws-link" href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请给这个职位准备一份进展更新，先给我审核。" : "Prepare a search update for this role for my review.")}`}>
                   {t("Prepare search update")}
                 </Link>
               </div>
@@ -481,7 +481,7 @@ export default function RolePage({
               <div className="ws-actions mt-5">
                 <Link
                   className="ws-button"
-                  href={`/app/submissions/new?role=${id}`}
+                  href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请帮我为这个职位准备候选人推荐稿。" : "Help me prepare candidate recommendations for this role.")}`}
                 >
                   <Plus size={14} />
                   {t("Prepare candidate submission")}
@@ -556,7 +556,7 @@ export default function RolePage({
             </p>
             <Link
               className="ws-link mt-3"
-              href={`/app/roles/${id}/updates/new`}
+              href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请给这个职位准备一份进展更新，先给我审核。" : "Prepare a search update for this role for my review.")}`}
             >
               {t("Prepare a search update")} <ArrowUpRight size={13} />
             </Link>

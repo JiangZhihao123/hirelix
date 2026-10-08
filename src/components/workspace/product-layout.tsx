@@ -103,7 +103,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     ? searchParams.get("conversation")
     : null;
   const nav = [
-    { href: "/app", label: t("AI assistant"), icon: MessageSquare, active: isConversationPage },
+    { href: "/app", label: t("Assistant"), icon: MessageSquare, active: isConversationPage },
     {
       href: "/app/candidates",
       label: t("Candidates"),
@@ -464,10 +464,10 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 <Link
                   href="/app"
                   className="ws-topbar-task"
-                  aria-label={t("AI assistant")}
-                  title={t("AI assistant")}
+                  aria-label={t("Assistant")}
+                  title={t("Assistant")}
                 >
-                  <MessageSquare size={17} /><span>{t("AI assistant")}</span>
+                  <MessageSquare size={17} /><span>{t("Assistant")}</span>
                 </Link>
               </>
             )}

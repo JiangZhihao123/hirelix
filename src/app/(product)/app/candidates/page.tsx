@@ -538,7 +538,7 @@ function CandidateDetails({
         </div>
         <div className="ws-actions">
           <button className="ws-button" onClick={() => setEdit(true)}><Pencil size={14} />{t("Edit")}</button>
-          <Link className="ws-button ws-button-primary" href={`/app?person=${id}`}>{t("Ask AI assistant")}<ArrowUpRight size={14} /></Link>
+          <Link className="ws-button ws-button-primary" href={`/app?person=${id}`}>{t("Ask your assistant")}<ArrowUpRight size={14} /></Link>
         </div>
       </div>
       <div className="ws-tabs" role="tablist" aria-label={t("Candidate sections")}>

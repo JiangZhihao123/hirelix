@@ -36,8 +36,9 @@ import {
 } from "@/components/workspace/client";
 import { ConversationImport } from "@/components/workspace/import-review";
 import { RoleForm } from "@/components/workspace/forms";
+import { AssistantWork, AssistantAgreement } from "@/components/workspace/assistant-work";
 import { RecentWork } from "@/components/workspace/recent-work";
-import { RevisionPanel } from "@/components/workspace/revision";
+import { ConversationRevision } from "@/components/workspace/assistant-work";
 import { PersonalMemories } from "@/components/workspace/memories";
 import type {
   Deliverable,
@@ -59,6 +60,7 @@ type Detail = {
   conversation: Conversation;
   messages: Message[];
   job: Job | null;
+  work: Job[];
   document: Deliverable | null;
 };
 function assistantDraftKey(
@@ -192,12 +194,21 @@ function AssistantWorkspace({
       return null;
     }
   }
+  const [revisionTarget, setRevisionTarget] = useState<Deliverable | null>(null);
   const request = useRef<{ text: string; key: string } | null>(null),
     scroll = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null);
   const job = query.data?.job;
   useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = !!job && ["queued", "running"].includes(job.status);
+  const hasAgreement = query.data?.messages.some(message => (message.metadata as AssistantMeta).schedules?.length);
+  const delegatedPending = query.data?.work?.some(work => ["queued", "running"].includes(work.status));
+  const refreshConversation = query.refresh;
+  useEffect(() => {
+    if (!hasAgreement && !delegatedPending) return;
+    const timer = setInterval(refreshConversation, delegatedPending ? 2500 : 15000);
+    return () => clearInterval(timer);
+  }, [hasAgreement, delegatedPending, refreshConversation]);
   const linkedDocument = useQuery<{ deliverable: Deliverable }>(documentId && !conversationId ? `/deliverables/${documentId}` : null);
   const currentDocument = query.data?.document || linkedDocument.data?.deliverable;
   const activeRoleId = currentDocument?.role_id || query.data?.conversation.role_id || roleId;
@@ -396,7 +407,7 @@ function AssistantWorkspace({
         setError(t("Some files need attention. Retry or remove them, then send. Uploaded files are kept."));
         return;
       }
-      const signature = JSON.stringify({ text, fileIds });
+      const signature = JSON.stringify({ text, fileIds, revisionTarget: revisionTarget?.id });
       if (request.current?.text !== signature)
         request.current = { text: signature, key: crypto.randomUUID() };
       const result = await api<{ conversation_id: string }>("/conversations", {
@@ -405,6 +416,8 @@ function AssistantWorkspace({
           message: text,
           file_ids: fileIds,
           locale,
+          work_document_id: revisionTarget?.id || null,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           request_key: request.current.key,
           conversation_id: conversationId,
           role_id: conversationId ? null : roleId || null,
@@ -413,6 +426,7 @@ function AssistantWorkspace({
         }),
       });
       setDraft("");
+      setRevisionTarget(null);
       setAttachments([]);
       localStorage.removeItem(draftStorageKey);
       localStorage.removeItem(draftRoleKey);
@@ -521,7 +535,7 @@ function AssistantWorkspace({
               ) : (
                 <>
                   <h1 title={query.data?.conversation.title}>
-                    {query.data?.conversation.title || t("AI assistant")}
+                    {query.data?.conversation.title || t("Assistant")}
                   </h1>
                   {conversationId && query.data && (
                     <button
@@ -607,8 +621,8 @@ function AssistantWorkspace({
                 <div className="ws-assistant-mark">
                   <BrandMark small />
                 </div>
-                <h2>{t("What would you like to work on?")}</h2>
-                <p>{currentDocument ? t("This saved document is ready to discuss or revise. Tell me what you want to change.") : t("Tell me what you want to get done. Drop in CVs, JDs and notes together.")}</p>
+                <h2>{t("What would you like me to take care of?")}</h2>
+                <p>{currentDocument ? t("This saved document is ready to discuss or revise. Tell me what you want to change.") : t("Your personal headhunting assistant. Share the goal and the context; I’ll carry the work forward.")}</p>
                 {!activeRoleId && !activePersonId && !documentId && <RecentWork />}
                 <button className="ws-link ws-home-memory" onClick={() => setMemoriesOpen(true)}>{t("What I remember")} <ArrowUpRight size={13} /></button>
               </div>
@@ -641,7 +655,9 @@ function AssistantWorkspace({
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={job?.status === "done" ? job.id : undefined} />
                     ))}
-                    {metadata.revision && currentDocument && metadata.revision.document_id === currentDocument.id && <RevisionPanel document={currentDocument} disabled={currentDocument.status !== "draft"} jobId={metadata.revision.job_id} embedded onApplied={() => { query.refresh(); linkedDocument.refresh(); }} />}
+                    {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} onReady={query.refresh} onRevise={document => { setRevisionTarget(document); setDraft(`${document.title}：${t("Please revise the draft: ")}`); composer.current?.focus(); }} />)}
+                    {metadata.schedules?.filter(receipt => !query.data?.messages.slice(query.data.messages.indexOf(message) + 1).some(later => (later.metadata as AssistantMeta).schedules?.some(item => item.id === receipt.id))).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
+                    {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={query.refresh} />}
                     {metadata.sources?.length ? (
                       <div className="ws-message-sources">
                         {metadata.sources.map((source, index) => (
@@ -716,6 +732,7 @@ function AssistantWorkspace({
                 );
               })
             )}
+            {query.data?.work?.filter(work => !query.data?.messages.some(message => (message.metadata as AssistantMeta).work?.some(receipt => receipt.job_id === work.id))).map(work => <AssistantWork key={work.id} receipt={{ job_id: work.id, kind: "search_update", title: t("Your agreed recurring update") }} onReady={query.refresh} onRevise={document => { setRevisionTarget(document); setDraft(`${document.title}：${t("Please revise the draft: ")}`); composer.current?.focus(); }} />)}
             {optimistic &&
               !query.data?.messages.some(
                 (message) =>
@@ -792,6 +809,7 @@ function AssistantWorkspace({
               }
             }}
           >
+            {revisionTarget && <div className="ws-composer-context-tags"><span className="ws-composer-context-tag"><Pencil size={12} />{t("Revising")}: {revisionTarget.title}<button type="button" className="ws-icon" onClick={() => setRevisionTarget(null)} aria-label={t("Clear document context")}><X size={12} /></button></span></div>}
             <input
               ref={fileInput}
               className="sr-only"

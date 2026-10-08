@@ -25,7 +25,7 @@ export function ScheduledDrafts({ role, people, schedule, refresh }: { role: Rol
   async function retry() {
     setBusy(true); setError("");
     try {
-      await api(task.data?.job.status === "error" ? `/jobs/${task.data.job.id}/retry` : `/roles/${role.id}/schedule`, { method: "POST" });
+      await api(task.data?.job.status === "error" ? `/jobs/${task.data.job.id}` : `/roles/${role.id}/schedule`, { method: "POST" });
       refresh(); task.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Could not retry draft"); }
     finally { setBusy(false); }
