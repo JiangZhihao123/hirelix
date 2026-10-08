@@ -1,5 +1,7 @@
 # Personal Agent 英文落地页
 
+> 2026-10-08 发布准备：当前定位、价格和 SEO/GEO 范围以 [seo-geo-launch.md](seo-geo-launch.md) 为准。下文记录 2026-09 初次改版时的决定与验证；其中“价格尚未确定”等描述不再代表当前状态。
+
 ## 产品决定
 
 - 首屏定位：Your personal AI agent for headhunting.

@@ -88,3 +88,30 @@ test("analytics context attributes Product Hunt links and referrers", () => {
   assert.equal(queryContext.traffic_source, "producthunt");
   assert.equal(referrerContext.traffic_source, "producthunt");
 });
+
+test("analytics distinguishes AI referrals and Bing without overriding campaign attribution", () => {
+  for (const [referrer, source] of [
+    ["https://chatgpt.com/", "chatgpt"],
+    ["https://chat.openai.com/", "chatgpt"],
+    ["https://www.perplexity.ai/search/example", "perplexity"],
+    ["https://claude.ai/", "claude"],
+    ["https://copilot.microsoft.com/", "copilot"],
+    ["https://gemini.google.com/", "gemini"],
+    ["https://www.bing.com/search?q=assistant", "bing_organic"],
+    ["https://chatgpt.com.example.org/", "referral"],
+    ["https://example.org/?url=https://perplexity.ai/", "referral"],
+    ["not-a-url", "referral"],
+    ["", "direct"],
+  ]) {
+    assert.equal(getAnalyticsContextFromParams(new URLSearchParams(), {}, referrer).traffic_source, source);
+  }
+  assert.equal(getAnalyticsContextFromParams(new URLSearchParams({ utm_source: "newsletter" }), {}, "https://chatgpt.com/").traffic_source, "newsletter");
+  assert.equal(getAnalyticsContextFromParams(new URLSearchParams({ gclid: "test" }), {}, "https://gemini.google.com/").traffic_source, "google_ads");
+});
+
+
+test("AI-generated UTM domains use the same source as AI referrers", () => {
+  assert.equal(getAnalyticsContextFromParams(new URLSearchParams({ utm_source: "chatgpt.com" })).traffic_source, "chatgpt");
+  assert.equal(getAnalyticsContextFromParams(new URLSearchParams({ utm_source: "perplexity.ai" })).traffic_source, "perplexity");
+  assert.equal(getAnalyticsContextFromParams(new URLSearchParams({ traffic_source: "partner", utm_source: "chatgpt.com" })).traffic_source, "partner");
+});

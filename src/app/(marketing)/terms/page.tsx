@@ -1,11 +1,7 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/seo";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/terms" },
-  title: "Terms of Service | Hirelix",
-  description: "Terms of Service for Hirelix.",
-};
+export const metadata = publicMetadata("/terms", "Terms of Service | Hirelix", "Terms of Service for Hirelix.");
 
 export default function TermsPage() {
   return (

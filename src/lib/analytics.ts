@@ -220,11 +220,25 @@ function detectTrafficSource(params: SearchParamsLike, referrer = "") {
     return "google_ads";
   }
 
+  const aiSources = [
+    ["chatgpt.com", "chatgpt"], ["chat.openai.com", "chatgpt"],
+    ["perplexity.ai", "perplexity"], ["claude.ai", "claude"],
+    ["copilot.microsoft.com", "copilot"], ["gemini.google.com", "gemini"],
+  ] as const;
+
   if (utmSource) {
-    return utmSource;
+    return aiSources.find(([host]) => host === utmSource)?.[1] || utmSource;
   }
 
   if (referralHint === "producthunt") return "producthunt";
+  // Parse the host so a query string or lookalike domain cannot claim AI attribution.
+  let referralHost = "";
+  try { referralHost = new URL(referrer).hostname.toLowerCase(); } catch { /* Unknown referrer. */ }
+  for (const [host, source] of aiSources) {
+    if (referralHost === host || referralHost.endsWith(`.${host}`)) return source;
+  }
+  if (referralHost === "bing.com" || referralHost.endsWith(".bing.com")) return "bing_organic";
+
   if (referrer.includes("google.")) return "google_organic";
   if (referrer.includes("linkedin.")) return "linkedin";
   if (referrer.includes("reddit.")) return "reddit";

@@ -1,8 +1,10 @@
 User-agent: *
 Allow: /
-Disallow: /app
+Disallow: /app$
+Disallow: /app/
 Disallow: /api/
 Disallow: /ops/
+Disallow: /recommendation/
 Disallow: /share/
 Disallow: /invite/
 Disallow: /go/

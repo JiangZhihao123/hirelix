@@ -10,8 +10,21 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/workspace/deliverables/*/export": ["./src/assets/fonts/*"],
   },
+  async redirects() {
+    return [{
+      source: "/:path*",
+      has: [{ type: "host", value: "www.hirelix.online" }],
+      destination: "https://hirelix.online/:path*",
+      permanent: true,
+    }];
+  },
   async headers() {
-    return [{ source: "/recommendation/:path*", headers: [
+    return [
+      ...["/app/:path*", "/api/:path*", "/ops/:path*", "/invite/:path*", "/go/:path*", "/o/:path*"].map(source => ({
+        source,
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      })),
+      { source: "/recommendation/:path*", headers: [
       { key: "Cache-Control", value: "private, no-store, max-age=0" },
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },

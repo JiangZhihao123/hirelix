@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_URL, SITE_TITLE, SITE_DESCRIPTION } from "@/lib/seo";
 import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
@@ -16,16 +17,12 @@ const inter = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://hirelix.online"),
+  metadataBase: new URL(SITE_URL),
   verification: {
     google: "4o3NyYXO-oCyTIei_hlKZfz87B49ELEuTPkvz-uFzQo",
   },
-  title: "Hirelix | Your Personal AI Agent for Headhunting",
-  description:
-    "Work with your candidates, manage ongoing client roles, and prepare submissions with a personal AI agent that keeps your work in context.",
-  alternates: {
-    canonical: "/",
-  },
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   icons: {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
@@ -33,29 +30,7 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
-  openGraph: {
-    title: "Hirelix | Your Personal AI Agent for Headhunting",
-    description:
-      "Work with your candidates, manage ongoing client roles, and prepare submissions with a personal AI agent that keeps your work in context.",
-    type: "website",
-    url: "https://hirelix.online",
-    siteName: "Hirelix",
-    images: [
-      {
-        url: "https://hirelix.online/opengraph-image",
-        width: 1200,
-        height: 630,
-        alt: "Hirelix — your personal AI agent for headhunting",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Hirelix | Your Personal AI Agent for Headhunting",
-    description:
-      "Work with your candidates, manage ongoing client roles, and prepare submissions with a personal AI agent that keeps your work in context.",
-    images: ["https://hirelix.online/opengraph-image"],
-  },
+
 };
 
 export default function RootLayout({

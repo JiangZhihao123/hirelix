@@ -25,7 +25,7 @@ export default function OpenGraphImage() {
           display: "flex",
           flexDirection: "column",
           marginTop: 75,
-          fontSize: 72,
+          fontSize: 64,
           letterSpacing: -3,
           lineHeight: 1.1,
         }}
@@ -41,7 +41,7 @@ export default function OpenGraphImage() {
           color: "#65716a",
         }}
       >
-        Your candidates. Your client roles. Your next move.
+        Your candidates. Your context. From one role to the next.
       </div>
       <div
         style={{

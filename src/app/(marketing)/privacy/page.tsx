@@ -1,11 +1,7 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/seo";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/privacy" },
-  title: "Privacy Policy | Hirelix",
-  description: "Privacy Policy for Hirelix.",
-};
+export const metadata = publicMetadata("/privacy", "Privacy Policy | Hirelix", "Privacy Policy for Hirelix.");
 
 export default function PrivacyPage() {
   return (

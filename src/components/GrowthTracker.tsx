@@ -25,6 +25,10 @@ export function GrowthTracker() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // Capture the entry source on every public landing route before internal navigation.
+    // This persists only in the existing session attribution store.
+    getAnalyticsContextFromBrowser();
+
     const visitorId = getOrCreateStorageValue(window.localStorage, VISITOR_KEY);
     const sessionId = getOrCreateStorageValue(window.sessionStorage, SESSION_KEY);
     window.__hirelixGrowthIdentity = {

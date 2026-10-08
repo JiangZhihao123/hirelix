@@ -91,7 +91,7 @@ test.describe("Personal agent landing", () => {
     expect(url.searchParams.get("utm_campaign")).toBe("personal-agent");
     expect(url.searchParams.get("entry")).toBe("free_trial");
     await expect(
-      page.getByRole("heading", { name: "Start with your private assistant" }),
+      page.getByRole("heading", { name: "Start with your private AI assistant" }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Continue with Google/ }),

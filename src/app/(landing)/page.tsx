@@ -54,7 +54,7 @@ const scenarios = [
     description:
       "Bring in a client message or a call note. Prepare an update to the role requirements, with the original brief and feedback kept in view.",
     prompt:
-      "Northstar now cares more about team building than exact industry experience. Update the brief.",
+      "Northstar now cares more about team building than exact industry experience. Prepare a revised brief for me to review.",
     answer:
       "I’ve prepared a change to the role brief for you to review. The original JD will be kept.",
     result: "Northstar · VP Product",
@@ -202,9 +202,7 @@ export default function Home() {
               <br className="ha-desktop-break" /> for <span>headhunting.</span>
             </h1>
             <p className="ha-lead">
-              Your candidates. Your client roles. Your next move.
-              <br className="ha-desktop-break" /> Work with an agent that keeps
-              it all in context.
+              An assistant for your recruiting desk, from one conversation to the next. Build on your candidates, client work, and the way you like to work.
             </p>
             <div className="ha-hero-actions">
               <button
@@ -426,8 +424,8 @@ export default function Home() {
               </p>
               <p>
                 When the next role comes in, your agent can work with those
-                saved records. The conversation starts with what you already
-                know.
+                saved records. Ask it to remember your preferences, then update
+                or forget them as your way of working changes.
               </p>
               <a className="ha-text-link" href="#get-started">
                 Bring your work to Hirelix <ArrowRight size={16} />
@@ -502,10 +500,9 @@ export default function Home() {
             <div className="ha-control-grid">
               <article>
                 <ShieldCheck />
-                <h3>Review before saving.</h3>
+                <h3>You set the direction.</h3>
                 <p>
-                  Your agent proposes changes to records and role requirements.
-                  You review them before they are applied.
+                  Your agent acts on clear instructions and asks you to resolve ambiguous identities or conflicting facts. Review client-facing work before sharing.
                 </p>
               </article>
               <article>
@@ -597,7 +594,7 @@ export default function Home() {
             <h2>
               Your next role.
               <br />
-              Your own AI agent.
+              An assistant that stays with you.
             </h2>
             <p>
               Start with a candidate, a client brief, or a question.
@@ -626,6 +623,9 @@ export default function Home() {
         </Link>
         <span>Your personal AI agent for headhunting.</span>
         <div>
+          <Link href="/product">Product</Link>
+          <Link href="/pricing">Pricing</Link>
+          <Link href="/guides/candidate-rediscovery">Guides</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
           <Link href="/contact">Contact</Link>

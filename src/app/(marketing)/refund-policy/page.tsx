@@ -1,11 +1,7 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/seo";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/refund-policy" },
-  title: "Refund Policy | Hirelix",
-  description: "Refund Policy for Hirelix.",
-};
+export const metadata = publicMetadata("/refund-policy", "Refund Policy | Hirelix", "Refund Policy for Hirelix.");
 
 export default function RefundPolicyPage() {
   return (

@@ -1,11 +1,7 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/seo";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
-export const metadata: Metadata = {
-  alternates: { canonical: "/contact" },
-  title: "Contact | Hirelix",
-  description: "Contact YieldMirror about Hirelix.",
-};
+export const metadata = publicMetadata("/contact", "Contact | Hirelix", "Contact YieldMirror about Hirelix.");
 
 export default function ContactPage() {
   return (
