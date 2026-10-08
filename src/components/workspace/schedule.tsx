@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useT } from "@/components/LanguageProvider";
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { api, Dialog, ErrorNotice, Field, useQuery } from "./client";
 import type { Job, Role, RoleCandidate, Schedule } from "@/lib/workspace/types";
 
 export function ScheduledDrafts({ role, people, schedule, refresh }: { role: Role; people: RoleCandidate[]; schedule: Schedule | null; refresh: () => void }) {
   const t = useT();
+  const { locale } = useLanguage();
   const [editing, setEditing] = useState(false), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const task = useQuery<{ job: Job }>(schedule?.last_job_id ? `/jobs/${schedule.last_job_id}` : null);
   const refreshTask = task.refresh;
@@ -35,7 +36,7 @@ export function ScheduledDrafts({ role, people, schedule, refresh }: { role: Rol
     <div className="ws-inspector-heading"><h3>{t("Scheduled search updates")}</h3><button className="ws-link" onClick={() => setEditing(true)}>{t(schedule ? "Edit agreement" : "Set an agreement")}</button></div>
     <p>{t("Prepare a draft for your review. Nothing is sent to a client. Each completed draft uses AI credits.")}</p>
     {schedule && <>
-      <p>{schedule.enabled && role.status === "active" ? `${t("Next draft")}: ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} (${schedule.timezone})` : t("Paused. Scheduled drafts will not be prepared.")}</p>
+      <p>{schedule.enabled && role.status === "active" ? `${t("Next draft")}: ${new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} (${schedule.timezone})` : t("Paused. Scheduled drafts will not be prepared.")}</p>
       <button className="ws-link" disabled={busy} onClick={pause}>{t(schedule.enabled ? "Pause agreement" : "Resume agreement")}</button>
       <ErrorNotice error={schedule.error || job?.error || error || task.error} retry={schedule.error || job?.status === "error" ? retry : undefined} />
       {job && <p>{t(job.status === "done" ? "Draft prepared for review" : job.status === "error" ? "Draft needs attention" : job.progress)} {job.status === "done" && typeof job.result?.href === "string" ? <Link className="ws-link" href={job.result.href}>{t("Open draft")}</Link> : null}</p>}

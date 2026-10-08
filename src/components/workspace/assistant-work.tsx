@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Clock3, FileText, Loader2, ArrowUpRight } from "lucide-react";
 import { AgentText } from "@/components/AgentText";
-import { useT } from "@/components/LanguageProvider";
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { api, ErrorNotice, useQuery } from "./client";
 import { RevisionPanel } from "./revision";
 import type { Deliverable, Job, Schedule } from "@/lib/workspace/types";
@@ -50,6 +50,7 @@ export function AssistantWork({ receipt, onReady, onRevise }: { receipt: Assista
 
 export function AssistantAgreement({ receipt }: { receipt: AssistantScheduleReceipt }) {
   const t = useT();
+  const { locale } = useLanguage();
   const query = useQuery<{ schedule: Schedule | null }>(`/roles/${receipt.role_id}/schedule`);
   const schedule = query.data?.schedule;
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -68,5 +69,5 @@ export function AssistantAgreement({ receipt }: { receipt: AssistantScheduleRece
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not retry draft"); }
     finally { setBusy(false); }
   }
-  return <section className="ws-assistant-agreement"><Clock3 size={18} /><div><strong>{t("Search update agreement")}</strong><p>{receipt.title}</p>{schedule && <><small>{schedule.enabled ? `${t("Next draft")}: ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} · ${schedule.timezone}` : t("Agreement paused")}</small><small>{t("Role requirements")} · {schedule.person_ids.length} {t("candidate profiles")}{schedule.include_role_records ? ` · ${t("Role records included")}` : ""}{schedule.include_candidate_records ? ` · ${t("Candidate notes included")}` : ""}{!schedule.include_role_records && !schedule.include_candidate_records ? ` · ${t("No private notes")}` : ""}</small></>}<ErrorNotice error={error || query.error || schedule?.error || ""} retry={query.error ? query.refresh : schedule?.error && !busy ? retry : undefined} /></div>{schedule && <button className="ws-link" disabled={busy} onClick={toggle}>{t(schedule.enabled ? "Pause agreement" : "Resume agreement")}</button>}</section>;
+  return <section className="ws-assistant-agreement"><Clock3 size={18} /><div><strong>{t("Search update agreement")}</strong><p>{receipt.title}</p>{schedule && <><small>{schedule.enabled ? `${t("Next draft")}: ${new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: schedule.timezone }).format(new Date(schedule.next_run_at))} · ${schedule.timezone}` : t("Agreement paused")}</small><small>{t("Role requirements")} · {schedule.person_ids.length} {t("candidate profiles")}{schedule.include_role_records ? ` · ${t("Role records included")}` : ""}{schedule.include_candidate_records ? ` · ${t("Candidate notes included")}` : ""}{!schedule.include_role_records && !schedule.include_candidate_records ? ` · ${t("No private notes")}` : ""}</small></>}<ErrorNotice error={error || query.error || schedule?.error || ""} retry={query.error ? query.refresh : schedule?.error && !busy ? retry : undefined} /></div>{schedule && <button className="ws-link" disabled={busy} onClick={toggle}>{t(schedule.enabled ? "Pause agreement" : "Resume agreement")}</button>}</section>;
 }
