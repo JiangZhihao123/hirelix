@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import { assistantReply, conversationDetails, sendMessage, type AssistantMeta } from "../../src/lib/workspace/conversations";
-import { createRole, linkPerson } from "../../src/lib/workspace/roles";
+import { createRole } from "../../src/lib/workspace/roles";
 import { listPersonalMemories } from "../../src/lib/workspace/memories";
 import { createPerson } from "../../src/lib/workspace/people";
 import { addRecord } from "../../src/lib/workspace/records";
@@ -42,7 +42,7 @@ async function reply(message: string, roleId: string, conversationId?: string, d
 test("real AI + PG: delegate feedback, draft, revise, recurring agreement, pause and resume in one conversation", { timeout: 600000 }, async () => {
   const role = await createRole(owner, { title: "QA VP Product", client_name: "QA Cedar", jd_text: "Lead an enterprise SaaS product team in London. Two office days a week. Compensation unconfirmed.", brief: { priorities: ["Enterprise SaaS leadership", "Two office days a week in London"], flexible: [], unknowns: ["Compensation"] } });
   const person = await createPerson(owner, { name: "QA Morgan Reed", headline: "Enterprise SaaS product leader", location: "London", skills: ["B2B SaaS", "Product leadership"], note: "PRIVATE-NEVER-SHARE-7391", email: "private-7391@example.test", profile: { summary: "Led a 12-person product team for an enterprise SaaS platform." } });
-  await linkPerson(owner, role.id, person.id);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid`)).length, 0);
   const feedback = await reply("客户刚确认这个职位的薪酬是 GBP 165,000–180,000，请更新要求并保存这条反馈，原有其他要求保留。", role.id);
   const saved = await owned<Role>(owner, "role", role.id);
   assert.equal(saved.version, 2);
@@ -57,6 +57,8 @@ test("real AI + PG: delegate feedback, draft, revise, recurring agreement, pause
   const recommendation = await reply("给 QA Cedar 这个职位准备 QA Morgan Reed 的中文推荐稿，只用公开履历和职位要求，不要带私人笔记，不要发送。", role.id, feedback.conversation.id);
   assert.equal(recommendation.meta.work?.length, 1, recommendation.text);
   assert.equal(recommendation.meta.actions?.some(action => action.kind === "submission"), false);
+  const links = await rows<{ person_id: string; permission: string }>(sql`SELECT person_id,permission FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid`);
+  assert.deepEqual(links.map(link => ({ person_id: link.person_id, permission: link.permission })), [{ person_id: person.id, permission: "unknown" }], "delegation links only the requested candidate without granting sharing permission");
   const pending = await claimJob(["deliverable"]);
   assert.equal(pending?.id, recommendation.meta.work![0].job_id);
   assert.doesNotMatch(JSON.stringify(pending!.payload.source), /PRIVATE-NEVER|private-7391/);

@@ -140,8 +140,9 @@ export async function linkPerson(
   userId: string,
   roleId: string,
   personId: string,
+  runner?: Runner,
 ) {
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     await owned(userId, "role", roleId, tx);
     await owned(userId, "person", personId, tx);
     const [link] = await rows<RoleCandidate>(
@@ -150,7 +151,8 @@ export async function linkPerson(
     );
     await snapshot(userId, "role_candidate", link, tx);
     return link;
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }
 export const relationshipInput = z.object({
   permission: z.enum(["unknown", "confirmed", "declined"]),
