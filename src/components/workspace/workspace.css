@@ -2516,5 +2516,10 @@
 .ws-assistant-agreement strong { font-size: 13px; }
 .ws-assistant-agreement p { margin: 4px 0; font-size: 12px; }
 .ws-assistant-agreement small { display: block; margin-top: 4px; font-size: 11px; line-height: 1.6; }
-.ws-current-work { border-left: 2px solid #708461; padding-left: 14px; }
+.ws-current-work { grid-column: 1 / -1; border-left: 2px solid #708461; padding-left: 14px; }
 @media (max-width: 600px) { .ws-assistant-delivery > header { padding: 12px; flex-wrap: wrap; } .ws-delivery-state { margin-left: 43px; } .ws-delivery-content { padding: 0 12px 12px; } .ws-assistant-delivery > footer { padding: 12px; } }
+
+.ws-recent-work .ws-recent-conversations { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
+.ws-recent-conversations h3 { grid-column: 1 / -1; }
+.ws-recent-work small svg { display: inline; vertical-align: -2px; }
+@media (max-width: 680px) { .ws-recent-work .ws-recent-conversations { grid-template-columns: minmax(0, 1fr); } }
