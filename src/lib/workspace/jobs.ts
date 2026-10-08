@@ -67,6 +67,10 @@ export async function finishJob(job: Job, prepared: PreparedJob) {
     await tx.execute(
       sql`UPDATE hirelix_private_jobs SET status='done',result=${json(result)},progress='Complete',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid`,
     );
+    if (typeof job.payload.conversation_id === "string" && !job.payload.schedule_id) {
+      const href = `/app?conversation=${job.payload.conversation_id}`;
+      await tx.execute(sql`INSERT INTO hirelix_private_notifications(user_id,title,href,kind,request_key) VALUES(${job.user_id}::uuid,${job.kind === "chat" ? "Reply ready" : "Work complete"},${href},'conversation_result',${`job-ready:${job.id}`}) ON CONFLICT DO NOTHING`);
+    }
     return result;
   });
 }
@@ -145,4 +149,13 @@ export async function processJob(
     clearInterval(timer);
   }
   return true;
+}
+
+export async function cancelJob(userId: string, id: string) {
+  return db.transaction(async tx => {
+    const job = await owned<Job>(userId, "job", id, tx, true);
+    if (!["queued", "running"].includes(job.status)) return job;
+    const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+    return cancelled;
+  });
 }

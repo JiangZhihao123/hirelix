@@ -76,6 +76,7 @@ test("real AI + PG: delegate feedback, draft, revise, recurring agreement, pause
 
   const revision = await reply("把这份推荐稿缩短，保留有证据的团队规模，准备修改供我审核。", role.id, detail.conversation.id, detail.document!.id);
   assert.equal(revision.meta.revision?.document_id, detail.document!.id);
+  assert.equal(revision.meta.work?.length, 0, "revising an existing document must not also create a new document");
   const revisionJob = await claimJob(["revision"]);
   assert.equal(revisionJob?.id, revision.meta.revision?.job_id);
   await finishJob(revisionJob!, await generateRevision(revisionJob!, async () => {}));

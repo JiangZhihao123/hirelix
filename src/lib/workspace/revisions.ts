@@ -31,6 +31,7 @@ export async function requestRevision(
 ) {
   const input = z
     .object({
+      preview_only: z.boolean().default(false),
       instructions: z.string().trim().min(1).max(6000),
       expected_version: z.number().int().positive(),
       request_key: z.string().min(1).max(200),
@@ -49,7 +50,8 @@ export async function requestRevision(
         prior.kind !== "revision" ||
         prior.payload.deliverable_id !== id ||
         prior.payload.expected_version !== input.expected_version ||
-        prior.payload.instructions !== input.instructions
+        prior.payload.instructions !== input.instructions ||
+        Boolean(prior.payload.preview_only) !== input.preview_only
       )
         throw new WorkspaceError(
           "This request belongs to another revision",
@@ -78,6 +80,7 @@ export async function requestRevision(
         deliverable_id: id,
         expected_version: document.version,
         instructions: input.instructions,
+        preview_only: input.preview_only,
         title: document.title,
         content: document.content,
         source: document.source_snapshot,
@@ -123,6 +126,10 @@ export const generateRevision: JobHandler = async (job, progress) => {
       deliverable_id: job.payload.deliverable_id,
       expected_version: job.payload.expected_version,
     },
+    apply: job.payload.preview_only ? undefined : async (tx) => {
+      const updated = await saveRevision(job.user_id, document.id, job, proposal, tx);
+      return { applied_version: updated.version };
+    },
   };
 };
 export async function applyRevision(
@@ -144,33 +151,22 @@ export async function applyRevision(
         "This revision is not ready for this document",
         409,
       );
-    const document = await owned<Deliverable>(
-      userId,
-      "deliverable",
-      id,
-      tx,
-      true,
-    );
-    if (job.result?.applied_version) return document;
-    if (document.status !== "draft")
-      throw new WorkspaceError("The submitted copy is preserved", 409);
-    expectVersion(document.version, input.expected_version);
-    expectVersion(
-      document.version,
-      z.number().parse(job.payload.expected_version),
-    );
-    const proposal = proposalSchema.parse(job.result);
-    const source = proposal.audience
-      ? { ...document.source_snapshot, audience: proposal.audience }
-      : document.source_snapshot;
-    const [updated] = await rows<Deliverable>(
-      sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`,
-      tx,
-    );
-    await snapshot(userId, "deliverable", updated, tx);
+    const updated = await saveRevision(userId, id, job, proposalSchema.parse(job.result), tx, input.expected_version);
     await tx.execute(
       sql`UPDATE hirelix_private_jobs SET result=${json({ ...job.result, applied_version: updated.version })} WHERE user_id=${userId}::uuid AND id=${job.id}::uuid`,
     );
     return updated;
   });
+}
+
+async function saveRevision(userId: string, id: string, job: Job, proposal: z.infer<typeof proposalSchema>, tx: Runner, expectedVersion?: number) {
+  const document = await owned<Deliverable>(userId, "deliverable", id, tx, true);
+  if (job.result?.applied_version) return document;
+  if (document.status !== "draft") throw new WorkspaceError("The submitted copy is preserved", 409);
+  expectVersion(document.version, expectedVersion ?? z.number().parse(job.payload.expected_version));
+  expectVersion(document.version, z.number().parse(job.payload.expected_version));
+  const source = proposal.audience ? { ...document.source_snapshot, audience: proposal.audience } : document.source_snapshot;
+  const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+  await snapshot(userId, "deliverable", updated, tx);
+  return updated;
 }

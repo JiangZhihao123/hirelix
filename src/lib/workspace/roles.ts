@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { db } from "@/db/client";
 import {
+  enqueue,
   expectVersion,
   json,
   owned,
@@ -72,6 +73,7 @@ export async function createRole(
       tx,
     );
     await snapshot(userId, "role", role, tx);
+    await enqueue(userId, "index", `role-index:${role.id}:${role.version}`, {role_id: role.id}, tx);
     await addRecord(
       userId,
       {
@@ -104,6 +106,7 @@ export async function updateRole(
       tx,
     );
     await snapshot(userId, "role", role, tx);
+    await enqueue(userId, "index", `role-index:${role.id}:${role.version}`, {role_id: role.id}, tx);
     if (
       prior.jd_text !== role.jd_text ||
       !isDeepStrictEqual(prior.brief, role.brief)

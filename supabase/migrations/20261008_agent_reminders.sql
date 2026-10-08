@@ -1,0 +1,12 @@
+BEGIN;
+ALTER TABLE hirelix_private_schedules ADD COLUMN kind text NOT NULL DEFAULT 'search_update' CHECK(kind IN ('search_update','reminder'));
+ALTER TABLE hirelix_private_schedules ADD COLUMN title text;
+ALTER TABLE hirelix_private_schedules ADD COLUMN conversation_id uuid;
+ALTER TABLE hirelix_private_schedules ADD COLUMN completed_at timestamptz;
+ALTER TABLE hirelix_private_schedules ADD COLUMN version integer NOT NULL DEFAULT 1;
+ALTER TABLE hirelix_private_schedules ALTER COLUMN role_id DROP NOT NULL;
+ALTER TABLE hirelix_private_schedules ALTER COLUMN weekday DROP NOT NULL;
+ALTER TABLE hirelix_private_schedules ALTER COLUMN local_time DROP NOT NULL;
+ALTER TABLE hirelix_private_schedules ADD CONSTRAINT private_schedule_conversation FOREIGN KEY(user_id,conversation_id) REFERENCES hirelix_private_conversations(user_id,id);
+ALTER TABLE hirelix_private_schedules ADD CONSTRAINT private_schedule_kind_fields CHECK((kind='search_update' AND role_id IS NOT NULL AND weekday IS NOT NULL AND local_time IS NOT NULL) OR (kind='reminder' AND title IS NOT NULL AND conversation_id IS NOT NULL AND role_id IS NULL));
+COMMIT;

@@ -7,10 +7,10 @@ import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-pro
 import { createRole, linkPerson } from "../../src/lib/workspace/roles";
 import { createPerson } from "../../src/lib/workspace/people";
 import { addRecord } from "../../src/lib/workspace/records";
-import { owned, rows, WorkspaceError } from "../../src/lib/workspace/database";
+import { enqueue, owned, rows, WorkspaceError } from "../../src/lib/workspace/database";
 import { saveSchedule, nextScheduleRun, queueScheduledDrafts, retrySchedule } from "../../src/lib/workspace/schedules";
 import { generateDeliverable } from "../../src/lib/workspace/deliverables";
-import { claimJob, finishJob, failJob, retryJob } from "../../src/lib/workspace/jobs";
+import { claimJob, finishJob, failJob, retryJob, LostLease } from "../../src/lib/workspace/jobs";
 import type { Deliverable, Job, Schedule } from "../../src/lib/workspace/types";
 const database = new URL(process.env.DATABASE_URL ?? "postgresql://invalid/invalid");
 if (!["localhost", "127.0.0.1"].includes(database.hostname) || !database.pathname.startsWith("/hirelix_workspace_qa_") || process.env.WORKSPACE_REAL_AI_TEST !== "true") throw new Error("Use isolated local PostgreSQL and real AI; stop the QA worker while this test claims its jobs");
@@ -103,4 +103,20 @@ test("real scheduled drafts: unchanged evidence produces another draft without a
   const [total] = await rows<{ count: number }>(sql`SELECT count(*)::int AS count FROM hirelix_private_notifications WHERE user_id=${account}::uuid AND href LIKE ${`/app/roles/${role.id}/updates/%`}`);
   assert.equal(total.count, 1);
   await saveSchedule(account, role.id, { ...agreement, include_role_records: false, enabled: false });
+});
+
+
+test("real PG: pausing an agreement cancels its running result and preserves its next date", async () => {
+  const account = randomUUID(); accounts.push(account);
+  const role = await createRole(account, {title: "Pause fence QA", client_name: "QA", jd_text: "Lead product."});
+  const saved = await saveSchedule(account, role.id, agreement);
+  const queued = await enqueue(account, "deliverable", randomUUID(), {schedule_id: saved.id, schedule_version: saved.version});
+  const running = await claimJob(["deliverable"]); assert.equal(running?.id, queued.id);
+  const paused = await saveSchedule(account, role.id, {...agreement, enabled: false});
+  assert.equal(new Date(paused.next_run_at).getTime(), new Date(saved.next_run_at).getTime());
+  assert.equal(paused.version, saved.version + 1);
+  assert.equal((await owned<Job>(account, "job", queued.id)).status, "cancelled");
+  let wrote = false;
+  await assert.rejects(() => finishJob(running!, {result: {}, apply: async () => {wrote = true;}}), LostLease);
+  assert.equal(wrote, false);
 });

@@ -8,7 +8,13 @@ export function GET(req: NextRequest) {
 }
 export function POST(req: NextRequest) {
   return workspaceApi(req, async (user) => {
-    const id = idSchema.parse((await readBody(req) as { id?: unknown }).id);
+    const input = await readBody(req) as {id?: unknown; conversation_id?: unknown};
+    if (input.conversation_id) {
+      const conversationId = idSchema.parse(input.conversation_id);
+      await rows(sql`UPDATE hirelix_private_notifications SET read_at=now() WHERE user_id=${user.id}::uuid AND href=${`/app?conversation=${conversationId}`} AND read_at IS NULL`);
+      return {ok:true};
+    }
+    const id = idSchema.parse(input.id);
     const updated = await rows(sql`UPDATE hirelix_private_notifications SET read_at=coalesce(read_at,now()) WHERE id=${id}::uuid AND user_id=${user.id}::uuid RETURNING id`);
     if (!updated.length) throw new WorkspaceError("This item was not found", 404);
     return { ok: true };

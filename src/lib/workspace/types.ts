@@ -165,6 +165,7 @@ export type Job = {
   updated_at: string;
 };
 export type Conversation = {
+  unread?: boolean;
   id: string;
   user_id: string;
   title: string;
@@ -182,6 +183,7 @@ export type Message = {
   created_at: string;
 };
 export type Schedule = {
+  version: number;
   id: string;
   user_id: string;
   role_id: string;

@@ -337,7 +337,7 @@ export const prepareImport: JobHandler = async (job, progress) => {
     throw new WorkspaceError(
       "This CV contains more text than can be reviewed in one import. Split it into individual candidate documents.",
     );
-  await progress("Reading the CV into a candidate draft");
+  await progress(job.payload.save_new_candidates ? "Reading and saving the candidate profile" : "Reading the CV into a candidate draft");
   const extracted = await structured(
     job.user_id,
     "private_import_cv",

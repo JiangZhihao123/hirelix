@@ -168,7 +168,7 @@ export async function retrieveCandidates(userId: string, value: unknown) {
     pending: number;
     failed: number;
   }>(
-    sql`SELECT count(*)::int AS total,count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_embeddings e WHERE e.user_id=p.user_id AND e.person_id=p.id AND e.model=${model}))::int AS indexed,count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_jobs j WHERE j.user_id=p.user_id AND j.payload->>'person_id'=p.id::text AND j.kind='index' AND j.status IN ('queued','running')))::int AS pending,count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_jobs j WHERE j.user_id=p.user_id AND j.payload->>'person_id'=p.id::text AND j.kind='index' AND j.status='error' AND NOT EXISTS(SELECT 1 FROM hirelix_private_jobs newer WHERE newer.user_id=j.user_id AND newer.kind='index' AND newer.payload->>'person_id'=p.id::text AND newer.created_at>j.created_at)))::int AS failed FROM hirelix_agent_people p WHERE user_id=${userId}::uuid`,
+    sql`SELECT count(*)::int AS total,count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_embeddings e WHERE e.user_id=p.user_id AND e.person_id=p.id AND e.model=${model} AND e.created_at>=greatest(p.updated_at,(SELECT max(updated_at) FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id))))::int AS indexed,count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_jobs j WHERE j.user_id=p.user_id AND j.payload->>'person_id'=p.id::text AND j.kind='index' AND j.status IN ('queued','running')))::int AS pending,count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_jobs j WHERE j.user_id=p.user_id AND j.payload->>'person_id'=p.id::text AND j.kind='index' AND j.status='error' AND NOT EXISTS(SELECT 1 FROM hirelix_private_jobs newer WHERE newer.user_id=j.user_id AND newer.kind='index' AND newer.payload->>'person_id'=p.id::text AND newer.created_at>j.created_at)))::int AS failed FROM hirelix_agent_people p WHERE user_id=${userId}::uuid`,
   );
   if (!coverage.total) return { matches: [], coverage, query: input.query };
   if (!coverage.indexed)
@@ -176,13 +176,7 @@ export async function retrieveCandidates(userId: string, value: unknown) {
       "Your candidates have not been indexed yet. Check import and indexing tasks, or use name and field search.",
       409,
     );
-  const creditJob = agentCreditContext.getStore(), multiplier = creditMarkup();
-  if (creditJob) await reserveAgentCall(creditJob,costToCreditUnits(embeddingServiceCost(model,Buffer.byteLength(input.query)+64),multiplier),512,0);
-  const output = await generateEmbeddings([input.query]);
-  if (creditJob) {
-    const cost = embeddingServiceCost(output.model,output.inputTokens);
-    await consumeAgentCredits(creditJob,costToCreditUnits(cost,multiplier),cost,{ stage:"private_semantic_search",provider:"siliconflow",model:output.model,cost_usd:cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,input_tokens:output.inputTokens,cny_per_usd:Number(process.env.AGENT_CREDIT_CNY_PER_USD ?? 7),input_cny_per_million:0.28 });
-  }
+  const output = await embedRetrievalQuery(input.query);
   const vector = JSON.stringify(output.embeddings[0]);
   // Exact vector scan of every indexed passage owned by this user; no newest-N cutoff.
   const evidence = await rows<{
@@ -193,7 +187,7 @@ export async function retrieveCandidates(userId: string, value: unknown) {
     person: Person;
     last_contact: string | null;
   }>(
-    sql`WITH ranked AS (SELECT e.person_id,e.record_id,e.content,e.embedding<=>${vector}::vector AS distance,to_jsonb(p) AS person,(SELECT max(r.occurred_at) FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id AND r.kind IN ('call','email')) AS last_contact,row_number() OVER(PARTITION BY e.person_id ORDER BY e.embedding<=>${vector}::vector,e.id) AS position FROM hirelix_private_embeddings e JOIN hirelix_agent_people p ON p.user_id=e.user_id AND p.id=e.person_id WHERE e.user_id=${userId}::uuid AND e.model=${model} AND (${!input.location} OR p.location=${input.location}) AND (${!input.expertise} OR ${input.expertise}=ANY(p.skills))) SELECT person_id,record_id,content,distance,person,last_contact FROM ranked WHERE position=1 ORDER BY distance,person_id LIMIT ${input.limit}`,
+    sql`WITH ranked AS (SELECT e.person_id,e.record_id,e.content,e.embedding<=>${vector}::vector AS distance,to_jsonb(p) AS person,(SELECT max(r.occurred_at) FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id AND r.kind IN ('call','email')) AS last_contact,row_number() OVER(PARTITION BY e.person_id ORDER BY e.embedding<=>${vector}::vector,e.id) AS position FROM hirelix_private_embeddings e JOIN hirelix_agent_people p ON p.user_id=e.user_id AND p.id=e.person_id WHERE e.user_id=${userId}::uuid AND e.model=${model} AND e.created_at>=greatest(p.updated_at,(SELECT max(updated_at) FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id)) AND (${!input.location} OR p.location=${input.location}) AND (${!input.expertise} OR ${input.expertise}=ANY(p.skills))) SELECT person_id,record_id,content,distance,person,last_contact FROM ranked WHERE position=1 ORDER BY distance,person_id LIMIT ${input.limit}`,
   );
   return {
     query: input.query,
@@ -211,3 +205,15 @@ export const retrieveJob: JobHandler = async (job, progress) => {
   const result = await retrieveCandidates(job.user_id, job.payload);
   return { result };
 };
+
+export async function embedRetrievalQuery(query: string) {
+  const model = getEmbeddingConfig().model;
+  const creditJob = agentCreditContext.getStore(), multiplier = creditMarkup();
+  if (creditJob) await reserveAgentCall(creditJob,costToCreditUnits(embeddingServiceCost(model,Buffer.byteLength(query)+64),multiplier),512,0);
+  const output = await generateEmbeddings([query]);
+  if (creditJob) {
+    const cost = embeddingServiceCost(output.model,output.inputTokens);
+    await consumeAgentCredits(creditJob,costToCreditUnits(cost,multiplier),cost,{ stage:"private_semantic_search",provider:"siliconflow",model:output.model,cost_usd:cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,input_tokens:output.inputTokens,cny_per_usd:Number(process.env.AGENT_CREDIT_CNY_PER_USD ?? 7),input_cny_per_million:0.28 });
+  }
+  return output;
+}

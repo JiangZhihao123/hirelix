@@ -2,10 +2,12 @@ import { getLogger } from "@/lib/logger";
 import { processJob, reclaimJobs, type JobHandler } from "./jobs";
 import { prepareImport } from "./imports";
 import { assessCandidate } from "./assessment";
+import { indexRole } from "./role-retrieval";
 import { indexCandidate, retrieveJob } from "./retrieval";
 import type { JobKind } from "./types";
 import { assistantReply } from "./conversations";
 import { generateRevision } from "./revisions";
+import { deliverReminders } from "./reminders";
 import { queueScheduledDrafts } from "./schedules";
 import { generateDeliverable } from "./deliverables";
 
@@ -15,7 +17,7 @@ export const workspaceHandlers: Partial<Record<JobKind, JobHandler>> = {
   revision: generateRevision,
   import: prepareImport,
   assessment: assessCandidate,
-  index: indexCandidate,
+  index: (job, progress) => job.payload.role_id ? indexRole(job, progress) : indexCandidate(job, progress),
   retrieval: retrieveJob,
 };
 const logger = getLogger({ component: "private_workspace_worker" });
@@ -52,7 +54,7 @@ export function startWorkspaceWorker() {
   const scheduleTick = async () => {
     if (scheduling) return;
     scheduling = true;
-    try { await queueScheduledDrafts(); }
+    try { await deliverReminders(); await queueScheduledDrafts(); }
     catch (error) { logger.error({ error_type: error instanceof Error ? error.name : "Unknown" }, "Scheduled draft queue failed"); }
     finally { scheduling = false; }
   };

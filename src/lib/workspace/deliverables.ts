@@ -257,6 +257,10 @@ export const generateDeliverable: JobHandler = async (job, progress) => {
     result: {},
     apply: async (tx) => {
       await owned(job.user_id, "role", input.role_id, tx);
+      if (typeof job.payload.schedule_id === "string") {
+        const valid = await rows(sql`SELECT id FROM hirelix_private_schedules WHERE user_id=${job.user_id}::uuid AND id=${job.payload.schedule_id}::uuid AND enabled AND version=${Number(job.payload.schedule_version)}`,tx);
+        if (!valid.length) throw new WorkspaceError("The update agreement changed or was paused.",409);
+      }
       const savedSource = "audience" in draft ? { ...source, audience: draft.audience } : source;
       const [document] = await rows<Deliverable>(
         sql`INSERT INTO hirelix_private_deliverables(user_id,role_id,kind,title,content,person_ids,record_ids,file_ids,source_snapshot,period_start,period_end) VALUES(${job.user_id}::uuid,${input.role_id}::uuid,${input.kind},${draft.title},${draft.content},${uuidArray(input.person_ids)},${uuidArray(input.record_ids)},${uuidArray(input.file_ids)},${json(savedSource)},${input.period_start}::timestamptz,${input.period_end}::timestamptz) RETURNING *`,
@@ -266,7 +270,7 @@ export const generateDeliverable: JobHandler = async (job, progress) => {
       if (typeof job.payload.schedule_id === "string") {
         await tx.execute(sql`UPDATE hirelix_private_schedules SET last_record_digest=${String(job.payload.record_digest)},updated_at=now() WHERE id=${job.payload.schedule_id}::uuid AND user_id=${job.user_id}::uuid`);
         if (job.payload.notify_ready === true) {
-          await tx.execute(sql`INSERT INTO hirelix_private_notifications(user_id,title,href,kind,request_key) VALUES(${job.user_id}::uuid,${"Search update draft ready: " + String(source.role && (source.role as { title: string }).title)},${typeof job.payload.conversation_id === "string" ? `/app?conversation=${job.payload.conversation_id}` : `/app/roles/${document.role_id}/updates/${document.id}`},'draft_ready',${`scheduled-ready:${job.id}`}) ON CONFLICT DO NOTHING`);
+          await tx.execute(sql`INSERT INTO hirelix_private_notifications(user_id,title,href,kind,request_key) VALUES(${job.user_id}::uuid,${"Search update ready: " + String(source.role && (source.role as { title: string }).title)},${typeof job.payload.conversation_id === "string" ? `/app?conversation=${job.payload.conversation_id}` : `/app/roles/${document.role_id}/updates/${document.id}`},'draft_ready',${`scheduled-ready:${job.id}`}) ON CONFLICT DO NOTHING`);
         }
       }
       return {

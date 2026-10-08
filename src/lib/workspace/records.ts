@@ -38,6 +38,7 @@ export async function addRecord(
         { person_id: input.person_id },
         tx,
       );
+    if (record.role_id && !record.person_id) await enqueue(userId, "index", `role-index:${record.role_id}:${randomUUID()}`, { role_id: record.role_id }, tx);
     return record;
   };
   return runner ? run(runner) : db.transaction(run);
@@ -73,6 +74,7 @@ export async function updateRecord(
         { person_id: record.person_id },
         tx,
       );
+    if (record.role_id && !record.person_id) await enqueue(userId, "index", `role-index:${record.role_id}:${randomUUID()}`, { role_id: record.role_id }, tx);
     return record;
   });
 }

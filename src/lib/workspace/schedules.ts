@@ -50,14 +50,15 @@ export async function saveSchedule(userId: string, roleId: string, value: unknow
       if (!linked.length) throw new WorkspaceError("Choose candidates linked to this role");
     }
     const [current] = await rows<Schedule>(sql`SELECT * FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid FOR UPDATE`, tx);
-    const sameTiming = current && current.timezone === input.timezone && current.weekday === input.weekday && current.local_time === input.local_time && current.interval_weeks === input.interval_weeks;
+    const sameTiming = current && current.timezone === input.timezone && current.weekday === input.weekday && current.local_time.slice(0, 5) === input.local_time && current.interval_weeks === input.interval_weeks;
     const next = sameTiming && (!input.enabled || (current.enabled && !current.error))
       ? new Date(current.next_run_at).toISOString()
       : await nextScheduleRun(input, new Date().toISOString(), sameTiming ? current.next_run_at : null, tx);
     const [saved] = await rows<Schedule>(sql`INSERT INTO hirelix_private_schedules(user_id,role_id,enabled,timezone,weekday,local_time,interval_weeks,next_run_at,only_when_changed,language,person_ids,include_role_records,include_candidate_records)
       VALUES(${userId}::uuid,${roleId}::uuid,${input.enabled},${input.timezone},${input.weekday},${input.local_time},${input.interval_weeks},${next}::timestamptz,${input.only_when_changed},${input.language},${uuidArray(input.person_ids)},${input.include_role_records},${input.include_candidate_records})
-      ON CONFLICT(user_id,role_id) DO UPDATE SET enabled=excluded.enabled,timezone=excluded.timezone,weekday=excluded.weekday,local_time=excluded.local_time,interval_weeks=excluded.interval_weeks,next_run_at=excluded.next_run_at,only_when_changed=excluded.only_when_changed,language=excluded.language,person_ids=excluded.person_ids,include_role_records=excluded.include_role_records,include_candidate_records=excluded.include_candidate_records,error=NULL,updated_at=now()
+      ON CONFLICT(user_id,role_id) DO UPDATE SET enabled=excluded.enabled,timezone=excluded.timezone,weekday=excluded.weekday,local_time=excluded.local_time,interval_weeks=excluded.interval_weeks,next_run_at=excluded.next_run_at,only_when_changed=excluded.only_when_changed,language=excluded.language,person_ids=excluded.person_ids,include_role_records=excluded.include_role_records,include_candidate_records=excluded.include_candidate_records,error=NULL,version=hirelix_private_schedules.version+1,updated_at=now()
       RETURNING *`, tx);
+    await tx.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled',progress='Agreement changed',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND payload->>'schedule_id'=${saved.id} AND status IN ('queued','running')`);
     return saved;
   };
   return runner === db ? db.transaction(save) : save(runner);
@@ -99,7 +100,7 @@ export async function queueScheduledDrafts(limit = 5, now = new Date().toISOStri
           WHERE m.user_id=${schedule.user_id}::uuid AND EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(m.metadata->'schedules','[]'::jsonb)) receipt WHERE receipt->>'id'=${schedule.id})
           ORDER BY m.created_at DESC,m.id DESC LIMIT 1`, tx);
         if (origin) await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || ${json({ conversation_id: origin.conversation_id })} WHERE id=${job.id}::uuid`);
-        await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || jsonb_build_object('schedule_id',${schedule.id}::text,'notify_ready',${!schedule.only_when_changed || digest !== schedule.last_record_digest}::boolean,'record_digest',${digest}::text) WHERE id=${job.id}::uuid`);
+        await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || jsonb_build_object('schedule_id',${schedule.id}::text,'schedule_version',${schedule.version}::int,'notify_ready',${!schedule.only_when_changed || digest !== schedule.last_record_digest}::boolean,'record_digest',${digest}::text) WHERE id=${job.id}::uuid`);
         const next = await nextScheduleRun(schedule, now, due, tx);
         await tx.execute(sql`UPDATE hirelix_private_schedules SET next_run_at=${next}::timestamptz,last_period_end=${now}::timestamptz,last_job_id=${job.id}::uuid,updated_at=now() WHERE id=${schedule.id}::uuid`);
         return true;
