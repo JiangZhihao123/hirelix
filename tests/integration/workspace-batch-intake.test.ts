@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import { uploadConversationFile, readFile } from "../../src/lib/workspace/files";
-import { sendMessage, assistantReply, conversationDetails } from "../../src/lib/workspace/conversations";
+import { sendMessage, assistantReply, conversationDetails, acceptAction, type AssistantAction } from "../../src/lib/workspace/conversations";
 import { messageAttachments, messageImportJobs } from "../../src/lib/workspace/attachments";
 import { prepareImport, importDetails } from "../../src/lib/workspace/imports";
 import { rows, json } from "../../src/lib/workspace/database";
@@ -117,4 +117,34 @@ test("two JDs keep separate original sources on their role proposals", { timeout
     const original = await readFile(owner, String(action.fields.source_file_id));
     assert.equal(action.fields.jd_text, original.bytes.toString());
   }
+});
+
+test("a new role retains its dated client note only when the reviewed proposal is saved", { timeout: 300000 }, async () => {
+  const jdText = "FICTIONAL QA. Client: QA Juniper 1008. Role: Product Director. London. Lead five PMs for enterprise SaaS. Salary GBP 150,000–170,000.";
+  const noteText = "FICTIONAL QA. QA Juniper 1008 client call at 2026-10-08 08:30 Asia/Shanghai: Monday and Thursday office attendance is mandatory; prioritize onboarding experience.";
+  const jd = await uploadConversationFile(owner, file("juniper-jd.txt", jdText));
+  const note = await uploadConversationFile(owner, file("juniper-client-note.txt", noteText));
+  const sent = await sendMessage(owner, { message: "Prepare a new QA Juniper 1008 Product Director role from the JD for my review. Preserve the separate client call note on this new role with its actual event time. Do not save the role or any records before I accept the proposal.", locale: "en", request_key: randomUUID(), file_ids: [jd.id, note.id] });
+  await run(sent.job, assistantReply);
+  const detail = await conversationDetails(owner, sent.conversation_id);
+  const message = detail.messages.at(-1)!;
+  const action = (message.metadata.actions as AssistantAction[]).find(action => action.kind === "create_role")!;
+  assert.ok(action, message.content);
+  assert.equal(action.status, "pending");
+  assert.equal(action.fields.source_file_id, jd.id);
+  const pending = action.fields.role_records as Array<{ file_id: string; content: string; occurred_at: string }>;
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].file_id, note.id);
+  assert.equal(pending[0].content, noteText);
+  assert.equal(new Date(pending[0].occurred_at).toISOString(), "2026-10-08T00:30:00.000Z");
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND file_id=${note.id}::uuid`)).length, 0);
+  // The immutable reviewed source wins over altered browser payload metadata.
+  const accepted = await acceptAction(owner, sent.conversation_id, message.id, action.id, { ...action.fields, role_records: [] });
+  const roleId = accepted.href!.split("/").at(-1)!;
+  const records = await rows<{ file_id: string; content: string; occurred_at: string }>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${roleId}::uuid AND file_id=${note.id}::uuid`);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].content, noteText);
+  assert.equal(new Date(records[0].occurred_at).toISOString(), "2026-10-08T00:30:00.000Z");
+  await acceptAction(owner, sent.conversation_id, message.id, action.id, action.fields);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND file_id=${note.id}::uuid`)).length, 1, "acceptance retry cannot duplicate the note");
 });

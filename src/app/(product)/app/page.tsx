@@ -1202,6 +1202,19 @@ function ActionReview({
                     onChange={(e) => set("jd_text", e.target.value)}
                   />
                 </Field>
+                {Array.isArray(action.fields.role_records) && action.fields.role_records.length > 0 && (
+                  <section className="ws-panel" aria-label={t("Related client records")}>
+                    <h3>{t("Related client records")}</h3>
+                    <p className="ws-muted">{t("These records will be saved with this role.")}</p>
+                    {(action.fields.role_records as Array<{ title: string; content: string; occurred_at: string | null }>).map((record, index) => (
+                      <div key={index}>
+                        <strong>{record.title}</strong>
+                        <p className="ws-muted">{record.occurred_at ? date(record.occurred_at) : t("Event time not recorded")}</p>
+                        <p className="whitespace-pre-wrap">{record.content}</p>
+                      </div>
+                    ))}
+                  </section>
+                )}
               </>
             )}
             {(["priorities", "flexible", "unknowns"] as const).map((key) => (

@@ -305,6 +305,13 @@ const replySchema = z.object({
         person_ref: z.string().nullable(),
         attachment_ref: z.string().nullable(),
         role_draft: roleDraft.nullable(),
+        role_records: z.array(z.object({
+          attachment_ref: z.string().nullable(),
+          kind: z.enum(["note", "call", "email", "feedback"]),
+          title: z.string(),
+          content: z.string(),
+          occurred_at: z.iso.datetime({ offset: true }).nullable(),
+        })).max(MAX_CONVERSATION_FILES).default([]),
         record: z
           .object({
             kind: z.enum(["note", "call", "email", "feedback"]),
@@ -332,6 +339,7 @@ const sharingPermissionProposalSchema = z.object({
     person_ref: z.string(),
     attachment_ref: z.null(),
     role_draft: z.null(),
+    role_records: z.array(z.never()).max(0).default([]),
     record: replySchema.shape.actions.element.shape.record.unwrap(),
     sharing_permission: z.enum(["confirmed", "declined"]),
   })).max(5),
@@ -604,6 +612,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
     plan.greeting_or_open_request ? openRequestReplySchema : replySchema,
     PERSONAL_MEMORY_RULES + " " +
     `Help a professional headhunter maintain candidate relationships, work on client roles, and prepare client material. Be a capable personal assistant who respects the recruiter's attention and direction. Answer the actual request and stop when it is complete. Do not append a next step, question, or action merely because workspace context exists. Set follow_up to null unless follow_up_needed is true; even then ask at most one question only if it helps with the current request. If the user explicitly asks what to prioritize or do next, use relevant workspace evidence and give a concise recommendation. For a greeting alone, respond briefly and invite the user to tell you what they need; do not bring up a role, candidate, or unfinished task. Do not introduce an unrelated assignment, manufacture urgency, or repeatedly offer to draft an email. Propose an action only when the user requested it or it is the direct, necessary preparation of information they just supplied. Never add a checklist of speculative reminders. Respect requested brevity and the user's language; when the message has no language, use preferred_language. If an attached file is present, respond to its contents and the user's message together. An attachment is not automatically a CV. If it is unreadable, explain the actual limitation and offer one concrete way forward. If the file is unrelated to recruiting but the user requests a simple content task, help with that task in this conversation without creating a recruiter record. For a batch, explain the useful combined result and identify each file and any reading failure. With no instruction, prepare clearly supported candidate drafts and role proposals; ask only about ambiguity that blocks useful work. Never claim proposals are saved. A failed file must not prevent handling readable files. Every action must include attachment_ref, the exact source file ref or null for facts from the message. Never bind one file to another file’s action. Candidate processing is allowed only when candidate_draft_allowed is true. save_new_candidates is authorization for a later candidate-processing step, never evidence that a profile exists or has been saved. Read candidate_processing_state for each attachment: not_started means processing will be queued only after this reply is saved; queued/running means still in progress; done permits a completion claim only for saved rows explicitly present in conversation_imports. These state labels and execution sequencing are only for your reasoning. For not_started/queued/running, tell the recruiter simply that you are organizing the supported profiles and will ask about duplicates or blocking ambiguities. Do not narrate queueing, reply storage, internal states, or the timing of the processing step. Do not use completed-tense wording such as 已入库、已保存、已建档、已处理完成 or saved/added/created for those profiles. The per-file result will show actual saved profiles after processing. Otherwise it is a draft, not saved to the pool. When candidate_draft_allowed is true, candidate processing is the only save path for this file, including merges into existing candidates. If save_new_candidates is true do not instruct the recruiter to review every field or go through an import preview; the agent will save clear new profiles and surface only duplicates or blocking ambiguities. Do not propose add_record for the same attachment or claim a separate record will merge profile fields. Only when save_new_candidates is false explain that the extracted profiles remain drafts; the recruiter can ask to save them in conversation. For duplicates ask about the specific identity or conflicting facts. Original sources are retained. For source material use source_refs from the registry and never invent URLs or imply the full file was read when truncated. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless asked. For import summaries, distinguish add versus merge using reviewed_rows.action; a completed merge is not an unresolved one. Distinguish recorded facts from recommendations and unanswered questions. Do not claim an action was performed when it is only a proposal requiring review. add_record preserves the user's reported facts; occurred_at is null unless the message or file gives a definite date/time. When the user supplies changed client requirements, propose update_role_brief for the identified role. Its role_draft.brief is the complete proposed brief: preserve still-valid requirements and incorporate only supported changes. For update_role_brief, include record.occurred_at when the supplied feedback has a definite event timestamp with a timezone; otherwise leave it null so the recruiter can confirm it during review. Do not invent a time or timezone from a date alone. This preserves the original JD and records the feedback on acceptance; do not also propose add_record for the same feedback. Merely asking about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. For document preparation use work; never emit submission/search_update actions. Do not claim a draft is finished before its actual generation. No email is sent by this assistant. If person or role identity is ambiguous, ask one concise clarification before attaching records. Do not expose private notes in proposed client prose. Use role_N/person_N/attachment_N source refs where relevant. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages, and at most the 100000 characters across the latest attachment batch; make any material limit explicit.` +
+    " For create_role, include related client notes/events the recruiter asked to preserve in role_records. Each entry has its own exact attachment_ref (or null for a fact from the user's message), kind, title, content, and occurred_at. Preserve the supplied event time with its timezone; use null when absent. These records belong to the new role proposal and are saved together only after the recruiter accepts it. Do not use add_record with an invented role reference for a role that does not yet exist. Do not say these notes are saved or preserved as records before acceptance. For other action kinds role_records is empty. " +
     " Every action object must include sharing_permission, null except for update_sharing_permission. When the recruiter explicitly reports that a named candidate granted or declined permission to share with a named client role, propose update_sharing_permission for that exact person-role relationship. Its record must describe only that person's permission report, preserving whether it was oral or written and leaving occurred_at null if no date was given. Do not mix another person's status or a hold instruction into that person's evidence record. Do not propose add_record for the same permission fact. The proposed record and relationship update are both pending until the recruiter reviews and saves them; never say 已记录, 已保存, or 'I recorded it' in answer before acceptance. A request not to send means no submission action. Keep the answer focused on what changed; mention a missing fact only if it blocks the current request. In user-facing prose, never show role_N, person_N, source_N, enum names such as confirmed/unknown/draft, or internal processing narration. Ask one direct question only when a missing fact blocks the current request; do not ask the recruiter to choose from a menu of assistant tasks. " + ROLE_BRIEF_EVIDENCE_RULES + " " + ASSISTANT_WORK_RULES,
     {
       current_time: new Date().toISOString(),
@@ -713,6 +722,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
     if (action.kind === "create_role")
       fields = {
         ...roleInput.parse(action.role_draft),
+        role_records: plan.may_propose_record ? action.role_records.map(record => {
+          const source = attachments.find(file => file.ref === record.attachment_ref);
+          if (record.attachment_ref && (!source || source.read_error || interpretations.get(source.ref)?.attachment_kind === "job_description" || candidateDrafts.some(file => file.ref === source.ref)))
+            throw new WorkspaceError("The proposed role note has an unavailable or unrelated source. Retry the reply.");
+          return recordInput.parse({
+            kind: record.kind, title: record.title,
+            content: source ? source.text : record.content,
+            file_id: source?.file_id ?? null,
+            occurred_at: record.occurred_at,
+            details: { source_message_id: question.id },
+          });
+        }) : [],
         ...(attachment && interpretations.get(attachment.ref)?.attachment_kind === "job_description" && !attachment.read_error
           ? { jd_text: attachment.text, source_file_id: attachment.file_id, source_file_name: attachment.name }
           : {}),
@@ -867,6 +888,12 @@ async function applyAssistantAction(userId: string, conversationId: string, acti
         title: String(action.fields.source_file_name || "Original job description"),
         content: String(action.fields.jd_text || ""),
       }, tx);
+    }
+    // Keep the reviewed notes and their source associations in the same
+    // transaction as the new role. Browser-supplied fields cannot rebind them.
+    const records = z.array(recordInput).parse(action.fields.role_records ?? []);
+    for (const record of records) {
+      await addRecord(userId, { ...record, role_id: role.id, person_id: null }, tx);
     }
     action.href = `/app/roles/${role.id}`;
     action.role_id = role.id;
