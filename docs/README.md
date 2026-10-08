@@ -4,6 +4,11 @@ This directory is the home for project documentation.
 
 ## Structure
 
+### Product
+
+- [`product/personal-agent-core-scenarios.md`](./product/personal-agent-core-scenarios.md): 猎头 Personal Agent 的八个核心场景与设计原则
+- [`product/personal-agent-architecture-and-interaction.md`](./product/personal-agent-architecture-and-interaction.md): 基于八个场景的技术架构与产品交互设计方案（待评审）
+
 ### Strategy
 
 - [`strategy/product-strategy.md`](./strategy/product-strategy.md): the core product strategy and stage-by-stage growth logic
