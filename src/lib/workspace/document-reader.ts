@@ -3,7 +3,6 @@ import ExcelJS from "exceljs";
 import sharp from "sharp";
 import { unzipSync } from "fflate";
 import { load } from "cheerio";
-import { createIsomorphicCanvasFactory } from "unpdf";
 import { createCanvas } from "@napi-rs/canvas";
 import { WorkspaceError } from "./database";
 import { MAX_SOURCE_IMAGES, transcribeImages, type SourceImage } from "./vision";
@@ -80,8 +79,7 @@ export async function readDocument(file: {name: string; bytes: Uint8Array}, imag
   if (extension === "pdf") {
     // Official PDF.js + its canvas factory retain full page graphics, including scans.
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const CanvasFactory = await createIsomorphicCanvasFactory(() => import("@napi-rs/canvas"));
-    const task = pdfjs.getDocument({data: new Uint8Array(file.bytes), CanvasFactory, disableFontFace: true, useSystemFonts: true, maxImageSize: 16777216});
+    const task = pdfjs.getDocument({data: new Uint8Array(file.bytes), disableFontFace: true, useSystemFonts: true, maxImageSize: 16777216});
     try {
       const pdf = await task.promise;
       if (pdf.numPages > imageBudget) throw new WorkspaceError("Use up to 20 images or PDF pages per message");
