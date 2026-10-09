@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { after, test } from "node:test";
+import { sql } from "drizzle-orm";
+import { db, closeDb } from "../../src/db/client";
+import { deletePersonalMemories, listPersonalMemories } from "../../src/lib/workspace/memories";
+import { rows, snapshot } from "../../src/lib/workspace/database";
+const database = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
+assert.ok(["localhost", "127.0.0.1"].includes(database.hostname) && database.pathname.startsWith("/hirelix_workspace_qa_"));
+after(closeDb);
+test("real PG: permanent memory deletion is owner scoped, version checked, and clears archived history without touching evidence", async () => {
+  const owner = randomUUID(), other = randomUUID();
+  const create = async (user: string, personal: boolean, archived = false) => {
+    const [record] = await rows<{id:string;version:number}>(sql`INSERT INTO hirelix_private_records(user_id,kind,title,content,details) VALUES(${user}::uuid,'note','Fictional QA preference','Use concise updates.',${JSON.stringify(personal ? {scope:"personal_assistant",archived} : {})}::jsonb) RETURNING *`);
+    await snapshot(user,"record",record); return record;
+  };
+  const a = await create(owner,true), archived = await create(owner,true,true), evidence = await create(owner,false), foreign = await create(other,true);
+  await assert.rejects(() => deletePersonalMemories(other,{id:a.id,expected_version:1,confirm:"delete"}),/not found/);
+  await assert.rejects(() => deletePersonalMemories(owner,{id:a.id,expected_version:2,confirm:"delete"}),/changed/i);
+  await assert.rejects(() => deletePersonalMemories(owner,{id:evidence.id,expected_version:1,confirm:"delete"}),/not found/);
+  await assert.rejects(() => deletePersonalMemories(owner,{all:true}));
+  assert.equal((await deletePersonalMemories(owner,{id:a.id,expected_version:1,confirm:"delete"})).deleted,1);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_versions WHERE entity_id=${a.id}::uuid`)).length,0);
+  assert.equal((await listPersonalMemories(owner)).length,0);
+  assert.equal((await listPersonalMemories(owner,true)).length,1);
+  assert.equal((await deletePersonalMemories(owner,{all:true,confirm:"delete"})).deleted,1);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_versions WHERE entity_id=${archived.id}::uuid`)).length,0);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_records WHERE id IN (${evidence.id}::uuid,${foreign.id}::uuid)`)).length,2);
+  assert.equal((await deletePersonalMemories(owner,{all:true,confirm:"delete"})).deleted,0);
+  await db.execute(sql`DELETE FROM hirelix_private_versions WHERE user_id IN (${owner}::uuid,${other}::uuid)`);
+  await db.execute(sql`DELETE FROM hirelix_private_records WHERE user_id IN (${owner}::uuid,${other}::uuid)`);
+});

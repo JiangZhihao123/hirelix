@@ -1975,6 +1975,8 @@
   color: var(--ws-green);
 }
 .ws-message {
+  width: 100%;
+  min-width: 0;
   max-width: var(--ws-chat-width);
   margin: 0 auto 32px;
 }
@@ -2119,6 +2121,7 @@
   font-size: 11px;
 }
 .ws-assistant-working {
+  width: 100%;
   display: flex;
   max-width: var(--ws-chat-width);
   margin: 0 auto 24px;
@@ -2544,3 +2547,30 @@
 .ws-question-card textarea { display: block; width: 100%; min-height: 76px; margin: 6px 0 12px; padding: 10px; border: 1px solid #ccd7c8; border-radius: 8px; background: white; }
 .ws-question-card footer { display: flex; gap: 8px; margin-bottom: 12px; }
 .ws-question-card small { color: #637060; }
+
+/* Personal preferences: a compact, searchable manager rather than a raw list. */
+.ws-memory-list { padding: 24px; }
+.ws-memory-intro { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 24px; }
+.ws-memory-intro > svg { color: var(--ws-green); flex-shrink: 0; margin-top: 3px; }
+.ws-memory-intro h3, .ws-memory-card h3, .ws-memory-confirm h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.ws-memory-intro p, .ws-memory-empty p { color: var(--ws-muted); font-size: 13px; line-height: 1.6; margin: 0; }
+.ws-memory-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.ws-memory-tabs { display: flex; gap: 4px; background: #f1f4ef; padding: 4px; border-radius: 9px; }
+.ws-memory-tabs button { border-radius: 6px; padding: 7px 12px; font-size: 13px; color: var(--ws-muted); }
+.ws-memory-tabs button[aria-pressed="true"] { background: white; color: var(--ws-green); box-shadow: 0 1px 3px #18291c12; }
+.ws-memory-tabs span { margin-left: 6px; font-size: 11px; }
+.ws-memory-search { display: flex; gap: 9px; align-items: center; border: 1px solid var(--ws-border, #dfe5dc); border-radius: 9px; padding: 10px 12px; color: var(--ws-muted); margin-bottom: 18px; }
+.ws-memory-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 13px; }
+.ws-memory-card { padding: 18px; border: 1px solid var(--ws-border, #dfe5dc); border-radius: 12px; margin: 12px 0; }
+.ws-memory-card .ws-agent-text { font-size: 14px; line-height: 1.65; }
+.ws-memory-card .ws-form { padding: 0; }
+.ws-memory-empty { text-align: center; padding: 36px 20px; background: #f7f9f5; border-radius: 12px; }
+.ws-memory-empty > svg { margin: 0 auto 12px; color: #708476; }
+.ws-memory-empty h3 { font-size: 15px; margin-bottom: 8px; }
+.ws-memory-delete { color: #983e36; }
+.ws-memory-confirm { padding: 18px; border: 1px solid #e6bdb7; border-radius: 10px; background: #fff8f6; margin: 16px 0; }
+.ws-memory-confirm p { font-size: 13px; line-height: 1.65; margin-bottom: 14px; }
+.ws-memory-notice { font-size: 13px; color: var(--ws-green); }
+
+.private-workspace .ws-memory-search input:focus-visible { outline: none; }
+.ws-memory-search:focus-within { border-color: #738d7c; box-shadow: 0 0 0 2px #e8eee7; }

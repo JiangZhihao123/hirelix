@@ -581,11 +581,11 @@ export function AssistantWorkspace({
                     <AgentText content={optimistic.text} />
                   </div>
                   <div className="ws-message-tools">
-                    <small className="ws-message-status" role="status">{t("Sending…")}</small>
+                    <small className="ws-message-status" role="status">{t(sending ? "Sending…" : "Sent")}</small>
                   </div>
                 </article>
               )}
-            {optimistic && conversationId && !query.data && (
+            {optimistic && conversationId && !query.data && !sending && !pending && (
               <div className="ws-assistant-working" role="status">
                 <span className="ws-message-avatar ws-message-avatar-assistant">
                   <BrandMark small />
@@ -612,7 +612,7 @@ export function AssistantWorkspace({
                       ? t("Saving your message…")
                       : t(job?.progress || "Working on your request…")}
                   </span>
-                  <small>{t(sending ? "Keep this page open until your files and message are sent." : "You can leave this page and return.")}</small>
+                  {!sending && <small>{t("You can leave this page and return.")}</small>}
                 </div>
               </div>
             )}
@@ -718,7 +718,7 @@ export function AssistantWorkspace({
             <textarea
               ref={composer}
               aria-label={t("Message your AI assistant")}
-              value={draft}
+              value={sending ? "" : draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={t("Ask, paste a JD, or share a conversation note…")}
               rows={1}
