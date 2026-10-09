@@ -1531,4 +1531,11 @@ export const uiZh: Record<string, string> = {
   "Open full details": "打开完整详情",
   "The attached files could not be read. Replace them, or send a new message without attachments.": "附件无法读取。请更换文件，或直接发送不含附件的新消息。",
   "A newer message has replaced this reply. Continue in the conversation instead.": "你已发送了新消息。请在当前对话中继续。",
+  "Answered": "已回答",
+  "Request cancelled": "请求已取消",
+  "Waiting for your answer. You can also reply in the conversation.": "正在等你的回答，也可以直接在对话中回复。",
+  "This task could not finish. Your source material is saved. Retry the task or review the input.": "这次任务未能完成。资料已保留，可以重试或修改你的要求。",
+  "The document search service has insufficient provider balance. Your material is saved. Retry after service is restored.": "资料检索服务的账户余额不足，暂时无法完成匹配。资料已保留，服务恢复后可重试。",
+  "The document search service has a configuration problem. Your material is saved. Contact support or retry after service is restored.": "资料检索服务存在配置问题。资料已保留，请联系支持，或在服务恢复后重试。",
+  "The document search service is temporarily unavailable. Your material is saved. Try again later.": "资料检索服务暂时不可用。资料已保留，请稍后重试。",
 };

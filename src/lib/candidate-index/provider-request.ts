@@ -2,6 +2,21 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger({ component: "candidate_index_provider" });
 
+export class IndexProviderError extends Error {
+  constructor(public readonly status: number) {
+    super(`Candidate index provider failed (${status})`);
+    this.name = "IndexProviderError";
+  }
+
+  get userMessage() {
+    if (this.status === 402)
+      return "The document search service has insufficient provider balance. Your material is saved. Retry after service is restored.";
+    if (this.status === 401 || this.status === 403 || this.status === 404)
+      return "The document search service has a configuration problem. Your material is saved. Contact support or retry after service is restored.";
+    return "The document search service is temporarily unavailable. Your material is saved. Try again later.";
+  }
+}
+
 function transportCode(error: unknown): string | undefined {
   const code = error instanceof Error && error.cause && typeof error.cause === "object" && "code" in error.cause ? error.cause.code : undefined;
   return typeof code === "string" && /^[A-Z0-9_]{1,64}$/.test(code) ? code : undefined;
@@ -28,7 +43,7 @@ export async function requestIndexJson<T>(options: {
       if (!response.ok) {
         // Do not include provider bodies: they can echo private inputs.
         await response.body?.cancel();
-        throw new Error(`Candidate index provider failed (${status})`);
+        throw new IndexProviderError(status);
       }
       return await response.json() as T;
     } catch (error) {

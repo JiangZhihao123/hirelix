@@ -3,6 +3,7 @@ import { reserveAgentCredits, AgentCreditError } from "@/lib/agent-access";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { CREDIT_UNITS } from "@/lib/agent-plan";
 import { getLogger } from "@/lib/logger";
+import { IndexProviderError } from "@/lib/candidate-index/provider-request";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -153,6 +154,7 @@ export async function processJob(
       kind: job.kind,
       attempt: job.attempts,
       error_type: error instanceof Error ? error.name : "Unknown",
+      provider_status: error instanceof IndexProviderError ? error.status : undefined,
     };
     // Provider errors can contain private source material or credentials.
     // Log identifiers and the error class, never its message or payload.
@@ -162,7 +164,9 @@ export async function processJob(
       logger.error(fields, "Private workspace task failed");
       await failJob(
         job,
-        error instanceof WorkspaceError || error instanceof AgentCreditError
+        error instanceof IndexProviderError
+          ? error.userMessage
+          : error instanceof WorkspaceError || error instanceof AgentCreditError
           ? error.message
           : "This task could not finish. Your source material is saved. Retry the task or review the input.",
       );

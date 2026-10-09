@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { requestIndexJson } from "../src/lib/candidate-index/provider-request";
+import { IndexProviderError, requestIndexJson } from "../src/lib/candidate-index/provider-request";
 
 const base = { url: "https://example.test/embeddings", apiKey: "test", body: {}, timeoutMs: 1000 };
 
@@ -28,5 +28,20 @@ test("does not retry authorization failures or expose provider response bodies",
     calls += 1;
     return new Response("private input", { status: 401 });
   }) as typeof fetch }), /failed \(401\)$/);
+  assert.equal(calls, 1);
+});
+
+test("balance failures preserve a safe actionable status without retrying or echoing inputs", async () => {
+  let calls = 0;
+  await assert.rejects(requestIndexJson({ ...base, fetcher: (async () => {
+    calls += 1;
+    return new Response("secret and private source material", { status: 402 });
+  }) as typeof fetch }), (error: unknown) => {
+    assert.ok(error instanceof IndexProviderError);
+    assert.equal(error.status, 402);
+    assert.match(error.userMessage, /insufficient provider balance/);
+    assert.doesNotMatch(error.message + error.userMessage, /secret|private source material/);
+    return true;
+  });
   assert.equal(calls, 1);
 });
