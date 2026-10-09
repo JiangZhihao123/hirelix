@@ -1,8 +1,6 @@
+import { readDocument } from "./document-reader";
 import { createHash } from "node:crypto";
 import { parse } from "csv-parse/sync";
-import mammoth from "mammoth";
-import { extractText, getDocumentProxy } from "unpdf";
-import { unzipSync } from "fflate";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -138,64 +136,8 @@ export async function startImport(
     return job;
   });
 }
-export async function extractDocument(file: {
-  name: string;
-  bytes: Uint8Array;
-}) {
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension === "txt" || extension === "md") {
-    let content: string;
-    try {
-      content = new TextDecoder("utf-8", { fatal: true }).decode(file.bytes).replace(/^\uFEFF/, "");
-    } catch {
-      throw new WorkspaceError("This text file is not readable as UTF-8");
-    }
-    if (!content.trim())
-      throw new WorkspaceError("This text file has no readable content");
-    return content;
-  }
-  if (extension === "docx") {
-    // Check archive expansion before asking the OOXML reader to open it.
-    let expanded = 0;
-    unzipSync(file.bytes, {
-      filter: (entry) => {
-        expanded += entry.originalSize;
-        if (expanded > 30 * 1024 * 1024)
-          throw new WorkspaceError(
-            "This Word document expands beyond the 30 MB processing limit",
-          );
-        return false;
-      },
-    });
-    const result = await mammoth.extractRawText({
-      buffer: Buffer.from(file.bytes),
-    });
-    if (!result.value.trim())
-      throw new WorkspaceError(
-        "No readable text was found in this Word document. Upload a text CV.",
-      );
-    return result.value;
-  }
-  if (extension === "pdf") {
-    const pdf = await getDocumentProxy(new Uint8Array(file.bytes), {
-      maxImageSize: 16777216,
-    });
-    try {
-      if (pdf.numPages > 100)
-        throw new WorkspaceError(
-          "Upload a CV or document with 100 pages or fewer",
-        );
-      const result = await extractText(pdf, { mergePages: true });
-      if (!result.text.trim())
-        throw new WorkspaceError(
-          "This PDF has no readable text. Scanned-image OCR is not available; upload a text PDF or DOCX.",
-        );
-      return result.text;
-    } finally {
-      await pdf.loadingTask.destroy();
-    }
-  }
-  throw new WorkspaceError("Use a CSV, text PDF, DOCX, TXT or Markdown file");
+export async function extractDocument(file: { name: string; bytes: Uint8Array }) {
+  return (await readDocument(file)).text;
 }
 export async function findDuplicates(
   userId: string,
@@ -332,7 +274,8 @@ export const prepareImport: JobHandler = async (job, progress) => {
       },
     };
   }
-  const original = await extractDocument(file);
+  const source = await readDocument(file);
+  const original = source.text;
   if (original.length > 180000)
     throw new WorkspaceError(
       "This CV contains more text than can be reviewed in one import. Split it into individual candidate documents.",
@@ -344,6 +287,8 @@ export const prepareImport: JobHandler = async (job, progress) => {
     z.object({ people: z.array(personInput).min(1).max(100), warnings: z.array(z.string()), needs_clarification: z.boolean() }),
     "Extract every candidate profile from this document, one entry per distinct person. Copy supported facts faithfully. Leave unavailable fields empty, never infer availability or permission. Preserve employment dates as written. Put only material ambiguities or transformations in warnings, as separate concise sentences. Do not list routine missing optional fields. Keep note empty unless the document contains explicit recruiter notes. Do not treat references, interviewers, or employers as candidate profiles. Report ambiguity instead of guessing identities. Set needs_clarification true only for unresolved identity or conflicting source facts that prevent faithful extraction. Missing optional details, formatting notes, and explicitly supplied fictional/sample data are not blocking ambiguities.",
     { filename: file.name, original_text: original },
+    undefined,
+    source.images,
   );
   return {
     result: {

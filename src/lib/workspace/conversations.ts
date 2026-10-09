@@ -1,3 +1,5 @@
+import { readDocument } from "./document-reader";
+import { MAX_SOURCE_IMAGES, type SourceImage } from "./vision";
 import { liveReplyWriter } from "./jobs";
 import type { ConversationQuestion } from "./conversation-questions";
 import { randomUUID } from "node:crypto";
@@ -13,7 +15,7 @@ import { retrieveRoles } from "./role-retrieval";
 import { retrieveCandidates } from "./retrieval";
 import { readFile } from "./files";
 import { MAX_CONVERSATION_FILES, messageAttachments, type ConversationAttachment } from "./attachments";
-import { extractDocument, saveRequestedCandidateDrafts } from "./imports";
+import { saveRequestedCandidateDrafts } from "./imports";
 import {
   recordInput,
   roleInput,
@@ -155,18 +157,14 @@ export async function renameConversation(
   return { conversation };
 }
 export { sendMessage } from "./conversation-send";
-async function readConversationFile(userId: string, attachment: ConversationAttachment, limit: number) {
+async function readConversationFile(userId: string, attachment: ConversationAttachment, limit: number, imageBudget: number) {
   try {
     const file = await readFile(userId, attachment.file_id);
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    const text = ["csv", "txt", "md"].includes(extension || "")
-      ? new TextDecoder("utf-8", { fatal: true }).decode(file.bytes).replace(/^\uFEFF/, "")
-      : await extractDocument(file);
-    if (!text.trim())
-      throw new WorkspaceError("This file has no readable text");
+    const {text, images} = await readDocument(file, imageBudget);
     return {
       ...attachment,
       text: text.slice(0, limit),
+      images,
       truncated: text.length > limit,
       read_error: null as string | null,
     };
@@ -174,6 +172,7 @@ async function readConversationFile(userId: string, attachment: ConversationAtta
     return {
       ...attachment,
       text: "",
+      images: [] as SourceImage[],
       truncated: false,
       read_error: cause instanceof Error ? cause.message : "Could not read this file",
     };
@@ -202,7 +201,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
   const attachments: Array<Awaited<ReturnType<typeof readConversationFile>> & { ref: string }> = [];
   for (const [index, file] of fileMetadata.entries()) {
     await progress(`Reading ${index + 1}/${fileMetadata.length}: ${file.name}`);
-    attachments.push({ ...await readConversationFile(job.user_id, file, Math.floor(100000 / fileMetadata.length)), ref: `attachment_${index + 1}` });
+    attachments.push({ ...await readConversationFile(job.user_id, file, Math.floor(100000 / fileMetadata.length), MAX_SOURCE_IMAGES - attachments.reduce((sum, item) => sum + item.images.length, 0)), ref: `attachment_${index + 1}` });
   }
   const roles = await listRoles(job.user_id);
   const memories = await listPersonalMemories(job.user_id);
@@ -474,6 +473,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
       sources,
     },
     publishReply,
+    attachments.flatMap(attachment => attachment.images.map(image => ({...image, label: `${attachment.ref}: ${image.label}`}))),
   );
   await publishReply("");
   const waitForAnswer = (): import("./jobs").PreparedJob => ({

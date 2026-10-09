@@ -2,7 +2,7 @@
 export async function readCompletionStream(response: Response, onText: (text: string) => Promise<void>) {
   if (!response.body) throw new Error("LLM stream has no body");
   const reader = response.body.getReader(), decoder = new TextDecoder();
-  let buffer = "", text = "", usage: unknown, finished = false;
+  let buffer = "", text = "", usage: unknown, finished = false, finishReason: string | undefined;
   const line = async (value: string) => {
     if (!value.startsWith("data:")) return;
     const data = value.slice(5).trim();
@@ -11,6 +11,7 @@ export async function readCompletionStream(response: Response, onText: (text: st
     const event = JSON.parse(data);
     if (event.error) throw new Error("LLM stream failed");
     if (event.usage) usage = event.usage;
+    if (typeof event.choices?.[0]?.finish_reason === "string") finishReason = event.choices[0].finish_reason;
     const delta = event.choices?.[0]?.delta?.content;
     if (typeof delta === "string" && delta) { text += delta; await onText(text); }
   };
@@ -24,7 +25,7 @@ export async function readCompletionStream(response: Response, onText: (text: st
     }
     if (!finished) throw new Error("LLM stream ended before completion");
     if (!usage) throw new Error("LLM stream returned no usage");
-    return {choices: [{message: {content: text}}], usage};
+    return {choices: [{message: {content: text}, ...(finishReason ? {finish_reason: finishReason} : {})}], usage};
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 

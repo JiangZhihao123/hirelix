@@ -1,5 +1,9 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Use images, PDF, DOCX, XLSX, PPTX, CSV, TSV or text files": "支持 JPG、PNG、WebP 图片，PDF、Word、Excel、PowerPoint、CSV、TSV 和文本文件。",
+  "Use up to 20 images or PDF pages per message": "每条消息最多读取 20 张图片或 PDF 页面，请拆分后发送。",
+  "This image is damaged or exceeds the 16 megapixel reading limit": "图片已损坏或超过 1600 万像素读取限制。",
+  "This file has no readable content": "文件中没有可读取的内容。",
   "Working…": "正在处理…",
   "View activity": "查看工作进度",
   "Reconnecting…": "正在重新连接…",

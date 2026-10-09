@@ -51,7 +51,7 @@ import type {
   AssistantMeta,
 } from "@/lib/workspace/conversations";
 
-import { attachmentError, MAX_CONVERSATION_FILES } from "@/lib/workspace/attachments";
+import { ATTACHMENT_ACCEPT, attachmentError, MAX_CONVERSATION_FILES } from "@/lib/workspace/attachments";
 
 type PendingFile = { id: string; file: File; fileId?: string; status: "ready" | "uploading" | "uploaded" | "error"; error?: string };
 type Detail = {
@@ -621,7 +621,7 @@ export function AssistantWorkspace({
               type="file"
               multiple
               disabled={sending}
-              accept=".csv,.pdf,.docx,.txt,.md"
+              accept={ATTACHMENT_ACCEPT}
               onChange={(e) => chooseFiles(e.target.files)}
             />
             {attachments.length > 0 && (
