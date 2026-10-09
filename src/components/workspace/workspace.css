@@ -2574,3 +2574,11 @@
 
 .private-workspace .ws-memory-search input:focus-visible { outline: none; }
 .ws-memory-search:focus-within { border-color: #738d7c; box-shadow: 0 0 0 2px #e8eee7; }
+
+.ws-turn-activity { width: 100%; max-width: var(--ws-chat-width); margin: 0 auto 24px; }
+.ws-turn-status { display: flex; align-items: center; gap: 8px; color: #788376; font-size: 12px; }
+.ws-turn-status .ws-link { margin-left: 8px; font-size: 12px; }
+.ws-live-reply { margin-bottom: 12px; font-size: 15px; line-height: 1.7; }
+.ws-turn-details { color: #788376; font-size: 12px; margin-top: 8px; }
+.ws-turn-details summary { cursor: pointer; width: fit-content; }
+.ws-turn-details p { padding: 8px 12px; margin-top: 4px; border-left: 2px solid #dce4d9; }

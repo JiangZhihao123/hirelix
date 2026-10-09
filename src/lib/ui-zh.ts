@@ -1,5 +1,10 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Working…": "正在处理…",
+  "View activity": "查看工作进度",
+  "Reconnecting…": "正在重新连接…",
+  "Replying…": "正在回复…",
+  "Thinking…": "思考中…",
   "Sent": "已发送",
   "Library": "资料库",
   "Forgotten preferences are not used in future replies.": "已忘记的偏好不会用于之后的回复。",

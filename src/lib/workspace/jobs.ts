@@ -40,7 +40,7 @@ export async function claimJob(kinds: JobKind[]): Promise<Job | null> {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
     await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
     const [claimed] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='running',progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='running',result='{}'::jsonb,progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
       tx,
     );
     return claimed;
@@ -51,6 +51,20 @@ export async function heartbeat(job: Job, message?: string) {
     sql`UPDATE hirelix_private_jobs SET lease_until=now()+${LEASE_SECONDS}*interval '1 second',progress=coalesce(${message ?? null},progress),updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid AND lease_until>now() RETURNING id`,
   );
   if (!updated.length) throw new LostLease();
+}
+export function liveReplyWriter(job: Job) {
+  let lastWrite = 0, previous = "";
+  return async (text: string) => {
+    if (text === previous) return;
+    if (text && Date.now() - lastWrite < 450) return;
+    const updated = await rows(sql`
+      UPDATE hirelix_private_jobs SET result=jsonb_set(coalesce(result,'{}'::jsonb),'{live_reply}',${JSON.stringify(text)}::jsonb),updated_at=now()
+      WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running'
+        AND lease_token=${job.lease_token}::uuid AND lease_until>now() RETURNING id
+    `);
+    if (!updated.length) throw new LostLease();
+    previous = text; lastWrite = Date.now();
+  };
 }
 export async function finishJob(job: Job, prepared: PreparedJob) {
   return db.transaction(async (tx) => {
@@ -76,12 +90,12 @@ export async function finishJob(job: Job, prepared: PreparedJob) {
 }
 export async function failJob(job: Job, message: string) {
   await db.execute(
-    sql`UPDATE hirelix_private_jobs SET status='error',error=${message},progress='Needs attention',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid`,
+    sql`UPDATE hirelix_private_jobs SET status='error',result='{}'::jsonb,error=${message},progress='Needs attention',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid`,
   );
 }
 export async function reclaimJobs() {
   return rows<{ id: string; status: string }>(
-    sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<=now() RETURNING id,status`,
+    sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,result='{}'::jsonb,progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<=now() RETURNING id,status`,
   );
 }
 export async function retryJob(userId: string, id: string) {
@@ -94,7 +108,7 @@ export async function retryJob(userId: string, id: string) {
       if (await reserveAgentCredits(userId, job.id, tx) === false) throw new WorkspaceError("Your AI credit allowance has ended. Open Settings → Billing to continue.", 402);
     }
     const [result] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='queued',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='queued',result='{}'::jsonb,progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
       tx,
     );
     return result;
@@ -155,7 +169,7 @@ export async function cancelJob(userId: string, id: string) {
   return db.transaction(async tx => {
     const job = await owned<Job>(userId, "job", id, tx, true);
     if (!["queued", "running"].includes(job.status)) return job;
-    const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+    const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result='{}'::jsonb,progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
     return cancelled;
   });
 }

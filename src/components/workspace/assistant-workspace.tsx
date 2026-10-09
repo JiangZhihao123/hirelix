@@ -1,5 +1,6 @@
 "use client";
 
+import { TurnActivity } from "./turn-activity";
 import { copyConversationMessage } from "./message-copy";
 import { assistantDraftKey } from "./conversation-draft";
 import { useLanguage, useT } from "@/components/LanguageProvider";
@@ -230,11 +231,6 @@ export function AssistantWorkspace({
       document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [contextOpen]);
-  useEffect(() => {
-    if (!conversationId || !pending) return;
-    const timer = setInterval(query.refresh, 2000);
-    return () => clearInterval(timer);
-  }, [conversationId, pending, query.refresh]);
   useEffect(() => {
     if (!optimistic || !query.data) return;
     if (
@@ -580,41 +576,10 @@ export function AssistantWorkspace({
                   <div className="ws-message-prose">
                     <AgentText content={optimistic.text} />
                   </div>
-                  <div className="ws-message-tools">
-                    <small className="ws-message-status" role="status">{t(sending ? "Sending…" : "Sent")}</small>
-                  </div>
                 </article>
               )}
-            {optimistic && conversationId && !query.data && !sending && !pending && (
-              <div className="ws-assistant-working" role="status">
-                <span className="ws-message-avatar ws-message-avatar-assistant">
-                  <BrandMark small />
-                </span>
-                <div>
-                  <strong>{t("Hirelix is working")}</strong>{pending && <button type="button" className="ws-link" onClick={() => void stop()}>{t("Stop")}</button>}
-                  <span>
-                    <Loader2 size={13} className="animate-spin" />
-                    {t("Opening your conversation…")}
-                  </span>
-                </div>
-              </div>
-            )}
-            {(pending || sending) && (
-              <div className="ws-assistant-working" role="status">
-                <span className="ws-message-avatar ws-message-avatar-assistant">
-                  <BrandMark small />
-                </span>
-                <div>
-                  <strong>{t("Hirelix is working")}</strong>{pending && <button type="button" className="ws-link" onClick={() => void stop()}>{t("Stop")}</button>}
-                  <span>
-                    <Loader2 size={13} className="animate-spin" />
-                    {sending
-                      ? t("Saving your message…")
-                      : t(job?.progress || "Working on your request…")}
-                  </span>
-                  {!sending && <small>{t("You can leave this page and return.")}</small>}
-                </div>
-              </div>
+            {(pending || sending || (optimistic && conversationId && !query.data)) && (
+              <TurnActivity key={job?.id || "sending"} job={pending ? job : null} onComplete={query.refresh} onStop={() => void stop()} />
             )}
             {job?.status === "cancelled" && <p role="status" className="ws-muted">{t("Stopped. You can send a new instruction.")}</p>}
             {job?.status === "error" && (

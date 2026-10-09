@@ -1,3 +1,4 @@
+import { readCompletionStream } from "./llm-stream";
 import {
   HTTPClient,
   OpenRouter,
@@ -26,6 +27,7 @@ export type DeepSeekThinkingMode = "enabled" | "disabled";
 export type DeepSeekReasoningEffort = "high" | "max";
 
 type LlmTextOptions = {
+  onText?: (text: string) => Promise<void>;
   model: string;
   system?: string;
   prompt?: string;
@@ -97,7 +99,8 @@ export function buildOfficialDeepSeekBody(
       ...options,
       system: `${options.system || ""}\nReturn only JSON conforming to this output schema: ${JSON.stringify(options.jsonSchema.schema)}`,
     } : options),
-    stream: false,
+    stream: Boolean(options.onText),
+    ...(options.onText ? { stream_options: { include_usage: true } } : {}),
     ...(typeof options.maxOutputTokens === "number"
       ? { max_tokens: options.maxOutputTokens }
       : {}),
@@ -731,6 +734,7 @@ async function sendOfficialDeepSeekRequest(
   let raw: unknown;
   try {
     release = await acquireLlmSlot(signal);
+    if (options.onText) await options.onText("");
     response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -740,7 +744,9 @@ async function sendOfficialDeepSeekRequest(
       body: JSON.stringify(body),
       signal,
     });
-    raw = await response.json().catch(() => null);
+    raw = response.ok && options.onText
+      ? await readCompletionStream(response, options.onText)
+      : await response.json().catch(() => null);
   } finally {
     release?.();
     cleanup();
