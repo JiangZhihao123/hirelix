@@ -423,8 +423,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
   const reply: z.infer<typeof replySchema> = plan.greeting_only
     ? {
         answer: plan.reply_language === "zh"
-          ? "你好。你想处理什么？可以直接提问，或发来 JD、候选人资料、客户消息。"
-          : "Hi. What would you like to work on? You can ask a question or share a JD, candidate profile, or client message.",
+          ? "你好。"
+          : "Hi.",
         follow_up: null,
         clarification: null,
         reminders: [],
