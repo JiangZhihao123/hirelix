@@ -33,6 +33,7 @@ import {
   Loading,
 } from "@/components/workspace/client";
 import { ConversationMessage } from "@/components/workspace/conversation-message";
+import { AttachmentThumbnail } from "./attachment-thumbnail";
 import { RoleForm } from "@/components/workspace/forms";
 import { AssistantWork } from "@/components/workspace/assistant-work";
 import { ActionReview } from "@/components/workspace/action-review";
@@ -113,6 +114,7 @@ export function AssistantWorkspace({
   const [optimistic, setOptimistic] = useState<{
     text: string;
     priorIds: string[];
+    files?: PendingFile[];
   } | null>(handoffText ? { text: handoffText, priorIds: [] } : null);
   const fileInput = useRef<HTMLInputElement>(null);
   const stickToBottom = useRef(true);
@@ -319,11 +321,11 @@ export function AssistantWorkspace({
     setError("");
     stickToBottom.current = true;
     setShowJump(false);
-    if (!attachments.length)
-      setOptimistic({
-        text,
-        priorIds: query.data?.messages.map((m) => m.id) || [],
-      });
+    if (attachments.some(item => attachmentError(item.file.name, item.file.size))) {
+      setSending(false);
+      return;
+    }
+    setOptimistic({text, files: attachments, priorIds: query.data?.messages.map(m => m.id) || []});
     try {
       const fileIds: string[] = [];
       for (const item of attachments) {
@@ -331,6 +333,7 @@ export function AssistantWorkspace({
         if (fileId) fileIds.push(fileId);
       }
       if (fileIds.length !== attachments.length) {
+        setOptimistic(null);
         setError(t("Some files need attention. Retry or remove them, then send. Uploaded files are kept."));
         return;
       }
@@ -359,7 +362,7 @@ export function AssistantWorkspace({
       localStorage.removeItem(draftRoleKey);
       request.current = null;
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
-      if (!conversationId) onOpen(result.conversation_id, attachments.length ? undefined : text);
+      if (!conversationId) onOpen(result.conversation_id, text);
       else query.refresh();
     } catch (cause) {
       setOptimistic(null);
@@ -575,11 +578,14 @@ export function AssistantWorkspace({
                 <article className="ws-message ws-message-user ws-message-optimistic" aria-label={t("Your message")}>
                   <div className="ws-message-prose">
                     <AgentText content={optimistic.text} />
+                    {optimistic.files?.map(item => <div className="ws-chat-attachment" key={item.id}>
+                      <AttachmentThumbnail name={item.file.name} file={item.file} /><Paperclip size={14} /><span>{item.file.name}</span>
+                    </div>)}
                   </div>
                 </article>
               )}
             {(pending || sending || (optimistic && conversationId && !query.data)) && (
-              <TurnActivity key={job?.id || "sending"} job={pending ? job : null} onComplete={query.refresh} onStop={() => void stop()} />
+              <TurnActivity key={job?.id || "sending"} job={pending ? job : null} receivingFiles={sending && attachments.length > 0} onComplete={query.refresh} onStop={() => void stop()} />
             )}
             {job?.status === "cancelled" && <p role="status" className="ws-muted">{t("Stopped. You can send a new instruction.")}</p>}
             {job?.status === "error" && (
@@ -624,10 +630,11 @@ export function AssistantWorkspace({
               accept={ATTACHMENT_ACCEPT}
               onChange={(e) => chooseFiles(e.target.files)}
             />
-            {attachments.length > 0 && (
+            {attachments.length > 0 && !sending && (
               <div className="ws-composer-files" aria-live="polite">
                 {attachments.map((item) => (
                   <div key={item.id} className={`ws-composer-attachment ${item.status === "error" ? "has-error" : ""}`}>
+                    {!attachmentError(item.file.name, item.file.size) && <AttachmentThumbnail name={item.file.name} file={item.file} />}
                     {item.status === "uploading" ? <Loader2 size={14} className="animate-spin" /> : item.status === "uploaded" ? <Check size={14} /> : <Paperclip size={14} />}
                     <span title={item.file.name}>{item.file.name}<small>{item.error ? t(item.error) : item.status === "uploading" ? t("Uploading…") : item.status === "uploaded" ? t("Ready to send") : `${Math.ceil(item.file.size / 1024)} KB`}</small></span>
                     {item.status === "error" && !attachmentError(item.file.name, item.file.size) && (
@@ -638,6 +645,7 @@ export function AssistantWorkspace({
                 ))}
               </div>
             )}
+            {!sending && attachments.some(item => attachmentError(item.file.name, item.file.size)) && <p className="ws-attachment-error" role="status">{t("Remove the unsupported or oversized file to send the remaining message.")}</p>}
             {!conversationId && (roleId || linkedPersonId) && (
               <div className="ws-composer-context-tags">
                 {roleId && (
@@ -716,8 +724,8 @@ export function AssistantWorkspace({
                   (!draft.trim() && !attachments.length) ||
                   sending ||
                   attachments.some((item) => item.status === "uploading") ||
-                  pending ||
-                  job?.status === "error"
+                  attachments.some(item => !!attachmentError(item.file.name, item.file.size)) ||
+                  pending
                 }
               >
                 <ArrowUp size={16} />

@@ -3,6 +3,10 @@ import { z } from "zod";
 export const MAX_CONVERSATION_FILES = 20;
 export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 export const ATTACHMENT_ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf,.docx,.xlsx,.pptx,.csv,.tsv,.txt,.md,.json,.html,.xml";
+export function attachmentPreviewType(name: string): string | null {
+  const extension = name.split(".").pop()?.toLowerCase();
+  return ({jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf"} as Record<string, string>)[extension || ""] || null;
+}
 export const attachmentSchema = z.object({
   file_id: z.uuid(), name: z.string(), size: z.number(),
 });

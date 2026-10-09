@@ -11,8 +11,8 @@ export const meaningfulProgress = (progress: string) => ![
   "Reading your conversation and workspace", "Resuming interrupted task", "Complete",
 ].includes(progress);
 
-export function TurnActivity({job, onComplete, onStop}: {
-  job?: Job | null; onComplete: () => void; onStop: () => void;
+export function TurnActivity({job, onComplete, onStop, receivingFiles}: {
+  job?: Job | null; onComplete: () => void; onStop: () => void; receivingFiles?: boolean;
 }) {
   const t = useT();
   const [latest, setLatest] = useState<Job | null>(null);
@@ -40,7 +40,7 @@ export function TurnActivity({job, onComplete, onStop}: {
   const answer = active?.status === "running" && typeof active.result?.live_reply === "string" ? active.result.live_reply : "";
   return <div className="ws-turn-activity">
     {answer && <div className="ws-message-prose ws-live-reply"><AgentText content={answer}/></div>}
-    <div className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin"/><span>{t(disconnected ? "Reconnecting…" : answer ? "Replying…" : active?.progress && meaningfulProgress(active.progress) ? "Working…" : "Thinking…")}</span>
+    <div className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin"/><span>{t(receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : answer ? "Replying…" : active?.progress && meaningfulProgress(active.progress) ? "Working…" : "Thinking…")}</span>
       {job && <button type="button" className="ws-link" onClick={onStop}>{t("Stop")}</button>}
     </div>
     {active?.progress && meaningfulProgress(active.progress) && <details className="ws-turn-details"><summary>{t("View activity")}</summary><p>{t(active.progress)}</p></details>}

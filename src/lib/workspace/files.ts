@@ -52,7 +52,7 @@ export async function readFile(userId: string, id: string) {
   const { encoded, ...metadata } = file;
   return { ...metadata, bytes: Buffer.from(encoded, "base64") };
 }
-export function attachment(bytes: Uint8Array, name: string, type: string) {
+export function attachment(bytes: Uint8Array, name: string, type: string, inline = false) {
   const fallback =
     name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 150) || "download";
   let position = 0;
@@ -70,7 +70,7 @@ export function attachment(bytes: Uint8Array, name: string, type: string) {
   return new Response(body, {
     headers: {
       "Content-Type": type,
-      "Content-Disposition": `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(name).replace(/'/g, "%27")}`,
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(name).replace(/'/g, "%27")}`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },

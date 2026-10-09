@@ -203,6 +203,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
     await progress(`Reading ${index + 1}/${fileMetadata.length}: ${file.name}`);
     attachments.push({ ...await readConversationFile(job.user_id, file, Math.floor(100000 / fileMetadata.length), MAX_SOURCE_IMAGES - attachments.reduce((sum, item) => sum + item.images.length, 0)), ref: `attachment_${index + 1}` });
   }
+  if (currentFiles.length && attachments.every(file => file.read_error)) {
+    throw new WorkspaceError("The attached files could not be read. Replace them, or send a new message without attachments.");
+  }
   const roles = await listRoles(job.user_id);
   const memories = await listPersonalMemories(job.user_id);
   const reminders = await listReminders(job.user_id);

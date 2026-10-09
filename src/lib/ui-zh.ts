@@ -1523,4 +1523,12 @@ export const uiZh: Record<string, string> = {
   "Your AI credit allowance has ended. Your saved work is still available. Open Settings → Billing to subscribe or check your allowance.": "AI 工作额度已用完。已保存的工作仍可查看。请打开 设置 → 计费，订阅或查看额度。",
   "Your AI credit allowance has ended. Open Settings → Billing to continue.": "AI 工作额度已用完。请打开 设置 → 计费 后继续。",
   "Enter to send · Shift + Enter for a new line": "Enter 发送 · Shift + Enter 换行",
+  "Uploading files…": "上传文件中…",
+  "Download original file": "下载原文件",
+  "Remove the unsupported or oversized file to send the remaining message.": "请移除不支持或过大的文件，再发送其余内容。",
+  "Source details": "来源详情",
+  "Close source details": "关闭来源详情",
+  "Open full details": "打开完整详情",
+  "The attached files could not be read. Replace them, or send a new message without attachments.": "附件无法读取。请更换文件，或直接发送不含附件的新消息。",
+  "A newer message has replaced this reply. Continue in the conversation instead.": "你已发送了新消息。请在当前对话中继续。",
 };

@@ -70,7 +70,7 @@ export async function sendMessage(
         true,
       );
       const [pending] = await rows(
-        sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${conversation.id} AND status IN ('queued','running','error') LIMIT 1`,
+        sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${conversation.id} AND status IN ('queued','running') LIMIT 1`,
         tx,
       );
       if (pending)

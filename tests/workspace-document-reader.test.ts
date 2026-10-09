@@ -24,3 +24,15 @@ test('common attachments share one client and server allowlist',()=>{
  for(const name of ['cv.JPG','notes.png','diagram.webp','roster.xlsx','brief.pptx','notes.tsv','data.json'])assert.equal(attachmentError(name,100),null);
  assert.ok(attachmentError('code.exe',100));
 });
+test('source previews do not transcribe images or scanned PDFs',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'hirelix-preview-'))+'/';
+ try {
+  await makeFileFixtures(dir);
+  for(const name of ['qa-profile.jpg','qa-scan.pdf','qa-notes.docx','qa-candidates.xlsx']) {
+   const result=await readDocument({name,bytes:await readFile(dir+name)},0,false);
+   assert.equal(result.images.length,0);
+   if(name.endsWith('docx'))assert.match(result.text,/Harbor Labs/);
+   if(name.endsWith('xlsx'))assert.match(result.text,/Rowan Vale/);
+  }
+ } finally {await rm(dir,{recursive:true,force:true});}
+});

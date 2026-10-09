@@ -100,6 +100,14 @@ export async function reclaimJobs() {
 }
 export async function retryJob(userId: string, id: string) {
   return db.transaction(async (tx) => {
+    const original = await owned<Job>(userId, "job", id, tx);
+    if (original.kind === "chat" && typeof original.payload.conversation_id === "string") {
+      // Serialize with sendMessage before taking the billing lock. A stale tab
+      // must not restart an older failed turn after the user has moved on.
+      await owned(userId, "conversation", original.payload.conversation_id, tx, true);
+      const [latest] = await rows<{id: string}>(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${original.payload.conversation_id} ORDER BY created_at DESC,id DESC LIMIT 1`, tx);
+      if (latest?.id !== original.id) throw new WorkspaceError("A newer message has replaced this reply. Continue in the conversation instead.", 409);
+    }
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${userId}`}, 0))`);
     const job = await owned<Job>(userId, "job", id, tx, true);
     if (job.status !== "error")

@@ -28,7 +28,7 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
   const documentId = url.pathname.match(/^\/app\/(?:submissions|roles\/[a-f0-9-]+\/updates)\/([a-f0-9-]+)$/)?.[1];
   const recordId = url.searchParams.get("record");
   const path = person ? `/people/${person}` : role ? `/roles/${role}` : file ? `/files/${file}/text` : documentId ? `/deliverables/${documentId}` : null;
-  const query = useQuery<{ deliverable?: Deliverable; person?: Person; role?: Role; records?: SourceRecord[]; name?: string; content?: string; truncated?: boolean }>(path);
+  const query = useQuery<{ deliverable?: Deliverable; person?: Person; role?: Role; records?: SourceRecord[]; name?: string; content?: string; truncated?: boolean; preview_type?: string | null }>(path);
   const record = query.data?.records?.find(item => item.id === recordId);
   return <aside ref={panel} className="ws-source-panel" aria-label={t("Source details")}>
     <header><strong>{source.title}</strong><button ref={close} className="ws-icon" onClick={onClose} aria-label={t("Close source details")}><X size={18} /></button></header>
@@ -39,7 +39,13 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
     {!recordId && query.data?.person && <><h3>{query.data.person.name}</h3><p>{query.data.person.headline}</p><p>{query.data.person.location}</p><SourceContent content={JSON.stringify(query.data.person.profile)} />{query.data.records?.map(item => <details key={item.id}><summary>{item.title}</summary><SourceContent content={item.content} /></details>)}</>}
     {!recordId && query.data?.role && <><h3>{query.data.role.title}</h3><p>{query.data.role.client_name}</p><h4>{t("Original job description")}</h4><AgentText content={query.data.role.jd_text} /><h4>{t("Current requirements")}</h4><SourceContent content={JSON.stringify(query.data.role.brief)} /></>}
     {query.data?.deliverable && <><h3>{query.data.deliverable.title}</h3><AgentText content={query.data.deliverable.content} /><small>{t("Saved version")} {query.data.deliverable.version}</small></>}
-    {file && query.data && <><h3>{query.data.name}</h3><p className="whitespace-pre-wrap">{query.data.content}</p>{query.data.truncated && <p>{t("Preview limited to 100,000 characters. Open the original for the full file.")}</p>}</>}
-    <a className="ws-link" href={source.href} target="_blank" rel="noreferrer">{t("Open full details")} <ArrowUpRight size={13} /></a>
+    {file && query.data && <>
+      {query.data.preview_type?.startsWith("image/") ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="ws-source-image" src={`${source.href}?preview=1`} alt={query.data.name || source.title} />
+      ) : query.data.preview_type === "application/pdf" ? <iframe className="ws-source-pdf" title={query.data.name || source.title} src={`${source.href}?preview=1`} /> : <SourceContent content={query.data.content || ""} />}
+      {query.data.truncated && <p>{t("Preview limited to 100,000 characters. Open the original for the full file.")}</p>}
+    </>}
+    <a className="ws-link" href={source.href} target="_blank" rel="noreferrer">{t(file ? "Download original file" : "Open full details")} <ArrowUpRight size={13} /></a>
   </aside>;
 }

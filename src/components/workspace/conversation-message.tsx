@@ -6,6 +6,7 @@ import { useT } from "@/components/LanguageProvider";
 import { BrandMark } from "@/components/BrandMark";
 import { AgentText } from "@/components/AgentText";
 import { ReminderReceipt } from "./reminder";
+import { AttachmentThumbnail } from "./attachment-thumbnail";
 import { date } from "./client";
 import { ConversationImport } from "./import-review";
 import { AssistantWork, AssistantAgreement, ConversationRevision } from "./assistant-work";
@@ -43,9 +44,10 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         onSource(source); return true;
                       }} />
                       {messageAttachments(message.metadata).map((file) => (
-                        <a key={file.file_id} className="ws-chat-attachment" href={`/api/workspace/files/${file.file_id}`}>
-                          <Paperclip size={14} />{file.name}
-                        </a>
+                        <button key={file.file_id} type="button" className="ws-chat-attachment" onClick={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})}>
+                          <AttachmentThumbnail name={file.name} href={`/api/workspace/files/${file.file_id}?preview=1`} />
+                          <Paperclip size={14} /><span>{file.name}</span>
+                        </button>
                       ))}
                     </div>
                     {messageImportJobs(message.metadata).map((jobId) => (
