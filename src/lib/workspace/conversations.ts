@@ -219,7 +219,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
   const history = messages
     .filter((m) => new Date(m.created_at) <= new Date(question.created_at))
     .slice(-30)
-    .map((m) => ({ role: m.role, content: m.id === question.id ? question.content : m.content, metadata: m.metadata }));
+    .map((m) => {
+      const clarification = m.role === "assistant" ? m.metadata.question as ConversationQuestion | undefined : undefined;
+      if (!clarification) return { role: m.role, content: m.id === question.id ? question.content : m.content, metadata: m.metadata };
+      // A resolved question is history, not an assistant answer to regenerate.
+      // Keep the question and user's decision without repeating its old menu
+      // prose or recursively accumulated continuation request.
+      return { role: m.role, content: clarification.question, metadata: {
+        ...m.metadata,
+        question: { question: clarification.question, status: clarification.status, answer: clarification.answer,
+          ...(clarification.status === "waiting" ? { options: clarification.options } : {}) },
+      } };
+    });
   const imports = await rows<{ file_id: string; status: Job["status"] }>(
     sql`SELECT j.id,j.payload->>'file_id' AS file_id,j.status,j.payload->>'filename' AS filename,(SELECT count(*)::int FROM hirelix_private_import_rows r WHERE r.user_id=j.user_id AND r.job_id=j.id AND r.status='saved') AS saved,(SELECT count(*)::int FROM hirelix_private_import_rows r WHERE r.user_id=j.user_id AND r.job_id=j.id AND r.status='review') AS awaiting_review,(SELECT jsonb_agg(summary) FROM (SELECT r.action,r.status,r.extracted->>'name' AS name,p.name AS saved_name FROM hirelix_private_import_rows r LEFT JOIN hirelix_agent_people p ON p.user_id=r.user_id AND p.id=r.result_person_id WHERE r.user_id=j.user_id AND r.job_id=j.id ORDER BY r.row_number LIMIT 50) summary) AS reviewed_rows FROM hirelix_private_jobs j WHERE j.user_id=${job.user_id}::uuid AND j.kind='import' AND j.payload->>'conversation_id'=${id} ORDER BY j.created_at DESC LIMIT 20`,
   );

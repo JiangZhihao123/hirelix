@@ -8,7 +8,7 @@ import { createRole } from "../../src/lib/workspace/roles";
 import { indexRole } from "../../src/lib/workspace/role-retrieval";
 import { sendMessage, assistantReply, conversationDetails, type AssistantMeta } from "../../src/lib/workspace/conversations";
 import { claimJob, finishJob, heartbeat } from "../../src/lib/workspace/jobs";
-import { enqueue, rows } from "../../src/lib/workspace/database";
+import { enqueue, json, rows } from "../../src/lib/workspace/database";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import { createCanvas } from "@napi-rs/canvas";
 import { uploadConversationFile } from "../../src/lib/workspace/files";
@@ -56,7 +56,12 @@ test("real vision model and PG: resume an image matching request despite a previ
   // Reproduce the already-saved, incorrect optional menu. The new reply uses
   // real vision, embeddings and PostgreSQL; this history is a fictional fixture.
   await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE id=${initial.job.id}::uuid AND user_id=${owner}::uuid`);
-  await db.execute(sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${owner}::uuid,'assistant','没有合适职位。请问您是否希望创建一个新客户角色，或者将她存入候选人库？',${initial.conversation_id}::uuid,'{"question":{"status":"waiting","question":"您希望如何处理匹配问题？","options":["创建新客户角色","存入候选人库"],"request":"为她匹配合适的客户角色"}}'::jsonb)`);
+  for (let turn = 0; turn < 3; turn++) {
+    const prior = "已收到匹配请求。Dana Fox 是一名谢菲尔德的初级摄像师，有一年摄像和剪辑经验，希望从事初级影视制作工作。现有伦敦 VP Product 要求八年产品管理与领导经验，没有适合她的职位。请问您是否希望创建一个新客户角色，或者将她存入候选人库？";
+    const question = { status: turn === 2 ? "waiting" : "answered", question: "您希望如何处理匹配问题？", options: ["创建新客户角色", "存入候选人库"], request: "为她匹配合适的客户角色" + "\n\nUser clarification: 为她匹配合适的客户角色".repeat(turn), ...(turn < 2 ? { answer: "为她匹配合适的客户角色" } : {}) };
+    await db.execute(sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${owner}::uuid,'assistant',${prior},${initial.conversation_id}::uuid,${json({question})})`);
+    if (turn < 2) await db.execute(sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${owner}::uuid,'user','为她匹配合适的客户角色',${initial.conversation_id}::uuid,'{}'::jsonb)`);
+  }
   const sent = await sendMessage(owner, { conversation_id: initial.conversation_id, message: "为她匹配合适的客户角色", locale: "zh", request_key: randomUUID() });
   const job = await claimJob(["chat"]); assert.equal(job?.id, sent.job.id);
   const timer = setInterval(() => void heartbeat(job!), 20000);
