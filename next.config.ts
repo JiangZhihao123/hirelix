@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     incomingRequests: { ignore: [/^\/api\/auth\/callback\//, /^\/recommendation\//] },
   },
   outputFileTracingIncludes: {
+    // Sharp loads libvips dynamically; tracing its JS entry alone omits the
+    // shared library from Vercel functions.
+    "/api/workspace/**": ["./node_modules/@img/sharp-libvips-*/lib/**/*"],
     "/api/workspace/deliverables/*/export": ["./src/assets/fonts/*"],
   },
   async redirects() {
