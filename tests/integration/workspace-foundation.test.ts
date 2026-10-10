@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import { sql } from "drizzle-orm";
-import { closeDb } from "../../src/db/client";
+import { db, closeDb } from "../../src/db/client";
 import {
   createPerson,
   updatePerson,
@@ -40,6 +40,7 @@ if (
 const owner = randomUUID(),
   other = randomUUID();
 after(async () => {
+  await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id IN (${owner}::uuid,${other}::uuid) AND status IN ('queued','running')`);
   await closeDb();
 });
 const failure = (status: number) => (error: unknown) =>
