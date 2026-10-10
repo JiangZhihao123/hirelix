@@ -25,8 +25,9 @@ async function reply(message:string,conversation_id?:string,document_id?:string)
 test("real agent: relationship linking, interest, permission and notes stay in conversation",{timeout:300000},async()=>{
  const role=await createRole(owner,{title:"Infrastructure Manager",client_name:"QA Cedarglass",jd_text:"Lead infrastructure delivery"});
  const person=await createPerson(owner,{name:"QA Jordan Vale",headline:"Infrastructure Lead"});
- const first=await reply("Link QA Jordan Vale to the Infrastructure Manager role at QA Cedarglass and save their stated interest: open to an introductory call. Add a private relationship note: ask about on-call rotation. Sharing permission has not been discussed. Do not send anything.");
+ const first=await reply("Link QA Jordan Vale to the Infrastructure Manager role at QA Cedarglass and save their stated interest: open to an introductory call. Add a private relationship note: ask about on-call rotation. No sharing permission has been granted. Do not send anything.");
  const get=async()=> (await rows<import('../../src/lib/workspace/types').RoleCandidate>(sql`SELECT * FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`))[0];
+ assert.ok(!(first.messages.at(-1)?.metadata as AssistantMeta).actions?.some(action=>action.kind==='update_sharing_permission'), 'An absent permission decision must not become a refusal proposal');
  const link=await get();assert(link,first.messages.at(-1)?.content);assert.equal(link.permission,'unknown');assert.match(link.interest,/introductory call/i);assert.match(link.notes,/on.call/i);
  const second=await reply("Jordan verbally gave permission to share their profile with QA Cedarglass for this role. Save that permission; keep the interest and private note unchanged. Do not send anything.",first.conversation.id);
  const permission=await get();assert.equal(permission.permission,'confirmed',second.messages.at(-1)?.content);assert(permission.permission_record_id);assert.equal(permission.interest,link.interest);assert.equal(permission.notes,link.notes);
@@ -39,6 +40,14 @@ test("real agent: relationship linking, interest, permission and notes stay in c
  await updateRelationship(owner,role.id,person.id,{...cleared,interest:'Newer fact',expected_version:cleared.version});
  await assert.rejects(()=>acceptAction(owner,preview.conversation.id,msg.id,action.id,action.fields),/changed/);
  await assert.rejects(()=>db.transaction(tx=>applyAssistantAction(randomUUID(),preview.conversation.id,action,action.fields,tx)),/not found/);
+});
+test("real agent: absence of permission is not a reported refusal",{timeout:120000},async()=>{
+ const role=await createRole(owner,{title:"Product Lead",client_name:"QA Willowmere",jd_text:"Lead product delivery"});
+ const person=await createPerson(owner,{name:"QA Morgan Lark",headline:"Product Manager"});
+ const result=await reply("Screening-call notes: QA Morgan Lark confirmed interest in the Product Lead role at QA Willowmere and can attend the office Tuesday and Thursday. Salary expectations and notice period were not discussed. Save this call note, link Morgan to the role and record their interest. No sharing permission has been granted. Do not contact anyone or send anything.");
+ const [link]=await rows<import('../../src/lib/workspace/types').RoleCandidate>(sql`SELECT * FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`);
+ assert(link,result.messages.at(-1)?.content);assert.equal(link.permission,'unknown');assert.equal(link.permission_record_id,null);assert.match(link.interest,/interest/i);
+ assert.ok(!(result.messages.at(-1)?.metadata as AssistantMeta).actions?.some(action=>action.kind==='update_sharing_permission'),'No refusal or grant proposal when no decision was reported');
 });
 test("real agent: permission report creates a missing association with evidence atomically",{timeout:120000},async()=>{
  const role=await createRole(owner,{title:"Platform Director",client_name:"QA Meadowbank",jd_text:"Lead platform operations"});
