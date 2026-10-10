@@ -300,7 +300,7 @@ export function RoleForm({
           </Field>
         </div>
         <Field
-          label={t("Job description")}
+          label={t("Original job description")}
           hint={t("Paste the original JD. You can refine the working requirements below.")}
         >
           <textarea

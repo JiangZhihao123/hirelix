@@ -262,12 +262,13 @@ export default function RolePage({
             <>
               <section className="ws-section">
                 <div className="ws-inspector-heading">
-                  <h3>{t("Working requirements")}</h3>
+                  <h3>{t("Current requirements")}</h3>
                   <button className="ws-link" onClick={() => setHistory(true)}>
                     <HistoryIcon size={13} />
                     {t("Version")} {role.version}
                   </button>
                 </div>
+                <p className="ws-muted text-sm mb-4">{t("Confirmed priorities and clarifications for this role. The original JD is kept separately below.")}</p>
                 <div className="ws-brief-columns">
                   {(
                     [
@@ -293,7 +294,8 @@ export default function RolePage({
                 </div>
               </section>
               <section className="ws-section">
-                <h3>{t("Job description")}</h3>
+                <h3>{t("Original job description")}</h3>
+                <p className="ws-muted text-sm mb-3">{t("Reference text. Later clarifications are shown in Current requirements above.")}</p>
                 <p>{role.jd_text}</p>
               </section>
               {Object.values(role.client_contact || {}).some(Boolean) && (
