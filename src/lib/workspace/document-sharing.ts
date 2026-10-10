@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { expectVersion, json, owned, rows, WorkspaceError } from "./database";
+import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { readFile } from "./files";
 import type { Deliverable } from "./types";
 
@@ -61,6 +61,14 @@ export function clientDocument(document: Deliverable): ClientDocument {
     files: source.files || [],
   });
 }
+// Explicit refusal is a live relationship fact, not a frozen draft property.
+// Preparation, publication and send reservation share this check.
+export async function assertSharingAllowed(userId: string, roleId: string, snapshot: ClientDocument, runner?: Runner) {
+  const ids = [...new Set([...snapshot.people.map(person => person.id), ...snapshot.files.map(file => file.person_id)])];
+  if (!ids.length) return;
+  const relationships = await rows<{permission: string}>(sql`SELECT permission FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid AND person_id IN (${sql.join(ids.map(id => sql`${id}::uuid`), sql`,`)}) ${runner ? sql`FOR SHARE` : sql``}`, runner);
+  if (relationships.some(link => link.permission === 'declined')) throw new WorkspaceError("A candidate has declined sharing for this role. This document cannot be sent or shared unless that candidate explicitly changes their decision.", 409);
+}
 function token(id: string) {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret)
@@ -91,10 +99,11 @@ function summary(share: Share) {
   };
 }
 export async function activeDocumentShare(userId: string, id: string) {
-  await owned(userId, "deliverable", id);
+  const document = await owned<Deliverable>(userId, "deliverable", id);
   const [share] = await rows<Share>(
     sql`SELECT * FROM hirelix_private_document_shares WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid AND revoked_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1`,
   );
+  if (share) await assertSharingAllowed(userId, document.role_id, clientDocumentSchema.parse(share.snapshot));
   return share ? summary(share) : null;
 }
 export async function publishDocument(
@@ -112,6 +121,7 @@ export async function publishDocument(
     );
     expectVersion(document.version, version);
     const snapshot = clientDocument(document);
+    await assertSharingAllowed(userId, document.role_id, snapshot, tx);
     const [existing] = await rows<Share>(
       sql`SELECT * FROM hirelix_private_document_shares WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid AND deliverable_version=${version} AND revoked_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1`,
       tx,
@@ -140,9 +150,12 @@ export async function readSharedDocument(value: string) {
   const [share] = await rows<Share>(
     sql`SELECT * FROM hirelix_private_document_shares WHERE id=${id}::uuid AND revoked_at IS NULL AND expires_at>now()`,
   );
-  return share
-    ? { ...share, snapshot: clientDocumentSchema.parse(share.snapshot) }
-    : null;
+  if (!share) return null;
+  const snapshot = clientDocumentSchema.parse(share.snapshot);
+  const document = await owned<Deliverable>(share.user_id, "deliverable", share.deliverable_id);
+  try { await assertSharingAllowed(share.user_id, document.role_id, snapshot); }
+  catch (error) { if (error instanceof WorkspaceError && error.status === 409) return null; throw error; }
+  return { ...share, snapshot };
 }
 export async function sharedDocumentFile(value: string, fileId: string) {
   const share = await readSharedDocument(value);

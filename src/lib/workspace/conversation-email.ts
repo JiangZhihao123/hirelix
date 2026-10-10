@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { json, owned, rows, WorkspaceError, type Runner } from "./database";
-import { clientDocument } from "./document-sharing";
+import { clientDocument, assertSharingAllowed } from "./document-sharing";
 import { gmailConnection, sendConversationEmail, effectiveDeliveryStatus, type Receipt } from "./gmail";
 import { emailAddress, emailSnapshotSchema, type ConversationEmail, type EmailPlan } from "./email-contract";
 import { quotedAuthorization } from "./assistant-work";
@@ -94,6 +94,7 @@ export async function prepareEmailReply({job, conversation, question, messages, 
       try {
         if (plan.use_document && !document) throw new WorkspaceError("Open the saved document in this conversation first.");
         const reviewed = plan.use_document && document ? clientDocument(document) : null;
+        if (reviewed && document) await assertSharingAllowed(job.user_id, document.role_id, reviewed);
         const title = reviewed?.title || plan.subject;
         const content = reviewed?.content || plan.body;
         if (!title || !content) answer = say("What subject and message should this email contain?", "这封邮件的主题和正文是什么？");

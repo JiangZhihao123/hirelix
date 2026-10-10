@@ -5,7 +5,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db/client";
 import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from "./database";
-import { clientDocument } from "./document-sharing";
+import { clientDocument, assertSharingAllowed } from "./document-sharing";
 import { readFile } from "./files";
 import { markSubmitted } from "./deliverables";
 import { emailSnapshotSchema, type EmailSnapshot } from "./email-contract";
@@ -92,6 +92,7 @@ export async function sendRecommendation(
   const document = await owned<Deliverable>(userId, "deliverable", id);
   expectVersion(document.version, input.expected_version);
   const reviewed = clientDocument(document);
+  await assertSharingAllowed(userId, document.role_id, reviewed);
   const snapshot = { ...reviewed, from: connection.email!, to: input.to, document_id: id, document_version: input.expected_version };
   const { mime, messageId, accessToken } = await composeGmail(userId, snapshot);
   const claimed = await reserveEmailDelivery(
@@ -136,6 +137,7 @@ export async function reserveEmailDelivery(
     );
     expectVersion(current.version, input.expected_version);
     const reviewed = clientDocument(current);
+    await assertSharingAllowed(userId, current.role_id, reviewed, tx);
     const fingerprint = createHash("sha256")
       .update(
         JSON.stringify([
@@ -313,6 +315,7 @@ export async function reserveConversationEmail(userId: string, snapshot: EmailSn
       const document = await owned<Deliverable>(userId, "deliverable", snapshot.document_id, tx, true);
       expectVersion(document.version, snapshot.document_version!);
       const reviewed = clientDocument(document);
+      await assertSharingAllowed(userId, document.role_id, reviewed, tx);
       if (reviewed.title !== snapshot.title || reviewed.content !== snapshot.content || JSON.stringify(reviewed.files.map(f => [f.id, f.sha256])) !== JSON.stringify(snapshot.files.map(f => [f.id, f.sha256]))) throw new WorkspaceError("The email changed. Review it again before sending.", 409);
     }
     const fingerprint = createHash("sha256").update(JSON.stringify([snapshot.document_id, snapshot.to.toLowerCase(), snapshot.title, snapshot.content, snapshot.files.map(f => [f.id, f.sha256])])).digest("hex");

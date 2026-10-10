@@ -133,3 +133,11 @@
 - `npm run test:unit`：355 通过、2 跳过；TypeScript、ESLint、生产构建通过。证据在 `output/agent-relationships-20261010/`（本地忽略目录），含浏览器截图、数据库回读与失败原始日志。
 - 初次邮件回归发现隔离 QA 数据库未应用已有 `20261010_conversation_email.sql`（普通邮件的 deliverable_id 非空约束），已将现有迁移应用于两套本地 QA 数据库，随后规则回归通过。未修改生产数据库、未部署。
 - 首次站外交付用例中，业务写入已成功，幂等测试把 PG 时间文本直接作为 ISO API 入参导致失败；改为 ISO 格式后通过。一次备注清空因模型省略 record 失败，修复通用来源保留后完整真实回归通过。失败日志保留，不以重跑代替原因解释。
+
+### 同轮发现并修复：最新拒绝分享未被外发服务检查
+
+Chrome 实测已记录候选人 declined 后，旧邮件准备仍展示 Confirm and send email。继续检查发现邮件发送预留和公开链接发布也没有读取最新拒绝决定；不是单纯按钮问题。共用 `assertSharingAllowed` 现在按用户、职位和实际选定的人选/CV 检查最新关系：邮件准备、两种发送预留和链接发布共同复用，事务内锁定被检查的已有关系。公开旧链接及文件下载在新拒绝决定后不可再读，资料页也不再把它返回为可用链接。没有把 unknown 自动视为 confirmed，也没有新增通用审批流程。
+
+- `workspace-sharing-refusal.test.ts` 真实 PG：已发布快照在明确拒绝后不可读；发布、旧发送入口及对话发送预留全部拒绝，未产生发送回执。`workspace-document-sharing.test.ts`、`workspace-email-delivery.test.ts` 原有版本、撤销、范围及发送去重回归通过。
+- Chrome 再次请求准备同一份推荐邮件，Agent 直接说明候选人拒绝分享，不再产生确认发送卡。原预览已取消；数据库确认该测试文档发送回执为 0。证据：`sharing-blocked.png`、`browser-readback.txt`。没有点击发送、没有执行 Gmail 投递、没有发布生产公开链接。
+- 测试材料为隔离的虚构 QA 资料。以上均为 local real chain；不代表生产部署、Google 授权重做或真实邮件投递验收。
