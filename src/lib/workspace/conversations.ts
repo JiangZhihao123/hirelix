@@ -1,3 +1,4 @@
+import { conversationExcerpt } from "./conversation-excerpt";
 import { readDocument } from "./document-reader";
 import { MAX_SOURCE_IMAGES, type SourceImage } from "./vision";
 import { liveReplyWriter } from "./jobs";
@@ -110,11 +111,7 @@ export async function searchConversations(userId: string, value: string) {
     LIMIT 30
   `);
   return matches.map(({ match_content, ...conversation }): ConversationSearchResult => {
-    const index = match_content?.toLocaleLowerCase().indexOf(query.toLocaleLowerCase()) ?? -1;
-    const start = Math.max(0, index - 55);
-    const excerpt = match_content
-      ? `${start ? "…" : ""}${match_content.slice(start, start + 170).replace(/\s+/g, " ").trim()}${match_content.length > start + 170 ? "…" : ""}`
-      : null;
+    const excerpt = match_content ? conversationExcerpt(match_content, query) : null;
     return { ...conversation, excerpt };
   });
 }
