@@ -106,7 +106,6 @@ export default function Candidates() {
     [location, setLocation] = useState(""),
     [expertise, setExpertise] = useState(""),
     [page, setPage] = useState(1),
-    [adding, setAdding] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const people = useQuery<PeopleResult>(
@@ -209,7 +208,7 @@ export default function Candidates() {
           </Link>
           <button
             className="ws-button"
-            onClick={() => setAdding(true)}
+            onClick={() => router.push(`/app?prompt=${encodeURIComponent(t("Save candidate details I provide in this conversation."))}`)}
           >
             <Plus size={15} />
             {t("Add candidate")}
@@ -326,10 +325,10 @@ export default function Candidates() {
               <p>
                 {filter || location || expertise || semantic
                   ? t("Try another name, or search by meaning for experience and past conversations.")
-                  : t("Add a person or import your existing records. Their notes and relationships stay with them across roles.")}
+                  : t("Give your assistant a CV, conversation notes or candidate details. It will organize and save the supported facts.")}
               </p>
               <div className="ws-actions">
-                <button className="ws-button" onClick={() => setAdding(true)}>
+                <button className="ws-button" onClick={() => router.push(`/app?prompt=${encodeURIComponent(t("Save candidate details I provide in this conversation."))}`)}>
                   {t("Add a candidate")}
                 </button>
                 <Link
@@ -424,16 +423,7 @@ export default function Candidates() {
             />
         </aside>}
       </div>
-      {adding && (
-        <PersonForm
-          onClose={() => setAdding(false)}
-          onSaved={(person) => {
-            setAdding(false);
-            people.refresh();
-            select(person.id);
-          }}
-        />
-      )}
+
     </div>
   );
 }

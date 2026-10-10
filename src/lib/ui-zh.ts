@@ -1,5 +1,11 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Save candidate details I provide in this conversation.": "请根据我在对话中提供的资料保存候选人。",
+  "Save a role from the JD and client context I provide.": "请根据我提供的 JD 和客户背景保存职位。",
+  "Give your assistant a CV, conversation notes or candidate details. It will organize and save the supported facts.": "把简历、沟通记录或候选人资料交给助理，由它整理并保存有依据的信息。",
+  "Candidate changes ready to review": "候选人变更已准备好，可查看确认",
+  "Ask your assistant to change anything before saving.": "保存前如需调整，直接告诉助理。",
+
   "Use images, PDF, DOCX, XLSX, PPTX, CSV, TSV or text files": "支持 JPG、PNG、WebP 图片，PDF、Word、Excel、PowerPoint、CSV、TSV 和文本文件。",
   "Use up to 20 images or PDF pages per message": "每条消息最多读取 20 张图片或 PDF 页面，请拆分后发送。",
   "This image is damaged or exceeds the 16 megapixel reading limit": "图片已损坏或超过 1600 万像素读取限制。",

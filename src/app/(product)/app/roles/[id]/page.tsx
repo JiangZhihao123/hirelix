@@ -379,7 +379,7 @@ export default function RolePage({
                         </button>
                         <Link
                           className="ws-link"
-                          href={`/app?role=${id}&person=${link.person_id}&prompt=${encodeURIComponent(locale === "zh" ? `请给这个职位准备 ${link.person?.name || "这位候选人"} 的推荐稿，先给我审核，不要发送。` : `Prepare a recommendation for ${link.person?.name || "this candidate"} for this role, for my review. Do not send it.`)}`}
+                          href={`/app?role=${id}&person=${link.person_id}&prompt=${encodeURIComponent(locale === "zh" ? `请给这个职位准备 ${link.person?.name || "这位候选人"} 的推荐稿，不要发送。` : `Prepare a recommendation for ${link.person?.name || "this candidate"} for this role. Do not send it.`)}`}
                         >
                           {t("Prepare submission")} <ArrowUpRight size={13} />
                         </Link>
@@ -437,7 +437,7 @@ export default function RolePage({
                   <Plus size={14} />
                   {t("Add record")}
                 </button>
-                <Link className="ws-link" href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请给这个职位准备一份进展更新，先给我审核。" : "Prepare a search update for this role for my review.")}`}>
+                <Link className="ws-link" href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请给这个职位准备一份进展更新，不要发送。" : "Prepare a search update for this role. Do not send it.")}`}>
                   {t("Prepare search update")}
                 </Link>
               </div>
@@ -566,7 +566,7 @@ export default function RolePage({
             </p>
             <Link
               className="ws-link mt-3"
-              href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请给这个职位准备一份进展更新，先给我审核。" : "Prepare a search update for this role for my review.")}`}
+              href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请给这个职位准备一份进展更新，不要发送。" : "Prepare a search update for this role. Do not send it.")}`}
             >
               {t("Prepare a search update")} <ArrowUpRight size={13} />
             </Link>

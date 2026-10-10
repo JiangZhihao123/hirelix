@@ -2592,3 +2592,6 @@
 .ws-turn-details { color: #788376; font-size: 12px; margin-top: 8px; }
 .ws-turn-details summary { cursor: pointer; width: fit-content; }
 .ws-turn-details p { padding: 8px 12px; margin-top: 4px; border-left: 2px solid #dce4d9; }
+
+.ws-conversation-exports { padding: 16px; display: grid; gap: 10px; }
+.ws-conversation-exports p { margin: 0; color: var(--ws-muted); font-size: 12px; }

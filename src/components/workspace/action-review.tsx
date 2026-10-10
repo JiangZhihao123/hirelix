@@ -52,6 +52,15 @@ export function ActionReview({
       setSaving(false);
     }
   }
+  if (action.kind === "create_candidate" || action.kind === "update_candidate") {
+    const labels: Record<string, string> = {name: "Full name", headline: "Current role / headline", location: "Location", email: "Email", phone: "Phone", skills: "Expertise", profile_url: "Profile URL", note: "Your private note", summary: "Professional summary", experience: "Experience", education: "Education", languages: "Languages", work_preferences: "Work preferences"};
+    return <Dialog title={action.title} onClose={close} wide><form className="ws-form" onSubmit={save}>
+      <ErrorNotice error={error} />
+      <dl>{Object.entries(action.fields.changes as Record<string, unknown>).filter(([,value]) => value !== null).map(([key,value]) => <div key={key}><dt>{t(labels[key] || key)}</dt><dd className="whitespace-pre-wrap">{Array.isArray(value) ? value.map(item => typeof item === "object" && item ? Object.values(item).filter(Boolean).join(" · ") : String(item)).join("\n") || t("Clear") : String(value) || t("Clear")}</dd></div>)}</dl>
+      <p>{t("Ask your assistant to change anything before saving.")}</p>
+      <button className="ws-button ws-button-primary" disabled={saving}>{t(saving ? "Saving…" : "Save candidate")}</button>
+    </form></Dialog>;
+  }
   return (
     <Dialog
       title={

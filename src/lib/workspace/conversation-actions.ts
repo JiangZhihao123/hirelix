@@ -1,10 +1,13 @@
+import { quotedAuthorization } from "./assistant-work";
+import { applyCandidateChanges } from "./candidate-changes";
+import { createPerson, updatePerson } from "./people";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { owned, rows, json, WorkspaceError, type Runner } from "./database";
 import { createRole, updateRole, updateRelationship } from "./roles";
 import { addRecord } from "./records";
-import { recordInput, roleInput, type Message, type Role, type RoleCandidate } from "./types";
+import { recordInput, roleInput, type Message, type Role, type RoleCandidate, type Person } from "./types";
 import type { AssistantAction, AssistantMeta } from "./conversations";
 
 export async function acceptAction(
@@ -35,7 +38,29 @@ export async function acceptAction(
 }
 
 export async function applyAssistantAction(userId: string, conversationId: string, action: AssistantAction, value: unknown, tx: Runner) {
-  if (action.kind === "create_role") {
+  if (action.kind === "create_candidate" || action.kind === "update_candidate") {
+    // Source and patch were prepared together. An acceptance request cannot
+    // replace the reviewed patch or rebind its source to another candidate.
+    const prior = action.kind === "update_candidate"
+      ? await owned<Person>(userId, "person", z.uuid().parse(action.person_id), tx, true) : null;
+    const input = applyCandidateChanges(prior, action.fields.changes);
+    if (!prior) {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`candidate-create:${userId}`},0))`);
+      const matches = await rows(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${userId}::uuid AND (lower(trim(name))=lower(trim(${input.name})) OR (${!!input.email} AND lower(email)=lower(${input.email})) OR (${!!input.profile_url} AND profile_url=${input.profile_url})) LIMIT 1`, tx);
+      if (matches.length && !quotedAuthorization(String(action.fields.authorization_request || ""), typeof action.fields.separate_candidate_quote === "string" ? action.fields.separate_candidate_quote : null)) throw new WorkspaceError("A candidate with this name or contact already exists. Clarify whether to update that profile or save a different person.", 409);
+    }
+    const person = prior
+      ? await updatePerson(userId, prior.id, input, z.number().int().positive().parse(action.fields.expected_version), tx)
+      : await createPerson(userId, input, tx);
+    await addRecord(userId, {
+      person_id: person.id, kind: "profile", title: prior ? "Candidate profile update" : "Candidate profile source",
+      content: z.string().parse(action.fields.source_content), file_id: action.fields.source_file_id || null,
+      details: {source_message_id: action.fields.source_message_id, person_version: person.version},
+    }, tx);
+    action.person_id = person.id;
+    action.href = `/app/candidates?person=${person.id}`;
+    await tx.execute(sql`UPDATE hirelix_private_conversations SET person_id=coalesce(person_id,${person.id}::uuid) WHERE user_id=${userId}::uuid AND id=${conversationId}::uuid`);
+  } else if (action.kind === "create_role") {
     const source = action.fields.source_file_id ? {
       file_id: z.uuid().parse(action.fields.source_file_id),
       title: String(action.fields.source_file_name || "Original job description"),

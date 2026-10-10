@@ -36,7 +36,6 @@ import {
 } from "@/components/workspace/client";
 import { ConversationMessage } from "@/components/workspace/conversation-message";
 import { AttachmentThumbnail } from "./attachment-thumbnail";
-import { RoleForm } from "@/components/workspace/forms";
 import { AssistantWork } from "@/components/workspace/assistant-work";
 import { ActionReview } from "@/components/workspace/action-review";
 import { ContextPanel } from "@/components/workspace/context-panel";
@@ -95,7 +94,6 @@ export function AssistantWorkspace({
     [draft, setDraft] = useState(initialPrompt),
     [sending, setSending] = useState(false),
     [error, setError] = useState(""),
-    [addingRole, setAddingRole] = useState(false),
     [review, setReview] = useState<{
       messageId: string;
       action: AssistantAction;
@@ -779,21 +777,11 @@ export function AssistantWorkspace({
         {source && <ContextPanel source={source} onClose={() => setSource(null)} />}
         {contextOpen && <aside className="ws-assistant-context" aria-label={t("Library")}>
           <div className="ws-context-heading"><strong>{t("Library")}</strong><button className="ws-icon" onClick={() => setContextOpen(false)} aria-label={t("Close")}><X size={16} /></button></div>
-          <button className="ws-button" onClick={() => setAddingRole(true)}>{t("Add role")}</button>
+          <button className="ws-button" onClick={() => { setContextOpen(false); router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`); }}>{t("Add role")}</button>
           {roles.data?.roles.map(role => <button className="ws-detail-link" key={role.id} onClick={() => { setRoleId(role.id); setSource({title: role.title, href: `/app/roles/${role.id}`}); setContextOpen(false); }}>{role.client_name} · {role.title}</button>)}
           <button className="ws-link" onClick={() => setMemoriesOpen(true)}>{t("What I remember")}</button>
         </aside>}
       </div>
-      {addingRole && (
-        <RoleForm
-          onClose={() => setAddingRole(false)}
-          onSaved={(role) => {
-            setAddingRole(false);
-            roles.refresh();
-            setRoleId(role.id);
-          }}
-        />
-      )}
       {memoriesOpen && <PersonalMemories onClose={() => setMemoriesOpen(false)} />}
       {review && conversationId && (
         <ActionReview

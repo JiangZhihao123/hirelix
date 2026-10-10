@@ -1,3 +1,4 @@
+import { candidateChangesSchema } from "./candidate-changes";
 import { clarificationSchema } from "./conversation-questions";
 import { reminderActionSchema } from "./reminders";
 import { z } from "zod";
@@ -41,6 +42,7 @@ const roleDraft = z.object({
 });
 export const replySchema = z.object({
   answer: z.string().min(1).max(25000),
+  export_formats: z.array(z.enum(["pdf", "docx"])).max(2).default([]),
   clarification: clarificationSchema.nullable().default(null),
   reminders: z.array(reminderActionSchema).max(5).default([]),
   follow_up: z.string().max(500).nullable(),
@@ -51,6 +53,8 @@ export const replySchema = z.object({
       z.object({
         kind: z.enum([
           "create_role",
+          "create_candidate",
+          "update_candidate",
           "update_role_brief",
           "add_record",
           "update_sharing_permission",
@@ -62,6 +66,8 @@ export const replySchema = z.object({
         role_ref: z.string().nullable(),
         person_ref: z.string().nullable(),
         attachment_ref: z.string().nullable(),
+        separate_candidate_quote: z.string().max(1000).nullable().default(null),
+        candidate_changes: candidateChangesSchema.nullable().default(null),
         role_draft: roleDraft.nullable(),
         role_records: z.array(z.object({
           attachment_ref: z.string().nullable(),
@@ -96,6 +102,8 @@ export const sharingPermissionProposalSchema = z.object({
     role_ref: z.string(),
     person_ref: z.string(),
     attachment_ref: z.null(),
+    separate_candidate_quote: z.null().default(null),
+    candidate_changes: z.null().default(null),
     role_draft: z.null(),
     role_records: z.array(z.never()).max(0).default([]),
     record: replySchema.shape.actions.element.shape.record.unwrap(),
@@ -132,6 +140,7 @@ export function authorizedReplySchema<T extends z.ZodType<z.infer<typeof replySc
     });
     reply.actions.forEach((item, i) => {
       if (item.direct_save_quote !== null) check(item.direct_save_quote, ["actions", i, "direct_save_quote"]);
+      if (item.separate_candidate_quote !== null) check(item.separate_candidate_quote, ["actions", i, "separate_candidate_quote"]);
     });
   });
 }

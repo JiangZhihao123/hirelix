@@ -4,6 +4,7 @@ import { useEffect, useRef, useEffectEvent } from "react";
 import { useT } from "@/components/LanguageProvider";
 import { AgentText } from "@/components/AgentText";
 import { useQuery, ErrorNotice, Loading } from "./client";
+import { DocumentDownloads } from "./document-download";
 import { SourceContent } from "./source-content";
 import type { Person, Role, SourceRecord, Deliverable } from "@/lib/workspace/types";
 
@@ -42,7 +43,7 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
       ["flexible", "Flexible requirements"],
       ["unknowns", "Still to clarify"],
     ] as const).map(([key, label]) => <section key={key}><h5>{t(label)}</h5>{query.data?.role?.brief[key]?.length ? <ul>{query.data.role.brief[key].map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="ws-muted">{t("Not recorded yet.")}</p>}</section>)}</div><h4>{t("Original job description")}</h4><p className="ws-muted text-sm">{t("Reference text. Later clarifications are shown in Current requirements above.")}</p><p className="whitespace-pre-wrap">{query.data.role.jd_text}</p></>}
-    {query.data?.deliverable && <><h3>{query.data.deliverable.title}</h3><AgentText content={query.data.deliverable.content} /><small>{t("Saved version")} {query.data.deliverable.version}</small></>}
+    {query.data?.deliverable && <><h3>{query.data.deliverable.title}</h3><AgentText content={query.data.deliverable.content} /><small>{t("Saved version")} {query.data.deliverable.version}</small><DocumentDownloads document={query.data.deliverable} onRefresh={query.refresh} /></>}
     {file && query.data && <>
       {query.data.preview_type?.startsWith("image/") ? (
         // eslint-disable-next-line @next/next/no-img-element

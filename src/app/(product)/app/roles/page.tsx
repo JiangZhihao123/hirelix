@@ -11,7 +11,6 @@ import {
   Loading,
   useQuery,
 } from "@/components/workspace/client";
-import { RoleForm } from "@/components/workspace/forms";
 import type { Role } from "@/lib/workspace/types";
 export default function Roles() {
   const t = useT();
@@ -22,8 +21,7 @@ export default function Roles() {
         Role & { candidate_count: number; submission_count: number }
       >;
     }>("/roles");
-  const [adding, setAdding] = useState(false),
-    [filter, setFilter] = useState(""),
+  const [filter, setFilter] = useState(""),
     [status, setStatus] = useState("all");
   const roles = (query.data?.roles || []).filter(
     (role) =>
@@ -41,7 +39,7 @@ export default function Roles() {
         </div>
         <button
           className="ws-button ws-button-primary"
-          onClick={() => setAdding(true)}
+          onClick={() => router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`)}
         >
           <Plus size={15} />
           {t("Add role")}
@@ -111,15 +109,10 @@ export default function Roles() {
           <p>
             {filter || status !== "all" ? t("Try a different search or clear your filters.") : t("Keep the original requirements, candidate discussions and client material together. You can add people from your existing candidate pool.")}
           </p>
-          {filter || status !== "all" ? <button className="ws-button mt-5" onClick={() => { setFilter(""); setStatus("all"); }}>{t("Clear filters")}</button> : <button className="ws-button mt-5" onClick={() => setAdding(true)}>{t("Add your first role")}</button>}
+          {filter || status !== "all" ? <button className="ws-button mt-5" onClick={() => { setFilter(""); setStatus("all"); }}>{t("Clear filters")}</button> : <button className="ws-button mt-5" onClick={() => router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`)}>{t("Add your first role")}</button>}
         </div>
       )}
-      {adding && (
-        <RoleForm
-          onClose={() => setAdding(false)}
-          onSaved={(role) => router.push(`/app/roles/${role.id}`)}
-        />
-      )}
+
     </div>
   );
 }
