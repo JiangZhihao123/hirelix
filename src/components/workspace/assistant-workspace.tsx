@@ -646,7 +646,7 @@ export function AssistantWorkspace({
                 </article>
               )}
             {(sending || (job && !finalMessageVisible && (pending || job.status === "done" || job.status === "cancelled" || !!job.result?.live_reply)) || (optimistic && conversationId && !query.data)) && (
-              <TurnActivity job={job} disconnected={disconnected} receivingFiles={sending && attachments.length > 0} />
+              <TurnActivity job={sending ? null : job} disconnected={!sending && disconnected} receivingFiles={sending && attachments.length > 0} />
             )}
             {job?.status === "error" && (
               <ErrorNotice
