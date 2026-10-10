@@ -29,3 +29,14 @@ test("truncated, error and missing-usage streams fail instead of becoming comple
   await assert.rejects(()=>readCompletionStream(response('data: {"error":{"message":"fail"}}\n'),async()=>{}),/stream failed/);
   await assert.rejects(()=>readCompletionStream(response('data: [DONE]\n'),async()=>{}),/no usage/);
 });
+
+test("malformed answer prose cannot abort the stream or bypass final JSON validation", async () => {
+  const invalid = '{"answer":"First line\nSecond line","actions":[]}';
+  const previews: string[] = [];
+  const frames = [{choices:[{delta:{content: invalid}}]}, {choices:[],usage:{total_tokens:5}}];
+  const result = await readCompletionStream(response(frames.map(frame => 'data: '+JSON.stringify(frame)+'\n\n').join('')+'data: [DONE]\n\n'), async text => { previews.push(partialAnswer(text)); });
+  assert.deepEqual(previews, [""]);
+  assert.equal(result.choices[0].message.content, invalid);
+  assert.throws(() => JSON.parse(result.choices[0].message.content), SyntaxError);
+  assert.equal(partialAnswer('{"answer":"First line\\nSecond line","actions":[]}'), "First line\nSecond line");
+});

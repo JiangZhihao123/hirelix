@@ -56,7 +56,12 @@ export function partialAnswer(json: string): string {
   let escaped = false;
   for (let i = answerStart; i < json.length; i++) {
     const char = json[i];
-    if (char === '"' && !escaped) return JSON.parse('"' + json.slice(answerStart,i) + '"');
+    if (char === '"' && !escaped) {
+      // A preview must not abort the transport before structured() can validate
+      // the complete JSON and request its normal format repair.
+      try { return JSON.parse('"' + json.slice(answerStart,i) + '"'); }
+      catch { return ""; }
+    }
     escaped = char === "\\" && !escaped;
   }
   // Leave incomplete escapes and surrogate pairs for the next provider chunk.
