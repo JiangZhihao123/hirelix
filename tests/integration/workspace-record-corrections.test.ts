@@ -44,6 +44,7 @@ test("real model and PG: local-day notes, in-place corrections, cross-chat recal
   assert.equal(updated.id, original.id); assert.equal(updated.version, original.version + 1);
   assert.equal(new Date(updated.occurred_at!).toISOString(), "2026-10-10T16:02:00.000Z");
   assert.match(updated.content, /135[,.]?000/); assert.match(updated.content, /three.month|3.month/i);
+  assert.match(updated.content, /permission|consent/i, "retain the explicitly reported lack of CV sharing permission in the note");
   assert.equal(updated.person_id, original.person_id); assert.equal(updated.file_id, original.file_id);
   const savedMessage = changed.messages.at(-1)!;
   const saved = (savedMessage.metadata as AssistantMeta).actions!.find(action => action.kind === "update_record")!;

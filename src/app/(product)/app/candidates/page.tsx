@@ -676,7 +676,7 @@ function CandidateDetails({
               >
                 <div className="ws-inline-meta">
                   <h4>{item.title}</h4>
-                  <span className="ws-tag">{item.kind}</span>
+                  <span className="ws-tag">{t(({cv: "CV / resume", jd: "Job description", profile: "Profile", event: "Event", note: "Note", call: "Call", email: "Email", feedback: "Feedback"})[item.kind])}</span>
                   <button
                     className="ws-icon ml-auto"
                     aria-label={`Edit ${item.title}`}
@@ -708,12 +708,17 @@ function CandidateDetails({
                   </a>
                 )}
                 {item.file_id && (
+                  <div className="ws-actions mt-3">
+                  <a className="ws-link" href={`/api/workspace/files/${item.file_id}?preview=1`} target="_blank" rel="noreferrer">
+                    {t("Open original file")} <ArrowUpRight size={13} />
+                  </a>
                   <a
-                    className="ws-link mt-3"
+                    className="ws-link"
                     href={`/api/workspace/files/${item.file_id}`}
                   >
                     {t("Download source file")}
                   </a>
+                  </div>
                 )}
               </article>
             ))
