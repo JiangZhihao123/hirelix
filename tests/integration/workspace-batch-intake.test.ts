@@ -8,9 +8,9 @@ import { uploadConversationFile, readFile } from "../../src/lib/workspace/files"
 import { sendMessage, assistantReply, conversationDetails, acceptAction, type AssistantAction } from "../../src/lib/workspace/conversations";
 import { messageAttachments, messageImportJobs } from "../../src/lib/workspace/attachments";
 import { prepareImport, importDetails } from "../../src/lib/workspace/imports";
-import { rows, json } from "../../src/lib/workspace/database";
+import { rows } from "../../src/lib/workspace/database";
 import type { Job } from "../../src/lib/workspace/types";
-import type { JobHandler } from "../../src/lib/workspace/jobs";
+import { claimJob, heartbeat, finishJob, failJob, type JobHandler } from "../../src/lib/workspace/jobs";
 const database = new URL(process.env.DATABASE_URL || "postgresql://invalid/invalid");
 assert.ok(["localhost", "127.0.0.1"].includes(database.hostname) && database.pathname.startsWith("/hirelix_workspace_qa_"), "isolated QA database only");
 assert.equal(process.env.WORKSPACE_REAL_AI_TEST, "true");
@@ -21,12 +21,16 @@ after(async () => {
   await closeDb();
 });
 async function run(job: Job, handler: JobHandler) {
-  await db.execute(sql`UPDATE hirelix_private_jobs SET status='running',lease_until=now()+interval '10 minutes' WHERE id=${job.id}::uuid`);
-  const prepared = await handler(job, async (message) => { console.log(message); });
-  await db.transaction(async (tx) => {
-    const applied = await prepared.apply?.(tx);
-    await tx.execute(sql`UPDATE hirelix_private_jobs SET status='done',result=${json({ ...prepared.result, ...applied })} WHERE id=${job.id}::uuid`);
-  });
+  const claimed = await claimJob([job.kind]);
+  assert.equal(claimed?.id, job.id);
+  assert(claimed);
+  const timer = setInterval(() => void heartbeat(claimed), 20000);
+  try {
+    await finishJob(claimed, await handler(claimed, message => heartbeat(claimed, message)));
+  } catch (cause) {
+    await failJob(claimed, "Batch QA execution failed");
+    throw cause;
+  } finally { clearInterval(timer); }
 }
 const file = (name: string, text: string) => ({ name, type: "text/plain", bytes: Buffer.from(text) });
 test("real mixed batch: upload ownership, retry, independent extraction, requested save, duplicate protection and retained context", { timeout: 600000 }, async () => {
