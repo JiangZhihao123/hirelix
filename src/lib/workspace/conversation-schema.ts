@@ -7,6 +7,11 @@ import { z } from "zod";
 import { MAX_CONVERSATION_FILES } from "./attachments";
 import { memoryChangeSchema } from "./memories";
 import { assistantWorkSchema, quotedAuthorization } from "./assistant-work";
+export const recordChangesSchema = z.object({
+  title: z.string().min(1).max(300).nullable(),
+  content: z.string().min(1).max(100000).nullable(),
+  occurred_at: z.union([z.iso.datetime({ offset: true }), z.literal("")]).nullable(),
+}).refine(value => Object.values(value).some(item => item !== null), "Specify the record fields to change");
 export const planSchema = z.object({
   email: emailPlanSchema,
   conversation_title: z.string().trim().min(1).max(60),
@@ -74,6 +79,7 @@ export const replySchema = z.object({
           "update_role_brief",
           "update_role_details",
           "add_record",
+          "update_record",
           "update_sharing_permission",
           "update_relationship",
           "record_submission",
@@ -85,6 +91,8 @@ export const replySchema = z.object({
         role_ref: z.string().nullable(),
         person_ref: z.string().nullable(),
         attachment_ref: z.string().nullable(),
+        record_ref: z.string().nullable().default(null),
+        record_changes: recordChangesSchema.nullable().default(null),
         separate_candidate_quote: z.string().max(1000).nullable().default(null),
         candidate_changes: candidateChangesSchema.nullable().default(null),
         relationship_changes: z.object({interest: z.string().max(5000).nullable(), notes: z.string().max(20000).nullable()}).nullable().default(null),
@@ -108,6 +116,8 @@ export const replySchema = z.object({
           .nullable(),
         sharing_permission: z.enum(["confirmed", "declined"]).nullable(),
       }).superRefine((action, ctx) => {
+        if (action.kind === "update_record" && (!action.record_ref || !action.record_changes))
+          ctx.addIssue({code: "custom", path: ["record_ref"], message: "A record correction requires an exact saved record reference and the changed fields. Ask a clarification if the original record is ambiguous."});
         if (action.kind === "update_relationship" || action.kind === "update_sharing_permission") {
           for (const field of ["role_ref", "person_ref"] as const) if (!action[field])
             ctx.addIssue({code: "custom", path: [field], message: "A relationship action requires the exact candidate and role references. Ask a clarification if either is ambiguous."});
@@ -131,6 +141,8 @@ export const sharingPermissionProposalSchema = z.object({
     role_ref: z.string(),
     person_ref: z.string(),
     attachment_ref: z.null(),
+    record_ref: z.null().default(null),
+    record_changes: z.null().default(null),
     separate_candidate_quote: z.null().default(null),
     candidate_changes: z.null().default(null),
     relationship_changes: z.null().default(null),
@@ -147,7 +159,11 @@ export const sharingPermissionProposalSchema = z.object({
 // Restrict model-selected IDs to the actual evidence catalog, including empty catalogs.
 export function groundedReplySchema(base: typeof replySchema, refs: { roles: string[]; people: string[]; records: string[] }) {
   const reference = (values: string[]) => values.length ? z.enum(values as [string, ...string[]]) : z.never();
-  return base.extend({ work: z.array(assistantWorkSchema.extend({
+  return base.extend({ actions: z.array(base.shape.actions.element.safeExtend({
+    role_ref: reference(refs.roles).nullable(),
+    person_ref: reference(refs.people).nullable(),
+    record_ref: reference(refs.records).nullable().default(null),
+  })).max(base === openRequestReplySchema ? 1 : MAX_CONVERSATION_FILES), work: z.array(assistantWorkSchema.extend({
     role_ref: reference(refs.roles),
     person_refs: z.array(reference(refs.people)).max(50),
     record_refs: z.array(reference(refs.records)).max(100),

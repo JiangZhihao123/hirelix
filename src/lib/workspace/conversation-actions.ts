@@ -1,5 +1,5 @@
 import { markSubmitted } from "./deliverables";
-import { roleChangesSchema } from "./conversation-schema";
+import { roleChangesSchema, recordChangesSchema } from "./conversation-schema";
 import { quotedAuthorization } from "./assistant-work";
 import { applyCandidateChanges } from "./candidate-changes";
 import { createPerson, updatePerson } from "./people";
@@ -8,8 +8,8 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { owned, rows, json, WorkspaceError, type Runner } from "./database";
 import { createRole, updateRole, updateRelationship, linkPerson } from "./roles";
-import { addRecord } from "./records";
-import { recordInput, roleInput, type Message, type Role, type RoleCandidate, type Person } from "./types";
+import { addRecord, updateRecord } from "./records";
+import { recordInput, roleInput, type Message, type Role, type RoleCandidate, type Person, type SourceRecord } from "./types";
 import type { AssistantAction, AssistantMeta } from "./conversations";
 
 export async function acceptAction(
@@ -128,6 +128,22 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       tx,
     );
     action.href = `/app/roles/${role.id}`;
+  } else if (action.kind === "update_record") {
+    const prior = await owned<SourceRecord>(userId, "record", z.uuid().parse(action.fields.record_id), tx, true);
+    if (!["note", "call", "email", "feedback"].includes(prior.kind) || prior.person_id !== action.person_id || prior.role_id !== action.role_id)
+      throw new WorkspaceError("Choose the original communication record to correct.");
+    const permissionEvidence = await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND permission_record_id=${prior.id}::uuid LIMIT 1`, tx);
+    if (permissionEvidence.length)
+      throw new WorkspaceError("This record is sharing-permission evidence. Report the updated permission for the candidate and role instead of rewriting its evidence.");
+    const changes = recordChangesSchema.parse(action.fields.changes);
+    const record = await updateRecord(userId, prior.id, {
+      ...prior,
+      occurred_at: prior.occurred_at ? new Date(prior.occurred_at).toISOString() : null,
+      ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== null).map(([key, value]) => [key, key === "occurred_at" && value === "" ? null : value])),
+    }, z.number().int().positive().parse(action.fields.expected_version), tx);
+    action.href = record.person_id
+      ? `/app/candidates?person=${record.person_id}&record=${record.id}`
+      : `/app/roles/${record.role_id}?tab=activity&record=${record.id}`;
   } else if (action.kind === "add_record") {
     const input = recordInput.parse(value);
     if (

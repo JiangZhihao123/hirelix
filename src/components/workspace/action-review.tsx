@@ -52,7 +52,7 @@ export function ActionReview({
       setSaving(false);
     }
   }
-  const labels: Record<string, string> = {client_contact: "Client contact", title: "Role title", client_name: "Client", status: "Status", interest: "Interest in this role", notes: "Your notes for this role", name: "Full name", headline: "Current role / headline", location: "Location", email: "Email", phone: "Phone", skills: "Expertise", profile_url: "Profile URL", note: "Your private note", summary: "Professional summary", experience: "Experience", education: "Education", languages: "Languages", work_preferences: "Work preferences"};
+  const labels: Record<string, string> = {title: "Title", content: "Notes", occurred_at: "When it happened", client_contact: "Client contact", client_name: "Client", status: "Status", interest: "Interest in this role", notes: "Your notes for this role", name: "Full name", headline: "Current role / headline", location: "Location", email: "Email", phone: "Phone", skills: "Expertise", profile_url: "Profile URL", note: "Your private note", summary: "Professional summary", experience: "Experience", education: "Education", languages: "Languages", work_preferences: "Work preferences"};
   function renderChanges(value: unknown) {
     if (!value || typeof value !== "object") return null;
     return <dl>{Object.entries(value as Record<string, unknown>).filter(([,value]) => value !== null).map(([key,value]) => <div key={key}><dt>{t(labels[key] || key)}</dt><dd className="whitespace-pre-wrap">{Array.isArray(value) ? value.map(item => typeof item === "object" && item ? Object.values(item).filter(Boolean).join(" · ") : String(item)).join("\n") || t("Clear") : typeof value === "object" && value ? Object.entries(value).filter(([,item]) => item !== null).map(([field,item]) => `${t(field)}: ${String(item) || t("Clear")}`).join("\n") : String(value) || t("Clear")}</dd></div>)}</dl>;
@@ -64,7 +64,7 @@ export function ActionReview({
     <p>{t("Ask your assistant to change anything before saving.")}</p>
     <button className="ws-button ws-button-primary" disabled={saving}>{t(saving ? "Saving…" : "Save")}</button>
   </form></Dialog>;
-  if (action.kind === "create_candidate" || action.kind === "update_candidate" || action.kind === "update_role_details") {
+  if (action.kind === "create_candidate" || action.kind === "update_candidate" || action.kind === "update_role_details" || action.kind === "update_record") {
     return <Dialog title={action.title} onClose={close} wide><form className="ws-form" onSubmit={save}>
       <ErrorNotice error={error} />
       {renderChanges(action.fields.changes)}

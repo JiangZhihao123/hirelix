@@ -48,9 +48,10 @@ export async function updateRecord(
   id: string,
   value: unknown,
   expectedVersion: number,
+  runner?: Runner,
 ) {
   const input = recordInput.parse(value);
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     const prior = await owned<SourceRecord>(userId, "record", id, tx, true);
     expectVersion(prior.version, expectedVersion);
     if (
@@ -76,5 +77,6 @@ export async function updateRecord(
       );
     if (record.role_id && !record.person_id) await enqueue(userId, "index", `role-index:${record.role_id}:${randomUUID()}`, { role_id: record.role_id }, tx);
     return record;
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }
