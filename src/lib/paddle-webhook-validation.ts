@@ -67,4 +67,3 @@ export function isTestPayment(data: Record<string, unknown>) {
 export function getSubscriptionAlertRecipient() {
   return process.env.BILLING_SUBSCRIPTION_ALERT_EMAIL || DEFAULT_SUBSCRIPTION_ALERT_RECIPIENT;
 }
-

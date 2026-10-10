@@ -155,4 +155,3 @@ export function validateLandingEventForRecording(params: {
     metadata: params.metadata,
   };
 }
-
