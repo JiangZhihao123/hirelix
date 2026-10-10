@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import "@/components/workspace/workspace.css";
 import {
   api,
@@ -46,6 +46,13 @@ import {
   Plus,
   MessageSquare,
 } from "lucide-react";
+
+function NavigationIcon({ icon: Icon }: { icon: typeof MessageSquare }) {
+  const { pending } = useLinkStatus();
+  return pending
+    ? <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+    : <Icon size={16} aria-hidden="true" />;
+}
 
 export default function ProductLayout({
   children,
@@ -91,7 +98,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
       .map((conversation) => conversation.title)
       .filter((title, index, titles) => titles.indexOf(title) !== index) || [],
   );
-  const [pendingPath, setPendingPath] = useState<string | null>(null);
   const hasTrackedSigninViewRef = useRef(false);
   const normalizeEntryMode = (value: string | null): EntryMode => {
     if (value === "landing" || value === "signin" || value === "free_trial") {
@@ -100,7 +106,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     return "workspace";
   };
   const entryMode = normalizeEntryMode(searchParams.get("entry"));
-  const effectivePendingPath = pendingPath === pathname ? null : pendingPath;
   const isFreeTrialEntry = entryMode === "free_trial";
   const authRedirectPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   const isConversationPage = pathname === "/app";
@@ -124,10 +129,9 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     },
 
   ];
-  function navigate(path: string) {
+  function navigate() {
     accountMenuRef.current?.hidePopover();
     setSidebarOpen(false);
-    setPendingPath(path);
   }
 
   useEffect(() => {
@@ -250,7 +254,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           onClose={() => setConversationSearchOpen(false)}
           onSelect={(id) => {
             setConversationSearchOpen(false);
-            navigate("/app");
+            navigate();
             router.push(`/app?conversation=${id}`);
           }}
         />
@@ -263,7 +267,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         <div className="ws-brand">
           <Link
             href="/app"
-            onClick={() => navigate("/app")}
+            onClick={() => navigate()}
             aria-label={"Hirelix"}
           >
             <span className="ws-brand-full" style={{ display: "inline-flex", gap: 9, alignItems: "center" }}><BrandMark small />{"Hirelix"}</span>
@@ -282,16 +286,12 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => navigate(item.href)}
+                onClick={() => navigate()}
                 aria-current={item.active ? "page" : undefined}
                 aria-label={item.label}
                 title={item.label}
               >
-                {effectivePendingPath === item.href ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <item.icon size={16} />
-                )}
+                <NavigationIcon icon={item.icon} />
                 <span>{item.label}</span>
               </Link>
             ))}
@@ -307,7 +307,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                     // just like opening a newly saved conversation.
                     window.history.pushState(null, "", "/app?new=1");
                   }
-                  navigate("/app");
+                  navigate();
                 }} aria-label={t("New conversation")} title={t("New conversation")}><Plus size={16} /></Link>
               <button
                 type="button"
@@ -330,7 +330,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={conversation.id}
                     href={`/app?conversation=${conversation.id}`}
-                    onClick={() => navigate("/app")}
+                    onClick={() => navigate()}
                     aria-current={
                       conversation.id === currentConversationId ? "page" : undefined
                     }
@@ -372,7 +372,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 className="ws-credit-status"
                 href="/app/settings?section=billing"
                 title={t("View plan and subscription →")}
-                onClick={() => navigate("/app/settings")}
+                onClick={() => navigate()}
               >
                 <span>{t("{count} AI credits remaining").replace("{count}", formatCredits(billing.agent.remaining, locale))}</span>
                 <ChevronRight size={14} aria-hidden="true" />
@@ -380,10 +380,10 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             )}
           </nav>
             <nav className="ws-nav">
-              <Link href="/app/settings" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
+              <Link href="/app/settings" onClick={() => { accountMenuRef.current?.hidePopover(); navigate(); }}>
                 <Settings size={16} />{t("Settings")}
               </Link>
-              <Link href="/app/settings?section=billing" onClick={() => { accountMenuRef.current?.hidePopover(); navigate("/app/settings"); }}>
+              <Link href="/app/settings?section=billing" onClick={() => { accountMenuRef.current?.hidePopover(); navigate(); }}>
                 <CreditCard size={16} />{t("Billing")}
               </Link>
             </nav>
