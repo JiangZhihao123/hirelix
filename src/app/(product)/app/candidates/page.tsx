@@ -19,9 +19,7 @@ import {
 import {
   api,
   date,
-  Dialog,
   ErrorNotice,
-  Field,
   initials,
   Loading,
   useQuery,
@@ -31,7 +29,6 @@ import { History } from "@/components/workspace/history";
 import type {
   Job,
   Person,
-  Role,
   RoleCandidate,
   SourceRecord,
 } from "@/lib/workspace/types";
@@ -441,8 +438,10 @@ function CandidateDetails({
   onChanged: () => void;
 }) {
   const t = useT();
-  const details = useQuery<Details>(`/people/${id}`),
-    allRoles = useQuery<{ roles: Role[] }>("/roles");
+  const details = useQuery<Details>(`/people/${id}`);
+  const router = useRouter();
+  const { locale } = useLanguage();
+  function ask(prompt: string) { router.push(`/app?person=${id}&prompt=${encodeURIComponent(prompt)}`); }
   const params = useSearchParams();
   const requestedTab = params.get("tab");
   const tab = requestedTab && ["overview", "records", "roles"].includes(requestedTab)
@@ -459,8 +458,6 @@ function CandidateDetails({
       kind: "person" | "record";
       id: string;
     } | null>(null),
-    [linking, setLinking] = useState(false),
-    [roleId, setRoleId] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -471,26 +468,6 @@ function CandidateDetails({
   function refresh() {
     details.refresh();
     onChanged();
-  }
-  async function link(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/roles/${roleId}/people`, {
-        method: "POST",
-        body: JSON.stringify({ person_id: id }),
-      });
-      setLinking(false);
-      refresh();
-      setTab("roles");
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not link candidate",
-      );
-    } finally {
-      setBusy(false);
-    }
   }
   async function remove() {
     if (
@@ -666,7 +643,7 @@ function CandidateDetails({
             </section>
           )}
           <div className="ws-actions mt-5">
-            <button className="ws-button" onClick={() => setRecord("new")}>
+            <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我保存这位候选人的新沟通记录。" : "Help me save a new conversation record for this candidate.")}>
               <Plus size={14} />
               {t("Add record")}
             </button>
@@ -684,7 +661,7 @@ function CandidateDetails({
       {tab === "records" && (
         <>
           <div className="ws-actions mt-5 mb-3">
-            <button className="ws-button" onClick={() => setRecord("new")}>
+            <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我保存这位候选人的新沟通记录。" : "Help me save a new conversation record for this candidate.")}>
               <Plus size={14} />
               {t("Add record")}
             </button>
@@ -752,7 +729,7 @@ function CandidateDetails({
       {tab === "roles" && (
         <>
           <div className="ws-actions mt-5">
-            <button className="ws-button" onClick={() => setLinking(true)}>
+            <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我把这位候选人关联到一个职位。" : "Help me link this candidate to a role.")}>
               <Plus size={14} />
               {t("Link to a role")}
             </button>
@@ -814,41 +791,6 @@ function CandidateDetails({
         />
       )}
       {history && <History {...history} onClose={() => setHistory(null)} />}
-      {linking && (
-        <Dialog
-          title={t("Link candidate to a role")}
-          onClose={() => setLinking(false)}
-        >
-          <form className="ws-form" onSubmit={link}>
-            <ErrorNotice error={error} />
-            <Field label={t("Role")}>
-              <select
-                required
-                value={roleId}
-                onChange={(event) => setRoleId(event.target.value)}
-              >
-                <option value="">{t("Choose a role")}</option>
-                {allRoles.data?.roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.title} · {role.client_name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <p className="ws-muted text-xs">
-              {t("Linking a person does not confirm interest or permission to share.")}
-            </p>
-            <div className="ws-form-footer">
-              <button
-                className="ws-button ws-button-primary"
-                disabled={busy || !roleId}
-              >
-                {busy ? t("Saving…") : t("Link candidate")}
-              </button>
-            </div>
-          </form>
-        </Dialog>
-      )}
     </>
   );
 }

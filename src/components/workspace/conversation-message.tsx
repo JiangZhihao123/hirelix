@@ -94,6 +94,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                                     )
                                   : action.kind === "add_record"
                                     ? t("Review this record before adding it")
+                                    : action.kind === "update_relationship" || action.kind === "update_role_details" || action.kind === "record_submission"
+                                      ? t("Review conversation record")
                                     : action.kind === "update_sharing_permission"
                                       ? t("Review the evidence and sharing permission before saving")
                                     : t(

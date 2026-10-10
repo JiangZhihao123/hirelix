@@ -6,9 +6,9 @@ import {
   useEffect,
   useRef,
   useState,
-  type FormEvent,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -20,8 +20,6 @@ import {
   useQuery,
   ErrorNotice,
   Loading,
-  Field,
-  Dialog,
   date,
 } from "./client";
 import { RecommendationDelivery } from "./recommendation-delivery";
@@ -49,6 +47,7 @@ export function DocumentPage({ id }: { id: string }) {
 function DocumentEditor({ initial }: { initial: Deliverable }) {
   const t = useT();
   const { locale } = useLanguage();
+  const router = useRouter();
   const [document, setDocument] = useState(initial),
     [title, setTitle] = useState(initial.title),
     [content, setContent] = useState(initial.content),
@@ -56,7 +55,6 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
     [history, setHistory] = useState(false),
-    [submit, setSubmit] = useState(false),
     [draftHydrated, setDraftHydrated] = useState(false),
     [recovery, setRecovery] = useState<{
       title: string;
@@ -251,7 +249,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             </button>
           )}
           {document.kind === "submission" && !internalReview ? (
-            <RecommendationDelivery document={document} disabled={dirty || saving || !!recovery} onSent={() => { void api<{ deliverable: Deliverable }>(`/deliverables/${document.id}`).then(result => setDocument(result.deliverable)); }} />
+            <RecommendationDelivery document={document} disabled={dirty || saving || !!recovery} />
           ) : document.kind === "submission" ? (
             <>
               <button
@@ -371,7 +369,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             />
           )}
           <section className="ws-section">
-            <h3>{readOnly ? t("Delivery recorded") : t("Ready for your review")}</h3>
+            <h3>{readOnly ? t("Delivery recorded") : t("Saved document")}</h3>
             <p>
               {readOnly
                 ? `${date(document.submitted_at)}\n${document.submission_note}`
@@ -383,7 +381,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               <button
                 className="ws-button mt-4"
                 disabled={dirty || saving}
-                onClick={() => setSubmit(true)}
+                onClick={() => router.push(`/app?document=${document.id}&role=${document.role_id}&prompt=${encodeURIComponent(locale === "zh" ? "帮我记录这份材料在 Hirelix 之外的实际交付。" : "Help me record the actual delivery of this document outside Hirelix.")}`)}
               >
                 {t("Record actual submission")}
               </button>
@@ -490,105 +488,6 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           onClose={() => setHistory(false)}
         />
       )}
-      {submit && (
-        <RecordSubmission
-          document={document}
-          onClose={() => setSubmit(false)}
-          onSaved={(value) => {
-            setDocument(value);
-            setSubmit(false);
-            setPreview(true);
-          }}
-        />
-      )}
     </div>
-  );
-}
-function RecordSubmission({
-  document,
-  onClose,
-  onSaved,
-}: {
-  document: Deliverable;
-  onClose: () => void;
-  onSaved: (document: Deliverable) => void;
-}) {
-  const t = useT();
-  const [when, setWhen] = useState(() => {
-      const d = new Date();
-      return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16);
-    }),
-    [note, setNote] = useState(""),
-    [error, setError] = useState(""),
-    [saving, setSaving] = useState(false);
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const result = await api<{ deliverable: Deliverable }>(
-        `/deliverables/${document.id}/submitted`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            expected_version: document.version,
-            submitted_at: new Date(when).toISOString(),
-            submission_note: note,
-          }),
-        },
-      );
-      onSaved(result.deliverable);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not record submission",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-  return (
-    <Dialog
-      title={t("Record an actual submission")}
-      onClose={() => {
-        if (!saving) onClose();
-      }}
-    >
-      <form className="ws-form" onSubmit={save}>
-        <p className="text-sm leading-7">
-          {t("Use this after you have shared the document with your client. Hirelix will preserve this copy and add the delivery to the role’s activity.")}
-        </p>
-        <ErrorNotice error={error} />
-        <Field label={t("When you shared it")}>
-          <input
-            type="datetime-local"
-            required
-            value={when}
-            onChange={(e) => setWhen(e.target.value)}
-          />
-        </Field>
-        <Field label={t("Who received it and how")}>
-          <textarea
-            required
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder={t("Recipient, channel, and any relevant context")}
-          />
-        </Field>
-        <div className="ws-form-footer">
-          <button
-            type="button"
-            className="ws-button"
-            disabled={saving}
-            onClick={onClose}
-          >
-            {t("Cancel")}
-          </button>
-          <button className="ws-button ws-button-primary" disabled={saving}>
-            {saving ? t("Saving…") : t("Record submission")}
-          </button>
-        </div>
-      </form>
-    </Dialog>
   );
 }

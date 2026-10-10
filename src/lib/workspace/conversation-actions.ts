@@ -1,3 +1,5 @@
+import { markSubmitted } from "./deliverables";
+import { roleChangesSchema } from "./conversation-schema";
 import { quotedAuthorization } from "./assistant-work";
 import { applyCandidateChanges } from "./candidate-changes";
 import { createPerson, updatePerson } from "./people";
@@ -5,7 +7,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { owned, rows, json, WorkspaceError, type Runner } from "./database";
-import { createRole, updateRole, updateRelationship } from "./roles";
+import { createRole, updateRole, updateRelationship, linkPerson } from "./roles";
 import { addRecord } from "./records";
 import { recordInput, roleInput, type Message, type Role, type RoleCandidate, type Person } from "./types";
 import type { AssistantAction, AssistantMeta } from "./conversations";
@@ -77,6 +79,20 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     await tx.execute(
       sql`UPDATE hirelix_private_conversations SET role_id=coalesce(role_id,${role.id}::uuid),updated_at=now() WHERE user_id=${userId}::uuid AND id=${conversationId}::uuid`,
     );
+  } else if (action.kind === "record_submission") {
+    const document = await markSubmitted(userId, z.uuid().parse(action.fields.document_id), action.fields, tx);
+    action.href = document.kind === "submission" ? `/app/submissions/${document.id}` : `/app/roles/${document.role_id}/updates/${document.id}`;
+  } else if (action.kind === "update_role_details") {
+    const prior = await owned<Role>(userId, "role", z.uuid().parse(action.role_id), tx, true);
+    const changes = roleChangesSchema.parse(action.fields.changes);
+    const role = await updateRole(userId, prior.id, {
+      ...prior, title: changes.title ?? prior.title,
+      client_name: changes.client_name ?? prior.client_name, status: changes.status ?? prior.status,
+      client_contact: {...prior.client_contact, ...Object.fromEntries(Object.entries(changes.client_contact ?? {}).filter(([, value]) => value !== null))},
+    }, z.number().int().positive().parse(action.fields.expected_version), tx);
+    await addRecord(userId, {role_id: role.id, kind: "note", title: "Role details update",
+      content: z.string().parse(action.fields.source_content), details: {source_message_id: action.fields.source_message_id, role_version: role.version}}, tx);
+    action.href = `/app/roles/${role.id}`;
   } else if (action.kind === "update_role_brief") {
     if (!action.role_id)
       throw new WorkspaceError("This role is unavailable", 404);
@@ -85,10 +101,13 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       occurred_at: z.iso.datetime({ offset: true }).nullable().default(null),
     }).parse(value);
     const prior = await owned<Role>(userId, "role", action.role_id, tx, true);
+    const changes = roleChangesSchema.parse(action.fields.changes ?? {});
     const role = await updateRole(
       userId,
       prior.id,
-      { ...prior, brief: input.brief },
+      { ...prior, brief: input.brief, title: changes.title ?? prior.title,
+        client_name: changes.client_name ?? prior.client_name, status: changes.status ?? prior.status,
+        client_contact: {...prior.client_contact, ...Object.fromEntries(Object.entries(changes.client_contact ?? {}).filter(([, value]) => value !== null))} },
       z.number().int().positive().parse(action.fields.expected_version),
       tx,
     );
@@ -123,8 +142,8 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     action.href = record.person_id
       ? `/app/candidates?person=${record.person_id}&record=${record.id}`
       : `/app/roles/${record.role_id}?tab=activity&record=${record.id}`;
-  } else if (action.kind === "update_sharing_permission") {
-    const input = recordInput.parse(value);
+  } else if (action.kind === "update_sharing_permission" || action.kind === "update_relationship") {
+    const input = recordInput.parse(action.fields);
     if (
       !action.role_id || !action.person_id ||
       input.role_id !== action.role_id ||
@@ -132,26 +151,27 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       input.file_id !== (action.fields.file_id || null)
     )
       throw new WorkspaceError("The candidate and role association changed.");
-    const permission = z.enum(["confirmed", "declined"]).parse(action.fields.permission);
-    const relationship = await owned<RoleCandidate>(
-      userId,
-      "role_candidate",
-      z.uuid().parse(action.fields.relationship_id),
-      tx,
-      true,
-    );
-    if (relationship.role_id !== action.role_id || relationship.person_id !== action.person_id)
-      throw new WorkspaceError("This candidate is no longer linked to the selected role.", 409);
+    // Serialize missing-link creation as well as updates. A preview of an absent
+    // association must not overwrite one created while the user was reviewing.
+    await owned(userId, "role", action.role_id, tx, true);
+    await owned(userId, "person", action.person_id, tx);
+    const [current] = await rows<RoleCandidate>(sql`SELECT * FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${action.role_id}::uuid AND person_id=${action.person_id}::uuid FOR UPDATE`, tx);
+    if (action.fields.relationship_id ? current?.id !== action.fields.relationship_id || current.version !== action.fields.expected_version : !!current)
+      throw new WorkspaceError("This candidate relationship changed. Ask your assistant to use the latest information.", 409);
+    const relationship = current ?? await linkPerson(userId, action.role_id, action.person_id, tx);
+    const permission = action.kind === "update_sharing_permission"
+      ? z.enum(["confirmed", "declined"]).parse(action.fields.permission) : relationship.permission;
+    const changes = z.object({interest: z.string().max(5000).nullable().optional(), notes: z.string().max(20000).nullable().optional()}).parse(action.fields.changes ?? {});
     const record = await addRecord(userId, {
       ...input,
       details: { ...input.details, source_message_id: action.fields.source_message_id },
     }, tx);
     await updateRelationship(userId, action.role_id, action.person_id, {
       permission,
-      permission_record_id: record.id,
-      interest: relationship.interest,
-      notes: relationship.notes,
-      expected_version: z.number().int().positive().parse(action.fields.expected_version),
+      permission_record_id: action.kind === "update_sharing_permission" ? record.id : relationship.permission_record_id,
+      interest: changes.interest ?? relationship.interest,
+      notes: changes.notes ?? relationship.notes,
+      expected_version: relationship.version,
     }, tx);
     action.href = `/app/roles/${action.role_id}`;
   } else

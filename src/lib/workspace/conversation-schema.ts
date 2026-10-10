@@ -1,3 +1,4 @@
+import { roleInput } from "./types";
 import { candidateChangesSchema } from "./candidate-changes";
 import { emailPlanSchema } from "./email-contract";
 import { clarificationSchema } from "./conversation-questions";
@@ -42,6 +43,19 @@ const roleDraft = z.object({
     unknowns: z.array(z.string()),
   }),
 });
+const contactFields = roleInput.shape.client_contact.unwrap().shape;
+export const roleChangesSchema = z.object({
+  title: roleInput.shape.title.nullable().default(null),
+  client_name: roleInput.shape.client_name.nullable().default(null),
+  status: roleInput.shape.status.nullable().default(null),
+  client_contact: z.object({
+    name: contactFields.name.nullable().default(null),
+    email: contactFields.email.nullable().default(null),
+    cooperation: contactFields.cooperation.nullable().default(null),
+    location: contactFields.location.nullable().default(null),
+    compensation: contactFields.compensation.nullable().default(null),
+  }).nullable().default(null),
+});
 export const replySchema = z.object({
   answer: z.string().min(1).max(25000),
   export_formats: z.array(z.enum(["pdf", "docx"])).max(2).default([]),
@@ -58,8 +72,11 @@ export const replySchema = z.object({
           "create_candidate",
           "update_candidate",
           "update_role_brief",
+          "update_role_details",
           "add_record",
           "update_sharing_permission",
+          "update_relationship",
+          "record_submission",
           "submission",
           "search_update",
         ]),
@@ -70,6 +87,9 @@ export const replySchema = z.object({
         attachment_ref: z.string().nullable(),
         separate_candidate_quote: z.string().max(1000).nullable().default(null),
         candidate_changes: candidateChangesSchema.nullable().default(null),
+        relationship_changes: z.object({interest: z.string().max(5000).nullable(), notes: z.string().max(20000).nullable()}).nullable().default(null),
+        submission: z.object({submitted_at: z.iso.datetime({offset: true}), submission_note: z.string().trim().min(1).max(10000)}).nullable().default(null),
+        role_changes: roleChangesSchema.nullable().default(null),
         role_draft: roleDraft.nullable(),
         role_records: z.array(z.object({
           attachment_ref: z.string().nullable(),
@@ -87,6 +107,13 @@ export const replySchema = z.object({
           })
           .nullable(),
         sharing_permission: z.enum(["confirmed", "declined"]).nullable(),
+      }).superRefine((action, ctx) => {
+        if (action.kind === "update_relationship" || action.kind === "update_sharing_permission") {
+          for (const field of ["role_ref", "person_ref"] as const) if (!action[field])
+            ctx.addIssue({code: "custom", path: [field], message: "A relationship action requires the exact candidate and role references. Ask a clarification if either is ambiguous."});
+          if (action.kind === "update_sharing_permission" && (!action.record || !action.sharing_permission))
+            ctx.addIssue({code: "custom", path: ["record"], message: "A permission change requires its reported decision and evidence record."});
+        }
       }),
     )
     .max(MAX_CONVERSATION_FILES),
@@ -106,6 +133,9 @@ export const sharingPermissionProposalSchema = z.object({
     attachment_ref: z.null(),
     separate_candidate_quote: z.null().default(null),
     candidate_changes: z.null().default(null),
+    relationship_changes: z.null().default(null),
+    submission: z.null().default(null),
+    role_changes: z.null().default(null),
     role_draft: z.null(),
     role_records: z.array(z.never()).max(0).default([]),
     record: replySchema.shape.actions.element.shape.record.unwrap(),

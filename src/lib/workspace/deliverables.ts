@@ -398,6 +398,7 @@ export async function markSubmitted(
   userId: string,
   id: string,
   value: unknown,
+  runner?: Runner,
 ) {
   const input = z
     .object({
@@ -410,7 +411,7 @@ export async function markSubmitted(
     throw new WorkspaceError(
       "Record when you actually shared this document, not a future date",
     );
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     const prior = await owned<Deliverable>(userId, "deliverable", id, tx, true);
     if (prior.status === "submitted") return prior;
     if (prior.source_snapshot.audience === "internal")
@@ -437,5 +438,6 @@ export async function markSubmitted(
       tx,
     );
     return document;
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }

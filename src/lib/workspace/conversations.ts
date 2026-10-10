@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { enqueue, json, owned, rows, WorkspaceError } from "./database";
-import { authorizedReplySchema, groundedReplySchema, planSchema, replySchema, openRequestReplySchema, sharingPermissionProposalSchema } from "./conversation-schema";
+import { authorizedReplySchema, groundedReplySchema, planSchema, replySchema, roleChangesSchema, openRequestReplySchema, sharingPermissionProposalSchema } from "./conversation-schema";
 import { listReminders, saveReminder, type Reminder } from "./reminders";
 import { structured } from "./ai";
 import { listRoles, ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
@@ -64,8 +64,11 @@ export type AssistantAction = {
     | "update_candidate"
     | "create_role"
     | "update_role_brief"
+    | "update_role_details"
     | "add_record"
     | "update_sharing_permission"
+    | "update_relationship"
+    | "record_submission"
     | "submission"
     | "search_update";
   title: string;
@@ -476,6 +479,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
     PERSONAL_MEMORY_RULES + JOB_MATCHING_RULES + " " +
     `Help a professional headhunter maintain candidate relationships, work on client roles, and prepare client material. Be a capable personal assistant who respects the recruiter's attention and direction. Answer the actual request and stop when it is complete. Do not append a next step, question, or action merely because workspace context exists. Set follow_up to null unless follow_up_needed is true; even then ask at most one question only if it helps with the current request. If the user explicitly asks what to prioritize or do next, use relevant workspace evidence and give a concise recommendation. For a greeting alone, respond briefly and invite the user to tell you what they need; do not bring up a role, candidate, or unfinished task. Do not introduce an unrelated assignment, manufacture urgency, or repeatedly offer to draft an email. Propose an action only when the user requested it or it is the direct, necessary preparation of information they just supplied. Never add a checklist of speculative reminders. Respect requested brevity and the user's language; when the message has no language, use preferred_language. If an attached file is present, respond to its contents and the user's message together. An attachment is not automatically a CV. If it is unreadable, explain the actual limitation and offer one concrete way forward. If the file is unrelated to recruiting but the user requests a simple content task, help with that task in this conversation without creating a recruiter record. For a batch, explain the useful combined result and identify each file and any reading failure. With no instruction, prepare clearly supported candidate drafts and role proposals; ask only about ambiguity that blocks useful work. Never claim proposals are saved. A failed file must not prevent handling readable files. Every action must include attachment_ref, the exact source file ref or null for facts from the message. Never bind one file to another file’s action. Candidate processing is allowed only when candidate_draft_allowed is true. save_new_candidates is authorization for a later candidate-processing step, never evidence that a profile exists or has been saved. Read candidate_processing_state for each attachment: not_started means processing will be queued only after this reply is saved; queued/running means still in progress; done permits a completion claim only for saved rows explicitly present in conversation_imports. These state labels and execution sequencing are only for your reasoning. For not_started/queued/running, tell the recruiter simply that you are organizing the supported profiles and will ask about duplicates or blocking ambiguities. Do not narrate queueing, reply storage, internal states, or the timing of the processing step. Do not use completed-tense wording such as 已入库、已保存、已建档、已处理完成 or saved/added/created for those profiles. The per-file result will show actual saved profiles after processing. Otherwise it is a draft, not saved to the pool. When candidate_draft_allowed is true, candidate processing is the only save path for this file, including merges into existing candidates. If save_new_candidates is true do not instruct the recruiter to review every field or go through an import preview; the agent will save clear new profiles and surface only duplicates or blocking ambiguities. Do not propose add_record for the same attachment or claim a separate record will merge profile fields. Only when save_new_candidates is false explain that the extracted profiles remain drafts; the recruiter can ask to save them in conversation. For duplicates ask about the specific identity or conflicting facts. Original sources are retained. For source material use source_refs from the registry and never invent URLs or imply the full file was read when truncated. Never narrate job IDs, database versions, internal processing, or exact save timestamps unless asked. For import summaries, distinguish add versus merge using reviewed_rows.action; a completed merge is not an unresolved one. Distinguish recorded facts from recommendations and unanswered questions. Do not claim an action was performed when it is only a proposal requiring review. add_record preserves the user's reported facts; occurred_at is null unless the message or file gives a definite date/time. When the user supplies changed client requirements, propose update_role_brief for the identified role. Its role_draft.brief is the complete proposed brief: preserve still-valid requirements and incorporate only supported changes. For update_role_brief, include record.occurred_at when the supplied feedback has a definite event timestamp with a timezone; otherwise leave it null so the recruiter can confirm it during review. Do not invent a time or timezone from a date alone. This preserves the original JD and records the feedback on acceptance; do not also propose add_record for the same feedback. Merely asking about requirements does not authorize an update proposal. create_role requires an actual JD and identified client; preserve original JD text, do not fabricate missing requirements. For document preparation use work; never emit submission/search_update actions. Do not claim a draft is finished before its actual generation. Gmail email preparation and confirmed sending are available through the conversation email capability. Use live gmail_connection for connection facts; never claim an email was sent without a delivery receipt. If person or role identity is ambiguous, ask one concise clarification before attaching records. Do not expose private notes in proposed client prose. Use role_N/person_N/attachment_N source refs where relevant. Scope: latest 30 records per selected person, 50 per selected role, first 50 linked candidates, latest 30 conversation messages, and at most the 100000 characters across the latest attachment batch; make any material limit explicit.` +
     " For create_role, include related client notes/events the recruiter asked to preserve in role_records. Each entry has its own exact attachment_ref (or null for a fact from the user's message), kind, title, content, and occurred_at. Preserve the supplied event time with its timezone; use null when absent. These records belong to the new role and are saved together when directly authorized. Only an explicitly requested preview stays unsaved. Do not use add_record with an invented role reference for a role that does not yet exist. Describe the intended save; actual completion is shown by the action receipt. For other action kinds role_records is empty. " +
+    " Use record_submission only when the recruiter explicitly reports already delivering the linked saved document outside Hirelix and asks to record it. submission must contain the actual supplied past submitted_at and submission_note identifying recipient and channel. If document, time, recipient, or channel is missing, ask one blocking clarification; never invent them. Preserve document text, never send an email, and describe this as recording the recruiter’s report, not as a provider-verified send. Use direct_save_quote from the user’s recording instruction. " +
+    " Use update_role_details with role_changes for explicitly requested corrections to a role title, client name, client_contact fields, or active/paused/closed status. Null means unchanged, including within client_contact; empty strings clear only explicitly requested fields. Keep client contact facts separate from hiring requirements and candidate contacts. Status is the recruiter’s decision, never inferred from analysis, weak candidate interest, or missing feedback. Preserve the original JD and current brief. For changed hiring requirements use update_role_brief instead; if the same request also changes role details, include role_changes in that single action rather than emitting two role writes. Copy an exact direct_save_quote for authorized saves. " +
+    " Use update_relationship to link an explicitly identified candidate to a role or save their role-specific interest and notes. Use relationship_changes with null for unchanged fields and an empty string only for an explicit clear; preserve other existing content. Include a record describing the supplied facts, with its actual source and date if known. An explicit link alone needs no invented interest or permission. For sharing permission use update_sharing_permission instead; a single permission action can include relationship_changes if the user also supplied interest or notes for that pair. Both actions create a missing association as necessary, without a separate manual linking step. Do not emit two relationship actions for the same pair in one reply. Never infer permission from interest, linking, analysis, or preparing a recommendation. Copy direct_save_quote from the actual authorization. Analysis alone never authorizes a relationship change. " +
     " Every action object must include sharing_permission, null except for update_sharing_permission. When the recruiter explicitly reports that a named candidate granted or declined permission to share with a named client role, propose update_sharing_permission for that exact person-role relationship. Its record must describe only that person's permission report, preserving whether it was oral or written and leaving occurred_at null if no date was given. Do not mix another person's status or a hold instruction into that person's evidence record. Do not propose add_record for the same permission fact. When explicitly reported and authorized, save the record and relationship directly using direct_save_quote; never infer permission from a request to write or send material. The action receipt reports actual completion. A request not to send means no submission action. Keep the answer focused on what changed; mention a missing fact only if it blocks the current request. In user-facing prose, never show role_N, person_N, source_N, enum names such as confirmed/unknown/draft, or internal processing narration. Ask one direct question only when a missing fact blocks the current request; do not ask the recruiter to choose from a menu of assistant tasks. " + ROLE_BRIEF_EVIDENCE_RULES + " " + ASSISTANT_WORK_RULES + " For a specifically requested one-time reminder use reminders, never memory_changes or work. Copy one exact contiguous authorization_quote from the current user request, including the original instruction when continuing after clarification. Never paraphrase or stitch the instruction and clarification together into a quote. Resolve a definite future time in the supplied browser timezone; ask if the date or purpose is ambiguous. id is null for new reminders, or the exact existing reminder ID when explicitly editing/pausing/resuming. Preserve the existing title/time/timezone unless asked to change them. No email or external action is implied. Say you are setting the reminder; the receipt will confirm it. No reminder for suggestions or analysis. Final response rules: prioritize the current request over previous assistant prose or menus. Previous assistant answers are not a template to repeat. If the requested comparison or lookup has been completed, deliver the conclusion and stop. An absence of suitable matches is a completed result; use clarification=null, follow_up=null, and do not append suggestions to create a vacancy or save the candidate. For follow-ups, do not summarize the full CV again. Report only the new result, professional fit reasons and actual reviewed scope.",
     {
       current_time: new Date().toISOString(),
@@ -535,27 +541,19 @@ export const assistantReply: JobHandler = async (job, progress) => {
     if (action.kind !== "update_sharing_permission") return false;
     const role = action.role_ref && roleRegistry.get(action.role_ref);
     const person = action.person_ref && persons.get(action.person_ref);
-    return !!role && !!person && !!action.sharing_permission && !!action.record &&
-      relationships.has(`${role.id}:${person.id}`);
+    return !!role && !!person && !!action.sharing_permission && !!action.record;
   };
   if (plan.sharing_permission_reported && !reply.actions.some(validPermissionAction)) {
-    const linkedCandidates = [...relationships.values()].flatMap((link) => {
-      const roleRef = [...roleRegistry].find(([, role]) => role.id === link.role_id)?.[0];
-      const personEntry = [...persons].find(([, person]) => person.id === link.person_id);
-      return roleRef && personEntry ? [{
-        role_ref: roleRef,
-        person_ref: personEntry[0],
-        name: personEntry[1].name,
-        client: roleRegistry.get(roleRef)?.client_name,
-        title: roleRegistry.get(roleRef)?.title,
-        current_permission: link.permission,
-      }] : [];
-    });
+    const linkedCandidates = [...roleRegistry].flatMap(([roleRef, role]) => [...persons].map(([personRef, person]) => ({
+      role_ref: roleRef, person_ref: personRef, name: person.name,
+      client: role.client_name, title: role.title,
+      current_permission: relationships.get(`${role.id}:${person.id}`)?.permission ?? "unknown",
+    })));
     const recovered = await structured(
       job.user_id,
       "private_assistant_permission_proposal",
       sharingPermissionProposalSchema,
-      "The recruiter explicitly reported a candidate's permission decision, but the assistant reply did not include an actionable proposal. Prepare one reviewable permission action per unambiguous, explicitly confirmed or declined candidate-role pair from the latest user message. Use only the linked candidates in the catalog. Never treat an unconfirmed person's status as declined or confirmed. Preserve whether permission was oral or written in a short evidence record about that person only. A request not to send a recommendation does not prevent preparing this record and permission update for review. Do not propose a submission. If identity or role is ambiguous, return no actions and one precise clarification. role_ref and person_ref are internal selectors and must never appear in the user-facing title or clarification.",
+      "The recruiter explicitly reported a candidate's permission decision, but the assistant reply did not include an actionable proposal. Prepare one reviewable permission action per unambiguous, explicitly confirmed or declined candidate-role pair from the latest user message. Use only the candidates and roles in the catalog; an existing relationship is not required. Copy direct_save_quote exactly from the authorization in the latest user message. Never treat an unconfirmed person's status as declined or confirmed. Preserve whether permission was oral or written in a short evidence record about that person only. A request not to send a recommendation does not prevent preparing this record and permission update for review. Do not propose a submission. If identity or role is ambiguous, return no actions and one precise clarification. role_ref and person_ref are internal selectors and must never appear in the user-facing title or clarification.",
       { latest_user_message: question.content, linked_candidates: linkedCandidates },
     );
     const prepared = recovered.actions.filter(validPermissionAction);
@@ -641,6 +639,15 @@ export const assistantReply: JobHandler = async (job, progress) => {
           ? { jd_text: attachment.text, source_file_id: attachment.file_id, source_file_name: attachment.name }
           : {}),
       };
+    if (action.kind === "record_submission") {
+      if (!document || !action.submission) throw new WorkspaceError("Identify the saved document and its actual delivery details.");
+      fields = {...action.submission, document_id: document.id, expected_version: document.version};
+    }
+    if (action.kind === "update_role_details") {
+      if (!role) throw new WorkspaceError("Identify the role to update.");
+      fields = { changes: roleChangesSchema.parse(action.role_changes), expected_version: role.version,
+        source_message_id: question.id, source_content: question.content };
+    }
     if (action.kind === "update_role_brief") {
       if (!role || !action.role_draft)
         throw new WorkspaceError("Choose the role whose requirements changed.");
@@ -648,6 +655,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         title: role.title,
         brief: roleInput.shape.brief.parse(action.role_draft.brief),
         previous_brief: role.brief,
+        changes: action.role_changes,
         expected_version: role.version,
         feedback: attachment && !attachment.read_error ? attachment.text : question.content,
         occurred_at: action.record?.occurred_at ?? null,
@@ -667,22 +675,21 @@ export const assistantReply: JobHandler = async (job, progress) => {
         file_id: attachment && !attachment.read_error ? attachment.file_id : null,
       });
     }
-    if (action.kind === "update_sharing_permission") {
-      if (!role || !person || !action.sharing_permission || !action.record)
-        throw new WorkspaceError("Choose a candidate already linked to this role.");
+    if (action.kind === "update_sharing_permission" || action.kind === "update_relationship") {
+      if (!role || !person || (action.kind === "update_sharing_permission" && (!action.sharing_permission || !action.record)))
+        throw new WorkspaceError("Identify the candidate and role for this relationship.");
       const relationship = relationships.get(`${role.id}:${person.id}`);
-      if (!relationship)
-        throw new WorkspaceError("Choose a candidate already linked to this role.");
       fields = {
         ...recordInput.parse({
-          ...action.record,
+          ...(action.record ?? {kind: "note", title: action.title, content: attachment?.text || question.content, occurred_at: null}),
           role_id: role.id,
           person_id: person.id,
           file_id: attachment && !attachment.read_error ? attachment.file_id : null,
         }),
         permission: action.sharing_permission,
-        relationship_id: relationship.id,
-        expected_version: relationship.version,
+        relationship_id: relationship?.id ?? null,
+        expected_version: relationship?.version ?? null,
+        changes: action.relationship_changes,
         source_message_id: question.id,
       };
     }

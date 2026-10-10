@@ -1,9 +1,9 @@
 "use client";
 
 import { useLanguage, useT } from "@/components/LanguageProvider";
-import { use, useEffect, useState, type FormEvent } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -13,14 +13,12 @@ import {
   Pause,
   Play,
   Check,
-  Loader2,
 } from "lucide-react";
 import {
   api,
   date,
   Dialog,
   ErrorNotice,
-  Field,
   Loading,
   useQuery,
 } from "@/components/workspace/client";
@@ -31,7 +29,6 @@ import { AgentText } from "@/components/AgentText";
 import type {
   Deliverable,
   Job,
-  Person,
   Role,
   RoleCandidate,
   Schedule,
@@ -69,8 +66,9 @@ export default function RolePage({
   const { locale } = useLanguage();
   const { id } = use(params);
   const paramsQuery = useSearchParams();
-  const query = useQuery<Detail>(`/roles/${id}`),
-    pool = useQuery<{ people: Person[] }>("/people");
+  const router = useRouter();
+  function ask(prompt: string, person?: string) { router.push(`/app?role=${id}${person ? `&person=${person}` : ""}&prompt=${encodeURIComponent(prompt)}`); }
+  const query = useQuery<Detail>(`/roles/${id}`);
   const requestedTab = paramsQuery.get("tab");
   const tab = requestedTab && ["brief", "candidates", "activity", "submissions"].includes(requestedTab)
     ? requestedTab : paramsQuery.get("record") ? "activity" : "brief";
@@ -83,19 +81,12 @@ export default function RolePage({
   const [edit, setEdit] = useState(false),
     [history, setHistory] = useState(false),
     [record, setRecord] = useState<SourceRecord | "new" | null>(null),
-    [linking, setLinking] = useState(false),
-    [personId, setPersonId] = useState(""),
-    [personFilter, setPersonFilter] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [assessment, setAssessment] = useState<RoleCandidate | null>(null),
-    [permission, setPermission] = useState<RoleCandidate | null>(null),
     [startedJobId, setJobId] = useState<string | null>(null);
   const jobId = startedJobId || query.data?.assessment_job?.id || null;
-  const job = useQuery<{ job: Job }>(jobId ? `/jobs/${jobId}` : null),
-    filteredPool = useQuery<{ people: Person[] }>(
-      personFilter ? `/people?q=${encodeURIComponent(personFilter)}` : null,
-    );
+  const job = useQuery<{ job: Job }>(jobId ? `/jobs/${jobId}` : null);
   const refreshRole = query.refresh;
   useEffect(() => {
     if (!jobId || !job.data) return;
@@ -122,26 +113,6 @@ export default function RolePage({
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Could not change role status",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function link(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await api(`/roles/${id}/people`, {
-        method: "POST",
-        body: JSON.stringify({ person_id: personId }),
-      });
-      setLinking(false);
-      query.refresh();
-      setTab("candidates");
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not link candidate",
       );
     } finally {
       setBusy(false);
@@ -326,7 +297,7 @@ export default function RolePage({
           {tab === "candidates" && (
             <>
               <div className="ws-actions mt-5 mb-3">
-                <button className="ws-button" onClick={() => setLinking(true)}>
+                <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我把候选人关联到这个职位。" : "Help me link a candidate to this role.")}>
                   <Plus size={14} />
                   {t("Add from candidates")}
                 </button>
@@ -373,7 +344,7 @@ export default function RolePage({
                       <div className="ws-actions mt-4">
                         <button
                           className="ws-link"
-                          onClick={() => setPermission(link)}
+                          onClick={() => ask(locale === "zh" ? "帮我更新这位候选人对这个职位的意向或分享授权。" : "Help me update this candidate’s interest or sharing permission for this role.", link.person_id)}
                         >
                           {t("Interest & sharing")}
                         </button>
@@ -431,9 +402,9 @@ export default function RolePage({
           )}
           {tab === "activity" && (
             <>
-              <ScheduledDrafts role={role} people={people} schedule={query.data.schedule} refresh={query.refresh} />
+              <ScheduledDrafts role={role} schedule={query.data.schedule} refresh={query.refresh} />
               <div className="ws-actions mt-5 mb-3">
-                <button className="ws-button" onClick={() => setRecord("new")}>
+                <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我记录这个职位的新反馈。" : "Help me record new feedback for this role.")}>
                   <Plus size={14} />
                   {t("Add record")}
                 </button>
@@ -552,7 +523,7 @@ export default function RolePage({
                   <small>{item.occurred_at ? date(item.occurred_at) : locale === "zh" ? `记录于 ${date(item.created_at)} · 事件日期未记录` : `Recorded ${date(item.created_at)} · event date unknown`}</small>
                 </button>
               ))}
-            <button className="ws-link mt-3" onClick={() => setRecord("new")}>
+            <button className="ws-link mt-3" onClick={() => ask(locale === "zh" ? "帮我记录这个职位的新反馈。" : "Help me record new feedback for this role.")}>
               <Plus size={13} />
               {t("Add record")}
             </button>
@@ -644,49 +615,6 @@ export default function RolePage({
           }}
         />
       )}
-      {linking && (
-        <Dialog
-          title={t("Add a candidate to this role")}
-          onClose={() => setLinking(false)}
-        >
-          <form className="ws-form" onSubmit={link}>
-            <ErrorNotice error={error} />
-            <Field label={t("Find a candidate")}>
-              <input
-                autoFocus
-                placeholder={t("Search your candidate pool")}
-                value={personFilter}
-                onChange={(event) => setPersonFilter(event.target.value)}
-              />
-            </Field>
-            <Field label={t("Candidate")}>
-              <select
-                required
-                value={personId}
-                onChange={(event) => setPersonId(event.target.value)}
-              >
-                <option value="">{t("Choose a candidate")}</option>
-                {(personFilter
-                  ? filteredPool.data?.people
-                  : pool.data?.people
-                )?.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name} · {person.headline}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <div className="ws-form-footer">
-              <button
-                className="ws-button ws-button-primary"
-                disabled={!personId || busy}
-              >
-                {busy ? t("Saving…") : t("Add candidate")}
-              </button>
-            </div>
-          </form>
-        </Dialog>
-      )}
       {assessment && (
         <Dialog
           title={`${assessment.person?.name} · ${t("Role assessment")}`}
@@ -746,143 +674,6 @@ export default function RolePage({
           </div>
         </Dialog>
       )}
-      {permission && (
-        <PermissionForm
-          link={permission}
-          roleId={id}
-          onClose={() => setPermission(null)}
-          onSaved={() => {
-            setPermission(null);
-            query.refresh();
-          }}
-        />
-      )}
     </div>
-  );
-}
-function PermissionForm({
-  link,
-  roleId,
-  onClose,
-  onSaved,
-}: {
-  link: RoleCandidate;
-  roleId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const t = useT();
-  const sources = useQuery<{ records: SourceRecord[] }>(
-    `/people/${link.person_id}`,
-  );
-  const [permission, setPermission] = useState(link.permission),
-    [recordId, setRecordId] = useState(link.permission_record_id || ""),
-    [interest, setInterest] = useState(link.interest),
-    [notes, setNotes] = useState(link.notes),
-    [adding, setAdding] = useState(false),
-    [error, setError] = useState(""),
-    [saving, setSaving] = useState(false);
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      await api(`/roles/${roleId}/people`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          person_id: link.person_id,
-          permission,
-          permission_record_id: recordId || null,
-          interest,
-          notes,
-          expected_version: link.version,
-        }),
-      });
-      onSaved();
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not save relationship",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-  return (
-    <>
-      <Dialog
-        title={`${t("Interest & sharing")} · ${link.person?.name}`}
-        onClose={onClose}
-      >
-        <form className="ws-form" onSubmit={save}>
-          <ErrorNotice error={error} />
-          <Field label={t("Permission to share for this role")}>
-            <select
-              value={permission}
-              onChange={(event) =>
-                setPermission(event.target.value as RoleCandidate["permission"])
-              }
-            >
-              <option value="unknown">{t("Not confirmed")}</option>
-              <option value="confirmed">{t("Confirmed")}</option>
-              <option value="declined">{t("Declined")}</option>
-            </select>
-          </Field>
-          <Field label={t("Supporting conversation or record")}>
-            <select
-              required={permission !== "unknown"}
-              value={recordId}
-              onChange={(event) => setRecordId(event.target.value)}
-            >
-              <option value="">{t("Choose a record")}</option>
-              {sources.data?.records
-                .filter((record) => record.role_id === roleId)
-                .map((record) => (
-                  <option key={record.id} value={record.id}>
-                    {record.title} · {date(record.occurred_at)}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          <button
-            type="button"
-            className="ws-link"
-            onClick={() => setAdding(true)}
-          >
-            <Plus size={13} />
-            {t("Add a record for this candidate and role")}
-          </button>
-          <Field label={t("Interest in this role")}>
-            <textarea
-              value={interest}
-              maxLength={5000}
-              onChange={(event) => setInterest(event.target.value)}
-            />
-          </Field>
-          <Field label={t("Your notes for this role")}>
-            <textarea
-              value={notes}
-              maxLength={20000}
-              onChange={(event) => setNotes(event.target.value)}
-            />
-          </Field>
-          <div className="ws-form-footer">
-            <button className="ws-button ws-button-primary" disabled={saving}>
-              {saving && <Loader2 size={14} className="animate-spin" />}{t("Save relationship")}
-            </button>
-          </div>
-        </form>
-      </Dialog>
-      {adding && (
-        <RecordForm
-          personId={link.person_id}
-          roleId={roleId}
-          onClose={() => setAdding(false)}
-          onSaved={() => {
-            setAdding(false);
-            sources.refresh();
-          }}
-        />
-      )}
-    </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Copy,
   Link as LinkIcon,
@@ -8,8 +8,8 @@ import {
   Check,
   ExternalLink,
 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
-import { useT } from "@/components/LanguageProvider";
+import Link from "next/link";
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import { api, Dialog, ErrorNotice, Field, useQuery } from "./client";
 import type { Deliverable } from "@/lib/workspace/types";
 import type { SubmissionCv } from "@/lib/workspace/deliverables";
@@ -25,88 +25,50 @@ type Receipt = {
 export function RecommendationDelivery({
   document,
   disabled,
-  onSent,
 }: {
   document: Deliverable;
   disabled: boolean;
-  onSent: () => void;
 }) {
   const t = useT();
-  const params = useSearchParams();
   const router = useRouter();
-  const oauthError = params.get("error");
-  const returnedFromGmail = params.get("delivery") === "gmail" ||
-    oauthError === "state_mismatch";
+  const { locale } = useLanguage();
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         className="ws-button ws-button-primary"
         disabled={disabled}
-        onClick={() => setOpen(true)}
+        onClick={() => router.push(`/app?document=${document.id}&role=${document.role_id}&prompt=${encodeURIComponent(locale === "zh" ? "请帮我通过邮件发送这份已保存的推荐材料。" : "Help me email this saved recommendation to the client.")}`)}
       >
         <Mail size={14} />
         {t("Deliver to client")}
       </button>
-      {(open || returnedFromGmail) && (
-        <Dialog title={t("Deliver to client")} onClose={() => {
-          setOpen(false);
-          if (returnedFromGmail) {
-            const next = new URL(window.location.href);
-            next.searchParams.delete("delivery");
-            next.searchParams.delete("error");
-            router.replace(`${next.pathname}${next.search}${next.hash}`, { scroll: false });
-          }
-        }}>
-          <DeliveryOptions document={document} onSent={onSent}
-            returnedFromGmail={returnedFromGmail} oauthError={oauthError} />
-        </Dialog>
-      )}
+      <button className="ws-button" disabled={disabled} onClick={() => setOpen(true)}>{t("Share link or copy")}</button>
+      {open && <Dialog title={t("Share link or copy")} onClose={() => setOpen(false)}><DeliveryOptions document={document} /></Dialog>}
     </>
   );
 }
 function DeliveryOptions({
   document,
-  onSent,
-  returnedFromGmail,
-  oauthError,
 }: {
   document: Deliverable;
-  onSent: () => void;
-  returnedFromGmail: boolean;
-  oauthError: string | null;
 }) {
   const t = useT();
-  const [mode, setMode] = useState<"link" | "copy" | "gmail">(returnedFromGmail ? "gmail" : "link"),
+  const [mode, setMode] = useState<"link" | "copy" | "gmail">("link"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [copied, setCopied] = useState(""),
-    [to, setTo] = useState("");
+    [copied, setCopied] = useState("");
   const share = useQuery<{ share: Share | null }>(
     `/deliverables/${document.id}/share`,
-  );
-  const gmail = useQuery<{ connected: boolean; email: string | null }>(
-    "/gmail",
   );
   const receipts = useQuery<{ receipts: Receipt[] }>(
     `/deliverables/${document.id}/email`,
   );
-  const request = useRef<{
-    recipient: string;
-    version: number;
-    key: string;
-  } | null>(null);
   const source = document.source_snapshot as {
     files?: SubmissionCv[];
     people?: Array<{ id: string; name: string }>;
   };
   const active = share.data?.share;
-  const delivery = receipts.data?.receipts.find(
-    (r) =>
-      r.recipient.toLowerCase() === to.trim().toLowerCase() &&
-      r.current_copy &&
-      r.status !== "failed",
-  );
   const inProgress = receipts.data?.receipts.some(
     (r) => r.status === "sending",
   );
@@ -150,64 +112,6 @@ function DeliveryOptions({
       setBusy(false);
     }
   }
-  async function connect() {
-    setBusy(true);
-    setError("");
-    try {
-      const result = await authClient.linkSocial({
-        provider: "google",
-        scopes: ["https://www.googleapis.com/auth/gmail.send"],
-        disableRedirect: true,
-        callbackURL: `${window.location.pathname}?delivery=gmail`,
-        errorCallbackURL: `${window.location.pathname}?delivery=gmail`,
-      });
-      if (result.error) throw new Error(result.error.message);
-      if (result.data?.url) {
-        const url = new URL(result.data.url);
-        url.searchParams.set("prompt", "consent");
-        window.location.assign(url.href);
-      } else throw new Error("Could not connect Gmail");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not connect Gmail");
-      setBusy(false);
-    }
-  }
-  async function send(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    const recipient = to.trim();
-    if (
-      request.current?.recipient !== recipient ||
-      request.current.version !== document.version
-    )
-      request.current = {
-        recipient,
-        version: document.version,
-        key: crypto.randomUUID(),
-      };
-    try {
-      const result = await api<{ status: string }>(
-        `/deliverables/${document.id}/email`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            to: recipient,
-            expected_version: document.version,
-            request_key: request.current.key,
-          }),
-        },
-      );
-      receipts.refresh();
-      if (result.status === "sent") onSent();
-      if (result.status === "failed") request.current = null;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send email");
-      receipts.refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <div className="ws-delivery">
       <div
@@ -238,13 +142,8 @@ function DeliveryOptions({
         ))}
       </div>
       <ErrorNotice
-        error={error || share.error || gmail.error || receipts.error}
+        error={error || share.error || receipts.error}
       />
-      {mode === "gmail" && returnedFromGmail && oauthError && !gmail.data?.connected && (
-        <ErrorNotice error={t(oauthError === "state_mismatch"
-          ? "Google could not verify this connection request. It may have expired or been replaced by another request. Click Connect Gmail to start again, and complete the Google screens within 5 minutes."
-          : "Google did not complete the Gmail connection. Click Connect Gmail to try again and allow sending permission.")} />
-      )}
       {mode === "link" && (
         <section>
           <p>
@@ -357,89 +256,7 @@ function DeliveryOptions({
       )}
       {mode === "gmail" && (
         <section>
-          {!gmail.data?.connected ? (
-            <>
-              <p>
-                {t(
-                  "Connect your Google account to send this reviewed recommendation through Gmail. Hirelix requests sending permission, not inbox access.",
-                )}
-              </p>
-              <a className="ws-link" href="/privacy" target="_blank" rel="noreferrer">
-                {t("Gmail data use and privacy")}
-              </a>
-              <button
-                className="ws-button ws-button-primary"
-                disabled={busy || gmail.loading}
-                onClick={() => void connect()}
-              >
-                {t("Connect Gmail")}
-              </button>
-            </>
-          ) : (
-            <form className="ws-form" onSubmit={send}>
-              <p>
-                {t("Sender email")}: {gmail.data.email}
-              </p>
-              <Field label={t("Recipient email")}>
-                <input
-                  type="email"
-                  required
-                  value={to}
-                  onChange={(e) => setTo(e.target.value)}
-                  disabled={busy}
-                  placeholder="client@example.com"
-                />
-              </Field>
-              <Field label={t("Email subject")}>
-                <input readOnly value={document.title} />
-              </Field>
-              <Field label={t("Email body")}>
-                <textarea readOnly rows={8} value={document.content} />
-              </Field>
-              <p>
-                {t(
-                  "The selected CVs below will be attached. This sends a real email to the recipient above.",
-                )}
-              </p>
-              {delivery && (
-                <p role="status">
-                  {t(
-                    delivery.status === "sent"
-                      ? "Sent through Gmail"
-                      : delivery.status === "sending"
-                        ? "Sending through Gmail…"
-                        : "Gmail did not confirm delivery. Check Sent in Gmail before trying again.",
-                  )}
-                </p>
-              )}
-              <button
-                type="submit"
-                className="ws-button ws-button-primary"
-                disabled={busy || !!delivery}
-              >
-                {t(busy ? "Sending through Gmail…" : "Send email")}
-              </button>
-              <button
-                type="button"
-                className="ws-link"
-                disabled={busy}
-                onClick={async () => {
-                  try {
-                    await api("/gmail", { method: "DELETE" });
-                    gmail.refresh();
-                  } catch (e) {
-                    setError(
-                      e instanceof Error
-                        ? e.message
-                        : "Could not disconnect Gmail",
-                    );
-                  }
-                }}
-              >
-                {t("Disconnect Gmail")}
-              </button>
-            </form>
-          )}
+          <Link className="ws-button ws-button-primary" href={`/app?document=${document.id}&role=${document.role_id}&prompt=${encodeURIComponent("Help me email this saved recommendation to the client.")}`}>{t("Ask your AI assistant")}</Link>
           {receipts.data?.receipts.map((r) => (
             <p className="ws-muted mt-3" key={r.id}>
               {r.recipient} ·{" "}

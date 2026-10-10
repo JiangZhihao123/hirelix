@@ -52,13 +52,24 @@ export function ActionReview({
       setSaving(false);
     }
   }
-  if (action.kind === "create_candidate" || action.kind === "update_candidate") {
-    const labels: Record<string, string> = {name: "Full name", headline: "Current role / headline", location: "Location", email: "Email", phone: "Phone", skills: "Expertise", profile_url: "Profile URL", note: "Your private note", summary: "Professional summary", experience: "Experience", education: "Education", languages: "Languages", work_preferences: "Work preferences"};
+  const labels: Record<string, string> = {client_contact: "Client contact", title: "Role title", client_name: "Client", status: "Status", interest: "Interest in this role", notes: "Your notes for this role", name: "Full name", headline: "Current role / headline", location: "Location", email: "Email", phone: "Phone", skills: "Expertise", profile_url: "Profile URL", note: "Your private note", summary: "Professional summary", experience: "Experience", education: "Education", languages: "Languages", work_preferences: "Work preferences"};
+  function renderChanges(value: unknown) {
+    if (!value || typeof value !== "object") return null;
+    return <dl>{Object.entries(value as Record<string, unknown>).filter(([,value]) => value !== null).map(([key,value]) => <div key={key}><dt>{t(labels[key] || key)}</dt><dd className="whitespace-pre-wrap">{Array.isArray(value) ? value.map(item => typeof item === "object" && item ? Object.values(item).filter(Boolean).join(" · ") : String(item)).join("\n") || t("Clear") : typeof value === "object" && value ? Object.entries(value).filter(([,item]) => item !== null).map(([field,item]) => `${t(field)}: ${String(item) || t("Clear")}`).join("\n") : String(value) || t("Clear")}</dd></div>)}</dl>;
+  }
+  if (action.kind === "update_relationship" || action.kind === "update_sharing_permission" || action.kind === "record_submission") return <Dialog title={action.title} onClose={close}><form className="ws-form" onSubmit={save}>
+    <ErrorNotice error={error} />{action.kind === "update_sharing_permission" && <p>{t("Permission to share for this role")}: {t(String(action.fields.permission))}</p>}<p className="whitespace-pre-wrap">{String(action.fields.content || action.fields.submission_note || "")}</p>
+    {renderChanges(action.fields.changes)}
+    {action.kind === "record_submission" && <p>{date(String(action.fields.submitted_at), true)}</p>}
+    <p>{t("Ask your assistant to change anything before saving.")}</p>
+    <button className="ws-button ws-button-primary" disabled={saving}>{t(saving ? "Saving…" : "Save")}</button>
+  </form></Dialog>;
+  if (action.kind === "create_candidate" || action.kind === "update_candidate" || action.kind === "update_role_details") {
     return <Dialog title={action.title} onClose={close} wide><form className="ws-form" onSubmit={save}>
       <ErrorNotice error={error} />
-      <dl>{Object.entries(action.fields.changes as Record<string, unknown>).filter(([,value]) => value !== null).map(([key,value]) => <div key={key}><dt>{t(labels[key] || key)}</dt><dd className="whitespace-pre-wrap">{Array.isArray(value) ? value.map(item => typeof item === "object" && item ? Object.values(item).filter(Boolean).join(" · ") : String(item)).join("\n") || t("Clear") : String(value) || t("Clear")}</dd></div>)}</dl>
+      {renderChanges(action.fields.changes)}
       <p>{t("Ask your assistant to change anything before saving.")}</p>
-      <button className="ws-button ws-button-primary" disabled={saving}>{t(saving ? "Saving…" : "Save candidate")}</button>
+      <button className="ws-button ws-button-primary" disabled={saving}>{t(saving ? "Saving…" : "Save")}</button>
     </form></Dialog>;
   }
   return (
@@ -68,8 +79,6 @@ export function ActionReview({
           ? t("Review new role")
           : action.kind === "update_role_brief"
             ? t("Review updated requirements")
-            : action.kind === "update_sharing_permission"
-              ? t("Review sharing permission")
             : t("Review conversation record")
       }
       onClose={close}
@@ -77,6 +86,7 @@ export function ActionReview({
     >
       <form className="ws-form" onSubmit={save} autoComplete="off">
         <ErrorNotice error={error} />
+        {action.kind === "update_role_brief" && renderChanges(action.fields.changes)}
         <Field label={t("Title")}>
           <input
             required
@@ -186,19 +196,6 @@ export function ActionReview({
           </>
         ) : (
           <>
-            {action.kind === "update_sharing_permission" && (
-              <section className="ws-panel">
-                <p className="ws-muted">
-                  {t("Saving creates a source record and updates sharing permission for this role. It does not send a recommendation.")}
-                </p>
-                <Field label={t("Sharing permission")}>
-                  <input
-                    readOnly
-                    value={t(String(fields.permission))}
-                  />
-                </Field>
-              </section>
-            )}
             <Field label={t("Record type")}>
               <select
                 value={String(fields.kind)}
@@ -269,8 +266,6 @@ export function ActionReview({
                 ? t("Save role")
                 : action.kind === "update_role_brief"
                   ? t("Apply requirements")
-                  : action.kind === "update_sharing_permission"
-                    ? t("Save permission and record")
                   : t("Save record")}
           </button>
         </div>
