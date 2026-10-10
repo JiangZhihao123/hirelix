@@ -9,6 +9,8 @@ export class IndexProviderError extends Error {
   }
 
   get userMessage() {
+    if (this.status === 504)
+      return "The document search service timed out. Your material is saved. Try again later.";
     if (this.status === 402)
       return "The document search service has insufficient provider balance. Your material is saved. Retry after service is restored.";
     if (this.status === 401 || this.status === 403 || this.status === 404)
@@ -53,8 +55,15 @@ export async function requestIndexJson<T>(options: {
         ? transportFailure
         : status === 408 || status === 429 || status >= 500;
       const fields = { attempt, status, error_type: error instanceof Error ? error.name : "unknown", error_code: transportCode(error) };
+      // A full request deadline already gave the provider time to recover.
+      // Repeating it makes an interactive search wait three minutes.
+      if (error instanceof Error && error.name === "TimeoutError") {
+        logger.error(fields, "index provider request timed out");
+        throw new IndexProviderError(504);
+      }
       if (!retryable || attempt === 3) {
         logger.error(fields, "index provider request failed");
+        if (transportFailure) throw new IndexProviderError(503);
         throw error;
       }
       logger.warn(fields, "index provider request retrying");

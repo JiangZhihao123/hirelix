@@ -4,7 +4,7 @@ import { IndexProviderError, requestIndexJson } from "../src/lib/candidate-index
 
 const base = { url: "https://example.test/embeddings", apiKey: "test", body: {}, timeoutMs: 1000 };
 
-test("retries transport and response body timeouts with a fresh deadline", async () => {
+test("retries transient transport failures with a fresh deadline", async () => {
   const signals: unknown[] = [];
   let calls = 0;
   const result = await requestIndexJson({ ...base, fetcher: (async (_url, init) => {
@@ -13,13 +13,30 @@ test("retries transport and response body timeouts with a fresh deadline", async
     if (calls === 1) throw new TypeError("fetch failed");
     if (calls === 2) {
       const response = Response.json({});
-      response.json = async () => { throw new DOMException("timeout", "TimeoutError"); };
+      response.json = async () => { throw new TypeError("connection closed"); };
       return response;
     }
     return Response.json({ ready: true });
   }) as typeof fetch });
   assert.deepEqual(result, { ready: true });
   assert.equal(new Set(signals).size, 3);
+});
+
+test("a full provider deadline ends the request with an actionable timeout", async () => {
+  let calls = 0;
+  await assert.rejects(requestIndexJson({ ...base, fetcher: (async () => {
+    calls += 1;
+    const response = Response.json({});
+    response.json = async () => { throw new DOMException("private input", "TimeoutError"); };
+    return response;
+  }) as typeof fetch }), (error: unknown) => {
+    assert.ok(error instanceof IndexProviderError);
+    assert.equal(error.status, 504);
+    assert.match(error.userMessage, /timed out/);
+    assert.doesNotMatch(error.message + error.userMessage, /private input/);
+    return true;
+  });
+  assert.equal(calls, 1);
 });
 
 test("does not retry authorization failures or expose provider response bodies", async () => {

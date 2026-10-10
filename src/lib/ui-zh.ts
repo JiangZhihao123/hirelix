@@ -603,6 +603,7 @@ export const uiZh: Record<string, string> = {
   "Find a submission": "查找候选人推荐",
   "Find candidates": "查找候选人",
   "Finding candidates in your private pool": "在您的私人人才库中查找候选人",
+  "Searching your saved job descriptions": "正在检索已保存的职位描述",
   "Finding profiles": "正在寻找候选人",
   "Finding profiles for this role.": "正在为该职位查找候选人资料。",
   "Finding relevant passages in this candidate's source records": "在此候选人的来源记录中查找相关段落",
@@ -1556,6 +1557,7 @@ export const uiZh: Record<string, string> = {
   "Enter to send · Shift + Enter for a new line": "Enter 发送 · Shift + Enter 换行",
   "Uploading files…": "上传文件中…",
   "Download original file": "下载原文件",
+  "Open original file": "打开原文件",
   "Remove the unsupported or oversized file to send the remaining message.": "请移除不支持或过大的文件，再发送其余内容。",
   "Source details": "来源详情",
   "Close source details": "关闭来源详情",
@@ -1576,4 +1578,5 @@ export const uiZh: Record<string, string> = {
   "The document search service has insufficient provider balance. Your material is saved. Retry after service is restored.": "资料检索服务的账户余额不足，暂时无法完成匹配。资料已保留，服务恢复后可重试。",
   "The document search service has a configuration problem. Your material is saved. Contact support or retry after service is restored.": "资料检索服务存在配置问题。资料已保留，请联系支持，或在服务恢复后重试。",
   "The document search service is temporarily unavailable. Your material is saved. Try again later.": "资料检索服务暂时不可用。资料已保留，请稍后重试。",
+  "The document search service timed out. Your material is saved. Try again later.": "资料检索服务响应超时。资料已保留，请稍后重试。",
 };
