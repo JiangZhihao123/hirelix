@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageSquare, Search, X } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
@@ -35,6 +35,7 @@ export function ConversationSearch({
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [selected, setSelected] = useState(0);
+  const selectedResult = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => setDebounced(query.trim()), 220);
     return () => window.clearTimeout(timer);
@@ -51,6 +52,10 @@ export function ConversationSearch({
       ? []
       : search.data?.conversations || []
     : recent.slice(0, 7);
+  const selectedId = results[selected]?.id;
+  useEffect(() => {
+    selectedResult.current?.scrollIntoView({ block: "nearest" });
+  }, [selected, selectedId]);
 
   return (
     <Dialog title="Search conversations" onClose={onClose} wide closeOnBackdrop>
@@ -66,6 +71,7 @@ export function ConversationSearch({
               setSelected(0);
             }}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return;
               if (event.key === "Escape") {
                 event.preventDefault();
                 event.stopPropagation();
@@ -133,6 +139,7 @@ export function ConversationSearch({
               return (
                 <Link
                   key={conversation.id}
+                  ref={index === selected ? selectedResult : null}
                   href={`/app?conversation=${conversation.id}`}
                   className="ws-conversation-search-result"
                   data-selected={index === selected}
