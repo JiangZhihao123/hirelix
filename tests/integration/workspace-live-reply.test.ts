@@ -16,13 +16,17 @@ test('real model and PG: provider prose appears before the final saved reply, ca
   const sent=await sendMessage(owner,{message:'Explain in English, in six short paragraphs, how a headhunter can prepare for a first client intake call. General advice only; do not create records, reminders, or save preferences.',request_key:randomUUID(),locale:'en'});
   const job=await claimJob(['chat']);assert.equal(job?.id,sent.job.id);
   const previews:string[]=[];
-  const poll=setInterval(()=>{void rows<{result:{live_reply?:string}}>(sql`SELECT result FROM hirelix_private_jobs WHERE id=${job!.id}::uuid`).then(([row])=>{if(row.result?.live_reply)previews.push(row.result.live_reply);});},150);
+  const snapshots:string[]=[];
+  const poll=setInterval(()=>{void rows<{result:{live_reply?:string}}>(sql`SELECT result FROM hirelix_private_jobs WHERE id=${job!.id}::uuid`).then(([row])=>{snapshots.push(row.result?.live_reply || '');if(row.result?.live_reply)previews.push(row.result.live_reply);});},150);
   const beat=setInterval(()=>void heartbeat(job!),20000);
   try {
     const prepared=await assistantReply(job!,message=>heartbeat(job!,message));
     assert.ok(new Set(previews).size>=2,'at least two actual partial responses before final persistence');
     const before=await conversationDetails(owner,sent.conversation_id);assert.equal(before.messages.filter(m=>m.role==='assistant').length,0);
     assert.ok(typeof before.job?.result?.live_reply === 'string' && before.job.result.live_reply.length > 0, 'preview survives preparation until atomic final save');
+    const firstPreview=snapshots.findIndex(text=>text.length>0);
+    assert.ok(firstPreview>=0);
+    assert.ok(snapshots.slice(firstPreview).every(text=>text.length>0), 'validation and format repair must not clear an existing preview');
     await finishJob(job!,prepared);
     const detail=await conversationDetails(owner,sent.conversation_id);assert.equal(detail.messages.filter(m=>m.role==='assistant').length,1);
     assert.ok(previews.some(text=>text.length<detail.messages.at(-1)!.content.length));
