@@ -141,3 +141,9 @@ Chrome 实测已记录候选人 declined 后，旧邮件准备仍展示 Confirm 
 - `workspace-sharing-refusal.test.ts` 真实 PG：已发布快照在明确拒绝后不可读；发布、旧发送入口及对话发送预留全部拒绝，未产生发送回执。`workspace-document-sharing.test.ts`、`workspace-email-delivery.test.ts` 原有版本、撤销、范围及发送去重回归通过。
 - Chrome 再次请求准备同一份推荐邮件，Agent 直接说明候选人拒绝分享，不再产生确认发送卡。原预览已取消；数据库确认该测试文档发送回执为 0。证据：`sharing-blocked.png`、`browser-readback.txt`。没有点击发送、没有执行 Gmail 投递、没有发布生产公开链接。
 - 测试材料为隔离的虚构 QA 资料。以上均为 local real chain；不代表生产部署、Google 授权重做或真实邮件投递验收。
+
+## 2026-10-10：生产八场景基础链路
+
+以上各轮的“未部署”是对应验证发生时的环境记录。后续已将 Agent 资料维护、关系授权、推荐交付与连续对话改动推送生产，以真实 Chrome、DeepSeek、PostgreSQL 和生产 scheduler 走通八个核心场景的基础链路，包含跨对话检索、推荐修订与真实 PDF/Word 下载、反馈更新、一次提醒自然到期交付、周期约定保存/暂停及不写入的工作回顾。
+
+本轮使用虚构 QA 客户和候选人；未重做 OAuth、真实发信、支付或公开分享，不能由基础链路通过推断完整商业发布验收。实际故障及根因修复、截图、独立读回和验证边界见[生产验收记录](../ops/core-scenarios-production-2026-10-10.md)。
