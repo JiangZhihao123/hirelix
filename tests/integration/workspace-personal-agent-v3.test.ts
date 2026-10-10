@@ -54,7 +54,7 @@ test("real model: requested revision saves once; explicit preview stays unchange
   const requested=await requestRevision(owner,document.id,{instructions:"Keep this internal. Make the text concise; preserve six PMs and unconfirmed attendance.",expected_version:1,request_key:randomUUID()});
   const job=await claimJob(["revision"]);assert.equal(job?.id,requested.id);
   const prepared=await generateRevision(job!,async()=>{});await finishJob(job!,prepared);
-  const updated=await owned<Deliverable>(owner,"deliverable",document.id);assert.equal(updated.version,2);assert.match(updated.content,/six|6/);assert.match(updated.content,/unconfirmed/i);
+  const updated=await owned<Deliverable>(owner,"deliverable",document.id);assert.equal(updated.version,2);assert.match(updated.content,/six|6/i);assert.doesNotMatch(updated.content,/whether.{0,45}(?:led|managed).{0,25}unconfirmed/i);assert.match(updated.content,/unconfirmed/i);
   await assert.rejects(()=>finishJob(job!,prepared),LostLease);
   const preview=await requestRevision(owner,document.id,{preview_only:true,instructions:"Use one sentence. Keep uncertainty.",expected_version:2,request_key:randomUUID()});
   const previewJob=await claimJob(["revision"]);assert.equal(previewJob?.id,preview.id);await finishJob(previewJob!,await generateRevision(previewJob!,async()=>{}));
