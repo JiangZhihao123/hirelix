@@ -2535,6 +2535,10 @@
 .ws-source-panel > header { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 24px; }
 .ws-source-panel h3 { font-size: 20px; margin: 16px 0; }
 .ws-source-panel h4 { font-weight: 600; margin: 20px 0 8px; }
+.ws-role-requirements section { margin: 12px 0; }
+.ws-role-requirements h5 { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.ws-role-requirements ul { list-style: disc; padding-left: 18px; }
+.ws-role-requirements li + li { margin-top: 4px; }
 .ws-source-panel details { padding: 14px 0; border-top: 1px solid #e1e7dd; }
 .ws-source-panel > .ws-link { display: inline-flex; margin-top: 24px; }
 .ws-message-sources button { display: inline-flex; gap: 5px; align-items: center; border: 1px solid #dce4d9; border-radius: 6px; padding: 4px 8px; color: #47684d; font-size: 12px; background: #f8faf5; cursor: pointer; }

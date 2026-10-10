@@ -37,7 +37,11 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
     {recordId && query.data && !record && <ErrorNotice error="This source record is no longer available." />}
     {record && <><small>{t("Source record")} · {record.kind}</small><h3>{record.title}</h3><SourceContent content={record.content} />{record.file_id && <a className="ws-button" href={`/api/workspace/files/${record.file_id}`}>{t("Open original file")}<ArrowUpRight size={13} /></a>}</>}
     {!recordId && query.data?.person && <><h3>{query.data.person.name}</h3><p>{query.data.person.headline}</p><p>{query.data.person.location}</p><SourceContent content={JSON.stringify(query.data.person.profile)} />{query.data.records?.map(item => <details key={item.id}><summary>{item.title}</summary><SourceContent content={item.content} /></details>)}</>}
-    {!recordId && query.data?.role && <><h3>{query.data.role.title}</h3><p>{query.data.role.client_name}</p><h4>{t("Current requirements")}</h4><SourceContent content={JSON.stringify(query.data.role.brief)} /><h4>{t("Original job description")}</h4><p className="ws-muted text-sm">{t("Reference text. Later clarifications are shown in Current requirements above.")}</p><AgentText content={query.data.role.jd_text} /></>}
+    {!recordId && query.data?.role && <><h3>{query.data.role.title}</h3><p>{query.data.role.client_name}</p><h4>{t("Current requirements")}</h4><div className="ws-role-requirements">{([
+      ["priorities", "Confirmed priorities"],
+      ["flexible", "Flexible requirements"],
+      ["unknowns", "Still to clarify"],
+    ] as const).map(([key, label]) => <section key={key}><h5>{t(label)}</h5>{query.data?.role?.brief[key]?.length ? <ul>{query.data.role.brief[key].map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="ws-muted">{t("Not recorded yet.")}</p>}</section>)}</div><h4>{t("Original job description")}</h4><p className="ws-muted text-sm">{t("Reference text. Later clarifications are shown in Current requirements above.")}</p><p className="whitespace-pre-wrap">{query.data.role.jd_text}</p></>}
     {query.data?.deliverable && <><h3>{query.data.deliverable.title}</h3><AgentText content={query.data.deliverable.content} /><small>{t("Saved version")} {query.data.deliverable.version}</small></>}
     {file && query.data && <>
       {query.data.preview_type?.startsWith("image/") ? (
