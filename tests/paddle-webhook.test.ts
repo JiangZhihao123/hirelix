@@ -8,7 +8,7 @@ import {
   isTestPayment,
   resolvePaddlePlanCode,
   verifyPaddleSignature,
-} from "../src/app/api/paddle/webhook/route";
+} from "../src/lib/paddle-webhook-validation";
 
 function signPayload(secret: string, timestamp: string, body: string) {
   return crypto

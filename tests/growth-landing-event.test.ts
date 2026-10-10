@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   validateLandingEventForRecording,
-} from "../src/app/api/growth/landing-event/route";
+} from "../src/lib/growth-landing-validation";
 import { hasReachedEngagementThreshold } from "../src/lib/growth-engagement";
 
 test("growth engagement requires real page and active-read duration", () => {
