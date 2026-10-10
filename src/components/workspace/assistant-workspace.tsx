@@ -3,6 +3,8 @@
 import { TurnActivity } from "./turn-activity";
 import { copyConversationMessage } from "./message-copy";
 import { assistantDraftKey } from "./conversation-draft";
+import { readAttachmentDraft, saveAttachmentDraft, type PendingFile } from "./attachment-draft";
+import { useAuth } from "@/components/AuthProvider";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import {
   useEffect,
@@ -54,7 +56,6 @@ import type {
 
 import { ATTACHMENT_ACCEPT, attachmentError, MAX_CONVERSATION_FILES } from "@/lib/workspace/attachments";
 
-type PendingFile = { id: string; file: File; fileId?: string; status: "ready" | "uploading" | "uploaded" | "error"; error?: string };
 type Detail = {
   conversation: Conversation;
   messages: Message[];
@@ -83,6 +84,7 @@ export function AssistantWorkspace({
 }) {
   const t = useT();
   const router = useRouter();
+  const { user } = useAuth();
   const { locale } = useLanguage();
   const roles = useQuery<{ roles: Role[] }>("/roles");
   const query = useQuery<Detail>(
@@ -99,6 +101,9 @@ export function AssistantWorkspace({
       action: AssistantAction;
     } | null>(null);
   const [attachments, setAttachments] = useState<PendingFile[]>([]);
+  const [attachmentDraftLoaded, setAttachmentDraftLoaded] = useState<string | null>(null);
+  const [attachmentDraftError, setAttachmentDraftError] = useState("");
+  const persistedAttachments = useRef<PendingFile[] | null>(null);
   const dragDepth = useRef(0);
   const [contextOpen, setContextOpen] = useState(false);
   const [source, setSource] = useState<{title: string; href: string} | null>(null);
@@ -120,7 +125,7 @@ export function AssistantWorkspace({
   const stickToBottom = useRef(true);
   const scrollSize = useRef({ height: 0, viewport: 0 });
   function chooseFiles(files: FileList | null) {
-    if (!files) return;
+    if (!files || !attachmentsReady) return;
     const incoming = Array.from(files);
     if (attachments.length + incoming.length > MAX_CONVERSATION_FILES) {
       setError(t("Add up to 20 files per message."));
@@ -182,6 +187,36 @@ export function AssistantWorkspace({
     documentId,
   );
   const draftRoleKey = `${draftStorageKey}:role`;
+  const attachmentDraftKey = user ? `${user.id}:${draftStorageKey}` : null;
+  const attachmentsReady = !!attachmentDraftKey && attachmentDraftLoaded === attachmentDraftKey;
+  const requestStorageKey = `${attachmentDraftKey}:request`;
+  useEffect(() => {
+    if (!attachmentDraftKey) return;
+    let active = true;
+    readAttachmentDraft(attachmentDraftKey).then(files => {
+      if (active) { persistedAttachments.current = files; setAttachments(files); setAttachmentDraftLoaded(attachmentDraftKey); }
+    }).catch(() => {
+      if (active) {
+        const empty: PendingFile[] = [];
+        persistedAttachments.current = empty;
+        setAttachments(empty);
+        setAttachmentDraftLoaded(attachmentDraftKey);
+        setAttachmentDraftError("Could not restore attachment drafts on this browser. Choose your files again.");
+      }
+    });
+    try { request.current = JSON.parse(localStorage.getItem(requestStorageKey) || "null"); }
+    catch { request.current = null; }
+    return () => { active = false; };
+  }, [attachmentDraftKey, requestStorageKey]);
+  useEffect(() => {
+    if (!attachmentDraftKey || !attachmentsReady || persistedAttachments.current === attachments) return;
+    persistedAttachments.current = attachments;
+    let active = true;
+    void saveAttachmentDraft(attachmentDraftKey, attachments).catch(() => {
+      if (active) setAttachmentDraftError("Could not keep attachments on this browser. Keep this page open until you send them.");
+    });
+    return () => { active = false; };
+  }, [attachmentDraftKey, attachmentsReady, attachments]);
   useEffect(() => {
     const storedDraft = localStorage.getItem(draftStorageKey) || "";
     setDraft(storedDraft || initialPrompt);
@@ -316,7 +351,7 @@ export function AssistantWorkspace({
   async function send(event: FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if ((!text && !attachments.length) || sending || pending || attachments.some((item) => item.status === "uploading")) return;
+    if (!attachmentsReady || (!text && !attachments.length) || sending || pending || attachments.some((item) => item.status === "uploading")) return;
     setSending(true);
     setError("");
     stickToBottom.current = true;
@@ -337,23 +372,24 @@ export function AssistantWorkspace({
         setError(t("Some files need attention. Retry or remove them, then send. Uploaded files are kept."));
         return;
       }
-      const signature = JSON.stringify({ text, fileIds, revisionTarget: revisionTarget?.id });
+      const payload = {
+        message: text,
+        file_ids: fileIds,
+        locale,
+        work_document_id: revisionTarget?.id || null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        conversation_id: conversationId,
+        role_id: conversationId ? null : roleId || null,
+        person_id: conversationId ? null : linkedPersonId || null,
+        document_id: conversationId ? null : documentId,
+      };
+      const signature = JSON.stringify(payload);
       if (request.current?.text !== signature)
         request.current = { text: signature, key: crypto.randomUUID() };
+      localStorage.setItem(requestStorageKey, JSON.stringify(request.current));
       const result = await api<{ conversation_id: string }>("/conversations", {
         method: "POST",
-        body: JSON.stringify({
-          message: text,
-          file_ids: fileIds,
-          locale,
-          work_document_id: revisionTarget?.id || null,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          request_key: request.current.key,
-          conversation_id: conversationId,
-          role_id: conversationId ? null : roleId || null,
-          person_id: conversationId ? null : linkedPersonId || null,
-          document_id: conversationId ? null : documentId,
-        }),
+        body: JSON.stringify({ ...payload, request_key: request.current.key }),
       });
       setDraft("");
       setRevisionTarget(null);
@@ -361,6 +397,12 @@ export function AssistantWorkspace({
       localStorage.removeItem(draftStorageKey);
       localStorage.removeItem(draftRoleKey);
       request.current = null;
+      localStorage.removeItem(requestStorageKey);
+      if (attachmentDraftKey) {
+        await saveAttachmentDraft(attachmentDraftKey, []).catch(() => {
+          setAttachmentDraftError("Your message was sent, but its local attachment draft could not be cleared.");
+        });
+      }
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
       if (!conversationId) onOpen(result.conversation_id, text);
       else query.refresh();
@@ -619,6 +661,7 @@ export function AssistantWorkspace({
             }}
           >
             {revisionTarget && <div className="ws-composer-context-tags"><span className="ws-composer-context-tag"><Pencil size={12} />{t("Revising")}: {revisionTarget.title}<button type="button" className="ws-icon" onClick={() => setRevisionTarget(null)} aria-label={t("Clear document context")}><X size={12} /></button></span></div>}
+            <ErrorNotice error={attachmentDraftError} />
             <input
               ref={fileInput}
               className="sr-only"
@@ -626,7 +669,7 @@ export function AssistantWorkspace({
               aria-label={t("Add files")}
               type="file"
               multiple
-              disabled={sending}
+              disabled={sending || !attachmentsReady}
               accept={ATTACHMENT_ACCEPT}
               onChange={(e) => chooseFiles(e.target.files)}
             />
@@ -703,7 +746,7 @@ export function AssistantWorkspace({
               <button
                 type="button"
                 className="ws-attach-button"
-                disabled={sending}
+                disabled={sending || !attachmentsReady}
                 onClick={() => fileInput.current?.click()}
               >
                 <Paperclip size={14} />
@@ -722,7 +765,7 @@ export function AssistantWorkspace({
                 aria-label={t("Send message")}
                 disabled={
                   (!draft.trim() && !attachments.length) ||
-                  sending ||
+                  !attachmentsReady || sending ||
                   attachments.some((item) => item.status === "uploading") ||
                   attachments.some(item => !!attachmentError(item.file.name, item.file.size)) ||
                   pending
