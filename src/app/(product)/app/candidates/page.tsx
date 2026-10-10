@@ -139,7 +139,11 @@ export default function Candidates() {
     if (id) next.set("person", id);
     else next.delete("person");
     next.delete("record");
-    if (recordId) next.set("record", recordId);
+    if (id !== selected) next.delete("tab");
+    if (recordId) {
+      next.set("record", recordId);
+      next.set("tab", "records");
+    }
     if (id && id !== selected) window.history.pushState(null, "", `/app/candidates?${next}`);
     else window.history.replaceState(null, "", `/app/candidates?${next}`);
   }
@@ -449,8 +453,17 @@ function CandidateDetails({
   const t = useT();
   const details = useQuery<Details>(`/people/${id}`),
     allRoles = useQuery<{ roles: Role[] }>("/roles");
-  const [tab, setTab] = useState(highlight ? "records" : "overview"),
-    [edit, setEdit] = useState(false),
+  const params = useSearchParams();
+  const requestedTab = params.get("tab");
+  const tab = requestedTab && ["overview", "records", "roles"].includes(requestedTab)
+    ? requestedTab : highlight ? "records" : "overview";
+  function setTab(value: string) {
+    const next = new URLSearchParams(params.toString());
+    next.set("tab", value);
+    if (value !== "records") next.delete("record");
+    window.history.pushState(null, "", `/app/candidates?${next}`);
+  }
+  const [edit, setEdit] = useState(false),
     [record, setRecord] = useState<SourceRecord | "new" | null>(null),
     [history, setHistory] = useState<{
       kind: "person" | "record";
@@ -578,7 +591,6 @@ function CandidateDetails({
                 <button
                   className="ws-link mt-3"
                   onClick={() => {
-                    setTab("records");
                     onOpenRecord(conversation.id);
                   }}
                 >
@@ -629,7 +641,6 @@ function CandidateDetails({
                   className="ws-detail-link text-left w-full"
                   key={source.id}
                   onClick={() => {
-                    setTab("records");
                     onOpenRecord(source.id);
                   }}
                 >

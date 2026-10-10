@@ -71,8 +71,16 @@ export default function RolePage({
   const paramsQuery = useSearchParams();
   const query = useQuery<Detail>(`/roles/${id}`),
     pool = useQuery<{ people: Person[] }>("/people");
-  const [tab, setTab] = useState(paramsQuery.get("tab") || "brief"),
-    [edit, setEdit] = useState(false),
+  const requestedTab = paramsQuery.get("tab");
+  const tab = requestedTab && ["brief", "candidates", "activity", "submissions"].includes(requestedTab)
+    ? requestedTab : paramsQuery.get("record") ? "activity" : "brief";
+  function setTab(value: string) {
+    const next = new URLSearchParams(paramsQuery.toString());
+    next.set("tab", value);
+    if (value !== "activity") next.delete("record");
+    window.history.pushState(null, "", `/app/roles/${id}?${next}`);
+  }
+  const [edit, setEdit] = useState(false),
     [history, setHistory] = useState(false),
     [record, setRecord] = useState<SourceRecord | "new" | null>(null),
     [linking, setLinking] = useState(false),
