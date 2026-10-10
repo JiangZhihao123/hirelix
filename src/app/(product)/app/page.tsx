@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@/components/workspace/client";
 import { useSearchParams } from "next/navigation";
-import { assistantDraftKey } from "@/components/workspace/conversation-draft";
+import { assistantDraftKey, nextConversationView, type ConversationView } from "@/components/workspace/conversation-draft";
 import { AssistantWorkspace } from "@/components/workspace/assistant-workspace";
 export default function AssistantHome() {
   const params = useSearchParams();
@@ -20,13 +20,17 @@ export default function AssistantHome() {
     personId = params.get("person");
   const documentId = params.get("document");
   const initialPrompt = params.get("prompt")?.slice(0, 500) || "";
+  const route = assistantDraftKey(conversationId, roleId, personId, initialPrompt, documentId)
+    + (!conversationId && params.has("new") ? ":new" : "");
+  const [view, setView] = useState<ConversationView>({route, generation: 0, promotion: null});
+  if (view.route !== route) setView(nextConversationView(view, route, conversationId));
   const [handoff, setHandoff] = useState<{
     conversationId: string;
-    text: string;
+    text: string | null;
   } | null>(null);
   return (
     <AssistantWorkspace
-      key={assistantDraftKey(conversationId, roleId, personId, initialPrompt, documentId)}
+      key={view.generation}
       conversationId={conversationId}
       documentId={documentId}
       initialRoleId={roleId}
@@ -35,9 +39,10 @@ export default function AssistantHome() {
       handoffText={
         handoff?.conversationId === conversationId ? handoff.text : null
       }
-      onHandoffSettled={() => setHandoff(null)}
+      onHandoffSettled={() => setHandoff(previous => previous ? {...previous, text: null} : null)}
       onOpen={(id, text) => {
-        if (text) setHandoff({ conversationId: id, text });
+        setView(previous => ({...previous, promotion: id}));
+        setHandoff({ conversationId: id, text: text || null });
         // This page loads conversation data on the client. Keep this query-only
         // change in the current route; Next synchronizes useSearchParams here.
         window.history.pushState(null, "", `/app?conversation=${id}`);

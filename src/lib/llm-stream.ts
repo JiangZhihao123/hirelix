@@ -29,18 +29,38 @@ export async function readCompletionStream(response: Response, onText: (text: st
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
-/** Only the first top-level answer string is displayable; no JSON/actions leak. */
+/** Only the top-level answer string is displayable; JSON property order is not
+ * guaranteed by the provider. Nested action/source strings are never prose. */
 export function partialAnswer(json: string): string {
-  const start = /^\s*\{\s*"answer"\s*:\s*"/.exec(json);
-  if (!start) return "";
-  let escaped = false;
-  for (let i = start[0].length; i < json.length; i++) {
+  if (!json.trimStart().startsWith("{")) return "";
+  let depth = 0, answerStart = -1;
+  for (let i = 0; i < json.length; i++) {
     const char = json[i];
-    if (char === '"' && !escaped) return JSON.parse('"' + json.slice(start[0].length,i) + '"');
+    if (char === "{") depth++;
+    else if (char === "}" || char === "]") depth--;
+    else if (char === "[") depth++;
+    else if (char === '"') {
+      const start = i;
+      let escaped = false;
+      for (i++; i < json.length; i++) {
+        if (json[i] === '"' && !escaped) break;
+        escaped = json[i] === "\\" && !escaped;
+      }
+      if (i === json.length) return "";
+      if (depth !== 1 || json.slice(start, i + 1) !== '"answer"') continue;
+      const value = /^\s*:\s*"/.exec(json.slice(i + 1));
+      if (value) { answerStart = i + 1 + value[0].length; break; }
+    }
+  }
+  if (answerStart < 0) return "";
+  let escaped = false;
+  for (let i = answerStart; i < json.length; i++) {
+    const char = json[i];
+    if (char === '"' && !escaped) return JSON.parse('"' + json.slice(answerStart,i) + '"');
     escaped = char === "\\" && !escaped;
   }
   // Leave incomplete escapes and surrogate pairs for the next provider chunk.
-  let value = json.slice(start[0].length);
+  let value = json.slice(answerStart);
   for (let i = 0; i < 7 && value.length; i++, value = value.slice(0,-1)) {
     try { return (JSON.parse('"' + value + '"') as string).replace(/[\uD800-\uDBFF]$/, ""); } catch { /* incomplete JSON escape */ }
   }

@@ -22,6 +22,7 @@ test('real model and PG: provider prose appears before the final saved reply, ca
     const prepared=await assistantReply(job!,message=>heartbeat(job!,message));
     assert.ok(new Set(previews).size>=2,'at least two actual partial responses before final persistence');
     const before=await conversationDetails(owner,sent.conversation_id);assert.equal(before.messages.filter(m=>m.role==='assistant').length,0);
+    assert.ok(typeof before.job?.result?.live_reply === 'string' && before.job.result.live_reply.length > 0, 'preview survives preparation until atomic final save');
     await finishJob(job!,prepared);
     const detail=await conversationDetails(owner,sent.conversation_id);assert.equal(detail.messages.filter(m=>m.role==='assistant').length,1);
     assert.ok(previews.some(text=>text.length<detail.messages.at(-1)!.content.length));
@@ -32,5 +33,11 @@ test('real model and PG: provider prose appears before the final saved reply, ca
   const cancelled=await claimJob(['chat']);assert.equal(cancelled?.id,next.job.id);
   const write=liveReplyWriter(cancelled!);await write('Unfinished response');await cancelJob(owner,cancelled!.id);
   await assert.rejects(()=>write(''),/taken over/);
-  const [state]=await rows<{result:object;status:string}>(sql`SELECT result,status FROM hirelix_private_jobs WHERE id=${cancelled!.id}::uuid`);assert.equal(state.status,'cancelled');assert.deepEqual(state.result,{});
+  const [state]=await rows<{result:{live_reply:string;message_id:string};status:string}>(sql`SELECT result,status FROM hirelix_private_jobs WHERE id=${cancelled!.id}::uuid`);assert.equal(state.status,'cancelled');assert.equal(state.result.live_reply,'Unfinished response');
+  const stopped=await conversationDetails(owner,next.conversation_id);
+  assert.equal(stopped.messages.at(-1)?.content,'Unfinished response');
+  assert.equal(stopped.messages.at(-1)?.metadata.turn_status,'cancelled');
+  assert.equal(stopped.messages.at(-1)?.id,state.result.message_id);
+  await cancelJob(owner,cancelled!.id);
+  assert.equal((await conversationDetails(owner,next.conversation_id)).messages.length, stopped.messages.length, 'repeated stop does not duplicate messages');
 });

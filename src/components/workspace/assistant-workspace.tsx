@@ -1,6 +1,8 @@
 "use client";
 
 import { TurnActivity } from "./turn-activity";
+import { useTurnStream } from "./use-turn-stream";
+import { isTurnRunning } from "@/lib/workspace/turn-progress";
 import { copyConversationMessage } from "./message-copy";
 import { assistantDraftKey } from "./conversation-draft";
 import { readAttachmentDraft, saveAttachmentDraft, type PendingFile } from "./attachment-draft";
@@ -17,6 +19,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUp,
+  Square,
   ArrowUpRight,
   Paperclip,
   Check,
@@ -158,9 +161,12 @@ export function AssistantWorkspace({
   const request = useRef<{ text: string; key: string } | null>(null),
     scroll = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null);
-  const job = query.data?.job;
+  const [submittedJob, setSubmittedJob] = useState<Job | null>(null);
+  const seedJob = submittedJob && (!query.data?.job || submittedJob.created_at > query.data.job.created_at) ? submittedJob : query.data?.job;
+  const {job, disconnected} = useTurnStream(seedJob, query.refresh);
   useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
-  const pending = !!job && ["queued", "running"].includes(job.status);
+  const pending = isTurnRunning(job);
+  const finalMessageVisible = !!job?.result?.message_id && !!query.data?.messages.some(message => message.id === job.result?.message_id);
   const hasAgreement = query.data?.messages.some(message => ((message.metadata as AssistantMeta).schedules?.length || (message.metadata as AssistantMeta).reminders?.length || (message.metadata as AssistantMeta).question?.status === "waiting"));
   const delegatedPending = query.data?.work?.some(work => ["queued", "running"].includes(work.status));
   const refreshConversation = query.refresh;
@@ -188,8 +194,13 @@ export function AssistantWorkspace({
   const attachmentDraftKey = user ? `${user.id}:${draftStorageKey}` : null;
   const attachmentsReady = !!attachmentDraftKey && attachmentDraftLoaded === attachmentDraftKey;
   const requestStorageKey = `${attachmentDraftKey}:request`;
+  const promotedDraftKey = useRef<string | null>(null);
   useEffect(() => {
     if (!attachmentDraftKey) return;
+    if (draftStorageKey === promotedDraftKey.current) {
+      setAttachmentDraftLoaded(attachmentDraftKey);
+      return;
+    }
     let active = true;
     readAttachmentDraft(attachmentDraftKey).then(files => {
       if (active) { persistedAttachments.current = files; setAttachments(files); setAttachmentDraftLoaded(attachmentDraftKey); }
@@ -205,7 +216,7 @@ export function AssistantWorkspace({
     try { request.current = JSON.parse(localStorage.getItem(requestStorageKey) || "null"); }
     catch { request.current = null; }
     return () => { active = false; };
-  }, [attachmentDraftKey, requestStorageKey]);
+  }, [attachmentDraftKey, requestStorageKey, draftStorageKey]);
   useEffect(() => {
     if (!attachmentDraftKey || !attachmentsReady || persistedAttachments.current === attachments) return;
     persistedAttachments.current = attachments;
@@ -216,6 +227,7 @@ export function AssistantWorkspace({
     return () => { active = false; };
   }, [attachmentDraftKey, attachmentsReady, attachments]);
   useEffect(() => {
+    if (draftStorageKey === promotedDraftKey.current) return;
     const storedDraft = localStorage.getItem(draftStorageKey) || "";
     setDraft(storedDraft || initialPrompt);
     setRoleId(
@@ -349,7 +361,7 @@ export function AssistantWorkspace({
   async function send(event: FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if (!attachmentsReady || (!text && !attachments.length) || sending || pending || attachments.some((item) => item.status === "uploading")) return;
+    if (!attachmentsReady || (!text && !attachments.length) || sending || attachments.some((item) => item.status === "uploading")) return;
     setSending(true);
     setError("");
     stickToBottom.current = true;
@@ -360,6 +372,9 @@ export function AssistantWorkspace({
     }
     setOptimistic({text, files: attachments, priorIds: query.data?.messages.map(m => m.id) || []});
     try {
+      // A correction explicitly stops the previous turn before a new request.
+      // The server's existing cancellation and lease checks own late writes.
+      if (pending && job) await api(`/jobs/${job.id}`, {method: "DELETE"});
       const fileIds: string[] = [];
       for (const item of attachments) {
         const fileId = await uploadFile(item);
@@ -385,10 +400,11 @@ export function AssistantWorkspace({
       if (request.current?.text !== signature)
         request.current = { text: signature, key: crypto.randomUUID() };
       localStorage.setItem(requestStorageKey, JSON.stringify(request.current));
-      const result = await api<{ conversation_id: string }>("/conversations", {
+      const result = await api<{ conversation_id: string; job: Job }>("/conversations", {
         method: "POST",
         body: JSON.stringify({ ...payload, request_key: request.current.key }),
       });
+      setSubmittedJob(result.job);
       setDraft("");
       setRevisionTarget(null);
       setAttachments([]);
@@ -402,8 +418,12 @@ export function AssistantWorkspace({
         });
       }
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
-      if (!conversationId) onOpen(result.conversation_id, text);
+      if (!conversationId) {
+        promotedDraftKey.current = assistantDraftKey(result.conversation_id, null, null);
+        onOpen(result.conversation_id, text);
+      }
       else query.refresh();
+      composer.current?.focus();
     } catch (cause) {
       setOptimistic(null);
       setError(
@@ -411,6 +431,7 @@ export function AssistantWorkspace({
       );
     } finally {
       setSending(false);
+      requestAnimationFrame(() => composer.current?.focus());
     }
   }
   async function stop() {
@@ -465,7 +486,7 @@ export function AssistantWorkspace({
     )
       return;
     event.preventDefault();
-    if (!pending && !sending) event.currentTarget.form?.requestSubmit();
+    if (!sending) event.currentTarget.form?.requestSubmit();
   }
   return (
     <div className="ws-page ws-assistant-page">
@@ -624,10 +645,9 @@ export function AssistantWorkspace({
                   </div>
                 </article>
               )}
-            {(pending || sending || (optimistic && conversationId && !query.data)) && (
-              <TurnActivity key={job?.id || "sending"} job={pending ? job : null} receivingFiles={sending && attachments.length > 0} onComplete={query.refresh} onStop={() => void stop()} />
+            {(sending || (job && !finalMessageVisible && (pending || job.status === "done" || job.status === "cancelled" || !!job.result?.live_reply)) || (optimistic && conversationId && !query.data)) && (
+              <TurnActivity job={job} disconnected={disconnected} receivingFiles={sending && attachments.length > 0} />
             )}
-            {job?.status === "cancelled" && <p role="status" className="ws-muted">{t("Stopped. You can send a new instruction.")}</p>}
             {job?.status === "error" && (
               <ErrorNotice
                 error={
@@ -752,25 +772,30 @@ export function AssistantWorkspace({
               </button>
               <span>
                 {pending
-                  ? t(
-                      "Your next message can be drafted while this reply finishes",
-                    )
+                  ? t(draft.trim() || attachments.length ? "Enter to stop this reply and send your message" : "Your next message can be drafted while this reply finishes")
                   : t("Enter to send · Shift + Enter for a new line")}
               </span>
-              <button
+              {pending ? <button
+                type="button"
+                className="ws-button ws-button-primary ws-stop-button"
+                aria-label={t("Stop response")}
+                title={t("Stop response")}
+                onClick={() => void stop()}
+              ><Square size={13} fill="currentColor" /></button> : null}
+              {(!pending || !!draft.trim() || !!attachments.length) && <button
                 type="submit"
                 className="ws-button ws-button-primary"
-                aria-label={t("Send message")}
+                aria-label={t(pending ? "Stop and send message" : "Send message")}
+                title={t(pending ? "Stop and send message" : "Send message")}
                 disabled={
                   (!draft.trim() && !attachments.length) ||
                   !attachmentsReady || sending ||
                   attachments.some((item) => item.status === "uploading") ||
-                  attachments.some(item => !!attachmentError(item.file.name, item.file.size)) ||
-                  pending
+                  attachments.some(item => !!attachmentError(item.file.name, item.file.size))
                 }
               >
                 <ArrowUp size={16} />
-              </button>
+              </button>}
             </div>
           </form>
         </section>

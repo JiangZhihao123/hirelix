@@ -523,7 +523,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
     publishReply,
     attachments.flatMap(attachment => attachment.images.map(image => ({...image, label: `${attachment.ref}: ${image.label}`}))),
   );
-  await publishReply("");
+  // Keep generated prose visible until finishJob atomically saves the message.
   const waitForAnswer = (): import("./jobs").PreparedJob => ({
     result: {conversation_id: id, waiting_for_input: true},
     apply: async tx => {

@@ -1,48 +1,44 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2, Square, CircleAlert } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
+import { BrandMark } from "@/components/BrandMark";
 import { AgentText } from "@/components/AgentText";
+import { isTurnRunning, turnActivity, type TurnActivityEntry } from "@/lib/workspace/turn-progress";
 import type { Job } from "@/lib/workspace/types";
-import { api } from "./client";
 
 export const meaningfulProgress = (progress: string) => ![
-  "", "Queued", "Queued for retry", "Starting", "Preparing your reply",
-  "Reading your conversation and workspace", "Resuming interrupted task", "Complete",
+  "", "Queued", "Queued for retry", "Starting", "Resuming interrupted task", "Complete",
 ].includes(progress);
 
-export function TurnActivity({job, onComplete, onStop, receivingFiles}: {
-  job?: Job | null; onComplete: () => void; onStop: () => void; receivingFiles?: boolean;
+export function TurnHistory({ entries, running = false, status }: { entries: TurnActivityEntry[]; running?: boolean; status?: Job["status"] }) {
+  const t = useT();
+  const visible = entries.filter(entry => meaningfulProgress(entry.label));
+  if (!visible.length) return null;
+  return <details className="ws-turn-details">
+    <summary><ChevronDown size={13} />{t("View activity")}</summary>
+    <ol>{visible.map((entry, index) => <li key={`${entry.at}:${index}`}>
+      {index === visible.length - 1 && status === "cancelled" ? <Square size={12} />
+        : index === visible.length - 1 && status === "error" ? <CircleAlert size={12} />
+        : running && index === visible.length - 1 ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+      <span>{t(entry.label)}</span>
+    </li>)}</ol>
+  </details>;
+}
+
+export function TurnActivity({job, disconnected, receivingFiles}: {
+  job?: Job | null; disconnected?: boolean; receivingFiles?: boolean;
 }) {
   const t = useT();
-  const [latest, setLatest] = useState<Job | null>(null);
-  const [disconnected, setDisconnected] = useState(false);
-  const active = latest?.id === job?.id ? latest : job;
-  const jobId = job?.id, jobStatus = job?.status;
-  useEffect(() => {
-    if (!jobId || !jobStatus || !["queued", "running"].includes(jobStatus)) return;
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    async function poll() {
-      try {
-        const {job: update} = await api<{job: Job}>(`/jobs/${jobId}`, {signal: controller.signal});
-        if (controller.signal.aborted) return;
-        setLatest(update); setDisconnected(false);
-        if (!["queued", "running"].includes(update.status)) { onComplete(); return; }
-      } catch { if (controller.signal.aborted) return; setDisconnected(true); }
-      timer = setTimeout(poll, 750);
-    }
-    void poll();
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, [jobId, jobStatus, onComplete]);
-  const pending = !active || ["queued", "running"].includes(active.status);
-  if (!pending) return null;
-  const answer = active?.status === "running" && typeof active.result?.live_reply === "string" ? active.result.live_reply : "";
-  return <div className="ws-turn-activity">
-    {answer && <div className="ws-message-prose ws-live-reply"><AgentText content={answer}/></div>}
-    <div className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin"/><span>{t(receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : answer ? "Replying…" : active?.progress && meaningfulProgress(active.progress) ? "Working…" : "Thinking…")}</span>
-      {job && <button type="button" className="ws-link" onClick={onStop}>{t("Stop")}</button>}
-    </div>
-    {active?.progress && meaningfulProgress(active.progress) && <details className="ws-turn-details"><summary>{t("View activity")}</summary><p>{t(active.progress)}</p></details>}
-  </div>;
+  const answer = typeof job?.result?.live_reply === "string" ? job.result.live_reply : "";
+  const running = !job || isTurnRunning(job);
+  const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : answer ? "Replying…"
+    : job?.progress && meaningfulProgress(job.progress) ? job.progress : "Thinking…";
+  return <article className="ws-message ws-message-assistant ws-turn-activity" aria-label={t("Hirelix")} aria-busy={running}>
+    <div className="ws-message-label"><span className="ws-message-avatar ws-message-avatar-assistant"><BrandMark small /></span><strong>{t("Hirelix")}</strong></div>
+    {answer && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
+    {running && <div className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin"/><span>{t(status)}</span></div>}
+    {job?.status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
+    {job?.status === "error" && answer && <p className="ws-message-status">{t("Incomplete response")}</p>}
+    <TurnHistory entries={turnActivity(job?.result || null)} running={running} status={job?.status} />
+  </article>;
 }

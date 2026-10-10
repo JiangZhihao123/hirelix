@@ -10,6 +10,9 @@ test("answer preview excludes JSON actions and handles incomplete escapes", () =
   assert.equal(partialAnswer('{"answer":"Done","actions":[{"secret":"hidden"}]}'),"Done");
   assert.equal(partialAnswer('{"actions":[{"answer":"not prose"}]}'), "");
   assert.equal(partialAnswer('{"answer":"A\\ud83d'),"A");
+  assert.equal(partialAnswer('{"actions":[{"answer":"private"}],"answer":"Visible partial'), "Visible partial");
+  assert.equal(partialAnswer('{"source":"escaped \\"answer\\"", "answer":"Public"}'), "Public");
+  assert.equal(partialAnswer('{"value":"answer","nested":{"answer":"private"}}'), "");
 });
 function response(text: string) {
   const bytes=new TextEncoder().encode(text);

@@ -3,6 +3,8 @@
 import { ConversationExports } from "./document-download";
 import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
+import { TurnHistory } from "./turn-activity";
+import { turnActivity } from "@/lib/workspace/turn-progress";
 import Link from "next/link";
 import { ArrowUpRight, Paperclip, Check, Copy } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
@@ -53,6 +55,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         </button>
                       ))}
                     </div>
+                    {message.role === "assistant" && <TurnHistory entries={turnActivity(message.metadata)} status={message.metadata.turn_status === "cancelled" ? "cancelled" : "done"} />}
+                    {message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
                     ))}

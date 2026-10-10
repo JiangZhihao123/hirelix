@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { json, owned, rows, WorkspaceError, type Runner } from "./database";
 import type { Job, JobKind } from "./types";
+import { turnActivity } from "./turn-progress";
 
 const LEASE_SECONDS = 120;
 const logger = getLogger({ component: "private_workspace_jobs" });
@@ -49,7 +50,10 @@ export async function claimJob(kinds: JobKind[]): Promise<Job | null> {
 }
 export async function heartbeat(job: Job, message?: string) {
   const updated = await rows(
-    sql`UPDATE hirelix_private_jobs SET lease_until=now()+${LEASE_SECONDS}*interval '1 second',progress=coalesce(${message ?? null},progress),updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid AND lease_until>now() RETURNING id`,
+    sql`UPDATE hirelix_private_jobs SET lease_until=now()+${LEASE_SECONDS}*interval '1 second',
+      result=CASE WHEN ${message ?? null}::text IS NOT NULL AND progress IS DISTINCT FROM ${message ?? null}
+        THEN jsonb_set(coalesce(result,'{}'::jsonb),'{activity}',coalesce(result->'activity','[]'::jsonb) || jsonb_build_array(jsonb_build_object('label',${message ?? null}::text,'at',now()))) ELSE result END,
+      progress=coalesce(${message ?? null},progress),updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid AND lease_until>now() RETURNING id`,
   );
   if (!updated.length) throw new LostLease();
 }
@@ -57,7 +61,7 @@ export function liveReplyWriter(job: Job) {
   let lastWrite = 0, previous = "";
   return async (text: string) => {
     if (text === previous) return;
-    if (text && Date.now() - lastWrite < 450) return;
+    if (text && Date.now() - lastWrite < 200) return;
     const updated = await rows(sql`
       UPDATE hirelix_private_jobs SET result=jsonb_set(coalesce(result,'{}'::jsonb),'{live_reply}',${JSON.stringify(text)}::jsonb),updated_at=now()
       WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running'
@@ -78,7 +82,11 @@ export async function finishJob(job: Job, prepared: PreparedJob) {
     )
       throw new LostLease();
     const applied = await prepared.apply?.(tx);
-    const result: Record<string, unknown> = { ...prepared.result, ...applied };
+    const activity = turnActivity(current.result);
+    const result: Record<string, unknown> = { ...prepared.result, ...applied, ...(activity.length ? {activity} : {}) };
+    if (typeof result.message_id === "string" && job.kind === "chat") {
+      await tx.execute(sql`UPDATE hirelix_agent_messages SET metadata=metadata || ${json({activity})} WHERE id=${result.message_id}::uuid AND user_id=${job.user_id}::uuid`);
+    }
     await tx.execute(
       sql`UPDATE hirelix_private_jobs SET status='done',result=${json(result)},progress='Complete',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid`,
     );
@@ -91,7 +99,7 @@ export async function finishJob(job: Job, prepared: PreparedJob) {
 }
 export async function failJob(job: Job, message: string) {
   await db.execute(
-    sql`UPDATE hirelix_private_jobs SET status='error',result='{}'::jsonb,error=${message},progress='Needs attention',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid`,
+    sql`UPDATE hirelix_private_jobs SET status='error',error=${message},progress='Needs attention',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid`,
   );
 }
 export async function reclaimJobs() {
@@ -181,7 +189,12 @@ export async function cancelJob(userId: string, id: string) {
   return db.transaction(async tx => {
     const job = await owned<Job>(userId, "job", id, tx, true);
     if (!["queued", "running"].includes(job.status)) return job;
-    const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result='{}'::jsonb,progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+    let result = job.result || {};
+    if (job.kind === "chat" && typeof job.payload.conversation_id === "string") {
+      const [message] = await rows<{id: string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant',${typeof result.live_reply === "string" ? result.live_reply : ""},${json({turn_status: "cancelled", activity: turnActivity(result)})}) RETURNING id`, tx);
+      result = {...result, message_id: message.id};
+    }
+    const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result=${json(result)},progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
     return cancelled;
   });
 }
