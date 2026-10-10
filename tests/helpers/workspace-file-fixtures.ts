@@ -4,6 +4,28 @@ import {Document,Packer,Paragraph} from 'docx';
 import ExcelJS from 'exceljs';
 import {zipSync,strToU8} from 'fflate';
 import {writeFile} from 'node:fs/promises';
+export async function makeCandidateIntakePdf() {
+ const pdf=await PDFDocument.create(), font=await pdf.embedFont(StandardFonts.Helvetica);
+ const page=pdf.addPage([595,842]);
+ const lines=[
+  'FICTIONAL QA ONLY - not a real person',
+  'Avery Moss Intake 1010',
+  'Senior Product Manager | Bristol, United Kingdom',
+  'Email: avery.moss.intake1010@example.test',
+  'Product manager building workflow software for logistics operations.',
+  'Fictional Orchard Logistics - Senior Product Manager - 2021-present',
+  'Led three product managers delivering a warehouse exception workflow.',
+  'Reduced median exception resolution time from 9 hours to 4 hours.',
+  'Fictional Vale Software - Product Manager - 2017-2021',
+  'Built onboarding workflows and permissions for B2B customers.',
+  'Fictional Bristol Institute - BSc Computing - 2017',
+  'Skills: workflow products, logistics software, enterprise onboarding, analytics.',
+  'Languages: English',
+  'Salary, notice period, interest and sharing permission are not supplied.',
+ ];
+ lines.forEach((text,index)=>page.drawText(text,{x:40,y:790-index*30,size:11,font}));
+ return Buffer.from(await pdf.save());
+}
 export async function makeFileFixtures(dir: string) {
 const canvas=createCanvas(1200,1000), c=canvas.getContext('2d');
 c.fillStyle='white';c.fillRect(0,0,1200,1000);c.fillStyle='#151515';c.font='bold 38px sans-serif';
