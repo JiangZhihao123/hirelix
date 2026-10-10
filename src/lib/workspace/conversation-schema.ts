@@ -3,7 +3,7 @@ import { reminderActionSchema } from "./reminders";
 import { z } from "zod";
 import { MAX_CONVERSATION_FILES } from "./attachments";
 import { memoryChangeSchema } from "./memories";
-import { assistantWorkSchema } from "./assistant-work";
+import { assistantWorkSchema, quotedAuthorization } from "./assistant-work";
 export const planSchema = z.object({
   conversation_title: z.string().trim().min(1).max(60),
   preview_changes: z.boolean().default(false),
@@ -112,4 +112,26 @@ export function groundedReplySchema(base: typeof replySchema, refs: { roles: str
     person_refs: z.array(reference(refs.people)).max(50),
     record_refs: z.array(reference(refs.records)).max(100),
   })).max(5).default([]) });
+}
+
+// Validate evidence before side effects, while structured() can still repair a
+// model response. The commit layer independently keeps the same authorization gate.
+export function authorizedReplySchema<T extends z.ZodType<z.infer<typeof replySchema>>>(base: T, request: string) {
+  return base.superRefine((reply, ctx) => {
+    const check = (quote: string | null, path: (string | number)[]) => {
+      if (!quotedAuthorization(request, quote)) ctx.addIssue({
+        code: "custom", path,
+        message: "Copy one exact contiguous authorization span from the current user request, including its original instruction when continuing after clarification. Do not paraphrase or join separate spans.",
+      });
+    };
+    reply.reminders.forEach((item, i) => check(item.authorization_quote, ["reminders", i, "authorization_quote"]));
+    reply.work.forEach((item, i) => {
+      check(item.authorization_quote, ["work", i, "authorization_quote"]);
+      if (item.source_authorization_quote !== null || item.record_refs.length || item.schedule?.include_role_records || item.schedule?.include_candidate_records)
+        check(item.source_authorization_quote, ["work", i, "source_authorization_quote"]);
+    });
+    reply.actions.forEach((item, i) => {
+      if (item.direct_save_quote !== null) check(item.direct_save_quote, ["actions", i, "direct_save_quote"]);
+    });
+  });
 }
