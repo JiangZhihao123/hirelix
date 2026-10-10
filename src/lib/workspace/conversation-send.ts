@@ -90,6 +90,10 @@ export async function sendMessage(
       const original = await rows(sql`SELECT id FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid AND metadata->>'document_id'=${input.work_document_id}`, tx);
       if (!linked.length && !original.length) throw new WorkspaceError("Choose a document from this conversation", 409);
     }
+    if (input.email_confirmation_message_id) {
+      const [preview] = await rows<Message>(sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid AND id=${input.email_confirmation_message_id}::uuid AND role='assistant' AND metadata ? 'email'`, tx);
+      if (!preview || !["review","sending","sent","unknown"].includes((preview.metadata.email as {status:string}).status)) throw new WorkspaceError("This email preview is no longer available",409);
+    }
     const [message] = await rows<Message>(
       sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(input.work_document_id ? { work_document_id: input.work_document_id } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,

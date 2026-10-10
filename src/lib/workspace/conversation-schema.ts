@@ -1,4 +1,5 @@
 import { candidateChangesSchema } from "./candidate-changes";
+import { emailPlanSchema } from "./email-contract";
 import { clarificationSchema } from "./conversation-questions";
 import { reminderActionSchema } from "./reminders";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { MAX_CONVERSATION_FILES } from "./attachments";
 import { memoryChangeSchema } from "./memories";
 import { assistantWorkSchema, quotedAuthorization } from "./assistant-work";
 export const planSchema = z.object({
+  email: emailPlanSchema,
   conversation_title: z.string().trim().min(1).max(60),
   preview_changes: z.boolean().default(false),
   document_revision_instructions: z.string().trim().min(1).max(6000).nullable(),

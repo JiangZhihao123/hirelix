@@ -1,6 +1,7 @@
 "use client";
 
 import { ConversationExports } from "./document-download";
+import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
 import Link from "next/link";
 import { ArrowUpRight, Paperclip, Check, Copy } from "lucide-react";
@@ -56,6 +57,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
                     ))}
                     {metadata.exports && <ConversationExports documentId={metadata.exports.document_id} formats={metadata.exports.formats} />}
+                    {(metadata.email || metadata.gmail) && <ConversationEmail email={metadata.email} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
                     {metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
                     {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
