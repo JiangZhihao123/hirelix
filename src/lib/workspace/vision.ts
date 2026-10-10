@@ -1,66 +1,56 @@
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { reserveAgentCall, consumeAgentCredits } from "@/lib/agent-access";
-import { costToCreditUnits, creditMarkup } from "@/lib/agent-credit-pricing";
+import { costToCreditUnits, creditMarkup, deepSeekRates, llmServiceCost, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
 import { CREDIT_RETAIL_USD, CREDIT_UNITS } from "@/lib/agent-plan";
-import { readCompletionStream } from "@/lib/llm-stream";
+import { generateLlmText, getDefaultLlmModel, isUsingOfficialDeepSeek, type LlmJsonSchemaConfig } from "@/lib/llm-client";
 import { WorkspaceError } from "./database";
 
 export type SourceImage = { label: string; url: string };
-export const VISION_MODEL = "qwen/qwen3-vl-32b-instruct";
 export const MAX_SOURCE_IMAGES = 20;
-
-// OpenRouter returns actual service cost in usage.cost. Reserve conservatively
-// above the published model tariffs before issuing a billable request.
-export function visionRates() { return {input: 1, output: 2}; }
 
 export async function generateVisionText(options: {
   system: string; prompt: string; images: SourceImage[]; stage: string;
   onText?: (text: string) => Promise<void>;
+  jsonSchema?: LlmJsonSchemaConfig;
 }) {
   if (!options.images.length || options.images.length > MAX_SOURCE_IMAGES)
     throw new WorkspaceError("Use up to 20 images or PDF pages per message");
   if (options.images.reduce((size, image) => size + image.url.length, Buffer.byteLength(options.prompt + options.system)) > 24 * 1024 * 1024)
     throw new WorkspaceError("These images exceed the 24 MB visual reading limit. Send fewer images or pages together.");
-  const key = process.env.OPENROUTER_API_KEY?.trim();
-  if (!key) throw new WorkspaceError("Image reading is not configured. Your files are saved; retry after the service is configured.", 503);
-  const job = agentCreditContext.getStore(), multiplier = creditMarkup(), rates = visionRates();
+  const official = isUsingOfficialDeepSeek();
+  // Flash is the native visual model; a configured Pro arbiter must not replace it.
+  const model = official ? "deepseek-flash" : getDefaultLlmModel();
+  const startedAt = new Date(), job = agentCreditContext.getStore(), multiplier = creditMarkup();
+  const rates = official ? deepSeekRates(model, startedAt, true)
+    : {input: Number(process.env.AGENT_OPENROUTER_COST_CEILING_PER_MILLION ?? 20), output: Number(process.env.AGENT_OPENROUTER_COST_CEILING_PER_MILLION ?? 20)};
   let maxTokens = 12000;
   if (job) {
-    // Conservative image-token bound for normalized images up to 2048x2048.
-    const bound = Buffer.byteLength(options.system + options.prompt) + options.images.length * 65536 + 512;
+    // Official Flash caps each image at 1024 input tokens. Reserve at peak
+    // rates, then settle using the provider's actual text + image token usage.
+    const bound = Buffer.byteLength(options.system + options.prompt + JSON.stringify(options.jsonSchema ?? {})) + options.images.length * (official ? 1024 : 65536) + 512;
     maxTokens = await reserveAgentCall(job, costToCreditUnits(bound * rates.input / 1e6, multiplier), maxTokens, rates.output / 1e6 * multiplier / CREDIT_RETAIL_USD * CREDIT_UNITS);
   }
-  if (options.onText) await options.onText("");
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST", headers: {Authorization: `Bearer ${key}`, "Content-Type": "application/json"},
-    signal: AbortSignal.timeout(120000),
-    body: JSON.stringify({model: VISION_MODEL, max_tokens: maxTokens, temperature: 0.1,
-      stream: !!options.onText, ...(options.onText ? {stream_options: {include_usage: true}} : {}),
-      messages: [{role: "system", content: options.system}, {role: "user", content: [
-        {type: "text", text: options.prompt},
-        ...options.images.flatMap(image => [{type: "text", text: `Original source image: ${image.label}`}, {type: "image_url", image_url: {url: image.url}}]),
-      ]}],
-    }),
+  const response = await generateLlmText({model, system: options.system, prompt: options.prompt,
+    images: options.images, jsonSchema: options.jsonSchema, maxOutputTokens: maxTokens, temperature: 0.1,
+    deepSeekThinking: "disabled", timeoutMs: 120000, onText: options.onText,
+    redactUsagePayload: true, usageEvent: {userId: job?.user_id, jobId: job?.id, stage: options.stage},
   });
-  if (!response.ok) {
-    await response.body?.cancel();
-    throw new WorkspaceError(`Image reading service failed (${response.status}). Your files are saved; retry this task.`, 502);
-  }
-  const raw = (options.onText ? await readCompletionStream(response, options.onText) : await response.json()) as {
+  const raw = response.rawResponse as {
     choices?: Array<{message?: {content?: string}; finish_reason?: string}>;
-    usage?: {prompt_tokens?: number; completion_tokens?: number; cost?: number};
+    usage?: {cost?: number};
   };
-  const input = raw.usage?.prompt_tokens, output = raw.usage?.completion_tokens;
-  if (!Number.isSafeInteger(input) || !Number.isSafeInteger(output) || input! <= 0 || output! < 0)
+  const {inputTokens: input, outputTokens: output} = response.usage;
+  if (!Number.isSafeInteger(input) || !Number.isSafeInteger(output) || input <= 0 || output < 0)
     throw new WorkspaceError("Image reading service returned no valid usage", 502);
-  const cost = raw.usage?.cost;
+  const cost = official ? llmServiceCost(model, startedAt, response.usage) : raw.usage?.cost;
   if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0)
     throw new WorkspaceError("Image reading service returned no valid cost", 502);
   if (job) await consumeAgentCredits(job, costToCreditUnits(cost, multiplier), cost, {
-    stage: options.stage, provider: "openrouter", model: VISION_MODEL, input_tokens: input, output_tokens: output,
-    cost_usd: cost, multiplier, pricing_version: "2026-10-09", provider_reported_cost: true,
+    stage: options.stage, provider: official ? "deepseek" : "openrouter", model, input_tokens: input, output_tokens: output,
+    cost_usd: cost, multiplier, pricing_version: CREDIT_PRICING_VERSION, started_at: startedAt.toISOString(),
+    ...(official ? {usage: response.usage} : {provider_reported_cost: true}),
   });
-  const text = raw.choices?.[0]?.message?.content;
+  const text = response.text;
   if (!text?.trim() || raw.choices?.[0]?.finish_reason === "length")
     throw new WorkspaceError("Image reading was incomplete. Split the material into smaller files and retry.", 502);
   return {text};

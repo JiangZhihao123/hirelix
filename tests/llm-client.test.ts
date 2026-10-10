@@ -81,6 +81,18 @@ test("OpenRouter keeps provider-prefixed model names", () => {
  test("official JSON mode transmits the schema even when caller does not embed it", () => {
   const schema = { type: "object", required: ["requirements"], properties: { requirements: { type: "array" } } };
   const body = buildOfficialDeepSeekBody({ model: "deepseek-flash", system: "Extract role facts", prompt: "Backend engineer", jsonSchema: { name: "role", strict: true, schema } }, "disabled", null);
-  assert.ok(body.messages.some((message) => message.content.includes(JSON.stringify(schema))));
+  assert.ok(body.messages.some((message) => typeof message.content === "string" && message.content.includes(JSON.stringify(schema))));
   assert.deepEqual(body.response_format, { type: "json_object" });
+});
+
+test("official multimodal JSON keeps the schema and original image in their proper message roles", () => {
+  const schema = {type: "object", properties: {name: {type: "string"}}};
+  const url = "data:image/png;base64,ZmFrZQ==";
+  const body = buildOfficialDeepSeekBody({model: "deepseek-flash", system: "Extract facts", prompt: "Read this CV", images: [{label: "CV page 1", url}], jsonSchema: {name: "cv", schema}}, "disabled", null);
+  assert.equal(body.messages[0].role, "system");
+  assert.equal(typeof body.messages[0].content, "string");
+  assert.match(body.messages[0].content as string, /\"name\"/);
+  assert.equal(body.messages[1].role, "user");
+  assert.deepEqual(body.messages[1].content, [{type: "text", text: "Read this CV"}, {type: "text", text: "Original source image: CV page 1"}, {type: "image_url", image_url: {url}}]);
+  assert.deepEqual(body.response_format, {type: "json_object"});
 });

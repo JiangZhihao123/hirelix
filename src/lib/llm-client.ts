@@ -27,6 +27,7 @@ export type DeepSeekThinkingMode = "enabled" | "disabled";
 export type DeepSeekReasoningEffort = "high" | "max";
 
 type LlmTextOptions = {
+  images?: Array<{ label: string; url: string }>;
   onText?: (text: string) => Promise<void>;
   model: string;
   system?: string;
@@ -119,7 +120,10 @@ export function buildOfficialDeepSeekBody(
 function buildOpenRouterRequestPayload(options: LlmTextOptions) {
   return {
     model: options.model,
-    messages: buildMessages(options),
+    messages: buildMessages(options).map(message => ({...message,
+      content: typeof message.content === "string" ? message.content : message.content.map(part =>
+        part.type === "image_url" ? {type: "image_url", imageUrl: part.image_url} : part),
+    })),
     stream: false,
     temperature: options.temperature ?? 0,
     ...(typeof options.maxOutputTokens === "number"
@@ -528,20 +532,29 @@ export function resolveDeepSeekReasoningEffort(
   return raw === "max" || raw === "xhigh" ? "max" : "high";
 }
 
-function buildMessages(options: LlmTextOptions): LlmMessage[] {
+type LlmRequestMessage = Omit<LlmMessage, "content"> & {
+  content: string | Array<{type: "text"; text: string} | {type: "image_url"; image_url: {url: string}}>;
+};
+function buildMessages(options: LlmTextOptions): LlmRequestMessage[] {
   if (options.messages && options.messages.length > 0) return options.messages;
 
-  const messages: LlmMessage[] = [];
+  const messages: LlmRequestMessage[] = [];
   if (options.system?.trim()) {
     messages.push({
       role: "system",
       content: options.system.trim(),
     });
   }
-  if (options.prompt?.trim()) {
+  if (options.prompt?.trim() || options.images?.length) {
     messages.push({
       role: "user",
-      content: options.prompt.trim(),
+      content: options.images?.length ? [
+        {type: "text", text: options.prompt?.trim() || "Read the supplied source images."},
+        ...options.images.flatMap((image): Exclude<LlmRequestMessage["content"], string> => [
+          {type: "text", text: `Original source image: ${image.label}`},
+          {type: "image_url", image_url: {url: image.url}},
+        ]),
+      ] : options.prompt!.trim(),
     });
   }
   return messages;
