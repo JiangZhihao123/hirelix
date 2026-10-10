@@ -1,6 +1,6 @@
 # Agent Gmail 发送与真实验收
 
-日期：2026-10-10。在独立工作区开发并合入本地 `main`，保留并整合同期的候选人维护和成果导出改动。尚未推送或部署生产。
+日期：2026-10-10。在独立工作区开发并合入 `main`，保留并整合同期的候选人维护和成果导出改动。已推送、应用生产迁移，并完成下述生产发送验收。
 
 ## 用户行为
 
@@ -40,4 +40,19 @@ QA 库只从既有本地 QA 复制 schema 和测试账号登录记录，未复�
 5. 对保存的 QA 文档展示主题、正文与 `hirelix-gmail-qa.txt`，通过对话确认按钮发送成功；独立邮箱读取确认附件为 81 字节，内容与原文件一致。
 6. 最终合入代码重新生成相同文档预览并确认：复用原 Gmail 回执，仍只有一封实际邮件；文档交付记录恢复为 submitted、版本 2。
 
-仅发送两封到账号所有者本人邮箱别名的测试邮件，不含真实候选人资料。上述是本地真实服务链路；不是生产部署完成或新账号 OAuth 注册的证明。生产仍需应用迁移、部署前端/API 和独立 worker，并在生产复验。
+本地仅发送两封到账号所有者本人邮箱别名的测试邮件，不含真实候选人资料。本地证据与以下生产证据分别记录，均不代表新账号 OAuth 注册验收。
+
+## 生产真实链路
+
+用户明确授权推送、部署、迁移、更新 worker 和生产发送验收。运行时代码 `318be37` 经 GitHub Actions `38039965705` 完成类型检查、Lint、构建及单元测试；Vercel 部署 `dpl_Cw6PwUQDosd2TzzdN1oLm9TcWgns` 为 READY，绑定 `hirelix.online`。生产 PostgreSQL 已应用 `20261010_conversation_email.sql`，两列的 `is_nullable` 独立查询均为 YES。
+
+首次 worker 部署发现生产 `/etc/hirelix.env` 缺少 Gmail 共用 better-auth 所需配置，进程在启动数秒后退出；原流水线只等待三秒，误判成功。已从同项目 Vercel Production 配置同步 `BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`BETTER_AUTH_URL`，保留服务器配置备份，不记录密钥。重启后实际处理以下生产任务。另以 `5bbec01` 加强部署检查，要求同一 PID 持续存活 30 秒，避免重复误判。
+
+Chrome → `hirelix.online` → 生产 PostgreSQL → VPS 独立 worker → 真实模型 → Gmail API → 独立 Gmail 读取：
+
+1. 对话 `9043cef1-6e81-4687-8f72-1565d0083380` 查询连接，返回正确的本人发件账号。
+2. 普通邮件先展示完整预览；独立 Gmail 查询在确认前返回零封。中文自然语言确认后成功发送，provider ID `1a12511a85b2701d`，数据库回执 `578f19b7-c0a0-429b-828d-a546ecb430e1`。收件人是本人 `+agent-gmail-prod-20261010` 别名，主题 `Hirelix production Agent Gmail 20261010`。
+3. 同对话重复确认没有重发：Agent 说明已发送并要求澄清；选择不再发送。独立 Gmail 与数据库仍各只有一条对应邮件/成功回执。
+4. 对话 `9971c9b1-d332-46f6-8aac-a4f78b54827c` 关联既有无候选人信息的 OAuth QA 文档，预览沿用原文；点击确认按钮成功发送到本人 `+agent-gmail-prod-doc-20261010` 别名。provider ID `1a125127b3b3cd4a`，回执 `0b1bc588-e02a-42c7-b544-5da4928b3caf`。
+5. 两封邮件独立回读 Gmail MIME 正文，收件人、主题、完整正文与预览一致，标签为 SENT/INBOX。生产共发送两封，无附件，无真实候选人数据；附件发送的真实证据仍为上节本地链路。
+6. 刷新生产文档对话，发送状态由持久回执恢复。原文档仍为 submitted、版本 2，未改动内容。
