@@ -126,6 +126,8 @@ export const replySchema = z.object({
           .nullable(),
         sharing_permission: z.enum(["confirmed", "declined"]).nullable(),
       }).superRefine((action, ctx) => {
+        if (action.kind === "update_role_brief" && !action.record?.content.trim())
+          ctx.addIssue({code: "custom", path: ["record"], message: "A role requirements update needs a feedback record containing only this role's reported facts, including any supplied event date. Do not copy other clients' updates into this record."});
         if (action.kind === "update_record" && (!action.record_ref || !action.record_changes))
           ctx.addIssue({code: "custom", path: ["record_ref"], message: "A record correction requires an exact saved record reference and the changed fields. Ask a clarification if the original record is ambiguous."});
         if (action.kind === "update_relationship" || action.kind === "update_sharing_permission") {
