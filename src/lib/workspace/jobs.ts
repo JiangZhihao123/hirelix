@@ -191,7 +191,9 @@ export async function cancelJob(userId: string, id: string) {
     if (!["queued", "running"].includes(job.status)) return job;
     let result = job.result || {};
     if (job.kind === "chat" && typeof job.payload.conversation_id === "string") {
-      const [message] = await rows<{id: string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant',${typeof result.live_reply === "string" ? result.live_reply : ""},${json({turn_status: "cancelled", activity: turnActivity(result)})}) RETURNING id`, tx);
+      // The preview has not passed validation or committed its actions. Keeping
+      // claims such as "saved" as an assistant message invents completed work.
+      const [message] = await rows<{id: string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant','',${json({turn_status: "cancelled", activity: turnActivity(result)})}) RETURNING id`, tx);
       result = {...result, message_id: message.id};
     }
     const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result=${json(result)},progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);

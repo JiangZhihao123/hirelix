@@ -3,11 +3,24 @@ import {randomUUID} from "node:crypto";
 import {after,test} from "node:test";
 import {sql} from "drizzle-orm";
 import {closeDb,db} from "../../src/db/client";
-import {sendMessage} from "../../src/lib/workspace/conversations";
-import {retryJob} from "../../src/lib/workspace/jobs";
+import {sendMessage, conversationDetails} from "../../src/lib/workspace/conversations";
+import {retryJob, cancelJob} from "../../src/lib/workspace/jobs";
 const database=new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
 assert.ok(["localhost","127.0.0.1"].includes(database.hostname) && database.pathname.startsWith("/hirelix_workspace_qa_"));
 after(closeDb);
+test("real PG: stopping an uncommitted reply cannot preserve preview claims as completed work",async()=>{
+  const owner=randomUUID();
+  const sent=await sendMessage(owner,{message:"Save my call note",request_key:randomUUID(),locale:"en"});
+  await db.execute(sql`UPDATE hirelix_private_jobs SET status='running',result='{"live_reply":"Saved the call note and sharing permission."}'::jsonb WHERE id=${sent.job.id}::uuid`);
+  const stopped=await cancelJob(owner,sent.job.id);
+  assert.equal(stopped.status,"cancelled");
+  const conversation=await conversationDetails(owner,sent.conversation_id);
+  const reply=conversation.messages.at(-1)!;
+  assert.equal(reply.metadata.turn_status,"cancelled");
+  assert.equal(reply.content,"");
+  const next=await sendMessage(owner,{conversation_id:sent.conversation_id,message:"Try again",request_key:randomUUID(),locale:"en"});
+  await cancelJob(owner,next.job.id);
+});
 test("real PG: failed replies permit a correction; old retries and simultaneous turns are rejected",async()=>{
   const owner=randomUUID();
   const first=await sendMessage(owner,{message:"Fictional failure recovery QA",request_key:randomUUID(),locale:"en"});

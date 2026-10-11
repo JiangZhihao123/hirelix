@@ -244,6 +244,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
     roles.map((role, index) => [`role_${index + 1}`, role]),
   );
   const history = messages
+    .filter((m) => m.metadata.turn_status !== "cancelled")
     .filter((m) => new Date(m.created_at) <= new Date(question.created_at))
     .slice(-30)
     .map((m) => {

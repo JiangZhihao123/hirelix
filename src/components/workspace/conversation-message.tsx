@@ -57,7 +57,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       </div>
                     )}
                     <div className="ws-message-prose">
-                      <AgentText content={message.content} onOpenLink={href => {
+                      <AgentText content={message.metadata.turn_status === "cancelled" ? "" : message.content} onOpenLink={href => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (!source) return false;
                         onSource(source); return true;
@@ -139,14 +139,14 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     ))}
                     <div className="ws-message-tools">
                       {message.role === "user" && <time dateTime={message.created_at}>{date(message.created_at, true)}</time>}
-                      <button
+                      {message.metadata.turn_status !== "cancelled" && <button
                         type="button"
                         onClick={() => onCopy(message.id, message.content)}
                         aria-label={t("Copy message")}
                       >
                         <Copy size={13} />
                         {copiedId === message.id ? t("Copied") : t("Copy")}
-                      </button>
+                      </button>}
                     </div>
                   </article>
 
