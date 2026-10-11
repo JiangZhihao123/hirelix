@@ -38,6 +38,16 @@ export const planSchema = z.object({
   may_propose_record: z.boolean(),
   sharing_permission_reported: z.boolean(),
 });
+export function planSchemaForRoles(roleRefs: string[]) {
+  // Validate against this user's current catalog inside structured(), so an
+  // invalid model reference gets the existing format-repair attempt before
+  // any work executes. UUIDs and references from earlier turns are not aliases.
+  return planSchema.extend({
+    role_refs: z.array(z.enum(roleRefs)).max(5).describe(
+      "Use only ref values from the current role catalog, never database IDs or historical action IDs. Return [] when no saved role is needed.",
+    ),
+  });
+}
 const roleDraft = z.object({
   title: z.string(),
   client_name: z.string(),
