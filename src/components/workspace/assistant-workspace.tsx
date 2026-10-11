@@ -627,7 +627,8 @@ export function AssistantWorkspace({
               </div>
             ) : (
               query.data?.messages.map((message, index) => <ConversationMessage key={message.id} message={message}
-                activeJob={pending && job?.result?.receipt_message_id === message.id ? job : undefined}
+                activeJob={(pending || job?.status === "error") && job?.result?.receipt_message_id === message.id ? job : undefined}
+                onRetry={retry} disconnected={disconnected}
                 importRefresh={job?.status === "done" ? job.id : undefined}
                 laterScheduleIds={query.data!.messages.slice(index + 1).flatMap(item => (item.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
                 onReady={query.refresh} onRevise={document => { setSource(null); setRevisionTarget(document); setDraft(`${document.title}: ${t("Please revise the document: ")}`); composer.current?.focus(); }}
@@ -651,18 +652,10 @@ export function AssistantWorkspace({
                   </div>
                 </article>
               )}
-            {(sending || (job && !finalMessageVisible && !receiptMessageVisible && (pending || job.status === "done" || job.status === "cancelled" || !!job.result?.live_reply)) || (optimistic && conversationId && !query.data)) && (
-              <TurnActivity job={sending ? null : job} disconnected={!sending && disconnected} receivingFiles={sending && attachments.length > 0} />
+            {(sending || (job && !finalMessageVisible && !receiptMessageVisible && (pending || job.status === "done" || job.status === "cancelled" || job.status === "error" || !!job.result?.live_reply)) || (optimistic && conversationId && !query.data)) && (
+              <TurnActivity job={sending ? null : job} disconnected={!sending && disconnected} receivingFiles={sending && attachments.length > 0} onRetry={retry} />
             )}
-            {job?.status === "error" && (
-              <ErrorNotice
-                error={
-                  job.error ||
-                  "This reply needs another attempt. Your message is saved."
-                }
-                retry={retry}
-              />
-            )}
+
           </div>
           {showJump && (
             <button

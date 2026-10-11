@@ -30,7 +30,7 @@ export function ConversationQuestion({question, conversationId, messageId, onCha
     } catch(cause) {setError(cause instanceof Error ? cause.message : "Could not continue. Your answer is kept."); onChanged();}
     finally {setBusy(false);}
   }
-  if(question.status !== "waiting") return <section className="ws-question-card"><strong>{t(question.status === "answered" ? "Answered" : "Request cancelled")}</strong><p>{question.question}</p></section>;
+  if(question.status !== "waiting") return <div className="ws-question-resolved"><p>{question.question}</p><small>{t(question.status === "answered" ? "Answered" : "Request cancelled")}</small></div>;
   return <section className="ws-question-card" role="region" aria-label={t("Your answer is needed")}>
     <strong>{t("Your answer is needed")}</strong><p>{question.question}</p>
     <div className="ws-question-options" role="radiogroup" aria-label={question.question}>{question.options.map((option,index)=><label key={index} className="ws-button" data-selected={answer===option}><input type="radio" name={`answer-${messageId}`} checked={answer===option} disabled={busy} onChange={()=>edit(option)} />{option}</label>)}</div>

@@ -3,8 +3,7 @@
 import { ConversationExports } from "./document-download";
 import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
-import { TurnHistory, TurnActivity } from "./turn-activity";
-import { turnActivity } from "@/lib/workspace/turn-progress";
+import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
 import { ArrowUpRight, Paperclip, Check, Copy } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
@@ -32,8 +31,8 @@ function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantM
   </details> : links;
 }
 
-export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob }: {
-  activeJob?: Job;
+export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob, onRetry, disconnected }: {
+  activeJob?: Job; onRetry?: () => Promise<void>; disconnected?: boolean;
   message: Message; importRefresh?: string; laterScheduleIds: string[]; onReady: () => void;
   onRevise: (document: Deliverable) => void; onMemories: () => void;
   onSource: (source: {title: string; href: string}) => void;
@@ -75,7 +74,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         </button>
                       ))}
                     </div>
-                    {activeJob ? <TurnActivity job={activeJob} embedded /> : message.role === "assistant" && <TurnHistory entries={turnActivity(message.metadata)} status={message.metadata.turn_status === "cancelled" ? "cancelled" : "done"} />}
+                    {activeJob && <TurnActivity job={activeJob} embedded disconnected={disconnected} onRetry={onRetry} />}
                     {message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
