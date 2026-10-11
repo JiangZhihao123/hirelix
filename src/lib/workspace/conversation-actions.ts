@@ -147,7 +147,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       ...prior,
       occurred_at: prior.occurred_at ? new Date(prior.occurred_at).toISOString() : null,
       ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== null).map(([key, value]) => [key, key === "occurred_at" && value === "" ? null : value])),
-      details: { ...prior.details, ...(changes.occurred_on !== null ? {occurred_on: changes.occurred_on || null} : {}), ...(changes.occurred_at ? {occurred_on: null} : {}) },
+      details: { ...prior.details, ...(action.fields.source_message_id ? {source_message_id: z.uuid().parse(action.fields.source_message_id)} : {}), ...(changes.occurred_on !== null ? {occurred_on: changes.occurred_on || null} : {}), ...(changes.occurred_at ? {occurred_on: null} : {}) },
     }, z.number().int().positive().parse(action.fields.expected_version), tx);
     action.href = record.person_id
       ? `/app/candidates?person=${record.person_id}&record=${record.id}`

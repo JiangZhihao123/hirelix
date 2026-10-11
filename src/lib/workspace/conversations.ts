@@ -53,6 +53,7 @@ export type AssistantAction = {
   href?: string;
 };
 export type AssistantMeta = {
+  document_edits?: Array<{id:string;title:string;version:number;href:string}>;
   exports?: { document_id: string; formats: Array<"pdf" | "docx"> };
   gmail?: {connected:boolean;email:string|null};
   email?: ConversationEmail;

@@ -166,7 +166,34 @@ async function saveRevision(userId: string, id: string, job: Job, proposal: z.in
   expectVersion(document.version, expectedVersion ?? z.number().parse(job.payload.expected_version));
   expectVersion(document.version, z.number().parse(job.payload.expected_version));
   const source = proposal.audience ? { ...document.source_snapshot, audience: proposal.audience } : document.source_snapshot;
+  return persistDraftRevision(userId, document, proposal, source, tx);
+}
+
+async function persistDraftRevision(userId: string, document: Deliverable, proposal: {title:string;content:string}, source: Record<string,unknown>, tx: Runner) {
+  const id = document.id;
   const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
   await snapshot(userId, "deliverable", updated, tx);
   return updated;
+}
+
+export const documentEdits = z.array(z.object({
+  old_text: z.string().min(1).max(100000),
+  new_text: z.string().max(100000),
+})).min(1).max(20);
+
+// Exact edits use the evidence already read by the main agent. No second model
+// reinterprets the request against an older document snapshot.
+export async function editDocument(userId:string, id:string, expectedVersion:number, edits:z.infer<typeof documentEdits>, tx:Runner) {
+  const document = await owned<Deliverable>(userId, "deliverable", id, tx, true);
+  expectVersion(document.version, expectedVersion);
+  if (document.status !== "draft") throw new WorkspaceError("The submitted copy is preserved",409);
+  let content = document.content;
+  for (const edit of documentEdits.parse(edits)) {
+    const at = content.indexOf(edit.old_text);
+    if (at < 0 || content.indexOf(edit.old_text, at + 1) >= 0) throw new WorkspaceError("The selected text must match exactly once. Read the current document and choose a unique passage.",409);
+    content = content.slice(0,at) + edit.new_text + content.slice(at + edit.old_text.length);
+  }
+  if (!content.trim() || content.length > 100000) throw new WorkspaceError("The edited document must contain between 1 and 100000 characters");
+  if (content === document.content) return document;
+  return persistDraftRevision(userId,document,{title:document.title,content},document.source_snapshot,tx);
 }

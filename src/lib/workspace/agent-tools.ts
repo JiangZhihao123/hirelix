@@ -1,4 +1,5 @@
 import { tool } from "ai";
+import { recordEvidence, reminderEvidence } from "./agent-evidence";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { LostLease, retryJob } from "./jobs";
 import { getLogger } from "@/lib/logger";
@@ -51,7 +52,7 @@ import {
   prepareDeliverable,
   generateDeliverable,
 } from "./deliverables";
-import { requestRevision, generateRevision } from "./revisions";
+import { requestRevision, generateRevision, editDocument, documentEdits } from "./revisions";
 import { reminderActionSchema, listReminders, saveReminder } from "./reminders";
 import { scheduleInput, saveSchedule } from "./schedules";
 import {
@@ -90,6 +91,7 @@ const progressLabels: Record<string, string> = {
   import_candidates: "Reading and saving candidates",
   prepare_document: "Preparing your document",
   revise_document: "Revising your document",
+  edit_document: "Updating the selected text",
   export_document: "Preparing download controls",
   record_delivery: "Recording the completed delivery",
   reminder: "Updating your reminder",
@@ -373,12 +375,17 @@ export function createAgentTools(ctx: AgentToolContext) {
       "workspace",
       "Read saved roles, recent candidates, explicit preferences and reminders. Use names and IDs returned here; this is a bounded inventory, not all source records.",
       z.object({}),
-      async () => ({
-        roles: await listRoles(userId),
-        candidates: await listPeople(userId, ""),
-        memories: await listPersonalMemories(userId),
-        reminders: await listReminders(userId),
-      }),
+      async () => {
+        const [roles, candidates, memories, reminders] = await Promise.all([
+          listRoles(userId), listPeople(userId, ""), listPersonalMemories(userId), listReminders(userId),
+        ]);
+        return {
+          roles: roles.map(({ id, title, client_name, status, version }) => ({ id, title, client_name, status, version, href: `/app/roles/${id}` })),
+          candidates: { ...candidates, people: candidates.people.map(({ id, name, headline }) => ({ id, name, headline, href: `/app/candidates?person=${id}` })) },
+          memories,
+          reminders: reminders.map(reminderEvidence),
+        };
+      },
     ),
     find_candidates: define(
       "find_candidates",
@@ -406,7 +413,7 @@ export function createAgentTools(ctx: AgentToolContext) {
         const result = await personDetails(userId, input.id);
         const href = `/app/candidates?person=${input.id}`;
         cite(result.person.name, href);
-        return { ...result, href };
+        return { person: result.person, roles: result.roles, ...await recordEvidence(userId, result.records), href };
       },
     ),
     read_role: define(
@@ -420,7 +427,11 @@ export function createAgentTools(ctx: AgentToolContext) {
           `/app/roles/${input.id}`,
         );
         return {
-          ...result,
+          role: result.role,
+          people: result.people,
+          ...await recordEvidence(userId, result.records.filter(record => record.kind !== "jd")),
+          original_requirements: result.records.filter(record => record.kind === "jd").map(record => ({ id: record.id, title: record.title, version: record.version, file_id: record.file_id })),
+          report_schedule: result.schedule,
           deliverables: result.deliverables.map((document) => ({
             id: document.id,
             title: document.title,
@@ -446,7 +457,7 @@ export function createAgentTools(ctx: AgentToolContext) {
           ? `/app/candidates?person=${record.person_id}&record=${record.id}`
           : `/app/roles/${record.role_id}?tab=activity&record=${record.id}`;
         cite(record.title, href);
-        return { ...record, href };
+        return { ...await recordEvidence(userId, [record]), href };
       },
     ),
     read_document: define(
@@ -698,6 +709,7 @@ export function createAgentTools(ctx: AgentToolContext) {
                 record_id: record.id,
                 expected_version: input.expected_version,
                 changes: input.changes,
+                source_message_id: question.id,
               },
               record.person_id,
               record.role_id,
@@ -917,9 +929,18 @@ export function createAgentTools(ctx: AgentToolContext) {
         };
       },
     ),
+    edit_document: define(
+      "edit_document",
+      "Save exact text edits to an existing draft using its current version. Use for localized corrections when the rest must stay unchanged. Copy each old_text verbatim from read_document; it must occur exactly once. The same document and its history are preserved; this does not generate a new document or send it.",
+      z.object({ ...authorization, document_id:z.uuid(), expected_version:z.number().int().positive(), edits:documentEdits }),
+      input => mutate("edit_document",input,input.authorization_quote,async tx=>{
+        const document = documentSource(await editDocument(userId,input.document_id,input.expected_version,input.edits,tx));
+        return {output:{status:"saved",document},metadata:{document_edits:[{id:document.id,title:document.title,version:document.version,href:document.href}],sources:[{title:document.title,href:document.href}]}};
+      }),
+    ),
     revise_document: define(
       "revise_document",
-      "Revise an existing document and observe its saved version. Preserve earlier versions; an export-only request must not revise text.",
+      "Generate a broad rewrite of an existing document from its saved source snapshot and observe its saved version. For localized changes grounded in newly read facts, use edit_document to preserve all other text exactly. Preserve earlier versions; an export-only request must not revise text.",
       z.object({
         ...authorization,
         document_id: z.uuid(),

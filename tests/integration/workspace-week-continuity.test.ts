@@ -11,6 +11,7 @@ import { claimJob, heartbeat, finishJob, failJob } from "../../src/lib/workspace
 import { rows } from "../../src/lib/workspace/database";
 import type { SourceRecord } from "../../src/lib/workspace/types";
 import { prepareDeliverable } from "../../src/lib/workspace/deliverables";
+import { recordEvidence } from "../../src/lib/workspace/agent-evidence";
 
 const database = new URL(process.env.DATABASE_URL || "postgresql://invalid/invalid");
 assert.ok(["localhost", "127.0.0.1"].includes(database.hostname) && database.pathname.startsWith("/hirelix_workspace_qa_"));
@@ -65,11 +66,14 @@ test("real multi-client updates preserve scoped feedback and original JDs", { ti
   assert.match(ash.content, /on.call/i); assert.match(ash.content, /three|3/);
   assert.doesNotMatch(ash.content, /Elm|Bristol|Tuesday|Thursday/);
   for (const record of records) {
-    assert.match(record.content, /5 October 2026|2026-10-05|October 5,? 2026/);
     assert(record.details.source_message_id, "retain the original shared message as provenance");
     assert.equal(record.occurred_at, null);
     assert.equal(record.details.occurred_on, "2026-10-05");
   }
+  const evidence = await recordEvidence(owner, records);
+  assert.ok(evidence.saved_records.every(record => record.occurred_on === "2026-10-05"));
+  assert.equal(evidence.reported_messages.length, 1, "shared original report is returned once");
+  assert.match(evidence.reported_messages[0].text, /Monday 5 October 2026/);
   const report = await prepareDeliverable(owner, {kind: "search_update", role_id: first.id, person_ids: [], record_ids: [elm.id],
     period_start: "2026-10-04T23:00:00Z", period_end: "2026-10-09T22:59:59Z", report_timezone: "Europe/London", request_key: randomUUID()});
   assert.match(JSON.stringify(report.payload.source), /"date_precision":"day"/);

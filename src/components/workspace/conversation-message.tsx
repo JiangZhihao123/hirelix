@@ -87,6 +87,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
                     {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={onReady} />}
+                    {!!metadata.document_edits?.length && <p className="ws-message-status">{t("Updated · Previous version kept")}</p>}
                     {!!metadata.sources?.length && <MessageSources sources={metadata.sources} onSource={onSource} />}
                     {!!metadata.memories?.length && <div className="ws-memory-receipts">
                       {metadata.memories.map(memory => <button key={memory.id} type="button" onClick={() => onMemories()}>
