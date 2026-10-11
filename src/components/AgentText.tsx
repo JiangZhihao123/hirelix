@@ -10,15 +10,15 @@ export function AgentText({
 }: {
   content: string;
   className?: string;
-  onOpenLink?: (href: string) => boolean;
+  onOpenLink?: (href: string, label: string) => boolean;
 }) {
   return (
     <div className={`ws-agent-text ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href)) event.preventDefault(); }}>
+          a: ({ href, children }) => !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
+            <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
               {children}
             </a>
           ),

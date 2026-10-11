@@ -84,18 +84,18 @@ export async function sendMessage(
         tx,
       );
     }
-    if (input.work_document_id) {
-      await owned(userId, "deliverable", input.work_document_id, tx);
-      const linked = await rows(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='deliverable' AND payload->>'conversation_id'=${conversation.id} AND result->>'deliverable_id'=${input.work_document_id}`, tx);
-      const original = await rows(sql`SELECT id FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid AND metadata->>'document_id'=${input.work_document_id}`, tx);
-      if (!linked.length && !original.length) throw new WorkspaceError("Choose a document from this conversation", 409);
-    }
+    // The selected document can be retrieved from another conversation. The
+    // account ownership boundary applies; its creation conversation does not.
+    const viewed = input.viewed_source ? await owned<{title?:string;name?:string;version?:number}>(userId, input.viewed_source.kind, input.viewed_source.id, tx) : null;
+    const viewedSource = viewed && input.viewed_source ? {...input.viewed_source,title:viewed.title || viewed.name,version:viewed.version} : null;
+    const workDocumentId = input.work_document_id || (viewedSource?.kind === "deliverable" ? viewedSource.id : null);
+    const workDocument = workDocumentId ? await owned<Deliverable>(userId, "deliverable", workDocumentId, tx) : null;
     if (input.email_confirmation_message_id) {
       const [preview] = await rows<Message>(sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid AND id=${input.email_confirmation_message_id}::uuid AND role='assistant' AND metadata ? 'email'`, tx);
       if (!preview || !["review","sending","sent","unknown"].includes((preview.metadata.email as {status:string}).status)) throw new WorkspaceError("This email preview is no longer available",409);
     }
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(input.work_document_id ? { work_document_id: input.work_document_id } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,
     );
     const continuation = await consumeQuestion(userId, conversation.id, input.question_message_id, input.message, message.id, tx);

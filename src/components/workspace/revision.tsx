@@ -89,11 +89,11 @@ export function RevisionPanel({
     }
   }
   return (
-    <section className="ws-panel mt-6">
-      <h2>{t("Revise with your AI assistant")}</h2>
+    <section className={embedded ? "ws-revision-receipt" : "ws-panel mt-6"}>
+      {!embedded && <><h2>{t("Revise with your AI assistant")}</h2>
       <p className="ws-muted">
         {t("Requested changes are saved directly. Your previous version is kept.")}
-      </p>
+      </p></>}
       <ErrorNotice error={error || query.error} />
       {!embedded && <><Field label={t("What would you like to change?")}>
         <textarea
@@ -197,7 +197,7 @@ export function RevisionPanel({
       )}
       {!!job?.result?.applied_version && (
         <p className="ws-muted">
-          {t("Revision applied. The earlier text is available in version history.")}
+          {t(embedded ? "Updated · Previous version kept" : "Revision applied. The earlier text is available in version history.")}
         </p>
       )}
     </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { TurnActivity } from "./turn-activity";
 import { useTurnStream } from "./use-turn-stream";
 import { isTurnRunning } from "@/lib/workspace/turn-progress";
@@ -158,6 +159,8 @@ export function AssistantWorkspace({
     }
   }
   const [revisionTarget, setRevisionTarget] = useState<Deliverable | null>(null);
+  const viewedSource = source ? viewedSourceFromHref(source.href) : null;
+  const selectedContext = revisionTarget || (source && viewedSource ? { id: viewedSource.id, title: source.title } : null);
   const request = useRef<{ text: string; key: string } | null>(null),
     scroll = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null);
@@ -391,6 +394,7 @@ export function AssistantWorkspace({
         file_ids: fileIds,
         locale,
         work_document_id: revisionTarget?.id || null,
+        viewed_source: revisionTarget ? null : viewedSource,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         conversation_id: conversationId,
         role_id: conversationId ? null : roleId || null,
@@ -626,12 +630,12 @@ export function AssistantWorkspace({
                 activeJob={pending && job?.result?.receipt_message_id === message.id ? job : undefined}
                 importRefresh={job?.status === "done" ? job.id : undefined}
                 laterScheduleIds={query.data!.messages.slice(index + 1).flatMap(item => (item.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
-                onReady={query.refresh} onRevise={document => { setRevisionTarget(document); setDraft(`${document.title}: ${t("Please revise the document: ")}`); composer.current?.focus(); }}
-                onMemories={() => setMemoriesOpen(true)} onSource={source => { setContextOpen(false); setSource(source); }}
+                onReady={query.refresh} onRevise={document => { setSource(null); setRevisionTarget(document); setDraft(`${document.title}: ${t("Please revise the document: ")}`); composer.current?.focus(); }}
+                onMemories={() => setMemoriesOpen(true)} onSource={source => { setRevisionTarget(null); setContextOpen(false); setSource(source); }}
                 onReview={(messageId, action) => setReview({messageId, action})} onCopy={(id, content) => void copyConversationMessage(id, content, setCopiedId, setError)} copiedId={copiedId}
               />)
             )}
-            {query.data?.work?.filter(work => !query.data?.messages.some(message => (message.metadata as AssistantMeta).work?.some(receipt => receipt.job_id === work.id))).map(work => <AssistantWork key={work.id} receipt={{ job_id: work.id, kind: "search_update", title: t("Your agreed recurring update") }} onReady={query.refresh} onRevise={document => { setRevisionTarget(document); setDraft(`${document.title}：${t("Please revise the draft: ")}`); composer.current?.focus(); }} />)}
+            {query.data?.work?.filter(work => !query.data?.messages.some(message => (message.metadata as AssistantMeta).work?.some(receipt => receipt.job_id === work.id))).map(work => <AssistantWork key={work.id} receipt={{ job_id: work.id, kind: "search_update", title: t("Your agreed recurring update") }} onReady={query.refresh} onRevise={document => { setSource(null); setRevisionTarget(document); setDraft(`${document.title}：${t("Please revise the draft: ")}`); composer.current?.focus(); }} />)}
             {optimistic &&
               !query.data?.messages.some(
                 (message) =>
@@ -680,7 +684,7 @@ export function AssistantWorkspace({
               }
             }}
           >
-            {revisionTarget && <div className="ws-composer-context-tags"><span className="ws-composer-context-tag"><Pencil size={12} />{t("Revising")}: {revisionTarget.title}<button type="button" className="ws-icon" onClick={() => setRevisionTarget(null)} aria-label={t("Clear document context")}><X size={12} /></button></span></div>}
+            {selectedContext && <div className="ws-composer-context-tags"><span className="ws-composer-context-tag">{revisionTarget ? <Pencil size={12} /> : <Paperclip size={12} />}<span>{t(revisionTarget ? "Revising" : "Discussing")}: {selectedContext.title}</span><button type="button" className="ws-icon" onClick={() => { setRevisionTarget(null); setSource(null); }} aria-label={t("Clear context")}><X size={12} /></button></span></div>}
             <ErrorNotice error={attachmentDraftError} />
             <input
               ref={fileInput}

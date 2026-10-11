@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { owned, rows } from "./database";
 import { MAX_CONVERSATION_FILES } from "./attachments";
+import { viewedSourceInput } from "./source-context";
 import { conversationExcerpt } from "./conversation-excerpt";
 import { hydrateEmailReceipts } from "./conversation-email";
 import type { ConversationEmail } from "./email-contract";
@@ -26,6 +27,7 @@ export const conversationInput = z.object({
   person_id: z.uuid().nullable().default(null),
   document_id: z.uuid().nullable().default(null),
   work_document_id: z.uuid().nullable().default(null),
+  viewed_source: viewedSourceInput.nullable().default(null),
 });
 export type AssistantAction = {
   id: string;

@@ -52,9 +52,18 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
   const recordId = url.searchParams.get("record");
   const path = person ? `/people/${person}` : role ? `/roles/${role}` : documentId ? `/deliverables/${documentId}` : null;
   const query = useQuery<{ deliverable?: Deliverable; person?: Person; role?: Role; records?: SourceRecord[]; name?: string; content?: string; truncated?: boolean; preview_type?: string | null }>(path);
+  const refresh = query.refresh;
+  useEffect(() => {
+    window.addEventListener("hirelix:work-changed", refresh);
+    window.addEventListener("hirelix:document-changed", refresh);
+    return () => {
+      window.removeEventListener("hirelix:work-changed", refresh);
+      window.removeEventListener("hirelix:document-changed", refresh);
+    };
+  }, [refresh]);
   const record = query.data?.records?.find(item => item.id === recordId);
   return <aside ref={panel} className="ws-source-panel" aria-label={t("Source details")}>
-    <header><strong>{source.title}</strong><button ref={close} className="ws-icon" onClick={onClose} aria-label={t("Close source details")}><X size={18} /></button></header>
+    <header><strong>{t(recordId ? "Source record" : documentId ? "Saved document" : person ? "Candidate" : role ? "Role" : file ? "Original file" : "Source details")}</strong><button ref={close} className="ws-icon" onClick={onClose} aria-label={t("Close source details")}><X size={18} /></button></header>
     <ErrorNotice error={query.error} retry={query.refresh} />
     {query.loading && !query.data && <Loading />}
     {recordId && query.data && !record && <ErrorNotice error="This source record is no longer available." />}

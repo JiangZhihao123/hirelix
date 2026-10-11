@@ -58,7 +58,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       </div>
                     )}
                     <div className="ws-message-prose">
-                      <AgentText content={message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : message.content} onOpenLink={href => {
+                      <AgentText content={message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : message.content} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (source) { onSource(source); return true; }
                         // A saved document may be cited from earlier conversation
@@ -66,7 +66,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         let url: URL;
                         try { url = new URL(href, window.location.origin); } catch { return false; }
                         if (url.origin !== window.location.origin || !/^\/app\/(?:submissions|roles\/[a-f0-9-]+\/updates)\/[a-f0-9-]+$/.test(url.pathname)) return false;
-                        onSource({ title: t("Saved document"), href: url.pathname }); return true;
+                        onSource({ title: label || t("Saved document"), href: url.pathname }); return true;
                       }} />
                       {messageAttachments(message.metadata).map((file) => (
                         <button key={file.file_id} type="button" className="ws-chat-attachment" onClick={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})}>
