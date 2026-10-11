@@ -18,6 +18,20 @@ import { AssistantWork, AssistantAgreement, ConversationRevision } from "./assis
 import { messageAttachments, messageImportJobs } from "@/lib/workspace/attachments";
 import type { AssistantAction, AssistantMeta } from "@/lib/workspace/conversations";
 import type { Message, Deliverable } from "@/lib/workspace/types";
+
+function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantMeta["sources"]>; onSource: (source: { title: string; href: string }) => void }) {
+  const t = useT();
+  const links = <div className="ws-message-sources">
+    {sources.map((source, index) => <button key={`${source.href}:${index}`} type="button" onClick={() => onSource(source)}>
+      {source.title}<ArrowUpRight size={12} />
+    </button>)}
+  </div>;
+  return sources.length > 3 ? <details className="ws-message-source-disclosure">
+    <summary>{t("Sources")} <span>{sources.length}</span></summary>
+    {links}
+  </details> : links;
+}
+
 export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId }: {
   message: Message; importRefresh?: string; laterScheduleIds: string[]; onReady: () => void;
   onRevise: (document: Deliverable) => void; onMemories: () => void;
@@ -67,15 +81,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
                     {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={onReady} />}
-                    {metadata.sources?.length ? (
-                      <div className="ws-message-sources">
-                        {metadata.sources.map((source, index) => (
-                          <button key={index} type="button" onClick={() => { onSource(source); }}>
-                            {source.title}<ArrowUpRight size={12} />
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
+                    {!!metadata.sources?.length && <MessageSources sources={metadata.sources} onSource={onSource} />}
                     {!!metadata.memories?.length && <div className="ws-memory-receipts">
                       {metadata.memories.map(memory => <button key={memory.id} type="button" onClick={() => onMemories()}>
                         <Check size={13} />{t(memory.operation === "forget" ? "Forgotten" : memory.operation === "update" ? "Agreement updated" : "Remembered")} · {memory.title}

@@ -2553,7 +2553,13 @@
 .ws-role-requirements li + li { margin-top: 4px; }
 .ws-source-panel details { padding: 14px 0; border-top: 1px solid #e1e7dd; }
 .ws-source-panel > .ws-link { display: inline-flex; margin-top: 24px; }
-.ws-message-sources button { display: inline-flex; gap: 5px; align-items: center; border: 1px solid #dce4d9; border-radius: 6px; padding: 4px 8px; color: #47684d; font-size: 12px; background: #f8faf5; cursor: pointer; }
+.ws-message-sources button { display: inline-flex; gap: 5px; align-items: center; max-width: 100%; border: 1px solid #dce4d9; border-radius: 6px; padding: 4px 8px; color: #47684d; font-size: 12px; background: #f8faf5; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+.ws-message-sources button svg { flex-shrink: 0; }
+.ws-message-source-disclosure { margin-top: 14px; }
+.ws-message-source-disclosure > summary { width: fit-content; padding: 5px 2px; color: #61725f; font-size: 12px; cursor: pointer; }
+.ws-message-source-disclosure > summary span { margin-left: 4px; font-variant-numeric: tabular-nums; }
+.ws-message-source-disclosure > summary:hover { color: #2f5039; }
+.ws-message-source-disclosure > .ws-message-sources { margin-top: 8px; }
 @media (max-width: 1000px) { .ws-source-panel { flex-basis: 300px; } }
 @media (max-width: 850px) { .ws-source-panel { position: fixed; inset: 54px 0 0; width: 100%; z-index: 40; } }
 .ws-assistant-body { display: flex; }
