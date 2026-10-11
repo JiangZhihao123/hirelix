@@ -20,3 +20,19 @@ Use for candidate/JD intake, matching, and dated client/candidate communications
 ## Matching
 
 Find the requested candidates and roles, then read relevant original/current evidence. Use specific professional experience and role requirements, not name prestige, keyword overlap or protected traits. Explain the strongest evidence, material risks, essential unknowns and the scope actually searched, without repeating the full CV or all saved-result cards. City of residence alone does not confirm office attendance, and professional experience alone does not confirm interest, availability or sharing permission. No suitable match is a valid result. Do not invent a vacancy or a global good/bad-candidate label. A request to compare does not require a saved document.
+
+## Preparing and following up a conversation
+
+- Begin with the decision or unresolved issue this conversation can advance. For a short call, prioritize a few concrete questions the recruiter can actually ask; do not recite the whole dossier.
+- Previously confirmed facts remain working facts. Do not routinely ask the recruiter to reconfirm salary, notice, interest, permission or office attendance just because they appear in a record. Reopen a point only when new evidence conflicts, a relevant condition changed, or the user requests revalidation; explain that reason briefly.
+- Assign an unknown to the person who can answer it. Client benefits or the client's target start date should be obtained from the client, not presented as questions the candidate must resolve. Separate a short known-context line from the questions for this call.
+- Phrase preparation as usable talking points or questions, not an explanation of your own method. Mention settled facts only when they help the current conversation, without repeating a full checklist of what not to ask. Use only the confirmed interview format; an interview is not necessarily a panel, technical test or case presentation.
+- A request for a short note to copy calls for usable text in the conversation, not a new saved document or email workflow. When the recruiter reports a conversation, retain its actual facts without turning availability into a confirmed interview. Make proposed interview dates and timezone explicit when the evidence supports them; preserve ambiguity when it matters.
+
+## Reviewing priorities
+
+- Recommend a small number of actions using actual commitments, dependencies and dated evidence. An offered time is a proposed slot, not a deadline or confirmed appointment. Explain urgency without inventing an expiry or promise.
+- A discussion about preparing a call does not establish that preparation or the call happened. A scheduled interview does not imply that no preparation remains. Say which known action has priority rather than claiming another mandate needs nothing.
+- For an upcoming confirmed interview, consider any still-unconfirmed preparation or logistics alongside the other mandate's scheduling needs. Recommend checking or completing them conditionally; do not infer readiness from the appointment alone.
+- A saved draft and absence of a sending receipt establish only what this workspace records. Do not assert that the recruiter has never sent the material elsewhere. Keep suggestions separate from completed work and do not save a new task or reminder merely because you recommended it.
+- Scope a dependency to the affected action: waiting for a slot choice blocks confirming that appointment, not every useful action on the mandate. Avoid absolute claims such as the only actionable work or nothing else to do without complete evidence. Skimming a draft does not establish its accuracy, sharing permission or readiness to send.

@@ -1,5 +1,7 @@
 # Client delivery
 
+When checking an existing document, use its saved content, version and successful receipts as evidence. Never infer that a previous save failed merely because the document looks long or differs from prior assistant wording. Use whitespace_word_count when assessing an English length request; an approximate target is not an exact limit. Answer the requested document question without inventing an unrelated revision failure.
+
 Use for saved recommendations, progress reports, revisions, exports and email. Adapt to current evidence and user instructions.
 
 - Read current role requirements and candidate/source records before preparing materials. Keep private records out unless the recruiter authorizes their use for this client. Preserve internal-only restrictions; authorization to use a record does not cancel a restriction on a fact within it.
@@ -8,6 +10,7 @@ Use for saved recommendations, progress reports, revisions, exports and email. A
 - For a progress report choose the actual reporting period and timezone. Use records whose event dates fall in that period, including date-only records. Undated facts remain undated; do not invent completed activity. Keep planned interviews and next steps distinct from events that already happened.
 - A recommendation may use public professional profiles and current JD evidence. Candidate-role sharing permission remains independently enforced by the business service. Select original CV files explicitly when the user asks to include them. Generating a report never grants permission or sends it.
 - Keep current facts separate from history: client changes supersede earlier requirements, while earlier communication remains part of the dated history. Follow-up revisions preserve earlier document versions. Export alone does not revise content.
+- For a wording, tone or length edit, use the selected document and its saved evidence. Do not search the whole workspace or conversation history unless a specific missing fact blocks the requested edit. Preserve its reporting period and source scope; shortening an earlier report does not authorize adding later activity. A currently selected document takes priority over an older document mentioned in chat.
 - An explicit report that the recruiter already sent a document can be recorded as delivery; a request to prepare or send is not evidence of a past delivery.
 - For email use the existing preview and confirmation service. Preparing requires recipient and concrete content. Confirmation applies only to the exact reviewed recipient, content and attachments. Do not reinterpret a changed recipient/content as confirmation of the old preview. A result marked unknown must not be automatically resent. If the recruiter says they will send it themselves, stop at the requested preparation/export.
 - Do not repeat an entire document in the reply when a saved, openable result is available. Briefly state the result and material unknowns.

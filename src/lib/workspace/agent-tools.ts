@@ -149,7 +149,7 @@ export function createAgentTools(ctx: AgentToolContext) {
         ? `/app/roles/${document.role_id}/updates/${document.id}`
         : `/app/submissions/${document.id}`;
     cite(document.title, href);
-    return { ...document, href };
+    return { ...document, href, whitespace_word_count: document.content.trim().split(/\s+/).filter(Boolean).length };
   }
   async function readSavedDocument(id: string, tx?: Runner) {
     return documentSource(
@@ -411,7 +411,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     read_role: define(
       "read_role",
-      "Read current role requirements, candidate relationships, communication records and documents. The current brief supersedes conflicting original JD requirements.",
+      "Read current role requirements, candidate relationships, communication records and a document index. Use read_document only when the actual document content is needed. The current brief supersedes conflicting original JD requirements.",
       z.object({ id: z.uuid() }),
       async (input) => {
         const result = await roleDetails(userId, input.id);
@@ -421,7 +421,17 @@ export function createAgentTools(ctx: AgentToolContext) {
         );
         return {
           ...result,
-          deliverables: result.deliverables.map(documentSource),
+          deliverables: result.deliverables.map((document) => ({
+            id: document.id,
+            title: document.title,
+            kind: document.kind,
+            status: document.status,
+            version: document.version,
+            href:
+              document.kind === "search_update"
+                ? `/app/roles/${document.role_id}/updates/${document.id}`
+                : `/app/submissions/${document.id}`,
+          })),
           href: `/app/roles/${input.id}`,
         };
       },
@@ -441,9 +451,13 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     read_document: define(
       "read_document",
-      "Read a saved document, its version, selected sources and actual delivery status.",
+      "Read the current saved document, its version, selected sources, delivery status and a compact history of saved versions. Current saved state overrides contradictory claims in earlier assistant replies.",
       z.object({ id: z.uuid() }),
-      async (input) => readSavedDocument(input.id),
+      async (input) => {
+        const document = await readSavedDocument(input.id);
+        const previous = await rows<{ version: number; content: string }>(sql`SELECT version,snapshot->>'content' AS content FROM hirelix_private_versions WHERE user_id=${userId}::uuid AND entity_type='deliverable' AND entity_id=${input.id}::uuid ORDER BY version DESC LIMIT 5`);
+        return { ...document, previous_saved_versions: previous.map(item => ({ version: item.version, whitespace_word_count: (item.content || "").trim().split(/\s+/).filter(Boolean).length })) };
+      },
     ),
     read_file: define(
       "read_file",

@@ -12,7 +12,7 @@ export const agentSkills = [
   {
     name: "recruiting-records",
     description:
-      "Read/import CVs and JDs, match candidates, save or correct candidate/client communications and role-specific permissions.",
+      "Read/import CVs and JDs, match candidates, prepare calls/interviews, review work priorities, and save or correct communications and role-specific permissions.",
   },
   {
     name: "client-delivery",
