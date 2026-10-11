@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     // Sharp loads libvips dynamically; tracing its JS entry alone omits the
     // shared library from Vercel functions.
-    "/api/workspace/**": ["./node_modules/@img/sharp-libvips-*/lib/**/*"],
+    "/api/workspace/**": ["./node_modules/@img/sharp-libvips-*/lib/**/*", "./src/lib/workspace/skills/*.md"],
     "/api/workspace/deliverables/*/export": ["./src/assets/fonts/*"],
   },
   async redirects() {

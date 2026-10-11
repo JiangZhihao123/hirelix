@@ -760,7 +760,10 @@ async function sendOfficialDeepSeekRequest(
     });
     raw = response.ok && options.onText
       ? await readCompletionStream(response, options.onText)
-      : await response.json().catch(() => null);
+      : await response.json().catch((error) => {
+          if (signal?.aborted) throw signal.reason ?? error;
+          throw error;
+        });
   } finally {
     release?.();
     cleanup();

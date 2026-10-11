@@ -67,6 +67,7 @@ export async function structured<T extends z.ZodType>(
       },
       maxOutputTokens,
       timeoutMs: 120000,
+      abortSignal: job?.signal,
       redactUsagePayload: true,
       usageEvent: { userId, jobId: job?.id, stage: attempt === 1 ? stage : `${stage}_format_retry` },
     });

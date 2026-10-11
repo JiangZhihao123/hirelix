@@ -41,7 +41,7 @@ test("real consecutive calls stay separate while a correction updates only the s
 });
 async function chat(message: string, conversation_id?: string) {
   const sent = await sendMessage(owner, { message, conversation_id, request_key: randomUUID(), locale: "en", timezone: "Europe/London" });
-  const job = await claimJob(["chat"]);
+  const job = await claimJob(["chat"], {id:sent.job.id,userId:owner});
   assert(job); assert.equal(job.id, sent.job.id);
   const timer = setInterval(() => void heartbeat(job), 20000);
   try { await finishJob(job, await assistantReply(job, message => heartbeat(job, message))); }
@@ -73,9 +73,13 @@ test("real multi-client updates preserve scoped feedback and original JDs", { ti
   const report = await prepareDeliverable(owner, {kind: "search_update", role_id: first.id, person_ids: [], record_ids: [elm.id],
     period_start: "2026-10-04T23:00:00Z", period_end: "2026-10-09T22:59:59Z", report_timezone: "Europe/London", request_key: randomUUID()});
   assert.match(JSON.stringify(report.payload.source), /"date_precision":"day"/);
-  const saved = await rows<{ id: string; jd_text: string }>(sql`SELECT id,jd_text FROM hirelix_private_roles WHERE user_id=${owner}::uuid`);
+  const saved = await rows<{ id: string; jd_text: string; brief: unknown }>(sql`SELECT id,jd_text,brief FROM hirelix_private_roles WHERE user_id=${owner}::uuid`);
   assert.equal(saved.find(r => r.id === first.id)!.jd_text, firstJd);
   assert.equal(saved.find(r => r.id === second.id)!.jd_text, secondJd);
+  assert.match(JSON.stringify(saved.find(r => r.id === first.id)!.brief), /Tuesday/);
+  assert.match(JSON.stringify(saved.find(r => r.id === first.id)!.brief), /three|3/);
+  assert.match(JSON.stringify(saved.find(r => r.id === second.id)!.brief), /Python/);
+  assert.match(JSON.stringify(saved.find(r => r.id === second.id)!.brief), /four|4/);
 });
 
 test("real combined call and permission report retains dated non-permission activity", {timeout: 240000}, async () => {

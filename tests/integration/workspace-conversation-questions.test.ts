@@ -16,7 +16,7 @@ initializeGlobalOutboundProxy();
 const owner = randomUUID();
 after(async()=>{await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${owner}::uuid`);await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);await closeDb();});
 async function execute(sent: Awaited<ReturnType<typeof sendMessage>>) {
-  const job=await claimJob(["chat"]);assert.equal(job?.id,sent.job.id);
+  const job=await claimJob(["chat"],{id:sent.job.id,userId:owner});assert.equal(job?.id,sent.job.id);
   const timer=setInterval(()=>void heartbeat(job!),20000);
   try {await finishJob(job!,await assistantReply(job!,()=>heartbeat(job!)));}finally{clearInterval(timer);}
   return conversationDetails(owner,sent.conversation_id);

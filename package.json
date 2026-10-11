@@ -31,9 +31,12 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "2.0.71",
+    "@ai-sdk/openai-compatible": "2.0.81",
     "@napi-rs/canvas": "0.1.100",
     "@openrouter/sdk": "^0.9.11",
     "@pdf-lib/fontkit": "^1.1.1",
+    "ai": "6.0.303",
     "better-auth": "^1.6.23",
     "cheerio": "^1.2.0",
     "csv-parse": "^7.0.2",

@@ -30,7 +30,8 @@ export async function generateVisionText(options: {
     const bound = Buffer.byteLength(options.system + options.prompt + JSON.stringify(options.jsonSchema ?? {})) + options.images.length * (official ? 1024 : 65536) + 512;
     maxTokens = await reserveAgentCall(job, costToCreditUnits(bound * rates.input / 1e6, multiplier), maxTokens, rates.output / 1e6 * multiplier / CREDIT_RETAIL_USD * CREDIT_UNITS);
   }
-  const response = await generateLlmText({model, system: options.system, prompt: options.prompt,
+  const response = await generateLlmText({
+    abortSignal: job?.signal,model, system: options.system, prompt: options.prompt,
     images: options.images, jsonSchema: options.jsonSchema, maxOutputTokens: maxTokens, temperature: 0.1,
     deepSeekThinking: "disabled", timeoutMs: 120000, onText: options.onText,
     redactUsagePayload: true, usageEvent: {userId: job?.user_id, jobId: job?.id, stage: options.stage},

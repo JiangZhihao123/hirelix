@@ -102,6 +102,11 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       occurred_on: z.iso.date().nullable().default(null),
     }).parse(value);
     const prior = await owned<Role>(userId, "role", action.role_id, tx, true);
+    const feedback = action.fields.feedback_record_id
+      ? await owned<SourceRecord>(userId,"record",z.uuid().parse(action.fields.feedback_record_id),tx)
+      : null;
+    if(feedback && (feedback.role_id !== prior.id || !["feedback","call","note","email"].includes(feedback.kind)))
+      throw new WorkspaceError("Choose the saved client feedback for this exact role.",409);
     const changes = roleChangesSchema.parse(action.fields.changes ?? {});
     const role = await updateRole(
       userId,
@@ -112,7 +117,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       z.number().int().positive().parse(action.fields.expected_version),
       tx,
     );
-    await addRecord(
+    if (!feedback) await addRecord(
       userId,
       {
         role_id: role.id,

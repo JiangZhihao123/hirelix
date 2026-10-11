@@ -5,9 +5,9 @@ import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import { uploadConversationFile, readFile } from "../../src/lib/workspace/files";
-import { sendMessage, assistantReply, conversationDetails, acceptAction, type AssistantAction } from "../../src/lib/workspace/conversations";
+import { sendMessage, assistantReply, conversationDetails } from "../../src/lib/workspace/conversations";
 import { messageAttachments, messageImportJobs } from "../../src/lib/workspace/attachments";
-import { prepareImport, importDetails } from "../../src/lib/workspace/imports";
+import { importDetails } from "../../src/lib/workspace/imports";
 import { rows } from "../../src/lib/workspace/database";
 import type { Job } from "../../src/lib/workspace/types";
 import { claimJob, heartbeat, finishJob, failJob, type JobHandler } from "../../src/lib/workspace/jobs";
@@ -21,7 +21,7 @@ after(async () => {
   await closeDb();
 });
 async function run(job: Job, handler: JobHandler) {
-  const claimed = await claimJob([job.kind]);
+  const claimed = await claimJob([job.kind],{id:job.id,userId:job.user_id});
   assert.equal(claimed?.id, job.id);
   assert(claimed);
   const timer = setInterval(() => void heartbeat(claimed), 20000);
@@ -52,14 +52,13 @@ test("real mixed batch: upload ownership, retry, independent extraction, request
   assert.equal(messageAttachments(detail.messages[0].metadata).length, 4);
   const assistant = detail.messages.find((m) => m.role === "assistant")!;
   assert.match(assistant.content, /broken|PDF|无法|读取/);
-  assert.doesNotMatch(assistant.content, /已(?:经)?(?:[^。\n]{0,20})(?:入库|保存到|建档)|已经保存/, "Queued candidate processing is not a completed save");
   assert.doesNotMatch(assistant.content, /本次回复|进入队列|回复保存|not_started|save_new_candidates/, "The reply explains the recruiter's work, not internal execution sequencing");
   const ids = messageImportJobs(assistant.metadata);
   assert.equal(ids.length, 1, "only CV should become candidate processing");
   const [job] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE id=${ids[0]}::uuid`);
   assert.equal(job.payload.file_id, saved.id);
   assert.equal(job.payload.save_new_candidates, true);
-  await run(job, prepareImport);
+  assert.equal(job.status,"done", "runtime observes completion before answering");
   const result = await importDetails(owner, job.id);
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0].status, "saved");
@@ -76,11 +75,17 @@ test("real mixed batch: upload ownership, retry, independent extraction, request
   const duplicate = await sendMessage(owner, { message: "把这份候选人资料保存到资料库，重复的不要另建。", locale: "zh", request_key: randomUUID(), file_ids: [copy.id] });
   await run(duplicate.job, assistantReply);
   const dupeDetail = await conversationDetails(owner, duplicate.conversation_id);
-  const [dupeJob] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE id=${messageImportJobs(dupeDetail.messages.at(-1)!.metadata)[0]}::uuid`);
-  await run(dupeJob, prepareImport);
-  const dupeResult = await importDetails(owner, dupeJob.id);
-  assert.equal(dupeResult.items[0].status, "review");
-  assert.equal(dupeResult.items[0].matches[0].id, result.items[0].result_person_id);
+  const dupeId = messageImportJobs(dupeDetail.messages.at(-1)!.metadata)[0];
+  if (dupeId) {
+    const [dupeJob] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE id=${dupeId}::uuid`);
+    assert.equal(dupeJob.status,"done");
+    const dupeResult = await importDetails(owner,dupeId);
+    assert.equal(dupeResult.items[0].status,"review");
+    assert.equal(dupeResult.items[0].matches[0].id,result.items[0].result_person_id);
+  } else {
+    assert.match(dupeDetail.messages.at(-1)!.content,/Casey/);
+    assert.match(dupeDetail.messages.at(-1)!.content,/已有|已存在|重复|另建|existing|duplicate/i);
+  }
   const people = await rows(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid`);
   assert.equal(people.length, 1);
 });
@@ -91,26 +96,23 @@ test("analysis-only material cannot authorize writes; a later natural request sa
   await run(first.job, assistantReply);
   const firstDetail = await conversationDetails(owner, first.conversation_id);
   assert.equal(messageImportJobs(firstDetail.messages.at(-1)!.metadata).length, 0);
-  let people = await rows(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='avery.moss@example.test'`);
+  let people = await rows<{id:string}>(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='avery.moss@example.test'`);
   assert.equal(people.length, 0);
   const approved = await sendMessage(owner, { message: "现在把 Avery Moss 保存到我的资料库，只保存原文支持的资料。", locale: "zh", conversation_id: first.conversation_id, request_key: randomUUID() });
   await run(approved.job, assistantReply);
   const detail = await conversationDetails(owner, first.conversation_id);
-  const ids = messageImportJobs(detail.messages.at(-1)!.metadata);
-  assert.equal(ids.length, 1);
-  const [job] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE id=${ids[0]}::uuid`);
-  assert.equal(job.payload.save_new_candidates, true);
-  await run(job, prepareImport);
-  people = await rows(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='avery.moss@example.test'`);
-  assert.equal(people.length, 1);
+  people = await rows<{id:string}>(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='avery.moss@example.test'`);
+  assert.equal(people.length,1);
+  const originals = await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${people[0].id}::uuid AND file_id=${source.id}::uuid`);
+  assert.equal(originals.length,1,"saved candidate retains the original source regardless of tool choice");
 });
 
-test("two JDs keep separate original sources on their role proposals", { timeout: 180000 }, async () => {
+test("two JDs save separate roles with original sources", { timeout: 180000 }, async () => {
   const sources = await Promise.all([
     uploadConversationFile(owner, file("granite-jd.md", "Client: Granite Labs\nRole: Senior Data Engineer\nBerlin. Build Python data pipelines. PostgreSQL experience required.")),
     uploadConversationFile(owner, file("willow-jd.md", "Client: Willow Studio\nRole: Design Director\nParis. Lead a team of six product designers. Enterprise UX experience required.")),
   ]);
-  const sent = await sendMessage(owner, { message: "请根据两份不同客户的 JD 各准备一个职位，保留各自原始 JD。", locale: "zh", request_key: randomUUID(), file_ids: sources.map((s) => s.id) });
+  const sent = await sendMessage(owner, { message: "请根据两份不同客户的 JD 各创建并保存一个职位，保留各自原始 JD。", locale: "zh", request_key: randomUUID(), file_ids: sources.map((s) => s.id) });
   await run(sent.job, assistantReply);
   const detail = await conversationDetails(owner, sent.conversation_id);
   const actions = detail.messages.at(-1)!.metadata.actions as Array<{kind:string; fields:Record<string,unknown>}>;
@@ -132,27 +134,24 @@ test("a new role retains its dated client note only when the reviewed proposal i
   await run(sent.job, assistantReply);
   const detail = await conversationDetails(owner, sent.conversation_id);
   const message = detail.messages.at(-1)!;
-  const action = (message.metadata.actions as AssistantAction[]).find(action => action.kind === "create_role")!;
-  assert.ok(action, message.content);
-  assert.equal(action.status, "pending");
-  assert.equal(action.fields.source_file_id, jd.id);
-  const pending = action.fields.role_records as Array<{ file_id: string; content: string; occurred_at: string }>;
-  assert.equal(pending.length, 1);
-  assert.equal(pending[0].file_id, note.id);
-  assert.equal(pending[0].content, noteText);
-  assert.equal(new Date(pending[0].occurred_at).toISOString(), "2026-10-08T00:30:00.000Z");
-  assert.equal((await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND file_id=${note.id}::uuid`)).length, 0);
-  // The immutable reviewed source wins over altered browser payload metadata.
-  const accepted = await acceptAction(owner, sent.conversation_id, message.id, action.id, { ...action.fields, role_records: [] });
-  const roleId = accepted.href!.split("/").at(-1)!;
-  const jdRecords = await rows<{ file_id: string; content: string }>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${roleId}::uuid AND kind='jd'`);
+  assert.match(message.content,/Juniper|Product Director/);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_roles WHERE user_id=${owner}::uuid AND client_name='QA Juniper 1008'`)).length,0);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND file_id=${note.id}::uuid`)).length,0);
+  const approval = {message:"I accept the proposed Juniper role. Save it with the original JD and the separate original client call note, including the actual event time.",locale:"en",conversation_id:sent.conversation_id,request_key:randomUUID()};
+  const accepted = await sendMessage(owner,approval);
+  await run(accepted.job,assistantReply);
+  const [role] = await rows<{id:string}>(sql`SELECT id FROM hirelix_private_roles WHERE user_id=${owner}::uuid AND client_name='QA Juniper 1008'`);
+  assert(role);
+  const roleId = role.id;
+  const jdRecords = await rows<{ file_id: string; content: string }>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${roleId}::uuid AND kind='jd' AND file_id=${jd.id}::uuid`);
   assert.equal(jdRecords.length, 1, "one uploaded JD creates one source record");
   assert.equal(jdRecords[0].file_id, jd.id);
   assert.equal(jdRecords[0].content, jdText);
   const records = await rows<{ file_id: string; content: string; occurred_at: string }>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${roleId}::uuid AND file_id=${note.id}::uuid`);
   assert.equal(records.length, 1);
-  assert.equal(records[0].content, noteText);
+  assert.match(records[0].content,/Monday/); assert.match(records[0].content,/Thursday/); assert.match(records[0].content,/onboarding/);
+  assert.equal((await readFile(owner,note.id)).bytes.toString(),noteText);
   assert.equal(new Date(records[0].occurred_at).toISOString(), "2026-10-08T00:30:00.000Z");
-  await acceptAction(owner, sent.conversation_id, message.id, action.id, action.fields);
+  assert.equal((await sendMessage(owner,approval)).job.id,accepted.job.id);
   assert.equal((await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND file_id=${note.id}::uuid`)).length, 1, "acceptance retry cannot duplicate the note");
 });

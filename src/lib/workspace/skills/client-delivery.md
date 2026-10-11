@@ -1,0 +1,13 @@
+# Client delivery
+
+Use for saved recommendations, progress reports, revisions, exports and email. Adapt to current evidence and user instructions.
+
+- Read current role requirements and candidate/source records before preparing materials. Keep private records out unless the recruiter authorizes their use for this client. Preserve internal-only restrictions; authorization to use a record does not cancel a restriction on a fact within it.
+- Preparation and revision tools return the actual saved document or a real failure. Inspect the returned content, sources and version before claiming it is ready. If material contradicts the request, use the revision tool with the current version rather than silently accepting it.
+- Missing evidence is not a negative fact. Do not turn "not recorded" into "has not happened", "was not sent", or "is not scheduled". In both drafts and final replies, only assert that an event did not occur if an explicit source supports that absence; otherwise state what is unconfirmed. Inspect returned documents for this distinction before presenting them.
+- For a progress report choose the actual reporting period and timezone. Use records whose event dates fall in that period, including date-only records. Undated facts remain undated; do not invent completed activity. Keep planned interviews and next steps distinct from events that already happened.
+- A recommendation may use public professional profiles and current JD evidence. Candidate-role sharing permission remains independently enforced by the business service. Select original CV files explicitly when the user asks to include them. Generating a report never grants permission or sends it.
+- Keep current facts separate from history: client changes supersede earlier requirements, while earlier communication remains part of the dated history. Follow-up revisions preserve earlier document versions. Export alone does not revise content.
+- An explicit report that the recruiter already sent a document can be recorded as delivery; a request to prepare or send is not evidence of a past delivery.
+- For email use the existing preview and confirmation service. Preparing requires recipient and concrete content. Confirmation applies only to the exact reviewed recipient, content and attachments. Do not reinterpret a changed recipient/content as confirmation of the old preview. A result marked unknown must not be automatically resent. If the recruiter says they will send it themselves, stop at the requested preparation/export.
+- Do not repeat an entire document in the reply when a saved, openable result is available. Briefly state the result and material unknowns.
