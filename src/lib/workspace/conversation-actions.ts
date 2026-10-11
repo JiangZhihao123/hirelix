@@ -99,6 +99,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     const input = z.object({
       brief: roleInput.shape.brief,
       occurred_at: z.iso.datetime({ offset: true }).nullable().default(null),
+      occurred_on: z.iso.date().nullable().default(null),
     }).parse(value);
     const prior = await owned<Role>(userId, "role", action.role_id, tx, true);
     const changes = roleChangesSchema.parse(action.fields.changes ?? {});
@@ -123,6 +124,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
         details: {
           source_message_id: action.fields.source_message_id,
           role_version: role.version,
+          occurred_on: input.occurred_at ? null : input.occurred_on,
         },
       },
       tx,
@@ -140,6 +142,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       ...prior,
       occurred_at: prior.occurred_at ? new Date(prior.occurred_at).toISOString() : null,
       ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== null).map(([key, value]) => [key, key === "occurred_at" && value === "" ? null : value])),
+      details: { ...prior.details, ...(changes.occurred_on !== null ? {occurred_on: changes.occurred_on || null} : {}), ...(changes.occurred_at ? {occurred_on: null} : {}) },
     }, z.number().int().positive().parse(action.fields.expected_version), tx);
     action.href = record.person_id
       ? `/app/candidates?person=${record.person_id}&record=${record.id}`

@@ -10,7 +10,7 @@ const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 async function roleSource(userId: string, id: string, tx: Runner = db) {
   const role = await owned<Role>(userId, "role", id, tx);
   const records = await rows<SourceRecord>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${userId}::uuid AND role_id=${id}::uuid AND person_id IS NULL ORDER BY id`, tx);
-  const sources = [{ id: null as string | null, content: JSON.stringify({ title: role.title, client: role.client_name, jd: role.jd_text, brief: role.brief, status: role.status }) }, ...records.map(record => ({id: record.id, content: JSON.stringify({ title: record.title, content: record.content, occurred_at: record.occurred_at })}))];
+  const sources = [{ id: null as string | null, content: JSON.stringify({ title: role.title, client: role.client_name, jd: role.jd_text, brief: role.brief, status: role.status }) }, ...records.map(record => ({id: record.id, content: JSON.stringify({ title: record.title, content: record.content, occurred_at: record.occurred_at, occurred_on: record.details.occurred_on ?? null })}))];
   const chunks = sources.flatMap(source => {
     const chars = Array.from(source.content);
     return Array.from({ length: Math.ceil(chars.length / 1600) }, (_, part) => {

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
+import { localDate } from "./record-dates";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { owned, rows, json, uuidArray, WorkspaceError, type Runner } from "./database";
@@ -81,7 +82,10 @@ export async function queueScheduledDrafts(limit = 5, now = new Date().toISOStri
         const [period] = await rows<{ start: string }>(sql`SELECT coalesce(${schedule.last_period_end}::timestamptz, ((${due}::timestamptz AT TIME ZONE ${schedule.timezone})-${schedule.interval_weeks * 7}*interval '1 day') AT TIME ZONE ${schedule.timezone}) AS start`, tx);
         const start = new Date(period.start).toISOString();
         const records = await rows<{ id: string; version: number }>(sql`SELECT id,version FROM hirelix_private_records
-          WHERE user_id=${schedule.user_id}::uuid AND occurred_at>${start}::timestamptz AND occurred_at<=${now}::timestamptz
+          WHERE user_id=${schedule.user_id}::uuid AND (
+            (occurred_at>${start}::timestamptz AND occurred_at<=${now}::timestamptz)
+            OR (occurred_at IS NULL AND details->>'occurred_on'>=${localDate(start, schedule.timezone)} AND details->>'occurred_on'<=${localDate(now, schedule.timezone)})
+          )
           AND ((${schedule.include_role_records} AND role_id=${schedule.role_id}::uuid AND person_id IS NULL)
           OR (${schedule.include_candidate_records} AND person_id=ANY(${uuidArray(schedule.person_ids)}) AND (role_id IS NULL OR role_id=${schedule.role_id}::uuid)))
           ORDER BY occurred_at,id LIMIT 101`, tx);

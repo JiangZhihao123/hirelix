@@ -54,6 +54,7 @@ async function candidateSource(
         kind: record.kind,
         content: record.content,
         occurred_at: record.occurred_at,
+        occurred_on: record.details.occurred_on ?? null,
         recorded_at: record.created_at,
         role_id: record.role_id,
         source_url: record.source_url,

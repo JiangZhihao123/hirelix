@@ -1,5 +1,6 @@
 "use client";
 
+import { recordLocalDate } from "@/lib/workspace/record-dates";
 import { SourceContent } from "@/components/workspace/source-content";
 
 import { useLanguage, useT } from "@/components/LanguageProvider";
@@ -551,7 +552,7 @@ function CandidateDetails({
             {conversation ? (
               <>
                 <small>
-                  {date(conversation.occurred_at)} ·{" "}
+                  {(conversation.occurred_at ? date(conversation.occurred_at) : recordLocalDate(conversation, "UTC") || "—")} ·{" "}
                   {conversation.kind === "call" ? t("Call note") : t("Email record")}
                 </small>
                 <p className="mt-2">{conversation.content}</p>
@@ -693,7 +694,7 @@ function CandidateDetails({
                   </button>
                 </div>
                 <small>
-                  {t("Happened")} {date(item.occurred_at, true)} {t("· Added")}{" "}
+                  {t("Happened")} {(item.occurred_at ? date(item.occurred_at, true) : recordLocalDate(item, "UTC") || "—")} {t("· Added")}{" "}
                   {date(item.created_at, true)}
                 </small>
                 <SourceContent content={item.content} />

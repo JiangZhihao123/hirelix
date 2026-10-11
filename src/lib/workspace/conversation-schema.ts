@@ -11,6 +11,7 @@ export const recordChangesSchema = z.object({
   title: z.string().min(1).max(300).nullable(),
   content: z.string().min(1).max(100000).nullable(),
   occurred_at: z.union([z.iso.datetime({ offset: true }), z.literal("")]).nullable(),
+  occurred_on: z.union([z.iso.date(), z.literal("")]).nullable().default(null),
 }).refine(value => Object.values(value).some(item => item !== null), "Specify the record fields to change");
 export const planSchema = z.object({
   email: emailPlanSchema,
@@ -115,6 +116,7 @@ export const replySchema = z.object({
           title: z.string(),
           content: z.string(),
           occurred_at: z.iso.datetime({ offset: true }).nullable(),
+          occurred_on: z.iso.date().nullable().default(null),
         })).max(MAX_CONVERSATION_FILES).default([]),
         record: z
           .object({
@@ -122,6 +124,7 @@ export const replySchema = z.object({
             title: z.string(),
             content: z.string(),
             occurred_at: z.iso.datetime({ offset: true }).nullable(),
+            occurred_on: z.iso.date().nullable().default(null),
           })
           .nullable(),
         sharing_permission: z.enum(["confirmed", "declined"]).nullable(),

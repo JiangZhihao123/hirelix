@@ -10,6 +10,7 @@ import { sendMessage, assistantReply, conversationDetails } from "../../src/lib/
 import { claimJob, heartbeat, finishJob, failJob } from "../../src/lib/workspace/jobs";
 import { rows } from "../../src/lib/workspace/database";
 import type { SourceRecord } from "../../src/lib/workspace/types";
+import { prepareDeliverable } from "../../src/lib/workspace/deliverables";
 
 const database = new URL(process.env.DATABASE_URL || "postgresql://invalid/invalid");
 assert.ok(["localhost", "127.0.0.1"].includes(database.hostname) && database.pathname.startsWith("/hirelix_workspace_qa_"));
@@ -66,8 +67,24 @@ test("real multi-client updates preserve scoped feedback and original JDs", { ti
   for (const record of records) {
     assert.match(record.content, /5 October 2026|2026-10-05|October 5,? 2026/);
     assert(record.details.source_message_id, "retain the original shared message as provenance");
+    assert.equal(record.occurred_at, null);
+    assert.equal(record.details.occurred_on, "2026-10-05");
   }
+  const report = await prepareDeliverable(owner, {kind: "search_update", role_id: first.id, person_ids: [], record_ids: [elm.id],
+    period_start: "2026-10-04T23:00:00Z", period_end: "2026-10-09T22:59:59Z", report_timezone: "Europe/London", request_key: randomUUID()});
+  assert.match(JSON.stringify(report.payload.source), /"date_precision":"day"/);
   const saved = await rows<{ id: string; jd_text: string }>(sql`SELECT id,jd_text FROM hirelix_private_roles WHERE user_id=${owner}::uuid`);
   assert.equal(saved.find(r => r.id === first.id)!.jd_text, firstJd);
   assert.equal(saved.find(r => r.id === second.id)!.jd_text, secondJd);
+});
+
+test("real combined call and permission report retains dated non-permission activity", {timeout: 240000}, async () => {
+  const person = await createPerson(owner, {name: "Jordan Moss Week", headline: "Data Engineer"});
+  const role = await createRole(owner, {title: "Data Engineer", client_name: "Fictional Birch", jd_text: "UK remote data engineering. One on-call week in eight."});
+  await chat("Friday 9 October 2026 at 10:00 Europe/London I spoke with Jordan Moss Week about Fictional Birch's Data Engineer role. Jordan accepts the one-week-in-eight on-call rota, expects GBP 105,000, has one month's notice and UK right to work. Jordan also permits sharing the CV with Birch for this role only. They agreed a future first interview on Tuesday 13 October at 14:00 Europe/London. Save this update and future interview; I handled the communication myself.");
+  const records = await rows<SourceRecord>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${person.id}::uuid AND role_id=${role.id}::uuid`);
+  const [relation] = await rows<{permission:string;permission_record_id:string}>(sql`SELECT permission,permission_record_id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND person_id=${person.id}::uuid AND role_id=${role.id}::uuid`);
+  assert.equal(relation.permission,"confirmed");
+  const calls = records.filter(r => r.id !== relation.permission_record_id && r.kind === "call");
+  assert(calls.some(r => /105[,.]?000/.test(r.content) && /eight|8/.test(r.content) && new Date(r.occurred_at!).toISOString() === "2026-10-09T09:00:00.000Z"), "non-permission call facts must remain a dated source for the weekly report");
 });

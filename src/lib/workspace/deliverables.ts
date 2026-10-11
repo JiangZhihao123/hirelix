@@ -15,6 +15,7 @@ import {
 import { structured } from "./ai";
 import { ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import { addRecord } from "./records";
+import { recordLocalDate, recordWithinPeriod } from "./record-dates";
 import { personalWritingPreferences, PERSONAL_MEMORY_USE_RULES } from "./memories";
 import type { Deliverable, Job, Person, Role, SourceRecord } from "./types";
 import type { JobHandler } from "./jobs";
@@ -157,9 +158,7 @@ export async function prepareDeliverable(
         throw new WorkspaceError("A selected record is not part of this role");
       if (
         input.kind === "search_update" &&
-        (!record.occurred_at ||
-          new Date(record.occurred_at) < new Date(input.period_start!) ||
-          new Date(record.occurred_at) > new Date(input.period_end!))
+        !recordWithinPeriod(record, input.period_start!, input.period_end!, input.report_timezone ?? "UTC")
       )
         throw new WorkspaceError(
           "Only records that happened within the reporting period can be included",
@@ -172,9 +171,8 @@ export async function prepareDeliverable(
         kind: record.kind,
         person_id: record.person_id,
         occurred_at: record.occurred_at,
-        occurred_local_date: record.occurred_at && input.report_timezone
-          ? new Intl.DateTimeFormat("en-CA", { timeZone: input.report_timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(record.occurred_at))
-          : null,
+        occurred_local_date: recordLocalDate(record, input.report_timezone ?? "UTC"),
+        date_precision: record.occurred_at ? "timestamp" : recordLocalDate(record, input.report_timezone ?? "UTC") ? "day" : "unknown",
         source_url: record.source_url,
       });
     }

@@ -1,5 +1,6 @@
 "use client";
 
+import { recordLocalDate } from "@/lib/workspace/record-dates";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
@@ -441,7 +442,7 @@ export default function RolePage({
                     <div>
                       <h4>{item.title}</h4>
                       <small>
-                        {t(item.kind)} {t("· Happened")} {date(item.occurred_at, true)} {t("· Added")} {date(item.created_at, true)}
+                        {t(item.kind)} {t("· Happened")} {(item.occurred_at ? date(item.occurred_at, true) : recordLocalDate(item, "UTC") || "—")} {t("· Added")} {date(item.created_at, true)}
                       </small>
                     </div>
                     <button
@@ -520,7 +521,7 @@ export default function RolePage({
                   onClick={() => setTab("activity")}
                 >
                   <strong>{item.title}</strong>
-                  <small>{item.occurred_at ? date(item.occurred_at) : locale === "zh" ? `记录于 ${date(item.created_at)} · 事件日期未记录` : `Recorded ${date(item.created_at)} · event date unknown`}</small>
+                  <small>{item.occurred_at ? date(item.occurred_at) : recordLocalDate(item, "UTC") || (locale === "zh" ? `记录于 ${date(item.created_at)} · 事件日期未记录` : `Recorded ${date(item.created_at)} · event date unknown`)}</small>
                 </button>
               ))}
             <button className="ws-link mt-3" onClick={() => ask(locale === "zh" ? "帮我记录这个职位的新反馈。" : "Help me record new feedback for this role.")}>
