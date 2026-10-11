@@ -2317,7 +2317,11 @@
 .ws-agent-text td {
   border: 1px solid #dce5da;
   padding: 5px 9px;
+  min-width: 6em;
   text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .ws-agent-text th {
   background: #f3f7f1;
