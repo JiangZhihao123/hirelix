@@ -170,6 +170,10 @@ export async function renderDocument(
       }
     }
     if (line.trim()) lines.push(line.trimEnd());
+    // Keep a paragraph or list item together when it fits on one page.
+    // Otherwise a short trailing line can be stranded at the top of a page.
+    const blockHeight = lines.length * lineHeight;
+    if (blockHeight <= height - margin * 2 && y - blockHeight < margin) newPage();
     for (const lineText of lines) {
       if (y - lineHeight < margin) newPage();
       y -= lineHeight;

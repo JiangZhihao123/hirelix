@@ -2,7 +2,7 @@ import type { Job } from "./types";
 
 export type TurnActivityEntry = { label: string; at: string };
 export type TurnSnapshot = Pick<Job, "id" | "status" | "progress" | "error" | "updated_at"> & {
-  result: { live_reply?: string; message_id?: string; activity: TurnActivityEntry[] };
+  result: { live_reply?: string; message_id?: string; receipt_message_id?: string; receipt_count: number; activity: TurnActivityEntry[] };
 };
 
 export function turnActivity(result: Record<string, unknown> | null): TurnActivityEntry[] {
@@ -19,6 +19,8 @@ export function turnSnapshot(job: Pick<Job, "id" | "status" | "progress" | "erro
     result: {
       live_reply: typeof job.result?.live_reply === "string" ? job.result.live_reply : "",
       ...(typeof job.result?.message_id === "string" ? { message_id: job.result.message_id } : {}),
+      receipt_message_id: typeof job.result?.receipt_message_id === "string" ? job.result.receipt_message_id : undefined,
+      receipt_count: Object.keys((job.result?.tool_receipts ?? {}) as Record<string, unknown>).length,
       activity: turnActivity(job.result),
     },
   };

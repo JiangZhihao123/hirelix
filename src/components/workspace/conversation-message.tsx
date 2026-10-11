@@ -3,7 +3,7 @@
 import { ConversationExports } from "./document-download";
 import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
-import { TurnHistory } from "./turn-activity";
+import { TurnHistory, TurnActivity } from "./turn-activity";
 import { turnActivity } from "@/lib/workspace/turn-progress";
 import Link from "next/link";
 import { ArrowUpRight, Paperclip, Check, Copy } from "lucide-react";
@@ -17,7 +17,7 @@ import { ConversationImport } from "./import-review";
 import { AssistantWork, AssistantAgreement, ConversationRevision } from "./assistant-work";
 import { messageAttachments, messageImportJobs } from "@/lib/workspace/attachments";
 import type { AssistantAction, AssistantMeta } from "@/lib/workspace/conversations";
-import type { Message, Deliverable } from "@/lib/workspace/types";
+import type { Message, Deliverable, Job } from "@/lib/workspace/types";
 
 function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantMeta["sources"]>; onSource: (source: { title: string; href: string }) => void }) {
   const t = useT();
@@ -32,7 +32,8 @@ function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantM
   </details> : links;
 }
 
-export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId }: {
+export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob }: {
+  activeJob?: Job;
   message: Message; importRefresh?: string; laterScheduleIds: string[]; onReady: () => void;
   onRevise: (document: Deliverable) => void; onMemories: () => void;
   onSource: (source: {title: string; href: string}) => void;
@@ -57,10 +58,15 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       </div>
                     )}
                     <div className="ws-message-prose">
-                      <AgentText content={message.metadata.turn_status === "cancelled" ? "" : message.content} onOpenLink={href => {
+                      <AgentText content={message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : message.content} onOpenLink={href => {
                         const source = metadata.sources?.find(item => item.href === href);
-                        if (!source) return false;
-                        onSource(source); return true;
+                        if (source) { onSource(source); return true; }
+                        // A saved document may be cited from earlier conversation
+                        // context without being read again in this turn.
+                        let url: URL;
+                        try { url = new URL(href, window.location.origin); } catch { return false; }
+                        if (url.origin !== window.location.origin || !/^\/app\/(?:submissions|roles\/[a-f0-9-]+\/updates)\/[a-f0-9-]+$/.test(url.pathname)) return false;
+                        onSource({ title: t("Saved document"), href: url.pathname }); return true;
                       }} />
                       {messageAttachments(message.metadata).map((file) => (
                         <button key={file.file_id} type="button" className="ws-chat-attachment" onClick={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})}>
@@ -69,7 +75,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         </button>
                       ))}
                     </div>
-                    {message.role === "assistant" && <TurnHistory entries={turnActivity(message.metadata)} status={message.metadata.turn_status === "cancelled" ? "cancelled" : "done"} />}
+                    {activeJob ? <TurnActivity job={activeJob} embedded /> : message.role === "assistant" && <TurnHistory entries={turnActivity(message.metadata)} status={message.metadata.turn_status === "cancelled" ? "cancelled" : "done"} />}
                     {message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
@@ -139,7 +145,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     ))}
                     <div className="ws-message-tools">
                       {message.role === "user" && <time dateTime={message.created_at}>{date(message.created_at, true)}</time>}
-                      {message.metadata.turn_status !== "cancelled" && <button
+                      {message.content && message.metadata.turn_status !== "cancelled" && <button
                         type="button"
                         onClick={() => onCopy(message.id, message.content)}
                         aria-label={t("Copy message")}

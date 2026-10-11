@@ -167,6 +167,7 @@ export function AssistantWorkspace({
   useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = isTurnRunning(job);
   const finalMessageVisible = !!job?.result?.message_id && !!query.data?.messages.some(message => message.id === job.result?.message_id);
+  const receiptMessageVisible = !!job?.result?.receipt_message_id && !!query.data?.messages.some(message => message.id === job.result?.receipt_message_id);
   const hasAgreement = query.data?.messages.some(message => ((message.metadata as AssistantMeta).schedules?.length || (message.metadata as AssistantMeta).reminders?.length || (message.metadata as AssistantMeta).question?.status === "waiting"));
   const delegatedPending = query.data?.work?.some(work => ["queued", "running"].includes(work.status));
   const refreshConversation = query.refresh;
@@ -622,6 +623,7 @@ export function AssistantWorkspace({
               </div>
             ) : (
               query.data?.messages.map((message, index) => <ConversationMessage key={message.id} message={message}
+                activeJob={pending && job?.result?.receipt_message_id === message.id ? job : undefined}
                 importRefresh={job?.status === "done" ? job.id : undefined}
                 laterScheduleIds={query.data!.messages.slice(index + 1).flatMap(item => (item.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
                 onReady={query.refresh} onRevise={document => { setRevisionTarget(document); setDraft(`${document.title}: ${t("Please revise the document: ")}`); composer.current?.focus(); }}
@@ -645,7 +647,7 @@ export function AssistantWorkspace({
                   </div>
                 </article>
               )}
-            {(sending || (job && !finalMessageVisible && (pending || job.status === "done" || job.status === "cancelled" || !!job.result?.live_reply)) || (optimistic && conversationId && !query.data)) && (
+            {(sending || (job && !finalMessageVisible && !receiptMessageVisible && (pending || job.status === "done" || job.status === "cancelled" || !!job.result?.live_reply)) || (optimistic && conversationId && !query.data)) && (
               <TurnActivity job={sending ? null : job} disconnected={!sending && disconnected} receivingFiles={sending && attachments.length > 0} />
             )}
             {job?.status === "error" && (

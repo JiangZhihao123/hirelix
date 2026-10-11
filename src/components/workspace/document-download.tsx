@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "@/components/LanguageProvider";
 import { ErrorNotice, useQuery } from "./client";
 import { DocumentAttachments } from "./document-attachments";
@@ -33,5 +33,11 @@ export function DocumentDownloads({ document, onRefresh, formats = ["pdf", "docx
 export function ConversationExports({ documentId, formats }: { documentId: string; formats: Array<"pdf" | "docx"> }) {
   const t = useT();
   const query = useQuery<{deliverable: Deliverable}>(`/deliverables/${documentId}`);
+  const refresh = query.refresh;
+  useEffect(() => {
+    window.addEventListener("hirelix:work-changed",refresh);
+    window.addEventListener("hirelix:document-changed",refresh);
+    return () => { window.removeEventListener("hirelix:work-changed",refresh); window.removeEventListener("hirelix:document-changed",refresh); };
+  },[refresh]);
   return <section className="ws-assistant-delivery ws-conversation-exports"><ErrorNotice error={query.error} retry={query.refresh} />{query.data && <><strong>{query.data.deliverable.title}</strong><p>{t("Saved version")} {query.data.deliverable.version}</p><DocumentDownloads document={query.data.deliverable} formats={formats} onRefresh={query.refresh} /><DocumentAttachments document={query.data.deliverable} /></>}</section>;
 }

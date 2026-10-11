@@ -67,6 +67,7 @@ export const uiZh: Record<string, string> = {
   "Your personal AI assistant for headhunting. Share the goal and the context; I’ll carry the work forward.": "你的专属猎头 AI 助理。交代目标，发来资料，我会接着往下办。",
   "Prepared work": "工作交付",
   "Candidate recommendation": "候选人推荐稿",
+  "Internal document": "内部文档",
   "Preparing…": "正在准备…",
   "Saved draft · Nothing has been sent": "草稿已保存 · 尚未发送",
   "Saved · Nothing has been sent": "已保存 · 尚未发送",

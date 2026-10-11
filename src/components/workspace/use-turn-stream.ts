@@ -10,6 +10,7 @@ export function useTurnStream(job: Job | null | undefined, onComplete: () => voi
   useEffect(() => {
     if (!id || !running) return;
     let reconnectNotice: ReturnType<typeof setTimeout> | undefined;
+    let receiptCount = 0;
     const connection = new EventSource(`/api/workspace/jobs/${id}/stream`);
     connection.addEventListener("snapshot", event => {
       const update = JSON.parse((event as MessageEvent).data) as TurnSnapshot;
@@ -21,7 +22,8 @@ export function useTurnStream(job: Job | null | undefined, onComplete: () => voi
         ...update.result,
         ...(update.status === "done" && !update.result.live_reply && previous?.id === id ? {live_reply: previous.result.live_reply} : {}),
       }}));
-      if (!isTurnRunning(update)) { connection.close(); onComplete(); }
+      if (!isTurnRunning(update)) { connection.close(); window.dispatchEvent(new Event("hirelix:work-changed")); onComplete(); }
+      else if (update.result.receipt_count !== receiptCount) { receiptCount = update.result.receipt_count; onComplete(); }
     });
     connection.onerror = () => {
       // Brief reconnects at the server's connection limit don't disturb a turn.

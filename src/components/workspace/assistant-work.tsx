@@ -26,6 +26,7 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen }: { receipt:
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const refresh = query.refresh;
   const refreshDocument = document.refresh;
+  useEffect(() => { const changed = () => { refresh(); refreshDocument(); }; window.addEventListener("hirelix:work-changed", changed); return () => window.removeEventListener("hirelix:work-changed", changed); }, [refresh, refreshDocument]);
   useEffect(() => { window.addEventListener("hirelix:document-changed", refreshDocument); return () => window.removeEventListener("hirelix:document-changed", refreshDocument); }, [refreshDocument]);
   useEffect(() => {
     if (!job || ["queued", "running"].includes(job.status)) {
@@ -48,10 +49,10 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen }: { receipt:
   }
   const draft = document.data?.deliverable;
   return <section className="ws-assistant-delivery" aria-label={t("Prepared work")}>
-    <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : ["error", "cancelled"].includes(job?.status || "") ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{t(receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</strong><small>{receipt.title}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Saved" : job?.status === "cancelled" ? "Stopped" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
+    <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : ["error", "cancelled"].includes(job?.status || "") ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{t(draft?.source_snapshot.audience === "internal" ? "Internal document" : receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</strong><small>{receipt.title}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Saved" : job?.status === "cancelled" ? "Stopped" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
     <ErrorNotice error={error || query.error || job?.error || document.error} retry={job?.status === "error" && !busy ? retry : query.error ? query.refresh : document.error ? document.refresh : undefined} />
     {job && ["queued", "running"].includes(job.status) && <button className="ws-button" disabled={busy} onClick={stop}>{t("Stop")}</button>}
-    {draft && <><details open><summary>{draft.title}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details><footer><small>{t(draft.status === "submitted" ? "Marked as submitted" : "Saved · Nothing has been sent")}</small><div><button className="ws-button" onClick={() => onRevise(draft)}>{t("Ask for a revision")}</button><button className="ws-button" onClick={() => onOpen ? onOpen(draft) : window.location.assign(draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`)}>{t("Open document")}<ArrowUpRight size={13} /></button><DocumentDownloads document={draft} onRefresh={document.refresh} /></div></footer></>}
+    {draft && <><details><summary>{draft.title}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details><footer><small>{t(draft.status === "submitted" ? "Marked as submitted" : "Saved · Nothing has been sent")}</small><div><button className="ws-button" onClick={() => onRevise(draft)}>{t("Ask for a revision")}</button><button className="ws-button" onClick={() => onOpen ? onOpen(draft) : window.location.assign(draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`)}>{t("Open document")}<ArrowUpRight size={13} /></button><DocumentDownloads document={draft} onRefresh={document.refresh} /></div></footer></>}
     {draft && <DocumentAttachments document={draft} />}
     {job?.status === "done" && !draft && !document.error && <p>{t("Opening your draft…")}</p>}
   </section>;

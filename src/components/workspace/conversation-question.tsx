@@ -30,10 +30,10 @@ export function ConversationQuestion({question, conversationId, messageId, onCha
     } catch(cause) {setError(cause instanceof Error ? cause.message : "Could not continue. Your answer is kept."); onChanged();}
     finally {setBusy(false);}
   }
-  if(question.status !== "waiting") return <section className="ws-question-card"><strong>{t(question.status === "answered" ? "Answered" : "Request cancelled")}</strong><p>{question.question}</p>{question.answer && <p>{question.answer}</p>}</section>;
+  if(question.status !== "waiting") return <section className="ws-question-card"><strong>{t(question.status === "answered" ? "Answered" : "Request cancelled")}</strong><p>{question.question}</p></section>;
   return <section className="ws-question-card" role="region" aria-label={t("Your answer is needed")}>
     <strong>{t("Your answer is needed")}</strong><p>{question.question}</p>
-    <div className="ws-question-options">{question.options.map((option,index)=><button key={index} type="button" className="ws-button" aria-pressed={answer===option} disabled={busy} onClick={()=>edit(option)}>{option}</button>)}</div>
+    <div className="ws-question-options" role="radiogroup" aria-label={question.question}>{question.options.map((option,index)=><label key={index} className="ws-button" data-selected={answer===option}><input type="radio" name={`answer-${messageId}`} checked={answer===option} disabled={busy} onChange={()=>edit(option)} />{option}</label>)}</div>
     <form onSubmit={event=>{event.preventDefault();void respond();}}>
       <label>{t("Your answer")}<textarea value={answer} onChange={event=>edit(event.target.value)} maxLength={50000} rows={2} disabled={busy} placeholder={t("Choose an option or write your own answer…")} /></label>
       <ErrorNotice error={error} />
