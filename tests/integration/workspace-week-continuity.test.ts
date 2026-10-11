@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
 import { createRole } from "../../src/lib/workspace/roles";
+import { createPerson } from "../../src/lib/workspace/people";
 import { sendMessage, assistantReply, conversationDetails } from "../../src/lib/workspace/conversations";
 import { claimJob, heartbeat, finishJob, failJob } from "../../src/lib/workspace/jobs";
 import { rows } from "../../src/lib/workspace/database";
@@ -18,6 +19,24 @@ const owner = randomUUID();
 after(async () => {
   await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
   await closeDb();
+});
+
+test("real consecutive calls stay separate while a correction updates only the second call", { timeout: 240000 }, async () => {
+  const person = await createPerson(owner, {name: "Riley Vale Week", headline: "Product Lead", location: "Bristol"});
+  const first = await chat("On Tuesday 6 October 2026 at 10:00 Europe/London I spoke with Riley Vale Week. Expected base GBP 160,000; three months' notice. Current base GBP 145,000 must remain internal and never go into client materials. Save the call note.");
+  const notes = () => rows<SourceRecord>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${person.id}::uuid AND kind='call' ORDER BY occurred_at`);
+  const [initial] = await notes(); assert(initial);
+  await chat("Spoke to Riley again on Wednesday 7 October 2026 at 11:00 Europe/London. After discussing the scope, Riley would move for GBP 158,000 and does not want to manage more than five PMs. Save this conversation.", first.conversation.id);
+  const separate = await notes();
+  assert.equal(separate.length, 2, "a later conversation is a new event, not a correction of the first one");
+  assert.equal(separate[0].id, initial.id); assert.equal(separate[0].content, initial.content); assert.equal(separate[0].version, initial.version);
+  assert.match(separate[1].content, /158[,.]?000/);
+  const corrected = await chat("Sorry, Riley said GBP 155,000 in Wednesday's call, not GBP 158,000. Correct that figure; keep everything else.", first.conversation.id);
+  const final = await notes(); assert.equal(final.length, 2, corrected.messages.at(-1)!.content);
+  assert.equal(final[0].content, initial.content); assert.equal(final[0].version, initial.version);
+  assert.equal(final[1].id, separate[1].id); assert.equal(final[1].version, separate[1].version + 1);
+  assert.match(final[1].content, /155[,.]?000/); assert.match(final[1].content, /five|5/);
+  assert.equal(new Date(final[1].occurred_at!).toISOString(), "2026-10-07T10:00:00.000Z");
 });
 async function chat(message: string, conversation_id?: string) {
   const sent = await sendMessage(owner, { message, conversation_id, request_key: randomUUID(), locale: "en", timezone: "Europe/London" });
