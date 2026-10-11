@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useT } from "@/components/LanguageProvider";
 import { ErrorNotice, useQuery } from "./client";
+import { DocumentAttachments } from "./document-attachments";
 import type { Deliverable } from "@/lib/workspace/types";
 
 export async function downloadDocument(document: Pick<Deliverable, "id" | "version" | "title">, format: "pdf" | "docx") {
@@ -32,5 +33,5 @@ export function DocumentDownloads({ document, onRefresh, formats = ["pdf", "docx
 export function ConversationExports({ documentId, formats }: { documentId: string; formats: Array<"pdf" | "docx"> }) {
   const t = useT();
   const query = useQuery<{deliverable: Deliverable}>(`/deliverables/${documentId}`);
-  return <section className="ws-assistant-delivery ws-conversation-exports"><ErrorNotice error={query.error} retry={query.refresh} />{query.data && <><strong>{query.data.deliverable.title}</strong><p>{t("Saved version")} {query.data.deliverable.version}</p><DocumentDownloads document={query.data.deliverable} formats={formats} onRefresh={query.refresh} /></>}</section>;
+  return <section className="ws-assistant-delivery ws-conversation-exports"><ErrorNotice error={query.error} retry={query.refresh} />{query.data && <><strong>{query.data.deliverable.title}</strong><p>{t("Saved version")} {query.data.deliverable.version}</p><DocumentDownloads document={query.data.deliverable} formats={formats} onRefresh={query.refresh} /><DocumentAttachments document={query.data.deliverable} /></>}</section>;
 }

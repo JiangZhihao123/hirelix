@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DocumentDownloads } from "./document-download";
+import { DocumentAttachments } from "./document-attachments";
 import { Check, Clock3, FileText, Loader2, ArrowUpRight } from "lucide-react";
 import { AgentText } from "@/components/AgentText";
 import { useLanguage, useT } from "@/components/LanguageProvider";
@@ -51,6 +52,7 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen }: { receipt:
     <ErrorNotice error={error || query.error || job?.error || document.error} retry={job?.status === "error" && !busy ? retry : query.error ? query.refresh : document.error ? document.refresh : undefined} />
     {job && ["queued", "running"].includes(job.status) && <button className="ws-button" disabled={busy} onClick={stop}>{t("Stop")}</button>}
     {draft && <><details open><summary>{draft.title}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details><footer><small>{t(draft.status === "submitted" ? "Marked as submitted" : "Saved · Nothing has been sent")}</small><div><button className="ws-button" onClick={() => onRevise(draft)}>{t("Ask for a revision")}</button><button className="ws-button" onClick={() => onOpen ? onOpen(draft) : window.location.assign(draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`)}>{t("Open document")}<ArrowUpRight size={13} /></button><DocumentDownloads document={draft} onRefresh={document.refresh} /></div></footer></>}
+    {draft && <DocumentAttachments document={draft} />}
     {job?.status === "done" && !draft && !document.error && <p>{t("Opening your draft…")}</p>}
   </section>;
 }

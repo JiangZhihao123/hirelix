@@ -2517,6 +2517,18 @@
 .ws-assistant-delivery > footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 18px; background: #fafbf7; border-top: 1px solid #e7e8e3; }
 .ws-assistant-delivery > footer > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .ws-assistant-delivery .ws-error { margin: 12px; }
+.ws-document-attachments { margin: 18px 0; padding-top: 16px; border-top: 1px solid var(--ws-border, #dde3dd); }
+.ws-document-attachments h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.ws-document-attachments > p { margin: 0 0 12px; font-size: 12px; line-height: 1.6; }
+.ws-document-attachment { display: grid; gap: 9px; padding: 12px 0; }
+.ws-document-attachment + .ws-document-attachment { border-top: 1px solid var(--ws-border, #dde3dd); }
+.ws-document-attachment > div:first-child { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.ws-document-attachment svg { flex-shrink: 0; }
+.ws-document-attachment > div:first-child > svg { margin-top: 3px; color: #6f7b69; }
+.ws-document-attachment strong { display: block; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.ws-document-attachment small { display: block; margin-top: 3px; color: #6f746a; font-size: 11px; }
+.ws-document-attachment .ws-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.ws-assistant-delivery > .ws-document-attachments { margin: 0; padding: 16px 18px; }
 .ws-assistant-agreement { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; margin: 18px 0; background: #f5f7f0; border: 1px solid #e1e6d8; border-radius: 12px; color: #47573b; }
 .ws-assistant-agreement > div { flex: 1; min-width: 0; }
 .ws-assistant-agreement strong { font-size: 13px; }

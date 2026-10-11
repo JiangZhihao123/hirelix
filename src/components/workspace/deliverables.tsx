@@ -1,6 +1,7 @@
 "use client";
 
 import { downloadDocument } from "./document-download";
+import { DocumentAttachments } from "./document-attachments";
 import {
   useCallback,
   useEffect,
@@ -29,7 +30,6 @@ import { AgentText } from "@/components/AgentText";
 import type {
   Deliverable,
 } from "@/lib/workspace/types";
-import type { SubmissionCv } from "@/lib/workspace/deliverables";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import type { Locale } from "@/lib/locale";
 
@@ -187,7 +187,6 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
     role?: { title: string; client_name: string; version: number };
     people?: Array<{ id: string; name: string; sharing_permission?: string }>;
     records?: Array<{ id: string; title: string; person_id: string | null }>;
-    files?: SubmissionCv[];
     captured_at?: string;
     language?: Locale;
     audience?: "client" | "internal";
@@ -387,40 +386,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               </button>
             )}
           </section>
-          <section className="ws-section">
-            {document.kind === "submission" && (
-              <>
-                <h3>{t("CV attachments")}</h3>
-                <p className="ws-muted">
-                  {t("Only the files listed here were selected for this submission. Review and download each before sharing. PDF and DOCX exports contain the written recommendation only.")}
-                </p>
-                {source.people?.map((person) => {
-                  const file = source.files?.find(
-                    (item) => item.person_id === person.id,
-                  );
-                  return (
-                    <div className="ws-attachment-person" key={person.id}>
-                      <strong>{person.name}</strong>
-                      {file ? (
-                        <a
-                          className="ws-detail-link"
-                          href={`/api/workspace/files/${file.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {file.name} <ArrowUpRight size={12} />
-                        </a>
-                      ) : (
-                        <p className="ws-muted">
-                          {t("No CV selected for this person.")}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </section>
+          <DocumentAttachments document={document} showEmpty />
           <section className="ws-section">
             <h3>{t("Draft language")}</h3>
             <p>{source.language === "zh" ? "中文" : t("English")}</p>
