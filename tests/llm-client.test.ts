@@ -5,7 +5,23 @@ import {
   getDefaultLlmModel,
   getLightweightLlmModel,
   normalizeLlmModelForCurrentProvider,
+  assertLlmOutputComplete,
+  LlmOutputTruncatedError,
 } from "../src/lib/llm-client";
+
+test("reasoning-only and partial JSON truncation retain usage instead of becoming empty-content retries", () => {
+  for (const content of ["", '{"answer":"Saved']) {
+    const response = { choices: [{ message: { content }, finish_reason: "length" }], usage: { prompt_tokens: 1200, completion_tokens: 7000 } };
+    assert.throws(() => assertLlmOutputComplete(response, 7000), error => {
+      assert(error instanceof LlmOutputTruncatedError);
+      assert.equal(error.outputTokenLimit, 7000);
+      assert.equal(error.usage?.outputTokens, 7000);
+      assert.equal(error.rawResponse, response);
+      return true;
+    });
+  }
+  assert.doesNotThrow(() => assertLlmOutputComplete({choices: [{finish_reason: "stop"}]}, 7000));
+});
 
 const mutableEnv = process.env as Record<string, string | undefined>;
 

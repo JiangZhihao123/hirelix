@@ -716,6 +716,7 @@ async function generateOfficialDeepSeekText(
         latencyMs: Date.now() - startedAt,
         errorMessage: normalizedError.message,
         requestPayload,
+        ...(error instanceof LlmOutputTruncatedError ? { usage: error.usage, responsePayload: error.rawResponse } : {}),
       });
       if (options.abortSignal?.aborted || attempt >= maxAttempts || !isRetriableLlmError(error)) {
         throw normalizedError;
@@ -790,13 +791,16 @@ async function sendOfficialDeepSeekRequest(
 
   const choices =
     raw && typeof raw === "object"
-      ? (raw as { choices?: Array<{ message?: { content?: unknown } }> }).choices
+      ? (raw as { choices?: Array<{ message?: { content?: unknown }; finish_reason?: string }> }).choices
       : null;
   const message = choices?.[0]?.message;
   if (!message) {
     throw new Error("DeepSeek returned an empty response (no choices)");
   }
 
+  // A reasoning-only response can exhaust the limit before emitting content.
+  // Retrying it as a transient empty response repeats the same insufficient budget.
+  if (options.jsonSchema || options.jsonMode) assertLlmOutputComplete(raw, options.maxOutputTokens);
   const content = normalizeMessageContent(message.content);
   if (!content.trim()) throw new Error("DeepSeek returned empty content");
   return {
@@ -927,10 +931,16 @@ export async function generateLlmText(
 }
 
 export class LlmOutputTruncatedError extends Error {
-  constructor(public readonly outputTokenLimit: number | undefined) {
+  constructor(public readonly outputTokenLimit: number | undefined, public readonly usage?: LlmUsage, public readonly rawResponse?: unknown) {
     super(`LLM output reached its token limit (${outputTokenLimit ?? "unknown"}) before completing JSON.`);
     this.name = "LlmOutputTruncatedError";
   }
+}
+
+export function assertLlmOutputComplete(raw: unknown, limit: number | undefined) {
+  const response = raw as { choices?: Array<{ finish_reason?: string }>; usage?: unknown } | null;
+  if (response?.choices?.[0]?.finish_reason === "length")
+    throw new LlmOutputTruncatedError(limit, buildUsage(response.usage), raw);
 }
 
 export async function generateLlmJson<T>(
@@ -941,8 +951,7 @@ export async function generateLlmJson<T>(
     jsonMode: !options.jsonSchema,
   });
 
-  const raw = result.rawResponse as { choices?: Array<{ finish_reason?: string }> } | null;
-  if (raw?.choices?.[0]?.finish_reason === "length") throw new LlmOutputTruncatedError(options.maxOutputTokens);
+  assertLlmOutputComplete(result.rawResponse, options.maxOutputTokens);
   try {
     return {
       ...result,
