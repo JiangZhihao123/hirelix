@@ -164,8 +164,10 @@ export function AssistantWorkspace({
   const request = useRef<{ text: string; key: string } | null>(null),
     scroll = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null);
+  const stopRequested = useRef(false);
+  const [stopping, setStopping] = useState(false);
   const [submittedJob, setSubmittedJob] = useState<Job | null>(null);
-  const seedJob = submittedJob && (!query.data?.job || submittedJob.created_at > query.data.job.created_at) ? submittedJob : query.data?.job;
+  const seedJob = submittedJob && (!query.data?.job || submittedJob.created_at > query.data.job.created_at || (submittedJob.id === query.data.job.id && Date.parse(submittedJob.updated_at) >= Date.parse(query.data.job.updated_at))) ? submittedJob : query.data?.job;
   const {job, disconnected} = useTurnStream(seedJob, query.refresh);
   useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = isTurnRunning(job);
@@ -253,6 +255,15 @@ export function AssistantWorkspace({
       localStorage.removeItem(draftRoleKey);
     }
   }, [draft, draftReady, draftStorageKey, draftRoleKey, conversationId, roleId, initialRoleId]);
+  useEffect(() => {
+    if (!draftReady || sending) return;
+    composer.current?.focus({ preventScroll: true });
+  }, [draftReady, sending, conversationId]);
+  useEffect(() => {
+    const focus = () => composer.current?.focus({ preventScroll: true });
+    window.addEventListener("hirelix:focus-composer", focus);
+    return () => window.removeEventListener("hirelix:focus-composer", focus);
+  }, []);
   useEffect(() => {
     const field = composer.current;
     if (!field) return;
@@ -366,6 +377,8 @@ export function AssistantWorkspace({
     event.preventDefault();
     const text = draft.trim();
     if (!attachmentsReady || (!text && !attachments.length) || sending || attachments.some((item) => item.status === "uploading")) return;
+    stopRequested.current = false;
+    composer.current?.focus({ preventScroll: true });
     setSending(true);
     setError("");
     stickToBottom.current = true;
@@ -381,8 +394,13 @@ export function AssistantWorkspace({
       if (pending && job) await api(`/jobs/${job.id}`, {method: "DELETE"});
       const fileIds: string[] = [];
       for (const item of attachments) {
+        if (stopRequested.current) break;
         const fileId = await uploadFile(item);
         if (fileId) fileIds.push(fileId);
+      }
+      if (stopRequested.current) {
+        setOptimistic(null);
+        return;
       }
       if (fileIds.length !== attachments.length) {
         setOptimistic(null);
@@ -422,6 +440,14 @@ export function AssistantWorkspace({
           setAttachmentDraftError("Your message was sent, but its local attachment draft could not be cleared.");
         });
       }
+      if (stopRequested.current) {
+        try {
+          const stopped = await api<{ job: Job }>(`/jobs/${result.job.id}`, { method: "DELETE" });
+          setSubmittedJob(stopped.job);
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : "Could not stop");
+        }
+      }
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
       if (!conversationId) {
         promotedDraftKey.current = assistantDraftKey(result.conversation_id, null, null);
@@ -436,13 +462,28 @@ export function AssistantWorkspace({
       );
     } finally {
       setSending(false);
+      setStopping(false);
       requestAnimationFrame(() => composer.current?.focus());
     }
   }
   async function stop() {
-    if (!job) return;
-    try { await api(`/jobs/${job.id}`, {method: "DELETE"}); query.refresh(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not stop"); }
+    if (stopping) return;
+    setStopping(true);
+    if (sending) {
+      stopRequested.current = true;
+      return;
+    }
+    try {
+      if (!job) return;
+      const result = await api<{ job: Job }>(`/jobs/${job.id}`, { method: "DELETE" });
+      setSubmittedJob(result.job);
+      query.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not stop");
+    } finally {
+      setStopping(false);
+      composer.current?.focus({ preventScroll: true });
+    }
   }
   async function retry() {
     if (!job) return;
@@ -756,7 +797,8 @@ export function AssistantWorkspace({
               placeholder={t(selectedContext ? "Ask about this item…" : "Ask, paste a JD, or share a conversation note…")}
               rows={1}
               maxLength={50000}
-              disabled={sending || !draftReady}
+              disabled={!draftReady}
+              readOnly={sending}
               onKeyDown={onComposerKeyDown}
             />
             <div className="ws-composer-footer">
@@ -774,14 +816,15 @@ export function AssistantWorkspace({
                   ? t(draft.trim() || attachments.length ? "Enter to stop this reply and send your message" : "Your next message can be drafted while this reply finishes")
                   : t("Enter to send · Shift + Enter for a new line")}
               </span>
-              {pending ? <button
+              {(pending || sending) ? <button
                 type="button"
                 className="ws-button ws-button-primary ws-stop-button"
+                disabled={stopping}
                 aria-label={t("Stop response")}
                 title={t("Stop response")}
                 onClick={() => void stop()}
-              ><Square size={13} fill="currentColor" /></button> : null}
-              {(!pending || !!draft.trim() || !!attachments.length) && <button
+              >{stopping ? <Loader2 size={14} className="animate-spin" /> : <Square size={13} fill="currentColor" />}</button> : null}
+              {!sending && (!pending || !!draft.trim() || !!attachments.length) && <button
                 type="submit"
                 className="ws-button ws-button-primary"
                 aria-label={t(pending ? "Stop and send message" : "Send message")}

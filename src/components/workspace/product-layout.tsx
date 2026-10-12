@@ -262,7 +262,10 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
         <div className="ws-brand">
           <Link
             href="/app"
-            onClick={() => navigate()}
+            onClick={() => {
+              navigate();
+              window.dispatchEvent(new Event("hirelix:focus-composer"));
+            }}
             aria-label={"Hirelix"}
           >
             <span className="ws-brand-full" style={{ display: "inline-flex", gap: 9, alignItems: "center" }}><BrandMark small />{"Hirelix"}</span>
@@ -281,7 +284,10 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => navigate()}
+                onClick={() => {
+                  navigate();
+                  if (item.href === "/app") window.dispatchEvent(new Event("hirelix:focus-composer"));
+                }}
                 aria-current={item.active ? "page" : undefined}
                 aria-label={item.label}
                 title={item.label}
@@ -303,6 +309,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                     window.history.pushState(null, "", "/app?new=1");
                   }
                   navigate();
+                  window.dispatchEvent(new Event("hirelix:focus-composer"));
                 }} aria-label={t("New conversation")} title={t("New conversation")}><Plus size={16} /></Link>
               <button
                 type="button"
@@ -421,6 +428,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                   href="/app?new=1"
                   className="ws-icon"
                   aria-label={t("New conversation")}
+                  onClick={() => window.dispatchEvent(new Event("hirelix:focus-composer"))}
                 >
                   <Plus size={18} />
                 </Link>
