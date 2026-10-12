@@ -23,7 +23,9 @@ import type { Message, Deliverable, Job } from "@/lib/workspace/types";
 function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantMeta["sources"]>; onSource: (source: { title: string; href: string }) => void }) {
   const t = useT();
   const links = <div className="ws-message-sources">
-    {sources.map((source, index) => <button key={`${source.href}:${index}`} type="button" onClick={() => onSource(source)}>
+    {sources.map((source, index) => !source.href.startsWith("/")
+      ? <a key={`${source.href}:${index}`} href={source.href} target="_blank" rel="noopener noreferrer">{source.title}<ArrowUpRight size={12} /></a>
+      : <button key={`${source.href}:${index}`} type="button" onClick={() => onSource(source)}>
       {source.title}<ArrowUpRight size={12} />
     </button>)}
   </div>;
@@ -61,14 +63,14 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     )}
                     {!activeJob && !!parts.length && <TurnParts parts={parts} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
-                      if (!source) return false;
+                      if (!source || !source.href.startsWith("/")) return false;
                       onSource({title: label || source.title, href});
                       return true;
                     }} />}
                     <div className="ws-message-prose">
                       <AgentText content={parts.length || activeJob || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : message.content} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
-                        if (source) { onSource(source); return true; }
+                        if (source) { if (!source.href.startsWith("/")) return false; onSource(source); return true; }
                         // A saved document may be cited from earlier conversation
                         // context without being read again in this turn.
                         let url: URL;

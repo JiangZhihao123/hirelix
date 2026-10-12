@@ -14,10 +14,16 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
   return <div className="ws-turn-parts">
     {parts.map((part, index) => part.type === "text"
       ? <div className="ws-message-prose" key={index}><AgentText content={part.text} onOpenLink={onOpenLink} /></div>
-      : <div className="ws-turn-tool" key={part.id}>
+      : <div className="ws-turn-tool-entry" key={part.id}><div className="ws-turn-tool">
           {part.status === "done" ? <Check size={13} /> : part.status === "error" ? <AlertCircle size={13} /> : running ? <Loader2 size={13} className="animate-spin" /> : <Minus size={13} />}
           <span>{t(part.label)}</span>
           <small>{t(part.status === "done" ? "Completed" : part.status === "error" ? "Failed" : running ? "In progress" : "Interrupted")}</small>
+        </div>
+        {part.query && <p className="ws-turn-search-query">{part.query}</p>}
+        {!!part.sources?.length && <details className="ws-turn-search-sources" open>
+          <summary>{t("Sources")} · {part.sources.length}</summary>
+          <ul>{part.sources.map(source => <li key={source.href}><a href={source.href} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>
+        </details>}
         </div>)}
   </div>;
 }

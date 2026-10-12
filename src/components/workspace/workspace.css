@@ -2643,3 +2643,10 @@
 .ws-turn-parts { display: grid; gap: 12px; }
 .ws-turn-tool { display: flex; align-items: center; gap: 8px; color: #738074; font-size: 12px; padding: 4px 0; }
 .ws-turn-tool small { color: #939b92; font-size: 11px; }
+
+.ws-turn-search-query { margin: 2px 0 8px 21px; color: #657366; font-size: 12px; overflow-wrap: anywhere; }
+.ws-turn-search-sources { margin-left: 21px; font-size: 12px; }
+.ws-turn-search-sources summary { cursor: pointer; color: #738074; }
+.ws-turn-search-sources ul { display: grid; gap: 5px; margin: 8px 0; padding-left: 16px; }
+.ws-turn-search-sources a { color: var(--ws-green); overflow-wrap: anywhere; }
+.ws-message-sources > a { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ws-green); }

@@ -1,5 +1,10 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Searching the web": "搜索网页",
+  "Web search is not configured. A DeepSeek API key is required.": "联网搜索尚未配置 DeepSeek API 密钥。",
+  "DeepSeek did not perform a web search. Please retry.": "DeepSeek 未实际执行联网搜索，请重试。",
+  "Web search timed out. Please retry.": "联网搜索超时，请重试。",
+  "Could not connect to DeepSeek web search. Please retry.": "无法连接 DeepSeek 联网搜索，请重试。",
   "Completed": "已完成",
   "Failed": "失败",
   "Interrupted": "已中断",
