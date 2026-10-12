@@ -2639,3 +2639,7 @@
 
 .ws-message-source-disclosure .ws-message-sources { flex-direction: column; align-items: flex-start; }
 .ws-message-source-disclosure .ws-message-sources button { border: 0; background: none; padding: 3px 0; text-decoration: underline; text-underline-offset: 3px; }
+
+.ws-turn-parts { display: grid; gap: 12px; }
+.ws-turn-tool { display: flex; align-items: center; gap: 8px; color: #738074; font-size: 12px; padding: 4px 0; }
+.ws-turn-tool small { color: #939b92; font-size: 11px; }

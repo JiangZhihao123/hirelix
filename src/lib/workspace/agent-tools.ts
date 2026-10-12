@@ -70,7 +70,7 @@ import {
 } from "./conversation-questions";
 import type { ConversationAttachment } from "./attachments";
 
-const progressLabels: Record<string, string> = {
+export const progressLabels: Record<string, string> = {
   read_skill: "Reviewing the working guidance",
   workspace: "Checking your saved workspace",
   find_candidates: "Finding candidates",
@@ -342,29 +342,6 @@ export function createAgentTools(ctx: AgentToolContext) {
     );
   }
   return {
-    name_conversation: define(
-      "name_conversation",
-      "Give a new conversation a short, factual title. Never replace a user's renamed title.",
-      z.object({ title: z.string().trim().min(1).max(60) }),
-      async (input) => {
-        if (
-          ctx.messages.filter((message) => message.role === "user").length !== 1
-        )
-          return { status: "unchanged" };
-        return commitAgentTool(job, "name_conversation", input, async (tx) => {
-          const updated = await rows<{ title: string }>(
-            sql`UPDATE hirelix_private_conversations SET title=${input.title} WHERE id=${conversationId}::uuid AND user_id=${userId}::uuid AND title=${ctx.conversation.title} RETURNING title`,
-            tx,
-          );
-          return {
-            output: {
-              status: updated.length ? "named" : "unchanged",
-              title: updated[0]?.title,
-            },
-          };
-        });
-      },
-    ),
     read_skill: define(
       "read_skill",
       "Read a relevant working method before using its business tools. Adapt the guidance to the current goal and observations.",

@@ -4,7 +4,8 @@ import { useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { AgentText } from "@/components/AgentText";
-import { isTurnRunning } from "@/lib/workspace/turn-progress";
+import { TurnParts } from "./turn-parts";
+import { isTurnRunning, turnParts } from "@/lib/workspace/turn-progress";
 import type { Job } from "@/lib/workspace/types";
 
 export const meaningfulProgress = (progress: string) => ![
@@ -19,10 +20,12 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
   const answer = typeof job?.result?.live_reply === "string" ? job.result.live_reply : "";
   const running = !job || isTurnRunning(job);
   const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…"
-    : job?.progress && meaningfulProgress(job.progress) ? job.progress : answer ? "Replying…" : "Thinking…";
+    : job?.status === "queued" ? "Queued" : "Thinking…";
+  const parts = turnParts(job?.result);
   const content = <>
-    {answer && job?.status !== "cancelled" && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
-    {running && <div className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin"/><span>{t(status)}</span></div>}
+    {!!parts.length && <TurnParts parts={parts} running={running} />}
+    {!parts.length && answer && job?.status !== "cancelled" && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
+    {running && (!parts.length || receivingFiles || disconnected || job?.status === "queued") && <div className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin"/><span>{status === "Thinking…" ? <span className="sr-only">{t(status)}</span> : t(status)}</span></div>}
     {job?.status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
     {job?.status === "error" && <div className="ws-turn-failure" role="alert">
       <p>{t("I couldn’t finish this request. Your message and any saved results are kept.")}</p>

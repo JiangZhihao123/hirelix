@@ -3,6 +3,8 @@
 import { ConversationExports } from "./document-download";
 import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
+import { TurnParts } from "./turn-parts";
+import { turnParts } from "@/lib/workspace/turn-progress";
 import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
 import { ArrowUpRight, Paperclip, Check, Copy } from "lucide-react";
@@ -41,6 +43,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
 }) {
   const t = useT();
   const metadata = message.metadata as AssistantMeta;
+  const parts = turnParts(message.metadata);
   return (
                   <article
                     className={`ws-message ws-message-${message.role}`}
@@ -56,8 +59,14 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         <time dateTime={message.created_at}>{date(message.created_at, true)}</time>
                       </div>
                     )}
+                    {!activeJob && !!parts.length && <TurnParts parts={parts} onOpenLink={(href, label) => {
+                      const source = metadata.sources?.find(item => item.href === href);
+                      if (!source) return false;
+                      onSource({title: label || source.title, href});
+                      return true;
+                    }} />}
                     <div className="ws-message-prose">
-                      <AgentText content={message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : message.content} onOpenLink={(href, label) => {
+                      <AgentText content={parts.length || activeJob || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : message.content} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (source) { onSource(source); return true; }
                         // A saved document may be cited from earlier conversation
