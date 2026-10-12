@@ -573,7 +573,7 @@ export function AssistantWorkspace({
                   aria-expanded={contextOpen}
                   onClick={() => setContextOpen(!contextOpen)}
                 >
-                  {t("Library")}
+                  {t("Choose role")}
                 </button>
               )}
             </div>
@@ -799,11 +799,11 @@ export function AssistantWorkspace({
           </form>
         </section>
         {source && <ContextPanel source={source} onClose={() => setSource(null)} />}
-        {contextOpen && <aside className="ws-assistant-context" aria-label={t("Library")}>
-          <div className="ws-context-heading"><strong>{t("Library")}</strong><button className="ws-icon" onClick={() => setContextOpen(false)} aria-label={t("Close")}><X size={16} /></button></div>
+        {contextOpen && <aside className="ws-assistant-context" aria-label={t("Choose role")}>
+          <div className="ws-context-heading"><strong>{t("Choose role")}</strong><button className="ws-icon" onClick={() => setContextOpen(false)} aria-label={t("Close")}><X size={16} /></button></div>
           <button className="ws-button" onClick={() => { setContextOpen(false); router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`); }}>{t("Add role")}</button>
           {roles.data?.roles.map(role => <button className="ws-detail-link" key={role.id} onClick={() => { setRoleId(role.id); setSource({title: role.title, href: `/app/roles/${role.id}`}); setContextOpen(false); }}>{role.client_name} · {role.title}</button>)}
-          <button className="ws-link" onClick={() => setMemoriesOpen(true)}>{t("What I remember")}</button>
+          <Link className="ws-link" href="/app/roles">{t("View all roles")} <ArrowUpRight size={13} /></Link>
         </aside>}
       </div>
       {memoriesOpen && <PersonalMemories onClose={() => setMemoriesOpen(false)} />}
