@@ -65,6 +65,7 @@ export const uiZh: Record<string, string> = {
   "Reconnecting…": "正在重新连接…",
   "Replying…": "正在回复…",
   "Thinking…": "思考中…",
+  "Stopped. You can send a new instruction.": "已停止。你可以发送新的要求。",
   "Stop response": "停止回复",
   "Stop and send message": "停止当前回复并发送",
   "Enter to stop this reply and send your message": "Enter 停止当前回复并发送新消息",

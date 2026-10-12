@@ -23,7 +23,8 @@ import { activeAgentJob } from "./agent-execution";
 import { WorkspaceError } from "./database";
 import type { Job } from "./types";
 
-export function agentModel(job: Job) {
+export function agentModel(job: Job, purpose: "reply" | "conversation_title" = "reply") {
+  const stage = purpose === "conversation_title" ? "conversation_title" : "private_agent_step";
   const modelId = getDefaultLlmModel(),
     official = isUsingOfficialDeepSeek();
   const provider = official ? "deepseek" : "openrouter";
@@ -55,7 +56,7 @@ export function agentModel(job: Job) {
     await recordLlmUsageEvent({
       userId: job.user_id,
       jobId: job.id,
-      stage: "private_agent_step",
+      stage,
       model: modelId,
       provider,
       status: complete ? "success" : "error",
@@ -79,8 +80,11 @@ export function agentModel(job: Job) {
         body?.usage?.cost);
     if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0)
       throw new Error("AI provider returned no cost");
+    // Automatic titles are product metadata, not user-requested agent work.
+    // Track provider usage above without sharing the reply reservation.
+    if (purpose === "conversation_title") return;
     await consumeAgentCredits(job, costToCreditUnits(cost, multiplier), cost, {
-      stage: "private_agent_step",
+      stage,
       model: modelId,
       provider,
       cost_usd: cost,
@@ -94,6 +98,7 @@ export function agentModel(job: Job) {
     specificationVersion: "v3",
     transformParams: async ({ params }) => {
       await activeAgentJob(job);
+      if (purpose === "conversation_title") return params;
       const rates = official
         ? deepSeekRates(modelId, new Date(), true)
         : { input: 20, output: 20 };

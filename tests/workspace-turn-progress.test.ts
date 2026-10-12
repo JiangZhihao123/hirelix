@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isTurnRunning, turnSnapshot, turnActivity } from "../src/lib/workspace/turn-progress";
+import { isTurnRunning, turnSnapshot, turnActivity, turnParts } from "../src/lib/workspace/turn-progress";
 import { nextConversationView } from "../src/components/workspace/conversation-draft";
 
 test("a new conversation preserves its view across URL promotion, but New and history create fresh views", () => {
@@ -35,4 +35,21 @@ test("terminal events end execution even when a partial answer remains", () => {
   assert.equal(isTurnRunning({status: "running"}), true);
   assert.equal(isTurnRunning(null), false);
   assert.deepEqual(turnActivity({activity: [null, {label: "No timestamp"}, {label: "Read source", at: "now"}]}), [{label: "Read source", at: "now"}]);
+});
+
+
+test("interleaved text and tool events retain order through terminal snapshots", () => {
+  const parts = [
+    {type: "text", text: "I will read the saved role."},
+    {type: "tool", id: "read-1", label: "Reading current role requirements", status: "done"},
+    {type: "text", text: "The start date is missing."},
+    {type: "tool", id: "read-2", label: "Reading a saved communication", status: "error"},
+    {type: "text", text: "The record was unavailable."},
+  ];
+  for (const status of ["running", "done", "cancelled", "error"] as const) {
+    const snapshot = turnSnapshot({id: "turn", status, progress: "", error: null,
+      updated_at: "2026-10-12T10:00:00Z", result: {parts}});
+    assert.deepEqual(snapshot.result.parts, parts);
+  }
+  assert.deepEqual(turnParts({parts: [null, {type: "tool", status: "invented"}, {type: "reasoning", text: "private"}]}), []);
 });
