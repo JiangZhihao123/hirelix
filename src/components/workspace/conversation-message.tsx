@@ -25,10 +25,10 @@ function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantM
       {source.title}<ArrowUpRight size={12} />
     </button>)}
   </div>;
-  return sources.length > 3 ? <details className="ws-message-source-disclosure">
+  return <details className="ws-message-source-disclosure">
     <summary>{t("Sources")} <span>{sources.length}</span></summary>
     {links}
-  </details> : links;
+  </details>;
 }
 
 export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob, onRetry, disconnected }: {
