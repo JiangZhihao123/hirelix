@@ -46,6 +46,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
   const t = useT();
   const metadata = message.metadata as AssistantMeta;
   const parts = turnParts(message.metadata);
+  const displayedSources = new Set(parts.flatMap(part => part.type === "tool" ? (part.sources || []).map(source => source.href) : []));
+  const remainingSources = metadata.sources?.filter(source => !displayedSources.has(source.href)) || [];
   return (
                   <article
                     className={`ws-message ws-message-${message.role}`}
@@ -98,7 +100,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
                     {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={onReady} />}
                     {!!metadata.document_edits?.length && <p className="ws-message-status">{t("Updated · Previous version kept")}</p>}
-                    {!!metadata.sources?.length && <MessageSources sources={metadata.sources} onSource={onSource} />}
+                    {!!remainingSources.length && <MessageSources sources={remainingSources} onSource={onSource} />}
                     {!!metadata.memories?.length && <div className="ws-memory-receipts">
                       {metadata.memories.map(memory => <button key={memory.id} type="button" onClick={() => onMemories()}>
                         <Check size={13} />{t(memory.operation === "forget" ? "Forgotten" : memory.operation === "update" ? "Agreement updated" : "Remembered")} · {memory.title}
