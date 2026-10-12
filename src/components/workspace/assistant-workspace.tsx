@@ -677,7 +677,7 @@ export function AssistantWorkspace({
               }
             }}
           >
-            {selectedContext && <div className="ws-composer-context-tags"><span className="ws-composer-context-tag">{revisionTarget ? <Pencil size={12} /> : <Paperclip size={12} />}<span>{t(revisionTarget ? "Revising" : "Discussing")}: {selectedContext.title}</span><button type="button" className="ws-icon" onClick={() => { setRevisionTarget(null); setSource(null); }} aria-label={t("Clear context")}><X size={12} /></button></span></div>}
+            {selectedContext && <div className="ws-composer-context-tags ws-composer-selected-source"><span className="ws-composer-context-tag">{revisionTarget ? <Pencil size={12} /> : <Paperclip size={12} />}<span>{t(revisionTarget ? "Revising" : "Discussing")}: {selectedContext.title}</span><button type="button" className="ws-icon" onClick={() => { setRevisionTarget(null); setSource(null); }} aria-label={t("Clear context")}><X size={12} /></button></span></div>}
             <ErrorNotice error={attachmentDraftError} />
             <input
               ref={fileInput}
@@ -753,7 +753,7 @@ export function AssistantWorkspace({
               aria-label={t("Message your AI assistant")}
               value={sending ? "" : draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={t("Ask, paste a JD, or share a conversation note…")}
+              placeholder={t(selectedContext ? "Ask about this item…" : "Ask, paste a JD, or share a conversation note…")}
               rows={1}
               maxLength={50000}
               disabled={sending || !draftReady}

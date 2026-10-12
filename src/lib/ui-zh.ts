@@ -1,5 +1,6 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Ask about this item…": "围绕这份资料继续提问…",
   "Save candidate details I provide in this conversation.": "请根据我在对话中提供的资料保存候选人。",
   "Save a role from the JD and client context I provide.": "请根据我提供的 JD 和客户背景保存职位。",
   "Give your assistant a CV, conversation notes or candidate details. It will organize and save the supported facts.": "把简历、沟通记录或候选人资料交给助理，由它整理并保存有依据的信息。",

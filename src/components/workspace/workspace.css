@@ -2626,3 +2626,9 @@
   .ws-source-panel-document { flex: 0 0 55%; padding: 24px 32px; }
   .ws-assistant-body:has(.ws-source-panel-document) .ws-conversation { min-width: 0; }
 }
+
+.ws-composer-selected-source { margin: 0 0 4px; }
+.ws-composer-selected-source .ws-composer-context-tag { padding: 0; background: none; border-radius: 0; }
+.ws-composer-selected-source .ws-icon { width: 22px; height: 22px; padding: 2px; }
+.ws-composer textarea { display: block; }
+.ws-composer textarea:placeholder-shown { height: 34px !important; min-height: 34px; }
