@@ -291,7 +291,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
         const entry = parts.find(entry => entry.type === "tool" && entry.id === part.toolCallId);
         if (entry?.type === "tool") entry.status = part.type === "tool-error" || (part.output as {ok?: boolean})?.ok === false ? "error" : "done";
         if (entry?.type === "tool" && part.type === "tool-result" && part.toolName === "web_search") {
-          const output = part.output as {ok?: boolean; result?: {sources?: Array<{title: string; href: string}>}};
+          const output = part.output as {ok?: boolean; result?: {sources?: Array<{title: string; href: string}>; provider_errors?: string[]}};
+          if (output.ok && output.result?.provider_errors?.length) entry.warning = "Some searches failed; available results are shown.";
           if (output.ok && output.result?.sources) entry.sources = output.result.sources.map(({title, href}) => ({title, href}));
         }
         if (entry?.type === "tool" && part.type === "tool-result") {

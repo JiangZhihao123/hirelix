@@ -45,3 +45,38 @@ test("cancellation exits before dispatching a native search", async () => {
     else process.env.DEEPSEEK_API_KEY = previous;
   }
 });
+
+
+test("native recovery keeps successful sources while reporting partial failures", () => {
+  const error = {type: "web_search_tool_result", content: [{type: "web_search_tool_result_error", error_code: "unavailable"}]};
+  const success = {type: "web_search_tool_result", content: [{type: "web_search_result", title: "Official", url: "https://example.com"}]};
+  for (const content of [[error, success], [success, error]]) {
+    const result = parseNativeSearch({stop_reason: "end_turn", usage, content});
+    assert.equal(result.sources.length, 1);
+    assert.deepEqual(result.provider_errors, ["unavailable"]);
+  }
+  assert.throws(() => parseNativeSearch({stop_reason: "end_turn", usage, content: [error]}), /unavailable/);
+});
+
+test("transient failures retry once; authentication failures do not retry", async () => {
+  const originalFetch = globalThis.fetch;
+  const key = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "unused-local-test-value";
+  try {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(JSON.stringify({stop_reason: "end_turn", usage, content: [{type: "web_search_tool_result", content: [{type: "web_search_tool_result_error", error_code: "unavailable"}]}]}), {status: 200});
+    };
+    await assert.rejects(() => searchWeb("public query", new AbortController().signal), /unavailable/);
+    assert.equal(calls, 2);
+    calls = 0;
+    globalThis.fetch = async () => { calls++; return new Response("", {status: 401}); };
+    await assert.rejects(() => searchWeb("public query", new AbortController().signal), /HTTP 401/);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (key === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = key;
+  }
+});

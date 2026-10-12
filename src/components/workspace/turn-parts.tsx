@@ -65,6 +65,7 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
         </div>
         </details>
         {group.items.length === 1 && (first.query || first.target) && <div className="ws-tool-context">{first.query || first.target}</div>}
+        {group.items.some(part => part.warning) && <p className="ws-tool-partial">{t("Some searches failed; available results are shown.")}</p>}
         {!!sources.length && <div className="ws-tool-source-preview">{sources.slice(0, 3).map(source => <a key={source.href} href={source.href} target="_blank" rel="noopener noreferrer" title={source.title}>{new URL(source.href).hostname}</a>)}<span>{t("Search results")} · {sources.length}</span></div>}
       </div>;
     })}

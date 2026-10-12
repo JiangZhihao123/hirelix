@@ -1268,6 +1268,7 @@ export const uiZh: Record<string, string> = {
   "Source record": "来源记录",
   "Source URL (optional)": "来源URL（可选）",
   "Sources": "来源",
+  "Some searches failed; available results are shown.": "部分搜索未完成，已保留成功返回的结果。",
   "This action failed. Later attempts are shown separately.": "本次执行失败，后续重试会单独保留记录。",
   "Sourcing": "人才寻访",
   "Sourcing brief": "人才寻访简报",
