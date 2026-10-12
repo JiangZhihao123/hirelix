@@ -62,7 +62,7 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
     };
   }, [refresh]);
   const record = query.data?.records?.find(item => item.id === recordId);
-  return <aside ref={panel} className="ws-source-panel" aria-label={t("Source details")}>
+  return <aside ref={panel} className={`ws-source-panel ${documentId ? "ws-source-panel-document" : ""}`} aria-label={t("Source details")}>
     <header><strong>{t(recordId ? "Source record" : documentId ? "Saved document" : person ? "Candidate" : role ? "Role" : file ? "Original file" : "Source details")}</strong><button ref={close} className="ws-icon" onClick={onClose} aria-label={t("Close source details")}><X size={18} /></button></header>
     <ErrorNotice error={query.error} retry={query.refresh} />
     {query.loading && !query.data && <Loading />}

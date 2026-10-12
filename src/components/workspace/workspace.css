@@ -2620,3 +2620,9 @@
 .ws-turn-failure small { display: block; margin-top: 8px; color: #637060; }
 .ws-question-resolved { margin: 12px 0; }
 .ws-question-resolved small { color: #637060; }
+
+/* Saved work is the primary reading surface while it is open. */
+@media (min-width: 851px) {
+  .ws-source-panel-document { flex: 0 0 55%; padding: 24px 32px; }
+  .ws-assistant-body:has(.ws-source-panel-document) .ws-conversation { min-width: 0; }
+}
