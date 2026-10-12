@@ -93,11 +93,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
       api("/notifications", {method:"POST",body:JSON.stringify({conversation_id:id})}).then(conversations.refresh).catch(() => {});
     }
   }, [pathname, searchParams, conversations.data, conversations.refresh]);
-  const duplicateConversationTitles = new Set(
-    conversations.data?.conversations
-      .map((conversation) => conversation.title)
-      .filter((title, index, titles) => titles.indexOf(title) !== index) || [],
-  );
   const hasTrackedSigninViewRef = useRef(false);
   const normalizeEntryMode = (value: string | null): EntryMode => {
     if (value === "landing" || value === "signin" || value === "free_trial") {
@@ -337,9 +332,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                     title={conversation.title}
                   >
                     <strong>{conversation.title}{conversation.unread && <span className="ws-unread-dot" aria-label={t("Unread result")}> •</span>}</strong>
-                    {duplicateConversationTitles.has(conversation.title) && (
-                      <small>{date(conversation.updated_at, true)}</small>
-                    )}
+                    <small><time dateTime={conversation.updated_at}>{date(conversation.updated_at, true)}</time></small>
                   </Link>
                 ))}
               {conversations.data && !conversations.data.conversations.length && (

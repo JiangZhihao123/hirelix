@@ -155,10 +155,14 @@
   color: var(--ws-green);
 }
 .ws-sidebar-conversation-list strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
   text-overflow: ellipsis;
   font-size: 12px;
   font-weight: 500;
