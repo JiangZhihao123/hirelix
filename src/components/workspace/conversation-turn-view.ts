@@ -10,11 +10,12 @@ export function conversationTurnView(input: {
 }): TurnMessage[] {
   const {messages, job, sending, pendingKey, conversationId, optimistic} = input;
   const belongsToJob = (message: Message) => message.role === "assistant" &&
-    (message.id === job?.result?.message_id || message.id === job?.result?.receipt_message_id);
+    (message.id === job?.result?.message_id || message.id === job?.result?.receipt_message_id ||
+      (!!job?.request_key && message.metadata.reply_request_key === job.request_key));
   const view: TurnMessage[] = messages.map(message => ({
     key: `message:${message.metadata.reply_request_key || (belongsToJob(message) ? job?.request_key : message.id)}`,
     message,
-    ...(!sending && belongsToJob(message) ? {activeJob: job!} : {}),
+    ...(belongsToJob(message) ? {activeJob: job!} : {}),
   }));
   if (optimistic && !messages.some(message => message.role === "user" && !optimistic.priorIds.includes(message.id))) {
     view.push({key: "optimistic-user", optimistic: true, message: {

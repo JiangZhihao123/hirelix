@@ -6,7 +6,7 @@ import { ConversationQuestion } from "./conversation-question";
 import { TurnParts } from "./turn-parts";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { feedbackLabels } from "@/lib/workspace/recommendation-feedback-contract";
-import { turnParts } from "@/lib/workspace/turn-progress";
+import { isTurnRunning, turnParts } from "@/lib/workspace/turn-progress";
 import { candidateReferences } from "@/lib/workspace/candidate-references";
 import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
@@ -49,6 +49,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
 }) {
   const t = useT();
   const metadata = message.metadata as AssistantMeta;
+  const showReceipts = !isTurnRunning(activeJob);
   const parts = turnParts(activeJob?.result ?? message.metadata);
   const displayedSources = new Set(parts.flatMap(part => part.type === "tool" ? (part.sources || []).map(source => source.href) : []));
   if (metadata.exports) displayedSources.add(`/app/submissions/${metadata.exports.document_id}`);
@@ -103,6 +104,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
 
                     </div>
                     {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
+                    {showReceipts && <>
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
                     ))}
@@ -171,6 +173,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                         )}
                       </div>
                     ))}
+                    </>}
                     {activeJob && <TurnActivity job={activeJob} embedded hideContent receivingFiles={receivingFiles} disconnected={disconnected} onRetry={onRetry} />}
                     <div className="ws-message-tools">
                       {!!remainingSources.length && <MessageSources sources={remainingSources} onSource={onSource} />}
@@ -186,7 +189,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                         {message.role !== "user" && (copiedId === message.id ? t("Copied") : t("Copy"))}
                       </button>}
                     </div>
-                    {metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} onReply={onSuggestionReply} />}
+                    {showReceipts && metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} onReply={onSuggestionReply} />}
                     {message.role === "assistant" && !metadata.question && onSuggestionReply && <AssistantReplies content={parts.length ? parts.filter(part => part.type === "text").map(part => part.text).join("\n") : message.content} onReply={onSuggestionReply} />}
                   </article>
 

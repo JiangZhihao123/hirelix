@@ -27,3 +27,13 @@ test("saved reply and pending placeholder never duplicate during send settlement
  assert.equal(next[1].key, settling[1].key);
  assert.equal(next[2].key, "message:next-request");
 });
+
+
+test("early tool receipt inherits running state before the receipt id reaches the stream", () => {
+ const receipt: Message = {...user, id: "receipt", role: "assistant", content: "", metadata: {reply_request_key: "request", committed_tools: true}};
+ for (const sending of [false, true]) {
+  const view = conversationTurnView({messages: [user, receipt], job, conversationId: "c", pendingKey: "request", sending});
+  assert.equal(view.length, 2);
+  assert.equal(view[1].activeJob?.status, "running");
+ }
+});
