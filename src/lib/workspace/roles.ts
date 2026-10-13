@@ -13,6 +13,7 @@ import {
   type Runner,
 } from "./database";
 import { addRecord } from "./records";
+import { assessmentSignature } from "./assessment-evidence";
 import {
   roleInput,
   type Role,
@@ -51,6 +52,18 @@ export async function roleDetails(userId: string, id: string) {
       sql`SELECT * FROM (SELECT DISTINCT ON (payload->>'person_id') * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='assessment' AND payload->>'role_id'=${id} ORDER BY payload->>'person_id',created_at DESC,id DESC) latest ORDER BY (status IN ('queued','running','error')) DESC,created_at DESC LIMIT 1`,
     ),
   ]);
+  const candidateSources = people.length ? await rows<Pick<SourceRecord, "id" | "version" | "person_id" | "role_id">>(
+    sql`SELECT id,version,person_id,role_id FROM hirelix_private_records WHERE user_id=${userId}::uuid AND role_id IS NULL AND person_id IN (SELECT person_id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${id}::uuid)`,
+  ) : [];
+  for (const link of people) {
+    const evidence = [...records.filter(record => !record.person_id || record.person_id === link.person_id), ...candidateSources.filter(record => record.person_id === link.person_id)];
+    const relationship = link.assessment.relationship as {permission: string; interest: string; notes: string} | undefined;
+    link.assessment_stale = !!link.assessment.summary && (
+      link.assessed_role_version !== role.version || link.assessment.person_version !== link.person?.version ||
+      link.assessment.record_signature !== assessmentSignature(evidence) ||
+      !!relationship && (relationship.permission !== link.permission || relationship.interest !== link.interest || relationship.notes !== link.notes)
+    );
+  }
   return {
     role,
     people,

@@ -12,12 +12,12 @@ export const agentSkills = [
   {
     name: "recruiting-records",
     description:
-      "Professional methods for recruiting evidence: identity reconciliation, JD-specific assessment, dated communications, interview preparation and prioritization.",
+      "Professional methods for recruiting evidence, role-specific candidate comparison, decision briefings, retained assessments and dated communications.",
   },
   {
     name: "client-delivery",
     description:
-      "Methods for client-facing recommendations and reports: source selection, reporting periods, revision quality and confidential delivery.",
+      "Methods for multi-candidate recommendations, client reports, private versus shared evidence, delivery versions and individual client feedback.",
   },
   {
     name: "follow-ups",

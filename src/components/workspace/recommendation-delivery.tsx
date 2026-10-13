@@ -44,6 +44,7 @@ export function RecommendationDelivery({
         {t("Deliver to client")}
       </button>
       <button className="ws-button" disabled={disabled} onClick={() => setOpen(true)}>{t("Share link or copy")}</button>
+      <Link className="ws-link" href={`/app?document=${document.id}&role=${document.role_id}&prompt=${encodeURIComponent(locale === "zh" ? "请查看这份推荐中每位候选人的反馈，向我汇报变化、建议的下一步和需要我决定的事项。先分析，不修改或发送。" : "Review each candidate’s feedback on this recommendation. Brief me on what changed, your proposed next steps and any decision needed. Analyze without changing records or sending anything.")}`}>{t("Review feedback and next steps")}</Link>
       <Link className="ws-link" href={`/app/mail?document=${document.id}`}>{t("Email activity")} ↗</Link>
       {open && <Dialog title={t("Share link or copy")} onClose={() => setOpen(false)}><DeliveryOptions document={document} /></Dialog>}
     </>

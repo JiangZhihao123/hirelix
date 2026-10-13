@@ -3,15 +3,17 @@ import { sql } from "drizzle-orm";
 import { workspaceApi, readBody } from "@/lib/workspace/http";
 import { rows, WorkspaceError } from "@/lib/workspace/database";
 import { idSchema } from "@/lib/workspace/types";
+import { z } from "zod";
 export function GET(req: NextRequest) {
   return workspaceApi(req, async (user) => ({ notifications: await rows(sql`SELECT id,title,href,created_at FROM hirelix_private_notifications WHERE user_id=${user.id}::uuid AND read_at IS NULL ORDER BY created_at DESC LIMIT 20`) }));
 }
 export function POST(req: NextRequest) {
   return workspaceApi(req, async (user) => {
-    const input = await readBody(req) as {id?: unknown; conversation_id?: unknown};
+    const input = await readBody(req) as {id?: unknown; conversation_id?: unknown; through?: unknown};
     if (input.conversation_id) {
       const conversationId = idSchema.parse(input.conversation_id);
-      await rows(sql`UPDATE hirelix_private_notifications SET read_at=now() WHERE user_id=${user.id}::uuid AND href=${`/app?conversation=${conversationId}`} AND read_at IS NULL`);
+      const through = z.iso.datetime({ offset: true }).parse(input.through);
+      await rows(sql`UPDATE hirelix_private_notifications SET read_at=now() WHERE user_id=${user.id}::uuid AND href=${`/app?conversation=${conversationId}`} AND read_at IS NULL AND created_at<=${through}::timestamptz`);
       return {ok:true};
     }
     const id = idSchema.parse(input.id);

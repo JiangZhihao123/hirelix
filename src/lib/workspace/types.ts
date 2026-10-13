@@ -122,6 +122,7 @@ export type RoleCandidate = Stamp & {
   permission_record_id: string | null;
   interest: string;
   notes: string;
+  assessment_stale?: boolean;
   person?: Person;
 };
 export type Deliverable = Stamp & {

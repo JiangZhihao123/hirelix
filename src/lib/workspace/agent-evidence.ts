@@ -81,6 +81,14 @@ export async function recordEvidence(userId: string, records: SourceRecord[]) {
       source_url: record.source_url,
       occurred_at: record.occurred_at,
       occurred_on: record.details.occurred_on ?? null,
+      recommendation_feedback: record.details.recommendation_id ? {
+        recommendation_id: record.details.recommendation_id,
+        recommendation_version: record.details.recommendation_version ?? null,
+        response: record.details.response,
+        source: record.details.source || "recruiter_report",
+        submitted_name: record.details.submitted_name ?? null,
+        identity_verified: record.details.identity_verified ?? null,
+      } : null,
       source_message_ids: [
         ...new Set(
           references

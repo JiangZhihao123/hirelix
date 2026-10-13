@@ -62,7 +62,7 @@ import type {
 import { ATTACHMENT_ACCEPT, attachmentError, MAX_CONVERSATION_FILES } from "@/lib/workspace/attachments";
 
 type Detail = {
-  conversation: Conversation;
+  conversation: Conversation & { notifications_through: string };
   messages: Message[];
   job: Job | null;
   work: Job[];
@@ -178,6 +178,21 @@ export function AssistantWorkspace({
   const hasAgreement = query.data?.messages.some(message => ((message.metadata as AssistantMeta).schedules?.length || (message.metadata as AssistantMeta).reminders?.length || (message.metadata as AssistantMeta).question?.status === "waiting"));
   const delegatedPending = query.data?.work?.some(work => ["queued", "running"].includes(work.status));
   const refreshConversation = query.refresh;
+  useEffect(() => {
+    const onUpdate = (event: Event) => {
+      if ((event as CustomEvent<{ conversationId: string }>).detail.conversationId === conversationId) refreshConversation();
+    };
+    window.addEventListener("hirelix:conversation-updated", onUpdate);
+    return () => window.removeEventListener("hirelix:conversation-updated", onUpdate);
+  }, [conversationId, refreshConversation]);
+  useEffect(() => {
+    if (!query.data || query.loading || query.error) return;
+    // Only acknowledge notifications whose conversation content has reached the page.
+    api("/notifications", { method: "POST", body: JSON.stringify({
+      conversation_id: query.data.conversation.id,
+      through: query.data.conversation.notifications_through,
+    }) }).catch(() => {});
+  }, [query.data, query.loading, query.error]);
   useEffect(() => {
     if (!hasAgreement && !delegatedPending) return;
     const timer = setInterval(refreshConversation, delegatedPending ? 2500 : 15000);

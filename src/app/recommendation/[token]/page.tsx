@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { readSharedDocument } from "@/lib/workspace/document-sharing";
 import { AgentText } from "@/components/AgentText";
+import { RecommendationFeedback } from "@/components/workspace/recommendation-feedback";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Candidate recommendation | Hirelix",
@@ -67,6 +68,14 @@ export default async function Recommendation({
               </div>
             </section>
           )}
+          <section className="mt-9 border-t border-[#dde3dd] pt-6">
+            <h2 className="font-semibold">{zh ? "逐位反馈" : "Feedback on each candidate"}</h2>
+            <p className="mt-2 text-sm text-[#67736b]">{zh ? "反馈仅推荐人可见。希望面试不代表已经安排面试。" : "Your feedback is visible to your recruiter only. An interview request does not book an interview."}</p>
+            <div className="mt-5 grid gap-4">{doc.people.map(person => <section key={person.id} className="rounded-xl border border-[#dde3dd] p-5">
+              <h3 className="font-semibold">{person.name}</h3><p className="mt-1 text-sm text-[#67736b]">{person.headline}</p>
+              <details className="mt-3"><summary className="cursor-pointer text-sm text-[#285542]">{zh ? "填写反馈" : "Leave feedback"}</summary><RecommendationFeedback token={token} personId={person.id} name={person.name} zh={zh} /></details>
+            </section>)}</div>
+          </section>
         </article>
         <p className="mt-6 text-center text-xs text-[#67736b]">
           {zh

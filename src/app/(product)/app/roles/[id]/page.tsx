@@ -1,6 +1,7 @@
 "use client";
 
 import { recordLocalDate } from "@/lib/workspace/record-dates";
+import { feedbackLabels, type feedbackResponses } from "@/lib/workspace/recommendation-feedback-contract";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
@@ -298,6 +299,7 @@ export default function RolePage({
           {tab === "candidates" && (
             <>
               <div className="ws-actions mt-5 mb-3">
+                {!!people.length && <button className="ws-button ws-button-primary" onClick={() => ask(locale === "zh" ? "请评估这个职位下的候选人并保存职位评估，向我汇报推荐组合、主要取舍和需要我判断的事项。先完成能做的准备，不要对外分享或发送。" : "Evaluate the candidates linked to this role and save their role-specific assessments. Brief me on your recommended combination, the tradeoffs and decisions that need my judgment. Complete useful preparation; do not share or send anything externally.")}>{t("Compare candidates and brief me")}</button>}
                 <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我把候选人关联到这个职位。" : "Help me link a candidate to this role.")}>
                   <Plus size={14} />
                   {t("Add from candidates")}
@@ -312,9 +314,8 @@ export default function RolePage({
               {people.length ? (
                 people.map((link) => {
                   const result = link.assessment as Assessment;
-                  const stale =
-                    link.assessed_role_version !== role.version ||
-                    result.person_version !== link.person?.version;
+                  const stale = link.assessment_stale;
+                  const feedback = records.find(record => record.kind === "feedback" && record.person_id === link.person_id);
                   return (
                     <article className="ws-role-candidate" key={link.person_id}>
                       <div className="ws-inspector-heading">
@@ -342,6 +343,13 @@ export default function RolePage({
                         {link.interest ||
                           t("Interest in this role has not been recorded.")}
                       </p>
+                      {result.summary && <div className="mt-3 text-sm leading-7"><p>{result.summary}</p>{stale && <p className="ws-warning">{t("New evidence since this assessment. Revisit it before deciding.")}</p>}</div>}
+                      {feedback && <div className="ws-notice mt-3">
+                        <strong>{t("Latest client feedback")}{feedback.details.response && feedbackLabels[feedback.details.response as (typeof feedbackResponses)[number]] ? ` · ${t(feedbackLabels[feedback.details.response as (typeof feedbackResponses)[number]])}` : ""}</strong>
+                        <p>{feedback.content}</p><small className="ws-muted">{date(feedback.occurred_at || feedback.created_at, true)}</small>
+                        {feedback.details.source === "recommendation_link" && <p className="ws-muted text-xs">{t("Recommendation-page feedback; submitted name is unverified.")}</p>}
+                        <button className="ws-link mt-2" onClick={() => ask(locale === "zh" ? "结合这位候选人的最新反馈，向我汇报建议的下一步和需要确认的问题。" : "Review the latest feedback for this candidate and role. Brief me on the recommended next step and any decision needed.", link.person_id)}>{t("Review feedback and next steps")}</button>
+                      </div>}
                       <div className="ws-actions mt-4">
                         <button
                           className="ws-link"
@@ -358,16 +366,6 @@ export default function RolePage({
                       </div>
                       <details className="ws-role-fit mt-4">
                         <summary>{t("Review fit for this role")}</summary>
-                        {result.summary && (
-                          <p className="text-[13px] leading-7 mt-3">
-                            {result.summary}
-                          </p>
-                        )}
-                        {result.summary && stale && (
-                          <p className="ws-warning mt-3">
-                            {t("The role or profile has changed since this review.")}
-                          </p>
-                        )}
                         <div className="ws-actions mt-3">
                           {result.summary && (
                             <button

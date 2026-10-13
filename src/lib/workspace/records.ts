@@ -12,6 +12,8 @@ import {
   type Runner,
 } from "./database";
 import { recordInput, type SourceRecord } from "./types";
+import type { Deliverable } from "./types";
+import { recommendationFeedbackContext } from "./recommendation-feedback-contract";
 
 export async function addRecord(
   userId: string,
@@ -25,6 +27,12 @@ export async function addRecord(
     if (input.person_id) await owned(userId, "person", input.person_id, tx);
     if (input.role_id) await owned(userId, "role", input.role_id, tx);
     if (input.file_id) await owned(userId, "file", input.file_id, tx);
+    if (input.details.recommendation_id) {
+      const feedback = recommendationFeedbackContext.parse(input.details);
+      const document = await owned<Deliverable>(userId, "deliverable", feedback.recommendation_id, tx);
+      if (input.kind !== "feedback" || document.kind !== "submission" || !input.person_id || input.role_id !== document.role_id || !document.person_ids.includes(input.person_id) || document.source_snapshot.audience === "internal")
+        throw new WorkspaceError("Feedback must refer to a candidate in this client recommendation and its role.");
+    }
     const [record] = await rows<SourceRecord>(
       sql`INSERT INTO hirelix_private_records(user_id,person_id,role_id,file_id,kind,title,content,source_url,occurred_at,details) VALUES(${userId}::uuid,${input.person_id}::uuid,${input.role_id}::uuid,${input.file_id}::uuid,${input.kind},${input.title},${input.content},${input.source_url},${input.occurred_at}::timestamptz,${json(input.details)}) RETURNING *`,
       tx,

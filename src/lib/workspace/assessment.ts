@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { assessmentSignature } from "./assessment-evidence";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -46,19 +46,60 @@ export const assessmentOutput = z.object({
   questions: z.array(z.string()),
   unconfirmed: z.array(z.string()),
 });
-const signature = (records: SourceRecord[]) =>
-  createHash("sha256")
-    .update(
-      JSON.stringify(
-        records.map((record) => [record.id, record.version]).sort(),
-      ),
-    )
-    .digest("hex");
-async function sources(userId: string, personId: string, tx: Runner = db) {
+async function sources(userId: string, personId: string, roleId: string, tx: Runner = db) {
   return rows<SourceRecord>(
-    sql`SELECT * FROM hirelix_private_records WHERE user_id=${userId}::uuid AND person_id=${personId}::uuid ORDER BY id`,
+    sql`SELECT * FROM hirelix_private_records WHERE user_id=${userId}::uuid AND ((person_id=${personId}::uuid AND (role_id IS NULL OR role_id=${roleId}::uuid)) OR (role_id=${roleId}::uuid AND person_id IS NULL)) ORDER BY id`,
     tx,
   );
+}
+export const savedAssessmentsInput = z.object({
+  role_id: idSchema,
+  expected_role_version: z.number().int().positive(),
+  candidates: z.array(z.object({
+    person_id: idSchema,
+    expected_person_version: z.number().int().positive(),
+    expected_relationship_version: z.number().int().positive().nullable(),
+    source_records: z.array(z.object({id: idSchema, version: z.number().int().positive()})).max(100),
+    assessment: assessmentOutput,
+  })).min(1).max(30),
+});
+
+// Persist the Agent's evidence-based judgment without a second model call or
+// a prescribed recruiting workflow. The existing role/person pair owns it.
+export async function saveAgentAssessments(userId: string, value: unknown, tx: Runner) {
+  const input = savedAssessmentsInput.parse(value);
+  if (new Set(input.candidates.map(item => item.person_id)).size !== input.candidates.length)
+    throw new WorkspaceError("Choose each candidate once");
+  const role = await owned<Role>(userId, "role", input.role_id, tx, true);
+  if (role.version !== input.expected_role_version)
+    throw new WorkspaceError("Role requirements changed. Read the current role before saving the assessment.", 409);
+  const saved = [];
+  for (const item of input.candidates) {
+    const person = await owned<Person>(userId, "person", item.person_id, tx, true);
+    const [prior] = await rows<RoleCandidate>(sql`SELECT * FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid FOR UPDATE`, tx);
+    if (person.version !== item.expected_person_version || (prior?.version ?? null) !== item.expected_relationship_version)
+      throw new WorkspaceError("Candidate details changed. Read the current candidate and role before saving the assessment.", 409);
+    const records = await sources(userId, person.id, role.id, tx);
+    for (const reference of item.source_records)
+      if (!records.some(record => record.id === reference.id && record.version === reference.version))
+        throw new WorkspaceError("An assessment source changed or belongs to another candidate or role.", 409);
+    const references = new Set(item.source_records.map(record => record.id));
+    if ([...item.assessment.strengths, ...item.assessment.gaps].some(observation => observation.record_ids.some(id => !references.has(id))))
+      throw new WorkspaceError("Cite only the selected source records for this candidate and role.");
+    const assessment = {
+      ...item.assessment, source_records: item.source_records,
+      scope: "Saved profile, current role requirements and explicitly cited records; an Agent assessment, not client feedback.",
+      person_version: person.version, role_version: role.version,
+      record_signature: assessmentSignature(records), assessed_at: new Date().toISOString(),
+      relationship: {permission: prior?.permission ?? "unknown", interest: prior?.interest ?? "", notes: prior?.notes ?? ""},
+    };
+    const [link] = await rows<RoleCandidate>(sql`INSERT INTO hirelix_private_role_candidates(user_id,role_id,person_id,assessment,assessed_role_version)
+      VALUES(${userId}::uuid,${role.id}::uuid,${person.id}::uuid,${json(assessment)},${role.version})
+      ON CONFLICT(user_id,role_id,person_id) DO UPDATE SET assessment=excluded.assessment,assessed_role_version=excluded.assessed_role_version,version=hirelix_private_role_candidates.version+1,updated_at=now() RETURNING *`, tx);
+    await snapshot(userId, "role_candidate", link, tx);
+    saved.push({...link, name: person.name});
+  }
+  return {role_id: role.id, title: `${role.client_name} · ${role.title}`, candidates: saved, href: `/app/roles/${role.id}?tab=candidates`};
 }
 export const assessCandidate: JobHandler = async (job, progress) => {
   const input = assessmentInput.parse(job.payload);
@@ -71,7 +112,7 @@ export const assessCandidate: JobHandler = async (job, progress) => {
     throw new WorkspaceError(
       "Link this candidate to the role before requesting an assessment",
     );
-  const records = await sources(job.user_id, person.id);
+  const records = await sources(job.user_id, person.id, role.id);
   let evidence: unknown = records;
   let scope = "Full saved profile and source records";
   if (JSON.stringify({ person, records }).length > 140000) {
@@ -85,7 +126,7 @@ export const assessCandidate: JobHandler = async (job, progress) => {
         ])
       ).embeddings[0];
     const passages = await rows<{ record_id: string | null; content: string }>(
-      sql`SELECT record_id,content FROM hirelix_private_embeddings WHERE user_id=${job.user_id}::uuid AND person_id=${person.id}::uuid AND model=${model} ORDER BY embedding<=>${JSON.stringify(vector)}::vector LIMIT 40`,
+      sql`SELECT e.record_id,e.content FROM hirelix_private_embeddings e WHERE e.user_id=${job.user_id}::uuid AND e.person_id=${person.id}::uuid AND e.model=${model} AND (e.record_id IS NULL OR e.record_id IN (SELECT id FROM hirelix_private_records WHERE user_id=${job.user_id}::uuid AND (role_id IS NULL OR role_id=${role.id}::uuid))) ORDER BY e.embedding<=>${JSON.stringify(vector)}::vector LIMIT 40`,
     );
     if (!passages.length)
       throw new WorkspaceError(
@@ -187,9 +228,10 @@ export const assessCandidate: JobHandler = async (job, progress) => {
     ...result,
     scope,
     person_version: person.version,
-    record_signature: signature(records),
+    record_signature: assessmentSignature(records),
     role_version: role.version,
     assessed_at: new Date().toISOString(),
+    relationship: {permission: relationship.permission, interest: relationship.interest, notes: relationship.notes},
   };
   return {
     result: { person_id: person.id, role_id: role.id, assessment },
@@ -208,11 +250,13 @@ export const assessCandidate: JobHandler = async (job, progress) => {
           tx,
           true,
         );
-      const currentRecords = await sources(job.user_id, person.id, tx);
+      const currentRecords = await sources(job.user_id, person.id, role.id, tx);
+      const [currentRelationship] = await rows<RoleCandidate>(sql`SELECT * FROM hirelix_private_role_candidates WHERE user_id=${job.user_id}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid FOR UPDATE`, tx);
       if (
         currentRole.version !== role.version ||
         currentPerson.version !== person.version ||
-        signature(currentRecords) !== signature(records)
+        assessmentSignature(currentRecords) !== assessmentSignature(records) ||
+        currentRelationship?.version !== relationship.version
       )
         return {
           superseded: true,

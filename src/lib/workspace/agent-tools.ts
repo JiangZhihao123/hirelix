@@ -29,6 +29,9 @@ import type {
 } from "./types";
 import { roleInput, recordInput } from "./types";
 import { roleDetails, linkPerson } from "./roles";
+import { savedAssessmentsInput, saveAgentAssessments } from "./assessment";
+import { activeDocumentShare, publishDocument, revokeDocumentShare } from "./document-sharing";
+import { recommendationFeedbackContext } from "./recommendation-feedback-contract";
 import { listPeople, personDetails } from "./people";
 import { retrieveCandidates } from "./retrieval";
 import { retrieveRoles } from "./role-retrieval";
@@ -90,6 +93,8 @@ export const progressLabels: Record<string, string> = {
   save_role: "Saving the client role",
   update_role: "Updating role requirements",
   save_record: "Saving the communication",
+  save_assessments: "Saving role-specific assessments",
+  share_document: "Updating the recommendation link",
   update_record: "Correcting the saved communication",
   update_relationship: "Updating the candidate's role-specific details",
   import_candidates: "Reading and saving candidates",
@@ -447,6 +452,9 @@ export function createAgentTools(ctx: AgentToolContext) {
             kind: document.kind,
             status: document.status,
             version: document.version,
+            person_ids: document.person_ids,
+            audience: document.source_snapshot.audience,
+            submitted_at: document.submitted_at,
             href:
               document.kind === "search_update"
                 ? `/app/roles/${document.role_id}/updates/${document.id}`
@@ -476,7 +484,17 @@ export function createAgentTools(ctx: AgentToolContext) {
       async (input) => {
         const document = await readSavedDocument(input.id);
         const previous = await rows<{ version: number; content: string }>(sql`SELECT version,snapshot->>'content' AS content FROM hirelix_private_versions WHERE user_id=${userId}::uuid AND entity_type='deliverable' AND entity_id=${input.id}::uuid ORDER BY version DESC LIMIT 5`);
-        return { ...document, previous_saved_versions: previous.map(item => ({ version: item.version, whitespace_word_count: (item.content || "").trim().split(/\s+/).filter(Boolean).length })) };
+        const feedback = await rows<SourceRecord>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${userId}::uuid AND kind='feedback' AND details->>'recommendation_id'=${document.id} ORDER BY created_at DESC`);
+        let share = null;
+        let sharingUnavailable: string | null = null;
+        if (document.kind === "submission" && document.source_snapshot.audience !== "internal") {
+          try { share = await activeDocumentShare(userId, document.id); }
+          catch (error) {
+            if (!(error instanceof WorkspaceError) || error.status !== 409) throw error;
+            sharingUnavailable = error.message;
+          }
+        }
+        return { ...document, ...await recordEvidence(userId, feedback), share, sharing_unavailable: sharingUnavailable, previous_saved_versions: previous.map(item => ({ version: item.version, whitespace_word_count: (item.content || "").trim().split(/\s+/).filter(Boolean).length })) };
       },
     ),
     read_file: define(
@@ -662,14 +680,25 @@ export function createAgentTools(ctx: AgentToolContext) {
           );
         }),
     ),
+    save_assessments: define(
+      "save_assessments",
+      "Save explicitly requested assessments for one role and one or more candidates. Reuse your own evidence-based judgment; this does not call another model or change factual profiles. Write the saved summaries, observations and questions in the user's language. Read current role and candidate details first. Quote the instruction to retain assessments or maintain this role; a one-off analysis alone does not authorize saving. Include each cited record's observed version; use null for expected_relationship_version only if the candidate is not yet linked. Missing evidence is a question, not a negative fact.",
+      savedAssessmentsInput.extend(authorization),
+      input => mutate("save_assessments", input, input.authorization_quote, async tx => {
+        const result = await saveAgentAssessments(userId, input, tx);
+        cite(result.title, result.href);
+        return {output: result, metadata: {sources: [{title: result.title, href: result.href}]}};
+      }),
+    ),
     save_record: define(
       "save_record",
-      "Save one new communication/event source for a candidate or role. A later call is a new event; corrections use update_record. Keep planned interviews distinct from completed activity.",
+      "Save one new communication/event source for a candidate or role. Save feedback about different candidates separately with both candidate and role IDs; attach recommendation context only for an actual client recommendation. A later call is a new event; corrections use update_record. Interview requests do not establish a scheduled or completed interview.",
       z.object({
         ...authorization,
         person_id: z.uuid().nullable(),
         role_id: z.uuid().nullable(),
         record: recordFact,
+        recommendation: recommendationFeedbackContext.nullable().default(null).describe("For feedback on an existing client recommendation: its ID and this person's response. Null for other communications."),
         file_id: z
           .uuid()
           .nullable()
@@ -683,7 +712,10 @@ export function createAgentTools(ctx: AgentToolContext) {
             tx,
             "add_record",
             input.record.title,
-            fact(input.record, input.person_id, input.role_id, input.file_id),
+            {
+              ...fact(input.record, input.person_id, input.role_id, input.file_id),
+              details: {...fact(input.record, input.person_id, input.role_id, input.file_id).details, ...input.recommendation},
+            },
             input.person_id,
             input.role_id,
           ),
@@ -937,6 +969,24 @@ export function createAgentTools(ctx: AgentToolContext) {
           document: typeof id === "string" ? await readSavedDocument(id) : null,
         };
       },
+    ),
+    share_document: define(
+      "share_document",
+      "Publish or revoke a client recommendation link when explicitly authorized. Publishing exposes the saved client-facing copy and selected CVs to anyone with the link; it neither sends email nor proves delivery. Read the saved document first. Publishing the same saved version reuses its active link. Existing links keep their snapshot when the draft changes; publishing a newer version replaces the old link. Never share internal assessments.",
+      z.object({...authorization, document_id: z.uuid(), expected_version: z.number().int().positive(), operation: z.enum(["publish", "revoke"])}),
+      input => mutate("share_document", input, input.authorization_quote, async tx => {
+        if (input.operation === "revoke") {
+          const document = await owned<Deliverable>(userId, "deliverable", input.document_id, tx, true);
+          if (document.version !== input.expected_version) throw new WorkspaceError("The recommendation changed. Read the current version before revoking its link.", 409);
+          await revokeDocumentShare(userId, document.id, tx);
+          return {output: {status: "revoked", document_id: document.id}};
+        }
+        const share = await publishDocument(userId, input.document_id, input.expected_version, tx);
+        return {
+          output: {status: "published", ...share, href: share.path, delivery_status: "not_sent"},
+          metadata: {recommendation_links: [{document_id: input.document_id, version: share.version, href: share.path, expires_at: share.expires_at}]},
+        };
+      }),
     ),
     edit_document: define(
       "edit_document",

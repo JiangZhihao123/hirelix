@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { owned, rows } from "./database";
+import { owned, rows, WorkspaceError } from "./database";
 import { MAX_CONVERSATION_FILES } from "./attachments";
 import { viewedSourceInput } from "./source-context";
 import { conversationExcerpt } from "./conversation-excerpt";
@@ -53,6 +53,7 @@ export type AssistantAction = {
   href?: string;
 };
 export type AssistantMeta = {
+  recommendation_links?: Array<{document_id: string; version: number; href: string; expires_at: string}>;
   document_edits?: Array<{id:string;title:string;version:number;href:string}>;
   exports?: { document_id: string; formats: Array<"pdf" | "docx"> };
   gmail?: {connected:boolean;email:string|null};
@@ -104,7 +105,9 @@ export async function searchConversations(userId: string, value: string) {
   });
 }
 export async function conversationDetails(userId: string, id: string) {
-  const conversation = await owned<Conversation>(userId, "conversation", id);
+  // Preserve PostgreSQL's full timestamp precision for read acknowledgements.
+  const [conversation] = await rows<Conversation & { notifications_through: string }>(sql`SELECT *,to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS notifications_through FROM hirelix_private_conversations WHERE user_id=${userId}::uuid AND id=${id}::uuid`);
+  if (!conversation) throw new WorkspaceError("This item was not found", 404);
   const [messages, jobs, work] = await Promise.all([
     rows<Message>(
       sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${id}::uuid ORDER BY created_at,id`,

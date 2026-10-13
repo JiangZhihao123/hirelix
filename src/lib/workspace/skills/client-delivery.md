@@ -6,6 +6,10 @@ Methods for recommendations, client reports and revisions. Apply the relevant me
 
 Build recommendations from role requirements and supported candidate evidence. Select information appropriate for the recipient and authorized scope, preserving fact-level confidentiality restrictions. Select original CV attachments explicitly when requested. Candidate-role sharing permissions are enforced by the business service.
 
+A recommendation can contain several candidates for one role. Explain the proposed combination and each person's distinct evidence and tradeoffs, keeping internal judgment separate from the client copy. Prepare useful material before presenting a genuine decision to the recruiter. A candidate-specific uncertainty blocks only the affected action; do not hold up other authorized work. Changing the selected candidates requires a new source selection, not merely removing their names from the text while leaving their CVs attached.
+
+Sharing a recommendation link publishes its selected snapshot, not an email or a confirmed delivery. Each person's response is independent. Read recommendation feedback with its candidate, role, source and date; a visitor's submitted name is not verified identity. An interview request is not a scheduled interview. Keep feedback and recruiter decisions as evidence, preserve prior versions, and revise recommendations from current facts. Never treat one client's rejection as a global judgment about the person.
+
 For reports, identify the reporting period and timezone. Attribute activity to its actual event date; preserve undated information as such. Distinguish historical events, current facts, planned activity and unresolved questions.
 
 ## Revision and delivery quality

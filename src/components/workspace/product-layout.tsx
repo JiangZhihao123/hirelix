@@ -11,7 +11,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link, { useLinkStatus } from "next/link";
 import "@/components/workspace/workspace.css";
 import {
-  api,
   ErrorNotice,
   date,
   initials,
@@ -91,7 +90,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const id = searchParams.get("conversation");
     if (pathname === "/app" && id && conversations.data?.conversations.some(item => item.id === id && item.unread)) {
-      api("/notifications", {method:"POST",body:JSON.stringify({conversation_id:id})}).then(conversations.refresh).catch(() => {});
+      window.dispatchEvent(new CustomEvent("hirelix:conversation-updated", { detail: { conversationId: id } }));
     }
   }, [pathname, searchParams, conversations.data, conversations.refresh]);
   const hasTrackedSigninViewRef = useRef(false);

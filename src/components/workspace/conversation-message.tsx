@@ -96,6 +96,10 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
                     ))}
                     {metadata.exports && <ConversationExports documentId={metadata.exports.document_id} formats={metadata.exports.formats} />}
+                    {metadata.recommendation_links?.map((link, index) => <div className="ws-actions mt-3" key={`${link.document_id}:${link.version}:${index}`}>
+                      <a className="ws-button" href={link.href} target="_blank" rel="noopener noreferrer">{t("Open client recommendation")}<ArrowUpRight size={14} /></a>
+                      <span className="ws-message-status">{t("Published copy")} · {t("Version")} {link.version}</span>
+                    </div>)}
                     {(metadata.email || metadata.gmail) && <ConversationEmail email={metadata.email} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
                     {metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
                     {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} exportedDocumentId={metadata.exports?.document_id} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}

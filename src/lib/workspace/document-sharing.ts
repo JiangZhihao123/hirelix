@@ -110,8 +110,9 @@ export async function publishDocument(
   userId: string,
   id: string,
   version: number,
+  runner?: Runner,
 ) {
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     const document = await owned<Deliverable>(
       userId,
       "deliverable",
@@ -136,24 +137,29 @@ export async function publishDocument(
       tx,
     );
     return summary(share);
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }
-export async function revokeDocumentShare(userId: string, id: string) {
-  await owned(userId, "deliverable", id);
-  await db.execute(
+export async function revokeDocumentShare(userId: string, id: string, runner: Runner = db) {
+  await owned(userId, "deliverable", id, runner);
+  await runner.execute(
     sql`UPDATE hirelix_private_document_shares SET revoked_at=now() WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid AND revoked_at IS NULL`,
   );
 }
-export async function readSharedDocument(value: string) {
+export async function readSharedDocument(value: string, runner?: Runner) {
   const id = tokenId(value);
   if (!id) return null;
   const [share] = await rows<Share>(
-    sql`SELECT * FROM hirelix_private_document_shares WHERE id=${id}::uuid AND revoked_at IS NULL AND expires_at>now()`,
+    sql`SELECT * FROM hirelix_private_document_shares WHERE id=${id}::uuid AND revoked_at IS NULL AND expires_at>now()`, runner,
   );
   if (!share) return null;
   const snapshot = clientDocumentSchema.parse(share.snapshot);
-  const document = await owned<Deliverable>(share.user_id, "deliverable", share.deliverable_id);
-  try { await assertSharingAllowed(share.user_id, document.role_id, snapshot); }
+  const document = await owned<Deliverable>(share.user_id, "deliverable", share.deliverable_id, runner, !!runner);
+  if (runner) {
+    const [active] = await rows(sql`SELECT id FROM hirelix_private_document_shares WHERE id=${id}::uuid AND revoked_at IS NULL AND expires_at>now() FOR SHARE`, runner);
+    if (!active) return null;
+  }
+  try { await assertSharingAllowed(share.user_id, document.role_id, snapshot, runner); }
   catch (error) { if (error instanceof WorkspaceError && error.status === 409) return null; throw error; }
   return { ...share, snapshot };
 }
