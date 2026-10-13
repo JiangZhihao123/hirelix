@@ -143,13 +143,14 @@ export const assistantReply: JobHandler = async (job, progress) => {
     const persisted = await activeAgentJob(job);
     const context = {
       request_time: {
-        utc: new Date(question.created_at).toISOString(),
+        utc: new Date().toISOString(),
+        message_created_at: question.created_at,
         timezone,
         local: new Intl.DateTimeFormat("en-GB", {
           timeZone: timezone,
           dateStyle: "full",
           timeStyle: "long",
-        }).format(new Date(question.created_at)),
+        }).format(new Date()),
       },
       preferred_language: locale,
       capabilities: {

@@ -826,6 +826,7 @@ export function createAgentTools(ctx: AgentToolContext) {
                 conversation_id: conversationId,
                 source_message_id: question.id,
                 save_new_candidates: true,
+                request: {locale: ctx.locale, timezone: ctx.timezone},
                 parent_chat_job_id: job.id,
               },
               tx,
