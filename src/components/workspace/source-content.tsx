@@ -7,9 +7,10 @@ function label(key: string) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 function Value({ value }: { value: unknown }) {
+  const t = useT();
   if (value === null || value === "") return <span>—</span>;
   if (Array.isArray(value)) return <ul>{value.map((item, i) => <li key={i}><Value value={item} /></li>)}</ul>;
-  if (typeof value === "object") return <dl className="ws-source-fields">{Object.entries(value as Record<string, unknown>).map(([key, item]) => <div key={key}><dt>{label(key)}</dt><dd><Value value={item} /></dd></div>)}</dl>;
+  if (typeof value === "object") return <dl className="ws-source-fields">{Object.entries(value as Record<string, unknown>).map(([key, item]) => <div key={key}><dt>{t(label(key))}</dt><dd><Value value={item} /></dd></div>)}</dl>;
   return <span>{String(value)}</span>;
 }
 export function SourceContent({ content }: { content: string }) {
