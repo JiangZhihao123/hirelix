@@ -8,6 +8,10 @@ Keep original CVs, JDs and communications traceable to their source, date and ow
 
 Candidate profiles contain professional facts. Communication records retain dated conversations, private expectations, compensation and client feedback. Preserve internal-only restrictions with the facts. Sharing permission, interest and availability are distinct, candidate-and-role-specific facts; one does not establish another.
 
+## Identity lookup and intake
+
+Resolve a known person with a targeted query using their name or reliable contact details, then inspect relevant matches. Candidate lists serve browsing requests. For authorized file intake, import_candidates performs identity lookup and the final transactional duplicate check itself, returning any specific conflicts that need the recruiter's judgment. Use those receipts to determine the next action.
+
 ## Maintaining records
 
 Retain original JD requirements separately from later client feedback. The current brief combines still-valid requirements and supported changes, including priorities, flexibility and unresolved questions. Associate changes with their source feedback instead of duplicating the event. Corrections update the identified record; new interactions create dated evidence. Keep original file references and prior versions.

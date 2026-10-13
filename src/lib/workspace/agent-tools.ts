@@ -369,7 +369,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     list_candidates: define(
       "list_candidates",
-      "List saved candidate summaries, newest updated first. Returns one page and total count, not full profiles or communication history.",
+      "Browse a page of saved candidate summaries when the user wants a candidate list. Returns newest updated first and a total count. For a known person, find_candidates performs targeted retrieval by name or contact detail. import_candidates owns file-intake duplicate checks.",
       z.object({page: z.number().int().min(1).default(1)}),
       async ({page}) => {
         const result = await listPeople(userId, "", page);
@@ -803,7 +803,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     import_candidates: define(
       "import_candidates",
-      "Import explicitly authorized candidate files through the existing importer. Returns saved identities or real conflicts; never claim all saved when review is needed.",
+      "Import explicitly authorized candidate files. The service extracts profiles and checks existing identities by name, email and profile URL within the user account before saving, including a transactional duplicate check for concurrent imports. Call this tool directly for authorized file intake; it returns saved candidates or specific identity conflicts for a decision. Targeted find_candidates retrieval is available when additional context about a known person is needed.",
       z.object({ ...authorization, file_id: z.uuid() }),
       async (input) => {
         if (!ctx.attachments.some((file) => file.file_id === input.file_id))
