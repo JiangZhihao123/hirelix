@@ -28,7 +28,7 @@ import type {
   Deliverable,
 } from "./types";
 import { roleInput, recordInput } from "./types";
-import { listRoles, roleDetails, linkPerson } from "./roles";
+import { roleDetails, linkPerson } from "./roles";
 import { listPeople, personDetails } from "./people";
 import { retrieveCandidates } from "./retrieval";
 import { retrieveRoles } from "./role-retrieval";
@@ -74,7 +74,9 @@ import type { ConversationAttachment } from "./attachments";
 export const progressLabels: Record<string, string> = {
   web_search: "Searching the web",
   read_skill: "Reviewing the working guidance",
-  workspace: "Checking roles, candidates and work agreements",
+  list_candidates: "Listing candidates",
+  list_roles: "Listing roles",
+  list_reminders: "Listing reminders",
   find_candidates: "Finding candidates",
   find_roles: "Finding client roles",
   read_candidate: "Reading candidate details",
@@ -356,45 +358,61 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     read_skill: define(
       "read_skill",
-      "Read a relevant working method before using its business tools. Adapt the guidance to the current goal and observations.",
+      "Read a professional working method by name. Returns guidance, not business records or authorization.",
       z.object({ name: z.enum(agentSkillNames) }),
       (input) => readAgentSkill(input.name),
     ),
-    workspace: define(
-      "workspace",
-      "Return a bounded inventory of the selected categories: saved roles, recent candidates, explicit preferences or reminders. Only selected categories are queried. Candidate entries are summaries, not full profiles or communication history. Targeted search and detail tools are available separately.",
-      z.object({sections: z.array(z.enum(["roles", "candidates", "preferences", "reminders"])).min(1).max(4)}),
-      async ({sections}) => {
-        const result: Record<string, unknown> = {};
-        await Promise.all([...new Set(sections)].map(async section => {
-          if (section === "roles") result.roles = (await listRoles(userId)).map(({id, title, client_name, status, version}) => ({id, title, client_name, status, version, href: `/app/roles/${id}`}));
-          if (section === "candidates") {
-            const candidates = await listPeople(userId, "");
-            result.candidates = {...candidates, people: candidates.people.map(({id, name, headline}) => ({id, name, headline, href: `/app/candidates?person=${id}`}))};
-          }
-          if (section === "preferences") result.memories = await listPersonalMemories(userId);
-          if (section === "reminders") result.reminders = (await listReminders(userId)).map(reminderEvidence);
-        }));
-        return result;
+    list_candidates: define(
+      "list_candidates",
+      "List saved candidate summaries, newest updated first. Returns one page and total count, not full profiles or communication history.",
+      z.object({page: z.number().int().min(1).default(1)}),
+      async ({page}) => {
+        const result = await listPeople(userId, "", page);
+        return {...result, people: result.people.map(({id, name, headline}) => ({id, name, headline, href: `/app/candidates?person=${id}`})), returned: result.people.length, has_more: page * result.page_size < result.total};
+      },
+    ),
+    list_roles: define(
+      "list_roles",
+      "List saved role summaries, newest updated first. Returns one page and total count; role details and source records are available separately.",
+      z.object({page: z.number().int().min(1).default(1)}),
+      async ({page}) => {
+        const [count] = await rows<{total: number}>(sql`SELECT count(*)::int AS total FROM hirelix_private_roles WHERE user_id=${userId}::uuid`);
+        const roles = await rows<{id: string; title: string; client_name: string; status: string}>(sql`SELECT id,title,client_name,status FROM hirelix_private_roles WHERE user_id=${userId}::uuid ORDER BY updated_at DESC,id LIMIT 50 OFFSET ${(page - 1) * 50}`);
+        return {roles: roles.map(role => ({...role, href: `/app/roles/${role.id}`})), total: count.total, returned: roles.length, page, page_size: 50, has_more: page * 50 < count.total};
+      },
+    ),
+    list_reminders: define(
+      "list_reminders",
+      "List saved one-time reminders including enabled and completed state, ordered by scheduled time descending. Returns one page and total count; excludes recurring reports.",
+      z.object({page: z.number().int().min(1).default(1)}),
+      async ({page}) => {
+        const [count] = await rows<{total: number}>(sql`SELECT count(*)::int AS total FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND kind='reminder'`);
+        const reminders = await rows<import("./reminders").Reminder>(sql`SELECT id,title,next_run_at,timezone,enabled,completed_at,version,conversation_id FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND kind='reminder' ORDER BY next_run_at DESC,id LIMIT 50 OFFSET ${(page - 1) * 50}`);
+        return {reminders: reminders.map(reminderEvidence), total: count.total, returned: reminders.length, page, page_size: 50, has_more: page * 50 < count.total};
       },
     ),
     find_candidates: define(
       "find_candidates",
-      "Find candidates by exact name/email or professional experience. Search each named person separately; report the actual coverage.",
-      z.object({
-        query: z.string().min(1).max(4000),
-        mode: z.enum(["exact", "semantic"]),
-      }),
-      async (input) =>
-        input.mode === "exact"
-          ? listPeople(userId, input.query)
-          : retrieveCandidates(userId, { query: input.query, limit: 20 }),
+      "Search saved candidates. text uses case-insensitive substring matching across name, email, profile, skills, notes and communication content; it does not establish identity. semantic ranks indexed professional evidence by relevance and returns at most 20 candidates, not exhaustive matches. Coverage describes indexing, not identity certainty.",
+      z.object({query: z.string().trim().min(1).max(4000), mode: z.enum(["text", "semantic"]), page: z.number().int().min(1).default(1)}),
+      async ({query, mode, page}) => {
+        if (mode === "text") {
+          const result = await listPeople(userId, query, page);
+          return {...result, people: result.people.map(person => ({...person, href: `/app/candidates?person=${person.id}`})), query, match_method: "case_insensitive_substring", returned: result.people.length, has_more: page * result.page_size < result.total, scope: "saved candidate fields and communication text; not identity verification"};
+        }
+        if (page !== 1) throw new WorkspaceError("Semantic search returns a ranked top 20, without pagination. Use text search for paginated text matches.");
+        const result = await retrieveCandidates(userId, {query, limit: 20});
+        return {...result, match_method: "semantic", limit: 20, returned: result.matches.length, exhaustive: false};
+      },
     ),
     find_roles: define(
       "find_roles",
-      "Search saved job descriptions by professional requirements. Read the selected role before relying on its current requirements.",
-      z.object({ query: z.string().min(1).max(4000) }),
-      async (input) => retrieveRoles(userId, input.query),
+      "Rank saved job descriptions by semantic relevance to the query. Returns at most 10 roles with indexing coverage, not an exhaustive filtered list or exact title match.",
+      z.object({ query: z.string().trim().min(1).max(4000) }),
+      async ({query}) => {
+        const result = await retrieveRoles(userId, query);
+        return {...result, roles: result.roles.map(role => ({...role, href: `/app/roles/${role.id}`})), query, match_method: "semantic", limit: 10, returned: result.roles.length, exhaustive: false};
+      },
     ),
     read_candidate: define(
       "read_candidate",

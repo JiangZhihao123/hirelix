@@ -277,8 +277,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
       if (part.type === "start-step") { stepText = ""; textPart = undefined; }
       if (part.type === "tool-call") {
         textPart = undefined;
-        const query = part.toolName === "web_search" ? (part.input as {query?: unknown}).query : undefined;
-        parts.push({type: "tool", id: part.toolCallId, tool: part.toolName, label: part.toolName === "workspace" ? "Reading the requested overview" : progressLabels[part.toolName] || "Working on your request", status: "running",
+        const query = ["web_search", "find_candidates", "find_roles"].includes(part.toolName) ? (part.input as {query?: unknown}).query : undefined;
+        parts.push({type: "tool", id: part.toolCallId, tool: part.toolName, label: progressLabels[part.toolName] || "Working on your request", status: "running",
           ...(typeof query === "string" ? {query} : {}),
         });
         writeReply(stepText, parts, true);
@@ -295,14 +295,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
           const output = part.output as {ok?: boolean; result?: Record<string, unknown>};
           if (output.ok && output.result) {
             const result = output.result;
-            if (part.toolName === "workspace") {
-              const candidates = result.candidates as {people?: unknown[]} | undefined;
-              entry.inventory = {
-                ...(Array.isArray(result.roles) ? {roles: result.roles.length} : {}),
-                ...(Array.isArray(candidates?.people) ? {candidates: candidates.people.length} : {}),
-                ...(Array.isArray(result.memories) ? {preferences: result.memories.length} : {}),
-                ...(Array.isArray(result.reminders) ? {reminders: result.reminders.length} : {}),
-              };
+            if (["list_candidates", "list_roles", "list_reminders", "find_candidates", "find_roles"].includes(part.toolName) && typeof result.returned === "number") {
+              entry.target = typeof result.total === "number" ? `${result.returned} / ${result.total}` : `${result.returned}`;
             }
             // Project only display fields; never expose complete tool inputs or records.
             const record = (result.person || result.role || result.document || result.record || result) as Record<string, unknown>;
