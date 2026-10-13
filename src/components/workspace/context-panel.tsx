@@ -31,7 +31,7 @@ function OriginalFile({ id, title }: { id: string; title: string }) {
 }
 
 /** A read-only view over the same authorized detail endpoints used by Library. */
-export function ContextPanel({ source, onClose }: { source: { title: string; href: string }; onClose: () => void }) {
+export function ContextPanel({ source, onClose, onTitle }: { source: { title: string; href: string }; onClose: () => void; onTitle?: (title: string) => void }) {
   const t = useT();
   const close = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
@@ -66,6 +66,9 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
       window.removeEventListener("hirelix:document-changed", refresh);
     };
   }, [refresh]);
+  const updateTitle = useEffectEvent((title: string) => onTitle?.(title));
+  const title = query.data?.person?.name || query.data?.role?.title || query.data?.deliverable?.title;
+  useEffect(() => { if (title) updateTitle(title); }, [title]);
   const record = query.data?.records?.find(item => item.id === recordId);
   return <><div className="ws-source-resizer" role="separator" aria-label={t("Resize details panel")} aria-orientation="vertical" aria-valuemin={300} aria-valuemax={Math.max(300, (panel.current?.parentElement?.clientWidth || 1200) - 360)} aria-valuenow={width || 360} tabIndex={0}
     onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); event.preventDefault(); }}

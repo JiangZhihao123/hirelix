@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment } from "react";
+import { Children, Fragment } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useT } from "@/components/LanguageProvider";
+import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { assistantSegments } from "@/lib/workspace/assistant-suggestions";
 
 export function AgentText({
@@ -16,13 +17,19 @@ export function AgentText({
   onOpenLink?: (href: string, label: string) => boolean;
 }) {
   const t = useT();
+  const linkLabel = (href: string, children: React.ReactNode) => {
+    const label = Children.toArray(children).filter(child => typeof child === "string").join("").trim();
+    const source = viewedSourceFromHref(href);
+    return source && (label === href || label.startsWith("/app/") || label.startsWith("/api/workspace/"))
+      ? t(({person: "View candidate profile", role: "View role", file: "Open original file", record: "View record", deliverable: "Saved document"})[source.kind]) : children;
+  };
   const renderMarkdown = (text: string) => (
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           a: ({ href, children }) => !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
             <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
-              {children}
+              {linkLabel(href, children)}
             </a>
           ),
         }}

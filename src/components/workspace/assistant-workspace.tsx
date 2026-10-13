@@ -845,7 +845,7 @@ export function AssistantWorkspace({
             </div>
           </form>
         </section>
-        {source && <ContextPanel source={source} onClose={() => setSource(null)} />}
+        {source && <ContextPanel source={source} onClose={() => setSource(null)} onTitle={title => setSource(current => current ? {...current, title} : current)} />}
         {contextOpen && <aside className="ws-assistant-context" aria-label={t("Choose role")}>
           <div className="ws-context-heading"><strong>{t("Choose role")}</strong><button className="ws-icon" onClick={() => setContextOpen(false)} aria-label={t("Close")}><X size={16} /></button></div>
           <button className="ws-button" onClick={() => { setContextOpen(false); router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`); }}>{t("Add role")}</button>
