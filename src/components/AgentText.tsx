@@ -25,7 +25,7 @@ export function AgentText({
     return source && (label === href || label.startsWith("/app/") || label.startsWith("/api/workspace/"))
       ? t(({person: "View candidate profile", role: "View role", file: "Open original file", record: "View record", deliverable: "Saved document"})[source.kind]) : children;
   };
-  const renderMarkdown = (text: string) => (
+  const renderMarkdown = (text: string, suggestion = false) => (
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -34,8 +34,8 @@ export function AgentText({
               {children}
             </button>
           ) : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
-            <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
-              {linkLabel(href, children)}
+            <a className={suggestion ? "ws-suggestion-link" : undefined} href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
+              {linkLabel(href, children)}{suggestion && <span aria-hidden="true"> ↗</span>}
             </a>
           ),
         }}
@@ -45,7 +45,7 @@ export function AgentText({
   );
   return <div className={`ws-agent-text ${className}`}>
     {assistantSegments(content).map((segment, index) => segment.kind === "suggestion"
-      ? <aside className="ws-assistant-suggestion" key={index} aria-label={t("Assistant suggestion")}><div className="ws-assistant-suggestion-label">{t("Assistant suggestion")}</div>{renderMarkdown(segment.text)}{segment.text.includes("#assistant-reply") && <small className="ws-suggestion-hint">{t("Choose a reply to edit and send, or write your own below.")}</small>}</aside>
+      ? <aside className="ws-assistant-suggestion" key={index} aria-label={t("Assistant suggestion")}><div className="ws-assistant-suggestion-label">{t("Assistant suggestion")}</div>{renderMarkdown(segment.text, true)}{segment.text.includes("#assistant-reply") && <small className="ws-suggestion-hint">{t("Choose a reply to edit and send, or write your own below.")}</small>}</aside>
       : <Fragment key={index}>{renderMarkdown(segment.text)}</Fragment>)}
   </div>;
 }
