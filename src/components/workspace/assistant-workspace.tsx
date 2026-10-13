@@ -666,11 +666,12 @@ export function AssistantWorkspace({
             ) : (
               displayedMessages.map(({key, message, activeJob, optimistic: isOptimistic}, index) => isOptimistic ? (
                 <article key={key} className="ws-message ws-message-user ws-message-optimistic" aria-label={t("Your message")}>
-                  <div className="ws-message-prose"><AgentText content={message.content} />
-                    {optimistic?.files?.map(item => <div className="ws-chat-attachment" key={item.id}>
-                      <AttachmentThumbnail name={item.file.name} file={item.file} /><Paperclip size={14} /><span>{item.file.name}</span>
+                  {!!optimistic?.files?.length && <div className="ws-message-attachments">
+                    {optimistic.files.map(item => <div className={`ws-chat-attachment${item.file.type.startsWith("image/") ? " ws-chat-image" : ""}`} key={item.id} title={item.file.name}>
+                      <AttachmentThumbnail name={item.file.name} file={item.file} /><Paperclip size={20} /><span>{item.file.name}</span>
                     </div>)}
-                  </div>
+                  </div>}
+                  {message.content.trim() && <div className="ws-message-prose"><AgentText content={message.content} /></div>}
                   <div className="ws-message-tools" aria-hidden="true" />
                 </article>
               ) : <ConversationMessage key={key} message={message}

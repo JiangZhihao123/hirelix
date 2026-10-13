@@ -2676,3 +2676,24 @@
 .ws-mail-record { border-bottom: 1px solid var(--ws-border); padding: 18px 0; }
 .ws-mail-record summary { cursor: pointer; display: flex; justify-content: space-between; gap: 16px; }
 .ws-mail-record p { white-space: pre-wrap; }
+
+/* Attachments belong to the message, outside its text bubble. */
+.ws-message-attachments { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: min(620px, 78%); margin: 0 0 10px auto; }
+.ws-message-attachments .ws-chat-attachment { margin: 0; padding: 12px; gap: 10px; border: 1px solid #e2e7e1; border-radius: 12px; background: #fafbf9; max-width: 280px; min-width: 0; }
+.ws-message-attachments .ws-chat-attachment > svg { flex-shrink: 0; }
+.ws-message-attachments .ws-chat-attachment > span { white-space: nowrap; }
+.ws-message-attachments .ws-chat-image { padding: 0; background: none; overflow: hidden; }
+.ws-message-attachments .ws-chat-image .ws-attachment-thumbnail { width: auto; height: auto; max-width: 220px; max-height: 180px; object-fit: contain; border-radius: 11px; }
+.ws-message-attachments .ws-chat-image:has(img:not([hidden])) > svg,
+.ws-message-attachments .ws-chat-image:has(img:not([hidden])) > span { display: none; }
+.ws-message-user .ws-message-prose { padding: 10px 16px; border-radius: 18px; }
+.ws-message-user .ws-message-tools { gap: 10px; }
+.ws-tool-block { border: 0; border-radius: 0; background: transparent; max-width: 100%; }
+.ws-tool-heading { width: fit-content; max-width: 100%; padding: 3px 0; gap: 7px; font-size: 12px; }
+.ws-tool-heading-label { flex: initial; font-weight: 400; overflow-wrap: anywhere; }
+.ws-tool-inline-target { color: #899286; }
+.ws-tool-heading-static { cursor: default; }
+.ws-tool-chevron { flex-shrink: 0; }
+.ws-tool-details { margin: 6px 0 4px 6px; border-top: 0; border-left: 1px solid #e2e7e1; padding: 0 14px; }
+.ws-tool-source-preview { padding: 4px 0 4px 20px; }
+.ws-tool-partial { padding: 4px 0 4px 20px; }

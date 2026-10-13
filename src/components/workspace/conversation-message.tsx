@@ -7,7 +7,7 @@ import { TurnParts } from "./turn-parts";
 import { turnParts } from "@/lib/workspace/turn-progress";
 import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
-import { ArrowUpRight, Paperclip, Check, Copy } from "lucide-react";
+import { ArrowUpRight, FileText, Check, Copy } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
 import { BrandMark } from "@/components/BrandMark";
 import { AgentText } from "@/components/AgentText";
@@ -16,7 +16,7 @@ import { AttachmentThumbnail } from "./attachment-thumbnail";
 import { date } from "./client";
 import { ConversationImport } from "./import-review";
 import { AssistantWork, AssistantAgreement, ConversationRevision } from "./assistant-work";
-import { messageAttachments, messageImportJobs } from "@/lib/workspace/attachments";
+import { attachmentPreviewType, messageAttachments, messageImportJobs } from "@/lib/workspace/attachments";
 import type { AssistantAction, AssistantMeta } from "@/lib/workspace/conversations";
 import type { Message, Deliverable, Job } from "@/lib/workspace/types";
 
@@ -63,16 +63,24 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                           <BrandMark small />
                         </span>
                         <strong>{t("Hirelix")}</strong>
-                        {message.created_at && <time dateTime={message.created_at}>{date(message.created_at, true)}</time>}
+                        {message.created_at && <time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time>}
                       </div>
                     )}
+                    {!!messageAttachments(message.metadata).length && <div className="ws-message-attachments">
+                      {messageAttachments(message.metadata).map((file) => (
+                        <button key={file.file_id} type="button" className={`ws-chat-attachment${attachmentPreviewType(file.name)?.startsWith("image/") ? " ws-chat-image" : ""}`} title={file.name} aria-label={file.name} onClick={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})}>
+                          <AttachmentThumbnail name={file.name} href={`/api/workspace/files/${file.file_id}?preview=1`} />
+                          <FileText size={20} /><span>{file.name}</span>
+                        </button>
+                      ))}
+                    </div>}
                     {!!parts.length && <TurnParts parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
                       if (!source || !source.href.startsWith("/")) return false;
                       onSource({title: label || source.title, href});
                       return true;
                     }} />}
-                    <div className="ws-message-prose">
+                    <div className="ws-message-prose" hidden={message.role === "user" && !message.content.trim()}>
                       <AgentText content={parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : activeJob ? String(activeJob.result?.live_reply || "") : message.content} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (source) { if (!source.href.startsWith("/")) return false; onSource(source); return true; }
@@ -83,12 +91,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         if (url.origin !== window.location.origin || !/^\/app\/(?:submissions|roles\/[a-f0-9-]+\/updates)\/[a-f0-9-]+$/.test(url.pathname)) return false;
                         onSource({ title: label || t("Saved document"), href: url.pathname }); return true;
                       }} />
-                      {messageAttachments(message.metadata).map((file) => (
-                        <button key={file.file_id} type="button" className="ws-chat-attachment" onClick={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})}>
-                          <AttachmentThumbnail name={file.name} href={`/api/workspace/files/${file.file_id}?preview=1`} />
-                          <Paperclip size={14} /><span>{file.name}</span>
-                        </button>
-                      ))}
+
                     </div>
                     {activeJob && <TurnActivity job={activeJob} embedded hideContent receivingFiles={receivingFiles} disconnected={disconnected} onRetry={onRetry} />}
                     {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
@@ -160,14 +163,15 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       </div>
                     ))}
                     <div className="ws-message-tools">
-                      {message.role === "user" && <time dateTime={message.created_at}>{date(message.created_at, true)}</time>}
+                      {message.role === "user" && <time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time>}
                       {message.content && message.metadata.turn_status !== "cancelled" && <button
                         type="button"
                         onClick={() => onCopy(message.id, message.content)}
-                        aria-label={t("Copy message")}
+                        title={copiedId === message.id ? t("Copied") : t("Copy message")}
+                        aria-label={copiedId === message.id ? t("Copied") : t("Copy message")}
                       >
-                        <Copy size={13} />
-                        {copiedId === message.id ? t("Copied") : t("Copy")}
+                        {copiedId === message.id ? <Check size={13} /> : <Copy size={13} />}
+                        {message.role !== "user" && (copiedId === message.id ? t("Copied") : t("Copy"))}
                       </button>}
                     </div>
                   </article>
