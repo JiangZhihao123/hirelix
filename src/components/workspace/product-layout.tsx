@@ -44,7 +44,7 @@ import {
   CreditCard,
   ChevronUp,
   ChevronRight,
-  Plus,
+  SquarePen,
   MessageSquare,
 } from "lucide-react";
 
@@ -109,7 +109,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     ? searchParams.get("conversation")
     : null;
   const nav = [
-    { href: "/app?new=1", label: t("New conversation"), icon: Plus, active: false },
+    { href: "/app?new=1", label: t("New conversation"), icon: SquarePen, active: false },
     {
       href: "/app/candidates",
       label: t("Candidates & CVs"),
@@ -430,7 +430,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                   aria-label={t("New conversation")}
                   onClick={() => window.dispatchEvent(new Event("hirelix:focus-composer"))}
                 >
-                  <Plus size={18} />
+                  <SquarePen size={18} />
                 </Link>
               </>
             ) : (
