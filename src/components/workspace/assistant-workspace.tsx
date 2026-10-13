@@ -2,7 +2,7 @@
 
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { ConversationContext } from "./conversation-context";
-import { TurnActivity } from "./turn-activity";
+import { conversationTurnView } from "./conversation-turn-view";
 import { useTurnStream } from "./use-turn-stream";
 import { isTurnRunning, turnParts } from "@/lib/workspace/turn-progress";
 import { copyConversationMessage } from "./message-copy";
@@ -167,13 +167,13 @@ export function AssistantWorkspace({
     composer = useRef<HTMLTextAreaElement>(null);
   const stopRequested = useRef(false);
   const [stopping, setStopping] = useState(false);
+  const [pendingReplyKey, setPendingReplyKey] = useState("pending-reply");
   const [submittedJob, setSubmittedJob] = useState<Job | null>(null);
   const seedJob = submittedJob && (!query.data?.job || submittedJob.created_at > query.data.job.created_at || (submittedJob.id === query.data.job.id && Date.parse(submittedJob.updated_at) >= Date.parse(query.data.job.updated_at))) ? submittedJob : query.data?.job;
-  const {job, disconnected} = useTurnStream(seedJob, query.refresh);
+  const {job, disconnected, freeze, unfreeze} = useTurnStream(seedJob, query.refresh);
   useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = isTurnRunning(job);
-  const finalMessageVisible = !!job?.result?.message_id && !!query.data?.messages.some(message => message.id === job.result?.message_id);
-  const receiptMessageVisible = !!job?.result?.receipt_message_id && !!query.data?.messages.some(message => message.id === job.result?.receipt_message_id);
+  const displayedMessages = conversationTurnView({messages: query.data?.messages || [], job, sending, pendingKey: pendingReplyKey, conversationId, optimistic});
   const hasAgreement = query.data?.messages.some(message => ((message.metadata as AssistantMeta).schedules?.length || (message.metadata as AssistantMeta).reminders?.length || (message.metadata as AssistantMeta).question?.status === "waiting"));
   const delegatedPending = query.data?.work?.some(work => ["queued", "running"].includes(work.status));
   const refreshConversation = query.refresh;
@@ -392,7 +392,7 @@ export function AssistantWorkspace({
     try {
       // A correction explicitly stops the previous turn before a new request.
       // The server's existing cancellation and lease checks own late writes.
-      if (pending && job) await api(`/jobs/${job.id}`, {method: "DELETE"});
+      if (pending && job) { freeze(); await api(`/jobs/${job.id}`, {method: "DELETE", body: JSON.stringify({stream_epoch: job.result?.stream_epoch, stream_sequence: job.result?.stream_sequence || 0})}); }
       const fileIds: string[] = [];
       for (const item of attachments) {
         if (stopRequested.current) break;
@@ -423,6 +423,7 @@ export function AssistantWorkspace({
       const signature = JSON.stringify(payload);
       if (request.current?.text !== signature)
         request.current = { text: signature, key: crypto.randomUUID() };
+      setPendingReplyKey(request.current.key);
       localStorage.setItem(requestStorageKey, JSON.stringify(request.current));
       const result = await api<{ conversation_id: string; job: Job }>("/conversations", {
         method: "POST",
@@ -446,7 +447,8 @@ export function AssistantWorkspace({
           const stopped = await api<{ job: Job }>(`/jobs/${result.job.id}`, { method: "DELETE" });
           setSubmittedJob(stopped.job);
         } catch (cause) {
-          setError(cause instanceof Error ? cause.message : "Could not stop");
+          unfreeze();
+      setError(cause instanceof Error ? cause.message : "Could not stop");
         }
       }
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
@@ -458,6 +460,7 @@ export function AssistantWorkspace({
       composer.current?.focus();
     } catch (cause) {
       setOptimistic(null);
+      unfreeze();
       setError(
         cause instanceof Error ? cause.message : "Could not save your message",
       );
@@ -476,10 +479,12 @@ export function AssistantWorkspace({
     }
     try {
       if (!job) return;
-      const result = await api<{ job: Job }>(`/jobs/${job.id}`, { method: "DELETE" });
+      freeze();
+      const result = await api<{ job: Job }>(`/jobs/${job.id}`, { method: "DELETE", body: JSON.stringify({stream_epoch: job.result?.stream_epoch, stream_sequence: job.result?.stream_sequence || 0}) });
       setSubmittedJob(result.job);
       query.refresh();
     } catch (cause) {
+      unfreeze();
       setError(cause instanceof Error ? cause.message : "Could not stop");
     } finally {
       setStopping(false);
@@ -643,11 +648,11 @@ export function AssistantWorkspace({
               setShowJump(!nearBottom);
             }}
           >
-            {conversationId && !query.data ? (
+            {conversationId && !query.data && !optimistic ? (
               query.loading && !optimistic ? (
                 <Loading>{t("Opening your conversation…")}</Loading>
               ) : null
-            ) : !count && !optimistic ? (
+            ) : !count && !optimistic && !displayedMessages.length ? (
               <div className="ws-assistant-start">
                 <div className="ws-assistant-mark">
                   <BrandMark small />
@@ -657,35 +662,27 @@ export function AssistantWorkspace({
                 <button className="ws-link ws-home-memory" onClick={() => setMemoriesOpen(true)}>{t("What I remember")} <ArrowUpRight size={13} /></button>
               </div>
             ) : (
-              query.data?.messages.map((message, index) => <ConversationMessage key={message.id} message={message}
-                activeJob={(pending || job?.status === "error") && job?.result?.receipt_message_id === message.id ? job : undefined}
-                onRetry={retry} disconnected={disconnected}
+              displayedMessages.map(({key, message, activeJob, optimistic: isOptimistic}, index) => isOptimistic ? (
+                <article key={key} className="ws-message ws-message-user ws-message-optimistic" aria-label={t("Your message")}>
+                  <div className="ws-message-prose"><AgentText content={message.content} />
+                    {optimistic?.files?.map(item => <div className="ws-chat-attachment" key={item.id}>
+                      <AttachmentThumbnail name={item.file.name} file={item.file} /><Paperclip size={14} /><span>{item.file.name}</span>
+                    </div>)}
+                  </div>
+                  <div className="ws-message-tools" aria-hidden="true" />
+                </article>
+              ) : <ConversationMessage key={key} message={message}
+                activeJob={activeJob} receivingFiles={sending && attachments.length > 0}
+                onRetry={retry} disconnected={!sending && disconnected}
                 importRefresh={job?.status === "done" ? job.id : undefined}
-                laterScheduleIds={query.data!.messages.slice(index + 1).flatMap(item => (item.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
+                laterScheduleIds={displayedMessages.slice(index + 1).flatMap(item => (item.message.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
                 onReady={query.refresh} onRevise={document => { setSource(null); setRevisionTarget(document); setDraft(`${document.title}: ${t("Please revise the document: ")}`); composer.current?.focus(); }}
                 onMemories={() => setMemoriesOpen(true)} onSource={source => { setRevisionTarget(null); setContextOpen(false); setSource(source); }}
                 onReview={(messageId, action) => setReview({messageId, action})} onCopy={(id, content) => void copyConversationMessage(id, content, setCopiedId, setError)} copiedId={copiedId}
               />)
             )}
+
             {query.data?.work?.filter(work => !query.data?.messages.some(message => (message.metadata as AssistantMeta).work?.some(receipt => receipt.job_id === work.id))).map(work => <AssistantWork key={work.id} receipt={{ job_id: work.id, kind: "search_update", title: t("Your agreed recurring update") }} onReady={query.refresh} onRevise={document => { setSource(null); setRevisionTarget(document); setDraft(`${document.title}：${t("Please revise the draft: ")}`); composer.current?.focus(); }} />)}
-            {optimistic &&
-              !query.data?.messages.some(
-                (message) =>
-                  message.role === "user" &&
-                  !optimistic.priorIds.includes(message.id),
-              ) && (
-                <article className="ws-message ws-message-user ws-message-optimistic" aria-label={t("Your message")}>
-                  <div className="ws-message-prose">
-                    <AgentText content={optimistic.text} />
-                    {optimistic.files?.map(item => <div className="ws-chat-attachment" key={item.id}>
-                      <AttachmentThumbnail name={item.file.name} file={item.file} /><Paperclip size={14} /><span>{item.file.name}</span>
-                    </div>)}
-                  </div>
-                </article>
-              )}
-            {(sending || (job && !finalMessageVisible && !receiptMessageVisible && (pending || job.status === "done" || job.status === "cancelled" || job.status === "error" || !!job.result?.live_reply)) || (optimistic && conversationId && !query.data)) && (
-              <TurnActivity job={sending ? null : job} disconnected={!sending && disconnected} receivingFiles={sending && attachments.length > 0} onRetry={retry} />
-            )}
 
           </div>
           {showJump && (

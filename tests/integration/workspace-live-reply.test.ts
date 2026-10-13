@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import {after,test} from "node:test";
 import {sql} from "drizzle-orm";
+import {closeTurnChannel} from "../../src/lib/workspace/turn-channel";
 import {closeDb} from "../../src/db/client";
 import {rows} from "../../src/lib/workspace/database";
 import {sendMessage,assistantReply,conversationDetails} from "../../src/lib/workspace/conversations";
@@ -10,7 +11,7 @@ import {initializeGlobalOutboundProxy} from "../../src/lib/server-outbound-proxy
 const url=new URL(process.env.DATABASE_URL || 'postgres://invalid/invalid');
 assert.ok(['localhost','127.0.0.1'].includes(url.hostname)&&url.pathname.startsWith('/hirelix_workspace_qa_'));
 assert.equal(process.env.WORKSPACE_REAL_AI_TEST,'true');
-initializeGlobalOutboundProxy(); after(closeDb);
+initializeGlobalOutboundProxy(); after(async()=>{await closeDb();await closeTurnChannel();});
 const owner=randomUUID();
 test('real model and PG: provider prose appears before the final saved reply, cancellation blocks late writes',{timeout:240000},async()=>{
   const sent=await sendMessage(owner,{message:'Explain in English, in six short paragraphs, how a headhunter can prepare for a first client intake call. General advice only; do not create records, reminders, or save preferences.',request_key:randomUUID(),locale:'en'});
@@ -35,8 +36,9 @@ test('real model and PG: provider prose appears before the final saved reply, ca
   } finally {clearInterval(poll);clearInterval(beat);}
   const next=await sendMessage(owner,{message:'Cancellation QA',request_key:randomUUID(),locale:'en'});
   const cancelled=await claimJob(['chat'],{id:next.job.id,userId:owner});assert.equal(cancelled?.id,next.job.id);
-  const write=liveReplyWriter(cancelled!);await write('Unfinished response');await cancelJob(owner,cancelled!.id);
-  await assert.rejects(()=>write(''),/taken over/);
+  const write=liveReplyWriter(cancelled!);await write.ready;write('Unfinished response', [{type:'text',text:'Unfinished response'}]);await cancelJob(owner,cancelled!.id);
+  await assert.rejects(()=>write.flush(),/execution lease/);
+  await write.close();
   const [state]=await rows<{result:{live_reply:string;message_id:string};status:string}>(sql`SELECT result,status FROM hirelix_private_jobs WHERE id=${cancelled!.id}::uuid`);assert.equal(state.status,'cancelled');assert.equal(state.result.live_reply,undefined);
   const stopped=await conversationDetails(owner,next.conversation_id);
   assert.equal(stopped.messages.at(-1)?.content,'');

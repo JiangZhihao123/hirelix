@@ -35,8 +35,8 @@ function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantM
   </details>;
 }
 
-export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob, onRetry, disconnected }: {
-  activeJob?: Job; onRetry?: () => Promise<void>; disconnected?: boolean;
+export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob, onRetry, disconnected, receivingFiles }: {
+  receivingFiles?: boolean; activeJob?: Pick<Job, "status" | "progress" | "error" | "result">; onRetry?: () => Promise<void>; disconnected?: boolean;
   message: Message; importRefresh?: string; laterScheduleIds: string[]; onReady: () => void;
   onRevise: (document: Deliverable) => void; onMemories: () => void;
   onSource: (source: {title: string; href: string}) => void;
@@ -45,7 +45,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
 }) {
   const t = useT();
   const metadata = message.metadata as AssistantMeta;
-  const parts = turnParts(message.metadata);
+  const parts = turnParts(activeJob?.result ?? message.metadata);
   const displayedSources = new Set(parts.flatMap(part => part.type === "tool" ? (part.sources || []).map(source => source.href) : []));
   if (metadata.exports) displayedSources.add(`/app/submissions/${metadata.exports.document_id}`);
   metadata.document_edits?.forEach(document => displayedSources.add(document.href));
@@ -53,6 +53,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
   return (
                   <article
                     className={`ws-message ws-message-${message.role}`}
+                    data-message-key={message.metadata.reply_request_key as string || message.id}
                     aria-label={message.role === "user" ? t("Your message") : t("Hirelix")}
 
                   >
@@ -62,17 +63,17 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                           <BrandMark small />
                         </span>
                         <strong>{t("Hirelix")}</strong>
-                        <time dateTime={message.created_at}>{date(message.created_at, true)}</time>
+                        {message.created_at && <time dateTime={message.created_at}>{date(message.created_at, true)}</time>}
                       </div>
                     )}
-                    {!activeJob && !!parts.length && <TurnParts parts={parts} onOpenLink={(href, label) => {
+                    {!!parts.length && <TurnParts parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
                       if (!source || !source.href.startsWith("/")) return false;
                       onSource({title: label || source.title, href});
                       return true;
                     }} />}
                     <div className="ws-message-prose">
-                      <AgentText content={parts.length || activeJob || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : message.content} onOpenLink={(href, label) => {
+                      <AgentText content={parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : activeJob ? String(activeJob.result?.live_reply || "") : message.content} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (source) { if (!source.href.startsWith("/")) return false; onSource(source); return true; }
                         // A saved document may be cited from earlier conversation
@@ -89,8 +90,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         </button>
                       ))}
                     </div>
-                    {activeJob && <TurnActivity job={activeJob} embedded disconnected={disconnected} onRetry={onRetry} />}
-                    {message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
+                    {activeJob && <TurnActivity job={activeJob} embedded hideContent receivingFiles={receivingFiles} disconnected={disconnected} onRetry={onRetry} />}
+                    {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
                     ))}

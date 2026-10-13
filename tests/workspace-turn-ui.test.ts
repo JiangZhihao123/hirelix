@@ -9,7 +9,9 @@ Object.assign(globalThis, { React });
 const job = (status: Job["status"]): Pick<Job, "status" | "progress" | "error" | "result"> => ({status, progress:"Reading requirements", error:status === "error" ? "Service unavailable" : null, result:{live_reply:"Already checked the role.",activity:[{label:"Reading requirements",at:"now"}]}});
 test("running reply exposes current status; terminal reply has no spinner or activity tail", () => {
   const running = renderToStaticMarkup(React.createElement(TurnActivity, {job:job("running")}));
-  assert.match(running,/role="status"/); assert.match(running,/Reading requirements/);
+  assert.match(running,/Already checked the role/); assert.doesNotMatch(running,/Thinking|Reading requirements/);
+  const waiting = renderToStaticMarkup(React.createElement(TurnActivity,{job:{...job("running"),result:{}}}));
+  assert.match(waiting,/role="status"/);assert.match(waiting,/Thinking/);assert.match(waiting,/animate-spin/);
   for (const status of ["done","cancelled","error"] as const) {
     const html = renderToStaticMarkup(React.createElement(TurnActivity,{job:job(status)}));
     assert.doesNotMatch(html,/animate-spin|View activity|<details/);

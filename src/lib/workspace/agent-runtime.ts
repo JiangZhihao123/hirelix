@@ -10,7 +10,7 @@ import { agentModel, agentProviderOptions } from "./agent-model";
 import { createAgentTools, progressLabels, type AgentToolContext } from "./agent-tools";
 import { prepareEmailReply } from "./conversation-email";
 import { json, rows, WorkspaceError } from "./database";
-import { liveReplyWriter, type JobHandler } from "./jobs";
+import { liveReplyWriter, LostLease, type JobHandler } from "./jobs";
 import { getLogger } from "@/lib/logger";
 import type { TurnPart } from "./turn-progress";
 import type { Message } from "./types";
@@ -135,7 +135,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
         if (!titleController.signal.aborted) getLogger({component: "conversation_title"}).warn({job_id: job.id, error_type: error instanceof Error ? error.name : "Unknown"}, "Conversation title unchanged");
       })
     : Promise.resolve();
+  const writeReply = liveReplyWriter(job, () => controller.abort(new LostLease()));
   try {
+    await writeReply.ready;
     const persisted = await activeAgentJob(job);
     const context = {
       request_time: {
@@ -269,13 +271,12 @@ export const assistantReply: JobHandler = async (job, progress) => {
       abortSignal: controller.signal,
       timeout: { totalMs: 900000 },
     });
-    const writeReply = liveReplyWriter(job);
     let stepText = "";
     let textPart: Extract<TurnPart, {type: "text"}> | undefined;
     for await (const part of result.fullStream) {
-      if (part.type === "error") throw part.error;
+      if (part.type === "error") throw controller.signal.aborted ? controller.signal.reason : part.error;
       if (part.type === "abort")
-        throw new WorkspaceError(
+        throw controller.signal.reason || new WorkspaceError(
           "The assistant was interrupted before it could finish. Completed work is saved; retry or continue in this conversation.",
           502,
         );
@@ -286,7 +287,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         parts.push({type: "tool", id: part.toolCallId, tool: part.toolName, label: progressLabels[part.toolName] || "Working on your request", status: "running",
           ...(typeof query === "string" ? {query} : {}),
         });
-        await writeReply(stepText, parts, true);
+        writeReply(stepText, parts, true);
       }
       if (part.type === "tool-result" || part.type === "tool-error") {
         const entry = parts.find(entry => entry.type === "tool" && entry.id === part.toolCallId);
@@ -308,13 +309,13 @@ export const assistantReply: JobHandler = async (job, progress) => {
             if (typeof href === "string" && href.startsWith("/app/")) entry.href = href;
           }
         }
-        await writeReply(stepText, parts, true);
+        writeReply(stepText, parts, true);
       }
       if (part.type === "text-delta") {
         if (!textPart) { textPart = {type: "text", text: ""}; parts.push(textPart); }
         stepText += part.text;
         textPart.text += part.text;
-        await writeReply(stepText, parts);
+        writeReply(stepText, parts);
       }
     }
     if (controller.signal.aborted) throw controller.signal.reason;
@@ -325,7 +326,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
         502,
       );
     if (ctx.clarification && !parts.some(part => part.type === "text" && part.text === answer)) parts.push({type: "text", text: answer});
-    await writeReply(answer, parts, true);
+    writeReply(answer, parts, true);
+    await writeReply.flush();
     replyPrepared = true;
     return {
       result: {
@@ -336,6 +338,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         const current = await activeAgentJob(job, tx, true);
         const receiptId = current.result?.receipt_message_id;
         const metadata = {
+          reply_request_key: job.request_key,
           parts,
           sources: [...ctx.sources.values()].slice(0, 30),
           agent: { framework: "ai-sdk/ToolLoopAgent", steps: trace },
@@ -362,6 +365,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
   } finally {
     clearInterval(timer);
     controller.abort();
+    await writeReply.close();
     if (!replyPrepared) titleController.abort();
     void naming;
   }

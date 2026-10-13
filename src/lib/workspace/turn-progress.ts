@@ -15,7 +15,8 @@ export function turnParts(result: Record<string, unknown> | null | undefined): T
 
 export type TurnActivityEntry = { label: string; at: string };
 export type TurnSnapshot = Pick<Job, "id" | "status" | "progress" | "error" | "updated_at"> & {
-  result: { parts?: TurnPart[]; live_reply?: string; message_id?: string; receipt_message_id?: string; receipt_count: number; activity: TurnActivityEntry[] };
+  attempts?: number;
+  result: { stream_epoch?: string; stream_sequence?: number; parts?: TurnPart[]; live_reply?: string; message_id?: string; receipt_message_id?: string; receipt_count: number; activity: TurnActivityEntry[] };
 };
 
 export function turnActivity(result: Record<string, unknown> | null): TurnActivityEntry[] {
@@ -26,10 +27,13 @@ export function turnActivity(result: Record<string, unknown> | null): TurnActivi
 
 // The browser receives display data only, never job inputs, lease credentials,
 // provider payloads or the internal action plan.
-export function turnSnapshot(job: Pick<Job, "id" | "status" | "progress" | "error" | "updated_at" | "result">): TurnSnapshot {
+export function turnSnapshot(job: Pick<Job, "id" | "status" | "progress" | "error" | "updated_at" | "result"> & Partial<Pick<Job, "attempts">>): TurnSnapshot {
   return {
+    attempts: job.attempts,
     id: job.id, status: job.status, progress: job.progress, error: job.error, updated_at: job.updated_at,
     result: {
+      stream_epoch: typeof job.result?.stream_epoch === "string" ? job.result.stream_epoch : undefined,
+      stream_sequence: Number(job.result?.stream_sequence || 0),
       parts: turnParts(job.result),
       live_reply: typeof job.result?.live_reply === "string" ? job.result.live_reply : "",
       ...(typeof job.result?.message_id === "string" ? { message_id: job.result.message_id } : {}),

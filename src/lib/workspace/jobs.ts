@@ -1,4 +1,5 @@
-import { turnParts, type TurnPart } from "./turn-progress";
+import { signalTurnStop } from "./turn-channel";
+import { turnParts } from "./turn-progress";
 import { isIncludedTask } from "./database";
 import { reserveAgentCredits, AgentCreditError } from "@/lib/agent-access";
 import { agentCreditContext } from "@/lib/agent-credit-context";
@@ -43,7 +44,7 @@ export async function claimJob(kinds: JobKind[], exact?: {id:string;userId:strin
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
     await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
     const [claimed] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='running',result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts',progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='running',result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
       tx,
     );
     return claimed;
@@ -58,21 +59,7 @@ export async function heartbeat(job: Job, message?: string) {
   );
   if (!updated.length) throw new LostLease();
 }
-export function liveReplyWriter(job: Job) {
-  let lastWrite = 0, previous = "";
-  return async (text: string, parts?: TurnPart[], force = false) => {
-    const signature = JSON.stringify([text, parts]);
-    if (!force && signature === previous) return;
-    if (!force && text && Date.now() - lastWrite < 200) return;
-    const updated = await rows(sql`
-      UPDATE hirelix_private_jobs SET result=coalesce(result,'{}'::jsonb) || ${json({live_reply: text, ...(parts ? {parts} : {})})},updated_at=now()
-      WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running'
-        AND lease_token=${job.lease_token}::uuid AND lease_until>now() RETURNING id
-    `);
-    if (!updated.length) throw new LostLease();
-    previous = signature; lastWrite = Date.now();
-  };
-}
+export { liveReplyWriter } from "./live-reply";
 export async function finishJob(job: Job, prepared: PreparedJob) {
   return db.transaction(async (tx) => {
     if (typeof job.payload.parent_chat_job_id === "string") {
@@ -110,7 +97,7 @@ export async function failJob(job: Job, message: string) {
 }
 export async function reclaimJobs() {
   return rows<{ id: string; status: string }>(
-    sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts',progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<=now() RETURNING id,status`,
+    sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'cancelled_lease_token'-'cancelled_sequence',progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<=now() RETURNING id,status`,
   );
 }
 export async function retryJob(userId: string, id: string, parent?: Job) {
@@ -135,7 +122,7 @@ export async function retryJob(userId: string, id: string, parent?: Job) {
       if (await reserveAgentCredits(userId, job.id, tx) === false) throw new WorkspaceError("Your AI credit allowance has ended. Open Settings → Billing to continue.", 402);
     }
     const [result] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'cancelled_lease_token'-'cancelled_sequence',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
       tx,
     );
     return result;
@@ -195,23 +182,31 @@ export async function processJob(
   return true;
 }
 
-export async function cancelJob(userId: string, id: string) {
-  return db.transaction(async tx => {
+export async function cancelJob(userId: string, id: string, visible?: {stream_epoch?: string; stream_sequence?: number}) {
+  const cancelled = await db.transaction(async tx => {
     const job = await owned<Job>(userId, "job", id, tx, true);
     if (!["queued", "running"].includes(job.status)) return job;
     let result = job.result || {};
     if (job.kind === "chat" && typeof job.payload.conversation_id === "string") {
       // Preserve the visible transcript and committed receipts after interruption.
-      const metadata = {turn_status: "cancelled", activity: turnActivity(result), parts: turnParts(result)};
+      const metadata = {reply_request_key: job.request_key, turn_status: "cancelled", activity: turnActivity(result), parts: turnParts(result)};
       const receiptId = result.receipt_message_id;
       const [message] = typeof receiptId === "string"
         ? await rows<{id:string}>(sql`UPDATE hirelix_agent_messages SET content='',metadata=metadata || ${json(metadata)} WHERE id=${receiptId}::uuid AND user_id=${userId}::uuid AND conversation_id=${job.payload.conversation_id}::uuid RETURNING id`,tx)
         : await rows<{id:string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant','',${json(metadata)}) RETURNING id`,tx);
-      result = {...result, message_id: message.id};
+      result = {...result, message_id: message.id, cancelled_lease_token: job.lease_token,
+        ...((visible?.stream_epoch === result.stream_epoch || (!visible?.stream_epoch && visible?.stream_sequence === 0)) && Number.isSafeInteger(visible?.stream_sequence) && visible!.stream_sequence! >= 0
+          ? {cancelled_sequence: visible!.stream_sequence} : {})};
       delete result.live_reply;
     }
     const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result=${json(result)},progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
     await tx.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled',progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND payload->>'parent_chat_job_id'=${id} AND status IN ('queued','running')`);
     return cancelled;
   });
+  const lease = cancelled.result?.cancelled_lease_token;
+  if (cancelled.status === "cancelled" && typeof lease === "string") {
+    try { await signalTurnStop(id, lease, typeof cancelled.result?.cancelled_sequence === "number" ? cancelled.result.cancelled_sequence : undefined); }
+    catch (error) { logger.warn({job_id: id, error_type: error instanceof Error ? error.name : "Unknown"}, "Stop notification failed; lease already revoked"); }
+  }
+  return cancelled;
 }

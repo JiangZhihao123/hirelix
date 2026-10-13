@@ -27,8 +27,8 @@ function TurnStatus({ job, disconnected, receivingFiles }: TurnStatusProps) {
   return <span className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin" aria-hidden="true" /><span>{t(status)}</span></span>;
 }
 
-export function TurnActivity({job, disconnected, receivingFiles, embedded = false, onRetry}: {
-  job?: Pick<Job, "status" | "progress" | "error" | "result"> | null; disconnected?: boolean; receivingFiles?: boolean; embedded?: boolean; onRetry?: () => Promise<void>;
+export function TurnActivity({job, disconnected, receivingFiles, embedded = false, onRetry, hideContent = false}: {
+  job?: Pick<Job, "status" | "progress" | "error" | "result"> | null; disconnected?: boolean; receivingFiles?: boolean; embedded?: boolean; onRetry?: () => Promise<void>; hideContent?: boolean;
 }) {
   const t = useT();
   const [retrying, setRetrying] = useState(false);
@@ -36,8 +36,8 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
   const running = !job || isTurnRunning(job);
   const parts = turnParts(job?.result);
   const content = <>
-    {!!parts.length && <TurnParts parts={parts} running={running} />}
-    {!parts.length && answer && job?.status !== "cancelled" && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
+    {!hideContent && !!parts.length && <TurnParts parts={parts} running={running} />}
+    {!hideContent && !parts.length && answer && job?.status !== "cancelled" && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
     <TurnStatus job={job} disconnected={disconnected} receivingFiles={receivingFiles} />
     {job?.status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
     {job?.status === "error" && <div className="ws-turn-failure" role="alert">

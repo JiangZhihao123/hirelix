@@ -91,6 +91,7 @@ export async function commitAgentTool(
       const metadata: Record<string, unknown> = {
         ...message?.metadata,
         committed_tools: true,
+        reply_request_key: job.request_key,
       };
       for (const [field, value] of Object.entries(result.metadata))
         metadata[field] = Array.isArray(value)
