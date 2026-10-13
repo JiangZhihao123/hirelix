@@ -38,7 +38,8 @@ function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantM
   </details>;
 }
 
-export function ConversationMessage({ message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob, onRetry, disconnected, receivingFiles }: {
+export function ConversationMessage({ onSuggestionReply, message, importRefresh, laterScheduleIds, onReady, onRevise, onMemories, onSource, onReview, onCopy, copiedId, activeJob, onRetry, disconnected, receivingFiles }: {
+  onSuggestionReply?: (reply: string) => void;
   receivingFiles?: boolean; activeJob?: Pick<Job, "status" | "progress" | "error" | "result">; onRetry?: () => Promise<void>; disconnected?: boolean;
   message: Message; importRefresh?: string; laterScheduleIds: string[]; onReady: () => void;
   onRevise: (document: Deliverable) => void; onMemories: () => void;
@@ -82,14 +83,14 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       ))}
                     </div>}
                     {message.role === "user" && !!candidateReferences(message.metadata.candidate_references).length && <div className="ws-message-references">{candidateReferences(message.metadata.candidate_references).map(person => <button type="button" key={person.id} onClick={() => onSource({ title: person.name, href: `/app/candidates?person=${person.id}` })}>@{person.name}<ArrowUpRight size={12} /></button>)}</div>}
-                    {!!parts.length && <TurnParts parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
+                    {!!parts.length && <TurnParts onSuggestionReply={onSuggestionReply} parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
                       if (!viewedSourceFromHref(href)) return false;
                       onSource({title: label || source?.title || t("View result"), href});
                       return true;
                     }} />}
                     <div className="ws-message-prose" hidden={message.role === "user" && !message.content.trim()}>
-                      <AgentText content={parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : activeJob ? String(activeJob.result?.live_reply || "") : message.content} onOpenLink={(href, label) => {
+                      <AgentText onSuggestionReply={message.role === "assistant" ? onSuggestionReply : undefined} content={parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : activeJob ? String(activeJob.result?.live_reply || "") : message.content} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (source) { if (!source.href.startsWith("/")) return false; onSource(source); return true; }
                         // A saved document may be cited from earlier conversation

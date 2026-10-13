@@ -20,9 +20,10 @@ function groupParts(parts: TurnPart[]) {
   return groups;
 }
 
-export function TurnParts({ parts, running = false, onOpenLink }: {
+export function TurnParts({ parts, running = false, onOpenLink, onSuggestionReply }: {
   parts: TurnPart[];
   running?: boolean;
+  onSuggestionReply?: (reply: string) => void;
   onOpenLink?: (href: string, label: string) => boolean;
 }) {
   const t = useT();
@@ -31,7 +32,7 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
   const statusIcon = (part: ToolPart) => part.status === "done" ? <Check size={13} /> : part.status === "error" ? <AlertCircle size={13} /> : running ? <Loader2 size={13} className="animate-spin" /> : <Minus size={13} />;
   return <div className="ws-turn-parts">
     {groupParts(parts).map((group, index) => {
-      if (group.type === "text") return <div className="ws-message-prose" key={`text-${index}`}><AgentText content={group.text} onOpenLink={onOpenLink} /></div>;
+      if (group.type === "text") return <div className="ws-message-prose" key={`text-${index}`}><AgentText onSuggestionReply={onSuggestionReply} content={group.text} onOpenLink={onOpenLink} /></div>;
       const first = group.items[0];
       const active = group.items.find(part => part.status === "running");
       const failed = group.items.filter(part => part.status === "error");

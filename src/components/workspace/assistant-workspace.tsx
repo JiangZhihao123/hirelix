@@ -697,6 +697,14 @@ export function AssistantWorkspace({
                 </article>
               ) : <ConversationMessage key={key} message={message}
                 activeJob={activeJob} receivingFiles={sending && attachments.length > 0}
+                onSuggestionReply={!sending && !pending && index === displayedMessages.length - 1 && message.metadata.turn_status !== "cancelled" ? reply => {
+                  setDraft(current => current.trim() ? `${current.trimEnd()}\n${reply}` : reply);
+                  requestAnimationFrame(() => {
+                    const input = composer.current;
+                    input?.focus({preventScroll: true});
+                    if (input) input.setSelectionRange(input.value.length, input.value.length);
+                  });
+                } : undefined}
                 onRetry={retry} disconnected={!sending && disconnected}
                 importRefresh={job?.status === "done" ? job.id : undefined}
                 laterScheduleIds={displayedMessages.slice(index + 1).flatMap(item => (item.message.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
