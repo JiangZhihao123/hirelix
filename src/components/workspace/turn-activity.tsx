@@ -19,8 +19,7 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
   const [retrying, setRetrying] = useState(false);
   const answer = typeof job?.result?.live_reply === "string" ? job.result.live_reply : "";
   const running = !job || isTurnRunning(job);
-  const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…"
-    : job?.status === "queued" ? "Queued" : "Thinking…";
+  const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : "Thinking…";
   const parts = turnParts(job?.result);
   const content = <>
     {!!parts.length && <TurnParts parts={parts} running={running} />}
