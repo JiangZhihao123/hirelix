@@ -3,6 +3,7 @@
 import { Children, Fragment } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { suggestionLayout } from "@/lib/workspace/suggestion-layout";
 import { useT } from "@/components/LanguageProvider";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { assistantSegments } from "@/lib/workspace/assistant-suggestions";
@@ -27,7 +28,7 @@ export function AgentText({
   };
   const renderMarkdown = (text: string, suggestion = false) => (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={suggestion ? [remarkGfm, suggestionLayout] : [remarkGfm]}
         components={{
           a: ({ href, children }) => suggestion || href === "#assistant-reply" ? (
             <button type="button" className="ws-suggestion-reply" title={t("Choose a reply to edit and send, or write your own below.")} disabled={!onSuggestionReply} onClick={event => onSuggestionReply?.(event.currentTarget.textContent || "")}>

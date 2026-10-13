@@ -2821,5 +2821,10 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-suggestion-reply:disabled { opacity: .55; cursor: default; }
 .ws-suggestion-hint { display: block; margin-top: 8px; color: var(--ws-muted); font-size: 12px; line-height: 1.6; }
 
-/* Every suggestion action is a reply; normal message links retain navigation. */
-.ws-assistant-suggestion p:has(> .ws-suggestion-reply) { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+/* The Markdown adapter gives each reply and its explanation a stable layout. */
+.ws-assistant-suggestion .ws-suggestion-option { margin: 12px 0; padding: 12px; border: 1px solid #d6e1d9; border-radius: 10px; background: #fff; }
+.ws-assistant-suggestion .ws-suggestion-option > p { margin: 6px 0 0; font-size: 13px; line-height: 1.65; color: var(--ws-muted); }
+.ws-assistant-suggestion .ws-suggestion-option > p:first-child { margin: 0; }
+.ws-suggestion-option .ws-suggestion-reply { display: block; width: 100%; padding: 0; border: 0; border-radius: 3px; background: transparent; font-weight: 500; }
+.ws-suggestion-option .ws-suggestion-reply:hover:not(:disabled) { background: transparent; color: #163f2e; text-decoration: underline; text-underline-offset: 3px; }
+.ws-assistant-suggestion .ws-suggestion-hint { margin-top: 12px; }
