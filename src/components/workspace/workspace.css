@@ -2627,7 +2627,12 @@
 /* Reserve the assistant header and first text line before streaming begins. */
 .ws-message-assistant { min-height: 64px; }
 .ws-turn-activity { width: 100%; max-width: var(--ws-chat-width); margin: 0 auto 32px; }
-.ws-turn-status { display: flex; align-items: center; gap: 8px; min-height: 25.5px; color: #788376; font-size: 15px; line-height: 1.7; }
+.ws-turn-status { display: flex; align-items: center; gap: 7px; color: #788376; }
+.ws-turn-status, .ws-tool-heading { min-height: 28px; padding: 3px 0; font-size: 13px; line-height: 22px; font-weight: 400; }
+.ws-turn-status > svg, .ws-tool-status > svg { flex-shrink: 0; }
+.ws-turn-parts:has(> *) + .ws-turn-status { margin-top: 6px; }
+.ws-turn-parts:has(> .ws-message-prose:last-child) + .ws-turn-status,
+.ws-live-reply + .ws-turn-status { margin-top: 12px; }
 .ws-turn-status .ws-link { margin-left: 8px; font-size: 12px; }
 .ws-live-reply { margin-bottom: 12px; font-size: 15px; line-height: 1.7; }
 .ws-stop-button { background: #294d3b; }
@@ -2655,7 +2660,9 @@
 .ws-message-source-disclosure .ws-message-sources { flex-direction: column; align-items: flex-start; }
 .ws-message-source-disclosure .ws-message-sources button { border: 0; background: none; padding: 3px 0; text-decoration: underline; text-underline-offset: 3px; }
 
-.ws-turn-parts { display: grid; gap: 12px; }
+.ws-turn-parts { display: grid; gap: 6px; }
+.ws-turn-parts > .ws-message-prose + .ws-tool-block,
+.ws-turn-parts > .ws-tool-block + .ws-message-prose { margin-top: 6px; }
 .ws-message-sources > a { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ws-green); }
 
 /* Tool activity is secondary to prose, with inspectable per-call results. */
@@ -2722,7 +2729,7 @@
 .ws-message-user .ws-message-prose { padding: 10px 16px; border-radius: 18px; }
 .ws-message-user .ws-message-tools { gap: 10px; }
 .ws-tool-block { border: 0; border-radius: 0; background: transparent; max-width: 100%; }
-.ws-tool-heading { width: fit-content; max-width: 100%; padding: 3px 0; gap: 7px; font-size: 12px; }
+.ws-tool-heading { width: fit-content; max-width: 100%; padding: 3px 0; gap: 7px; font-size: 13px; }
 .ws-tool-heading-label { flex: initial; font-weight: 400; overflow-wrap: anywhere; }
 .ws-tool-inline-target { color: #899286; }
 .ws-tool-heading-static { cursor: default; }
