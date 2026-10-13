@@ -10,6 +10,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  UserRound,
+  ArrowUpRight,
 } from "lucide-react";
 import {
   api,
@@ -827,7 +829,8 @@ export function ConversationImport({
             <div className="ws-chat-import-people">
               {preview.data?.items.map((item) => (
                 <div className="ws-chat-import-person" key={item.id}>
-                  <div>
+                  <span className="ws-import-person-avatar" aria-hidden="true"><UserRound size={20} /></span>
+                  <div className="ws-import-person-info">
                     <strong>
                       {item.extracted.name || `Candidate ${item.row_number}`}
                     </strong>
@@ -836,6 +839,9 @@ export function ConversationImport({
                         item.extracted.email ||
                         t("Check the extracted profile")}
                     </small>
+                    {!!item.extracted.location && <small>{item.extracted.location}</small>}
+                    {!!item.extracted.skills?.length && <div className="ws-import-person-skills">{item.extracted.skills.slice(0, 3).map(skill => <span key={skill}>{skill}</span>)}</div>}
+                    {item.status === "saved" && <span className="ws-import-person-saved"><Check size={12} />{t("Saved to candidates")}</span>}
                     {item.status === "review" && item.matches.length > 0 && (
                       <small className="ws-duplicate-hint">
                         {t("Already in your pool?")}{" "}
@@ -846,11 +852,10 @@ export function ConversationImport({
                   <div className="ws-actions">
                     {item.status === "saved" ? (
                       <Link
-                        className="ws-link"
+                        className="ws-button"
                         href={`/app/candidates?person=${item.result_person_id}`}
                       >
-                        <Check size={13} />
-                        {t("Open candidate")}
+                        {t("Open candidate")}<ArrowUpRight size={14} />
                       </Link>
                     ) : item.status === "skipped" ? (
                       <small>{t("Skipped")}</small>

@@ -1,5 +1,6 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Saved to candidates": "已保存到候选人库",
   "View role": "查看职位",
   "View candidate profile": "查看候选人档案",
   "Description": "职责与成果",

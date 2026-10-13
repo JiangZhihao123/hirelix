@@ -2765,3 +2765,10 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-source-resizer { width: 8px; flex: 0 0 8px; margin-right: -4px; cursor: col-resize; touch-action: none; position: relative; z-index: 2; }
 .ws-source-resizer:hover, .ws-source-resizer:focus-visible { background: #a9bfb0; outline: none; }
 @media (max-width: 850px) { .ws-source-resizer { display: none; } }
+
+.ws-chat-import-person { border: 1px solid #dfe7df; border-radius: 12px; padding: 16px; gap: 14px; margin: 10px 0; background: #fcfdfb; align-items: flex-start; }
+.ws-import-person-avatar { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 50%; color: #4b6d59; background: #eaf1eb; }
+.ws-import-person-info { flex: 1; min-width: 0; }
+.ws-import-person-skills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.ws-import-person-skills span { background: #edf2ec; border-radius: 4px; padding: 2px 6px; font-size: 11px; }
+.ws-import-person-saved { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; color: #557760; font-size: 11px; }
