@@ -2773,3 +2773,7 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-import-person-skills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .ws-import-person-skills span { background: #edf2ec; border-radius: 4px; padding: 2px 6px; font-size: 11px; }
 .ws-import-person-saved { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; color: #557760; font-size: 11px; }
+
+.ws-source-extracted { margin: 12px 0; }
+.ws-source-extracted summary { color: var(--ws-green); cursor: pointer; font-size: 13px; }
+.ws-source-extracted > .ws-source-content, .ws-source-extracted > p { max-height: 380px; overflow: auto; margin-top: 12px; }

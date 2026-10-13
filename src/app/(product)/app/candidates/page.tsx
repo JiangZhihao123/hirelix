@@ -445,12 +445,14 @@ function CandidateDetails({
   function ask(prompt: string) { router.push(`/app?person=${id}&prompt=${encodeURIComponent(prompt)}`); }
   const params = useSearchParams();
   const requestedTab = params.get("tab");
-  const tab = requestedTab && ["overview", "records", "roles"].includes(requestedTab)
-    ? requestedTab : highlight ? "records" : "overview";
+  const highlightedRecord = details.data?.records.find(item => item.id === highlight);
+  const isSource = (item: SourceRecord) => ["cv", "profile", "jd"].includes(item.kind);
+  const tab = highlightedRecord ? (isSource(highlightedRecord) ? "sources" : "records")
+    : requestedTab && ["overview", "records", "sources", "roles"].includes(requestedTab) ? requestedTab : "overview";
   function setTab(value: string) {
     const next = new URLSearchParams(params.toString());
     next.set("tab", value);
-    if (value !== "records") next.delete("record");
+    next.delete("record");
     window.history.pushState(null, "", `/app/candidates?${next}`);
   }
   const [edit, setEdit] = useState(false),
@@ -506,9 +508,9 @@ function CandidateDetails({
   const conversation = records.find((item) =>
     ["call", "email"].includes(item.kind),
   );
-  const sources = records.filter((item) =>
-    ["cv", "profile"].includes(item.kind),
-  );
+  const sources = records.filter(isSource);
+  const communications = records.filter(item => !isSource(item));
+  const visibleRecords = tab === "sources" ? sources : communications;
   return (
     <>
       <div className="ws-inspector-heading">
@@ -525,7 +527,8 @@ function CandidateDetails({
       <div className="ws-tabs" role="tablist" aria-label={t("Candidate sections")}>
         {[
           ["overview", "Overview"],
-          ["records", "Conversations & sources"],
+          ["records", "Communication records"],
+          ["sources", "Resumes & sources"],
           ["roles", "Related roles"],
         ].map(([value, label]) => (
           <button
@@ -659,16 +662,17 @@ function CandidateDetails({
 
         </>
       )}
-      {tab === "records" && (
+      {(tab === "records" || tab === "sources") && (
         <>
-          <div className="ws-actions mt-5 mb-3">
+          {tab === "records" && <div className="ws-actions mt-5 mb-3">
             <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我保存这位候选人的新沟通记录。" : "Help me save a new conversation record for this candidate.")}>
               <Plus size={14} />
               {t("Add record")}
             </button>
-          </div>
-          {records.length ? (
-            records.map((item) => (
+          </div>}
+          <p className="ws-muted text-sm mt-4">{t(tab === "sources" ? "Original resumes and profile sources. Open a file to check the evidence." : "Calls, messages, interview notes and feedback about this candidate.")}</p>
+          {visibleRecords.length ? (
+            visibleRecords.map((item) => (
               <article
                 key={item.id}
                 id={`record-${item.id}`}
@@ -694,10 +698,10 @@ function CandidateDetails({
                   </button>
                 </div>
                 <small>
-                  {t("Happened")} {(item.occurred_at ? date(item.occurred_at, true) : recordLocalDate(item, "UTC") || "—")} {t("· Added")}{" "}
-                  {date(item.created_at, true)}
+                  {tab === "records" && <>{t("Happened")} {(item.occurred_at ? date(item.occurred_at, true) : recordLocalDate(item, "UTC") || t("Date not recorded"))} · </>}
+                  {t("Added")} {date(item.created_at, true)}
                 </small>
-                <SourceContent content={item.content} />
+                {tab === "sources" ? <details className="ws-source-extracted"><summary>{t("View extracted text")}</summary><SourceContent content={item.content} /></details> : <SourceContent content={item.content} />}
                 {item.source_url && (
                   <a
                     className="ws-link mt-3"
@@ -726,7 +730,7 @@ function CandidateDetails({
           ) : (
             <div className="ws-empty">
               <p>
-                {t("Keep call notes, messages and source material here. Each record keeps its original date.")}
+                {t(tab === "sources" ? "No CV or profile source added." : "No conversation recorded yet.")}
               </p>
             </div>
           )}

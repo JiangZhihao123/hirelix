@@ -1,5 +1,10 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "View extracted text": "查看提取文字",
+  "Calls, messages, interview notes and feedback about this candidate.": "记录与这位候选人有关的电话、消息、面试沟通和反馈。",
+  "Original resumes and profile sources. Open a file to check the evidence.": "原始简历及个人资料来源，可打开文件核对原文。",
+  "Resumes & sources": "简历与资料",
+  "Communication records": "沟通记录",
   "Saved to candidates": "已保存到候选人库",
   "View role": "查看职位",
   "View candidate profile": "查看候选人档案",
