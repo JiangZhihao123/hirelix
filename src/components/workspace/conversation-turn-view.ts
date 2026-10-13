@@ -24,6 +24,9 @@ export function conversationTurnView(input: {
   }
   if (sending || (job && !messages.some(belongsToJob) && (isTurnRunning(job) || ["done", "cancelled", "error"].includes(job.status)))) {
     const key = sending ? pendingKey : job!.request_key;
+    // A query refresh can deliver the saved reply before sending settles.
+    // Keep that message's identity rather than adding a second placeholder.
+    if (view.some(item => item.key === `message:${key}`)) return view;
     view.push({key: `message:${key}`, message: {
       id: `pending:${key}`, role: "assistant", content: "", conversation_id: conversationId || "",
       metadata: {reply_request_key: key}, created_at: sending ? "" : job!.created_at,

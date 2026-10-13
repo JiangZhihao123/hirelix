@@ -15,3 +15,15 @@ test("waiting, streaming, tool receipt and final message preserve the same React
  const next=conversationTurnView({...base,messages:[user,saved],job:{...job,id:"next",request_key:"next",result:null}});
  assert.equal(next[1].key,final[1].key);assert.equal(next.length,3);
 });
+
+test("saved reply and pending placeholder never duplicate during send settlement", () => {
+ const saved: Message = {...user, id: "saved", role: "assistant", content: "hello", metadata: {reply_request_key: "request"}};
+ const base = {messages: [user, saved], job: {...job, status: "done" as const, result: {message_id: "saved"}}, conversationId: "c", sending: true};
+ const settling = conversationTurnView({...base, pendingKey: "request"});
+ assert.equal(settling.length, 2);
+ const next = conversationTurnView({...base, pendingKey: "next-request"});
+ assert.equal(next.length, 3);
+ assert.equal(new Set(next.map(item => item.key)).size, next.length);
+ assert.equal(next[1].key, settling[1].key);
+ assert.equal(next[2].key, "message:next-request");
+});

@@ -380,6 +380,8 @@ export function AssistantWorkspace({
     if (!attachmentsReady || (!text && !attachments.length) || sending || attachments.some((item) => item.status === "uploading")) return;
     stopRequested.current = false;
     composer.current?.focus({ preventScroll: true });
+    const sendingKey = crypto.randomUUID();
+    setPendingReplyKey(sendingKey);
     setSending(true);
     setError("");
     stickToBottom.current = true;
@@ -422,7 +424,7 @@ export function AssistantWorkspace({
       };
       const signature = JSON.stringify(payload);
       if (request.current?.text !== signature)
-        request.current = { text: signature, key: crypto.randomUUID() };
+        request.current = { text: signature, key: sendingKey };
       setPendingReplyKey(request.current.key);
       localStorage.setItem(requestStorageKey, JSON.stringify(request.current));
       const result = await api<{ conversation_id: string; job: Job }>("/conversations", {
