@@ -1669,6 +1669,7 @@ export const uiZh: Record<string, string> = {
   "Note": "备注",
   "Event": "事件",
   "Remove the unsupported or oversized file to send the remaining message.": "请移除不支持或过大的文件，再发送其余内容。",
+  "Resize details panel": "调整资料面板宽度",
   "Source details": "来源详情",
   "Close source details": "关闭来源详情",
   "Open full details": "打开完整详情",

@@ -1,6 +1,6 @@
 "use client";
 import { X, ArrowUpRight } from "lucide-react";
-import { useEffect, useRef, useEffectEvent } from "react";
+import { useEffect, useRef, useEffectEvent, useState } from "react";
 import { useT } from "@/components/LanguageProvider";
 import { AgentText } from "@/components/AgentText";
 import { useQuery, ErrorNotice, Loading } from "./client";
@@ -36,6 +36,11 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
   const close = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const dismiss = useEffectEvent(onClose);
+  const [width, setWidth] = useState<number>();
+  const resize = (next: number) => {
+    const available = panel.current?.parentElement?.clientWidth || window.innerWidth;
+    setWidth(Math.max(300, Math.min(next, Math.max(300, available - 360))));
+  };
   useEffect(() => {
     const prior = document.activeElement as HTMLElement | null;
     if (panel.current) panel.current.scrollTop = 0;
@@ -62,7 +67,12 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
     };
   }, [refresh]);
   const record = query.data?.records?.find(item => item.id === recordId);
-  return <aside ref={panel} className={`ws-source-panel ${documentId ? "ws-source-panel-document" : ""}`} aria-label={t("Source details")}>
+  return <><div className="ws-source-resizer" role="separator" aria-label={t("Resize details panel")} aria-orientation="vertical" aria-valuemin={300} aria-valuemax={Math.max(300, (panel.current?.parentElement?.clientWidth || 1200) - 360)} aria-valuenow={width || 360} tabIndex={0}
+    onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); event.preventDefault(); }}
+    onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) resize((panel.current?.getBoundingClientRect().right || 0) - event.clientX); }}
+    onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)}
+    onKeyDown={event => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); resize((panel.current?.clientWidth || 360) + (event.key === "ArrowLeft" ? 32 : -32)); } }}
+  /><aside ref={panel} style={width ? { flexBasis: width } : undefined} className={`ws-source-panel ${documentId ? "ws-source-panel-document" : ""}`} aria-label={t("Source details")}>
     <header><strong>{t(recordId ? "Source record" : documentId ? "Saved document" : person ? "Candidate" : role ? "Role" : file ? "Original file" : "Source details")}</strong><button ref={close} className="ws-icon" onClick={onClose} aria-label={t("Close source details")}><X size={18} /></button></header>
     <ErrorNotice error={query.error} retry={query.refresh} />
     {query.loading && !query.data && <Loading />}
@@ -78,5 +88,5 @@ export function ContextPanel({ source, onClose }: { source: { title: string; hre
     {query.data?.deliverable && <DocumentAttachments document={query.data.deliverable} />}
     {file && <OriginalFile key={file} id={file} title={source.title} />}
     {!file && <a className="ws-link" href={source.href} target="_blank" rel="noreferrer">{t("Open full details")} <ArrowUpRight size={13} /></a>}
-  </aside>;
+  </aside></>;
 }

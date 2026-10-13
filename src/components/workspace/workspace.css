@@ -2761,3 +2761,7 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-assistant-suggestion { margin: 14px 0; padding: 12px 16px; border-left: 3px solid #9bb5a7; border-radius: 0 8px 8px 0; background: #f3f7f3; color: inherit; font-size: inherit; line-height: inherit; }
 .ws-assistant-suggestion-label { margin-bottom: 6px; color: #567463; font-size: 12px; font-weight: 500; line-height: 20px; }
 .ws-assistant-suggestion > :last-child { margin-bottom: 0; }
+
+.ws-source-resizer { width: 8px; flex: 0 0 8px; margin-right: -4px; cursor: col-resize; touch-action: none; position: relative; z-index: 2; }
+.ws-source-resizer:hover, .ws-source-resizer:focus-visible { background: #a9bfb0; outline: none; }
+@media (max-width: 850px) { .ws-source-resizer { display: none; } }
