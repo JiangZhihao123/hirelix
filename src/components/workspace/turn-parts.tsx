@@ -26,6 +26,7 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
   onOpenLink?: (href: string, label: string) => boolean;
 }) {
   const t = useT();
+  const inventoryText = (part: ToolPart) => Object.entries(part.inventory || {}).map(([key, count]) => `${t(({roles: "Roles", candidates: "Candidates", preferences: "Preferences", reminders: "Reminders"} as Record<string, string>)[key])} ${count}`).join(" · ");
   const statusText = (part: ToolPart) => t(part.status === "done" ? "Completed" : part.status === "error" ? "Failed" : running ? "In progress" : "Interrupted");
   const statusIcon = (part: ToolPart) => part.status === "done" ? <Check size={13} /> : part.status === "error" ? <AlertCircle size={13} /> : running ? <Loader2 size={13} className="animate-spin" /> : <Minus size={13} />;
   return <div className="ws-turn-parts">
@@ -36,12 +37,12 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
       const failed = group.items.filter(part => part.status === "error");
       const status = active || failed[0] || first;
       const sources = [...new Map(group.items.flatMap(part => part.sources || []).map(source => [source.href, source])).values()];
-      const expandable = group.items.length > 1 || group.items.some(part => part.inventory || part.href || part.sources?.length || part.status === "error");
+      const expandable = group.items.length > 1 || group.items.some(part => part.href || part.sources?.length || part.status === "error");
       return <div className="ws-tool-block" key={first.id}><details className="ws-tool-disclosure">
         <summary className={`ws-tool-heading${expandable ? "" : " ws-tool-heading-static"}`} onClick={event => { if (!expandable) event.preventDefault(); }} tabIndex={expandable ? 0 : -1}>
           <span className={`ws-tool-status${failed.length ? " has-error" : ""}`} title={statusText(status)} aria-label={statusText(status)}>{statusIcon(status)}</span>
-          <span className="ws-tool-heading-label">{t(first.tool === "workspace" ? "Checking roles, candidates and work agreements" : first.label)}{group.items.length > 1 ? <span className="ws-tool-count"> × {group.items.length}</span> : (first.query || first.target) && <span className="ws-tool-inline-target"> · {first.query || first.target}</span>}</span>
-          {first.inventory && <span className="ws-tool-inline-target">· {t("Roles")} {first.inventory.roles} · {t("Candidates")} {first.inventory.candidates}</span>}
+          <span className="ws-tool-heading-label">{t(first.tool === "workspace" ? (first.inventory ? "Returned overview" : first.label === "Reading the requested overview" ? first.label : "Checking roles, candidates and work agreements") : first.label)}{group.items.length > 1 ? <span className="ws-tool-count"> × {group.items.length}</span> : (first.query || first.target) && <span className="ws-tool-inline-target"> · {first.query || first.target}</span>}</span>
+          {first.inventory && <span className="ws-tool-inline-target">· {inventoryText(first)}</span>}
           {(failed.length > 0 || (!running && active)) && <span className="ws-tool-status">{statusText(status)}</span>}
           {expandable && <ChevronRight size={14} className="ws-tool-chevron" />}
         </summary>
@@ -51,7 +52,6 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
               <span>{part.query || part.target || t(part.label)}</span>
               <span className={`ws-tool-status${part.status === "error" ? " has-error" : ""}`}>{statusIcon(part)}{statusText(part)}</span>
             </div>}
-            {part.inventory && <p className="ws-tool-inventory">{t("Returned overview")}: {t("Roles")} {part.inventory.roles} · {t("Candidates")} {part.inventory.candidates} · {t("Preferences")} {part.inventory.preferences} · {t("Reminders")} {part.inventory.reminders}</p>}
             {part.href && <a className="ws-tool-object" href={part.href} onClick={event => { if (onOpenLink?.(part.href!, part.target || t(part.label))) event.preventDefault(); }}>{part.target || t("View result")}<ArrowUpRight size={12} /></a>}
             {part.status === "error" && <p className="ws-tool-error">{t("This action failed. Later attempts are shown separately.")}</p>}
             {!!part.sources?.length && <ul className="ws-tool-source-list">{part.sources.map(source => <li key={source.href}><a href={source.href} target="_blank" rel="noopener noreferrer"><span>{source.title}</span><small>{new URL(source.href).hostname}</small></a></li>)}</ul>}

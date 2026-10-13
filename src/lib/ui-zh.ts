@@ -2,6 +2,7 @@
 export const uiZh: Record<string, string> = {
   "Checking roles, candidates and work agreements": "查看职位、候选人及工作约定",
   "Reminders": "提醒",
+  "Reading the requested overview": "读取所需资料概览",
   "Returned overview": "本次返回的概览",
   "Preview unavailable": "暂无法预览",
   "Roles & JDs": "职位与 JD",

@@ -2,6 +2,12 @@
 
 Use for candidate/JD intake, matching, and dated client/candidate communications. Choose tools based on the request and their actual results; these guidelines are not a required sequence.
 
+## Retrieval scope
+
+- Start from the user’s question and supplied evidence. A review of an attached CV or JD normally needs that file, not a library inventory. Discuss supported strengths, risks and unknowns without inventing a role match.
+- Retrieve additional records only when a specific gap affects the requested answer. Use targeted identity/history lookup when the user asks about earlier interactions; retrieve roles when matching is requested or a specific role is part of the question. Preferences and reminders are not prerequisites for document analysis.
+- Use workspace only for requested inventory categories. Missing information is not a reason to read every category; stop retrieving once enough relevant evidence is available.
+
 ## Sources and identities
 
 - Read files before interpreting them. Preserve original CV and JD attachments and each client's source separately. For authorized CV intake, use import_candidates; it reads the original and returns extracted facts plus actual saved candidates or unresolved identity conflicts. Do not separately extract the same CV first unless the current task needs an analysis before saving. Do not add a second profile because a duplicate needs clarification. Reuse an existing candidate only when identity evidence supports it.

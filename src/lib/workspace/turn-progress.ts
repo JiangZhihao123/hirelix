@@ -2,7 +2,7 @@ import type { Job } from "./types";
 
 export type TurnPart =
   | { type: "text"; text: string }
-  | { type: "tool"; id: string; tool?: string; inventory?: {roles: number; candidates: number; preferences: number; reminders: number}; warning?: string; target?: string; href?: string; label: string; status: "running" | "done" | "error"; query?: string; sources?: Array<{title: string; href: string}> };
+  | { type: "tool"; id: string; tool?: string; inventory?: {roles?: number; candidates?: number; preferences?: number; reminders?: number}; warning?: string; target?: string; href?: string; label: string; status: "running" | "done" | "error"; query?: string; sources?: Array<{title: string; href: string}> };
 
 export function turnParts(result: Record<string, unknown> | null | undefined): TurnPart[] {
   return Array.isArray(result?.parts) ? result.parts.filter((part): part is TurnPart =>

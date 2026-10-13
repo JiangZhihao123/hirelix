@@ -362,18 +362,20 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     workspace: define(
       "workspace",
-      "Read saved roles, recent candidates, explicit preferences and reminders. Use names and IDs returned here; this is a bounded inventory, not all source records.",
-      z.object({}),
-      async () => {
-        const [roles, candidates, memories, reminders] = await Promise.all([
-          listRoles(userId), listPeople(userId, ""), listPersonalMemories(userId), listReminders(userId),
-        ]);
-        return {
-          roles: roles.map(({ id, title, client_name, status, version }) => ({ id, title, client_name, status, version, href: `/app/roles/${id}` })),
-          candidates: { ...candidates, people: candidates.people.map(({ id, name, headline }) => ({ id, name, headline, href: `/app/candidates?person=${id}` })) },
-          memories,
-          reminders: reminders.map(reminderEvidence),
-        };
+      "List only the requested categories for an explicit inventory or work overview. Not a routine context-gathering step: do not use when supplied material answers the question. For a particular person or role, use targeted find/read tools instead. Returned lists are bounded, not all source records.",
+      z.object({sections: z.array(z.enum(["roles", "candidates", "preferences", "reminders"])).min(1).max(4)}),
+      async ({sections}) => {
+        const result: Record<string, unknown> = {};
+        await Promise.all([...new Set(sections)].map(async section => {
+          if (section === "roles") result.roles = (await listRoles(userId)).map(({id, title, client_name, status, version}) => ({id, title, client_name, status, version, href: `/app/roles/${id}`}));
+          if (section === "candidates") {
+            const candidates = await listPeople(userId, "");
+            result.candidates = {...candidates, people: candidates.people.map(({id, name, headline}) => ({id, name, headline, href: `/app/candidates?person=${id}`}))};
+          }
+          if (section === "preferences") result.memories = await listPersonalMemories(userId);
+          if (section === "reminders") result.reminders = (await listReminders(userId)).map(reminderEvidence);
+        }));
+        return result;
       },
     ),
     find_candidates: define(
