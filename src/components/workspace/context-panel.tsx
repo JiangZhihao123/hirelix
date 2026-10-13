@@ -37,6 +37,19 @@ export function ContextPanel({ source, onClose, onTitle }: { source: { title: st
   const panel = useRef<HTMLElement>(null);
   const dismiss = useEffectEvent(onClose);
   const [width, setWidth] = useState<number>();
+  const [bounds, setBounds] = useState({ maximum: 840, current: 360 });
+  useEffect(() => {
+    const element = panel.current;
+    const parent = element?.parentElement;
+    if (!element || !parent) return;
+    const observer = new ResizeObserver(() => {
+      const maximum = Math.max(300, parent.clientWidth - 360);
+      setBounds({ maximum, current: Math.round(element.getBoundingClientRect().width) });
+      setWidth(current => current === undefined ? current : Math.min(current, maximum));
+    });
+    observer.observe(parent); observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const resize = (next: number) => {
     const available = panel.current?.parentElement?.clientWidth || window.innerWidth;
     setWidth(Math.max(300, Math.min(next, Math.max(300, available - 360))));
@@ -70,7 +83,7 @@ export function ContextPanel({ source, onClose, onTitle }: { source: { title: st
   const title = query.data?.person?.name || query.data?.role?.title || query.data?.deliverable?.title;
   useEffect(() => { if (title) updateTitle(title); }, [title]);
   const record = query.data?.records?.find(item => item.id === recordId);
-  return <><div className="ws-source-resizer" role="separator" aria-label={t("Resize details panel")} aria-orientation="vertical" aria-valuemin={300} aria-valuemax={Math.max(300, (panel.current?.parentElement?.clientWidth || 1200) - 360)} aria-valuenow={width || 360} tabIndex={0}
+  return <><div className="ws-source-resizer" role="separator" aria-label={t("Resize details panel")} aria-orientation="vertical" aria-valuemin={300} aria-valuemax={bounds.maximum} aria-valuenow={bounds.current} tabIndex={0}
     onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); event.preventDefault(); }}
     onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) resize((panel.current?.getBoundingClientRect().right || 0) - event.clientX); }}
     onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)}
