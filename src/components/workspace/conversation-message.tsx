@@ -5,7 +5,7 @@ import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
 import { TurnParts } from "./turn-parts";
 import { turnParts } from "@/lib/workspace/turn-progress";
-import { TurnActivity } from "./turn-activity";
+import { TurnActivity, TurnStatus } from "./turn-activity";
 import Link from "next/link";
 import { ArrowUpRight, Paperclip, Check, Copy } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
@@ -62,6 +62,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                           <BrandMark small />
                         </span>
                         <strong>{t("Hirelix")}</strong>
+                        {activeJob && <TurnStatus job={activeJob} disconnected={disconnected} />}
                         <time dateTime={message.created_at}>{date(message.created_at, true)}</time>
                       </div>
                     )}

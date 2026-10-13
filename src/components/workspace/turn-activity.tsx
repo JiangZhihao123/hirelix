@@ -12,6 +12,21 @@ export const meaningfulProgress = (progress: string) => ![
   "", "Queued", "Queued for retry", "Starting", "Resuming interrupted task", "Complete",
 ].includes(progress);
 
+type TurnStatusProps = {
+  job?: Pick<Job, "status" | "progress" | "error" | "result"> | null;
+  disconnected?: boolean;
+  receivingFiles?: boolean;
+};
+
+export function TurnStatus({ job, disconnected, receivingFiles }: TurnStatusProps) {
+  const t = useT();
+  const running = !job || isTurnRunning(job);
+  const hasContent = turnParts(job?.result).length > 0 || !!job?.result?.live_reply;
+  if (!running || (hasContent && !receivingFiles && !disconnected)) return null;
+  const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : "Thinking…";
+  return <span className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin" aria-hidden="true" /><span>{t(status)}</span></span>;
+}
+
 export function TurnActivity({job, disconnected, receivingFiles, embedded = false, onRetry}: {
   job?: Pick<Job, "status" | "progress" | "error" | "result"> | null; disconnected?: boolean; receivingFiles?: boolean; embedded?: boolean; onRetry?: () => Promise<void>;
 }) {
@@ -19,12 +34,10 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
   const [retrying, setRetrying] = useState(false);
   const answer = typeof job?.result?.live_reply === "string" ? job.result.live_reply : "";
   const running = !job || isTurnRunning(job);
-  const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : "Thinking…";
   const parts = turnParts(job?.result);
   const content = <>
     {!!parts.length && <TurnParts parts={parts} running={running} />}
     {!parts.length && answer && job?.status !== "cancelled" && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
-    {running && (!parts.length || receivingFiles || disconnected || job?.status === "queued") && <div className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin"/><span>{status === "Thinking…" ? <span className="sr-only">{t(status)}</span> : t(status)}</span></div>}
     {job?.status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
     {job?.status === "error" && <div className="ws-turn-failure" role="alert">
       <p>{t("I couldn’t finish this request. Your message and any saved results are kept.")}</p>
@@ -34,7 +47,7 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
     </div>}
   </>;
   return embedded ? content : <article className="ws-message ws-message-assistant ws-turn-activity" aria-label={t("Hirelix")} aria-busy={running}>
-    <div className="ws-message-label"><span className="ws-message-avatar ws-message-avatar-assistant"><BrandMark small /></span><strong>{t("Hirelix")}</strong></div>
+    <div className="ws-message-label"><span className="ws-message-avatar ws-message-avatar-assistant"><BrandMark small /></span><strong>{t("Hirelix")}</strong><TurnStatus job={job} disconnected={disconnected} receivingFiles={receivingFiles} /></div>
     {content}
   </article>;
 }

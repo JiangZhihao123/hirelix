@@ -2606,6 +2606,8 @@
 .private-workspace .ws-memory-search input:focus-visible { outline: none; }
 .ws-memory-search:focus-within { border-color: #738d7c; box-shadow: 0 0 0 2px #e8eee7; }
 
+/* Reserve the assistant header and first text line before streaming begins. */
+.ws-message-assistant { min-height: 64px; }
 .ws-turn-activity { width: 100%; max-width: var(--ws-chat-width); margin: 0 auto 32px; }
 .ws-turn-status { display: flex; align-items: center; gap: 8px; color: #788376; font-size: 12px; }
 .ws-turn-status .ws-link { margin-left: 8px; font-size: 12px; }
