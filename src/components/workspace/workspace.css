@@ -2759,7 +2759,7 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-file-card-image:has(img:not([hidden])) .ws-file-caption { display: none; }
 
 /* Proactive proposals retain their place in the streamed conversation. */
-.ws-assistant-suggestion { margin: 14px 0; padding: 12px 16px; border-left: 3px solid #9bb5a7; border-radius: 0 8px 8px 0; background: #f3f7f3; color: inherit; font-size: inherit; line-height: inherit; }
+.ws-assistant-suggestion { margin: 20px 0 12px; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-size: inherit; line-height: inherit; }
 .ws-assistant-suggestion-label { margin-bottom: 6px; color: #567463; font-size: 12px; font-weight: 500; line-height: 20px; }
 .ws-assistant-suggestion > :last-child { margin-bottom: 0; }
 
@@ -2816,10 +2816,20 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 
 .ws-assistant-suggestion ol > li, .ws-assistant-suggestion ul > li { margin: 8px 0; }
 /* Reply bubbles send their visible text; the composer remains independent. */
-.ws-suggestion-reply { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 10px 14px; border: 1px solid #d5e0d9; border-radius: 18px; background: #e7efe9; color: #254d3c; font: inherit; font-size: 14px; line-height: 1.6; text-align: left; cursor: pointer; }
+.ws-suggestion-reply { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 10px 14px; border: 1px solid #d5e0d9; border-radius: 9px; background: #fff; color: #254d3c; font: inherit; font-size: 14px; line-height: 1.6; text-align: left; cursor: pointer; }
 .ws-suggestion-reply svg { flex-shrink: 0; }
-.ws-suggestion-reply:hover:not(:disabled) { background: #dbe8df; border-color: #a7c0b0; }
+.ws-suggestion-reply:hover:not(:disabled) { background: #f3f7f4; border-color: #a7c0b0; }
 .ws-suggestion-reply:focus-visible { outline: 2px solid #729883; outline-offset: 3px; }
 .ws-suggestion-reply:disabled { opacity: .55; cursor: default; }
 .ws-assistant-suggestion .ws-suggestion-option { margin: 8px 0; }
 .ws-assistant-suggestion .ws-suggestion-option > p { margin: 0; }
+
+.ws-agent-text p:has(> .ws-suggestion-reply) { display: flex; justify-content: flex-end; margin: 8px 0; }
+.ws-suggestion-reply { max-width: 85%; color: var(--ws-ink); }
+.ws-suggestion-reply svg { color: #567463; }
+.ws-assistant-suggestion .ws-suggestion-option { margin: 8px 0; }
+.ws-assistant-suggestion .ws-suggestion-option > p { display: flex; justify-content: flex-end; }
+/* Replies align with the conversation edge, while the reading column stays narrow. */
+.ws-message-assistant .ws-message-prose:has(.ws-suggestion-reply) { max-width: none; width: 100%; }
+.ws-agent-text:has(.ws-suggestion-reply) > :not(.ws-assistant-suggestion):not(:has(.ws-suggestion-reply)),
+.ws-assistant-suggestion > :not(.ws-suggestion-option):not(:has(.ws-suggestion-reply)) { max-width: 66ch; }

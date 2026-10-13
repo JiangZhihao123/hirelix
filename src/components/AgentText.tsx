@@ -33,7 +33,7 @@ export function AgentText({
         components={{
           a: ({ href, children }) => suggestion || href === "#assistant-reply" ? (
             <button type="button" className="ws-suggestion-reply" title={t("Send reply")} disabled={!onSuggestionReply} onClick={event => onSuggestionReply?.(event.currentTarget.textContent || "")}>
-              <ArrowUp size={15} aria-hidden="true" />{children}
+              <span>{children}</span><ArrowUp size={15} aria-hidden="true" />
             </button>
           ) : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
             <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
