@@ -18,7 +18,7 @@ type TurnStatusProps = {
   receivingFiles?: boolean;
 };
 
-export function TurnStatus({ job, disconnected, receivingFiles }: TurnStatusProps) {
+function TurnStatus({ job, disconnected, receivingFiles }: TurnStatusProps) {
   const t = useT();
   const running = !job || isTurnRunning(job);
   const hasContent = turnParts(job?.result).length > 0 || !!job?.result?.live_reply;
@@ -38,6 +38,7 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
   const content = <>
     {!!parts.length && <TurnParts parts={parts} running={running} />}
     {!parts.length && answer && job?.status !== "cancelled" && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
+    <TurnStatus job={job} disconnected={disconnected} receivingFiles={receivingFiles} />
     {job?.status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
     {job?.status === "error" && <div className="ws-turn-failure" role="alert">
       <p>{t("I couldn’t finish this request. Your message and any saved results are kept.")}</p>
@@ -47,7 +48,7 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
     </div>}
   </>;
   return embedded ? content : <article className="ws-message ws-message-assistant ws-turn-activity" aria-label={t("Hirelix")} aria-busy={running}>
-    <div className="ws-message-label"><span className="ws-message-avatar ws-message-avatar-assistant"><BrandMark small /></span><strong>{t("Hirelix")}</strong><TurnStatus job={job} disconnected={disconnected} receivingFiles={receivingFiles} /></div>
+    <div className="ws-message-label"><span className="ws-message-avatar ws-message-avatar-assistant"><BrandMark small /></span><strong>{t("Hirelix")}</strong></div>
     {content}
   </article>;
 }
