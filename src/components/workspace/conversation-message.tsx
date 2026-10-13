@@ -7,16 +7,16 @@ import { TurnParts } from "./turn-parts";
 import { turnParts } from "@/lib/workspace/turn-progress";
 import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
-import { ArrowUpRight, FileText, Check, Copy } from "lucide-react";
+import { ArrowUpRight, Check, Copy } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
 import { BrandMark } from "@/components/BrandMark";
 import { AgentText } from "@/components/AgentText";
 import { ReminderReceipt } from "./reminder";
-import { AttachmentThumbnail } from "./attachment-thumbnail";
+import { MessageAttachment } from "./message-attachment";
 import { date } from "./client";
 import { ConversationImport } from "./import-review";
 import { AssistantWork, AssistantAgreement, ConversationRevision } from "./assistant-work";
-import { attachmentPreviewType, messageAttachments, messageImportJobs } from "@/lib/workspace/attachments";
+import { messageAttachments, messageImportJobs } from "@/lib/workspace/attachments";
 import type { AssistantAction, AssistantMeta } from "@/lib/workspace/conversations";
 import type { Message, Deliverable, Job } from "@/lib/workspace/types";
 
@@ -68,10 +68,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     )}
                     {!!messageAttachments(message.metadata).length && <div className="ws-message-attachments">
                       {messageAttachments(message.metadata).map((file) => (
-                        <button key={file.file_id} type="button" className={`ws-chat-attachment${attachmentPreviewType(file.name)?.startsWith("image/") ? " ws-chat-image" : ""}`} title={file.name} aria-label={file.name} onClick={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})}>
-                          <AttachmentThumbnail name={file.name} href={`/api/workspace/files/${file.file_id}?preview=1`} />
-                          <FileText size={20} /><span>{file.name}</span>
-                        </button>
+                        <MessageAttachment key={file.file_id} id={file.file_id} name={file.name} size={file.size} onOpen={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})} />
                       ))}
                     </div>}
                     {!!parts.length && <TurnParts parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {

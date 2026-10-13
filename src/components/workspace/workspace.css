@@ -2697,3 +2697,22 @@
 .ws-tool-details { margin: 6px 0 4px 6px; border-top: 0; border-left: 1px solid #e2e7e1; padding: 0 14px; }
 .ws-tool-source-preview { padding: 4px 0 4px 20px; }
 .ws-tool-partial { padding: 4px 0 4px 20px; }
+.ws-file-card { width: 250px; max-width: 100%; overflow: hidden; border: 1px solid #e1e6df; border-radius: 13px; background: #fff; text-align: left; color: #36483d; }
+button.ws-file-card { cursor: pointer; }
+button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a3010; }
+.ws-file-card:focus-visible { outline: 2px solid var(--ws-green); outline-offset: 3px; }
+.ws-file-card-pdf { width: 210px; }
+.ws-file-cover { height: 180px; background: #f0f2ee; display: flex; align-items: center; justify-content: center; overflow: hidden; color: #9e6458; padding: 12px 18px 0; }
+.ws-file-cover img { width: 100%; height: 100%; object-fit: cover; object-position: top; box-shadow: 0 0 5px #0001; border-radius: 2px 2px 0 0; }
+.ws-file-caption { display: flex; align-items: center; gap: 10px; padding: 12px; }
+.ws-file-caption > span { min-width: 0; }
+.ws-file-caption strong { display: block; font-size: 12px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ws-file-caption small { display: block; font-size: 10px; color: #8a9388; margin-top: 4px; }
+.ws-file-icon { flex-shrink: 0; color: #778476; }
+.ws-file-icon-pdf { color: #b06355; }
+.ws-file-icon-docx { color: #537aa3; }
+.ws-file-icon-xlsx, .ws-file-icon-csv { color: #52856a; }
+.ws-file-icon-pptx { color: #b88052; }
+.ws-file-card-image { width: fit-content; }
+.ws-file-card-image .ws-attachment-thumbnail { display: block; width: auto; height: auto; max-width: 220px; max-height: 180px; object-fit: contain; border-radius: 12px; }
+.ws-file-card-image:has(img:not([hidden])) .ws-file-caption { display: none; }
