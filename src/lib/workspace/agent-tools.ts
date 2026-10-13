@@ -74,7 +74,7 @@ import type { ConversationAttachment } from "./attachments";
 export const progressLabels: Record<string, string> = {
   web_search: "Searching the web",
   read_skill: "Reviewing the working guidance",
-  workspace: "Checking your saved workspace",
+  workspace: "Checking roles, candidates and work agreements",
   find_candidates: "Finding candidates",
   find_roles: "Finding client roles",
   read_candidate: "Reading candidate details",

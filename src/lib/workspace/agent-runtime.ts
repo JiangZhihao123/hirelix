@@ -301,6 +301,15 @@ export const assistantReply: JobHandler = async (job, progress) => {
           const output = part.output as {ok?: boolean; result?: Record<string, unknown>};
           if (output.ok && output.result) {
             const result = output.result;
+            if (part.toolName === "workspace") {
+              const candidates = result.candidates as {people?: unknown[]} | undefined;
+              entry.inventory = {
+                roles: Array.isArray(result.roles) ? result.roles.length : 0,
+                candidates: Array.isArray(candidates?.people) ? candidates.people.length : 0,
+                preferences: Array.isArray(result.memories) ? result.memories.length : 0,
+                reminders: Array.isArray(result.reminders) ? result.reminders.length : 0,
+              };
+            }
             // Project only display fields; never expose complete tool inputs or records.
             const record = (result.person || result.role || result.document || result.record || result) as Record<string, unknown>;
             const title = record.title || record.name;
