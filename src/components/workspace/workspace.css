@@ -2532,7 +2532,11 @@
 .ws-document-attachment strong { display: block; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
 .ws-document-attachment small { display: block; margin-top: 3px; color: #6f746a; font-size: 11px; }
 .ws-document-attachment .ws-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
-.ws-assistant-delivery > .ws-document-attachments { margin: 0; padding: 16px 18px; }
+.ws-delivery-options { border-top: 1px solid #e7e8e3; }
+.ws-assistant-delivery .ws-delivery-options > summary { color: var(--ws-muted); font-size: 11px; font-weight: 400; padding: 10px 18px; }
+.ws-delivery-option-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 18px 14px; }
+.ws-delivery-options .ws-document-attachments { margin: 0; padding: 16px 18px; }
+.ws-assistant-delivery > footer .ws-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 .ws-assistant-agreement { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; margin: 18px 0; background: #f5f7f0; border: 1px solid #e1e6d8; border-radius: 12px; color: #47573b; }
 .ws-assistant-agreement > div { flex: 1; min-width: 0; }
 .ws-assistant-agreement strong { font-size: 13px; }
@@ -2559,10 +2563,23 @@
 .ws-source-panel > .ws-link { display: inline-flex; margin-top: 24px; }
 .ws-message-sources button { display: inline-flex; gap: 5px; align-items: center; max-width: 100%; border: 1px solid #dce4d9; border-radius: 6px; padding: 4px 8px; color: #47684d; font-size: 12px; background: #f8faf5; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
 .ws-message-sources button svg { flex-shrink: 0; }
-.ws-message-source-disclosure { margin-top: 14px; }
-.ws-message-source-disclosure > summary { width: fit-content; padding: 5px 2px; color: #61725f; font-size: 12px; cursor: pointer; }
+.ws-message-source-disclosure { margin: 0; }
+.ws-message-source-disclosure > summary { width: fit-content; padding: 5px 2px; color: #839080; font-size: 11px; cursor: pointer; }
 .ws-message-source-disclosure > summary span { margin-left: 4px; font-variant-numeric: tabular-nums; }
 .ws-message-source-disclosure > summary:hover { color: #2f5039; }
+.ws-message-tools { flex-wrap: wrap; }
+.ws-message-source-disclosure[open] { flex-basis: 100%; order: 2; }
+.ws-recommendation-receipt { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.ws-recommendation-receipt > a { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.ws-feedback-receipt { padding: 14px 18px; border-left: 2px solid #b6c9bc; background: #f7f9f6; border-radius: 0 8px 8px 0; }
+.ws-feedback-receipt > header { display: flex; align-items: center; gap: 7px; color: #788477; font-size: 11px; margin-bottom: 10px; }
+.ws-feedback-receipt time { margin-left: auto; font-size: 10px; }
+.ws-feedback-subject { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; font-size: 13px; }
+.ws-feedback-subject strong { font-weight: 550; }
+.ws-feedback-subject > span { color: #627662; font-size: 12px; }
+.ws-feedback-receipt > p { margin: 8px 0 0; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ws-feedback-receipt > footer { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; color: #899386; font-size: 10px; }
+.ws-feedback-receipt > footer button { display: inline-flex; align-items: center; gap: 4px; color: #687d68; }
 .ws-message-source-disclosure > .ws-message-sources { margin-top: 8px; }
 @media (max-width: 1000px) { .ws-source-panel { flex-basis: 300px; } }
 @media (max-width: 850px) { .ws-source-panel { position: fixed; inset: 54px 0 0; width: 100%; z-index: 40; } }
@@ -2668,11 +2685,22 @@
 
 .ws-tool-partial { margin: 0; padding: 0 12px 8px 36px; color: #986344; font-size: 11px; }
 
-.ws-conversation-context { width: min(var(--ws-chat-width), calc(100% - 48px)); margin: 0 auto; padding: 0 0 12px; flex-shrink: 0; font-size: 11px; color: var(--ws-muted); }
-.ws-conversation-context > div { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding-top: 6px; }
-.ws-conversation-context button, .ws-conversation-context a { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid var(--ws-border); border-radius: 7px; color: #49614f; max-width: 280px; }
-.ws-conversation-context button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.ws-conversation-context button:hover, .ws-conversation-context a:hover { background: var(--ws-bg); }
+.ws-conversation-context { width: min(var(--ws-chat-width), calc(100% - 48px)); margin: 0 auto; padding: 0 0 10px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; color: var(--ws-muted); font-size: 11px; }
+.ws-context-focus { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: min(480px, 70%); padding: 4px 0; text-align: left; color: #657367; }
+.ws-context-focus svg { flex-shrink: 0; }
+.ws-context-focus span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ws-context-focus:hover { color: var(--ws-green); }
+.ws-context-disclosure { position: relative; margin-left: auto; flex-shrink: 0; }
+.ws-context-disclosure > summary { display: flex; align-items: center; gap: 5px; cursor: pointer; list-style: none; padding: 5px 0; }
+.ws-context-disclosure > summary::-webkit-details-marker { display: none; }
+.ws-context-disclosure[open] > summary svg { transform: rotate(180deg); }
+.ws-context-menu { position: absolute; z-index: 5; top: calc(100% + 6px); right: 0; width: min(320px, calc(100vw - 64px)); max-height: min(420px, 60vh); overflow: auto; padding: 6px; background: #fff; border: 1px solid var(--ws-border); border-radius: 10px; box-shadow: 0 8px 24px #253b3212; }
+.ws-context-menu button, .ws-context-menu a { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px; border-radius: 6px; color: #49614f; font-size: 12px; text-align: left; }
+.ws-context-menu svg { flex-shrink: 0; }
+.ws-context-menu span { min-width: 0; overflow-wrap: anywhere; }
+.ws-context-menu button:hover, .ws-context-menu a:hover { background: #f4f6f2; }
+.ws-context-links { border-top: 1px solid var(--ws-border); margin-top: 4px; padding-top: 4px; }
+.ws-context-links:first-child { border: 0; margin: 0; padding: 0; }
 .ws-mail-record { border-bottom: 1px solid var(--ws-border); padding: 18px 0; }
 .ws-mail-record summary { cursor: pointer; display: flex; justify-content: space-between; gap: 16px; }
 .ws-mail-record p { white-space: pre-wrap; }

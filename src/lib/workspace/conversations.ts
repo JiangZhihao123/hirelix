@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { owned, rows, WorkspaceError } from "./database";
+import { owned, rows, textArray, WorkspaceError } from "./database";
 import { MAX_CONVERSATION_FILES } from "./attachments";
 import { viewedSourceInput } from "./source-context";
 import { conversationExcerpt } from "./conversation-excerpt";
@@ -8,6 +8,7 @@ import { hydrateEmailReceipts } from "./conversation-email";
 import type { ConversationEmail } from "./email-contract";
 import type { ConversationQuestion } from "./conversation-questions";
 import type { Conversation, Message, Job, Deliverable } from "./types";
+import { recommendationFeedbackInput } from "./recommendation-feedback-contract";
 import type { Reminder } from "./reminders";
 import type { MemoryReceipt } from "./memories";
 import type { AssistantWorkReceipt, AssistantScheduleReceipt } from "./assistant-work";
@@ -53,6 +54,10 @@ export type AssistantAction = {
   href?: string;
 };
 export type AssistantMeta = {
+  recommendation_feedback?: {
+    person_name: string; response: "interview" | "hold" | "decline" | "comment";
+    comment: string; submitted_name: string; href: string;
+  };
   recommendation_links?: Array<{document_id: string; version: number; href: string; expires_at: string}>;
   document_edits?: Array<{id:string;title:string;version:number;href:string}>;
   exports?: { document_id: string; formats: Array<"pdf" | "docx"> };
@@ -117,13 +122,37 @@ export async function conversationDetails(userId: string, id: string) {
     ),
     rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='deliverable' AND payload->>'conversation_id'=${id} ORDER BY created_at DESC,id DESC LIMIT 100`),
   ]);
-  await hydrateEmailReceipts(userId, messages);
+  await Promise.all([hydrateEmailReceipts(userId, messages), hydrateRecommendationFeedback(userId, messages)]);
   work.reverse();
   const latestWork = [...work].reverse().find(item => item.status === "done" && item.result?.deliverable_id);
   const selected = [...messages].reverse().find(message => message.role === "user" && typeof message.metadata.work_document_id === "string");
   const documentId = selected && (!latestWork || new Date(selected.created_at) > new Date(latestWork.created_at)) ? selected.metadata.work_document_id : latestWork?.result?.deliverable_id || messages.find(message => message.role === "user" && typeof message.metadata.document_id === "string")?.metadata.document_id;
   const document = documentId ? await owned<Deliverable>(userId, "deliverable", z.uuid().parse(documentId)) : null;
   return { conversation, messages, document, work, job: jobs[0] ?? null };
+}
+// Render feedback from its saved structured receipt, without parsing generated prose.
+async function hydrateRecommendationFeedback(userId: string, messages: Message[]) {
+  const ids = messages.flatMap(message => message.role === "assistant" && typeof message.metadata.feedback_record_id === "string" ? [message.metadata.feedback_record_id] : []);
+  if (!ids.length) return;
+  const records = await rows<{ id: string; role_id: string; person_name: string; request: unknown }>(sql`
+    SELECT r.id,r.role_id,p.name AS person_name,r.details->'feedback_request' AS request
+    FROM hirelix_private_records r
+    JOIN hirelix_agent_people p ON p.id=r.person_id AND p.user_id=r.user_id
+    WHERE r.user_id=${userId}::uuid AND r.id::text=ANY(${textArray(ids)})
+      AND r.kind='feedback' AND r.details->>'source'='recommendation_link'
+  `);
+  const feedback = new Map(records.map(record => [record.id, record]));
+  for (const message of messages) {
+    const record = feedback.get(String(message.metadata.feedback_record_id));
+    if (!record) continue;
+    const request = recommendationFeedbackInput.safeParse(record.request);
+    if (!request.success) continue;
+    (message.metadata as AssistantMeta).recommendation_feedback = {
+      person_name: record.person_name, response: request.data.response,
+      comment: request.data.comment, submitted_name: request.data.name,
+      href: `/app/roles/${record.role_id}?tab=activity&record=${record.id}`,
+    };
+  }
 }
 export async function renameConversation(
   userId: string,

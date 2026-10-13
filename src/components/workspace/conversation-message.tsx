@@ -4,10 +4,11 @@ import { ConversationExports } from "./document-download";
 import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
 import { TurnParts } from "./turn-parts";
+import { feedbackLabels } from "@/lib/workspace/recommendation-feedback-contract";
 import { turnParts } from "@/lib/workspace/turn-progress";
 import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
-import { ArrowUpRight, Check, Copy } from "lucide-react";
+import { ArrowUpRight, Check, Copy, MessageSquare } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
 import { BrandMark } from "@/components/BrandMark";
 import { AgentText } from "@/components/AgentText";
@@ -50,6 +51,13 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
   if (metadata.exports) displayedSources.add(`/app/submissions/${metadata.exports.document_id}`);
   metadata.document_edits?.forEach(document => displayedSources.add(document.href));
   const remainingSources = metadata.sources?.filter(source => !displayedSources.has(source.href)) || [];
+  const feedback = metadata.recommendation_feedback;
+  if (feedback) return <article className="ws-message ws-feedback-receipt" data-message-key={message.id} aria-label={t("Client feedback")}>
+    <header><MessageSquare size={15} /><span>{t("Client feedback")}</span><time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time></header>
+    <div className="ws-feedback-subject"><strong>{feedback.person_name}</strong><span>{t(feedbackLabels[feedback.response])}</span></div>
+    {feedback.comment && <p>{feedback.comment}</p>}
+    <footer><span>{feedback.submitted_name} · {t("Name not verified")}</span><button type="button" onClick={() => onSource({title: t("Client feedback"), href: feedback.href})}>{t("View record")}<ArrowUpRight size={12} /></button></footer>
+  </article>;
   return (
                   <article
                     className={`ws-message ws-message-${message.role}`}
@@ -96,8 +104,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
                     ))}
                     {metadata.exports && <ConversationExports documentId={metadata.exports.document_id} formats={metadata.exports.formats} />}
-                    {metadata.recommendation_links?.map((link, index) => <div className="ws-actions mt-3" key={`${link.document_id}:${link.version}:${index}`}>
-                      <a className="ws-button" href={link.href} target="_blank" rel="noopener noreferrer">{t("Open client recommendation")}<ArrowUpRight size={14} /></a>
+                    {metadata.recommendation_links?.map((link, index) => <div className="ws-recommendation-receipt" key={`${link.document_id}:${link.version}:${index}`}>
+                      <a className="ws-link" href={link.href} target="_blank" rel="noopener noreferrer">{t("Open client recommendation")}<ArrowUpRight size={14} /></a>
                       <span className="ws-message-status">{t("Published copy")} · {t("Version")} {link.version}</span>
                     </div>)}
                     {(metadata.email || metadata.gmail) && <ConversationEmail email={metadata.email} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
@@ -106,8 +114,6 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
                     {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={onReady} />}
-                    {!!metadata.document_edits?.length && <p className="ws-message-status">{t("Updated · Previous version kept")}</p>}
-                    {!!remainingSources.length && <MessageSources sources={remainingSources} onSource={onSource} />}
                     {!!metadata.memories?.length && <div className="ws-memory-receipts">
                       {metadata.memories.map(memory => <button key={memory.id} type="button" onClick={() => onMemories()}>
                         <Check size={13} />{t(memory.operation === "forget" ? "Forgotten" : memory.operation === "update" ? "Agreement updated" : "Remembered")} · {memory.title}
@@ -164,6 +170,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       </div>
                     ))}
                     <div className="ws-message-tools">
+                      {!!remainingSources.length && <MessageSources sources={remainingSources} onSource={onSource} />}
+                      {!!metadata.document_edits?.length && !metadata.recommendation_links?.length && <span className="ws-message-status">{t("Updated · Previous version kept")}</span>}
                       {message.role === "user" && <time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time>}
                       {message.content && message.metadata.turn_status !== "cancelled" && <button
                         type="button"

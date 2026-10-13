@@ -50,11 +50,20 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen, exportedDocu
   const draft = document.data?.deliverable;
   if (documentId && documentId === exportedDocumentId && draft) return null;
   return <section className="ws-assistant-delivery" aria-label={t("Prepared work")}>
-    <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : ["error", "cancelled"].includes(job?.status || "") ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{t(draft?.source_snapshot.audience === "internal" ? "Internal document" : receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</strong><small>{receipt.title}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Saved" : job?.status === "cancelled" ? "Stopped" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
+    <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : ["error", "cancelled"].includes(job?.status || "") ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{draft?.title || receipt.title}</strong><small>{t(draft?.source_snapshot.audience === "internal" ? "Internal document" : receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Saved" : job?.status === "cancelled" ? "Stopped" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
     <ErrorNotice error={error || query.error || job?.error || document.error} retry={job?.status === "error" && !busy ? retry : query.error ? query.refresh : document.error ? document.refresh : undefined} />
     {job && ["queued", "running"].includes(job.status) && <button className="ws-button" disabled={busy} onClick={stop}>{t("Stop")}</button>}
-    {draft && <><details><summary>{draft.title}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details><footer><small>{t(draft.status === "submitted" ? "Marked as submitted" : "Saved · Nothing has been sent")}</small><div><button className="ws-button" onClick={() => onRevise(draft)}>{t("Ask for a revision")}</button><button className="ws-button" onClick={() => onOpen ? onOpen(draft) : window.location.assign(draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`)}>{t("Open document")}<ArrowUpRight size={13} /></button><DocumentDownloads document={draft} onRefresh={document.refresh} /></div></footer></>}
-    {draft && <DocumentAttachments document={draft} />}
+    {draft && <>
+      <details><summary>{t("Preview content")}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details>
+      <footer>
+        <button className="ws-link" onClick={() => onOpen ? onOpen(draft) : window.location.assign(draft.kind === "search_update" ? `/app/roles/${draft.role_id}/updates/${draft.id}` : `/app/submissions/${draft.id}`)}>{t("Open document")}<ArrowUpRight size={13} /></button>
+        <small>{t(draft.status === "submitted" ? "Marked as submitted" : "Nothing has been sent")}</small>
+      </footer>
+      <details className="ws-delivery-options"><summary>{t("Edit, export and attachments")}</summary>
+        <div className="ws-delivery-option-actions"><button className="ws-button" onClick={() => onRevise(draft)}>{t("Ask for a revision")}</button><DocumentDownloads document={draft} onRefresh={document.refresh} /></div>
+        <DocumentAttachments document={draft} />
+      </details>
+    </>}
     {job?.status === "done" && !draft && !document.error && <p>{t("Opening your draft…")}</p>}
   </section>;
 }

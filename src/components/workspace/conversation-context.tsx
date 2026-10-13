@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { BriefcaseBusiness, BookUser, Send, Mail } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { BriefcaseBusiness, BookUser, Send, Mail, ChevronDown } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import type { AssistantMeta } from "@/lib/workspace/conversations";
@@ -12,6 +13,14 @@ export function ConversationContext({ role, person, messages, liveParts = [], on
   role?: Role; person?: Person; liveParts?: TurnPart[]; messages: Message[]; onSource: (source: Reference) => void;
 }) {
   const t = useT();
+  const disclosure = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (disclosure.current && !disclosure.current.contains(event.target as Node)) disclosure.current.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
   const references = new Map<string, Reference>();
   if (role) references.set(`role:${role.id}`, { title: `${role.client_name} · ${role.title}`, href: `/app/roles/${role.id}` });
   if (person) references.set(`person:${person.id}`, { title: person.name, href: `/app/candidates?person=${person.id}` });
@@ -28,10 +37,31 @@ export function ConversationContext({ role, person, messages, liveParts = [], on
   const roleKeys = [...references.keys()].filter(key => key.startsWith("role:"));
   const recommendationRole = role?.id || (roleKeys.length === 1 ? roleKeys[0].slice(5) : null);
   if (!references.size) return null;
+  const entries = [...references];
+  const primaryKey = role ? `role:${role.id}` : person ? `person:${person.id}` : roleKeys.length === 1 ? roleKeys[0] : null;
+  const primary = primaryKey ? references.get(primaryKey) : null;
+  const related = entries.filter(([key]) => key !== primaryKey);
+  const open = (source: Reference) => {
+    if (disclosure.current) disclosure.current.open = false;
+    onSource(source);
+  };
   return <nav className="ws-conversation-context" aria-label={t("Related to this conversation")}>
-    <span>{t("Related to this conversation")}</span>
-    <div>{[...references].map(([key, source]) => <button key={key} type="button" title={source.title} onClick={() => onSource(source)}>
-      {key.startsWith("role:") ? <BriefcaseBusiness size={14} /> : <BookUser size={14} />}<span>{source.title}</span>
-    </button>)}{recommendationRole && <Link href={`/app/submissions?role=${recommendationRole}`}><Send size={14} />{t("Recommendations")}</Link>}{recommendationRole && <Link href={`/app/mail?role=${recommendationRole}`}><Mail size={14} />{t("Email activity")}</Link>}</div>
+    {primary && <button className="ws-context-focus" type="button" title={primary.title} onClick={() => open(primary)}>
+      {primaryKey?.startsWith("role:") ? <BriefcaseBusiness size={14} /> : <BookUser size={14} />}<span>{primary.title}</span>
+    </button>}
+    {(!!related.length || recommendationRole) && <details ref={disclosure} className="ws-context-disclosure" onKeyDown={event => {
+      if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); }
+    }}>
+      <summary>{t("Related material")}<ChevronDown size={13} /></summary>
+      <div className="ws-context-menu">
+        {related.map(([key, source]) => <button key={key} type="button" onClick={() => open(source)}>
+          {key.startsWith("role:") ? <BriefcaseBusiness size={14} /> : <BookUser size={14} />}<span>{source.title}</span>
+        </button>)}
+        {recommendationRole && <div className="ws-context-links">
+          <Link href={`/app/submissions?role=${recommendationRole}`}><Send size={14} />{t("Recommendations")}</Link>
+          <Link href={`/app/mail?role=${recommendationRole}`}><Mail size={14} />{t("Email activity")}</Link>
+        </div>}
+      </div>
+    </details>}
   </nav>;
 }
