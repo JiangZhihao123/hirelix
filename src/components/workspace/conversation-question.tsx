@@ -1,6 +1,5 @@
 "use client";
 import { useRef, useState } from "react";
-import { ArrowUp } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
 import { api, ErrorNotice } from "./client";
 import type { ConversationQuestion as Question } from "@/lib/workspace/conversation-questions";
@@ -26,7 +25,7 @@ export function ConversationQuestion({question, conversationId, messageId, onCha
         <span className="ws-decision-letter">{String.fromCharCode(65+index)}</span>
         <span className="ws-decision-content"><span>{option}{recommendation?.option===index && <small className="ws-decision-badge">{t("Recommended")}</small>}</span>
           {recommendation?.option===index && <span className="ws-decision-reason">{recommendation.reason}</span>}
-        </span><ArrowUp size={16} aria-hidden="true" />
+        </span>
       </button>
     )}</div>}
     <ErrorNotice error={error} />

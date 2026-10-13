@@ -2822,6 +2822,4 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-decision-content { flex: 1; min-width: 0; }
 .ws-decision-reason { display: block; margin-top: 4px; color: #6c796f; font-size: 13px; line-height: 1.6; }
 .ws-decision-badge { margin-left: 10px; color: #35654b; font-size: 12px; }
-.ws-decision-option svg { flex-shrink: 0; color: #567463; }
-.ws-decision-option:disabled svg { visibility: hidden; }
 .ws-decision-cancel { margin-top: 10px; font-size: 12px; color: #788378; }
