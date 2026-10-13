@@ -3,7 +3,7 @@
 import { Children, Fragment } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Reply } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { suggestionLayout } from "@/lib/workspace/suggestion-layout";
 import { useT } from "@/components/LanguageProvider";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
@@ -33,7 +33,7 @@ export function AgentText({
         components={{
           a: ({ href, children }) => suggestion || href === "#assistant-reply" ? (
             <button type="button" className="ws-suggestion-reply" title={t("Send reply")} disabled={!onSuggestionReply} onClick={event => onSuggestionReply?.(event.currentTarget.textContent || "")}>
-              <Reply size={15} aria-hidden="true" />{children}
+              <ArrowUp size={15} aria-hidden="true" />{children}
             </button>
           ) : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
             <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
