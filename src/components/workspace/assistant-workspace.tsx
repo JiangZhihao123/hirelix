@@ -274,7 +274,9 @@ export function AssistantWorkspace({
   }, [draft, draftReady, draftStorageKey, draftRoleKey, conversationId, roleId, initialRoleId]);
   useEffect(() => {
     if (!draftReady || sending) return;
-    composer.current?.focus({ preventScroll: true });
+    const input = composer.current;
+    input?.focus({ preventScroll: true });
+    if (input) input.setSelectionRange(input.value.length, input.value.length);
   }, [draftReady, sending, conversationId]);
   useEffect(() => {
     const focus = () => composer.current?.focus({ preventScroll: true });

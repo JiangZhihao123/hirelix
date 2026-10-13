@@ -647,7 +647,7 @@ function CandidateDetails({
             </section>
           )}
           <div className="ws-actions mt-5">
-            <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我保存这位候选人的新沟通记录。" : "Help me save a new conversation record for this candidate.")}>
+            <button className="ws-button" onClick={() => ask(locale === "zh" ? `记录与 ${person.name} 的沟通：\n` : `Record my conversation with ${person.name}:\n`)}>
               <Plus size={14} />
               {t("Add record")}
             </button>
@@ -665,7 +665,7 @@ function CandidateDetails({
       {(tab === "records" || tab === "sources") && (
         <>
           {tab === "records" && <div className="ws-actions mt-5 mb-3">
-            <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我保存这位候选人的新沟通记录。" : "Help me save a new conversation record for this candidate.")}>
+            <button className="ws-button" onClick={() => ask(locale === "zh" ? `记录与 ${person.name} 的沟通：\n` : `Record my conversation with ${person.name}:\n`)}>
               <Plus size={14} />
               {t("Add record")}
             </button>
