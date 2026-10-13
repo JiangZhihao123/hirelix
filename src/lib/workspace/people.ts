@@ -15,6 +15,17 @@ import {
 import { personInput, type Person, type SourceRecord } from "./types";
 import { addRecord } from "./records";
 
+export async function mentionPeople(userId: string, query = "") {
+  const match = `%${query.trim().replace(/[\\%_]/g, "\\$&")}%`;
+  const people = await rows<Pick<Person, "id" | "name" | "headline" | "location">>(sql`
+    SELECT id,name,headline,location FROM hirelix_agent_people
+    WHERE user_id=${userId}::uuid
+      AND (${!query.trim()} OR concat_ws(' ',name,email,headline) ILIKE ${match})
+    ORDER BY (lower(name)=lower(${query.trim()})) DESC,updated_at DESC,id LIMIT 10
+  `);
+  return { people };
+}
+
 export async function listPeople(
   userId: string,
   query = "",

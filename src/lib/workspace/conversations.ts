@@ -20,6 +20,7 @@ export const conversationInput = z.object({
   email_confirmation_message_id: z.uuid().nullable().default(null),
   question_message_id: z.uuid().nullable().default(null),
   file_ids: z.array(z.uuid()).max(MAX_CONVERSATION_FILES).default([]),
+  candidate_ids: z.array(z.uuid()).max(20).default([]),
   locale: z.enum(["en", "zh"]).default("en"),
   timezone: z.string().max(100).refine(zone => { try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; } }).default("UTC"),
   request_key: z.string().min(1).max(200),

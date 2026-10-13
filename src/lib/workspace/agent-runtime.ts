@@ -158,6 +158,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         uploaded_files: "Retained conversation attachments; separate from candidate and role records.",
       },
       selected_source: question.metadata.viewed_source || null,
+      candidate_references: question.metadata.candidate_references || [],
       conversation: {
         id,
         role_id: details.conversation.role_id,
@@ -208,10 +209,11 @@ export const assistantReply: JobHandler = async (job, progress) => {
                     parts: undefined,
                   },
                 })
-              : m.metadata.work_document_id || m.metadata.viewed_source
+              : m.metadata.work_document_id || m.metadata.viewed_source || m.metadata.candidate_references
                 ? JSON.stringify({
                     message: m.content,
                     selected_source: m.metadata.viewed_source,
+                    candidate_references: m.metadata.candidate_references,
                     document_context: {
                       id: m.metadata.work_document_id,
                       title: m.metadata.work_document_title,

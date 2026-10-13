@@ -6,7 +6,7 @@ import { enqueue, json, owned, rows, WorkspaceError } from "./database";
 import { conversationInput } from "./conversations";
 import { saveFile, type PrivateFile } from "./files";
 import { MAX_CONVERSATION_FILES, type ConversationAttachment } from "./attachments";
-import type { Job, Conversation, Deliverable, Message } from "./types";
+import type { Job, Conversation, Deliverable, Message, Person } from "./types";
 import { consumeQuestion } from "./conversation-questions";
 export async function sendMessage(
   userId: string,
@@ -60,6 +60,11 @@ export async function sendMessage(
     const resolvedRoleId = document?.role_id || input.role_id;
     if (input.role_id) await owned(userId, "role", input.role_id, tx);
     if (input.person_id) await owned(userId, "person", input.person_id, tx);
+    const candidateReferences = [];
+    for (const candidateId of new Set(input.candidate_ids)) {
+      const person = await owned<Person>(userId, "person", candidateId, tx);
+      candidateReferences.push({ id: person.id, name: person.name });
+    }
     let conversation: Conversation;
     if (input.conversation_id) {
       conversation = await owned<Conversation>(
@@ -95,7 +100,7 @@ export async function sendMessage(
       if (!preview || !["review","sending","sent","unknown"].includes((preview.metadata.email as {status:string}).status)) throw new WorkspaceError("This email preview is no longer available",409);
     }
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,
     );
     const continuation = await consumeQuestion(userId, conversation.id, input.question_message_id, input.message, message.id, tx);

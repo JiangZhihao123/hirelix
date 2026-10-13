@@ -7,6 +7,7 @@ import { TurnParts } from "./turn-parts";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { feedbackLabels } from "@/lib/workspace/recommendation-feedback-contract";
 import { turnParts } from "@/lib/workspace/turn-progress";
+import { candidateReferences } from "@/lib/workspace/candidate-references";
 import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
 import { ArrowUpRight, Check, Copy, MessageSquare } from "lucide-react";
@@ -80,6 +81,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         <MessageAttachment key={file.file_id} id={file.file_id} name={file.name} size={file.size} onOpen={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})} />
                       ))}
                     </div>}
+                    {message.role === "user" && !!candidateReferences(message.metadata.candidate_references).length && <div className="ws-message-references">{candidateReferences(message.metadata.candidate_references).map(person => <button type="button" key={person.id} onClick={() => onSource({ title: person.name, href: `/app/candidates?person=${person.id}` })}>@{person.name}<ArrowUpRight size={12} /></button>)}</div>}
                     {!!parts.length && <TurnParts parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
                       if (!viewedSourceFromHref(href)) return false;

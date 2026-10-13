@@ -2,6 +2,7 @@
 
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { ConversationContext } from "./conversation-context";
+import { useCandidateMentions } from "./candidate-mentions";
 import { conversationTurnView } from "./conversation-turn-view";
 import { useTurnStream } from "./use-turn-stream";
 import { isTurnRunning, turnParts } from "@/lib/workspace/turn-progress";
@@ -214,6 +215,7 @@ export function AssistantWorkspace({
     documentId,
   );
   const draftRoleKey = `${draftStorageKey}:role`;
+  const mentions = useCandidateMentions(draftStorageKey, composer, setDraft);
   const attachmentDraftKey = user ? `${user.id}:${draftStorageKey}` : null;
   const attachmentsReady = !!attachmentDraftKey && attachmentDraftLoaded === attachmentDraftKey;
   const requestStorageKey = `${attachmentDraftKey}:request`;
@@ -431,6 +433,7 @@ export function AssistantWorkspace({
       const payload = {
         message: text,
         file_ids: fileIds,
+        candidate_ids: mentions.references.map(person => person.id),
         locale,
         work_document_id: revisionTarget?.id || null,
         viewed_source: revisionTarget ? null : viewedSource,
@@ -451,6 +454,7 @@ export function AssistantWorkspace({
       });
       setSubmittedJob(result.job);
       setDraft("");
+      mentions.clear();
       setRevisionTarget(null);
       setAttachments([]);
       localStorage.removeItem(draftStorageKey);
@@ -551,6 +555,7 @@ export function AssistantWorkspace({
     router.replace(`/app${remaining ? `?${remaining}` : ""}`, { scroll: false });
   }
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentions.onKeyDown(event)) return;
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -725,6 +730,8 @@ export function AssistantWorkspace({
             }}
           >
             {selectedContext && <div className="ws-composer-context-tags ws-composer-selected-source"><span className="ws-composer-context-tag">{revisionTarget ? <Pencil size={12} /> : <Paperclip size={12} />}<span>{t(revisionTarget ? "Revising" : "Discussing")}: {selectedContext.title}</span><button type="button" className="ws-icon" onClick={() => { setRevisionTarget(null); setSource(null); }} aria-label={t("Clear context")}><X size={12} /></button></span></div>}
+            {!sending && mentions.picker}
+            {!sending && mentions.tags}
             <ErrorNotice error={attachmentDraftError} />
             <input
               ref={fileInput}
@@ -798,8 +805,13 @@ export function AssistantWorkspace({
             <textarea
               ref={composer}
               aria-label={t("Message your AI assistant")}
+              role="combobox"
+              aria-expanded={mentions.open}
+              aria-autocomplete="list"
+              aria-controls={mentions.open ? "candidate-mentions" : undefined}
+              aria-activedescendant={mentions.selectedId}
               value={sending ? "" : draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => mentions.update(e.target.value, e.target.selectionStart)}
               placeholder={t(selectedContext ? "Ask about this item…" : "Ask, paste a JD, or share a conversation note…")}
               rows={1}
               maxLength={50000}
