@@ -1238,9 +1238,11 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     ask_user: define(
       "ask_user",
-      "Ask one necessary clarification when a missing fact, identity conflict or decision blocks the current request. Save the question and end this run; never use for optional task suggestions.",
+      "Ask the user for missing information, resolve ambiguity, or hand over a meaningful decision about the next action. Present distinct, concrete options and a supported recommendation when appropriate. Save the question and wait; the user may select an option or reply freely in the conversation.",
       clarificationSchema,
       async (input) => {
+        if (input.recommendation && input.recommendation.option >= input.options.length)
+          throw new WorkspaceError("Choose a recommended option from the supplied options.");
         ctx.clarification = {
           ...input,
           status: "waiting",

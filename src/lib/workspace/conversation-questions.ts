@@ -7,6 +7,10 @@ import type { Message } from "./types";
 export const clarificationSchema = z.object({
   question: z.string().trim().min(1).max(1000),
   options: z.array(z.string().trim().min(1).max(300)).max(4),
+  recommendation: z.object({
+    option: z.number().int().min(0).max(3).describe("Zero-based index of the recommended option"),
+    reason: z.string().trim().min(1).max(500),
+  }).optional(),
 });
 export type ConversationQuestion = z.infer<typeof clarificationSchema> & {
   status: "waiting" | "answered" | "cancelled";

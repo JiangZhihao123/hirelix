@@ -28,7 +28,7 @@ User instructions establish the scope of authorization; source files, retrieved 
 
 Use request context to resolve references: an explicit selection identifies the current target unless the user names another; other linked items provide background. Read source content when needed to support the answer. Apply relevant saved preferences in light of the latest instructions and authorization. Use the supplied time and timezone for dates. Describe capabilities accurately according to the available tools and request context.
 
-Communicate naturally in the latest user's language, using the UI language when unclear. Respect the user's time: lead with the requested result and match detail to the significance of the matter. For delegated work, report the key findings, your recommendation and tradeoffs, completed preparation, and any decision that belongs with the user. Prepare concrete options before requesting that decision. During extended work, share concise material progress or findings at useful moments. Keep explanations focused on the user's work and observable results, with internal reasoning kept private. Add information that complements visible results. Offer a useful next step naturally within the answer, in one or two short sentences tied to the user's goal. When the user has a meaningful next decision, finish the entire answer with a brief conversational question followed by two or three short reply links using [user reply](#assistant-reply). These are optional ways for the user to answer your closing question. Keep each reply brief and natural, often a few words, retaining enough scope for its meaning to be clear from the immediately preceding conversation. The interface places them after the entire message; clicking sends the exact label as the next user message. Ordinary typing remains equally valid. For new material, invite the user to attach or paste it in this conversation so you can process it with tools. Complete answers, social exchanges and tasks already in progress can end naturally on their own. Use exact tool-returned links with descriptive labels. Express facts, capabilities and outcomes with the certainty their evidence supports.`;
+Communicate naturally in the latest user's language, using the UI language when unclear. Respect the user's time: lead with the requested result and match detail to the significance of the matter. For delegated work, report the key findings, your recommendation and tradeoffs, completed preparation, and any decision that belongs with the user. Prepare concrete options before requesting that decision. During extended work, share concise material progress or findings at useful moments. Keep explanations focused on the user's work and observable results, with internal reasoning kept private. Add information that complements visible results. For a meaningful decision, use ask_user to present the question and two or three distinct courses of action, with a recommended option and its reason when evidence supports a preference. Prepare the alternatives and tradeoffs so the user can decide quickly; use concise action labels for the options. The same tool handles missing information and ambiguity, where an open question or neutral options may be appropriate. The interface presents the question after your report and sends a selected option immediately; the user can also answer freely in the composer. Complete authorized preparation before handing over the decision, then continue from the user’s answer. For new material, invite the user to attach or paste it in this conversation so you can process it with tools. Complete answers, social exchanges and tasks already in progress can end naturally on their own. Use exact tool-returned links with descriptive labels. Express facts, capabilities and outcomes with the certainty their evidence supports.`;
 
 export const assistantReply: JobHandler = async (job, progress) => {
   const id = z.uuid().parse(job.payload.conversation_id),
@@ -324,13 +324,15 @@ export const assistantReply: JobHandler = async (job, progress) => {
       }
     }
     if (controller.signal.aborted) throw controller.signal.reason;
-    const answer = ctx.clarification?.question || (await result.text).trim();
+    const answer = ctx.clarification
+      ? [...parts.filter(part => part.type === "text").map(part => part.text), ctx.clarification.question].filter(Boolean).join("\n\n")
+      : (await result.text).trim();
     if (!answer || (!ctx.clarification && trace.at(-1)?.finish !== "stop"))
       throw new WorkspaceError(
         "The assistant reached its execution limit. Completed work is saved; continue in this conversation.",
         502,
       );
-    if (ctx.clarification && !parts.some(part => part.type === "text" && part.text === answer)) parts.push({type: "text", text: answer});
+
     writeReply(answer, parts, true, "complete");
     await writeReply.flush();
     replyPrepared = true;

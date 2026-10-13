@@ -2588,15 +2588,6 @@
 .ws-conversation { flex: 1; }
 .ws-unread-dot { color: #3c7556; padding-left: 5px; }
 
-.ws-question-card { margin: 18px 0; padding: 20px; border: 1px solid #9aaf9d; border-left: 3px solid #456b50; border-radius: 12px; background: #f6f9f4; }
-.ws-question-card > strong { display: block; color: #345c40; }
-.ws-question-card p { margin: 10px 0; }
-.ws-question-options { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
-.ws-question-options [data-selected="true"] { border-color: #456b50; background: #e1eddf; }
-.ws-question-card label { display: block; font-size: 13px; }
-.ws-question-card textarea { display: block; width: 100%; min-height: 76px; margin: 6px 0 12px; padding: 10px; border: 1px solid #ccd7c8; border-radius: 8px; background: white; }
-.ws-question-card footer { display: flex; gap: 8px; margin-bottom: 12px; }
-.ws-question-card small { color: #637060; }
 
 /* Personal preferences: a compact, searchable manager rather than a raw list. */
 .ws-memory-list { padding: 24px; }
@@ -2643,8 +2634,6 @@
 
 .ws-turn-failure { margin: 12px 0; }
 .ws-turn-failure small { display: block; margin-top: 8px; color: #637060; }
-.ws-question-resolved { margin: 12px 0; }
-.ws-question-resolved small { color: #637060; }
 
 /* Saved work is the primary reading surface while it is open. */
 @media (min-width: 851px) {
@@ -2819,3 +2808,20 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-suggestion-reply svg { color: #567463; }
 
 .ws-message-replies { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 18px 0 8px; width: 100%; }
+
+/* A decision is a separate handoff after the report and its copy action. */
+.ws-decision { margin: 24px 0 12px; padding-top: 18px; border-top: 1px solid var(--ws-line); }
+.ws-decision-question { margin: 0 0 12px; font-weight: 500; }
+.ws-decision-options { display: grid; gap: 8px; }
+.ws-decision-option { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; background: #fff; border: 1px solid var(--ws-line); border-radius: 10px; color: var(--ws-ink); font: inherit; text-align: left; cursor: pointer; }
+.ws-decision-option[data-recommended="true"] { background: #f4f8f5; border-color: #acc5b5; }
+.ws-decision-option:hover:enabled { border-color: #729883; }
+.ws-decision-option:focus-visible { outline: 2px solid #729883; outline-offset: 2px; }
+.ws-decision-option:disabled { cursor: default; }
+.ws-decision-letter { font-size: 13px; color: #567463; }
+.ws-decision-content { flex: 1; min-width: 0; }
+.ws-decision-reason { display: block; margin-top: 4px; color: #6c796f; font-size: 13px; line-height: 1.6; }
+.ws-decision-badge { margin-left: 10px; color: #35654b; font-size: 12px; }
+.ws-decision-option svg { flex-shrink: 0; color: #567463; }
+.ws-decision-option:disabled svg { visibility: hidden; }
+.ws-decision-cancel { margin-top: 10px; font-size: 12px; color: #788378; }

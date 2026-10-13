@@ -11,7 +11,7 @@ type ToolPart = Extract<TurnPart, {type: "tool"}>;
 function groupParts(parts: TurnPart[]) {
   const groups: Array<Extract<TurnPart, {type: "text"}> | {type: "tools"; items: ToolPart[]}> = [];
   for (const part of parts) {
-    if (part.type === "tool" && part.tool === "read_skill" && part.status !== "error") continue;
+    if (part.type === "tool" && (part.tool === "read_skill" || part.tool === "ask_user") && part.status !== "error") continue;
     const last = groups.at(-1);
     if (part.type === "text") groups.push(part);
     else if ((part.query || part.tool?.startsWith("read_") || part.tool?.startsWith("find_")) && last?.type === "tools" && (last.items[0].tool || last.items[0].label) === (part.tool || part.label)) last.items.push(part);

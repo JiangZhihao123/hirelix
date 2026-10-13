@@ -112,7 +112,6 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       <span className="ws-message-status">{t("Published copy")} · {t("Version")} {link.version}</span>
                     </div>)}
                     {(metadata.email || metadata.gmail) && <ConversationEmail email={metadata.email} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
-                    {metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
                     {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} exportedDocumentId={metadata.exports?.document_id} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
@@ -173,7 +172,6 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       </div>
                     ))}
                     {activeJob && <TurnActivity job={activeJob} embedded hideContent receivingFiles={receivingFiles} disconnected={disconnected} onRetry={onRetry} />}
-                    {message.role === "assistant" && onSuggestionReply && <AssistantReplies content={parts.length ? parts.filter(part => part.type === "text").map(part => part.text).join("\n") : message.content} onReply={onSuggestionReply} />}
                     <div className="ws-message-tools">
                       {!!remainingSources.length && <MessageSources sources={remainingSources} onSource={onSource} />}
                       {!!metadata.document_edits?.length && !metadata.recommendation_links?.length && <span className="ws-message-status">{t("Updated · Previous version kept")}</span>}
@@ -188,6 +186,8 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                         {message.role !== "user" && (copiedId === message.id ? t("Copied") : t("Copy"))}
                       </button>}
                     </div>
+                    {metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} onReply={onSuggestionReply} />}
+                    {message.role === "assistant" && !metadata.question && onSuggestionReply && <AssistantReplies content={parts.length ? parts.filter(part => part.type === "text").map(part => part.text).join("\n") : message.content} onReply={onSuggestionReply} />}
                   </article>
 
   );

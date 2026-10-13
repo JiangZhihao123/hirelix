@@ -1,43 +1,35 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { useLanguage, useT } from "@/components/LanguageProvider";
+import { useRef, useState } from "react";
+import { ArrowUp } from "lucide-react";
+import { useT } from "@/components/LanguageProvider";
 import { api, ErrorNotice } from "./client";
 import type { ConversationQuestion as Question } from "@/lib/workspace/conversation-questions";
 
-export function ConversationQuestion({question, conversationId, messageId, onChanged}: {question: Question; conversationId:string; messageId:string; onChanged:()=>void}) {
+export function ConversationQuestion({question, conversationId, messageId, onChanged, onReply}: {question: Question; conversationId:string; messageId:string; onChanged:()=>void; onReply?: (answer: string)=>void}) {
   const t = useT();
-  const {locale} = useLanguage();
-  const [answer,setAnswer] = useState("");
   const [busy,setBusy] = useState(false), [error,setError] = useState("");
-  const storageKey = `hirelix:question:${messageId}`;
-  useEffect(() => {
-    if (question.status === "waiting") setAnswer(localStorage.getItem(storageKey) || "");
-    else localStorage.removeItem(storageKey);
-  }, [storageKey, question.status]);
-  function edit(value: string) { setAnswer(value); localStorage.setItem(storageKey, value); }
-  const attempt = useRef<{answer:string;key:string} | null>(null);
-  async function respond(cancel = false) {
-    if (busy) return;
-    setBusy(true); setError("");
+  const inFlight = useRef(false);
+  async function cancel() {
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(true); setError("");
     try {
-      if (cancel) await api(`/conversations/${conversationId}/questions/${messageId}`,{method:"DELETE"});
-      else {
-        if (!attempt.current || attempt.current.answer !== answer) attempt.current = {answer,key:crypto.randomUUID()};
-        await api("/conversations",{method:"POST",body:JSON.stringify({conversation_id:conversationId,question_message_id:messageId,message:answer,request_key:attempt.current.key,locale,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone})});
-      }
-      localStorage.removeItem(storageKey);
+      await api(`/conversations/${conversationId}/questions/${messageId}`,{method:"DELETE"});
       onChanged(); window.dispatchEvent(new Event("hirelix:conversations-changed"));
-    } catch(cause) {setError(cause instanceof Error ? cause.message : "Could not continue. Your answer is kept."); onChanged();}
-    finally {setBusy(false);}
+    } catch(cause) {setError(cause instanceof Error ? cause.message : "Could not cancel the request."); onChanged();}
+    finally {inFlight.current=false;setBusy(false);}
   }
-  if(question.status !== "waiting") return <div className="ws-question-resolved"><p>{question.question}</p><small>{t(question.status === "answered" ? "Answered" : "Request cancelled")}</small></div>;
-  return <section className="ws-question-card" role="region" aria-label={t("Your answer is needed")}>
-    <strong>{t("Your answer is needed")}</strong><p>{question.question}</p>
-    <div className="ws-question-options" role="radiogroup" aria-label={question.question}>{question.options.map((option,index)=><label key={index} className="ws-button" data-selected={answer===option}><input type="radio" name={`answer-${messageId}`} checked={answer===option} disabled={busy} onChange={()=>edit(option)} />{option}</label>)}</div>
-    <form onSubmit={event=>{event.preventDefault();void respond();}}>
-      <label>{t("Your answer")}<textarea value={answer} onChange={event=>edit(event.target.value)} maxLength={50000} rows={2} disabled={busy} placeholder={t("Choose an option or write your own answer…")} /></label>
-      <ErrorNotice error={error} />
-      <footer><button type="submit" className="ws-button ws-button-primary" disabled={busy || !answer.trim()}>{t(busy ? "Continuing…" : "Continue")}</button><button type="button" className="ws-button" disabled={busy} onClick={()=>void respond(true)}>{t("Cancel request")}</button></footer>
-    </form><small>{t("Waiting for your answer. You can also reply in the conversation.")}</small>
+  const recommendation = question.recommendation;
+  return <section className="ws-decision" aria-label={question.question}>
+    <p className="ws-decision-question">{question.question}</p>
+    {question.options.length > 0 && <div className="ws-decision-options">{question.options.map((option,index)=>
+      <button type="button" key={index} className="ws-decision-option" data-recommended={recommendation?.option===index} disabled={busy || !onReply || question.status !== "waiting"} onClick={()=>onReply?.(option)}>
+        <span className="ws-decision-letter">{String.fromCharCode(65+index)}</span>
+        <span className="ws-decision-content"><span>{option}{recommendation?.option===index && <small className="ws-decision-badge">{t("Recommended")}</small>}</span>
+          {recommendation?.option===index && <span className="ws-decision-reason">{recommendation.reason}</span>}
+        </span><ArrowUp size={16} aria-hidden="true" />
+      </button>
+    )}</div>}
+    <ErrorNotice error={error} />
+    {question.status === "waiting" ? <button type="button" className="ws-link ws-decision-cancel" disabled={busy || !onReply} onClick={()=>void cancel()}>{t("Cancel request")}</button> : <small>{t(question.status === "answered" ? "Answered" : "Request cancelled")}</small>}
   </section>;
 }
