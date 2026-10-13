@@ -940,7 +940,7 @@ export const uiZh: Record<string, string> = {
   "New": "新建",
   "new": "新候选人",
   "New candidate pool": "新建候选人库",
-  "New conversation": "新建对话",
+  "New conversation": "新会话",
   "New password": "新密码",
   "New search": "新建搜索",
   "New Search": "新建搜索",

@@ -109,7 +109,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     ? searchParams.get("conversation")
     : null;
   const nav = [
-    { href: "/app", label: t("AI assistant"), icon: MessageSquare, active: isConversationPage },
+    { href: "/app?new=1", label: t("New conversation"), icon: Plus, active: false },
     {
       href: "/app/candidates",
       label: t("Candidates & CVs"),
@@ -288,7 +288,15 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 onClick={() => {
                   navigate();
-                  if (item.href === "/app") window.dispatchEvent(new Event("hirelix:focus-composer"));
+
+                }}
+                onNavigate={event => {
+                  if (item.href !== "/app?new=1") return;
+                  if (pathname === "/app") {
+                    event.preventDefault();
+                    window.history.pushState(null, "", "/app?new=1");
+                  }
+                  window.dispatchEvent(new Event("hirelix:focus-composer"));
                 }}
                 aria-current={item.active ? "page" : undefined}
                 aria-label={item.label}
@@ -301,18 +309,8 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           </nav>
           {<section className="ws-sidebar-conversations" aria-label={t("Conversation history")}>
             <div className="ws-sidebar-conversations-heading">
-              <strong>{t("Conversations")}</strong>
+              <strong>{t("Recent conversations")}</strong>
               <div className="ws-actions">
-                <Link href="/app?new=1" className="ws-icon" onNavigate={(event) => {
-                  if (pathname === "/app") {
-                    event.preventDefault();
-                    // Conversation changes are client-owned query changes,
-                    // just like opening a newly saved conversation.
-                    window.history.pushState(null, "", "/app?new=1");
-                  }
-                  navigate();
-                  window.dispatchEvent(new Event("hirelix:focus-composer"));
-                }} aria-label={t("New conversation")} title={t("New conversation")}><Plus size={16} /></Link>
               <button
                 type="button"
                 className="ws-icon"
