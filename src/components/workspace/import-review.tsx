@@ -55,11 +55,11 @@ function ImportNotes({ warnings }: { warnings?: string[] }) {
       <summary>
         {t("Review extraction notes")} <span>({warnings.length})</span>
       </summary>
-      <ul>
+      <ol>
         {warnings.map((warning, index) => (
           <li key={index}>{warning}</li>
         ))}
-      </ul>
+      </ol>
     </details>
   );
 }
