@@ -44,6 +44,7 @@ export function RecommendationDelivery({
         {t("Deliver to client")}
       </button>
       <button className="ws-button" disabled={disabled} onClick={() => setOpen(true)}>{t("Share link or copy")}</button>
+      <Link className="ws-link" href={`/app/mail?document=${document.id}`}>{t("Email activity")} ↗</Link>
       {open && <Dialog title={t("Share link or copy")} onClose={() => setOpen(false)}><DeliveryOptions document={document} /></Dialog>}
     </>
   );

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/LanguageProvider";
 import { ErrorNotice, useQuery } from "./client";
@@ -39,5 +40,5 @@ export function ConversationExports({ documentId, formats }: { documentId: strin
     window.addEventListener("hirelix:document-changed",refresh);
     return () => { window.removeEventListener("hirelix:work-changed",refresh); window.removeEventListener("hirelix:document-changed",refresh); };
   },[refresh]);
-  return <section className="ws-assistant-delivery ws-conversation-exports"><ErrorNotice error={query.error} retry={query.refresh} />{query.data && <><strong>{query.data.deliverable.title}</strong><p>{t("Saved version")} {query.data.deliverable.version}</p><DocumentDownloads document={query.data.deliverable} formats={formats} onRefresh={query.refresh} /><DocumentAttachments document={query.data.deliverable} /></>}</section>;
+  return <section className="ws-assistant-delivery ws-conversation-exports"><ErrorNotice error={query.error} retry={query.refresh} />{query.data && <><strong>{query.data.deliverable.title}</strong><p>{t("Saved version")} {query.data.deliverable.version}</p><Link className="ws-link" href={query.data.deliverable.kind === "search_update" ? `/app/roles/${query.data.deliverable.role_id}/updates/${documentId}` : `/app/submissions/${documentId}`}>{t("Open document")} ↗</Link><DocumentDownloads document={query.data.deliverable} formats={formats} onRefresh={query.refresh} /><DocumentAttachments document={query.data.deliverable} /></>}</section>;
 }

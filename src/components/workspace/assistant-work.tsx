@@ -16,7 +16,7 @@ export function ConversationRevision({ revision, onApplied }: { revision: { docu
   return query.data ? <RevisionPanel document={query.data.deliverable} disabled={query.data.deliverable.status !== "draft"} jobId={revision.job_id} embedded onApplied={() => { query.refresh(); onApplied(); window.dispatchEvent(new Event("hirelix:document-changed")); }} /> : <ErrorNotice error={query.error} retry={query.refresh} />;
 }
 
-export function AssistantWork({ receipt, onReady, onRevise, onOpen }: { receipt: AssistantWorkReceipt; onReady: () => void; onRevise: (document: Deliverable) => void; onOpen?: (document: Deliverable) => void }) {
+export function AssistantWork({ receipt, onReady, onRevise, onOpen, exportedDocumentId }: { exportedDocumentId?: string; receipt: AssistantWorkReceipt; onReady: () => void; onRevise: (document: Deliverable) => void; onOpen?: (document: Deliverable) => void }) {
   const t = useT();
   const query = useQuery<{ job: Job }>(`/jobs/${receipt.job_id}`);
   const job = query.data?.job;
@@ -48,6 +48,7 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen }: { receipt:
     finally { setBusy(false); }
   }
   const draft = document.data?.deliverable;
+  if (documentId && documentId === exportedDocumentId && draft) return null;
   return <section className="ws-assistant-delivery" aria-label={t("Prepared work")}>
     <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : ["error", "cancelled"].includes(job?.status || "") ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{t(draft?.source_snapshot.audience === "internal" ? "Internal document" : receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</strong><small>{receipt.title}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Saved" : job?.status === "cancelled" ? "Stopped" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
     <ErrorNotice error={error || query.error || job?.error || document.error} retry={job?.status === "error" && !busy ? retry : query.error ? query.refresh : document.error ? document.refresh : undefined} />

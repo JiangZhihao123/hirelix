@@ -1,5 +1,20 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Roles & JDs": "职位与 JD",
+  "Candidates & CVs": "候选人与简历",
+  "Recommendations": "推荐",
+  "All recommendations": "全部推荐",
+  "Related to this conversation": "本次工作相关",
+  "Not submitted": "未推荐",
+  "Sending connection": "发信连接",
+  "Email activity": "发信记录",
+  "Only emails sent through Hirelix appear here. Inbox reading and reply syncing are not connected.": "这里只显示通过 Hirelix 发送的邮件，尚未接入收件箱读取和回复同步。",
+  "No emails sent through Hirelix yet.": "尚无通过 Hirelix 发送的邮件。",
+  "Manage Gmail connection": "管理 Gmail 连接",
+  "Open recommendation": "打开推荐",
+  "Delivery uncertain": "发送结果待核实",
+  "Sending": "发送中",
+
   "Searching the web": "搜索网页",
   "Web search is not configured. A DeepSeek API key is required.": "联网搜索尚未配置 DeepSeek API 密钥。",
   "DeepSeek did not perform a web search. Please retry.": "DeepSeek 未实际执行联网搜索，请重试。",

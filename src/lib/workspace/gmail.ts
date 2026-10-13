@@ -51,6 +51,26 @@ export async function disconnectGmail(userId: string) {
     sql`UPDATE account SET "accessToken"=NULL,"refreshToken"=NULL,"idToken"=NULL,scope=NULL,"accessTokenExpiresAt"=NULL,"updatedAt"=now() WHERE "userId"=${userId} AND "providerId"='google'`,
   );
 }
+export async function mailboxActivity(userId: string, filters: { role?: string; document?: string } = {}) {
+  const role = filters.role ? z.uuid().parse(filters.role) : null;
+  const document = filters.document ? z.uuid().parse(filters.document) : null;
+  return rows<{
+    id: string; status: string; recipient: string; subject: string; content: string;
+    deliverable_id: string | null; role_id: string | null; role_title: string | null;
+    client_name: string | null; error: string | null; created_at: string;
+  }>(sql`
+    SELECT e.id, CASE WHEN e.status='sending' AND e.created_at<now()-interval '2 minutes' THEN 'unknown' ELSE e.status END AS status,
+      e.snapshot->>'to' AS recipient, e.snapshot->>'title' AS subject, e.snapshot->>'content' AS content,
+      e.deliverable_id, d.role_id, r.title AS role_title, r.client_name, e.error, e.created_at
+    FROM hirelix_private_email_deliveries e
+    LEFT JOIN hirelix_private_deliverables d ON d.id=e.deliverable_id AND d.user_id=e.user_id
+    LEFT JOIN hirelix_private_roles r ON r.id=d.role_id AND r.user_id=e.user_id
+    WHERE e.user_id=${userId}::uuid
+      AND (${role}::uuid IS NULL OR d.role_id=${role}::uuid)
+      AND (${document}::uuid IS NULL OR e.deliverable_id=${document}::uuid)
+    ORDER BY e.created_at DESC, e.id DESC LIMIT 100
+  `);
+}
 export async function emailReceipts(userId: string, id: string) {
   await owned(userId, "deliverable", id);
   return rows<{

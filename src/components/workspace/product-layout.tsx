@@ -33,6 +33,7 @@ import { useT, useLanguage } from "@/components/LanguageProvider";
 import { ConversationSearch } from "@/components/workspace/conversation-search";
 import {
   Search,
+  Send,
   BriefcaseBusiness,
   BookUser,
   LogOut,
@@ -111,18 +112,18 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
     { href: "/app", label: t("AI assistant"), icon: MessageSquare, active: isConversationPage },
     {
       href: "/app/candidates",
-      label: t("Candidates"),
+      label: t("Candidates & CVs"),
       icon: BookUser,
       active:
         pathname.startsWith("/app/candidates") || pathname === "/app/talent",
     },
     {
       href: "/app/roles",
-      label: t("Roles"),
+      label: t("Roles & JDs"),
       icon: BriefcaseBusiness,
       active: pathname.startsWith("/app/roles"),
     },
-
+    { href: "/app/submissions", label: t("Recommendations"), icon: Send, active: pathname.startsWith("/app/submissions") },
   ];
   function navigate() {
     accountMenuRef.current?.hidePopover();
@@ -410,7 +411,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>
               {isConversationPage
                 ? "Hirelix"
-                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : t("Workspace"))}
+                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/mail" ? t("Email activity") : t("Workspace"))}
             </span>
           </div>
           <div className="ws-topbar-actions">

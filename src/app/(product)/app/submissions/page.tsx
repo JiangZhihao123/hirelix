@@ -1,6 +1,7 @@
 "use client";
 
 import { useLanguage, useT } from "@/components/LanguageProvider";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
@@ -19,11 +20,15 @@ export default function Submissions() {
       Deliverable & { role_title: string; client_name: string }
     >;
   }>("/deliverables");
+  const params = useSearchParams();
+  const roleId = params.get("role");
   const [filter, setFilter] = useState("all"),
     [search, setSearch] = useState("");
   const items =
     query.data?.deliverables.filter(
       (d) =>
+        d.source_snapshot.audience !== "internal" &&
+        (!roleId || d.role_id === roleId) &&
         (filter === "all" || d.status === filter) &&
         `${d.title} ${d.role_title} ${d.client_name}`
           .toLowerCase()
@@ -33,17 +38,18 @@ export default function Submissions() {
     <div className="ws-page">
       <header className="ws-page-header">
         <div>
-          <h1>{t("Candidate submissions")}</h1>
+          <h1>{t("Recommendations")}</h1>
 
         </div>
         <Link
           className="ws-button ws-button-primary"
-          href={`/app?prompt=${encodeURIComponent(locale === "zh" ? "请帮我准备一份候选人推荐稿。" : "Help me prepare a candidate recommendation.")}`}
+          href={`/app?${roleId ? `role=${roleId}&` : ""}prompt=${encodeURIComponent(locale === "zh" ? "请帮我准备一份候选人推荐稿。" : "Help me prepare a candidate recommendation.")}`}
         >
           <Plus size={14} />
           {t("Prepare submission")}
         </Link>
       </header>
+      {roleId && <Link className="ws-link" href="/app/submissions">{t("All recommendations")} ↗</Link>}
       <div className="ws-toolbar">
         <div className="ws-search"><Search size={16} /><input
           aria-label={t("Find a submission")}
@@ -53,7 +59,7 @@ export default function Submissions() {
         /></div>
         <div className="ws-filters">
           <select aria-label={t("Status")} value={filter} onChange={(event) => setFilter(event.target.value)}>
-            <option value="all">{t("All")}</option><option value="draft">{t("Drafts")}</option><option value="submitted">{t("Submitted")}</option>
+            <option value="all">{t("All")}</option><option value="draft">{t("Not submitted")}</option><option value="submitted">{t("Submitted")}</option>
           </select>
           <span className="ws-count">{!query.loading && (locale === "zh" ? `${items.length} 份推荐` : `${items.length} ${items.length === 1 ? "submission" : "submissions"}`)}</span>
         </div>
@@ -63,7 +69,7 @@ export default function Submissions() {
         <Loading />
       ) : items.length ? (
         <div className="ws-role-grid ws-submissions-grid">
-          <div className="ws-role-table-head" aria-hidden="true"><span>{t("Candidate submissions")}</span><span>{t("Status")}</span><span>{t("Candidates")}</span><span>{t("Updated")}</span></div>
+          <div className="ws-role-table-head" aria-hidden="true"><span>{t("Recommendations")}</span><span>{t("Status")}</span><span>{t("Candidates")}</span><span>{t("Updated")}</span></div>
           {items.map((d) => (
             <Link
               key={d.id}
@@ -77,7 +83,7 @@ export default function Submissions() {
                 </p>
               </div>
               <span className="ws-status">
-                {d.status === "draft" ? t("Draft") : t("Submitted")}
+                {d.status === "draft" ? t("Not submitted") : t("Submitted")}
               </span>
               <span className="ws-role-count text-xs ws-muted">
                 {locale === "zh" ? `${d.person_ids.length} 位候选人` : `${d.person_ids.length} ${d.person_ids.length === 1 ? "candidate" : "candidates"}`}
@@ -99,7 +105,7 @@ export default function Submissions() {
             {search || filter !== "all" ? t("Try a different search or clear your filters.") : t("Tell your AI assistant which candidate and client role the recommendation is for. Review the prepared draft here or continue refining it in the conversation.")}
           </p>
           <div className="ws-actions">
-            {search || filter !== "all" ? <button className="ws-button" onClick={() => { setSearch(""); setFilter("all"); }}>{t("Clear filters")}</button> : <Link className="ws-button" href={`/app?prompt=${encodeURIComponent(locale === "zh" ? "请帮我准备一份候选人推荐稿。" : "Help me prepare a candidate recommendation.")}`}>{t("Prepare candidate submission")}</Link>}
+            {search || filter !== "all" ? <button className="ws-button" onClick={() => { setSearch(""); setFilter("all"); }}>{t("Clear filters")}</button> : <Link className="ws-button" href={`/app?${roleId ? `role=${roleId}&` : ""}prompt=${encodeURIComponent(locale === "zh" ? "请帮我准备一份候选人推荐稿。" : "Help me prepare a candidate recommendation.")}`}>{t("Prepare candidate submission")}</Link>}
           </div>
         </div>
       )}

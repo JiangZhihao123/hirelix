@@ -47,6 +47,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
   const metadata = message.metadata as AssistantMeta;
   const parts = turnParts(message.metadata);
   const displayedSources = new Set(parts.flatMap(part => part.type === "tool" ? (part.sources || []).map(source => source.href) : []));
+  if (metadata.exports) displayedSources.add(`/app/submissions/${metadata.exports.document_id}`);
+  metadata.document_edits?.forEach(document => displayedSources.add(document.href));
   const remainingSources = metadata.sources?.filter(source => !displayedSources.has(source.href)) || [];
   return (
                   <article
@@ -95,7 +97,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     {metadata.exports && <ConversationExports documentId={metadata.exports.document_id} formats={metadata.exports.formats} />}
                     {(metadata.email || metadata.gmail) && <ConversationEmail email={metadata.email} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
                     {metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
-                    {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
+                    {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} exportedDocumentId={metadata.exports?.document_id} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
                     {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={onReady} />}

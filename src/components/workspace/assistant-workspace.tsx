@@ -1,9 +1,10 @@
 "use client";
 
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
+import { ConversationContext } from "./conversation-context";
 import { TurnActivity } from "./turn-activity";
 import { useTurnStream } from "./use-turn-stream";
-import { isTurnRunning } from "@/lib/workspace/turn-progress";
+import { isTurnRunning, turnParts } from "@/lib/workspace/turn-progress";
 import { copyConversationMessage } from "./message-copy";
 import { assistantDraftKey } from "./conversation-draft";
 import { readAttachmentDraft, saveAttachmentDraft, type PendingFile } from "./attachment-draft";
@@ -21,13 +22,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUp,
   Square,
+  BriefcaseBusiness,
   ArrowUpRight,
   Paperclip,
   Check,
   Loader2,
   Pencil,
   ChevronsDown,
-  BriefcaseBusiness,
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
@@ -183,7 +184,7 @@ export function AssistantWorkspace({
   }, [hasAgreement, delegatedPending, refreshConversation]);
   const linkedDocument = useQuery<{ deliverable: Deliverable }>(documentId && !conversationId ? `/deliverables/${documentId}` : null);
   const currentDocument = query.data?.document || linkedDocument.data?.deliverable;
-  const activeRoleId = currentDocument?.role_id || query.data?.conversation.role_id || roleId;
+  const activeRoleId = query.data?.conversation.role_id || roleId || currentDocument?.role_id;
   const activeRole = roles.data?.roles.find((r) => r.id === activeRoleId);
   const activePersonId = query.data?.conversation.person_id || linkedPersonId;
   const person = useQuery<{ person: Person }>(
@@ -596,17 +597,6 @@ export function AssistantWorkspace({
               )}
             </div>
             <div className="ws-chat-header-actions">
-              {activeRole && (
-                <Link
-                  className="ws-chat-role"
-                  href={`/app/roles/${activeRole.id}`}
-                >
-                  <BriefcaseBusiness size={14} />
-                  <span>
-                    {activeRole.client_name} · {activeRole.title}
-                  </span>
-                </Link>
-              )}
               {(
                 <button
                   type="button"
@@ -619,7 +609,7 @@ export function AssistantWorkspace({
               )}
             </div>
           </header>
-          {currentDocument && <Link className="ws-linked-document" href={currentDocument.kind === "search_update" ? `/app/roles/${currentDocument.role_id}/updates/${currentDocument.id}` : `/app/submissions/${currentDocument.id}`}><Paperclip size={14} /><span>{currentDocument.title}</span><small>{t("Saved document")}</small><ArrowUpRight size={14} /></Link>}
+          <ConversationContext liveParts={job?.result ? turnParts(job.result) : []} role={activeRole} person={person.data?.person} messages={query.data?.messages || []} onSource={value => { setRevisionTarget(null); setContextOpen(false); setSource(value); }} />
           <ErrorNotice
             error={error || query.error || roles.error || linkedDocument.error}
             retry={
