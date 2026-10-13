@@ -29,13 +29,13 @@ export function AgentText({
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ href, children }) => href === "#assistant-reply" ? (
+          a: ({ href, children }) => suggestion || href === "#assistant-reply" ? (
             <button type="button" className="ws-suggestion-reply" title={t("Choose a reply to edit and send, or write your own below.")} disabled={!onSuggestionReply} onClick={event => onSuggestionReply?.(event.currentTarget.textContent || "")}>
               {children}
             </button>
           ) : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
-            <a className={suggestion ? "ws-suggestion-link" : undefined} href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
-              {linkLabel(href, children)}{suggestion && <span aria-hidden="true"> ↗</span>}
+            <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
+              {linkLabel(href, children)}
             </a>
           ),
         }}
@@ -45,7 +45,7 @@ export function AgentText({
   );
   return <div className={`ws-agent-text ${className}`}>
     {assistantSegments(content).map((segment, index) => segment.kind === "suggestion"
-      ? <aside className="ws-assistant-suggestion" key={index} aria-label={t("Assistant suggestion")}><div className="ws-assistant-suggestion-label">{t("Assistant suggestion")}</div>{renderMarkdown(segment.text, true)}{segment.text.includes("#assistant-reply") && <small className="ws-suggestion-hint">{t("Choose a reply to edit and send, or write your own below.")}</small>}</aside>
+      ? <aside className="ws-assistant-suggestion" key={index} aria-label={t("Assistant suggestion")}><div className="ws-assistant-suggestion-label">{t("Assistant suggestion")}</div>{renderMarkdown(segment.text, true)}<small className="ws-suggestion-hint">{t("Choose a reply to edit and send, or write your own below.")}</small></aside>
       : <Fragment key={index}>{renderMarkdown(segment.text)}</Fragment>)}
   </div>;
 }

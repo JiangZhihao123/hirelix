@@ -2821,10 +2821,5 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-suggestion-reply:disabled { opacity: .55; cursor: default; }
 .ws-suggestion-hint { display: block; margin-top: 8px; color: var(--ws-muted); font-size: 12px; line-height: 1.6; }
 
-/* Suggestions keep navigation distinct from replies while sharing a clear action layout. */
-.ws-assistant-suggestion p:has(> .ws-suggestion-link),
+/* Every suggestion action is a reply; normal message links retain navigation. */
 .ws-assistant-suggestion p:has(> .ws-suggestion-reply) { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-.ws-agent-text .ws-assistant-suggestion a.ws-suggestion-link { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 9px 13px; border: 1px solid #c9d7ce; border-radius: 9px; background: #fff; color: #315f4c; font-size: 14px; line-height: 1.6; text-decoration: none; overflow-wrap: anywhere; }
-.ws-agent-text .ws-assistant-suggestion a.ws-suggestion-link:hover { border-color: #729883; background: #e8f0eb; text-decoration: none; }
-.ws-agent-text .ws-assistant-suggestion a.ws-suggestion-link:focus-visible { outline: 2px solid #729883; outline-offset: 3px; }
-.ws-suggestion-link > span { flex-shrink: 0; color: #687068; }
