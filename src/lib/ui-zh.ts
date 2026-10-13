@@ -119,6 +119,7 @@ export const uiZh: Record<string, string> = {
   "Total items": "总数",
   "More items are available on the next page.": "还有更多条目，可继续查看下一页。",
   "No items returned": "没有返回条目",
+  "Assistant suggestion": "助理建议",
   "Thinking…": "正在思考…",
   "Stopped. You can send a new instruction.": "已停止。你可以发送新的要求。",
   "Stop response": "停止回复",
