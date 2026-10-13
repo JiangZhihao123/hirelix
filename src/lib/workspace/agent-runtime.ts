@@ -12,6 +12,7 @@ import { prepareEmailReply } from "./conversation-email";
 import { json, rows, WorkspaceError } from "./database";
 import { liveReplyWriter, LostLease, type JobHandler } from "./jobs";
 import { getLogger } from "@/lib/logger";
+import { toolResultList } from "./tool-result-view";
 import type { TurnPart } from "./turn-progress";
 import type { Message } from "./types";
 
@@ -274,14 +275,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
           "The assistant was interrupted before it could finish. Completed work is saved; retry or continue in this conversation.",
           502,
         );
-      if (part.type === "start-step") { stepText = ""; textPart = undefined; }
+      if (part.type === "start-step") {
+        stepText = ""; textPart = undefined;
+        writeReply(stepText, parts, true, "thinking");
+      }
+      if (part.type === "reasoning-start") writeReply(stepText, parts, true, "thinking");
       if (part.type === "tool-call") {
         textPart = undefined;
         const query = ["web_search", "find_candidates", "find_roles"].includes(part.toolName) ? (part.input as {query?: unknown}).query : undefined;
         parts.push({type: "tool", id: part.toolCallId, tool: part.toolName, label: progressLabels[part.toolName] || "Working on your request", status: "running",
           ...(typeof query === "string" ? {query} : {}),
         });
-        writeReply(stepText, parts, true);
+        writeReply(stepText, parts, true, "tools");
       }
       if (part.type === "tool-result" || part.type === "tool-error") {
         const entry = parts.find(entry => entry.type === "tool" && entry.id === part.toolCallId);
@@ -295,24 +300,22 @@ export const assistantReply: JobHandler = async (job, progress) => {
           const output = part.output as {ok?: boolean; result?: Record<string, unknown>};
           if (output.ok && output.result) {
             const result = output.result;
-            if (["list_candidates", "list_roles", "list_reminders", "find_candidates", "find_roles"].includes(part.toolName) && typeof result.returned === "number") {
-              entry.target = typeof result.total === "number" ? `${result.returned} / ${result.total}` : `${result.returned}`;
-            }
+            entry.list = toolResultList(part.toolName, result);
             // Project only display fields; never expose complete tool inputs or records.
             const record = (result.person || result.role || result.document || result.record || result) as Record<string, unknown>;
             const title = record.title || record.name;
             if (typeof title === "string") entry.target = title.slice(0, 300);
             const href = result.href || record.href;
-            if (typeof href === "string" && href.startsWith("/app/")) entry.href = href;
+            if (typeof href === "string" && (href.startsWith("/app/") || href.startsWith("/api/workspace/files/"))) entry.href = href;
           }
         }
-        writeReply(stepText, parts, true);
+        writeReply(stepText, parts, true, parts.some(item => item.type === "tool" && item.status === "running") ? "tools" : "thinking");
       }
       if (part.type === "text-delta") {
         if (!textPart) { textPart = {type: "text", text: ""}; parts.push(textPart); }
         stepText += part.text;
         textPart.text += part.text;
-        writeReply(stepText, parts);
+        writeReply(stepText, parts, false, "responding");
       }
     }
     if (controller.signal.aborted) throw controller.signal.reason;
@@ -323,7 +326,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         502,
       );
     if (ctx.clarification && !parts.some(part => part.type === "text" && part.text === answer)) parts.push({type: "text", text: answer});
-    writeReply(answer, parts, true);
+    writeReply(answer, parts, true, "complete");
     await writeReply.flush();
     replyPrepared = true;
     return {

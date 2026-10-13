@@ -1,7 +1,7 @@
 import postgres from "postgres";
 import { randomUUID } from "node:crypto";
 import { getLogger } from "@/lib/logger";
-import type { TurnPart } from "./turn-progress";
+import type { TurnPart, TurnPhase } from "./turn-progress";
 
 // A separate connection pool keeps notifications independent of checkpoint writes.
 // LISTEN requires a session connection, not a transaction-mode pooler.
@@ -18,7 +18,7 @@ function channelClient() {
   }
   return transport;
 }
-export type LiveTurn = { epoch: string; attempt: number; sequence: number; live_reply: string; parts: TurnPart[] };
+export type LiveTurn = { epoch: string; attempt: number; sequence: number; live_reply: string; parts: TurnPart[]; phase?: TurnPhase };
 const channel = (id: string) => `hirelix_turn_${id.replaceAll("-", "")}`;
 
 export async function publishTurn(id: string, state: LiveTurn) {

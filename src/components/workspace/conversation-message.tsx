@@ -4,6 +4,7 @@ import { ConversationExports } from "./document-download";
 import { ConversationEmail } from "./conversation-email";
 import { ConversationQuestion } from "./conversation-question";
 import { TurnParts } from "./turn-parts";
+import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { feedbackLabels } from "@/lib/workspace/recommendation-feedback-contract";
 import { turnParts } from "@/lib/workspace/turn-progress";
 import { TurnActivity } from "./turn-activity";
@@ -31,7 +32,7 @@ function MessageSources({ sources, onSource }: { sources: NonNullable<AssistantM
     </button>)}
   </div>;
   return <details className="ws-message-source-disclosure">
-    <summary>{t("Sources")} <span>{sources.length}</span></summary>
+    <summary>{t("Web references")} <span>{sources.length}</span></summary>
     {links}
   </details>;
 }
@@ -50,7 +51,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
   const displayedSources = new Set(parts.flatMap(part => part.type === "tool" ? (part.sources || []).map(source => source.href) : []));
   if (metadata.exports) displayedSources.add(`/app/submissions/${metadata.exports.document_id}`);
   metadata.document_edits?.forEach(document => displayedSources.add(document.href));
-  const remainingSources = metadata.sources?.filter(source => !displayedSources.has(source.href)) || [];
+  const remainingSources = metadata.sources?.filter(source => /^https?:\/\//.test(source.href) && !viewedSourceFromHref(source.href) && !displayedSources.has(source.href)) || [];
   const feedback = metadata.recommendation_feedback;
   if (feedback) return <article className="ws-message ws-feedback-receipt" data-message-key={message.id} aria-label={t("Client feedback")}>
     <header><MessageSquare size={15} /><span>{t("Client feedback")}</span><time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time></header>
@@ -81,8 +82,8 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                     </div>}
                     {!!parts.length && <TurnParts parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
-                      if (!source || !source.href.startsWith("/")) return false;
-                      onSource({title: label || source.title, href});
+                      if (!viewedSourceFromHref(href)) return false;
+                      onSource({title: label || source?.title || t("View result"), href});
                       return true;
                     }} />}
                     <div className="ws-message-prose" hidden={message.role === "user" && !message.content.trim()}>

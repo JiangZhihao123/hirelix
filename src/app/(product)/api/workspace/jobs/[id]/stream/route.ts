@@ -28,6 +28,7 @@ export function GET(req: NextRequest, context: { params: Promise<{ id: string }>
             snapshot.result.stream_sequence = live.sequence;
             snapshot.result.live_reply = live.live_reply;
             snapshot.result.parts = live.parts;
+            snapshot.result.phase = live.phase;
           }
           const data = JSON.stringify(snapshot);
           if (data !== previous) {

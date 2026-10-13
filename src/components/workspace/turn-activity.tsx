@@ -21,8 +21,13 @@ type TurnStatusProps = {
 function TurnStatus({ job, disconnected, receivingFiles }: TurnStatusProps) {
   const t = useT();
   const running = !job || isTurnRunning(job);
-  const hasContent = turnParts(job?.result).length > 0 || !!job?.result?.live_reply;
-  if (!running || (hasContent && !receivingFiles && !disconnected)) return null;
+  const parts = turnParts(job?.result);
+  const last = parts.at(-1);
+  const thinking = job?.result?.phase === "thinking" ||
+    (job?.result?.phase === "tools" && parts.some(part => part.type === "tool" && part.tool === "read_skill" && part.status === "running") && !parts.some(part => part.type === "tool" && part.tool !== "read_skill" && part.status === "running")) || (!job?.result?.phase &&
+    !parts.some(part => part.type === "tool" && part.status === "running") &&
+    (last?.type === "tool" || (!last && !job?.result?.live_reply)));
+  if (!running || (!thinking && !receivingFiles && !disconnected)) return null;
   const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : "Thinking…";
   return <span className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin" aria-hidden="true" /><span>{t(status)}</span></span>;
 }

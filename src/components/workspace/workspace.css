@@ -2674,6 +2674,11 @@
 .ws-tool-details { border-top: 1px solid #e8ece6; padding: 0 12px; }
 .ws-tool-call { padding: 10px 0; }
 .ws-tool-call + .ws-tool-call { border-top: 1px solid #e8ece6; }
+.ws-tool-results { margin: 6px 0; font-size: 12px; }
+.ws-tool-results ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ws-tool-results a { display: inline-flex; align-items: baseline; gap: 5px; color: var(--ws-green); }
+.ws-tool-results a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ws-tool-results li > small { display: block; margin-top: 2px; color: var(--ws-muted); font-size: 11px; }
 .ws-tool-call-line { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; color: #536457; overflow-wrap: anywhere; }
 .ws-tool-object { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; color: var(--ws-green); }
 .ws-tool-error { margin: 6px 0 0; }

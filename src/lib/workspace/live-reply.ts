@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import { sql } from "drizzle-orm";
 import { json, rows } from "./database";
 import { publishTurn, subscribeTurnStop, type LiveTurn } from "./turn-channel";
-import type { TurnPart } from "./turn-progress";
+import type { TurnPart, TurnPhase } from "./turn-progress";
 import type { Job } from "./types";
 import { getLogger } from "@/lib/logger";
 
@@ -38,7 +38,7 @@ export function liveReplyWriter(job: Job, onStop?: () => void) {
     if (saving || !latest || saved >= latest.sequence || closed || failure) return saving;
     const state = latest;
     saving = (async () => {
-      const updated = await rows(sql`UPDATE hirelix_private_jobs SET result=coalesce(result,'{}'::jsonb) || ${json({live_reply: state.live_reply, parts: state.parts, stream_sequence: state.sequence})},updated_at=now()
+      const updated = await rows(sql`UPDATE hirelix_private_jobs SET result=coalesce(result,'{}'::jsonb) || ${json({live_reply: state.live_reply, phase: state.phase, parts: state.parts, stream_sequence: state.sequence})},updated_at=now()
         WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running'
         AND lease_token=${job.lease_token}::uuid AND lease_until>now() RETURNING id`);
       if (!updated.length) throw new Error("Reply checkpoint lost its execution lease");
@@ -60,10 +60,10 @@ export function liveReplyWriter(job: Job, onStop?: () => void) {
   // notifications; slow viewers coalesce to the latest complete display state.
   const pushTimer = setInterval(() => void publish(), 50);
   const saveTimer = setInterval(() => void save(), 1000);
-  const write = (text: string, parts: TurnPart[] = [], force = false) => {
+  const write = (text: string, parts: TurnPart[] = [], force = false, phase?: TurnPhase) => {
     if (closed || stopped) return;
     if (failure) throw failure;
-    latest = {epoch: String(job.result?.stream_epoch || ""), attempt: job.attempts, sequence: ++sequence, live_reply: text, parts: structuredClone(parts)};
+    latest = {epoch: String(job.result?.stream_epoch || ""), attempt: job.attempts, sequence: ++sequence, live_reply: text, phase, parts: structuredClone(parts)};
     // Compact offsets cover both notification and checkpoint versions, without
     // retaining a full copy of the growing text for each token.
     versions.set(latest.sequence, latest.parts.map(part => part.type === "text" ? {type: "text", length: part.text.length} : part));

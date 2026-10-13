@@ -44,7 +44,7 @@ export async function claimJob(kinds: JobKind[], exact?: {id:string;userId:strin
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
     await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
     const [claimed] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='running',result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='running',result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
       tx,
     );
     return claimed;
@@ -97,7 +97,7 @@ export async function failJob(job: Job, message: string) {
 }
 export async function reclaimJobs() {
   return rows<{ id: string; status: string }>(
-    sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'cancelled_lease_token'-'cancelled_sequence',progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<=now() RETURNING id,status`,
+    sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence',progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<=now() RETURNING id,status`,
   );
 }
 export async function retryJob(userId: string, id: string, parent?: Job) {
@@ -122,7 +122,7 @@ export async function retryJob(userId: string, id: string, parent?: Job) {
       if (await reserveAgentCredits(userId, job.id, tx) === false) throw new WorkspaceError("Your AI credit allowance has ended. Open Settings → Billing to continue.", 402);
     }
     const [result] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'cancelled_lease_token'-'cancelled_sequence',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
       tx,
     );
     return result;

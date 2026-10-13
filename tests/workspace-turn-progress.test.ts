@@ -17,11 +17,12 @@ test("a new conversation preserves its view across URL promotion, but New and hi
 
 test("turn stream exposes display state without internal payloads", () => {
   const snapshot = turnSnapshot({id: "turn", status: "running", progress: "Reading a CV", error: null,
-    updated_at: "2026-10-10T10:00:00Z", result: {live_reply: "Actual partial text", message_id: "message",
+    updated_at: "2026-10-10T10:00:00Z", result: {phase: "thinking", live_reply: "Actual partial text", message_id: "message",
       receipt_message_id:"committed-message",tool_receipts:{saved:{name:"save",output:{id:"real-id"}}},
       activity: [{label: "Reading a CV", at: "2026-10-10T10:00:00Z"}], secret: "hidden", actions: [{token: "hidden"}]},
   });
   assert.equal(snapshot.result.live_reply, "Actual partial text");
+  assert.equal(snapshot.result.phase, "thinking");
   assert.equal(JSON.stringify(snapshot).includes("hidden"), false);
   assert.equal(snapshot.result.activity.length, 1);
   assert.equal(snapshot.result.receipt_message_id,"committed-message");
