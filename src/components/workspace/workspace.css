@@ -1896,7 +1896,6 @@
 .ws-memory-receipts button { display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 5px 8px; background: #f0f5ef; color: #465f4e; font-size: 11px; }
 .ws-composer {
   position: relative;
-  position: relative;
   flex-shrink: 0;
   width: calc(100% - 56px);
   max-width: var(--ws-chat-width);
@@ -2787,7 +2786,7 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
   max-height: 320px;
   overflow-y: auto;
   padding: 8px;
-  border: 1px solid var(--ws-border);
+  border: 1px solid var(--ws-line);
   border-radius: 14px;
   background: var(--ws-surface, #fff);
   box-shadow: 0 8px 28px #1f47351a;
@@ -2800,4 +2799,17 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-mention-picker small, .ws-mention-picker p { font-size: 12px; color: var(--ws-muted); }
 .ws-mention-picker p { padding: 12px; }
 .ws-message-references { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
-.ws-message-references button { display: inline-flex; align-items: center; gap: 8px; color: var(--ws-accent); border: 1px solid var(--ws-border); padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+.ws-message-references button { display: inline-flex; align-items: center; gap: 8px; color: var(--ws-green); border: 1px solid var(--ws-line); padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+
+.ws-reminders-page { max-width: 1100px; margin: 0 auto; }
+.ws-reminder-explanation { display: flex; align-items: flex-start; gap: 12px; padding: 16px 20px; margin-bottom: 24px; background: #f4f7f3; border-radius: 12px; color: var(--ws-muted); font-size: 14px; line-height: 1.65; }
+.ws-reminder-explanation svg { flex-shrink: 0; margin-top: 2px; }
+.ws-reminder-explanation p { margin: 0; }
+.ws-reminder-item { padding: 24px 0; border-bottom: 1px solid var(--ws-line); }
+.ws-reminder-item-heading { display: flex; align-items: center; gap: 10px; }
+.ws-reminder-item-heading h2 { flex: 1; font-size: 16px; font-weight: 600; margin: 0; }
+.ws-reminder-item p { font-size: 13px; margin: 10px 0; }
+.ws-reminder-item .ws-actions { margin-top: 16px; gap: 20px; font-size: 13px; }
+.ws-reminder-time-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 16px; margin-top: 16px; background: #f7f9f6; border-radius: 10px; }
+.ws-reminder-time-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.ws-reminder-time-form input { padding: 8px; border: 1px solid var(--ws-line); border-radius: 6px; }

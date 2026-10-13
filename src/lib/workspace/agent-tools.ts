@@ -1106,12 +1106,12 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     reminder: define(
       "reminder",
-      "Save or change an explicitly requested one-time reminder at a definite future time. Never schedule an unsolicited follow-up.",
+      "Save or change an explicitly requested one-time reminder at a definite future time. At that time it posts a message in the original conversation, marks that conversation unread, and becomes completed. Users can view, pause or reschedule it under /app/reminders. Use this for follow-ups the user has agreed to.",
       reminderActionSchema,
       (input) =>
         mutate("reminder", input, input.authorization_quote, async (tx) => {
           const prior = input.id
-            ? (await listReminders(userId, tx)).find((r) => r.id === input.id)
+            ? (await listReminders(userId, tx, input.id))[0]
             : undefined;
           if (input.id && !prior)
             throw new WorkspaceError("Reminder not found.", 404);
@@ -1121,6 +1121,7 @@ export function createAgentTools(ctx: AgentToolContext) {
             input,
             tx,
             prior?.version,
+            ctx.locale === "zh" ? "zh" : "en",
           );
           return { output: saved, metadata: { reminders: [saved] } };
         }),

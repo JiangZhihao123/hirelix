@@ -40,6 +40,7 @@ import {
   Menu,
   X,
   Settings,
+  Bell,
   CreditCard,
   ChevronUp,
   ChevronRight,
@@ -123,6 +124,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
       active: pathname.startsWith("/app/roles"),
     },
     { href: "/app/submissions", label: t("Recommendations"), icon: Send, active: pathname.startsWith("/app/submissions") },
+    { href: "/app/reminders", label: t("Reminders"), icon: Bell, active: pathname === "/app/reminders" },
   ];
   function navigate() {
     accountMenuRef.current?.hidePopover();
