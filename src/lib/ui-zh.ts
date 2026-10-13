@@ -1,5 +1,12 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Reminder delivered": "已提醒",
+  "Reminder set": "等待提醒",
+  "Reminder paused": "已暂停",
+  "Pause reminder": "暂停提醒",
+  "Resume reminder": "恢复提醒",
+  "Choose a future reminder time.": "请选择未来的提醒时间。",
+  "This reminder changed or is already due. Ask to reschedule it.": "这条提醒已更新或已到期，请刷新后调整提醒时间。",
   "Needs attention": "需要处理",
   "Recurring": "定期进行",
   "Upcoming": "等待提醒",

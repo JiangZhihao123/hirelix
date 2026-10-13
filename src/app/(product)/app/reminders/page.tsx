@@ -35,7 +35,7 @@ function ReminderRow({item, refresh}: {item: ManagedReminder; refresh: () => voi
     <div className="ws-actions">
       {item.conversation_id && <Link className="ws-link" href={`/app?conversation=${item.conversation_id}`}>{t("Open delivery conversation")}<ArrowUpRight size={13}/></Link>}
       {recurring ? <Link className="ws-link" href={`/app/roles/${item.role_id}?tab=activity`}>{t("Manage recurring agreement")}</Link> : <>
-        {!item.completed_at && <button type="button" className="ws-link" disabled={busy} onClick={() => void update()}>{t(item.enabled ? "Pause" : "Resume")}</button>}
+        {!item.completed_at && <button type="button" className="ws-link" disabled={busy} onClick={() => void update()}>{t(item.enabled ? "Pause reminder" : "Resume reminder")}</button>}
         <button type="button" className="ws-link" onClick={() => { setEditing(!editing); setError(""); }}>{t("Change reminder time")}</button>
       </>}
     </div>
