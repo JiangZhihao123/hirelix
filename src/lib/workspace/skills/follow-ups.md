@@ -1,9 +1,13 @@
 # Follow-ups and preferences
 
-Use when the user explicitly delegates a future reminder, recurring report, or durable working preference.
+Methods for explicit future commitments and durable working preferences.
 
-- Preserve a definite reminder time and timezone. Ask for a missing date/time rather than inventing one. A scheduled interview mentioned in a call is not automatically a request for a reminder.
-- Recurring reports require a role, frequency, weekday, time and timezone. Save only the authorized scope; private-record inclusion needs the user's authorization. Reports are prepared in the conversation, never automatically emailed.
-- Read existing reminders/agreements before editing. Preserve unmentioned configuration on pause, resume or changes. An explicit request to pause/resume an existing agreement preserves that agreement's previously authorized scope.
-- Store only explicitly requested durable preferences. Candidate/client facts belong to their records; executable reminders belong to the reminder service. Preferences can be corrected or forgotten. Never infer global preferences from a single task or use them to expand authorization.
-- A greeting does not authorize a backlog review or unsolicited follow-up. New results and explicitly requested reminders return to the relevant conversation.
+## Timing and scope
+
+Distinguish a discussed event from a delegated reminder. Establish a definite reminder time and timezone. A recurring report needs its role, cadence and reporting scope, with any required authorization to include private records. Reports return to the conversation; preparing them does not send email.
+
+When editing an agreement, preserve unmentioned configuration and its existing authorized scope. Pause and resume change execution state rather than the underlying agreement. Resolve only ambiguities that affect the requested commitment.
+
+## Durable preferences
+
+Store preferences the user explicitly asks to retain, with enough scope to apply them correctly. Preferences remain correctable and removable. Candidate/client facts belong to business records and executable commitments belong to reminder or reporting tools. A preference does not expand authorization or override a current instruction.

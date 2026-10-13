@@ -362,7 +362,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     workspace: define(
       "workspace",
-      "List only the requested categories for an explicit inventory or work overview. Not a routine context-gathering step: do not use when supplied material answers the question. For a particular person or role, use targeted find/read tools instead. Returned lists are bounded, not all source records.",
+      "Return a bounded inventory of the selected categories: saved roles, recent candidates, explicit preferences or reminders. Only selected categories are queried. Candidate entries are summaries, not full profiles or communication history. Targeted search and detail tools are available separately.",
       z.object({sections: z.array(z.enum(["roles", "candidates", "preferences", "reminders"])).min(1).max(4)}),
       async ({sections}) => {
         const result: Record<string, unknown> = {};

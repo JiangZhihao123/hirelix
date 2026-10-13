@@ -12,17 +12,17 @@ export const agentSkills = [
   {
     name: "recruiting-records",
     description:
-      "Read/import CVs and JDs, match candidates, prepare calls/interviews, review work priorities, and save or correct communications and role-specific permissions.",
+      "Professional methods for recruiting evidence: identity reconciliation, JD-specific assessment, dated communications, interview preparation and prioritization.",
   },
   {
     name: "client-delivery",
     description:
-      "Prepare, revise or export recommendation materials and period-specific client reports; preview and confirm email delivery.",
+      "Methods for client-facing recommendations and reports: source selection, reporting periods, revision quality and confidential delivery.",
   },
   {
     name: "follow-ups",
     description:
-      "Save or change explicit personal preferences, one-time reminders and recurring client reports.",
+      "Methods for delegated reminders, recurring reports and explicit durable preferences, including timing and scope.",
   },
 ];
 export async function readAgentSkill(name: (typeof agentSkillNames)[number]) {
