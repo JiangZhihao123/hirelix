@@ -3,15 +3,14 @@
 import { Check, Loader2, Minus, AlertCircle, ChevronRight, ArrowUpRight } from "lucide-react";
 import { AgentText } from "@/components/AgentText";
 import { useT } from "@/components/LanguageProvider";
-import type { TurnPart } from "@/lib/workspace/turn-progress";
+import { visibleTurnParts, type TurnPart } from "@/lib/workspace/turn-progress";
 
 type ToolPart = Extract<TurnPart, {type: "tool"}>;
 
 // Only adjacent calls of the same kind are grouped; prose always ends a group.
 function groupParts(parts: TurnPart[]) {
   const groups: Array<Extract<TurnPart, {type: "text"}> | {type: "tools"; items: ToolPart[]}> = [];
-  for (const part of parts) {
-    if (part.type === "tool" && (part.tool === "read_skill" || part.tool === "ask_user") && part.status !== "error") continue;
+  for (const part of visibleTurnParts(parts)) {
     const last = groups.at(-1);
     if (part.type === "text") groups.push(part);
     else if ((part.query || part.tool?.startsWith("read_") || part.tool?.startsWith("find_")) && last?.type === "tools" && (last.items[0].tool || last.items[0].label) === (part.tool || part.label)) last.items.push(part);

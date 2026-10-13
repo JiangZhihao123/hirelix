@@ -50,3 +50,14 @@ export function turnSnapshot(job: Pick<Job, "id" | "status" | "progress" | "erro
 export function isTurnRunning(job?: Pick<Job, "status"> | null) {
   return !!job && (job.status === "queued" || job.status === "running");
 }
+
+/** A delivered question supersedes earlier failed attempts to present that question. */
+export function visibleTurnParts(parts: TurnPart[]): TurnPart[] {
+  const questionDelivered = parts.some(part => part.type === "tool" && part.tool === "ask_user" && part.status === "done");
+  return parts.filter(part => {
+    if (part.type !== "tool") return true;
+    if (part.tool === "read_skill" && part.status !== "error") return false;
+    if (part.tool === "ask_user" && (part.status !== "error" || questionDelivered)) return false;
+    return true;
+  });
+}
