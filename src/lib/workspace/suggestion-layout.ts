@@ -1,14 +1,13 @@
 import type { Blockquote, Paragraph, Root, RootContent } from "mdast";
 
-/** Group explicit reply links and their descriptions, independent of Markdown line breaks. */
+/** Render explicit replies independently of Markdown line breaks; legacy explanations stay out of the reply controls. */
 export function suggestionLayout() {
   return (tree: Root) => {
     const output: RootContent[] = [];
     let option: Blockquote | undefined;
     const append = (paragraph: Paragraph) => {
       if (!paragraph.children.some(child => child.type !== "text" || child.value.trim())) return;
-      if (option) option.children.push(paragraph);
-      else output.push(paragraph);
+      if (!option) output.push(paragraph);
     };
     for (const node of tree.children) {
       if (node.type !== "paragraph") {

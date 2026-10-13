@@ -11,7 +11,7 @@ function layout(source: string) {
   return tree;
 }
 
-test('inline and separate descriptions produce the same option structure', () => {
+test('inline and separate descriptions are omitted from reply controls', () => {
   const sources = [
     '[处理资料](#assistant-reply) 说明文字',
     '[处理资料](#assistant-reply)\n说明文字',
@@ -22,16 +22,15 @@ test('inline and separate descriptions produce the same option structure', () =>
     assert.equal(tree.children.length, 1);
     const option = tree.children[0] as Blockquote;
     assert.equal(option.data?.hName, 'div');
-    assert.equal(option.children.length, 2);
+    assert.equal(option.children.length, 1);
     assert.equal(option.children[0].type, 'paragraph');
-    assert.equal(option.children[1].type, 'paragraph');
   }
 });
 
 test('multiple options in one paragraph are separated and preserve navigation-shaped legacy replies', () => {
   const tree = layout('说明\n\n[行动一](/app/roles) 描述一\n[行动二](#assistant-reply) 描述二\n\n### 正文');
   assert.deepEqual(tree.children.map(node => node.type), ['paragraph', 'blockquote', 'blockquote', 'heading']);
-  for (const node of tree.children.slice(1, 3) as Blockquote[]) assert.equal(node.children.length, 2);
+  for (const node of tree.children.slice(1, 3) as Blockquote[]) assert.equal(node.children.length, 1);
 });
 
 test('ordinary prose and incomplete links are kept as text, not actionable options', () => {

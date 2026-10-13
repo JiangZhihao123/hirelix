@@ -3,6 +3,7 @@
 import { Children, Fragment } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Reply } from "lucide-react";
 import { suggestionLayout } from "@/lib/workspace/suggestion-layout";
 import { useT } from "@/components/LanguageProvider";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
@@ -31,8 +32,8 @@ export function AgentText({
         remarkPlugins={suggestion ? [remarkGfm, suggestionLayout] : [remarkGfm]}
         components={{
           a: ({ href, children }) => suggestion || href === "#assistant-reply" ? (
-            <button type="button" className="ws-suggestion-reply" title={t("Choose a reply to edit and send, or write your own below.")} disabled={!onSuggestionReply} onClick={event => onSuggestionReply?.(event.currentTarget.textContent || "")}>
-              {children}
+            <button type="button" className="ws-suggestion-reply" title={t("Send reply")} disabled={!onSuggestionReply} onClick={event => onSuggestionReply?.(event.currentTarget.textContent || "")}>
+              <Reply size={15} aria-hidden="true" />{children}
             </button>
           ) : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
             <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
@@ -46,7 +47,7 @@ export function AgentText({
   );
   return <div className={`ws-agent-text ${className}`}>
     {assistantSegments(content).map((segment, index) => segment.kind === "suggestion"
-      ? <aside className="ws-assistant-suggestion" key={index} aria-label={t("Assistant suggestion")}><div className="ws-assistant-suggestion-label">{t("Assistant suggestion")}</div>{renderMarkdown(segment.text, true)}<small className="ws-suggestion-hint">{t("Choose a reply to edit and send, or write your own below.")}</small></aside>
+      ? <aside className="ws-assistant-suggestion" key={index} aria-label={t("Assistant suggestion")}><div className="ws-assistant-suggestion-label">{t("Assistant suggestion")}</div>{renderMarkdown(segment.text, true)}</aside>
       : <Fragment key={index}>{renderMarkdown(segment.text)}</Fragment>)}
   </div>;
 }

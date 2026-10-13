@@ -394,10 +394,16 @@ export function AssistantWorkspace({
       );
     }
   }
-  async function send(event: FormEvent) {
-    event.preventDefault();
-    const text = draft.trim();
-    if (!attachmentsReady || (!text && !attachments.length) || sending || attachments.some((item) => item.status === "uploading")) return;
+  const sendInFlight = useRef(false);
+  async function send(event?: FormEvent, reply?: string) {
+    event?.preventDefault();
+    const quickReply = reply !== undefined;
+    const text = (reply ?? draft).trim();
+    const outgoingAttachments = quickReply ? [] : attachments;
+    if (sendInFlight.current || sending || (quickReply && pending) || (!text && !outgoingAttachments.length)) return;
+    if (!quickReply && (!attachmentsReady || outgoingAttachments.some(item => item.status === "uploading"))) return;
+    if (outgoingAttachments.some(item => attachmentError(item.file.name, item.file.size))) return;
+    sendInFlight.current = true;
     stopRequested.current = false;
     composer.current?.focus({ preventScroll: true });
     const sendingKey = crypto.randomUUID();
@@ -406,17 +412,13 @@ export function AssistantWorkspace({
     setError("");
     stickToBottom.current = true;
     setShowJump(false);
-    if (attachments.some(item => attachmentError(item.file.name, item.file.size))) {
-      setSending(false);
-      return;
-    }
-    setOptimistic({text, files: attachments, priorIds: query.data?.messages.map(m => m.id) || []});
+    setOptimistic({text, files: outgoingAttachments, priorIds: query.data?.messages.map(m => m.id) || []});
     try {
       // A correction explicitly stops the previous turn before a new request.
       // The server's existing cancellation and lease checks own late writes.
       if (pending && job) { freeze(); await api(`/jobs/${job.id}`, {method: "DELETE", body: JSON.stringify({stream_epoch: job.result?.stream_epoch, stream_sequence: job.result?.stream_sequence || 0})}); }
       const fileIds: string[] = [];
-      for (const item of attachments) {
+      for (const item of outgoingAttachments) {
         if (stopRequested.current) break;
         const fileId = await uploadFile(item);
         if (fileId) fileIds.push(fileId);
@@ -425,7 +427,7 @@ export function AssistantWorkspace({
         setOptimistic(null);
         return;
       }
-      if (fileIds.length !== attachments.length) {
+      if (fileIds.length !== outgoingAttachments.length) {
         setOptimistic(null);
         setError(t("Some files need attention. Retry or remove them, then send. Uploaded files are kept."));
         return;
@@ -433,10 +435,10 @@ export function AssistantWorkspace({
       const payload = {
         message: text,
         file_ids: fileIds,
-        candidate_ids: mentions.references.map(person => person.id),
+        candidate_ids: quickReply ? [] : mentions.references.map(person => person.id),
         locale,
-        work_document_id: revisionTarget?.id || null,
-        viewed_source: revisionTarget ? null : viewedSource,
+        work_document_id: quickReply ? null : revisionTarget?.id || null,
+        viewed_source: quickReply || revisionTarget ? null : viewedSource,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         conversation_id: conversationId,
         role_id: conversationId ? null : roleId || null,
@@ -453,15 +455,17 @@ export function AssistantWorkspace({
         body: JSON.stringify({ ...payload, request_key: request.current.key }),
       });
       setSubmittedJob(result.job);
-      setDraft("");
-      mentions.clear();
-      setRevisionTarget(null);
-      setAttachments([]);
-      localStorage.removeItem(draftStorageKey);
-      localStorage.removeItem(draftRoleKey);
+      if (!quickReply) {
+        setDraft("");
+        mentions.clear();
+        setRevisionTarget(null);
+        setAttachments([]);
+        localStorage.removeItem(draftStorageKey);
+        localStorage.removeItem(draftRoleKey);
+      }
       request.current = null;
       localStorage.removeItem(requestStorageKey);
-      if (attachmentDraftKey) {
+      if (!quickReply && attachmentDraftKey) {
         await saveAttachmentDraft(attachmentDraftKey, []).catch(() => {
           setAttachmentDraftError("Your message was sent, but its local attachment draft could not be cleared.");
         });
@@ -489,6 +493,7 @@ export function AssistantWorkspace({
         cause instanceof Error ? cause.message : "Could not save your message",
       );
     } finally {
+      sendInFlight.current = false;
       setSending(false);
       setStopping(false);
       requestAnimationFrame(() => composer.current?.focus());
@@ -696,15 +701,8 @@ export function AssistantWorkspace({
                   <div className="ws-message-tools" aria-hidden="true" />
                 </article>
               ) : <ConversationMessage key={key} message={message}
-                activeJob={activeJob} receivingFiles={sending && attachments.length > 0}
-                onSuggestionReply={!sending && !pending && index === displayedMessages.length - 1 && message.metadata.turn_status !== "cancelled" ? reply => {
-                  setDraft(current => current.trim() ? `${current.trimEnd()}\n${reply}` : reply);
-                  requestAnimationFrame(() => {
-                    const input = composer.current;
-                    input?.focus({preventScroll: true});
-                    if (input) input.setSelectionRange(input.value.length, input.value.length);
-                  });
-                } : undefined}
+                activeJob={activeJob} receivingFiles={sending && !!optimistic?.files?.length}
+                onSuggestionReply={!sending && !pending && index === displayedMessages.length - 1 && message.metadata.turn_status !== "cancelled" ? reply => { void send(undefined, reply); } : undefined}
                 onRetry={retry} disconnected={!sending && disconnected}
                 importRefresh={job?.status === "done" ? job.id : undefined}
                 laterScheduleIds={displayedMessages.slice(index + 1).flatMap(item => (item.message.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
