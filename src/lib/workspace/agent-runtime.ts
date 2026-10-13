@@ -282,7 +282,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         stepText = ""; textPart = undefined;
         writeReply(stepText, parts, true, "thinking");
       }
-      if (part.type === "reasoning-start") writeReply(stepText, parts, true, "thinking");
+      if (part.type === "reasoning-start" && !stepText) writeReply(stepText, parts, true, "thinking");
       if (part.type === "tool-call") {
         textPart = undefined;
         const query = ["web_search", "find_candidates", "find_roles"].includes(part.toolName) ? (part.input as {query?: unknown}).query : undefined;

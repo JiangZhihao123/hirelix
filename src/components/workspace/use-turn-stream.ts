@@ -20,7 +20,7 @@ export function useTurnStream(job: Job | null | undefined, onComplete: () => voi
       clearTimeout(reconnectNotice);
       reconnectNotice = undefined;
       setDisconnected(false);
-      setLive(previous => previous?.id === id && !isTurnRunning(previous) && isTurnRunning(update) && previous.result.stream_epoch === update.result.stream_epoch ? previous : ({...update, result: {
+      setLive(previous => previous?.id === id && previous.result.stream_epoch === update.result.stream_epoch && ((!isTurnRunning(previous) && isTurnRunning(update)) || Number(previous.result.stream_sequence || 0) > Number(update.result.stream_sequence || 0)) ? previous : ({...update, result: {
         ...update.result,
         ...(update.status === "done" && !update.result.live_reply && previous?.id === id ? {live_reply: previous.result.live_reply} : {}),
       }}));

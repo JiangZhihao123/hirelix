@@ -99,7 +99,6 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                       }} />
 
                     </div>
-                    {activeJob && <TurnActivity job={activeJob} embedded hideContent receivingFiles={receivingFiles} disconnected={disconnected} onRetry={onRetry} />}
                     {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
@@ -170,6 +169,7 @@ export function ConversationMessage({ message, importRefresh, laterScheduleIds, 
                         )}
                       </div>
                     ))}
+                    {activeJob && <TurnActivity job={activeJob} embedded hideContent receivingFiles={receivingFiles} disconnected={disconnected} onRetry={onRetry} />}
                     <div className="ws-message-tools">
                       {!!remainingSources.length && <MessageSources sources={remainingSources} onSource={onSource} />}
                       {!!metadata.document_edits?.length && !metadata.recommendation_links?.length && <span className="ws-message-status">{t("Updated · Previous version kept")}</span>}
