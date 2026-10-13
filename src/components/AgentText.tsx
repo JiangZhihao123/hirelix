@@ -1,10 +1,10 @@
 "use client";
 
-import { Children, Fragment } from "react";
+import { Children, Fragment, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowUp } from "lucide-react";
-import { suggestionLayout } from "@/lib/workspace/suggestion-layout";
+import { suggestionLayout, assistantReplies } from "@/lib/workspace/suggestion-layout";
 import { useT } from "@/components/LanguageProvider";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { assistantSegments } from "@/lib/workspace/assistant-suggestions";
@@ -13,10 +13,8 @@ export function AgentText({
   content,
   className = "",
   onOpenLink,
-  onSuggestionReply,
 }: {
   content: string;
-  onSuggestionReply?: (reply: string) => void;
   className?: string;
   onOpenLink?: (href: string, label: string) => boolean;
 }) {
@@ -31,11 +29,7 @@ export function AgentText({
       <ReactMarkdown
         remarkPlugins={suggestion ? [remarkGfm, suggestionLayout] : [remarkGfm]}
         components={{
-          a: ({ href, children }) => suggestion || href === "#assistant-reply" ? (
-            <button type="button" className="ws-suggestion-reply" title={t("Send reply")} disabled={!onSuggestionReply} onClick={event => onSuggestionReply?.(event.currentTarget.textContent || "")}>
-              <span>{children}</span><ArrowUp size={15} aria-hidden="true" />
-            </button>
-          ) : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
+          a: ({ href, children }) => suggestion || href === "#assistant-reply" ? null : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
             <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
               {linkLabel(href, children)}
             </a>
@@ -46,8 +40,17 @@ export function AgentText({
       </ReactMarkdown>
   );
   return <div className={`ws-agent-text ${className}`}>
-    {assistantSegments(content).map((segment, index) => segment.kind === "suggestion"
-      ? <aside className="ws-assistant-suggestion" key={index} aria-label={t("Assistant suggestion")}><div className="ws-assistant-suggestion-label">{t("Assistant suggestion")}</div>{renderMarkdown(segment.text, true)}</aside>
-      : <Fragment key={index}>{renderMarkdown(segment.text)}</Fragment>)}
+    {assistantSegments(content).map((segment, index) => <Fragment key={index}>{renderMarkdown(segment.text, segment.kind === "suggestion")}</Fragment>)}
+  </div>;
+}
+
+export function AssistantReplies({content, onReply}: {content: string; onReply: (reply: string) => void}) {
+  const t = useT();
+  const replies = useMemo(() => assistantReplies(content), [content]);
+  if (!replies.length) return null;
+  return <div className="ws-message-replies">
+    {replies.map(reply => <button key={reply} type="button" className="ws-suggestion-reply" title={t("Send reply")} onClick={() => onReply(reply)}>
+      <span>{reply}</span><ArrowUp size={15} aria-hidden="true" />
+    </button>)}
   </div>;
 }

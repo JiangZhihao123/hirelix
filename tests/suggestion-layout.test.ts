@@ -2,38 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
-import type { Blockquote } from 'mdast';
-import { suggestionLayout } from '../src/lib/workspace/suggestion-layout';
+import { suggestionLayout, assistantReplies } from '../src/lib/workspace/suggestion-layout';
 
-function layout(source: string) {
-  const tree = unified().use(remarkParse).parse(source);
-  suggestionLayout()(tree);
-  return tree;
-}
-
-test('inline and separate descriptions are omitted from reply controls', () => {
-  const sources = [
-    '[处理资料](#assistant-reply) 说明文字',
-    '[处理资料](#assistant-reply)\n说明文字',
-    '[处理资料](#assistant-reply)\n\n说明文字',
-  ];
-  for (const source of sources) {
-    const tree = layout(source);
+test('reply controls and descriptions leave the prose regardless of line breaks', () => {
+  for (const separator of [' ', '\n', '\n\n']) {
+    const tree = unified().use(remarkParse).parse('建议先准备。\n\n[帮我准备](#assistant-reply)' + separator + '说明文字');
+    suggestionLayout()(tree);
     assert.equal(tree.children.length, 1);
-    const option = tree.children[0] as Blockquote;
-    assert.equal(option.data?.hName, 'div');
-    assert.equal(option.children.length, 1);
-    assert.equal(option.children[0].type, 'paragraph');
   }
 });
-
-test('multiple options in one paragraph are separated and preserve navigation-shaped legacy replies', () => {
-  const tree = layout('说明\n\n[行动一](/app/roles) 描述一\n[行动二](#assistant-reply) 描述二\n\n### 正文');
-  assert.deepEqual(tree.children.map(node => node.type), ['paragraph', 'blockquote', 'blockquote', 'heading']);
-  for (const node of tree.children.slice(1, 3) as Blockquote[]) assert.equal(node.children.length, 1);
+test('footer gathers replies across the whole message preserving order and removing duplicates', () => {
+  const text = ':::assistant-suggestion\n建议\n[帮我准备](/app/roles)\n:::\n补充说明。\n[我先补充背景](#assistant-reply)\n[帮我准备](#assistant-reply)\n[资料](https://example.com)';
+  assert.deepEqual(assistantReplies(text), ['帮我准备', '我先补充背景']);
 });
-
-test('ordinary prose and incomplete links are kept as text, not actionable options', () => {
-  const tree = layout('说明与 `代码`。\n\n[尚在生成](#assistant-');
-  assert.ok(tree.children.every(node => node.type === 'paragraph'));
+test('incomplete, code and ordinary navigation links are not replies', () => {
+  assert.deepEqual(assistantReplies('[未完成](#assistant-'), []);
+  assert.deepEqual(assistantReplies('`[代码](#assistant-reply)`\n[资料](/app/roles)'), []);
 });
