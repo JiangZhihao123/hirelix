@@ -189,7 +189,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                         {message.role !== "user" && (copiedId === message.id ? t("Copied") : t("Copy"))}
                       </button>}
                     </div>
-                    {showReceipts && metadata.question && <ConversationQuestion question={metadata.question} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} onReply={onSuggestionReply} />}
+                    {showReceipts && metadata.question && <ConversationQuestion question={metadata.question} onReply={onSuggestionReply} />}
                     {message.role === "assistant" && !metadata.question && onSuggestionReply && <AssistantReplies content={parts.length ? parts.filter(part => part.type === "text").map(part => part.text).join("\n") : message.content} onReply={onSuggestionReply} />}
                   </article>
 
