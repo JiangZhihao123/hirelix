@@ -25,9 +25,19 @@
   scrollbar-width: thin;
   scrollbar-color: #ced3ca transparent;
 }
-.private-workspace :is(button, a, input, select, textarea):focus-visible {
+.private-workspace :is(button, a, input[type="checkbox"], input[type="radio"], input[type="file"], input[type="range"]):focus-visible {
   outline: 2px solid #426b59;
   outline-offset: 3px;
+}
+.private-workspace :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):focus {
+  outline: none;
+  border-color: #729382;
+  box-shadow: 0 0 0 2px #2d554612;
+}
+/* Composite fields draw focus on their container, never around the inner input. */
+.private-workspace :is(.ws-search, .ws-conversation-search-field, .ws-memory-search, .ws-composer) :is(input, textarea):focus {
+  outline: none;
+  box-shadow: none;
 }
 .private-workspace button:disabled {
   opacity: 0.5;
@@ -830,8 +840,8 @@
   color: var(--ws-muted);
 }
 .ws-conversation-search-field:focus-within {
-  border-color: var(--ws-green);
-  box-shadow: 0 0 0 3px #2d554615;
+  border-color: #729382;
+  box-shadow: 0 0 0 2px #2d554612;
 }
 .ws-conversation-search-field input {
   flex: 1;
@@ -1945,9 +1955,9 @@
   pointer-events: none;
 }
 .ws-composer:focus-within {
-  border-color: #79a181;
+  border-color: #729382;
   box-shadow:
-    0 0 0 3px #cfe5d355,
+    0 0 0 2px #2d554612,
     0 8px 30px #1b382111;
 }
 .ws-composer textarea {
@@ -2439,7 +2449,7 @@
 .ws-role-table-head { padding-top: 12px; padding-bottom: 12px; color: var(--ws-muted); font-size: 12px; background: #f8f9f6; }
 .ws-role-row:hover { background: #f7f9f5; }
 .ws-role-row:focus-visible { outline-offset: -2px; }
-.ws-search:focus-within { border-color: var(--ws-green); box-shadow: 0 0 0 2px #2d554612; }
+.ws-search:focus-within { border-color: #729382; box-shadow: 0 0 0 2px #2d554612; }
 .ws-settings-page { max-width: 1120px; margin: 0 auto; background: #fff; }
 .ws-settings-page .ws-page-header { padding: 0 0 20px; }
 .ws-settings-page h1 { font-size: 24px; font-weight: 620; letter-spacing: -0.7px; }
@@ -2635,7 +2645,7 @@
 .ws-memory-notice { font-size: 13px; color: var(--ws-green); }
 
 .private-workspace .ws-memory-search input:focus-visible { outline: none; }
-.ws-memory-search:focus-within { border-color: #738d7c; box-shadow: 0 0 0 2px #e8eee7; }
+.ws-memory-search:focus-within { border-color: #729382; box-shadow: 0 0 0 2px #2d554612; }
 
 /* Reserve the assistant header and first text line before streaming begins. */
 .ws-message-assistant { min-height: 64px; }
