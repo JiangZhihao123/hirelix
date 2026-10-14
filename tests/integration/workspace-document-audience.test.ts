@@ -24,6 +24,45 @@ after(async () => {
   await closeDb();
 });
 
+test("real AI recommendation reports separate candidates, evidence and unknowns with Markdown structure", { timeout: 180000 }, async () => {
+  const role = await createRole(owner, {
+    title: "Data Platform Engineer", client_name: "QA Harbor",
+    jd_text: "Build Python and SQL data services, streaming ingestion and monitored production APIs. Office location and compensation budget unconfirmed.",
+  });
+  const people = await Promise.all([
+    createPerson(owner, { name: "QA Alex Chen", profile: { summary: "Built Python ingestion and Kafka pipelines. Reduced data lag from 60 to 8 minutes. Used PostgreSQL and Airflow. Availability, compensation and office willingness unconfirmed." } }),
+    createPerson(owner, { name: "QA Sam Lee", profile: { summary: "Built Python production APIs and SQL data models. Reduced API p99 latency from 900ms to 300ms. Used Kubernetes and production monitoring. Kafka experience, availability and compensation unconfirmed." } }),
+  ]);
+  for (const person of people) await linkPerson(owner, role.id, person.id);
+  // Commit the test job as cancelled so a concurrently running local worker
+  // cannot also execute it; exercise the real generator directly below.
+  const job = await db.transaction(async tx => {
+    const queued = await prepareDeliverable(owner, {
+      kind: "submission", role_id: role.id, person_ids: people.map(person => person.id), record_ids: [], file_ids: [],
+      period_start: null, period_end: null, format: "recommendation", language: "en",
+      instructions: "Recommend both selected candidates for this role, preserving their evidence and material unknowns.", request_key: randomUUID(),
+    }, tx);
+    await tx.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE id=${queued.id}::uuid`);
+    return queued;
+  });
+  const generated = await generateDeliverable(job, async () => {});
+  const saved = await db.transaction(async tx => generated.apply?.(tx));
+  const document = await owned<Deliverable>(owner, "deliverable", String(saved?.deliverable_id));
+  assert.equal(document.source_snapshot.audience, "client");
+  assert.equal(document.source_snapshot.format, "recommendation");
+  for (const person of people) assert.ok(document.content.includes(`## ${person.name}\n`));
+  const sections = document.content.split(/^## QA /m).slice(1);
+  assert.equal(sections.length, 2);
+  for (const section of sections) {
+    assert.match(section, /^### .+/m, "Evidence should have subsection headings");
+    assert.match(section, /^[-*] .+/m, "Evidence should use actual list items");
+    assert.match(section, /unconfirmed|unknown|confirm/i);
+  }
+  assert.match(sections[0], /60[\s\S]*8/);
+  assert.match(sections[1], /900[\s\S]*300/);
+  assert.doesNotMatch(document.content, /^(?:Dear|Hi|Hello)\b|\[Your name\]/im);
+});
+
 test("real AI applies a word budget to the complete internal recommendation", { timeout: 180000 }, async () => {
   const role = await createRole(owner, {
     title: "Head of Product", client_name: "QA Harbor",

@@ -48,3 +48,17 @@ test("Latin-only documents avoid embedding the large CJK font", async () => {
   const bytes = await renderPdfDocument('Candidate recommendation', '## Overview\n\n**Alex Morgan**\n\nPlatform engineering experience.');
   assert.ok(bytes.length < 30000);
 });
+
+test("a short evidence section stays together instead of leaving its last bullet on the next page", async () => {
+  const content = Array.from({ length: 29 }, (_, i) => `Context line ${i}`).join("  \n") +
+    "\n\n### Evidence section\n\n- First evidence\n- Second evidence\n- Last evidence";
+  const task = getDocument({ data: await renderPdfDocument("Recommendation", content), useSystemFonts: true });
+  const pdf = await task.promise;
+  try {
+    assert.equal(pdf.numPages, 2);
+    const first = (await (await pdf.getPage(1)).getTextContent()).items.filter(item => "str" in item).map(item => item.str).join("");
+    const second = (await (await pdf.getPage(2)).getTextContent()).items.filter(item => "str" in item).map(item => item.str).join("");
+    assert.ok(!first.includes("Evidence section"));
+    for (const text of ["Evidence section", "First evidence", "Second evidence", "Last evidence"]) assert.ok(second.includes(text));
+  } finally { await task.destroy(); }
+});

@@ -139,11 +139,20 @@ export async function renderPdfDocument(title: string, content: string) {
     y -= first ? 42 : 36;
   }
   newPage(true);
+  function textStyle(block: TextBlock, isTitle = false) {
+    const majorHeading = !!block.heading && block.heading <= 2;
+    return {
+      majorHeading,
+      size: isTitle ? 22 : block.heading ? (majorHeading ? 16 : 12) : 11,
+      leading: isTitle ? 31 : block.heading ? (majorHeading ? 25 : 20) : 18.5,
+      before: block.heading && !isTitle ? (majorHeading ? 19 : 12) : 0,
+      after: isTitle ? 20 : block.heading ? (majorHeading ? 12 : 6) : block.marker ? 5 : 12,
+      indent: Math.min(block.indent || 0, available / 3),
+      spans: block.heading || isTitle ? block.spans.map(span => ({ ...span, bold: true })) : block.spans,
+    };
+  }
   function renderText(block: TextBlock, isTitle = false) {
-    const size = isTitle ? 20 : block.heading ? (block.heading <= 2 ? 13 : 12) : 10.5;
-    const leading = isTitle ? 28 : block.heading ? 20 : 16.5;
-    const spans = block.heading || isTitle ? block.spans.map(span => ({ ...span, bold: true })) : block.spans;
-    const indent = Math.min(block.indent || 0, available / 3);
+    const { majorHeading, size, leading, before, after, indent, spans } = textStyle(block, isTitle);
     let lines = wrap(spans, available - indent, size);
     if (isTitle && lines.length > 1) {
       // Balance a multiline title so a final name/word is not stranded alone.
@@ -156,11 +165,10 @@ export async function renderPdfDocument(title: string, content: string) {
       }
       lines = wrap(spans, high, size);
     }
-    const before = block.heading && !isTitle ? 9 : 0, after = isTitle ? 18 : block.heading ? 7 : 9;
     // Reserve the following two body lines with a heading. Split long paragraphs
     // using widow/orphan control instead of moving the whole paragraph to a new page.
     const minimum = Math.min(pageHeight - margin - 36 - bottom,
-      before + (block.heading || isTitle ? lines.length * leading + 33 : Math.min(lines.length, 2) * leading));
+      before + (block.heading || isTitle ? lines.length * leading + after + 37 : Math.min(lines.length, 2) * leading));
     if (y - minimum < bottom) newPage();
     y -= before;
     let index = 0;
@@ -177,10 +185,13 @@ export async function renderPdfDocument(title: string, content: string) {
       for (let i = 0; i < count; i++, index++) {
         y -= leading;
         if (index === 0 && block.marker) drawLine([{ text: block.marker }], margin + indent - 14, y, 9, muted);
-        drawLine(lines[index], margin + indent, y, size, block.heading || isTitle ? green : ink);
+        drawLine(lines[index], margin + indent, y, size, majorHeading || isTitle ? green : ink);
       }
       if (index < lines.length) newPage();
     }
+    if (majorHeading && !isTitle) page.drawLine({
+      start: { x: margin + indent, y: y - 7 }, end: { x: pageWidth - margin, y: y - 7 }, color: rule, thickness: 0.7,
+    });
     y -= after;
   }
   renderText({ kind: "text", spans: [{ text: title }] }, true);
@@ -214,7 +225,22 @@ export async function renderPdfDocument(title: string, content: string) {
     });
     y -= 12;
   }
-  for (const block of blocks(parser.parse(content).children)) {
+  const body = blocks(parser.parse(content).children);
+  for (const [index, block] of body.entries()) {
+    if (block.kind === "text" && block.heading) {
+      // Keep a short evidence section intact. A parent heading travels with its
+      // first subsection; long sections still use normal widow/orphan control.
+      let height = 0, depth = block.heading;
+      for (let next = index; next < body.length; next++) {
+        const item = body[next];
+        if (item.kind !== "text" || (next > index && item.heading && item.heading <= depth)) break;
+        if (item.heading) depth = item.heading;
+        const style = textStyle(item);
+        height += style.before + wrap(style.spans, available - style.indent, style.size).length * style.leading + style.after;
+      }
+      const usable = pageHeight - margin - 36 - bottom;
+      if (height <= usable * 0.45 && y - height < bottom) newPage();
+    }
     if (block.kind === "text") renderText(block);
     else if (block.kind === "table") renderTable(block.rows);
     else {

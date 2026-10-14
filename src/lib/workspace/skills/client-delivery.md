@@ -12,6 +12,10 @@ Sharing a recommendation link publishes its selected snapshot, not an email or a
 
 For reports, identify the reporting period and timezone. Attribute activity to its actual event date; preserve undated information as such. Distinguish historical events, current facts, planned activity and unresolved questions.
 
+## Readable recommendation reports
+
+A recommendation report needs scan-friendly structure, not email paragraphs enlarged onto a page. Start with a brief role-specific overview, then a named section per candidate. Use short subheadings for the relevant fit themes, actual Markdown bullets for concrete evidence, and a separate section for material unknowns. Emphasize only key claims or metrics. Keep paragraphs short and avoid repeating the same strengths or unknowns in the summary, evidence and closing. Preserve requested detail; page count is not a reason to squeeze text or remove evidence. Do not invent scores, tables or decorative sections. Email copy remains concise and appropriate to its channel.
+
 ## Revision and delivery quality
 
 Evaluate the current saved content against the user's requested purpose, audience and constraints. Preserve source scope and reporting period when revising unless the user changes them. Use the tool's returned content, version and measurements to assess the result; approximate length targets and exact limits are different requirements. Export uses saved content and does not itself revise it.
