@@ -3,40 +3,36 @@ import { test, expect } from "@playwright/test";
 test.describe("Responsive - Landing Page", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test("should show the mobile landing hero and primary action", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: /AI sourcing and screening for technical recruiters/i })).toBeVisible();
-    await expect(page.getByTestId("hero-sample-link")).toBeVisible();
-    await expect(page.getByTestId("nav-primary-cta")).toBeVisible();
-    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Run free role/i);
-    await expect(page.getByRole("navigation").getByRole("button", { name: "Sign in" })).toBeVisible();
+  test("shows the personal agent hero and usable primary actions", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your personal AI agent for headhunting.");
+    await expect(page.getByTestId("hero-primary-cta")).toBeVisible();
+    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Get started/);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
-  test("should keep the JD form and pricing section usable on mobile", async ({ page }) => {
-    await page.goto("/");
-    await expect(
-      page.getByPlaceholder("Paste a real client job description here..."),
-    ).toBeVisible();
-    await expect(page.getByText("Free", { exact: true })).toBeVisible();
-    await expect(page.getByText("Starter", { exact: true })).toBeVisible();
-    await expect(page.getByText("Pro", { exact: true })).toBeVisible();
+  test("shows current monthly and annual plans without retired sourcing forms", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#pricing").getByRole("heading", { name: "Personal Agent", exact: true })).toHaveCount(2);
+    await expect(page.locator("#pricing").getByRole("button", { name: /Start free trial/ })).toHaveCount(2);
+    await expect(page.getByPlaceholder("Paste a real client job description here...")).toHaveCount(0);
+    await expect(page.locator('a[href*="search/new"]')).toHaveCount(0);
   });
 
-  test("should enter the free-trial flow from the mobile primary action", async ({ page }) => {
-    await page.goto("/");
+  test("enters the assistant trial from the mobile primary action", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.getByTestId("nav-primary-cta").click();
-    await expect(page).toHaveURL(/\/app\/search\/new\?.*entry=free_trial/);
-    await expect(page.getByTestId("landing-auth-modal")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Start your free shortlist" })).toBeVisible();
+    await expect(page).toHaveURL(/\/app\?.*entry=free_trial/);
+    await expect(page.getByRole("heading", { name: "Start with your private AI assistant" })).toBeVisible();
   });
 
-  test("should still render the major conversion sections on mobile", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByRole("heading", { name: /AI sourcing and screening for technical recruiters/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "From client role to ranked candidate pool." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Technical sourcing work, compressed into one review surface." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Pick the client-role volume you need." })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "The first questions before you paste a client role" })).toBeVisible();
+  test("keeps workflow examples and FAQs usable on mobile", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "What’s on your desk?" })).toBeVisible();
+    const faq = page.locator("summary").filter({ hasText: "Can I export or delete candidate information?" });
+    await faq.click();
+    await expect(page.locator("details").filter({ has: faq })).toHaveAttribute("open", "");
+    await expect(page.getByRole("heading", { name: /Ten years of relationships/ })).toBeVisible();
   });
 });
 

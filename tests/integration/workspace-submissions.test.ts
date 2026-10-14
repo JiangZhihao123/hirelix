@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
-import { closeDb } from "../../src/db/client";
+import { sql } from "drizzle-orm";
+import { closeDb, db } from "../../src/db/client";
 import { createPerson } from "../../src/lib/workspace/people";
 import { createRole, linkPerson } from "../../src/lib/workspace/roles";
 import { addRecord } from "../../src/lib/workspace/records";
@@ -21,12 +22,15 @@ if (
   !database.pathname.startsWith("/hirelix_workspace_qa_")
 )
   throw new Error("Use an isolated local QA database");
-after(closeDb);
+const owner = randomUUID();
+after(async () => {
+  await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
+  await closeDb();
+});
 const invalid = (error: unknown) =>
   error instanceof WorkspaceError && error.status === 400;
 
 test("a single submission can select multiple people and one exact CV for each", async () => {
-  const owner = randomUUID();
   const role = await createRole(owner, {
     title: "VP Product",
     client_name: "QA Client",
@@ -74,7 +78,7 @@ test("a single submission can select multiple people and one exact CV for each",
     request_key: randomUUID(),
   };
   const job = await prepareDeliverable(owner, request);
-  assert.deepEqual(job.payload.request, request);
+  assert.deepEqual(job.payload.request, { ...request, format: "email", report_timezone: null });
   const selected = (job.payload.source as { files: SubmissionCv[] }).files;
   assert.deepEqual(
     selected.map(({ person_id, id, name }) => ({ person_id, id, name })),

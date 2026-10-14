@@ -8,9 +8,10 @@ import { saveReminder, listReminders, deliverReminders } from "../../src/lib/wor
 import { sendMessage, assistantReply, conversationDetails, type AssistantMeta } from "../../src/lib/workspace/conversations";
 import { claimJob, finishJob, heartbeat } from "../../src/lib/workspace/jobs";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
+import { closeTurnChannel } from "../../src/lib/workspace/turn-channel";
 const url=new URL(process.env.DATABASE_URL||"postgres://invalid/invalid");assert.ok(["localhost","127.0.0.1"].includes(url.hostname)&&url.pathname.startsWith("/hirelix_workspace_qa_"));assert.equal(process.env.WORKSPACE_REAL_AI_TEST,"true");initializeGlobalOutboundProxy();
 const owner=randomUUID();
-after(async()=>{await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${owner}::uuid`);await closeDb();});
+after(async()=>{await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${owner}::uuid`);await closeTurnChannel();await closeDb();});
 test("real model and PG: one-time reminder returns to conversation exactly once and is owner isolated",{timeout:120000},async()=>{
   const sent=await sendMessage(owner,{message:"Remind me on 9 October 2030 at 09:00 Europe/London to ask fictional Mira about her availability. Only remind me in this conversation; do not send an email.",timezone:"Europe/London",locale:"en",request_key:randomUUID()});
   const job=await claimJob(["chat"]);assert.equal(job?.id,sent.job.id);await finishJob(job!,await assistantReply(job!,()=>heartbeat(job!)));
