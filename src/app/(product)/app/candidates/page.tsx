@@ -505,11 +505,11 @@ function CandidateDetails({
       />
     );
   const { person, records, roles } = details.data;
-  const conversation = records.find((item) =>
-    ["call", "email"].includes(item.kind),
-  );
   const sources = records.filter(isSource);
   const communications = records.filter(item => !isSource(item));
+  const conversation = communications[0];
+  const recordKinds = {cv: "CV / resume", jd: "Job description", profile: "Profile", event: "Event", note: "Note", call: "Call", email: "Email", feedback: "Feedback"};
+  const recordTitle = (title: string) => ["Candidate profile update", "Candidate profile source"].includes(title) ? t(title) : title;
   const visibleRecords = tab === "sources" ? sources : communications;
   return (
     <>
@@ -551,12 +551,12 @@ function CandidateDetails({
             </section>
           )}
           <section className="ws-section">
-            <h3>{t("Latest conversation")}</h3>
+            <h3>{t("Latest record")}</h3>
             {conversation ? (
               <>
                 <small>
                   {(conversation.occurred_at ? date(conversation.occurred_at) : recordLocalDate(conversation, "UTC") || "—")} ·{" "}
-                  {conversation.kind === "call" ? t("Call note") : t("Email record")}
+                  {t(recordKinds[conversation.kind])}
                 </small>
                 <p className="mt-2">{conversation.content}</p>
                 <button
@@ -615,7 +615,7 @@ function CandidateDetails({
                     onOpenRecord(source.id);
                   }}
                 >
-                  <strong>{source.title}</strong>
+                  <strong>{recordTitle(source.title)}</strong>
                   <small>{t("Added")} {date(source.created_at)}</small>
                 </button>
               ))
@@ -682,18 +682,18 @@ function CandidateDetails({
                 className="ws-record"
               >
                 <div className="ws-inline-meta">
-                  <h4>{item.title}</h4>
-                  <span className="ws-tag">{t(({cv: "CV / resume", jd: "Job description", profile: "Profile", event: "Event", note: "Note", call: "Call", email: "Email", feedback: "Feedback"})[item.kind])}</span>
+                  <h4>{recordTitle(item.title)}</h4>
+                  <span className="ws-tag">{t(recordKinds[item.kind])}</span>
                   <button
                     className="ws-icon ml-auto"
-                    aria-label={`Edit ${item.title}`}
+                    aria-label={`${t("Edit")} ${recordTitle(item.title)}`}
                     onClick={() => setRecord(item)}
                   >
                     <Pencil size={13} />
                   </button>
                   <button
                     className="ws-icon"
-                    aria-label={`History of ${item.title}`}
+                    aria-label={`${t("History")} · ${recordTitle(item.title)}`}
                     onClick={() => setHistory({ kind: "record", id: item.id })}
                   >
                     <HistoryIcon size={13} />
