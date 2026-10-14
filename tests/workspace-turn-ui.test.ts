@@ -25,7 +25,7 @@ test("failed turn retains partial output and exposes recovery in the same reply"
   assert.match(html,/role="alert"/); assert.match(html,/Service unavailable/); assert.match(html,/>Retry</); assert.match(html,/saved results are kept/);
 });
 test("answered clarification stops looking like an outstanding decision", () => {
-  const html = renderToStaticMarkup(React.createElement(ConversationQuestion,{question:{question:"Which role?",options:["Cedar","Beacon"],status:"answered"} as Parameters<typeof ConversationQuestion>[0]["question"],conversationId:"c",messageId:"m",onChanged:()=>{}}));
+  const html = renderToStaticMarkup(React.createElement(ConversationQuestion,{question:{question:"Which role?",options:["Cedar","Beacon"],status:"answered"} as Parameters<typeof ConversationQuestion>[0]["question"],onReply:()=>{}}));
   assert.match(html,/Answered/); assert.match(html,/Which role/); assert.doesNotMatch(html,/textarea|Your answer is needed|ws-question-card/);
 });
 
