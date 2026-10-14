@@ -162,7 +162,6 @@ export const assistantReply: JobHandler = async (job, progress) => {
       conversation: {
         id,
         role_id: details.conversation.role_id,
-        person_id: details.conversation.person_id,
       },
       linked_document: details.document && {
         id: details.document.id,

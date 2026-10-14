@@ -6,11 +6,11 @@ import { useT } from "@/components/LanguageProvider";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import type { AssistantMeta } from "@/lib/workspace/conversations";
 import type { TurnPart } from "@/lib/workspace/turn-progress";
-import type { Message, Person, Role } from "@/lib/workspace/types";
+import type { Message, Role } from "@/lib/workspace/types";
 
 type Reference = { title: string; href: string };
-export function ConversationContext({ role, person, messages, liveParts = [], onSource }: {
-  role?: Role; person?: Person; liveParts?: TurnPart[]; messages: Message[]; onSource: (source: Reference) => void;
+export function ConversationContext({ role, messages, liveParts = [], onSource }: {
+  role?: Role; liveParts?: TurnPart[]; messages: Message[]; onSource: (source: Reference) => void;
 }) {
   const t = useT();
   const disclosure = useRef<HTMLDetailsElement>(null);
@@ -23,22 +23,21 @@ export function ConversationContext({ role, person, messages, liveParts = [], on
   }, []);
   const references = new Map<string, Reference>();
   if (role) references.set(`role:${role.id}`, { title: `${role.client_name} · ${role.title}`, href: `/app/roles/${role.id}` });
-  if (person) references.set(`person:${person.id}`, { title: person.name, href: `/app/candidates?person=${person.id}` });
   // Only references actually returned in this conversation; a document is not its focus.
   for (const message of messages) for (const source of (message.metadata as AssistantMeta).sources || []) {
     const ref = viewedSourceFromHref(source.href);
-    if (ref?.kind === "person" || ref?.kind === "role") references.set(`${ref.kind}:${ref.id}`, source);
+    if (ref?.kind === "role") references.set(`${ref.kind}:${ref.id}`, source);
   }
   for (const part of liveParts) {
     if (part.type !== "tool" || part.status !== "done" || !part.href || !part.target) continue;
     const ref = viewedSourceFromHref(part.href);
-    if ((ref?.kind === "person" || ref?.kind === "role") && !references.has(`${ref.kind}:${ref.id}`)) references.set(`${ref.kind}:${ref.id}`, { title: part.target, href: part.href });
+    if ((ref?.kind === "role") && !references.has(`${ref.kind}:${ref.id}`)) references.set(`${ref.kind}:${ref.id}`, { title: part.target, href: part.href });
   }
   const roleKeys = [...references.keys()].filter(key => key.startsWith("role:"));
   const recommendationRole = role?.id || (roleKeys.length === 1 ? roleKeys[0].slice(5) : null);
   if (!references.size) return null;
   const entries = [...references];
-  const primaryKey = role ? `role:${role.id}` : person ? `person:${person.id}` : roleKeys.length === 1 ? roleKeys[0] : null;
+  const primaryKey = role ? `role:${role.id}` : roleKeys.length === 1 ? roleKeys[0] : null;
   const primary = primaryKey ? references.get(primaryKey) : null;
   const related = entries.filter(([key]) => key !== primaryKey);
   const open = (source: Reference) => {

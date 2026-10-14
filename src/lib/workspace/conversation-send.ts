@@ -59,9 +59,8 @@ export async function sendMessage(
     if (document && input.role_id && document.role_id !== input.role_id) throw new WorkspaceError("This document belongs to another role", 409);
     const resolvedRoleId = document?.role_id || input.role_id;
     if (input.role_id) await owned(userId, "role", input.role_id, tx);
-    if (input.person_id) await owned(userId, "person", input.person_id, tx);
     const candidateReferences = [];
-    for (const candidateId of new Set(input.candidate_ids)) {
+    for (const candidateId of new Set([...input.candidate_ids, ...(input.person_id ? [input.person_id] : [])])) {
       const person = await owned<Person>(userId, "person", candidateId, tx);
       candidateReferences.push({ id: person.id, name: person.name });
     }
@@ -85,7 +84,7 @@ export async function sendMessage(
         );
     } else {
       [conversation] = await rows<Conversation>(
-        sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${(input.message || attachments.map((item) => item.name).join(", ") || "New conversation").slice(0, 100)},${resolvedRoleId}::uuid,${input.person_id}::uuid) RETURNING *`,
+        sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${(input.message || attachments.map((item) => item.name).join(", ") || "New conversation").slice(0, 100)},${resolvedRoleId}::uuid,NULL) RETURNING *`,
         tx,
       );
     }
@@ -100,7 +99,7 @@ export async function sendMessage(
       if (!preview || !["review","sending","sent","unknown"].includes((preview.metadata.email as {status:string}).status)) throw new WorkspaceError("This email preview is no longer available",409);
     }
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, person_id: conversation.person_id, ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,
     );
     const continuation = await consumeQuestion(userId, conversation.id, input.question_message_id, input.message, message.id, tx);

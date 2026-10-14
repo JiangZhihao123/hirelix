@@ -61,7 +61,6 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     }, tx);
     action.person_id = person.id;
     action.href = `/app/candidates?person=${person.id}`;
-    await tx.execute(sql`UPDATE hirelix_private_conversations SET person_id=coalesce(person_id,${person.id}::uuid) WHERE user_id=${userId}::uuid AND id=${conversationId}::uuid`);
   } else if (action.kind === "create_role") {
     const source = action.fields.source_file_id ? {
       file_id: z.uuid().parse(action.fields.source_file_id),

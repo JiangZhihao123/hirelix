@@ -1,6 +1,7 @@
 "use client";
 
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
+import { MessageCandidateReferences } from "./message-candidate-references";
 import { ComposerReference } from "./composer-reference";
 import { ConversationContext } from "./conversation-context";
 import { useCandidateMentions } from "./candidate-mentions";
@@ -125,6 +126,7 @@ export function AssistantWorkspace({
     text: string;
     priorIds: string[];
     files?: PendingFile[];
+    candidates?: Array<{id: string; name: string}>;
   } | null>(handoffText ? { text: handoffText, priorIds: [] } : null);
   const fileInput = useRef<HTMLInputElement>(null);
   const stickToBottom = useRef(true);
@@ -203,7 +205,7 @@ export function AssistantWorkspace({
   const currentDocument = query.data?.document || linkedDocument.data?.deliverable;
   const activeRoleId = query.data?.conversation.role_id || roleId || currentDocument?.role_id;
   const activeRole = roles.data?.roles.find((r) => r.id === activeRoleId);
-  const activePersonId = query.data?.conversation.person_id || linkedPersonId;
+  const activePersonId = linkedPersonId;
   const person = useQuery<{ person: Person }>(
     activePersonId ? `/people/${activePersonId}` : null,
   );
@@ -400,6 +402,7 @@ export function AssistantWorkspace({
     const quickReply = reply !== undefined;
     const text = (reply ?? draft).trim();
     const outgoingAttachments = quickReply ? [] : attachments;
+    const outgoingCandidates = quickReply ? [] : [...new Map([...(linkedPersonId ? [{id: linkedPersonId, name: person.data?.person.name || t("Candidate")}] : []), ...mentions.references].map(candidate => [candidate.id, candidate])).values()];
     if (sendInFlight.current || sending || (quickReply && pending) || (!text && !outgoingAttachments.length)) return;
     if (!quickReply && (!attachmentsReady || outgoingAttachments.some(item => item.status === "uploading"))) return;
     if (outgoingAttachments.some(item => attachmentError(item.file.name, item.file.size))) return;
@@ -412,7 +415,7 @@ export function AssistantWorkspace({
     setError("");
     stickToBottom.current = true;
     setShowJump(false);
-    setOptimistic({text, files: outgoingAttachments, priorIds: query.data?.messages.map(m => m.id) || []});
+    setOptimistic({text, files: outgoingAttachments, candidates: outgoingCandidates, priorIds: query.data?.messages.map(m => m.id) || []});
     try {
       // A correction explicitly stops the previous turn before a new request.
       // The server's existing cancellation and lease checks own late writes.
@@ -435,14 +438,13 @@ export function AssistantWorkspace({
       const payload = {
         message: text,
         file_ids: fileIds,
-        candidate_ids: quickReply ? [] : mentions.references.map(person => person.id),
+        candidate_ids: outgoingCandidates.map(person => person.id),
         locale,
         work_document_id: quickReply ? null : revisionTarget?.id || null,
         viewed_source: quickReply || revisionTarget ? null : viewedSource,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         conversation_id: conversationId,
         role_id: conversationId ? null : roleId || null,
-        person_id: conversationId ? null : linkedPersonId || null,
         document_id: conversationId ? null : documentId,
       };
       const signature = JSON.stringify(payload);
@@ -458,6 +460,7 @@ export function AssistantWorkspace({
       if (!quickReply) {
         setDraft("");
         mentions.clear();
+        setLinkedPersonId("");
         setRevisionTarget(null);
         setAttachments([]);
         localStorage.removeItem(draftStorageKey);
@@ -644,7 +647,7 @@ export function AssistantWorkspace({
               )}
             </div>
           </header>
-          <ConversationContext liveParts={job?.result ? turnParts(job.result) : []} role={activeRole} person={person.data?.person} messages={query.data?.messages || []} onSource={value => { setRevisionTarget(null); setContextOpen(false); setSource(value); }} />
+          <ConversationContext liveParts={job?.result ? turnParts(job.result) : []} role={activeRole} messages={query.data?.messages || []} onSource={value => { setRevisionTarget(null); setContextOpen(false); setSource(value); }} />
           <ErrorNotice
             error={error || query.error || roles.error || linkedDocument.error}
             retry={
@@ -694,6 +697,7 @@ export function AssistantWorkspace({
             ) : (
               displayedMessages.map(({key, message, activeJob, optimistic: isOptimistic}, index) => isOptimistic ? (
                 <article key={key} className="ws-message ws-message-user ws-message-optimistic" aria-label={t("Your message")}>
+                  <MessageCandidateReferences references={optimistic?.candidates || []} onOpen={setSource} />
                   {!!optimistic?.files?.length && <div className="ws-message-attachments">
                     {optimistic.files.map(item => <MessageAttachment key={item.id} name={item.file.name} size={item.file.size} file={item.file} />)}
                   </div>}

@@ -124,6 +124,17 @@ export async function conversationDetails(userId: string, id: string) {
     rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='deliverable' AND payload->>'conversation_id'=${id} ORDER BY created_at DESC,id DESC LIMIT 100`),
   ]);
   await Promise.all([hydrateEmailReceipts(userId, messages), hydrateRecommendationFeedback(userId, messages)]);
+  // Older messages saved their selected candidate as person_id. Resolve only
+  // that message's stored reference, never the conversation's current binding.
+  const referencedIds = [...new Set(messages.filter(message => message.role === "user" && !message.metadata.candidate_references && typeof message.metadata.person_id === "string").map(message => String(message.metadata.person_id)))];
+  if (referencedIds.length) {
+    const people = await rows<{id: string; name: string}>(sql`SELECT id,name FROM hirelix_agent_people WHERE user_id=${userId}::uuid AND id::text=ANY(${textArray(referencedIds)})`);
+    for (const message of messages) {
+      if (message.role !== "user" || message.metadata.candidate_references) continue;
+      const person = people.find(person => person.id === message.metadata.person_id);
+      if (person) message.metadata.candidate_references = [person];
+    }
+  }
   work.reverse();
   const latestWork = [...work].reverse().find(item => item.status === "done" && item.result?.deliverable_id);
   const selected = [...messages].reverse().find(message => message.role === "user" && typeof message.metadata.work_document_id === "string");
