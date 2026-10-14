@@ -5,6 +5,7 @@ import { unzipSync } from "fflate";
 import { load } from "cheerio";
 import { createCanvas } from "@napi-rs/canvas";
 import { WorkspaceError } from "./database";
+import { pdfOptions } from "./pdf-options";
 import { MAX_SOURCE_IMAGES, transcribeImages, type SourceImage } from "./vision";
 
 export type ReadDocument = { text: string; images: SourceImage[] };
@@ -80,7 +81,7 @@ export async function readDocument(file: {name: string; bytes: Uint8Array}, imag
   if (extension === "pdf") {
     // Official PDF.js + its canvas factory retain full page graphics, including scans.
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const task = pdfjs.getDocument({data: new Uint8Array(file.bytes), disableFontFace: true, useSystemFonts: true, maxImageSize: 16777216});
+    const task = pdfjs.getDocument({...pdfOptions, data: new Uint8Array(file.bytes)});
     try {
       const pdf = await task.promise;
       if (readVisuals && pdf.numPages > imageBudget) throw new WorkspaceError("Use up to 20 images or PDF pages per message");

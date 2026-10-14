@@ -1,9 +1,10 @@
 import { createCanvas } from "@napi-rs/canvas";
+import { pdfOptions } from "./pdf-options";
 
 /** Render only the first page, with a bounded canvas; never run OCR or an LLM. */
 export async function pdfThumbnail(bytes: Uint8Array) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const task = pdfjs.getDocument({data: new Uint8Array(bytes), disableFontFace: true, useSystemFonts: true, maxImageSize: 16777216, isEvalSupported: false});
+  const task = pdfjs.getDocument({...pdfOptions, data: new Uint8Array(bytes)});
   try {
     const pdf = await task.promise;
     const page = await pdf.getPage(1);

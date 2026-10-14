@@ -36,3 +36,19 @@ test('source previews do not transcribe images or scanned PDFs',async()=>{
   }
  } finally {await rm(dir,{recursive:true,force:true});}
 });
+
+test('PDFs without ToUnicode preserve Chinese through predefined Adobe CMaps', async () => {
+ const {PDFDocument, PDFName, PDFString} = await import('pdf-lib');
+ const pdf = await PDFDocument.create(), context = pdf.context;
+ // A real CID-font PDF, deliberately without ToUnicode; no personal source data.
+ const descriptor = context.register(context.obj({Type:'FontDescriptor', FontName:'STSong-Light', Flags:6, FontBBox:[-25,-254,1000,880], ItalicAngle:0, Ascent:880, Descent:-120, CapHeight:880, StemV:80}));
+ const cid = context.register(context.obj({Type:'Font', Subtype:'CIDFontType0', BaseFont:'STSong-Light', CIDSystemInfo:{Registry:PDFString.of('Adobe'), Ordering:PDFString.of('GB1'), Supplement:4}, DW:1000, FontDescriptor:descriptor}));
+ const font = context.register(context.obj({Type:'Font', Subtype:'Type0', BaseFont:'STSong-Light', Encoding:'UniGB-UCS2-H', DescendantFonts:[cid]}));
+ const page = pdf.addPage([600,200]);
+ page.node.set(PDFName.of('Resources'), context.obj({Font:{F1:font}}));
+ const expected = '计算机科学 全栈开发工程师 一等奖';
+ const hex = Array.from(expected, char => char.charCodeAt(0).toString(16).padStart(4,'0')).join('');
+ page.node.set(PDFName.of('Contents'), context.register(context.flateStream(`BT /F1 18 Tf 30 100 Td <${hex}> Tj ET`)));
+ const result = await readDocument({name:'chinese-cid.pdf', bytes:await pdf.save()}, 0, false);
+ for (const phrase of expected.split(' ')) assert.ok(result.text.includes(phrase), `Missing Chinese text: ${phrase}`);
+});
