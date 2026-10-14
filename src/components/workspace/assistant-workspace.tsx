@@ -175,7 +175,7 @@ export function AssistantWorkspace({
   const [submittedJob, setSubmittedJob] = useState<Job | null>(null);
   const seedJob = submittedJob && (!query.data?.job || submittedJob.created_at > query.data.job.created_at || (submittedJob.id === query.data.job.id && Date.parse(submittedJob.updated_at) >= Date.parse(query.data.job.updated_at))) ? submittedJob : query.data?.job;
   const {job, disconnected, freeze, unfreeze} = useTurnStream(seedJob, query.refresh);
-  useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.status === "done") window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
+  useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.id) window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = isTurnRunning(job);
   const displayedMessages = conversationTurnView({messages: query.data?.messages || [], job, sending, pendingKey: pendingReplyKey, conversationId, optimistic});
   const hasAgreement = query.data?.messages.some(message => ((message.metadata as AssistantMeta).schedules?.length || (message.metadata as AssistantMeta).reminders?.length || (message.metadata as AssistantMeta).question?.status === "waiting"));

@@ -164,6 +164,21 @@
   background: var(--ws-selected);
   color: var(--ws-green);
 }
+.ws-sidebar-conversation-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+.ws-sidebar-conversation-title strong {
+  flex: 1;
+}
+.ws-sidebar-conversation-running {
+  display: inline-flex;
+  flex: none;
+  color: var(--ws-green);
+}
 .ws-sidebar-conversation-list strong {
   display: -webkit-box;
   -webkit-line-clamp: 2;

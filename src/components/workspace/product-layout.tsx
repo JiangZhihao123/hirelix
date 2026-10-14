@@ -83,11 +83,16 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
   const conversations = useQuery<{ conversations: Conversation[] }>(
     user ? "/conversations" : null,
   );
+  const hasRunningConversation = conversations.data?.conversations.some(item => item.running) ?? false;
   useEffect(() => {
     if (!user) return;
-    const timer = setInterval(conversations.refresh, 15000);
-    return () => clearInterval(timer);
-  }, [user, conversations.refresh]);
+    const timer = setInterval(conversations.refresh, hasRunningConversation ? 3000 : 15000);
+    window.addEventListener("focus", conversations.refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", conversations.refresh);
+    };
+  }, [user, conversations.refresh, hasRunningConversation]);
   useEffect(() => {
     const id = searchParams.get("conversation");
     if (pathname === "/app" && id && conversations.data?.conversations.some(item => item.id === id && item.unread)) {
@@ -338,7 +343,14 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                     }
                     title={conversation.title}
                   >
-                    <strong>{conversation.title}{conversation.unread && <span className="ws-unread-dot" aria-label={t("Unread result")}> •</span>}</strong>
+                    <span className="ws-sidebar-conversation-title">
+                      <strong>{conversation.title}{conversation.unread && <span className="ws-unread-dot" aria-label={t("Unread result")}> •</span>}</strong>
+                      {conversation.running && (
+                        <span className="ws-sidebar-conversation-running" role="status" aria-label={t("In progress")} title={t("In progress")}>
+                          <Loader2 size={14} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                        </span>
+                      )}
+                    </span>
                     <small><time dateTime={conversation.updated_at}>{date(conversation.updated_at, true)}</time></small>
                   </Link>
                 ))}

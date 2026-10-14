@@ -77,7 +77,13 @@ export type AssistantMeta = {
 };
 export async function listConversations(userId: string) {
   return rows<Conversation>(
-    sql`SELECT c.*,EXISTS(SELECT 1 FROM hirelix_private_notifications n WHERE n.user_id=c.user_id AND n.read_at IS NULL AND n.href='/app?conversation='||c.id::text) AS unread FROM hirelix_private_conversations c WHERE c.user_id=${userId}::uuid ORDER BY c.updated_at DESC,c.id LIMIT 100`,
+    sql`SELECT c.*,
+      EXISTS(SELECT 1 FROM hirelix_private_notifications n WHERE n.user_id=c.user_id AND n.read_at IS NULL AND n.href='/app?conversation='||c.id::text) AS unread,
+      EXISTS(SELECT 1 FROM hirelix_private_jobs j WHERE j.user_id=c.user_id
+        AND j.payload->>'conversation_id'=c.id::text AND j.kind IN ('chat','deliverable')
+        AND j.status IN ('queued','running')) AS running
+      FROM hirelix_private_conversations c WHERE c.user_id=${userId}::uuid
+      ORDER BY c.updated_at DESC,c.id LIMIT 100`,
   );
 }
 export type ConversationSearchResult = Conversation & {
