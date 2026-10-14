@@ -52,6 +52,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
   const metadata = message.metadata as AssistantMeta;
   const showReceipts = !isTurnRunning(activeJob);
   const parts = turnParts(activeJob?.result ?? message.metadata);
+  const prose = parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : activeJob ? String(activeJob.result?.live_reply || "") : message.content;
   const displayedSources = new Set(parts.flatMap(part => part.type === "tool" ? (part.sources || []).map(source => source.href) : []));
   if (metadata.exports) displayedSources.add(`/app/submissions/${metadata.exports.document_id}`);
   metadata.document_edits?.forEach(document => displayedSources.add(document.href));
@@ -91,8 +92,8 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       onSource({title: label || source?.title || t("View result"), href});
                       return true;
                     }} />}
-                    <div className="ws-message-prose" hidden={message.role === "user" && !message.content.trim()}>
-                      <AgentText content={parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : activeJob ? String(activeJob.result?.live_reply || "") : message.content} onOpenLink={(href, label) => {
+                    {!!prose.trim() && <div className="ws-message-prose">
+                      <AgentText content={prose} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (source) { if (!source.href.startsWith("/")) return false; onSource(source); return true; }
                         // A saved document may be cited from earlier conversation
@@ -103,7 +104,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                         onSource({ title: label || t("Saved document"), href: url.pathname }); return true;
                       }} />
 
-                    </div>
+                    </div>}
                     {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
                     {showReceipts && <>
                     {messageImportJobs(message.metadata).map((jobId) => (
