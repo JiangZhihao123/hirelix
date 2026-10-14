@@ -663,14 +663,16 @@ function CandidateDetails({
         </>
       )}
       {(tab === "records" || tab === "sources") && (
-        <>
-          {tab === "records" && <div className="ws-actions mt-5 mb-3">
+        <section className="ws-candidate-records">
+          <div className="ws-candidate-records-intro">
+          <p>{t(tab === "sources" ? "Original resumes and profile sources. Open a file to check the evidence." : "Calls, messages, interview notes and feedback about this candidate.")}</p>
+          {tab === "records" && <div className="ws-actions">
             <button className="ws-button" onClick={() => ask(locale === "zh" ? `记录与 ${person.name} 的沟通：\n` : `Record my conversation with ${person.name}:\n`)}>
               <Plus size={14} />
               {t("Add record")}
             </button>
           </div>}
-          <p className="ws-muted text-sm mt-4">{t(tab === "sources" ? "Original resumes and profile sources. Open a file to check the evidence." : "Calls, messages, interview notes and feedback about this candidate.")}</p>
+          </div>
           {visibleRecords.length ? (
             visibleRecords.map((item) => (
               <article
@@ -734,7 +736,7 @@ function CandidateDetails({
               </p>
             </div>
           )}
-        </>
+        </section>
       )}
       {tab === "roles" && (
         <>

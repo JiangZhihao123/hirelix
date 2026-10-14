@@ -648,6 +648,15 @@
   font-size: 11px;
   color: var(--ws-muted);
 }
+.ws-candidate-records { display: flex; flex-direction: column; gap: 16px; margin-top: 22px; }
+.ws-candidate-records-intro { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; }
+.ws-candidate-records-intro > p { margin: 0; color: var(--ws-muted); font-size: 13px; line-height: 1.7; }
+.ws-candidate-records > .ws-record { margin: 0; padding: 18px 20px; border: 1px solid #e3e7df; border-radius: 10px; scroll-margin-top: 20px; }
+.ws-candidate-records > .ws-record:target,
+.ws-candidate-records > .ws-record[data-highlight="true"] { outline: none; background: #f8f8f2; border-color: #d9dfcd; }
+.ws-candidate-records .ws-record h4 { margin: 0; line-height: 1.6; }
+.ws-candidate-records .ws-record > small { display: block; margin-top: 8px; line-height: 1.6; }
+.ws-candidate-records .ws-record p { margin-top: 14px; }
 .ws-inline-meta {
   display: flex;
   align-items: center;
