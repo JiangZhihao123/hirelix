@@ -990,7 +990,7 @@
   margin-top: 10px;
 }
 .ws-role-grid {
-  padding: 0 32px 32px;
+  padding: 0 0 32px;
 }
 .ws-role-row,
 .ws-role-table-head {
@@ -998,7 +998,7 @@
   grid-template-columns: minmax(200px, 1fr) 140px 110px 100px;
   gap: 20px;
   border-bottom: 1px solid var(--ws-line);
-  padding: 20px 0;
+  padding: 20px 32px;
   align-items: center;
 }
 .ws-role-row h2 {
@@ -1044,6 +1044,8 @@
   .ws-role-table-head {
     grid-template-columns: minmax(0, 1fr) 110px 90px 75px;
     gap: 14px;
+    padding-left: 18px;
+    padding-right: 18px;
   }
   .ws-table-head,
   .ws-person-row {
@@ -1105,7 +1107,7 @@
     padding: 20px;
   }
   .ws-role-grid {
-    padding: 0 20px 24px;
+    padding: 0 0 24px;
   }
 }
 @media (max-width: 620px) {
@@ -2446,7 +2448,7 @@
 .ws-inspector .ws-section { padding: 22px 0; }
 .ws-inspector > .ws-inspector-heading { gap: 20px; flex-wrap: wrap; }
 .ws-person-identity strong { overflow-wrap: anywhere; }
-.ws-role-table-head { padding-top: 12px; padding-bottom: 12px; color: var(--ws-muted); font-size: 12px; background: #f8f9f6; }
+.ws-role-table-head { padding-top: 12px; padding-bottom: 12px; color: var(--ws-muted); font-size: 11px; }
 .ws-role-row:hover { background: #f7f9f5; }
 .ws-role-row:focus-visible { outline-offset: -2px; }
 .ws-search:focus-within { border-color: #729382; box-shadow: 0 0 0 2px #2d554612; }
@@ -2464,7 +2466,7 @@
   .ws-filters input { flex: 1 1 90px; width: 90px; }
   .ws-count { width: auto; margin-left: auto; }
   .ws-role-table-head { display: none; }
-  .ws-role-row { padding: 16px 0; }
+  .ws-role-row { padding: 16px 20px; }
   .ws-submissions-grid .ws-role-row { grid-template-columns: minmax(0, 1fr) auto; }
   .ws-topbar-task span { display: none; }
   .ws-inspector { padding: 20px; }
