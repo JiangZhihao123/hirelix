@@ -3,6 +3,7 @@
 import { useEffect, useState, type KeyboardEvent, type RefObject } from "react";
 import { UserRound, X } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
+import { ComposerReference } from "./composer-reference";
 import { api } from "./client";
 import { candidateMentionAt, candidateReferences, type CandidateReference } from "@/lib/workspace/candidate-references";
 
@@ -75,10 +76,10 @@ export function useCandidateMentions(storageKey: string, composer: RefObject<HTM
       <UserRound size={16} /><span><strong>{person.name}</strong><small>{[person.headline, person.location].filter(Boolean).join(" · ")}</small></span>
     </button>)}
   </div>;
-  const tags = !!references.length && <div className="ws-composer-context-tags">{references.map(person => <span className="ws-composer-context-tag" key={person.id}><UserRound size={13} />{person.name}<button type="button" aria-label={`${t("Remove candidate reference")}: ${person.name}`} onClick={() => {
+  const tags = !!references.length && <div className="ws-composer-context-tags">{references.map(person => <ComposerReference key={person.id} kind="candidate" name={person.name} removeLabel={`${t("Remove candidate reference")}: ${person.name}`} onRemove={() => {
     setStored({ key, references: references.filter(item => item.id !== person.id) });
     setDraft((composer.current?.value || "").replace(`@${person.name}`, person.name));
     composer.current?.focus();
-  }}><X size={13} /></button></span>)}</div>;
+  }} />)}</div>;
   return { references, picker, tags, update, onKeyDown, open: !!token, selectedId: token && matches[selected] ? `candidate-mention-${selected}` : undefined, clear: () => { setStored({ key, references: [] }); setToken(null); localStorage.removeItem(key); } };
 }

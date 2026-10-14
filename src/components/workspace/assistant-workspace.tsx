@@ -1,6 +1,7 @@
 "use client";
 
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
+import { ComposerReference } from "./composer-reference";
 import { ConversationContext } from "./conversation-context";
 import { useCandidateMentions } from "./candidate-mentions";
 import { conversationTurnView } from "./conversation-turn-view";
@@ -23,7 +24,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUp,
   Square,
-  BriefcaseBusiness,
   ArrowUpRight,
   Paperclip,
   Check,
@@ -768,43 +768,8 @@ export function AssistantWorkspace({
             {!sending && attachments.some(item => attachmentError(item.file.name, item.file.size)) && <p className="ws-attachment-error" role="status">{t("Remove the unsupported or oversized file to send the remaining message.")}</p>}
             {!conversationId && (roleId || linkedPersonId) && (
               <div className="ws-composer-context-tags">
-                {roleId && (
-                  <span className="ws-composer-context-tag">
-                    <BriefcaseBusiness size={13} />
-                    <span
-                      title={
-                        activeRole
-                          ? `${activeRole.client_name} · ${activeRole.title}`
-                          : t("Role")
-                      }
-                    >
-                      {activeRole
-                        ? `${activeRole.client_name} · ${activeRole.title}`
-                        : t("Role")}
-                    </span>
-                    {!documentId && <button
-                      type="button"
-                      aria-label={t("Remove role from conversation")}
-                      onClick={() => removeNewConversationContext("role")}
-                    >
-                      <X size={13} />
-                    </button>}
-                  </span>
-                )}
-                {linkedPersonId && (
-                  <span className="ws-composer-context-tag">
-                    <span title={person.data?.person.name || t("Candidate")}>
-                      {person.data?.person.name || t("Candidate")}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={t("Remove candidate from conversation")}
-                      onClick={() => removeNewConversationContext("person")}
-                    >
-                      <X size={13} />
-                    </button>
-                  </span>
-                )}
+                {roleId && <ComposerReference kind="role" name={activeRole ? `${activeRole.client_name} · ${activeRole.title}` : t("Role")} removeLabel={t("Remove role from conversation")} onRemove={documentId ? undefined : () => removeNewConversationContext("role")} />}
+                {linkedPersonId && <ComposerReference kind="candidate" name={person.data?.person.name || t("Candidate")} removeLabel={t("Remove candidate from conversation")} onRemove={() => removeNewConversationContext("person")} />}
               </div>
             )}
 

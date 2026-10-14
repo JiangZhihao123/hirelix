@@ -1676,6 +1676,16 @@
 .ws-composer-context-tag button:hover {
   background: #dbe9d9;
 }
+.ws-composer-reference { display: inline-flex; align-items: center; gap: 9px; max-width: min(100%, 360px); min-width: 0; padding: 8px 9px; border: 1px solid #dce6de; border-radius: 11px; background: #f7faf7; color: #345c4b; }
+.ws-composer-reference-role { border-color: #dde3ed; background: #f7f9fc; color: #4e6489; }
+.ws-composer-reference-icon { display: flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; border-radius: 9px; background: #e7efe8; }
+.ws-composer-reference-role .ws-composer-reference-icon { background: #e9eef6; }
+.ws-composer-reference-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-composer-reference-text small { font-size: 10px; line-height: 14px; opacity: .8; }
+.ws-composer-reference-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 18px; font-weight: 500; color: #293b32; }
+.ws-composer-reference > button { display: flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; margin-left: 3px; border-radius: 6px; color: #849087; cursor: pointer; }
+.ws-composer-reference > button:hover { background: #e8eee8; color: #345c4b; }
+.ws-composer-reference > button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .ws-chat-attachment {
   display: flex;
   align-items: center;
