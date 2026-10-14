@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
+import { renderPdfDocument } from "./document-pdf";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { owned, expectVersion } from "./database";
 import type { Deliverable } from "./types";
@@ -91,120 +90,7 @@ export async function renderDocument(
     });
     return new Uint8Array(await Packer.toBuffer(doc));
   }
-  const pdf = await PDFDocument.create();
-  const latin = await pdf.embedFont(StandardFonts.Helvetica);
-  const needsCjk = paragraphs.some((block) =>
-    [...block.text].some((character) => {
-      try {
-        latin.encodeText(character);
-        return false;
-      } catch {
-        return true;
-      }
-    }),
-  );
-  let cjk: PDFFont | null = null;
-  if (needsCjk) {
-    fontBytes ??= readFile(
-      path.join(process.cwd(), "src/assets/fonts/NotoSansSC-Regular.ttf"),
-    );
-    pdf.registerFontkit(fontkit);
-    cjk = await pdf.embedFont(await fontBytes, { subset: false });
-  }
-  const fontCache = new Map<string, PDFFont>();
-  function fontFor(character: string) {
-    const cached = fontCache.get(character);
-    if (cached) return cached;
-    let selected = latin;
-    try {
-      latin.encodeText(character);
-    } catch {
-      if (!cjk) throw new Error(`The PDF font cannot encode ${character}`);
-      cjk.encodeText(character);
-      selected = cjk;
-    }
-    fontCache.set(character, selected);
-    return selected;
-  }
-  pdf.setTitle(title);
-  pdf.setCreator("Hirelix");
-  const width = 595.28,
-    height = 841.89,
-    margin = 54,
-    available = width - margin * 2;
-  let page = pdf.addPage([width, height]),
-    y = height - margin;
-  function newPage() {
-    page = pdf.addPage([width, height]);
-    y = height - margin;
-  }
-  for (const block of paragraphs) {
-    const size = block.level === 1 ? 19 : block.level === 2 ? 13 : 11;
-    const lineHeight = size * 1.55;
-    if (block.level && y < margin + lineHeight * 3) newPage();
-    const lines: string[] = [];
-    let line = "",
-      lineWidth = 0;
-    // Preserve words where possible; long URLs and CJK paragraphs still wrap without clipping.
-    for (const token of block.text.split(/(\s+)/)) {
-      const tokenWidth = [...token].reduce(
-        (width, character) =>
-          width + fontFor(character).widthOfTextAtSize(character, size),
-        0,
-      );
-      if (line.trim() && lineWidth + tokenWidth > available) {
-        lines.push(line.trimEnd());
-        line = "";
-        lineWidth = 0;
-      }
-      for (const char of token) {
-        if (!line && /\s/.test(char)) continue;
-        const width = fontFor(char).widthOfTextAtSize(char, size);
-        if (lineWidth + width > available && line.trim()) {
-          lines.push(line.trimEnd());
-          line = "";
-          lineWidth = 0;
-        }
-        line += char;
-        lineWidth += width;
-      }
-    }
-    if (line.trim()) lines.push(line.trimEnd());
-    // Keep a paragraph or list item together when it fits on one page.
-    // Otherwise a short trailing line can be stranded at the top of a page.
-    const blockHeight = lines.length * lineHeight;
-    if (blockHeight <= height - margin * 2 && y - blockHeight < margin) newPage();
-    for (const lineText of lines) {
-      if (y - lineHeight < margin) newPage();
-      y -= lineHeight;
-      let x = margin,
-        run = "",
-        runFont: PDFFont | null = null;
-      const drawRun = () => {
-        if (!run || !runFont) return;
-        page.drawText(run, {
-          x,
-          y,
-          size,
-          font: runFont,
-          color: rgb(0.14, 0.16, 0.14),
-        });
-        x += runFont.widthOfTextAtSize(run, size);
-      };
-      for (const character of lineText) {
-        const nextFont = fontFor(character);
-        if (runFont && nextFont !== runFont) {
-          drawRun();
-          run = "";
-        }
-        runFont = nextFont;
-        run += character;
-      }
-      drawRun();
-    }
-    y -= block.level ? 10 : 7;
-  }
-  return pdf.save();
+  return renderPdfDocument(title, content);
 }
 export async function exportDocument(
   userId: string,
