@@ -79,7 +79,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       sql`UPDATE hirelix_private_conversations SET role_id=coalesce(role_id,${role.id}::uuid),updated_at=now() WHERE user_id=${userId}::uuid AND id=${conversationId}::uuid`,
     );
   } else if (action.kind === "record_submission") {
-    const document = await markSubmitted(userId, z.uuid().parse(action.fields.document_id), action.fields, tx);
+    const document = await markSubmitted(userId, z.uuid().parse(action.fields.document_id), {...action.fields, request_key: action.id}, tx);
     action.href = document.kind === "submission" ? `/app/submissions/${document.id}` : `/app/roles/${document.role_id}/updates/${document.id}`;
   } else if (action.kind === "update_role_details") {
     const prior = await owned<Role>(userId, "role", z.uuid().parse(action.role_id), tx, true);

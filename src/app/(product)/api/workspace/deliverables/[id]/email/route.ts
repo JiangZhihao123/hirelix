@@ -18,6 +18,7 @@ export function POST(req: NextRequest, context: Context) {
       user.id,
       z.uuid().parse((await context.params).id),
       await readBody(req),
+      req.nextUrl.origin,
     ),
   );
 }

@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
+import { isDeepStrictEqual } from "node:util";
+import { clientDocument, clientDocumentSchema } from "./document-sharing";
 import {
   enqueue,
   owned,
@@ -405,6 +407,10 @@ export async function markSubmitted(
       expected_version: z.number().int().positive(),
       submitted_at: z.iso.datetime({ offset: true }),
       submission_note: z.string().trim().min(1).max(10000),
+      request_key: z.uuid().optional(),
+      channel: z.enum(["email", "link", "other"]).optional(),
+      share_id: z.uuid().optional(),
+      recipient: z.string().trim().min(1).max(320).optional(),
     })
     .parse(value);
   if (new Date(input.submitted_at) > new Date())
@@ -413,11 +419,23 @@ export async function markSubmitted(
     );
   const run = async (tx: Runner) => {
     const prior = await owned<Deliverable>(userId, "deliverable", id, tx, true);
-    if (prior.status === "submitted") return prior;
+    if (input.request_key) {
+      const [recorded] = await rows<SourceRecord>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${userId}::uuid AND details->>'deliverable_id'=${id} AND details->>'delivery_request_key'=${input.request_key}`, tx);
+      if (recorded) {
+        if (recorded.details.share_id !== input.share_id || recorded.details.recipient !== input.recipient || recorded.details.channel !== input.channel || recorded.content !== input.submission_note || new Date(recorded.occurred_at!).getTime() !== new Date(input.submitted_at).getTime())
+          throw new WorkspaceError("This delivery request belongs to another record", 409);
+        return prior;
+      }
+    } else if (prior.status === "submitted") return prior;
     if (prior.source_snapshot.audience === "internal")
       throw new WorkspaceError("Prepare client material before recording a client submission", 409);
     expectVersion(prior.version, input.expected_version);
-    const [document] = await rows<Deliverable>(
+    const [shared] = input.share_id ? await rows<{snapshot:{title:string;content:string;people:Array<{id:string;name:string}>;files:unknown[]};deliverable_version:number}>(sql`SELECT snapshot,deliverable_version FROM hirelix_private_document_shares WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid AND id=${input.share_id}::uuid`, tx) : [];
+    if (input.share_id && !shared) throw new WorkspaceError("This share link was not found", 404);
+    if (input.channel === "link" && !shared) throw new WorkspaceError("Choose the share link you actually sent");
+    const deliveredSnapshot = shared?.snapshot || {title:prior.title,content:prior.content,people:prior.source_snapshot.people || [],files:prior.source_snapshot.files || []};
+    const sameCopy = !shared || isDeepStrictEqual(clientDocumentSchema.parse(shared.snapshot), clientDocument(prior));
+    const [document] = prior.status === "submitted" || !sameCopy ? [prior] : await rows<Deliverable>(
       sql`UPDATE hirelix_private_deliverables SET status='submitted',submitted_at=${input.submitted_at}::timestamptz,submission_note=${input.submission_note},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`,
       tx,
     );
@@ -433,7 +451,14 @@ export async function markSubmitted(
             : "Search update delivery recorded",
         content: input.submission_note,
         occurred_at: input.submitted_at,
-        details: { deliverable_id: id, deliverable_version: document.version },
+        details: {
+          deliverable_id: id, deliverable_version: shared?.deliverable_version || prior.version,
+          person_ids: shared ? shared.snapshot.people.map(p => p.id) : prior.person_ids,
+          share_id: input.share_id,
+          delivery_request_key: input.request_key,
+          channel: input.channel, recipient: input.recipient,
+          delivery_snapshot: deliveredSnapshot,
+        },
       },
       tx,
     );

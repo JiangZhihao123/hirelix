@@ -5,7 +5,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db/client";
 import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from "./database";
-import { clientDocument, assertSharingAllowed } from "./document-sharing";
+import { clientDocument, assertSharingAllowed, activeDocumentShare } from "./document-sharing";
 import { readFile } from "./files";
 import { markSubmitted } from "./deliverables";
 import { emailSnapshotSchema, type EmailSnapshot } from "./email-contract";
@@ -15,6 +15,7 @@ export const sendRecommendationInput = z.object({
   expected_version: z.number().int().positive(),
   to: z.email().max(320),
   request_key: z.uuid(),
+  share_id: z.uuid().nullable().optional(),
 });
 export type Receipt = {
   id: string;
@@ -82,13 +83,24 @@ export async function emailReceipts(userId: string, id: string) {
     error: string | null;
     created_at: string;
   }>(
-    sql`SELECT id,deliverable_version,(snapshot->>'title'=(SELECT title FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid) AND snapshot->>'content'=(SELECT content FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid)) AS current_copy,CASE WHEN status='sending' AND created_at<now()-interval '2 minutes' THEN 'unknown' ELSE status END AS status,snapshot->>'to' AS recipient,error,created_at FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid ORDER BY created_at DESC LIMIT 10`,
+    sql`SELECT id,deliverable_version,(snapshot->>'title'=(SELECT title FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid) AND coalesce(snapshot->>'document_content',snapshot->>'content')=(SELECT content FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid)) AS current_copy,CASE WHEN status='sending' AND created_at<now()-interval '2 minutes' THEN 'unknown' ELSE status END AS status,snapshot->>'to' AS recipient,error,created_at FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid ORDER BY created_at DESC LIMIT 10`,
   );
 }
+async function recommendationEmail(userId: string, document: Deliverable, shareId: string | null | undefined, origin: string, runner?: Runner) {
+  const reviewed = clientDocument(document);
+  if (!shareId) return reviewed;
+  const share = await activeDocumentShare(userId, document.id, runner);
+  if (!share || share.id !== shareId || !share.current_copy)
+    throw new WorkspaceError("Publish the current version before including its link", 409);
+  const url = new URL(share.path, origin).href;
+  return {...reviewed, document_content: reviewed.content, content: `${reviewed.content}\n\n${reviewed.language === "zh" ? "查看推荐与提交反馈" : "View recommendation and share feedback"}: ${url}`, share_id: share.id};
+}
+
 export async function sendRecommendation(
   userId: string,
   id: string,
   value: unknown,
+  origin = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
 ) {
   const input = sendRecommendationInput.parse(value);
   const [prior] = await rows<Receipt>(
@@ -98,7 +110,8 @@ export async function sendRecommendation(
     if (
       prior.deliverable_id !== id ||
       prior.deliverable_version !== input.expected_version ||
-      prior.snapshot.to !== input.to
+      prior.snapshot.to !== input.to ||
+      (prior.snapshot.share_id || null) !== (input.share_id || null)
     )
       throw new WorkspaceError(
         "This send request belongs to another email",
@@ -111,7 +124,7 @@ export async function sendRecommendation(
     throw new WorkspaceError("Connect Gmail before sending", 409);
   const document = await owned<Deliverable>(userId, "deliverable", id);
   expectVersion(document.version, input.expected_version);
-  const reviewed = clientDocument(document);
+  const reviewed = await recommendationEmail(userId, document, input.share_id, origin);
   await assertSharingAllowed(userId, document.role_id, reviewed);
   const snapshot = { ...reviewed, from: connection.email!, to: input.to, document_id: id, document_version: input.expected_version };
   const { mime, messageId, accessToken } = await composeGmail(userId, snapshot);
@@ -121,6 +134,7 @@ export async function sendRecommendation(
     input,
     connection.email!,
     messageId,
+    origin,
   );
   if (!claimed.send)
     return { receipt: claimed.receipt.id, status: claimed.receipt.status };
@@ -145,6 +159,7 @@ export async function reserveEmailDelivery(
   value: unknown,
   from: string,
   messageId: string,
+  origin = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
 ) {
   const input = sendRecommendationInput.parse(value);
   return db.transaction(async (tx) => {
@@ -156,7 +171,7 @@ export async function reserveEmailDelivery(
       true,
     );
     expectVersion(current.version, input.expected_version);
-    const reviewed = clientDocument(current);
+    const reviewed = await recommendationEmail(userId, current, input.share_id, origin, tx);
     await assertSharingAllowed(userId, current.role_id, reviewed, tx);
     const fingerprint = createHash("sha256")
       .update(

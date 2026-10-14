@@ -25,6 +25,7 @@ import {
   useQuery,
 } from "@/components/workspace/client";
 import { RoleForm, RecordForm } from "@/components/workspace/forms";
+import { RoleRecommendations } from "@/components/workspace/role-recommendations";
 import { ScheduledDrafts } from "@/components/workspace/schedule";
 import { History } from "@/components/workspace/history";
 import { AgentText } from "@/components/AgentText";
@@ -199,7 +200,7 @@ export default function RolePage({
             ["brief", "Brief"],
             ["candidates", `${t("Candidates")} (${people.length})`],
             ["activity", "Activity"],
-            ["submissions", "Submissions"],
+            ["submissions", "Recommendations"],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -237,7 +238,7 @@ export default function RolePage({
           {t("The role or candidate changed during the assessment. Review the changes and run it again.")}
         </div>
       )}
-      <div className="ws-role-body">
+      <div className={`ws-role-body${tab === "submissions" ? " ws-role-body-recommendations" : ""}`}>
         <section>
           {tab === "brief" && (
             <>
@@ -456,45 +457,9 @@ export default function RolePage({
               ))}
             </>
           )}
-          {tab === "submissions" && (
-            <>
-              <div className="ws-actions mt-5">
-                <Link
-                  className="ws-button"
-                  href={`/app?role=${id}&prompt=${encodeURIComponent(locale === "zh" ? "请帮我为这个职位准备候选人推荐稿。" : "Help me prepare candidate recommendations for this role.")}`}
-                >
-                  <Plus size={14} />
-                  {t("Prepare candidate submission")}
-                </Link>
-              </div>
-              {submissions.length ? (
-                submissions.map((item) => (
-                  <Link
-                    className="ws-detail-link"
-                    key={item.id}
-                    href={`/app/submissions/${item.id}`}
-                  >
-                    <strong>{item.title}</strong>
-                    <small>
-                      {item.status === "draft"
-                        ? t("Draft")
-                        : `${t("Submitted")} ${date(item.submitted_at)}`}{" "}
-                      {t("· Updated")} {date(item.updated_at)}
-                    </small>
-                  </Link>
-                ))
-              ) : (
-                <div className="ws-empty">
-                  <h2>{t("No candidate submissions yet.")}</h2>
-                  <p>
-                    {t("Choose the people you want to introduce. Drafting and exporting are kept separate from recording an actual submission.")}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
+          {tab === "submissions" && <RoleRecommendations roleId={id} />}
         </section>
-        <aside className="ws-role-context">
+        {tab !== "submissions" && <aside className="ws-role-context">
           <section className="ws-section">
             <h3>{t("Next to clarify")}</h3>
             {role.brief.unknowns?.filter(Boolean).length ? (
@@ -588,7 +553,7 @@ export default function RolePage({
           >
             {t("Ask about this role")} <ArrowUpRight size={14} />
           </Link>
-        </aside>
+        </aside>}
       </div>
       {edit && (
         <RoleForm

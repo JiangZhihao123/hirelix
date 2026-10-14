@@ -2871,3 +2871,63 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-decision-letter { font-size: 13px; color: #567463; }
 .ws-decision-content { flex: 1; min-width: 0; }
 .ws-decision-badge { margin-left: 10px; color: #35654b; font-size: 12px; }
+
+/* Role-based recommendations share the role's identity and business records. */
+.ws-recommendation-grid .ws-role-table-head,
+.ws-recommendation-grid .ws-role-row { grid-template-columns: minmax(240px, 1.5fr) 120px minmax(200px, 1fr) 150px; }
+.ws-rec-feedback { display: grid; gap: 7px; font-size: 13px; }
+.ws-rec-feedback small, .ws-rec-event small, .ws-rec-person small, .ws-rec-material small { display: block; color: var(--ws-muted); font-size: 12px; font-weight: 400; line-height: 1.6; margin-top: 5px; }
+.ws-rec-role-picker { padding: 16px 24px 24px; max-height: 60vh; overflow: auto; }
+.ws-rec-role-picker .ws-detail-link { display: flex; align-items: center; gap: 14px; }
+.ws-rec-role-picker .ws-detail-link div { flex: 1; }
+.ws-role-body.ws-role-body-recommendations { display: block; }
+.ws-role-recommendations { padding-top: 22px; }
+.ws-role-recommendations > header, .ws-recommendation-delivery > header { display: flex; gap: 20px; align-items: center; justify-content: space-between; }
+.ws-role-recommendations h2, .ws-recommendation-delivery h2 { font-size: 17px; font-weight: 600; }
+.ws-role-recommendations > header p { margin-top: 8px; font-size: 13px; }
+.ws-rec-tabs { display: flex; align-items: center; gap: 8px; margin: 24px 0 12px; }
+.ws-rec-tabs button { display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; padding: 9px 14px; color: var(--ws-muted); font-size: 13px; }
+.ws-rec-tabs button[aria-selected="true"] { background: #eaf0eb; color: var(--ws-green); font-weight: 600; }
+.ws-rec-person, .ws-rec-event { border-bottom: 1px solid var(--ws-line); }
+.ws-rec-person > summary { display: flex; align-items: center; gap: 16px; padding: 23px 0; cursor: pointer; list-style: none; font-size: 13px; }
+.ws-rec-person > summary::after, .ws-rec-event > summary::after { content: '›'; color: var(--ws-muted); font-size: 20px; }
+.ws-rec-person[open] > summary::after, .ws-rec-event[open] > summary::after { transform: rotate(90deg); }
+.ws-rec-avatar, .ws-rec-document-people > a > span { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: #eaf0eb; color: #476153; }
+.ws-rec-person-name { flex: 1; min-width: 0; }
+.ws-rec-person-name strong { font-size: 15px; }
+.ws-rec-person-status { max-width: 220px; color: #4c6557; }
+.ws-rec-person-body { padding: 4px 24px 24px 56px; }
+.ws-rec-feedback-entry { margin: 18px 0; border-left: 2px solid #b8cbb9; padding: 0 16px; font-size: 13px; line-height: 1.8; }
+.ws-rec-feedback-entry small { display: block; color: var(--ws-muted); }
+.ws-rec-feedback-entry p { margin-top: 8px; white-space: pre-wrap; }
+.ws-rec-event > summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 0; cursor: pointer; list-style: none; font-size: 13px; }
+.ws-rec-event > summary > span:first-child { flex: 1; min-width: 0; }
+.ws-rec-event-body { border-radius: 10px; background: #f7f9f6; padding: 22px; margin-bottom: 20px; font-size: 14px; line-height: 1.8; }
+.ws-rec-event-body > .ws-link { display: flex; margin-top: 12px; }
+.ws-rec-material { display: flex; gap: 18px; align-items: center; padding: 22px 0; border-bottom: 1px solid var(--ws-line); font-size: 14px; }
+.ws-rec-material > span:first-of-type { flex: 1; }
+.ws-rec-material-links { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 20px; }
+.ws-rec-document-people { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 24px; }
+.ws-rec-document-people a { display: flex; gap: 10px; align-items: center; padding: 10px 16px 10px 10px; border: 1px solid var(--ws-line); border-radius: 12px; }
+.ws-rec-document-people small { display: block; color: var(--ws-muted); font-size: 11px; }
+.ws-rec-document-people strong { font-size: 13px; }
+.ws-recommendation-delivery { margin: 28px 0; border: 1px solid var(--ws-line); border-radius: 14px; overflow: hidden; }
+.ws-recommendation-delivery > header { padding: 24px; background: #f8faf7; border-bottom: 1px solid var(--ws-line); }
+.ws-recommendation-delivery > header p { color: var(--ws-muted); font-size: 13px; line-height: 1.8; margin-top: 6px; }
+.ws-recommendation-delivery .ws-delivery { overflow: visible; }
+.ws-rec-checkbox { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.private-workspace .ws-rec-checkbox input { width: 16px; height: 16px; accent-color: #305846; }
+.ws-rec-email-preview { border: 1px solid var(--ws-line); border-radius: 10px; padding: 24px; max-height: 380px; overflow: auto; font-size: 14px; line-height: 1.8; background: #fff; }
+.ws-delivery .ws-rec-external { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--ws-line); padding-top: 22px; }
+.ws-rec-external h3 { font-size: 14px; font-weight: 600; }
+.ws-rec-external p { margin-top: 6px; color: var(--ws-muted); }
+.ws-rec-record-form { display: grid; gap: 18px; padding: 20px; background: #f8faf7; border-radius: 10px; }
+.ws-rec-fields { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 16px; }
+@media(max-width:1000px) {
+ .ws-recommendation-grid .ws-role-table-head, .ws-recommendation-grid .ws-role-row { grid-template-columns: minmax(190px, 1.5fr) 90px minmax(150px, 1fr) 110px; }
+ .ws-role-recommendations > header, .ws-recommendation-delivery > header { flex-wrap: wrap; }
+ .ws-rec-fields { grid-template-columns: 1fr; }
+}
+.ws-recommendation-delivery { scroll-margin-top: 24px; }
+.ws-rec-document-people { margin-left: 32px; margin-right: 32px; }
+.ws-recommendation-delivery { margin-left: 32px; margin-right: 32px; }

@@ -1,3 +1,4 @@
+import { recommendations } from "./recommendations";
 import { searchWeb } from "./web-search";
 import { tool } from "ai";
 import { recordEvidence, reminderEvidence } from "./agent-evidence";
@@ -436,6 +437,7 @@ export function createAgentTools(ctx: AgentToolContext) {
       z.object({ id: z.uuid() }),
       async (input) => {
         const result = await roleDetails(userId, input.id);
+        const recommendation = (await recommendations(userId, input.id)).roles[0];
         cite(
           `${result.role.client_name} · ${result.role.title}`,
           `/app/roles/${input.id}`,
@@ -446,6 +448,12 @@ export function createAgentTools(ctx: AgentToolContext) {
           ...await recordEvidence(userId, result.records.filter(record => record.kind !== "jd")),
           original_requirements: result.records.filter(record => record.kind === "jd").map(record => ({ id: record.id, title: record.title, version: record.version, file_id: record.file_id })),
           report_schedule: result.schedule,
+          recommendations: {
+            recommended_people: recommendation.recommended_count,
+            delivery_history: recommendation.events.slice(0, 50).map(({snapshot, ...event}) => ({...event, title: snapshot.title})),
+            history_count: recommendation.events.length,
+            href: `/app/roles/${input.id}?tab=submissions`,
+          },
           deliverables: result.deliverables.map((document) => ({
             id: document.id,
             title: document.title,
@@ -1085,6 +1093,9 @@ export function createAgentTools(ctx: AgentToolContext) {
         expected_version: z.number().int().positive(),
         submitted_at: z.iso.datetime({ offset: true }),
         submission_note: z.string().min(1).max(10000),
+        channel: z.enum(["email", "link", "other"]).default("other"),
+        recipient: z.string().trim().min(1).max(320).optional().describe("Actual recipient name or email, only if supplied; email is not required."),
+        share_id: z.uuid().optional().describe("Required for channel=link: ID of the actual saved share, obtained from read_document."),
       }),
       (input) =>
         mutate(

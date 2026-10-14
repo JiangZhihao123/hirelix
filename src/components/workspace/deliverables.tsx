@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -47,7 +46,6 @@ export function DocumentPage({ id }: { id: string }) {
 function DocumentEditor({ initial }: { initial: Deliverable }) {
   const t = useT();
   const { locale } = useLanguage();
-  const router = useRouter();
   const [document, setDocument] = useState(initial),
     [title, setTitle] = useState(initial.title),
     [content, setContent] = useState(initial.content),
@@ -201,7 +199,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             href={
               document.kind === "search_update"
                 ? `/app/roles/${document.role_id}`
-                : "/app/submissions"
+                : `/app/roles/${document.role_id}?tab=submissions`
             }
           >
             <ArrowLeft size={14} />
@@ -232,7 +230,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                     ? t("Unsaved changes")
                     : t("Saved")}
           </span>
-          {(["pdf", "docx"] as const).map((format) => (
+          {(document.kind !== "submission" || internalReview) && (["pdf", "docx"] as const).map((format) => (
             <button
               key={format}
               className="ws-button"
@@ -247,9 +245,8 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               {preview ? t("Edit draft") : internalReview ? t("Document preview") : t("Client preview")}
             </button>
           )}
-          {document.kind === "submission" && !internalReview ? (
-            <RecommendationDelivery document={document} disabled={dirty || saving || !!recovery} />
-          ) : document.kind === "submission" ? (
+          {document.kind === "submission" && !internalReview && <a className="ws-button ws-button-primary" href="#recommendation-delivery">{locale === "zh" ? "交付推荐" : "Deliver recommendation"}<ArrowUpRight size={14}/></a>}
+          {document.kind === "submission" && internalReview ? (
             <>
               <button
                 className="ws-button"
@@ -272,7 +269,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 {copied === "body" ? t("Body copied") : t("Copy body")}
               </button>
             </>
-          ) : (
+          ) : document.kind !== "submission" ? (
             <button
               className="ws-button"
               onClick={() =>
@@ -282,7 +279,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
               {copied === "document" ? <Check size={14} /> : <Copy size={14} />}
               {copied === "document" ? t("Copied") : t("Copy text")}
             </button>
-          )}
+          ) : null}
         </div>
       </header>
       <ErrorNotice
@@ -313,6 +310,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           </button>
         </div>
       )}
+      {document.kind === "submission" && !internalReview && <div className="ws-rec-document-people">{source.people?.map(person => <Link key={person.id} href={`/app/candidates?person=${person.id}`}><span>{person.name.slice(0,1)}</span><div><small>{locale === "zh" ? "候选人" : "Candidate"}</small><strong>{person.name}</strong></div></Link>)}</div>}
       <div className="ws-document-layout">
         <article className="ws-paper">
           {preview || readOnly || recovery ? (
@@ -376,15 +374,6 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                   ? t("For internal review. Use the assistant to prepare client material before recording a client submission. Unknown facts and sharing permission still need confirmation.")
                   : t("Check wording, facts and permission before you share. Copying this draft does not mark it submitted.")}
             </p>
-            {!readOnly && !internalReview && (
-              <button
-                className="ws-button mt-4"
-                disabled={dirty || saving}
-                onClick={() => router.push(`/app?document=${document.id}&role=${document.role_id}&prompt=${encodeURIComponent(locale === "zh" ? "帮我记录这份材料在 Hirelix 之外的实际交付。" : "Help me record the actual delivery of this document outside Hirelix.")}`)}
-              >
-                {t("Record actual submission")}
-              </button>
-            )}
           </section>
           <DocumentAttachments document={document} showEmpty />
           <section className="ws-section">
@@ -447,6 +436,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           </section>
         </aside>
       </div>
+      {document.kind === "submission" && !internalReview && <RecommendationDelivery document={document} disabled={dirty || saving || !!recovery || !!error} onChanged={setDocument} />}
       {history && (
         <History
           kind="deliverable"
