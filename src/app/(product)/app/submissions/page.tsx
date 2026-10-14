@@ -4,7 +4,7 @@ import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { ArrowUpRight, FilePenLine, Search } from "lucide-react";
 import {
   useQuery,
   ErrorNotice,
@@ -42,11 +42,12 @@ export default function Submissions() {
 
         </div>
         <Link
-          className="ws-button ws-button-primary"
+          className="ws-button ws-button-primary ws-page-create"
           href={`/app?${roleId ? `role=${roleId}&` : ""}prompt=${encodeURIComponent(locale === "zh" ? "请帮我准备一份候选人推荐稿。" : "Help me prepare a candidate recommendation.")}`}
         >
-          <Plus size={14} />
-          {t("Prepare submission")}
+          <span className="ws-page-create-icon" aria-hidden="true"><FilePenLine size={17} /></span>
+          <span>{t("Prepare submission")}</span>
+          <ArrowUpRight className="ws-page-create-arrow" size={15} aria-hidden="true" />
         </Link>
       </header>
       {roleId && <Link className="ws-link" href="/app/submissions">{t("All recommendations")} ↗</Link>}

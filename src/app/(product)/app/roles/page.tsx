@@ -4,7 +4,7 @@ import { useLanguage, useT } from "@/components/LanguageProvider";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, Search } from "lucide-react";
 import {
   date,
   ErrorNotice,
@@ -38,11 +38,12 @@ export default function Roles() {
 
         </div>
         <button
-          className="ws-button ws-button-primary"
+          className="ws-button ws-button-primary ws-page-create"
           onClick={() => router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`)}
         >
-          <Plus size={15} />
-          {t("Add role")}
+          <span className="ws-page-create-icon" aria-hidden="true"><BriefcaseBusiness size={17} /></span>
+          <span>{t("Add role")}</span>
+          <ArrowUpRight className="ws-page-create-arrow" size={15} aria-hidden="true" />
         </button>
       </header>
       <div className="ws-toolbar">
