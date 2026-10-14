@@ -2634,8 +2634,15 @@
 .ws-conversation-exports { padding: 16px; display: grid; gap: 10px; }
 .ws-conversation-exports p { margin: 0; color: var(--ws-muted); font-size: 12px; }
 
-.ws-turn-failure { margin: 12px 0; }
-.ws-turn-failure small { display: block; margin-top: 8px; color: #637060; }
+.ws-turn-failure { margin: 14px 0; padding: 14px 16px; border-left: 2px solid #d4ddd5; background: #f7f9f6; border-radius: 0 10px 10px 0; }
+.ws-turn-failure > p { margin: 0; font-size: 14px; line-height: 1.7; }
+.ws-turn-failure > .ws-message-status { margin-top: 4px; font-size: 12px; }
+.ws-turn-failure-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 12px; }
+.ws-turn-failure-actions small { color: #788376; font-size: 12px; line-height: 1.6; }
+.ws-turn-retry { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 5px 11px; border: 1px solid #d5dfd7; border-radius: 7px; background: #fff; color: #345c4b; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 120ms, border-color 120ms; }
+.ws-turn-retry:hover:not(:disabled) { background: #edf3ed; border-color: #a8bcad; }
+.ws-turn-retry:focus-visible { outline: 2px solid #477662; outline-offset: 3px; }
+.ws-turn-retry:disabled { opacity: .6; cursor: wait; }
 
 /* Saved work is the primary reading surface while it is open. */
 @media (min-width: 851px) {
