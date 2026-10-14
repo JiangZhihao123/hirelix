@@ -1273,6 +1273,8 @@ export const uiZh: Record<string, string> = {
   "running": "处理中",
   "Sample role": "示例职位",
   "Save candidate": "保存候选人",
+  "Save candidate profile": "保存候选人档案",
+  "Record completed delivery": "记录已完成的交付",
   "Save profile": "保存个人资料",
   "Save record": "保存记录",
   "Save relationship": "保存关系",

@@ -57,7 +57,7 @@ export function ActionReview({
     if (!value || typeof value !== "object") return null;
     return <dl>{Object.entries(value as Record<string, unknown>).filter(([,value]) => value !== null).map(([key,value]) => <div key={key}><dt>{t(labels[key] || key)}</dt><dd className="whitespace-pre-wrap">{Array.isArray(value) ? value.map(item => typeof item === "object" && item ? Object.values(item).filter(Boolean).join(" · ") : String(item)).join("\n") || t("Clear") : typeof value === "object" && value ? Object.entries(value).filter(([,item]) => item !== null).map(([field,item]) => `${t(field)}: ${String(item) || t("Clear")}`).join("\n") : String(value) || t("Clear")}</dd></div>)}</dl>;
   }
-  if (action.kind === "update_relationship" || action.kind === "update_sharing_permission" || action.kind === "record_submission") return <Dialog title={action.title} onClose={close}><form className="ws-form" onSubmit={save}>
+  if (action.kind === "update_relationship" || action.kind === "update_sharing_permission" || action.kind === "record_submission") return <Dialog title={t(action.title)} onClose={close}><form className="ws-form" onSubmit={save}>
     <ErrorNotice error={error} />{action.kind === "update_sharing_permission" && <p>{t("Permission to share for this role")}: {t(String(action.fields.permission))}</p>}<p className="whitespace-pre-wrap">{String(action.fields.content || action.fields.submission_note || "")}</p>
     {renderChanges(action.fields.changes)}
     {action.kind === "record_submission" && <p>{date(String(action.fields.submitted_at), true)}</p>}
@@ -65,7 +65,7 @@ export function ActionReview({
     <button className="ws-button ws-button-primary" disabled={saving}>{t(saving ? "Saving…" : "Save")}</button>
   </form></Dialog>;
   if (action.kind === "create_candidate" || action.kind === "update_candidate" || action.kind === "update_role_details" || action.kind === "update_record") {
-    return <Dialog title={action.title} onClose={close} wide><form className="ws-form" onSubmit={save}>
+    return <Dialog title={t(action.title)} onClose={close} wide><form className="ws-form" onSubmit={save}>
       <ErrorNotice error={error} />
       {renderChanges(action.fields.changes)}
       <p>{t("Ask your assistant to change anything before saving.")}</p>

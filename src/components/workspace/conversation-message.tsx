@@ -127,7 +127,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                     {metadata.actions?.map((action) => (
                       <div className="ws-action-proposal" key={action.id}>
                         <div>
-                          <strong>{action.title}</strong>
+                          <strong>{t(action.title)}</strong>
                           <small>
                             {action.status === "saved"
                               ? t("Saved to your workspace")
@@ -151,7 +151,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                           </small>
                         </div>
                         {action.href && action.status === "saved" ? (
-                          <button className="ws-button" onClick={() => onSource({title: action.title, href: action.href!})}><Check size={13} />{t("Open saved item")}<ArrowUpRight size={13} /></button>
+                          <button className="ws-button" onClick={() => onSource({title: t(action.title), href: action.href!})}><Check size={13} />{t("Open saved item")}<ArrowUpRight size={13} /></button>
                         ) : action.href ? (
                           <Link className="ws-button" href={action.href}>
                             {action.status === "saved" ? (
