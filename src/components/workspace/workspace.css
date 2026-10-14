@@ -2456,8 +2456,10 @@
 
 .ws-conversation { position: relative; }
 .ws-conversation-drop-target { position: absolute; inset: 12px; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; border: 2px dashed #477662; border-radius: 16px; background: #fafaf8f5; pointer-events: none; }
-.ws-composer-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 6px; max-height: 180px; overflow-y: auto; margin-bottom: 8px; }
-.ws-composer-files .ws-composer-attachment { margin: 0; min-width: 0; }
+.ws-composer-files { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; max-height: 180px; overflow-y: auto; margin-bottom: 8px; }
+.ws-composer-files .ws-composer-attachment { flex: 0 1 auto; margin: 0; min-width: 0; max-width: min(100%, 320px); }
+.ws-composer-files .ws-composer-attachment > svg,
+.ws-composer-files .ws-composer-attachment > button { flex-shrink: 0; }
 .ws-composer-files .ws-composer-attachment > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-composer-files .has-error { border-color: #b55b4e; }
 .ws-composer-files .has-error small { white-space: normal; color: #a54436; }
