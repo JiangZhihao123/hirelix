@@ -6,7 +6,7 @@ import { enqueue, json, owned, rows, WorkspaceError } from "./database";
 import { conversationInput } from "./conversations";
 import { saveFile, type PrivateFile } from "./files";
 import { MAX_CONVERSATION_FILES, type ConversationAttachment } from "./attachments";
-import type { Job, Conversation, Deliverable, Message, Person } from "./types";
+import type { Job, Conversation, Deliverable, Message, Person, Role } from "./types";
 import { consumeQuestion } from "./conversation-questions";
 export async function sendMessage(
   userId: string,
@@ -84,7 +84,7 @@ export async function sendMessage(
         );
     } else {
       [conversation] = await rows<Conversation>(
-        sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${(input.message || attachments.map((item) => item.name).join(", ") || "New conversation").slice(0, 100)},${resolvedRoleId}::uuid,NULL) RETURNING *`,
+        sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${(input.message || attachments.map((item) => item.name).join(", ") || "New conversation").slice(0, 100)},NULL,NULL) RETURNING *`,
         tx,
       );
     }
@@ -92,6 +92,9 @@ export async function sendMessage(
     // account ownership boundary applies; its creation conversation does not.
     const viewed = input.viewed_source ? await owned<{title?:string;name?:string;version?:number}>(userId, input.viewed_source.kind, input.viewed_source.id, tx) : null;
     const viewedSource = viewed && input.viewed_source ? {...input.viewed_source,title:viewed.title || viewed.name,version:viewed.version} : null;
+    const messageRoleId = viewedSource?.kind === "role" ? viewedSource.id : resolvedRoleId;
+    const selectedRole = messageRoleId ? await owned<Role>(userId, "role", messageRoleId, tx) : null;
+    const roleReference = selectedRole ? { id: selectedRole.id, title: selectedRole.title, client_name: selectedRole.client_name } : null;
     const workDocumentId = input.work_document_id || (viewedSource?.kind === "deliverable" ? viewedSource.id : null);
     const workDocument = workDocumentId ? await owned<Deliverable>(userId, "deliverable", workDocumentId, tx) : null;
     if (input.email_confirmation_message_id) {
@@ -99,7 +102,7 @@ export async function sendMessage(
       if (!preview || !["review","sending","sent","unknown"].includes((preview.metadata.email as {status:string}).status)) throw new WorkspaceError("This email preview is no longer available",409);
     }
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ role_id: conversation.role_id, ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ ...(roleReference ? { role_id: roleReference.id, role_reference: roleReference } : {}), ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,
     );
     const continuation = await consumeQuestion(userId, conversation.id, input.question_message_id, input.message, message.id, tx);

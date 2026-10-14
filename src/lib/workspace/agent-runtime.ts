@@ -159,9 +159,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
       },
       selected_source: question.metadata.viewed_source || null,
       candidate_references: question.metadata.candidate_references || [],
+      role_reference: question.metadata.role_reference || null,
       conversation: {
         id,
-        role_id: details.conversation.role_id,
       },
       linked_document: details.document && {
         id: details.document.id,
@@ -208,11 +208,12 @@ export const assistantReply: JobHandler = async (job, progress) => {
                     parts: undefined,
                   },
                 })
-              : m.metadata.work_document_id || m.metadata.viewed_source || m.metadata.candidate_references
+              : m.metadata.work_document_id || m.metadata.viewed_source || m.metadata.candidate_references || m.metadata.role_reference
                 ? JSON.stringify({
                     message: m.content,
                     selected_source: m.metadata.viewed_source,
                     candidate_references: m.metadata.candidate_references,
+                    role_reference: m.metadata.role_reference,
                     document_context: {
                       id: m.metadata.work_document_id,
                       title: m.metadata.work_document_title,

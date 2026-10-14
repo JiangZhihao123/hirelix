@@ -2746,22 +2746,6 @@
 
 .ws-tool-partial { margin: 0; padding: 0 12px 8px 36px; color: #986344; font-size: 11px; }
 
-.ws-conversation-context { width: min(var(--ws-chat-width), calc(100% - 48px)); margin: 0 auto; padding: 0 0 10px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; color: var(--ws-muted); font-size: 11px; }
-.ws-context-focus { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: min(480px, 70%); padding: 4px 0; text-align: left; color: #657367; }
-.ws-context-focus svg { flex-shrink: 0; }
-.ws-context-focus span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.ws-context-focus:hover { color: var(--ws-green); }
-.ws-context-disclosure { position: relative; margin-left: auto; flex-shrink: 0; }
-.ws-context-disclosure > summary { display: flex; align-items: center; gap: 5px; cursor: pointer; list-style: none; padding: 5px 0; }
-.ws-context-disclosure > summary::-webkit-details-marker { display: none; }
-.ws-context-disclosure[open] > summary svg { transform: rotate(180deg); }
-.ws-context-menu { position: absolute; z-index: 5; top: calc(100% + 6px); right: 0; width: min(320px, calc(100vw - 64px)); max-height: min(420px, 60vh); overflow: auto; padding: 6px; background: #fff; border: 1px solid var(--ws-border); border-radius: 10px; box-shadow: 0 8px 24px #253b3212; }
-.ws-context-menu button, .ws-context-menu a { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px; border-radius: 6px; color: #49614f; font-size: 12px; text-align: left; }
-.ws-context-menu svg { flex-shrink: 0; }
-.ws-context-menu span { min-width: 0; overflow-wrap: anywhere; }
-.ws-context-menu button:hover, .ws-context-menu a:hover { background: #f4f6f2; }
-.ws-context-links { border-top: 1px solid var(--ws-border); margin-top: 4px; padding-top: 4px; }
-.ws-context-links:first-child { border: 0; margin: 0; padding: 0; }
 .ws-mail-record { border-bottom: 1px solid var(--ws-border); padding: 18px 0; }
 .ws-mail-record summary { cursor: pointer; display: flex; justify-content: space-between; gap: 16px; }
 .ws-mail-record p { white-space: pre-wrap; }

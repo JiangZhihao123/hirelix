@@ -1,4 +1,5 @@
 "use client";
+import { MessageRoleReference } from "./message-role-reference";
 import { MessageCandidateReferences } from "./message-candidate-references";
 
 import { ConversationExports } from "./document-download";
@@ -85,6 +86,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                         <MessageAttachment key={file.file_id} id={file.file_id} name={file.name} size={file.size} onOpen={() => onSource({title: file.name, href: `/api/workspace/files/${file.file_id}`})} />
                       ))}
                     </div>}
+                    {message.role === "user" && <MessageRoleReference reference={message.metadata.role_reference} onOpen={onSource} />}
                     {message.role === "user" && <MessageCandidateReferences references={candidateReferences(message.metadata.candidate_references)} onOpen={onSource} />}
                     {!!parts.length && <TurnParts parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);

@@ -7,7 +7,7 @@ import { conversationExcerpt } from "./conversation-excerpt";
 import { hydrateEmailReceipts } from "./conversation-email";
 import type { ConversationEmail } from "./email-contract";
 import type { ConversationQuestion } from "./conversation-questions";
-import type { Conversation, Message, Job, Deliverable } from "./types";
+import type { Conversation, Message, Job, Deliverable, Role } from "./types";
 import { recommendationFeedbackInput } from "./recommendation-feedback-contract";
 import type { Reminder } from "./reminders";
 import type { MemoryReceipt } from "./memories";
@@ -139,6 +139,20 @@ export async function conversationDetails(userId: string, id: string) {
       if (message.role !== "user" || message.metadata.candidate_references) continue;
       const person = people.find(person => person.id === message.metadata.person_id);
       if (person) message.metadata.candidate_references = [person];
+    }
+  }
+  // Resolve old messages from their own saved selection, never from the conversation's current role.
+  const messageRoleId = (message: Message) => {
+    const viewed = viewedSourceInput.safeParse(message.metadata.viewed_source);
+    return viewed.success && viewed.data.kind === "role" ? viewed.data.id : typeof message.metadata.role_id === "string" ? message.metadata.role_id : null;
+  };
+  const roleIds = [...new Set(messages.filter(message => message.role === "user" && !message.metadata.role_reference).map(messageRoleId).filter((id): id is string => !!id))];
+  if (roleIds.length) {
+    const roles = await rows<Pick<Role, "id" | "title" | "client_name">>(sql`SELECT id,title,client_name FROM hirelix_private_roles WHERE user_id=${userId}::uuid AND id::text=ANY(${textArray(roleIds)})`);
+    for (const message of messages) {
+      if (message.role !== "user" || message.metadata.role_reference) continue;
+      const role = roles.find(role => role.id === messageRoleId(message));
+      if (role) message.metadata.role_reference = role;
     }
   }
   work.reverse();
