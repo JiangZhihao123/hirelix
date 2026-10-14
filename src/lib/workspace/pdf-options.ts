@@ -1,7 +1,8 @@
-import { createRequire } from "node:module";
-import { dirname, join, sep } from "node:path";
+import { join, sep } from "node:path";
 
-const pdfRoot = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
+// Next traces these assets explicitly in next.config.ts. Do not use
+// require.resolve here: Turbopack replaces it with a numeric module identifier.
+const pdfRoot = join(process.cwd(), "node_modules", "pdfjs-dist");
 
 // CID fonts may rely on Adobe's predefined maps instead of an embedded ToUnicode.
 // Both extraction and rendering need these assets, including in serverless builds.
