@@ -1,5 +1,6 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Attachments": "附件",
   "Requested changes are saved directly. Your previous version is kept.": "助理会直接保存修改，同时保留之前的版本。",
   "This delivery request belongs to another record": "这次提交对应的推荐记录已保存，不能修改后重复提交。",
   "This share link was not found": "找不到这条推荐链接。",
