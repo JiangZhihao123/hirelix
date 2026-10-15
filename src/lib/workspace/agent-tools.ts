@@ -1249,7 +1249,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     ask_user: define(
       "ask_user",
-      "Ask the user for missing information, resolve ambiguity, or hand over a meaningful decision about the next action. Present distinct, concrete options and a supported recommendation when appropriate. Save the question and wait; the user may select an option or reply freely in the conversation.",
+      "Ask for a genuine unresolved decision or authorization where alternatives materially change the next action. Do not use for ordinary fact collection, requests to dictate or upload material, optional follow-up offers, or a direction the user already chose. Ask open-ended factual questions in normal prose instead. Options describe substantive actions, never readiness or ways to reply. Recommend only with a supported preference. Save the decision and wait; the user may select an option or reply freely.",
       clarificationSchema,
       async (input) => {
         if (input.recommendation && input.recommendation.option >= input.options.length)
