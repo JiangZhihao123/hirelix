@@ -11,7 +11,7 @@ export const landingFaqs = [
   ],
   [
     "How much does Hirelix cost?",
-    `Personal Agent costs $${AGENT_PLAN.monthlyCents / 100} per month or $${AGENT_PLAN.annualCents / 100} per year in USD, plus applicable tax. Both plans include ${AGENT_PLAN.monthlyCredits.toLocaleString("en-US")} AI credits each calendar month. The ${AGENT_PLAN.trialDays}-day trial includes ${AGENT_PLAN.trialCredits} credits and does not require a card or automatically convert to a paid plan.`,
+    `${AGENT_PLAN.name} costs $${AGENT_PLAN.monthlyCents / 100} per month or $${AGENT_PLAN.annualCents / 100} per year in USD, plus applicable tax. Both plans include ${AGENT_PLAN.monthlyCredits.toLocaleString("en-US")} AI credits each calendar month. The ${AGENT_PLAN.trialDays}-day trial includes ${AGENT_PLAN.trialCredits} credits and does not require a card or automatically convert to a paid plan.`,
   ],
   [
     "Who is Hirelix for?",

@@ -2447,7 +2447,23 @@
   }
 }
 
-.agent-billing{max-width:760px;line-height:1.75}.agent-billing h2{font-size:26px;margin:10px 0 24px}.agent-billing>p{margin:16px 0;color:var(--ws-muted,#67716a);font-size:14px}.agent-billing-summary{padding:22px;border:1px solid #dce2d8;background:#f2f5ed;border-radius:10px}.agent-billing-summary p{margin:7px 0}.agent-billing-cycle{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}.agent-billing-cycle button{padding:12px 18px;border:1px solid #d5ddd0;border-radius:7px}.agent-billing-cycle button[aria-pressed=true]{background:#205846;color:white}.agent-billing [role=alert]{color:#a12d2d}.agent-billing [role=status]{padding:15px;background:#edf3e6;border-radius:7px}.agent-billing .agent-billing-terms{font-size:12px}.agent-billing a{text-decoration:underline}.agent-billing .ws-button{margin-right:12px}
+/* Subscription identity, allowance and account actions remain separate. */
+.agent-billing{max-width:860px;line-height:1.6;color:var(--ws-ink,#26332e)}
+.agent-billing-plan{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:8px 0 26px;border-bottom:1px solid var(--ws-line,#dfe5de)}
+.agent-billing-plan h2{display:flex;align-items:center;flex-wrap:wrap;gap:12px;font-size:23px;font-weight:600;margin:0 0 8px}
+.agent-billing-plan p{font-size:14px;margin:5px 0;color:var(--ws-muted,#67716a)}
+.agent-billing-badge{font-size:12px;font-weight:500;background:#edf3ec;color:#315d4d;border-radius:20px;padding:3px 9px}
+.agent-billing-price{text-align:right}.agent-billing-price strong{font-size:25px;font-weight:600;white-space:nowrap}.agent-billing-price strong span{font-size:14px;font-weight:400;color:var(--ws-muted,#67716a)}.agent-billing-price p{font-size:12px}
+.agent-billing-summary{margin:26px 0;padding:24px;background:#f4f6f2;border-radius:10px}
+.agent-billing-usage-heading,.agent-billing-usage-footer{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.agent-billing-usage-heading h3{font-size:16px;font-weight:600;margin:0}.agent-billing-usage-heading>span,.agent-billing-usage-footer,.agent-billing-reserved{font-size:12px;color:var(--ws-muted,#67716a)}
+.agent-billing-used{font-size:30px;font-weight:600;margin:12px 0;font-variant-numeric:tabular-nums}.agent-billing-used span{font-size:14px;font-weight:400;color:var(--ws-muted,#67716a)}
+.agent-billing-track{height:7px;background:#dfe5de;border-radius:5px;overflow:hidden;margin:16px 0 12px}.agent-billing-track>div{height:100%;background:#315d4d}
+.agent-billing details{margin-top:18px;padding-top:14px;border-top:1px solid #dfe5de}.agent-billing summary{color:#315d4d;font-size:13px;cursor:pointer}.agent-billing details p{font-size:13px;color:var(--ws-muted,#67716a);margin:12px 0 0}
+.agent-billing-actions{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.agent-billing-actions p{flex-basis:100%;font-size:12px;color:var(--ws-muted,#67716a);margin:0}.agent-billing-cancel{border:0;background:none;color:var(--ws-muted,#67716a);font-size:13px;cursor:pointer}.agent-billing button:disabled{opacity:.6;cursor:wait}
+.agent-billing-cycle{display:flex;flex-wrap:wrap;gap:12px;margin:24px 0}.agent-billing-cycle button{padding:12px 18px;border:1px solid #d5ddd0;border-radius:7px}.agent-billing-cycle button[aria-pressed=true]{background:#205846;color:white}.agent-billing [role=alert]{color:#a12d2d}.agent-billing [role=status]{padding:15px;background:#edf3e6;border-radius:7px}.agent-billing .agent-billing-terms{font-size:12px;color:var(--ws-muted,#67716a);margin-top:16px}.agent-billing a{text-decoration:underline}
+@media(max-width:640px){.agent-billing-plan{flex-direction:column;gap:16px}.agent-billing-price{text-align:left}.agent-billing-summary{padding:20px}}
+
 
 .ws-checkbox { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.6; }
 .ws-checkbox input { margin-top: 4px; flex: 0 0 auto; }

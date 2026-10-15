@@ -4,7 +4,7 @@ import { publicMetadata } from "@/lib/seo";
 
 export const metadata = publicMetadata(
   "/pricing",
-  "Personal Agent Pricing & Free Trial | Hirelix",
+  "Hirelix Pro Pricing & Free Trial",
   `Your long-term recruiting assistant: $${AGENT_PLAN.monthlyCents / 100}/month or $${AGENT_PLAN.annualCents / 100}/year. Try Hirelix for ${AGENT_PLAN.trialDays} days with ${AGENT_PLAN.trialCredits} AI credits, no card required.`,
 );
 
@@ -19,7 +19,7 @@ export default function PricingPage() {
         subscription when you are ready; the trial does not automatically become
         a paid plan.
       </p>
-      <section className="hr-price-grid" aria-label="Personal Agent plans">
+      <section className="hr-price-grid" aria-label="Hirelix Pro billing options">
         {[
           {
             code: "agent_monthly",
@@ -35,7 +35,8 @@ export default function PricingPage() {
           },
         ].map((plan) => (
           <article key={plan.code}>
-            <h2>{plan.title}</h2>
+            <h2>{AGENT_PLAN.name}</h2>
+            <p>{plan.title === "Monthly" ? "Billed monthly" : "Billed annually"}</p>
             <p>
               <strong>${plan.amount}</strong> / {plan.period}
             </p>
@@ -54,7 +55,7 @@ export default function PricingPage() {
         ))}
       </section>
       <section>
-        <h2>What both subscriptions include</h2>
+        <h2>What Hirelix Pro includes</h2>
         <ul>
           <li>
             A conversational assistant for your candidates, client roles, and

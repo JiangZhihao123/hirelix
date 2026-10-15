@@ -47,7 +47,7 @@ export default function SettingsPage() {
     },
     {
       id: "billing" as const,
-      label: t("Billing"),
+      label: t("Subscription and usage"),
     },
     {
       id: "profile" as const,

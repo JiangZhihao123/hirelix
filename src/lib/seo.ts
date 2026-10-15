@@ -17,7 +17,7 @@ export const publicPages = [
     path: "/pricing",
     label: "Pricing",
     description:
-      "Personal Agent subscription pricing, free trial, and AI credits.",
+      "Hirelix Pro subscription pricing, free trial, and AI credits.",
   },
   {
     path: "/guides/candidate-rediscovery",

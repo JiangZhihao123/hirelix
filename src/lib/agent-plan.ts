@@ -1,5 +1,5 @@
 export const AGENT_PLAN = {
-  name: "Personal Agent",
+  name: "Hirelix Pro",
   monthlyCents: 4900,
   annualCents: 49000,
   currency: "USD",

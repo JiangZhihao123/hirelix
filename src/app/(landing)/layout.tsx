@@ -48,7 +48,7 @@ const structuredData = {
       offers: [
         {
           "@type": "Offer",
-          name: "Personal Agent monthly",
+          name: `${AGENT_PLAN.name} monthly`,
           price: AGENT_PLAN.monthlyCents / 100,
           priceCurrency: AGENT_PLAN.currency,
           url: `${base}/pricing`,
@@ -61,7 +61,7 @@ const structuredData = {
         },
         {
           "@type": "Offer",
-          name: "Personal Agent annual",
+          name: `${AGENT_PLAN.name} annual`,
           price: AGENT_PLAN.annualCents / 100,
           priceCurrency: AGENT_PLAN.currency,
           url: `${base}/pricing`,

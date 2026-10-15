@@ -534,7 +534,7 @@ export default function Home() {
           <p>Try it for {AGENT_PLAN.trialDays} days with {AGENT_PLAN.trialCredits} AI credits. No card required.</p>
           <div className="ha-pricing-options">
             {([{ code: "agent_monthly", amount: AGENT_PLAN.monthlyCents / 100, cadence: "month", note: "Billed monthly" }, { code: "agent_annual", amount: AGENT_PLAN.annualCents / 100, cadence: "year", note: "Save $98 a year" }]).map(plan => <article key={plan.code}>
-              <h3>Personal Agent</h3><p className="ha-price"><strong>${plan.amount}</strong> / {plan.cadence}</p><p>{plan.note}</p>
+              <h3>{AGENT_PLAN.name}</h3><p className="ha-price"><strong>${plan.amount}</strong> / {plan.cadence}</p><p>{plan.note}</p>
               <ul><li>{AGENT_PLAN.monthlyCredits} AI credits each calendar month</li><li>Your candidates, roles, and conversation history</li><li>CV and CSV imports, client drafts, and exports</li></ul>
               <button className="ha-button ha-button-primary" disabled={!hydrated} onClick={() => enter("pricing", false, plan.code)}>Start free trial <ArrowUpRight size={18} /></button>
             </article>)}
