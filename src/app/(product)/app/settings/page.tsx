@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
+import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
-import { type BillingSummary } from "@/lib/billing";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import { useT } from "@/components/LanguageProvider";
@@ -21,7 +20,7 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
 export default function SettingsPage() {
   const t = useT();
   const { user } = useAuth();
-  const { billing: sharedBilling, refresh: refreshBilling } = useBilling();
+  const { billing, refresh: refreshBilling } = useBilling();
   const searchParams = useSearchParams();
   const settingsHash = useSyncExternalStore(
     (onStoreChange) => {
@@ -35,8 +34,10 @@ export default function SettingsPage() {
     () => "",
   );
   const [loading, setLoading] = useState(true);
-  const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>(() =>
+    searchParams.get("section") === "billing" ? "billing" : "account",
+  );
+  const settingsRequest = useRef<Promise<void> | null>(null);
   const [signInMethods, setSignInMethods] = useState<string[]>([]);
   const sectionNav = [
     {
@@ -50,43 +51,42 @@ export default function SettingsPage() {
   ];
 
   const fetchSettings = useCallback(async () => {
-    if (!user) return;
-    try {
-      const res = await fetchWithUserSession("/api/settings");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.billing) {
-          setBilling(data.billing as BillingSummary);
+    if (!user?.id) return;
+    if (settingsRequest.current) return settingsRequest.current;
+    const request = (async () => {
+      try {
+        const res = await fetchWithUserSession("/api/settings");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.sign_in_methods)) {
+            setSignInMethods(
+              data.sign_in_methods.filter((method: unknown): method is string => typeof method === "string"),
+            );
+          }
         }
-        if (Array.isArray(data.sign_in_methods)) {
-          setSignInMethods(
-            data.sign_in_methods.filter((method: unknown): method is string => typeof method === "string"),
-          );
-        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+        settingsRequest.current = null;
       }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    })();
+    settingsRequest.current = request;
+    return request;
+  }, [user?.id]);
 
   useEffect(() => {
-    if (sharedBilling) setBilling(sharedBilling);
-  }, [sharedBilling]);
-
-  useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
+    if (activeSection === "account" && loading) void fetchSettings();
+  }, [fetchSettings, activeSection, loading]);
 
   useEffect(() => {
     if (!["success", "pending"].includes(searchParams.get("checkout") || "")) return;
     // A redirect is not proof of payment; refresh until the signed webhook updates access.
     const timers = [0, 3000, 8000, 15000, 30000].map((delay) => window.setTimeout(() => {
-      void fetchSettings(); void refreshBilling();
+      void refreshBilling();
     }, delay));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [fetchSettings, refreshBilling, searchParams]);
+  }, [refreshBilling, searchParams]);
 
   useEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
@@ -128,8 +128,7 @@ export default function SettingsPage() {
       return billing ? (
         <BillingPanel
           billing={billing}
-          onBillingChange={(nextBilling) => {
-            setBilling(nextBilling);
+          onBillingChange={() => {
             void refreshBilling();
           }}
         />
@@ -151,7 +150,7 @@ export default function SettingsPage() {
     );
   })();
 
-  if (loading) {
+  if (loading && activeSection === "account") {
     return <SettingsPageSkeleton />;
   }
 

@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { account, hirelix_user_settings } from "@/db/schema";
-import { getBillingSummaryForUser } from "@/lib/billing-server";
 import { getUserFromApiRequest } from "@/lib/api-auth";
 import { getLogger, errorLogFields } from "@/lib/logger";
 import { isLocale } from "@/lib/locale";
@@ -15,7 +14,7 @@ export async function GET(req: NextRequest) {
   const user = await getUserFromApiRequest(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const [settingsRows, accountRows, billing] = await Promise.all([
+  const [settingsRows, accountRows] = await Promise.all([
     db
       .select({ company_profile: hirelix_user_settings.company_profile, ui_locale: hirelix_user_settings.ui_locale })
       .from(hirelix_user_settings)
@@ -25,7 +24,6 @@ export async function GET(req: NextRequest) {
       .select({ provider_id: account.providerId })
       .from(account)
       .where(eq(account.userId, user.id)),
-    getBillingSummaryForUser(user.id),
   ]);
   const data = settingsRows[0];
   const signInMethods = Array.from(
@@ -40,7 +38,6 @@ export async function GET(req: NextRequest) {
     company_profile: data?.company_profile || null,
     ui_locale: data?.ui_locale || "en",
     sign_in_methods: signInMethods,
-    billing,
   });
 }
 

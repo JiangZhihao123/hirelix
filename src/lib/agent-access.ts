@@ -19,28 +19,25 @@ export async function getAgentAccess(userId: string, runner: Pick<typeof db, "ex
       date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS month_start,
       (SELECT e.payload->'data'->'scheduled_change'->>'action' FROM hirelix_billing_events e
        WHERE e.event_type LIKE 'subscription.%' AND e.payload->'data'->>'id'=s.paddle_subscription_id
-       ORDER BY e.payload->>'occurred_at' DESC LIMIT 1) AS scheduled_action
+       ORDER BY e.payload->>'occurred_at' DESC LIMIT 1) AS scheduled_action,
+      (SELECT coalesce(jsonb_agg(e.payload->'data'->'billing_period' ORDER BY e.payload->'data'->'billing_period'->>'starts_at' DESC), '[]'::jsonb)
+       FROM hirelix_billing_events e
+       WHERE e.event_type='transaction.completed'
+         AND e.payload->'data'->>'subscription_id'=s.paddle_subscription_id
+         AND e.payload->'data'->>'status'='completed'
+         AND coalesce(e.payload->'data'->'custom_data'->>'purchase_type','') <> 'test_payment'
+         AND e.payload->'data'->>'origin' IN ('web','api','subscription_recurring')) AS payments
     FROM (SELECT ${userId}::uuid AS id) u
     LEFT JOIN hirelix_agent_access a ON a.user_id=u.id
     LEFT JOIN hirelix_user_settings s ON s.user_id=u.id`);
-  const item = result[0] as unknown as { trial_started_at: string | null; subscription_plan: string | null; subscription_status: string | null; subscription_renews_at: string | null; subscription_started_at: string | null; paddle_subscription_id: string | null; current_time: string; month_start: string; scheduled_action: string | null };
+  const item = result[0] as unknown as { trial_started_at: string | null; subscription_plan: string | null; subscription_status: string | null; subscription_renews_at: string | null; subscription_started_at: string | null; paddle_subscription_id: string | null; current_time: string; month_start: string; scheduled_action: string | null; payments: Array<{ starts_at?: string; ends_at?: string } | null> };
   const now = new Date(item.current_time);
   const active = ["active", "trialing"].includes(item.subscription_status || "") && (!item.subscription_renews_at || new Date(item.subscription_renews_at) > now);
   const agentPlan = isAgentPlan(item.subscription_plan || "");
   const legacy = active && !!item.subscription_plan && item.subscription_plan !== "free" && !agentPlan;
   // The subscription id establishes ownership even if a transaction arrived before
   // subscription.created and could not yet be associated with a user id.
-  const payments = agentPlan && item.paddle_subscription_id ? await runner.execute(sql`
-    SELECT payload->'data'->'billing_period' AS period
-    FROM hirelix_billing_events
-    WHERE event_type='transaction.completed'
-      AND payload->'data'->>'subscription_id'=${item.paddle_subscription_id}
-      AND payload->'data'->>'status'='completed'
-      AND coalesce(payload->'data'->'custom_data'->>'purchase_type','') <> 'test_payment'
-      AND payload->'data'->>'origin' IN ('web','api','subscription_recurring')
-    ORDER BY payload->'data'->'billing_period'->>'starts_at' DESC`) : [];
-  const paidPeriod = payments.map(payment => {
-    const period = payment.period as { starts_at?: string; ends_at?: string } | null;
+  const paidPeriod = (agentPlan ? item.payments : []).map(period => {
     const window = subscriptionCreditPeriod(new Date(period?.starts_at || ""), new Date(period?.ends_at || ""), now, item.subscription_plan === "agent_annual", new Date(item.subscription_started_at || ""));
     return window ? { ...window, paidThrough: new Date(period!.ends_at!).toISOString() } : null;
   }).find(Boolean);

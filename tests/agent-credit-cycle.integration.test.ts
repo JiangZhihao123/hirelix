@@ -4,6 +4,7 @@ import { randomUUID, createHmac } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
 import { db, closeDb } from '../src/db/client';
+import { getBillingSummaryForUser } from '../src/lib/billing-server';
 import { getAgentAccess } from '../src/lib/agent-access';
 import { enqueue } from '../src/lib/workspace/database';
 import { subscriptionMonth } from '../src/lib/agent-credit-period';
@@ -30,6 +31,19 @@ test('paid cycle ledger, renewal ordering, duplicates, cancellation and annual w
   await event(`subscription_${owner}`,'subscription.updated',subscription);
   let access=await getAgentAccess(owner);
   assert.equal(access.state,'paid');assert.equal(access.periodStart,start.toISOString());assert.equal(access.periodEnd,end.toISOString());
+  // An Agent summary must not touch retired sourcing/redemption tables.
+  await db.transaction(async tx => {
+   await tx.execute(sql`LOCK TABLE hirelix_searches, hirelix_usage_events, hirelix_redemptions IN ACCESS EXCLUSIVE MODE`);
+   let timer: ReturnType<typeof setTimeout> | undefined;
+   try {
+    const summary = await Promise.race([
+     getBillingSummaryForUser(owner),
+     new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Agent billing waited on retired tables')), 2000); }),
+    ]);
+    assert.equal(summary.agent?.state, 'paid');
+    assert.equal(summary.agent?.periodEnd, end.toISOString());
+   } finally { clearTimeout(timer); }
+  });
   const job=await enqueue(owner,'chat',randomUUID(),{});
   await db.execute(sql`UPDATE hirelix_private_jobs SET status='done' WHERE id=${job.id}::uuid`);
   await db.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=250000,reserved_units=250000 WHERE job_id=${job.id}::uuid`);

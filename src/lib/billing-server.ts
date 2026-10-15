@@ -44,7 +44,7 @@ type PaddlePortalSessionResponse = {
 
 export async function getBillingSummaryForUser(userId: string): Promise<BillingSummary> {
   const now = new Date();
-  const [settingsRows, redemptionRows] = await Promise.all([
+  const [settingsRows, agent] = await Promise.all([
     db
       .select({
         subscription_plan: hirelix_user_settings.subscription_plan,
@@ -58,22 +58,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
       .from(hirelix_user_settings)
       .where(eq(hirelix_user_settings.user_id, userId))
       .limit(1),
-    db
-      .select({
-        benefit_plan: hirelix_redemptions.benefit_plan,
-        starts_at: hirelix_redemptions.starts_at,
-        ends_at: hirelix_redemptions.ends_at,
-      })
-      .from(hirelix_redemptions)
-      .where(
-        and(
-          eq(hirelix_redemptions.user_id, userId),
-          eq(hirelix_redemptions.status, "active"),
-          lte(hirelix_redemptions.starts_at, now),
-          gt(hirelix_redemptions.ends_at, now),
-        ),
-      )
-      .limit(1),
+    getAgentAccess(userId),
   ]);
 
   const settings = settingsRows[0] ?? null;
@@ -81,6 +66,16 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     settings?.subscription_plan,
     settings?.subscription_status,
   );
+  // Retired sourcing allowances are irrelevant to Agent subscriptions and trials.
+  const legacy = agent.state === "legacy";
+  const redemptionRows = legacy ? await db.select({
+    benefit_plan: hirelix_redemptions.benefit_plan,
+    starts_at: hirelix_redemptions.starts_at,
+    ends_at: hirelix_redemptions.ends_at,
+  }).from(hirelix_redemptions).where(and(
+    eq(hirelix_redemptions.user_id, userId), eq(hirelix_redemptions.status, "active"),
+    lte(hirelix_redemptions.starts_at, now), gt(hirelix_redemptions.ends_at, now),
+  )).limit(1) : [];
   const redemption = paidPlanCode === "free" ? redemptionRows[0] ?? null : null;
   const redemptionActive = redemption?.benefit_plan === "starter_monthly";
   const planCode = redemptionActive ? "starter_monthly" : paidPlanCode;
@@ -91,7 +86,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
   const startIso = startDate.toISOString();
   const endIso = endDate.toISOString();
 
-  const [usageEventRows, searchCountRows] = await Promise.all([
+  const [usageEventRows, searchCountRows] = legacy ? await Promise.all([
     db
       .select({
         related_id: hirelix_usage_events.related_id,
@@ -116,7 +111,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
           lt(hirelix_searches.created_at, endDate),
         ),
       ),
-  ]);
+  ]) : [[], []];
   let profileScansUsed = 0;
   let emailLookupsUsed = 0;
   let publicEvidenceDeepDivesUsed = 0;
@@ -189,7 +184,6 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     );
   }
 
-  const agent = await getAgentAccess(userId);
   const summary: BillingSummary = {
     agent,
     plan,

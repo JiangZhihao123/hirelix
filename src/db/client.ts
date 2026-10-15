@@ -18,6 +18,10 @@ import * as schema from "./schema";
 
 type DbClient = PostgresJsDatabase<typeof schema>;
 
+// Next.js reloads server modules in development; keep their pool across reloads.
+const poolState = globalThis as typeof globalThis & {
+  hirelixDbPool?: { db: DbClient; sql: ReturnType<typeof postgres> };
+};
 let cachedDb: DbClient | null = null;
 let cachedSql: ReturnType<typeof postgres> | null = null;
 
@@ -50,7 +54,7 @@ function createClient(): DbClient {
     prepare: false,
     ssl: shouldRequireSsl(connectionString) ? "require" : false,
     max: Number(process.env.DATABASE_POOL_MAX ?? 10),
-    idle_timeout: Number(process.env.DATABASE_IDLE_TIMEOUT ?? 30),
+    idle_timeout: Number(process.env.DATABASE_IDLE_TIMEOUT ?? (process.env.NODE_ENV === "development" ? 300 : 30)),
     connect_timeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 10),
   });
 
@@ -64,7 +68,15 @@ function createClient(): DbClient {
  */
 export function getDb(): DbClient {
   if (!cachedDb) {
-    cachedDb = createClient();
+    if (process.env.NODE_ENV === "development" && poolState.hirelixDbPool) {
+      cachedDb = poolState.hirelixDbPool.db;
+      cachedSql = poolState.hirelixDbPool.sql;
+    } else {
+      cachedDb = createClient();
+      if (process.env.NODE_ENV === "development") {
+        poolState.hirelixDbPool = { db: cachedDb, sql: cachedSql! };
+      }
+    }
   }
   return cachedDb;
 }
@@ -92,5 +104,6 @@ export async function closeDb(): Promise<void> {
     await cachedSql.end({ timeout: 5 });
     cachedSql = null;
     cachedDb = null;
+    delete poolState.hirelixDbPool;
   }
 }
