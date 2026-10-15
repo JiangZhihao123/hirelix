@@ -28,9 +28,9 @@ export async function hydrateEmailReceipts(userId: string, messages: Message[]) 
     if (email && receipt) message.metadata.email = {...email, status: effectiveDeliveryStatus(receipt), receipt: receipt.id, error: receipt.error || undefined};
   }
 }
-export async function prepareEmailReply({job, conversation, question, messages, document, plan, locale}: {
+export async function prepareEmailReply({job, conversation, question, messages, document, plan, locale, inline = false}: {
   job: Job; conversation: Conversation; question: Message; messages: Message[];
-  document: Deliverable | null; plan: EmailPlan; locale: string;
+  document: Deliverable | null; plan: EmailPlan; locale: string; inline?: boolean;
 }): Promise<PreparedJob> {
   const zh = locale === "zh";
   const say = (en: string, cn: string) => zh ? cn : en;
@@ -123,9 +123,13 @@ export async function prepareEmailReply({job, conversation, question, messages, 
   }
   return {result:{conversation_id:conversation.id},apply:async tx => {
     await owned(job.user_id,"conversation",conversation.id,tx,true);
-    if (plan.intent === "prepare" || plan.intent === "cancel") await supersedeEmailReviews(job.user_id,conversation.id,tx);
+    if (email || plan.intent === "cancel") await supersedeEmailReviews(job.user_id,conversation.id,tx);
     if (update && latest) await tx.execute(sql`UPDATE hirelix_agent_messages SET metadata=jsonb_set(metadata,'{email}',${json(update)}) WHERE user_id=${job.user_id}::uuid AND id=${latest.id}::uuid`);
-    const [saved] = await rows<Message>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${job.user_id}::uuid,${conversation.id}::uuid,'assistant',${answer},${json({...((plan.intent === "status" || (!email && !update && !connection.connected)) ? {gmail:connection} : {}),...(email ? {email} : {}),...(update ? {email_result:{preview_message_id:latest!.id,...update}} : {})})}) RETURNING *`,tx);
+    const metadata = {...((plan.intent === "status" || (!email && !update && !connection.connected)) ? {gmail:connection} : {}),...(email ? {email} : {}),...(update ? {email_result:{preview_message_id:latest!.id,...update}} : {})};
+    // Agent tools attach the result to the current turn's durable receipt, so
+    // the preview follows its reasoning instead of becoming a preceding reply.
+    if (inline) return {content:answer, metadata};
+    const [saved] = await rows<Message>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${job.user_id}::uuid,${conversation.id}::uuid,'assistant',${answer},${json(metadata)}) RETURNING *`,tx);
     await tx.execute(sql`UPDATE hirelix_private_conversations SET updated_at=now() WHERE user_id=${job.user_id}::uuid AND id=${conversation.id}::uuid`);
     return {message_id:saved.id};
   }};

@@ -47,7 +47,7 @@ export default async function Recommendation({
             {doc.title}
           </h1>
           <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-[#dde3dd] pb-6">
-            <span className="text-sm text-[#67736b]">{zh ? `本次推荐 ${doc.people.length} 位候选人` : `${doc.people.length} candidates in this recommendation`}</span>
+            <span className="text-sm text-[#67736b]">{zh ? `本次推荐 ${doc.people.length} 位候选人` : `${doc.people.length} ${doc.people.length === 1 ? "candidate" : "candidates"} in this recommendation`}</span>
             <a className="rounded-lg border border-[#dde3dd] px-4 py-2 text-sm hover:bg-[#f7f8f6]" href={`/recommendation/${token}/package`}>{zh ? "下载本批材料 · ZIP" : "Download package · ZIP"}</a>
           </div>
           <nav aria-label={zh ? "本次候选人" : "Candidates"} className="mb-8 flex flex-wrap gap-2">{doc.people.map((person,index)=><a key={person.id} href={`#candidate-${person.id}`} className="rounded-full bg-[#eef3ef] px-4 py-2 text-sm text-[#285542]">{index+1}. {person.name}</a>)}</nav>

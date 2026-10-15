@@ -1,4 +1,5 @@
 "use client";
+import { semanticExcerpt } from "@/lib/workspace/search-excerpt";
 
 import { recordLocalDate } from "@/lib/workspace/record-dates";
 import { SourceContent } from "@/components/workspace/source-content";
@@ -59,37 +60,7 @@ type SemanticResult = {
   coverage: { total: number; indexed: number; pending: number; failed: number };
   scope: string;
 };
-function semanticExcerpt(content: string) {
-  const source = content.slice(content.indexOf("\n") + 1);
-  try {
-    const value = JSON.parse(source) as Record<string, unknown>;
-    const detail = value.content;
-    if (typeof detail === "string") {
-      try {
-        const fields = JSON.parse(detail) as Record<string, unknown>;
-        const readable = Object.entries(fields)
-          .filter(([, item]) => typeof item === "string" && item.trim())
-          .map(([key, item]) => `${key}: ${item}`)
-          .join(" · ");
-        return readable || detail;
-      } catch {
-        return detail;
-      }
-    }
-    return [
-      value.name,
-      value.headline,
-      value.location,
-      value.note,
-      value.profile,
-    ]
-      .concat(Array.isArray(value.skills) ? value.skills : [])
-      .filter((item) => typeof item === "string" && item.trim())
-      .join(" · ");
-  } catch {
-    return "";
-  }
-}
+
 type Details = {
   person: Person;
   records: SourceRecord[];
@@ -390,7 +361,7 @@ export default function Candidates() {
         )}
       {semantic && (
         <div className="ws-notice">
-          {semantic.matches.length} {t("suggestions from")}{" "}
+          {semantic.matches.length} {locale !== "zh" && semantic.matches.length === 1 ? "suggestion from" : t("suggestions from")}{" "}
           {semantic.coverage.indexed} {t("of")} {semantic.coverage.total}{" "}
           {t("indexed candidates.")}
           {semantic.coverage.pending > 0
@@ -441,7 +412,9 @@ export default function Candidates() {
                   : t("Start with the people you know.")}
               </h2>
               <p>
-                {filter || location || expertise || semantic
+                {mode === "semantic"
+                  ? locale === "zh" ? "试试更宽泛的经历描述，或清除地点和专业条件后重新搜索。" : "Try a broader experience description, or clear the location and expertise filters and search again."
+                  : filter || location || expertise
                   ? t(
                       "Try another name, or search by meaning for experience and past conversations.",
                     )

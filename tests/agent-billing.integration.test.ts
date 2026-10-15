@@ -14,6 +14,7 @@ const enabled = process.env.AGENT_BILLING_INTEGRATION === "true";
 test("Agent trial limits and signed webhook lifecycle against local Postgres", { skip: !enabled }, async () => {
   const url = new URL(process.env.DATABASE_URL || "");
   assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) && url.pathname.startsWith("/hirelix_workspace_qa_"), "Only isolated local QA databases allowed");
+  const { sendMessage } = await import("../src/lib/workspace/conversations");
   const userId = randomUUID();
   const originalSecret = process.env.PADDLE_WEBHOOK_SECRET;
   const originalPrice = process.env.NEXT_PUBLIC_PADDLE_AGENT_ANNUAL_PRICE_ID;
@@ -27,7 +28,9 @@ test("Agent trial limits and signed webhook lifecycle against local Postgres", {
     // Synthetic settled cost fixture: leaves three credits, not three tasks.
     await db.execute(sql`UPDATE hirelix_private_jobs SET status='done' WHERE id=${seed.id}::uuid`);
     await db.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=1970000,reserved_units=1970000 WHERE job_id=${seed.id}::uuid`);
-    const submissions = await Promise.allSettled(Array.from({ length: 4 }, (_, i) => enqueue(userId, "chat", `qa-${i}`, { test: true })));
+    const submissions = await Promise.allSettled(Array.from({ length: 4 }, (_, i) =>
+      sendMessage(userId, { message: "Fictional billing QA", request_key: `qa-${i}` }).then(result => result.job),
+    ));
     assert.equal(submissions.filter(r => r.status === "fulfilled").length, 3);
     assert.equal(submissions.filter(r => r.status === "rejected").length, 1);
     assert.equal((await getAgentAccess(userId)).remaining, 0);
@@ -35,7 +38,7 @@ test("Agent trial limits and signed webhook lifecycle against local Postgres", {
     assert.equal(first.status, "fulfilled");
     if (first.status !== "fulfilled") throw new Error("Missing task");
     const job = first.value;
-    assert.equal((await enqueue(userId, "chat", job.request_key, { test: true })).id, job.id, "Idempotent retry at limit succeeds");
+    assert.equal((await enqueue(userId, "chat", job.request_key, job.payload)).id, job.id, "Idempotent retry at limit succeeds");
     await assert.rejects(enqueue(userId, "chat", "assistant-import:spoof", {}), /allowance/);
     await db.execute(sql`UPDATE hirelix_private_jobs SET status='error' WHERE id=${job.id}::uuid`);
     assert.equal((await getAgentAccess(userId)).remaining, 1, "Failed task is refunded");

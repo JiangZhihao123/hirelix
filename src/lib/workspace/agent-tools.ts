@@ -68,7 +68,7 @@ import {
 } from "./memories";
 import { emailPlanSchema } from "./email-contract";
 import { prepareEmailReply } from "./conversation-email";
-import { conversationDetails, searchConversations } from "./conversations";
+import { conversationDetails, searchConversations, type AssistantMeta } from "./conversations";
 import {
   clarificationSchema,
   type ConversationQuestion,
@@ -775,8 +775,8 @@ export function createAgentTools(ctx: AgentToolContext) {
         person_id: z.uuid(),
         expected_version: z.number().int().positive().nullable(),
         permission: z.enum(["confirmed", "declined"]).nullable(),
-        interest: z.string().max(5000).nullable(),
-        notes: z.string().max(20000).nullable(),
+        interest: z.string().max(5000).nullable().describe("Use JSON null to preserve the current interest; an empty string clears it. Never write a literal null placeholder."),
+        notes: z.string().max(20000).nullable().describe("Use JSON null to preserve current notes; an empty string clears them. Do not stringify null or invent notes."),
         evidence: recordFact,
       }),
       (input) =>
@@ -1226,23 +1226,13 @@ export function createAgentTools(ctx: AgentToolContext) {
           document: current.document,
           plan: input,
           locale: ctx.locale,
+          inline: true,
         });
         return commitAgentTool(job, "email", input, async (tx) => {
           const result = await prepared.apply?.(tx);
-          const id = result?.message_id;
-          const [message] =
-            typeof id === "string"
-              ? await rows<Message>(
-                  sql`SELECT * FROM hirelix_agent_messages WHERE id=${id}::uuid AND user_id=${userId}::uuid`,
-                  tx,
-                )
-              : [];
           return {
-            output: {
-              message_id: id,
-              content: message?.content,
-              metadata: message?.metadata,
-            },
+            output: result,
+            metadata: result?.metadata as AssistantMeta | undefined,
           };
         });
       },

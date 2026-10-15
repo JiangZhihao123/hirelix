@@ -89,3 +89,32 @@ test("real PG: recovered provider acceptance records document delivery without a
  const [updated]=await rows<Deliverable>(sql`SELECT * FROM hirelix_private_deliverables WHERE id=${doc.id}::uuid`);
  assert.equal(updated.status,'submitted');
 });
+
+test('real PG: Agent email preparation joins its turn receipt and failed revision preserves the reviewed email',async()=>{
+ const {prepareEmailReply}=await import('../../src/lib/workspace/conversation-email');
+ const {commitAgentTool}=await import('../../src/lib/workspace/agent-execution');
+ const {claimJob,finishJob}=await import('../../src/lib/workspace/jobs');
+ const {conversationDetails}=await import('../../src/lib/workspace/conversations');
+ const {emailPlanSchema}=await import('../../src/lib/workspace/email-contract');
+ const owner=randomUUID();
+ await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'Fictional QA',${owner+'@example.test'},true,now(),now())`);
+ await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId",scope,"createdAt","updatedAt") VALUES(${randomUUID()},${owner},'google',${owner},'openid email profile',now(),now())`);
+ const sent=await sendMessage(owner,{message:'Prepare a fictional test email, preview only.',request_key:randomUUID()});
+ const job=await claimJob(['chat'],{id:sent.job.id,userId:owner});assert(job);
+ const detail=await conversationDetails(owner,sent.conversation_id),question=detail.messages[0];
+ const plan=emailPlanSchema.parse({intent:'prepare',to:'recipient@example.test',subject:'Fictional QA',body:'Fictional QA only.',use_document:false,authorization_quote:question.content});
+ const prepared=await prepareEmailReply({job,conversation:detail.conversation,question,messages:detail.messages,document:null,plan,locale:'en',inline:true});
+ await commitAgentTool(job,'email',plan,async tx=>{
+  const result=await prepared.apply!(tx);assert(result);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_agent_messages WHERE conversation_id=${sent.conversation_id}::uuid AND role='assistant'`,tx)).length,0);
+  return {output:result,metadata:result.metadata as import('../../src/lib/workspace/conversations').AssistantMeta};
+ });
+ const after=await conversationDetails(owner,sent.conversation_id),assistant=after.messages.filter(m=>m.role==='assistant');
+ assert.equal(assistant.length,1);assert.equal((assistant[0].metadata.email as ConversationEmail).status,'review');
+ assert.equal(assistant[0].metadata.reply_request_key,job.request_key);
+ const failed=await prepareEmailReply({job,conversation:detail.conversation,question,messages:after.messages,document:null,plan:{...plan,to:"not-an-email"},locale:'en',inline:true});
+ await db.transaction(tx=>failed.apply!(tx));
+ const [retained]=await rows<Message>(sql`SELECT * FROM hirelix_agent_messages WHERE id=${assistant[0].id}::uuid`);
+ assert.equal((retained.metadata.email as ConversationEmail).status,'review','a failed edit cannot discard the last valid preview');
+ await finishJob(job,{result:{}});
+});

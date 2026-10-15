@@ -160,11 +160,11 @@ export default function Submissions() {
                   <p>{item.role.client_name}</p>
                   <small className="ws-muted">
                     {item.materials.length}{" "}
-                    {zh ? "份推荐材料" : "saved materials"}
+                    {zh ? "份推荐材料" : item.materials.length === 1 ? "saved material" : "saved materials"}
                   </small>
                 </div>
                 <span>
-                  {item.recommended_count} {zh ? "人" : "people"}
+                  {item.recommended_count} {zh ? "人" : item.recommended_count === 1 ? "person" : "people"}
                 </span>
                 <div className="ws-rec-feedback">
                   {feedback ? (

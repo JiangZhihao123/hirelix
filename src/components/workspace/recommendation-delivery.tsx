@@ -453,7 +453,7 @@ export function RecommendationDelivery({
               <textarea rows={8} value={emailBody} maxLength={40000} disabled={busy} onChange={event=>setBody(event.target.value)} />
             </Field>
             {useLink && <p className="ws-muted">{linkText}</p>}
-            <label className="ws-rec-checkbox"><input type="checkbox" checked={attachCvs} onChange={event=>setAttachCvs(event.target.checked)} disabled={busy || !source.files?.length} />{zh ? "同时附上选定简历" : "Attach selected CVs"} ({source.files?.length || 0})</label>
+            {mode === "gmail" && (<label className="ws-rec-checkbox"><input type="checkbox" checked={attachCvs} onChange={event=>setAttachCvs(event.target.checked)} disabled={busy || !source.files?.length} />{zh ? "同时附上选定简历" : "Attach selected CVs"} ({source.files?.length || 0})</label>)}
             <div hidden ref={rendered}><AgentText content={emailContent} /></div>
             {mode === "gmail" ? (
               <>

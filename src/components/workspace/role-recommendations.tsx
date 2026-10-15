@@ -186,7 +186,7 @@ export function RoleRecommendations({ roleId }: { roleId: string }) {
             {data
               ? zh
                 ? `已推荐 ${data.recommended_count} 人 · ${data.materials.length} 份材料`
-                : `${data.recommended_count} people recommended · ${data.materials.length} materials`
+                : `${data.recommended_count} ${data.recommended_count === 1 ? "person" : "people"} recommended · ${data.materials.length} ${data.materials.length === 1 ? "material" : "materials"}`
               : ""}
           </p>
         </div>

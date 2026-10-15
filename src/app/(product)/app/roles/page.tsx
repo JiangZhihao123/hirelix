@@ -136,11 +136,11 @@ export default function Roles() {
               </div>
               <div className="ws-role-count">
                 <p>
-                  {role.candidate_count} {zh ? "位候选人" : "candidates"}
+                  {role.candidate_count} {zh ? "位候选人" : role.candidate_count === 1 ? "candidate" : "candidates"}
                 </p>
                 <p>
                   {role.submission_count}{" "}
-                  {zh ? "次推荐记录" : "submissions recorded"}
+                  {zh ? "次推荐记录" : role.submission_count === 1 ? "submission recorded" : "submissions recorded"}
                 </p>
               </div>
               <div className="ws-role-count">
