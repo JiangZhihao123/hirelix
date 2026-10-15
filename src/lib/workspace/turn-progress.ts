@@ -4,14 +4,15 @@ export type TurnPhase = "thinking" | "responding" | "tools" | "complete";
 
 export type TurnPart =
   | { type: "text"; text: string }
-  | { type: "tool"; id: string; tool?: string; list?: {returned: number; total?: number; has_more: boolean; items: Array<{title: string; detail?: string; href?: string}>}; inventory?: {roles?: number; candidates?: number; preferences?: number; reminders?: number}; warning?: string; target?: string; href?: string; label: string; status: "running" | "done" | "error"; query?: string; sources?: Array<{title: string; href: string}> };
+  | { type: "tool"; id: string; tool?: string; list?: {returned: number; total?: number; has_more: boolean; items: Array<{title: string; detail?: string; href?: string}>}; inventory?: {roles?: number; candidates?: number; preferences?: number; reminders?: number}; warning?: string; target?: string; href?: string; label: string; status: "running" | "done" | "error" | "interrupted"; query?: string; sources?: Array<{title: string; href: string}> };
 
 export function turnParts(result: Record<string, unknown> | null | undefined): TurnPart[] {
-  return Array.isArray(result?.parts) ? result.parts.filter((part): part is TurnPart =>
+  const parts = result?.parts ?? result?.previous_parts;
+  return Array.isArray(parts) ? parts.filter((part): part is TurnPart =>
     !!part && typeof part === "object" &&
     ((part.type === "text" && typeof part.text === "string") ||
       (part.type === "tool" && typeof part.id === "string" && typeof part.label === "string" &&
-        ["running", "done", "error"].includes(part.status))),
+        ["running", "done", "error", "interrupted"].includes(part.status))),
   ) : [];
 }
 
@@ -60,4 +61,12 @@ export function visibleTurnParts(parts: TurnPart[]): TurnPart[] {
     if (part.tool === "ask_user" && (part.status !== "error" || questionDelivered)) return false;
     return true;
   });
+}
+
+// Only reconcile an exact transport seam, never rewrite generated prose.
+export function continuationSuffix(prefix: string, continuation: string): string {
+  for (let size = Math.min(prefix.length, continuation.length); size >= 4; size--) {
+    if (prefix.endsWith(continuation.slice(0, size))) return continuation.slice(size);
+  }
+  return continuation;
 }

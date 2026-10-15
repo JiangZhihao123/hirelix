@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { reserveAgentCredits } from "@/lib/agent-access";
 import { cancelJobInTransaction } from "./jobs";
+import { turnParts } from "./turn-progress";
 import type { Conversation, Job } from "./types";
 
 export async function nextConversationPriority(
@@ -95,7 +96,7 @@ export async function controlConversation(
         const result = {
           ...paused.result,
           paused: false,
-          previous_parts: paused.result?.parts,
+          previous_parts: turnParts(paused.result).map(part => part.type === "tool" && part.status === "running" ? {...part, status: "interrupted"} : part),
           receipt_message_id:
             paused.result?.receipt_message_id || paused.result?.message_id,
         };

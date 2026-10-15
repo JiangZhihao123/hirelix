@@ -14,7 +14,7 @@ import { json, rows, WorkspaceError } from "./database";
 import { liveReplyWriter, LostLease, type JobHandler } from "./jobs";
 import { getLogger } from "@/lib/logger";
 import { toolResultList } from "./tool-result-view";
-import type { TurnPart } from "./turn-progress";
+import { continuationSuffix, turnParts, type TurnPart } from "./turn-progress";
 import type { Message } from "./types";
 
 const INSTRUCTIONS = `You are Hirelix, a professional headhunter's personal AI assistant. Work with the initiative, judgment, care and discretion of an experienced human senior assistant. Understand the outcome the user wants, take ownership of delegated work, and help it move forward across candidates, roles/JDs, recommendations and communications. Build continuity through relevant records, prior interactions and explicitly saved preferences.
@@ -143,6 +143,12 @@ export const assistantReply: JobHandler = async (job, progress) => {
   try {
     await writeReply.ready;
     const persisted = await activeAgentJob(job);
+    const previousParts = job.payload.resuming
+      ? structuredClone(turnParts({parts: persisted.result?.previous_parts}))
+      : [];
+    // Keep delivered prose and completed tools visible throughout every resume.
+    parts.push(...previousParts);
+    const previousText = previousParts.filter(part => part.type === "text").map(part => part.text).join("\n\n");
     const context = {
       request_time: {
         utc: new Date().toISOString(),
@@ -235,6 +241,10 @@ export const assistantReply: JobHandler = async (job, progress) => {
                   })
                 : m.content,
       }));
+    if (job.payload.resuming && previousText) {
+      messages.push({role: "assistant", content: previousText});
+      messages.push({role: "user", content: "Continue from exactly where the interrupted answer above ends. Its text is already visible and will be preserved. Output only the missing continuation; do not repeat the title, introduction, completed sections, or recap. If the last sentence is incomplete, finish it first. Completed tool receipts remain valid; do not repeat committed actions."});
+    }
     const agent = new ToolLoopAgent({
       model: agentModel(job),
       instructions:
@@ -286,6 +296,26 @@ export const assistantReply: JobHandler = async (job, progress) => {
       timeout: { totalMs: 900000 },
     });
     let stepText = "";
+    let canAppendPreviousText = previousParts.at(-1)?.type === "text";
+    let continuationBuffer = "";
+    const lastPrevious = previousParts.at(-1);
+    const previousTail = lastPrevious?.type === "text" ? lastPrevious.text : "";
+    const appendText = (text: string) => {
+      if (!textPart) {
+        const previous = parts.at(-1);
+        if (canAppendPreviousText && previous?.type === "text") textPart = previous;
+        else { textPart = {type: "text", text: ""}; parts.push(textPart); }
+        canAppendPreviousText = false;
+      }
+      stepText += text;
+      textPart.text += text;
+      writeReply(stepText, parts, false, "responding");
+    };
+    const flushContinuation = () => {
+      if (!continuationBuffer) return;
+      appendText(continuationSuffix(previousTail, continuationBuffer));
+      continuationBuffer = "";
+    };
     let textPart: Extract<TurnPart, {type: "text"}> | undefined;
     for await (const part of result.fullStream) {
       if (part.type === "error") throw controller.signal.aborted ? controller.signal.reason : part.error;
@@ -300,7 +330,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
       }
       if (part.type === "reasoning-start" && !stepText) writeReply(stepText, parts, true, "thinking");
       if (part.type === "tool-call") {
+        flushContinuation();
         textPart = undefined;
+        canAppendPreviousText = false;
         const query = ["web_search", "find_candidates", "find_roles"].includes(part.toolName) ? (part.input as {query?: unknown}).query : undefined;
         parts.push({type: "tool", id: part.toolCallId, tool: part.toolName, label: progressLabels[part.toolName] || "Working on your request", status: "running",
           ...(typeof query === "string" ? {query} : {}),
@@ -331,22 +363,29 @@ export const assistantReply: JobHandler = async (job, progress) => {
         writeReply(stepText, parts, true, parts.some(item => item.type === "tool" && item.status === "running") ? "tools" : "thinking");
       }
       if (part.type === "text-delta") {
-        if (!textPart) { textPart = {type: "text", text: ""}; parts.push(textPart); }
-        stepText += part.text;
-        textPart.text += part.text;
-        writeReply(stepText, parts, false, "responding");
+        if (canAppendPreviousText) {
+          continuationBuffer += part.text;
+          // Hold only the opening fragment so a repeated partial sentence can
+          // be matched even when the provider splits it across token chunks.
+          if (continuationBuffer.length >= 256) flushContinuation();
+        } else appendText(part.text);
       }
+      if (part.type === "finish-step") flushContinuation();
     }
+    flushContinuation();
     if (controller.signal.aborted) throw controller.signal.reason;
-    const answer = ctx.clarification
+    const newAnswer = ctx.clarification
       ? [...parts.filter(part => part.type === "text").map(part => part.text), ctx.clarification.question].filter(Boolean).join("\n\n")
       : (await result.text).trim();
-    if (!answer || (!ctx.clarification && trace.at(-1)?.finish !== "stop"))
+    if (!newAnswer || (!ctx.clarification && trace.at(-1)?.finish !== "stop"))
       throw new WorkspaceError(
         "The assistant reached its execution limit. Completed work is saved; continue in this conversation.",
         502,
       );
 
+    const answer = previousParts.length
+      ? [...parts.filter(part => part.type === "text").map(part => part.text), ...(ctx.clarification ? [ctx.clarification.question] : [])].filter(Boolean).join("\n\n")
+      : newAnswer;
     writeReply(answer, parts, true, "complete");
     await writeReply.flush();
     replyPrepared = true;

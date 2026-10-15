@@ -212,11 +212,14 @@ export async function cancelJobInTransaction(userId: string, id: string, tx: Run
     let result = job.result || {};
     if (job.kind === "chat" && typeof job.payload.conversation_id === "string") {
       // Preserve the visible transcript and committed receipts after interruption.
-      const metadata = {reply_request_key: job.request_key, turn_status: "cancelled", activity: turnActivity(result), parts: turnParts(result)};
+      const preservedParts = turnParts(result);
+      result = {...result, parts: preservedParts};
+      const preservedText = preservedParts.filter(part => part.type === "text").map(part => part.text).join("\n\n") || String(result.live_reply || "");
+      const metadata = {reply_request_key: job.request_key, turn_status: "cancelled", activity: turnActivity(result), parts: preservedParts};
       const receiptId = result.receipt_message_id;
       const [message] = typeof receiptId === "string"
-        ? await rows<{id:string}>(sql`UPDATE hirelix_agent_messages SET content=${String(result.live_reply || '')},metadata=metadata || ${json(metadata)} WHERE id=${receiptId}::uuid AND user_id=${userId}::uuid AND conversation_id=${job.payload.conversation_id}::uuid RETURNING id`,tx)
-        : await rows<{id:string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant',${String(result.live_reply || '')},${json(metadata)}) RETURNING id`,tx);
+        ? await rows<{id:string}>(sql`UPDATE hirelix_agent_messages SET content=${preservedText},metadata=metadata || ${json(metadata)} WHERE id=${receiptId}::uuid AND user_id=${userId}::uuid AND conversation_id=${job.payload.conversation_id}::uuid RETURNING id`,tx)
+        : await rows<{id:string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant',${preservedText},${json(metadata)}) RETURNING id`,tx);
       result = {...result, message_id: message.id, cancelled_lease_token: job.lease_token,
         ...((visible?.stream_epoch === result.stream_epoch || (!visible?.stream_epoch && visible?.stream_sequence === 0)) && Number.isSafeInteger(visible?.stream_sequence) && visible!.stream_sequence! >= 0
           ? {cancelled_sequence: visible!.stream_sequence} : {})};

@@ -26,8 +26,8 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
 }) {
   const t = useT();
   const inventoryText = (part: ToolPart) => Object.entries(part.inventory || {}).map(([key, count]) => `${t(({roles: "Roles", candidates: "Candidates", preferences: "Preferences", reminders: "Reminders"} as Record<string, string>)[key])} ${count}`).join(" · ");
-  const statusText = (part: ToolPart) => t(part.status === "done" ? "Completed" : part.status === "error" ? "Failed" : running ? "In progress" : "Interrupted");
-  const statusIcon = (part: ToolPart) => part.status === "done" ? <Check size={13} /> : part.status === "error" ? <AlertCircle size={13} /> : running ? <Loader2 size={13} className="animate-spin" /> : <Minus size={13} />;
+  const statusText = (part: ToolPart) => t(part.status === "done" ? "Completed" : part.status === "error" ? "Failed" : running && part.status === "running" ? "In progress" : "Interrupted");
+  const statusIcon = (part: ToolPart) => part.status === "done" ? <Check size={13} /> : part.status === "error" ? <AlertCircle size={13} /> : running && part.status === "running" ? <Loader2 size={13} className="animate-spin" /> : <Minus size={13} />;
   return <div className="ws-turn-parts">
     {groupParts(parts).map((group, index) => {
       if (group.type === "text") return <div className="ws-message-prose" key={`text-${index}`}><AgentText content={group.text} onOpenLink={onOpenLink} /></div>;

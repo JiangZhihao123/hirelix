@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isTurnRunning, turnSnapshot, turnActivity, turnParts } from "../src/lib/workspace/turn-progress";
+import { isTurnRunning, turnSnapshot, turnActivity, turnParts, continuationSuffix } from "../src/lib/workspace/turn-progress";
 import { nextConversationView } from "../src/components/workspace/conversation-draft";
+
+test("resuming keeps saved text visible before the first new stream event", () => {
+  const previous = [{type: "text", text: "Already delivered paragraph."}];
+  const snapshot = turnSnapshot({id: "resume", status: "queued", progress: "Queued to continue", error: null,
+    updated_at: "2026-10-15T12:00:00Z", result: {previous_parts: previous, receipt_message_id: "original"}});
+  assert.deepEqual(snapshot.result.parts, previous);
+  assert.deepEqual(turnParts({...snapshot.result, parts: [...previous, {type: "text", text: "New continuation."}]}),
+    [...previous, {type: "text", text: "New continuation."}]);
+});
 
 test("a new conversation preserves its view across URL promotion, but New and history create fresh views", () => {
   const initial = {route: "new=1", generation: 0, promotion: null};
@@ -53,4 +62,11 @@ test("interleaved text and tool events retain order through terminal snapshots",
     assert.deepEqual(snapshot.result.parts, parts);
   }
   assert.deepEqual(turnParts({parts: [null, {type: "tool", status: "invented"}, {type: "reasoning", text: "private"}]}), []);
+});
+
+test("continuation removes only an exact repeated boundary fragment", () => {
+  assert.equal(continuationSuffix("Ask for a", "Ask for a range rather than one figure."), " range rather than one figure.");
+  assert.equal(continuationSuffix("Ask for a", " range rather than one figure."), " range rather than one figure.");
+  assert.equal(continuationSuffix("the", "evidence"), "evidence", "short accidental overlaps are not rewritten");
+  assert.equal(continuationSuffix("先确认客户需求", "确认客户需求，再讨论预算。"), "，再讨论预算。");
 });

@@ -15,6 +15,46 @@ assert.ok(['localhost','127.0.0.1'].includes(url.hostname)&&url.pathname.startsW
 assert.equal(process.env.WORKSPACE_REAL_AI_TEST,'true');
 initializeGlobalOutboundProxy(); after(async()=>{await closeDb();await closeTurnChannel();await getGlobalDispatcher().close();});
 const owner=randomUUID();
+test('real model and PG: resume appends to retained prose and survives a second stop before claim', {timeout:180000}, async()=>{
+  const sent=await sendMessage(owner,{message:'Write a general client intake guide with exactly 12 numbered sections, each around 100 words. Begin with the title Client Intake Guide. Do not save records or ask questions.',request_key:randomUUID(),locale:'en'});
+  const active=await claimJob(['chat'],{id:sent.job.id,userId:owner});assert.ok(active);
+  const running=assistantReply(active,()=>heartbeat(active)).then(result=>finishJob(active,result)).catch(error=>error);
+  try {
+    const deadline=Date.now()+90000;
+    let preview='';
+    while(Date.now()<deadline){
+      const [row]=await rows<{result:{live_reply?:string}}>(sql`SELECT result FROM hirelix_private_jobs WHERE id=${active.id}::uuid`);
+      preview=row.result?.live_reply || '';
+      if(preview.length>900)break;
+      await new Promise(resolve=>setTimeout(resolve,150));
+    }
+    assert.ok(preview.length>900,'stop after actual provider prose');
+    await controlConversation(owner,sent.conversation_id,{action:'stop'});
+    await running;
+    const stopped=await conversationDetails(owner,sent.conversation_id);
+    const original=stopped.messages.at(-1)!;
+    const textOf=(parts: unknown)=> (parts as Array<{type:string;text?:string}>).filter(p=>p.type==='text').map(p=>p.text).join('\n\n');
+    const prefix=textOf(original.metadata.parts);
+    assert.ok(prefix.length>900);
+    await controlConversation(owner,sent.conversation_id,{action:'resume'});
+    await controlConversation(owner,sent.conversation_id,{action:'stop'});
+    const again=await conversationDetails(owner,sent.conversation_id);
+    assert.equal(again.messages.at(-1)?.id,original.id);
+    assert.equal(textOf(again.messages.at(-1)?.metadata.parts),prefix,'second stop must not erase retained prose');
+    await controlConversation(owner,sent.conversation_id,{action:'resume'});
+    const job=await claimJob(['chat'],{id:active.id,userId:owner});assert.ok(job);
+    assert.equal(textOf(job.result?.previous_parts),prefix);
+    await finishJob(job,await assistantReply(job,()=>heartbeat(job)));
+    const detail=await conversationDetails(owner,sent.conversation_id);
+    const final=detail.messages.at(-1)!;
+    assert.equal(final.id,original.id,'continue the same reply');
+    assert.ok(final.content.startsWith(prefix),'saved response starts with the exact previously displayed text');
+    assert.ok(final.content.length>prefix.length+100,'new content is appended');
+    assert.equal((final.content.match(/Client Intake Guide/g)||[]).length,1,'no repeated opening title');
+    assert.match(final.content,/12[.)]/,'remaining sections are completed');
+    assert.equal(textOf(final.metadata.parts),final.content);
+  } finally {await cancelJob(owner,active.id);await running;}
+});
 test('real model and PG: promoting a queued message replaces the interrupted task', {timeout:180000}, async()=>{
   const sent=await sendMessage(owner,{message:'Write a detailed 2000-word general guide to client intake calls. No records, emails or questions.',request_key:randomUUID(),locale:'en'});
   const active=await claimJob(['chat'],{id:sent.job.id,userId:owner});assert.ok(active);
