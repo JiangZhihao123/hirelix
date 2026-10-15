@@ -10,10 +10,9 @@ import { useBilling } from "@/lib/use-billing";
 import { useT } from "@/components/LanguageProvider";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
-import { RecruiterProfileSection } from "./_components/RecruiterProfileSection";
-import { EMPTY_PROFILE, type HeadhunterProfile, type SettingsSectionId } from "./_components/shared";
+import { type SettingsSectionId } from "./_components/shared";
 
-const SETTINGS_SECTION_IDS = ["account", "billing", "profile"] as const satisfies readonly SettingsSectionId[];
+const SETTINGS_SECTION_IDS = ["account", "billing"] as const satisfies readonly SettingsSectionId[];
 
 function isSettingsSectionId(value: string): value is SettingsSectionId {
   return SETTINGS_SECTION_IDS.includes(value as SettingsSectionId);
@@ -36,7 +35,6 @@ export default function SettingsPage() {
     () => "",
   );
   const [loading, setLoading] = useState(true);
-  const [headhunterProfile, setHeadhunterProfile] = useState<HeadhunterProfile>(EMPTY_PROFILE);
   const [billing, setBilling] = useState<BillingSummary | null>(sharedBilling);
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("account");
   const [signInMethods, setSignInMethods] = useState<string[]>([]);
@@ -49,10 +47,6 @@ export default function SettingsPage() {
       id: "billing" as const,
       label: t("Subscription and usage"),
     },
-    {
-      id: "profile" as const,
-      label: t("Outreach identity"),
-    },
   ];
 
   const fetchSettings = useCallback(async () => {
@@ -61,9 +55,6 @@ export default function SettingsPage() {
       const res = await fetchWithUserSession("/api/settings");
       if (res.ok) {
         const data = await res.json();
-        if (data.company_profile && typeof data.company_profile === "object") {
-          setHeadhunterProfile({ ...EMPTY_PROFILE, ...data.company_profile });
-        }
         if (data.billing) {
           setBilling(data.billing as BillingSummary);
         }
@@ -147,18 +138,6 @@ export default function SettingsPage() {
       );
     }
 
-    if (activeSection === "profile") {
-      return (
-        <RecruiterProfileSection
-          initialProfile={headhunterProfile}
-          onNameChange={(name) =>
-            setHeadhunterProfile((prev) => ({ ...prev, recruiter_name: name }))
-          }
-          refreshBilling={refreshBilling}
-        />
-      );
-    }
-
     return (
       <AccountSection
         signInMethods={signInMethods}
@@ -178,7 +157,7 @@ export default function SettingsPage() {
 
   return (
     <div className="ws-settings-page">
-      <header className="ws-page-header"><div><h1>{t("Settings")}</h1><p>{t("Manage your login, plan, usage, and outreach identity.")}</p></div></header>
+      <header className="ws-page-header"><div><h1>{t("Settings")}</h1><p>{t("Manage your login, subscription, and AI usage.")}</p></div></header>
       <nav className="ws-tabs ws-settings-tabs" aria-label={t("Settings")}>
         {sectionNav.map((item) => (
           <button key={item.id} type="button" aria-current={activeSection === item.id ? "page" : undefined} onClick={() => selectSection(item.id)}>{item.label}</button>

@@ -3,22 +3,8 @@
 import { useT } from "@/components/LanguageProvider";
 import type { ReactNode } from "react";
 
-export interface HeadhunterProfile {
-  recruiter_name: string;
-  firm_name: string;
-  specialization: string;
-  bio: string;
-}
-
-export const EMPTY_PROFILE: HeadhunterProfile = {
-  recruiter_name: "",
-  firm_name: "",
-  specialization: "",
-  bio: "",
-};
-
 export type MessageState = { type: "success" | "error"; text: string } | null;
-export type SettingsSectionId = "account" | "billing" | "profile";
+export type SettingsSectionId = "account" | "billing";
 
 export function SettingsSection({
   id,

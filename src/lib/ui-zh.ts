@@ -949,7 +949,7 @@ export const uiZh: Record<string, string> = {
   "Make it shorter and lead with the team-building experience.": "缩短内容，并以团队建设经验开头。",
   "Manage billing": "管理账单",
   "Manage password sign-in for this account.": "管理此账户的密码登录。",
-  "Manage your login, plan, usage, and outreach identity.": "管理您的登录、套餐、用量和外联身份。",
+  "Manage your login, subscription, and AI usage.": "管理您的登录、订阅和 AI 用量。",
   "Manual review notes": "人工审核备注",
   "Mark": "标记",
   "Merge into an existing match": "合并到现有匹配",
