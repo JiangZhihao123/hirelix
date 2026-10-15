@@ -55,12 +55,14 @@ export function FilterInput({
   placeholder,
   label = placeholder,
   list,
+  debounceMs = 300,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   label?: string;
   list?: string;
+  debounceMs?: number;
 }) {
   const [input, setInput] = useState({ value, draft: value });
   if (input.value !== value) setInput({ value, draft: value });
@@ -79,7 +81,8 @@ export function FilterInput({
         const next = e.target.value;
         setInput({ value, draft: next });
         clearTimeout(timer.current);
-        timer.current = setTimeout(() => onChange(next), 300);
+        if (debounceMs === 0) onChange(next);
+        else timer.current = setTimeout(() => onChange(next), debounceMs);
       }}
     />
   );

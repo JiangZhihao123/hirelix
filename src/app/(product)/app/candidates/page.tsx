@@ -4,7 +4,7 @@ import { recordLocalDate } from "@/lib/workspace/record-dates";
 import { SourceContent } from "@/components/workspace/source-content";
 
 import { useLanguage, useT } from "@/components/LanguageProvider";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -121,7 +121,12 @@ export default function Candidates() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => setQuery(filter), [filter]);
-  const setMode = (mode: string) => update({ mode, task: null });
+  const searchVersion = useRef(0);
+  const changeSearch = (values: Record<string, string | number | null>) => {
+    searchVersion.current += 1;
+    update({ ...values, task: null });
+  };
+  const setMode = (mode: string) => changeSearch({ mode });
   const setPage = (page: number) => update({ page });
   const onSort = (sort: string, direction: string) =>
     update({ sort, direction });
@@ -181,6 +186,8 @@ export default function Candidates() {
       return;
     }
     if (!query.trim()) return;
+    const version = ++searchVersion.current;
+    update({ task: null });
     setBusy(true);
     try {
       const result = await api<{ job: Job }>("/jobs", {
@@ -191,11 +198,13 @@ export default function Candidates() {
           payload: { query, location, expertise, limit: 30 },
         }),
       });
-      update({ q: query, task: result.job.id, mode: "semantic" });
+      if (version === searchVersion.current)
+        update({ q: query, task: result.job.id, mode: "semantic" });
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Could not start search",
-      );
+      if (version === searchVersion.current)
+        setError(
+          error instanceof Error ? error.message : "Could not start search",
+        );
     } finally {
       setBusy(false);
     }
@@ -245,7 +254,10 @@ export default function Candidates() {
                 : t("Describe the experience or past conversation you remember")
             }
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              if (mode === "semantic") changeSearch({ q: event.target.value });
+            }}
           />
           <button className="ws-link" disabled={busy}>
             {busy ? t("Starting…") : t("Search")}
@@ -269,14 +281,16 @@ export default function Candidates() {
             placeholder={t("Location")}
             list="candidate-locations"
             value={location}
-            onChange={(location) => update({ location, task: null })}
+            debounceMs={mode === "semantic" ? 0 : 300}
+            onChange={(location) => changeSearch({ location })}
           />
           <FilterInput
             label={t("Filter by expertise")}
             placeholder={t("Expertise")}
             list="candidate-skills"
             value={expertise}
-            onChange={(expertise) => update({ expertise, task: null })}
+            debounceMs={mode === "semantic" ? 0 : 300}
+            onChange={(expertise) => changeSearch({ expertise })}
           />
           <datalist id="candidate-locations">
             {facets.data?.locations.map((value) => (
@@ -331,7 +345,7 @@ export default function Candidates() {
               className="ws-link"
               onClick={() => {
                 setQuery("");
-                update({
+                changeSearch({
                   q: null,
                   location: null,
                   expertise: null,
