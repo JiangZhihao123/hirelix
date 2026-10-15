@@ -1,4 +1,3 @@
-import { signalTurnStop } from "./turn-channel";
 import { turnParts } from "./turn-progress";
 import { isIncludedTask } from "./database";
 import { reserveAgentCredits, AgentCreditError } from "@/lib/agent-access";
@@ -31,23 +30,35 @@ export class LostLease extends Error {
 export async function claimJob(kinds: JobKind[], exact?: {id:string;userId:string}): Promise<Job | null> {
   if (!kinds.length) return null;
   return db.transaction(async (tx) => {
-    const [job] = await rows<Job>(
-      sql`SELECT * FROM hirelix_private_jobs WHERE status='queued' AND kind IN (${sql.join(
-        kinds.map((kind) => sql`${kind}`),
-        sql`, `,
-      )}) ${exact ? sql`AND id=${exact.id}::uuid AND user_id=${exact.userId}::uuid` : sql``} ORDER BY CASE WHEN kind='index' THEN 1 ELSE 0 END,created_at,id FOR UPDATE SKIP LOCKED LIMIT 1`,
-      tx,
-    );
-    if (!job) return null;
-    // A reclaimed execution replaces its unfinished attempt; no retry costs
-    // accumulate into the customer's successful result.
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
-    await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
-    const [claimed] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='running',result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
-      tx,
-    );
-    return claimed;
+    const eligible = sql`(j.kind<>'chat' OR (
+      EXISTS(SELECT 1 FROM hirelix_private_conversations c WHERE c.user_id=j.user_id AND c.id::text=j.payload->>'conversation_id' AND NOT c.stopped)
+      AND NOT EXISTS(SELECT 1 FROM hirelix_private_jobs other WHERE other.user_id=j.user_id AND other.kind='chat' AND other.payload->>'conversation_id'=j.payload->>'conversation_id' AND other.id<>j.id AND (other.status='running' OR (other.status='queued' AND (
+        coalesce((other.payload->>'priority')::int,0)>coalesce((j.payload->>'priority')::int,0) OR (coalesce((other.payload->>'priority')::int,0)=coalesce((j.payload->>'priority')::int,0) AND (other.created_at,other.id)<(j.created_at,j.id))
+      ))))
+    ))`;
+    const candidates = await rows<Job>(sql`SELECT j.* FROM hirelix_private_jobs j WHERE j.status='queued' AND j.kind IN (${sql.join(kinds.map(kind=>sql`${kind}`),sql`, `)}) ${exact ? sql`AND j.id=${exact.id}::uuid AND j.user_id=${exact.userId}::uuid` : sql``} AND ${eligible} ORDER BY CASE WHEN j.kind='index' THEN 1 ELSE 0 END,j.created_at,j.id LIMIT 20`,tx);
+    for (const candidate of candidates) {
+      // Same lock order as send/stop/edit: conversation, job, then billing.
+      if(candidate.kind==='chat') {
+        const locked = await rows(sql`SELECT id FROM hirelix_private_conversations WHERE user_id=${candidate.user_id}::uuid AND id=${String(candidate.payload.conversation_id)}::uuid FOR UPDATE SKIP LOCKED`,tx);
+        if(!locked.length) continue;
+      }
+      const [job] = await rows<Job>(sql`SELECT j.* FROM hirelix_private_jobs j WHERE j.id=${candidate.id}::uuid AND j.status='queued' AND ${eligible} FOR UPDATE SKIP LOCKED`,tx);
+      if(!job) continue;
+      // A reclaimed execution replaces its unfinished attempt; no retry costs
+      // accumulate into the customer's successful result.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
+      await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
+      const [claimed] = await rows<Job>(
+        sql`UPDATE hirelix_private_jobs SET status='running',result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
+        tx,
+      );
+      if (claimed.kind === "chat") {
+        await tx.execute(sql`UPDATE hirelix_agent_messages SET created_at=CASE WHEN metadata->>'delivery'='queued' THEN clock_timestamp() ELSE created_at END,metadata=metadata||'{"delivery":"sent"}'::jsonb WHERE user_id=${claimed.user_id}::uuid AND id=${claimed.payload.message_id as string}::uuid`);
+      }
+      return claimed;
+    }
+    return null;
   });
 }
 export async function heartbeat(job: Job, message?: string) {
@@ -62,6 +73,7 @@ export async function heartbeat(job: Job, message?: string) {
 export { liveReplyWriter } from "./live-reply";
 export async function finishJob(job: Job, prepared: PreparedJob) {
   return db.transaction(async (tx) => {
+    if(job.kind === "chat") await owned(job.user_id,"conversation",String(job.payload.conversation_id),tx,true);
     if (typeof job.payload.parent_chat_job_id === "string") {
       const parent = await owned<Job>(job.user_id,"job",job.payload.parent_chat_job_id,tx,true);
       if (parent.status !== "running" || !parent.lease_until || new Date(parent.lease_until).getTime() <= Date.now()) throw new LostLease();
@@ -91,14 +103,25 @@ export async function finishJob(job: Job, prepared: PreparedJob) {
   });
 }
 export async function failJob(job: Job, message: string) {
-  await db.execute(
-    sql`UPDATE hirelix_private_jobs SET status='error',error=${message},progress='Needs attention',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid`,
-  );
+  await db.transaction(async tx=>{
+    if(job.kind==='chat') await owned(job.user_id,'conversation',String(job.payload.conversation_id),tx,true);
+    const failed=await rows(sql`UPDATE hirelix_private_jobs SET status='error',result=coalesce(result,'{}'::jsonb)||${json(job.kind === 'chat' ? {paused:true} : {})},error=${message},progress='Needs attention',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid RETURNING id`,tx);
+    if(failed.length && job.kind==='chat') await tx.execute(sql`UPDATE hirelix_private_conversations SET stopped=true WHERE id=${String(job.payload.conversation_id)}::uuid AND user_id=${job.user_id}::uuid`);
+  });
 }
 export async function reclaimJobs() {
-  return rows<{ id: string; status: string }>(
-    sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence',progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE status='running' AND lease_until<=now() RETURNING id,status`,
-  );
+  const expired = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE status='running' AND lease_until<=now()`);
+  const reclaimed: {id:string;status:string}[] = [];
+  for (const job of expired) {
+    const changed = await db.transaction(async tx => {
+      if(job.kind === "chat") await owned(job.user_id,"conversation",String(job.payload.conversation_id),tx,true);
+      const [updated] = await rows<{id:string;status:string}>(sql`UPDATE hirelix_private_jobs SET status=CASE WHEN attempts<3 THEN 'queued' ELSE 'error' END,result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence')||CASE WHEN kind='chat' THEN jsonb_build_object('paused',attempts>=3) ELSE '{}'::jsonb END,progress=CASE WHEN attempts<3 THEN 'Resuming interrupted task' ELSE 'Needs attention' END,error=CASE WHEN attempts<3 THEN NULL ELSE 'This task was interrupted repeatedly. Retry it when the worker is available.' END,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=${job.id}::uuid AND status='running' AND lease_until<=now() RETURNING id,status`,tx);
+      if(updated?.status === "error" && job.kind === "chat") await tx.execute(sql`UPDATE hirelix_private_conversations SET stopped=true WHERE id=${String(job.payload.conversation_id)}::uuid AND user_id=${job.user_id}::uuid`);
+      return updated;
+    });
+    if(changed) reclaimed.push(changed);
+  }
+  return reclaimed;
 }
 export async function retryJob(userId: string, id: string, parent?: Job) {
   return db.transaction(async (tx) => {
@@ -111,20 +134,21 @@ export async function retryJob(userId: string, id: string, parent?: Job) {
       // Serialize with sendMessage before taking the billing lock. A stale tab
       // must not restart an older failed turn after the user has moved on.
       await owned(userId, "conversation", original.payload.conversation_id, tx, true);
-      const [latest] = await rows<{id: string}>(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${original.payload.conversation_id} ORDER BY created_at DESC,id DESC LIMIT 1`, tx);
+      const [latest] = await rows<{id: string}>(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND status<>'queued' AND payload->>'conversation_id'=${original.payload.conversation_id} ORDER BY created_at DESC,id DESC LIMIT 1`, tx);
       if (latest?.id !== original.id) throw new WorkspaceError("A newer message has replaced this reply. Continue in the conversation instead.", 409);
     }
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${userId}`}, 0))`);
     const job = await owned<Job>(userId, "job", id, tx, true);
-    if (job.status !== "error")
+    if (job.status !== "error" && !(parent && job.status === "cancelled" && job.payload.conversation_id === parent.payload.conversation_id && ["import","deliverable","revision"].includes(job.kind)))
       throw new WorkspaceError("Only failed tasks can be retried", 409);
     if (!(await isIncludedTask(job, tx))) {
       if (await reserveAgentCredits(userId, job.id, tx) === false) throw new WorkspaceError("Your AI credit allowance has ended. Open Settings → Billing to continue.", 402);
     }
     const [result] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence'-'paused',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
       tx,
     );
+    if(job.kind === "chat") await tx.execute(sql`UPDATE hirelix_private_conversations SET stopped=false WHERE id=${String(job.payload.conversation_id)}::uuid AND user_id=${userId}::uuid`);
     return result;
   });
 }
@@ -182,8 +206,7 @@ export async function processJob(
   return true;
 }
 
-export async function cancelJob(userId: string, id: string, visible?: {stream_epoch?: string; stream_sequence?: number}) {
-  const cancelled = await db.transaction(async tx => {
+export async function cancelJobInTransaction(userId: string, id: string, tx: Runner, visible?: {stream_epoch?: string; stream_sequence?: number}) {
     const job = await owned<Job>(userId, "job", id, tx, true);
     if (!["queued", "running"].includes(job.status)) return job;
     let result = job.result || {};
@@ -192,8 +215,8 @@ export async function cancelJob(userId: string, id: string, visible?: {stream_ep
       const metadata = {reply_request_key: job.request_key, turn_status: "cancelled", activity: turnActivity(result), parts: turnParts(result)};
       const receiptId = result.receipt_message_id;
       const [message] = typeof receiptId === "string"
-        ? await rows<{id:string}>(sql`UPDATE hirelix_agent_messages SET content='',metadata=metadata || ${json(metadata)} WHERE id=${receiptId}::uuid AND user_id=${userId}::uuid AND conversation_id=${job.payload.conversation_id}::uuid RETURNING id`,tx)
-        : await rows<{id:string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant','',${json(metadata)}) RETURNING id`,tx);
+        ? await rows<{id:string}>(sql`UPDATE hirelix_agent_messages SET content=${String(result.live_reply || '')},metadata=metadata || ${json(metadata)} WHERE id=${receiptId}::uuid AND user_id=${userId}::uuid AND conversation_id=${job.payload.conversation_id}::uuid RETURNING id`,tx)
+        : await rows<{id:string}>(sql`INSERT INTO hirelix_agent_messages(user_id,conversation_id,role,content,metadata) VALUES(${userId}::uuid,${job.payload.conversation_id}::uuid,'assistant',${String(result.live_reply || '')},${json(metadata)}) RETURNING id`,tx);
       result = {...result, message_id: message.id, cancelled_lease_token: job.lease_token,
         ...((visible?.stream_epoch === result.stream_epoch || (!visible?.stream_epoch && visible?.stream_sequence === 0)) && Number.isSafeInteger(visible?.stream_sequence) && visible!.stream_sequence! >= 0
           ? {cancelled_sequence: visible!.stream_sequence} : {})};
@@ -201,12 +224,21 @@ export async function cancelJob(userId: string, id: string, visible?: {stream_ep
     }
     const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result=${json(result)},progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
     await tx.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled',progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND payload->>'parent_chat_job_id'=${id} AND status IN ('queued','running')`);
+    if (job.kind === "chat" && job.lease_token) {
+      await tx.execute(sql`SELECT pg_notify(${`hirelix_turn_${id.replaceAll("-", "")}_stop`},${JSON.stringify({lease:job.lease_token,sequence:result.cancelled_sequence})})`);
+    }
     return cancelled;
+}
+export async function cancelJob(userId: string, id: string, visible?: {stream_epoch?: string; stream_sequence?: number}) {
+  return db.transaction(async tx => {
+    const job = await owned<Job>(userId,"job",id,tx);
+    if(job.kind === "chat" && ["queued","running"].includes(job.status)) {
+      await owned(userId,"conversation",String(job.payload.conversation_id),tx,true);
+      const current = await owned<Job>(userId,"job",id,tx,true);
+      if(!["queued","running"].includes(current.status)) return current;
+      await tx.execute(sql`UPDATE hirelix_private_conversations SET stopped=true WHERE id=${String(job.payload.conversation_id)}::uuid AND user_id=${userId}::uuid`);
+      await tx.execute(sql`UPDATE hirelix_private_jobs SET result=coalesce(result,'{}'::jsonb)||'{"paused":true}'::jsonb WHERE id=${id}::uuid`);
+    }
+    return cancelJobInTransaction(userId, id, tx, visible);
   });
-  const lease = cancelled.result?.cancelled_lease_token;
-  if (cancelled.status === "cancelled" && typeof lease === "string") {
-    try { await signalTurnStop(id, lease, typeof cancelled.result?.cancelled_sequence === "number" ? cancelled.result.cancelled_sequence : undefined); }
-    catch (error) { logger.warn({job_id: id, error_type: error instanceof Error ? error.name : "Unknown"}, "Stop notification failed; lease already revoked"); }
-  }
-  return cancelled;
 }

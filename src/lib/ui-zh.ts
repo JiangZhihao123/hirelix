@@ -182,6 +182,7 @@ export const uiZh: Record<string, string> = {
   "Assistant suggestion": "助理建议",
   "Send reply": "发送回复",
   "Thinking…": "正在思考…",
+  "Stopped": "已停止",
   "Stopped. You can send a new instruction.": "已停止。你可以发送新的要求。",
   "Stop response": "停止回复",
   "Stop and send message": "停止当前回复并发送",

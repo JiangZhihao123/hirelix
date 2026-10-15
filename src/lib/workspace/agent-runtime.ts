@@ -1,6 +1,7 @@
 import { ToolLoopAgent, stepCountIs, generateText, type ModelMessage } from "ai";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { resolveQueuedQuestion } from "./conversation-questions";
 import { conversationDetails } from "./conversations";
 import { messageAttachments } from "./attachments";
 import { listPersonalMemories } from "./memories";
@@ -31,6 +32,7 @@ Use request context to resolve references: an explicit selection identifies the 
 Communicate naturally in the latest user's language, using the UI language when unclear. Respect the user's time: lead with the requested result and match detail to the significance of the matter. For delegated work, report the key findings, your recommendation and tradeoffs, completed preparation, and any decision that belongs with the user. Prepare concrete options before requesting that decision. During extended work, share concise material progress or findings at useful moments. Keep explanations focused on the user's work and observable results, with internal reasoning kept private. Add information that complements visible results. Every request for the user to choose, confirm a proposed next action, or supply information is delivered through ask_user. This includes optional follow-up offers after completing the requested work: write the completed report first, then call ask_user with the decision and wait. Present two or three distinct courses of action when useful, with a recommended option and its reason when evidence supports a preference. Treat the question in ask_user as the single place that asks for the decision; preceding prose supplies findings and context. Prepare the alternatives and tradeoffs so the user can decide quickly; use concise action labels for the options. The same tool handles missing information and ambiguity, where an open question or neutral options may be appropriate. The interface presents the question after your report and sends a selected option immediately; the user can also answer freely in the composer. Complete authorized preparation before handing over the decision, then continue from the user’s answer. For new material, invite the user to attach or paste it in this conversation so you can process it with tools. Complete answers, social exchanges and tasks already in progress can end naturally on their own. Use exact tool-returned links with descriptive labels. Express facts, capabilities and outcomes with the certainty their evidence supports.`;
 
 export const assistantReply: JobHandler = async (job, progress) => {
+  await resolveQueuedQuestion(job);
   const id = z.uuid().parse(job.payload.conversation_id),
     details = await conversationDetails(job.user_id, id);
   let question = details.messages.find(
@@ -182,10 +184,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
       explicit_preferences: await listPersonalMemories(job.user_id),
       completed_tools_from_prior_attempt: persisted.result?.tool_receipts ?? {},
     };
+    if (job.payload.resuming || job.payload.continuation_job_id) {
+      Object.assign(context, { continuation: {
+        instruction: "Continue the unfinished work using the latest user requirements. Check the completed tool receipts and current saved state first. Do not repeat completed writes or sends. A queued unrelated follow-up is not a correction to this work.",
+        previous_output: persisted.result?.previous_parts ?? null,
+      }});
+    }
     const messages: ModelMessage[] = details.messages
       .filter(
         (m) =>
+          m.metadata.delivery !== "queued" && m.metadata.delivery !== "removed" &&
           (m.metadata.turn_status !== "cancelled" ||
+            !!m.content.trim() ||
             m.metadata.committed_tools ||
             m.metadata.actions ||
             m.metadata.work ||
@@ -200,7 +210,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
             ? question!.content
             : m.role === "assistant"
               ? JSON.stringify({
-                  reply: m.content,
+                  reply: m.metadata.turn_status === "cancelled" ? undefined : m.content,
+                  unfinished_reply: m.metadata.turn_status === "cancelled" ? m.content : undefined,
                   saved_receipts: {
                     ...m.metadata,
                     agent: undefined,
@@ -346,6 +357,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         const receiptId = current.result?.receipt_message_id;
         const metadata = {
           reply_request_key: job.request_key,
+          turn_status: "done",
           parts,
           sources: [...ctx.sources.values()].slice(0, 30),
           agent: { framework: "ai-sdk/ToolLoopAgent", steps: trace },

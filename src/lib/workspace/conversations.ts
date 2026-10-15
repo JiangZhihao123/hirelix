@@ -17,6 +17,7 @@ export { assistantReply } from "./agent-runtime";
 
 export const conversationInput = z.object({
   message: z.string().trim().max(50000),
+  delivery: z.enum(["queue", "immediate"]).default("queue"),
   email_confirmation_message_id: z.uuid().nullable().default(null),
   question_message_id: z.uuid().nullable().default(null),
   file_ids: z.array(z.uuid()).max(MAX_CONVERSATION_FILES).default([]),
@@ -81,7 +82,7 @@ export async function listConversations(userId: string) {
       EXISTS(SELECT 1 FROM hirelix_private_notifications n WHERE n.user_id=c.user_id AND n.read_at IS NULL AND n.href='/app?conversation='||c.id::text) AS unread,
       EXISTS(SELECT 1 FROM hirelix_private_jobs j WHERE j.user_id=c.user_id
         AND j.payload->>'conversation_id'=c.id::text AND j.kind IN ('chat','deliverable')
-        AND j.status IN ('queued','running')) AS running
+        AND j.status IN ('queued','running') AND NOT c.stopped) AS running
       FROM hirelix_private_conversations c WHERE c.user_id=${userId}::uuid
       ORDER BY c.updated_at DESC,c.id LIMIT 100`,
   );
@@ -125,7 +126,7 @@ export async function conversationDetails(userId: string, id: string) {
       sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${id}::uuid ORDER BY created_at,id`,
     ),
     rows<Job>(
-      sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${id} ORDER BY created_at DESC LIMIT 1`,
+      sql`WITH conversation_jobs AS NOT MATERIALIZED (SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${id} AND result->>'removed' IS DISTINCT FROM 'true') SELECT * FROM conversation_jobs WHERE status IN ('queued','running') OR id=(SELECT id FROM conversation_jobs WHERE status NOT IN ('queued','running') ORDER BY updated_at DESC,id DESC LIMIT 1) ORDER BY CASE status WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END,CASE WHEN status='queued' THEN coalesce((payload->>'priority')::int,0) END DESC,CASE WHEN status='queued' THEN created_at END ASC,updated_at DESC,id DESC`,
     ),
     rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='deliverable' AND payload->>'conversation_id'=${id} ORDER BY created_at DESC,id DESC LIMIT 100`),
   ]);
@@ -157,10 +158,16 @@ export async function conversationDetails(userId: string, id: string) {
   }
   work.reverse();
   const latestWork = [...work].reverse().find(item => item.status === "done" && item.result?.deliverable_id);
-  const selected = [...messages].reverse().find(message => message.role === "user" && typeof message.metadata.work_document_id === "string");
-  const documentId = selected && (!latestWork || new Date(selected.created_at) > new Date(latestWork.created_at)) ? selected.metadata.work_document_id : latestWork?.result?.deliverable_id || messages.find(message => message.role === "user" && typeof message.metadata.document_id === "string")?.metadata.document_id;
+  const deliveredMessages = messages.filter(message => !["queued","removed"].includes(String(message.metadata.delivery)));
+  const selected = [...deliveredMessages].reverse().find(message => message.role === "user" && typeof message.metadata.work_document_id === "string");
+  const documentId = selected && (!latestWork || new Date(selected.created_at) > new Date(latestWork.created_at)) ? selected.metadata.work_document_id : latestWork?.result?.deliverable_id || deliveredMessages.find(message => message.role === "user" && typeof message.metadata.document_id === "string")?.metadata.document_id;
   const document = documentId ? await owned<Deliverable>(userId, "deliverable", z.uuid().parse(documentId)) : null;
-  return { conversation, messages, document, work, job: jobs[0] ?? null };
+  const active = jobs.find(job => job.status === "running");
+  const queued = jobs.filter(job => job.status === "queued");
+  const stoppedJob = jobs.find(job => job.status === "cancelled" && job.result?.paused === true);
+  const current = active || (conversation.stopped ? stoppedJob : queued[0]) || jobs.find(job => !["queued", "running"].includes(job.status)) || null;
+  return { conversation, messages: messages.filter(message => message.metadata.delivery !== "removed" && (message.metadata.delivery !== "queued" || message.id === current?.payload.message_id)), document, work, job: current,
+    queue: queued.filter(job => conversation.stopped || job.id !== current?.id) };
 }
 // Render feedback from its saved structured receipt, without parsing generated prose.
 async function hydrateRecommendationFeedback(userId: string, messages: Message[]) {

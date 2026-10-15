@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { getGlobalDispatcher } from "undici";
 import {randomUUID} from "node:crypto";
 import {after,test} from "node:test";
 import {sql} from "drizzle-orm";
@@ -11,7 +12,7 @@ import {initializeGlobalOutboundProxy} from "../../src/lib/server-outbound-proxy
 const url=new URL(process.env.DATABASE_URL || 'postgres://invalid/invalid');
 assert.ok(['localhost','127.0.0.1'].includes(url.hostname)&&url.pathname.startsWith('/hirelix_workspace_qa_'));
 assert.equal(process.env.WORKSPACE_REAL_AI_TEST,'true');
-initializeGlobalOutboundProxy(); after(async()=>{await closeDb();await closeTurnChannel();});
+initializeGlobalOutboundProxy(); after(async()=>{await closeDb();await closeTurnChannel();await getGlobalDispatcher().close();});
 const owner=randomUUID();
 test('real model and PG: provider prose appears before the final saved reply, cancellation blocks late writes',{timeout:240000},async()=>{
   const sent=await sendMessage(owner,{message:'Explain in English, in six short paragraphs, how a headhunter can prepare for a first client intake call. General advice only; do not create records, reminders, or save preferences.',request_key:randomUUID(),locale:'en'});

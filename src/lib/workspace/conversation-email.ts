@@ -61,11 +61,11 @@ export async function prepareEmailReply({job, conversation, question, messages, 
       if ((plan.to && plan.to !== pending.snapshot.to) || (plan.subject && plan.subject !== pending.snapshot.title) || (plan.body && plan.body !== pending.snapshot.content)) throw new WorkspaceError("The email changed. Ask me to prepare a new preview before sending.",409);
       try {
         const result = await sendConversationEmail(job.user_id,pending.snapshot,pending.request_key,async tx => {
-          // Serialize with stop/retry, then with new messages and review cancellation.
+          // Use the same conversation -> job lock order as queue controls.
+          await owned(job.user_id,"conversation",conversation.id,tx,true);
           const active = await owned<Job>(job.user_id,"job",job.id,tx,true);
           if (active.status !== "running" || active.lease_token !== job.lease_token || !active.lease_until || new Date(active.lease_until).getTime() <= Date.now()) throw new WorkspaceError("This sending request was stopped or replaced.",409);
-          await owned(job.user_id,"conversation",conversation.id,tx,true);
-          const [latestUser] = await rows<{id:string}>(sql`SELECT id FROM hirelix_agent_messages WHERE user_id=${job.user_id}::uuid AND conversation_id=${conversation.id}::uuid AND role='user' ORDER BY created_at DESC,id DESC LIMIT 1`,tx);
+          const [latestUser] = await rows<{id:string}>(sql`SELECT id FROM hirelix_agent_messages WHERE user_id=${job.user_id}::uuid AND conversation_id=${conversation.id}::uuid AND role='user' AND coalesce(metadata->>'delivery','sent') NOT IN ('queued','removed') ORDER BY created_at DESC,id DESC LIMIT 1`,tx);
           if (latestUser?.id !== question.id) throw new WorkspaceError("A newer message replaced this email confirmation.",409);
           const [current] = await rows<Message>(sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${job.user_id}::uuid AND conversation_id=${conversation.id}::uuid AND id=${latest.id}::uuid FOR UPDATE`,tx);
           const reviewed = current?.metadata.email as ConversationEmail | undefined;

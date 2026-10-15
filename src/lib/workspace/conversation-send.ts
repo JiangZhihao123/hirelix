@@ -7,7 +7,7 @@ import { conversationInput } from "./conversations";
 import { saveFile, type PrivateFile } from "./files";
 import { MAX_CONVERSATION_FILES, type ConversationAttachment } from "./attachments";
 import type { Job, Conversation, Deliverable, Message, Person, Role } from "./types";
-import { consumeQuestion } from "./conversation-questions";
+import { interruptConversation, nextConversationPriority } from "./conversation-control";
 export async function sendMessage(
   userId: string,
   value: unknown,
@@ -73,21 +73,15 @@ export async function sendMessage(
         tx,
         true,
       );
-      const [pending] = await rows(
-        sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'conversation_id'=${conversation.id} AND status IN ('queued','running') LIMIT 1`,
-        tx,
-      );
-      if (pending)
-        throw new WorkspaceError(
-          "Finish or retry the previous reply before sending another message",
-          409,
-        );
+
     } else {
       [conversation] = await rows<Conversation>(
         sql`INSERT INTO hirelix_private_conversations(user_id,title,role_id,person_id) VALUES(${userId}::uuid,${(input.message || attachments.map((item) => item.name).join(", ") || "New conversation").slice(0, 100)},NULL,NULL) RETURNING *`,
         tx,
       );
     }
+    const previous = input.delivery === "immediate"
+      ? await interruptConversation(userId, conversation.id, tx, false) : undefined;
     // The selected document can be retrieved from another conversation. The
     // account ownership boundary applies; its creation conversation does not.
     const viewed = input.viewed_source ? await owned<{title?:string;name?:string;version?:number}>(userId, input.viewed_source.kind, input.viewed_source.id, tx) : null;
@@ -102,11 +96,16 @@ export async function sendMessage(
       if (!preview || !["review","sending","sent","unknown"].includes((preview.metadata.email as {status:string}).status)) throw new WorkspaceError("This email preview is no longer available",409);
     }
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ ...(roleReference ? { role_id: roleReference.id, role_reference: roleReference } : {}), ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ delivery: "queued", ...(roleReference ? { role_id: roleReference.id, role_reference: roleReference } : {}), ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,
     );
-    const continuation = await consumeQuestion(userId, conversation.id, input.question_message_id, input.message, message.id, tx);
-    if (continuation) await tx.execute(sql`UPDATE hirelix_agent_messages SET metadata=metadata || ${json({continuation})} WHERE id=${message.id}::uuid AND user_id=${userId}::uuid`);
+    // Queueing must not answer a question yet: its message can still be edited or removed.
+    const [pendingQuestion] = await rows<{id:string}>(sql`SELECT id FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid AND role='assistant' AND metadata->'question'->>'status'='waiting' ORDER BY created_at DESC LIMIT 1`,tx);
+    if(input.question_message_id && pendingQuestion?.id !== input.question_message_id) throw new WorkspaceError("This question has already been answered or cancelled. Reload the conversation.",409);
+    if(pendingQuestion) {
+      const reserved = await rows(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='chat' AND payload->>'pending_question_id'=${pendingQuestion.id} AND status IN ('queued','running')`,tx);
+      if(reserved.length) throw new WorkspaceError("This question has already been answered by a pending message. Edit that queued message instead.",409);
+    }
     await tx.execute(
       sql`UPDATE hirelix_private_conversations SET updated_at=now() WHERE id=${conversation.id}::uuid AND user_id=${userId}::uuid`,
     );
@@ -116,12 +115,19 @@ export async function sendMessage(
       input.request_key,
       {
         conversation_id: conversation.id,
+        pending_question_id: pendingQuestion?.id ?? null,
         message_id: message.id,
         request: input,
         attachment_sha256: attachmentHash,
+        priority: input.delivery === "immediate" ? await nextConversationPriority(userId,conversation.id,tx) : 0,
+        continuation_job_id: previous?.id ?? null,
       },
       tx,
     );
+    await tx.execute(sql`UPDATE hirelix_private_jobs SET created_at=clock_timestamp() WHERE id=${job.id}::uuid`);
+    if (previous?.result?.tool_receipts) {
+      await tx.execute(sql`UPDATE hirelix_private_jobs SET result=${json({tool_receipts:previous.result.tool_receipts})} WHERE id=${job.id}::uuid`);
+    }
     return { conversation_id: conversation.id, job };
   });
 }

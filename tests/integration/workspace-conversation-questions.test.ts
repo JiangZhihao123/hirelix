@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { getGlobalDispatcher } from "undici";
 import { randomUUID } from "node:crypto";
 import { after, test } from "node:test";
 import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { sendMessage, assistantReply, conversationDetails, listConversations, type AssistantMeta } from "../../src/lib/workspace/conversations";
+import { closeTurnChannel } from "../../src/lib/workspace/turn-channel";
 import { cancelQuestion } from "../../src/lib/workspace/conversation-questions";
 import { rows, json } from "../../src/lib/workspace/database";
 import { claimJob, finishJob, heartbeat } from "../../src/lib/workspace/jobs";
@@ -14,7 +16,7 @@ assert.ok(["localhost","127.0.0.1"].includes(url.hostname) && url.pathname.start
 assert.equal(process.env.WORKSPACE_REAL_AI_TEST,"true");
 initializeGlobalOutboundProxy();
 const owner = randomUUID();
-after(async()=>{await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${owner}::uuid`);await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);await closeDb();});
+after(async()=>{await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${owner}::uuid`);await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);await closeTurnChannel();await closeDb();await getGlobalDispatcher().close();});
 async function execute(sent: Awaited<ReturnType<typeof sendMessage>>) {
   const job=await claimJob(["chat"],{id:sent.job.id,userId:owner});assert.equal(job?.id,sent.job.id);
   const timer=setInterval(()=>void heartbeat(job!),20000);

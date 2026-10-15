@@ -107,7 +107,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       }} />
 
                     </div>}
-                    {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped. You can send a new instruction.")}</p>}
+                    {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped")}</p>}
                     {showReceipts && <>
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />

@@ -166,6 +166,7 @@ export type Job = {
   updated_at: string;
 };
 export type Conversation = {
+  stopped?: boolean;
   running?: boolean;
   unread?: boolean;
   id: string;

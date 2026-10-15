@@ -862,7 +862,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     resume_work: define(
       "resume_work",
-      "Resume a failed import or document job in this conversation using its saved input, or observe its completed result. Do not create a duplicate to retry. Retry a transient failure at most once per turn; unchanged invalid input needs correction instead.",
+      "Resume a stopped or failed import or document job in this conversation using its saved input, or observe its completed result. Do not create a duplicate to retry. Retry a transient failure at most once per turn; unchanged invalid input needs correction instead.",
       z.object({ job_id: z.uuid(), ...authorization }),
       async (input) => {
         authorized(input.authorization_quote);
@@ -875,7 +875,7 @@ export function createAgentTools(ctx: AgentToolContext) {
             "Choose an import or document from this conversation.",
             409,
           );
-        if (work.status === "error") {
+        if (work.status === "error" || work.status === "cancelled") {
           if (retriedWork.has(work.id))
             throw new WorkspaceError(
               "This work has already been retried during this turn. Report the failure without retrying unchanged inputs again.",

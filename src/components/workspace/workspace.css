@@ -2958,3 +2958,9 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-picker-content .ws-detail-link { padding:12px 8px; }
 .ws-picker-content .ws-detail-link > svg:last-child { margin-left:auto; color:var(--ws-muted); }
 .ws-filters input { max-width:150px; }
+
+.ws-conversation-queue{width:min(100%,800px);margin:0 auto;padding:0 20px 8px;color:var(--muted);font-size:12px}
+.ws-conversation-held{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;background:#f4f6f3;border:1px solid #e3e8e0;border-radius:10px;margin-bottom:8px}
+.ws-conversation-held span{display:grid;gap:4px}.ws-conversation-held strong{font-size:13px;color:var(--text)}.ws-conversation-held .ws-button{min-height:32px;padding:5px 10px;font-size:12px}
+.ws-conversation-queue summary{cursor:pointer;padding:5px 0}.ws-conversation-queue ol{list-style:none;padding:0;margin:0;max-height:180px;overflow:auto}
+.ws-conversation-queue li{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #e8ece6;background:#f7f8f5}.ws-conversation-queue li p{flex:1;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ws-conversation-queue li .ws-link{display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px}.ws-conversation-queue textarea{flex:1;min-width:0;resize:vertical;min-height:64px;font-size:13px}

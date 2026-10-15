@@ -112,5 +112,7 @@ test("real queue: handler failure preserves a safe visible error and can be retr
   await processJob({ assessment: async () => ({ result: { recovered: true } }) });
   const recovered = await owned<Job>(owner, "job", created.id);
   assert.equal(recovered.status, "done");
-  assert.deepEqual(recovered.result, { recovered: true });
+  assert.equal(recovered.result?.recovered,true);
+  assert.equal(recovered.result?.paused,undefined);
+  assert.equal(typeof recovered.result?.stream_epoch,"string");
 });

@@ -41,6 +41,7 @@ import {
   ErrorNotice,
   Loading,
 } from "@/components/workspace/client";
+import { ConversationQueue } from "./conversation-queue";
 import { ConversationMessage } from "@/components/workspace/conversation-message";
 import { MessageAttachment } from "./message-attachment";
 import { AttachmentThumbnail } from "./attachment-thumbnail";
@@ -68,6 +69,7 @@ type Detail = {
   messages: Message[];
   job: Job | null;
   work: Job[];
+  queue: Job[];
   document: Deliverable | null;
 };
 export function AssistantWorkspace({
@@ -174,11 +176,17 @@ export function AssistantWorkspace({
   const [stopping, setStopping] = useState(false);
   const [pendingReplyKey, setPendingReplyKey] = useState("pending-reply");
   const [submittedJob, setSubmittedJob] = useState<Job | null>(null);
-  const seedJob = submittedJob && (!query.data?.job || submittedJob.created_at > query.data.job.created_at || (submittedJob.id === query.data.job.id && Date.parse(submittedJob.updated_at) >= Date.parse(query.data.job.updated_at))) ? submittedJob : query.data?.job;
-  const {job, disconnected, freeze, unfreeze} = useTurnStream(seedJob, query.refresh);
+  // Once the submitted message is read back, server queue order owns the view.
+  // Polling must not resurrect the original queued snapshot between responses.
+  const submittedVisible = submittedJob && query.data?.messages.some(message => message.id === submittedJob.payload.message_id);
+  const seedJob = submittedJob && !submittedVisible ? submittedJob : query.data?.job;
+  const stopped = query.data?.conversation.stopped === true;
+  const queued = query.data?.queue || [];
+
+  const {job, disconnected, unfreeze} = useTurnStream(seedJob, query.refresh);
   useEffect(() => { window.dispatchEvent(new Event("hirelix:billing-changed")); if (job?.id) window.dispatchEvent(new Event("hirelix:conversations-changed")); }, [job?.id, job?.status]);
   const pending = isTurnRunning(job);
-  const displayedMessages = conversationTurnView({messages: query.data?.messages || [], job, sending, pendingKey: pendingReplyKey, conversationId, optimistic});
+  const displayedMessages = conversationTurnView({messages: query.data?.messages || [], job, sending: sending && !pending && !stopped, pendingKey: pendingReplyKey, conversationId, optimistic});
   const hasAgreement = query.data?.messages.some(message => ((message.metadata as AssistantMeta).schedules?.length || (message.metadata as AssistantMeta).reminders?.length || (message.metadata as AssistantMeta).question?.status === "waiting"));
   const delegatedPending = query.data?.work?.some(work => ["queued", "running"].includes(work.status));
   const refreshConversation = query.refresh;
@@ -198,10 +206,10 @@ export function AssistantWorkspace({
     }) }).catch(() => {});
   }, [query.data, query.loading, query.error]);
   useEffect(() => {
-    if (!hasAgreement && !delegatedPending) return;
-    const timer = setInterval(refreshConversation, delegatedPending ? 2500 : 15000);
+    if (!hasAgreement && !delegatedPending && !queued.length && !stopped) return;
+    const timer = setInterval(refreshConversation, (!stopped && (delegatedPending || queued.length)) ? 2500 : 15000);
     return () => clearInterval(timer);
-  }, [hasAgreement, delegatedPending, refreshConversation]);
+  }, [hasAgreement, delegatedPending, queued.length, stopped, refreshConversation]);
   const linkedDocument = useQuery<{ deliverable: Deliverable }>(documentId && !conversationId ? `/deliverables/${documentId}` : null);
   const currentDocument = query.data?.document || linkedDocument.data?.deliverable;
   const activeRoleId = roleId || (!conversationId ? currentDocument?.role_id : null);
@@ -398,7 +406,7 @@ export function AssistantWorkspace({
     }
   }
   const sendInFlight = useRef(false);
-  async function send(event?: FormEvent, reply?: string) {
+  async function send(event?: FormEvent, reply?: string, delivery: "queue" | "immediate" = "queue") {
     event?.preventDefault();
     const quickReply = reply !== undefined;
     const text = (reply ?? draft).trim();
@@ -417,11 +425,8 @@ export function AssistantWorkspace({
     setError("");
     stickToBottom.current = true;
     setShowJump(false);
-    setOptimistic({text, files: outgoingAttachments, candidates: outgoingCandidates, role: outgoingRole, priorIds: query.data?.messages.map(m => m.id) || []});
+    if (!pending && !stopped || delivery === "immediate") setOptimistic({text, files: outgoingAttachments, candidates: outgoingCandidates, role: outgoingRole, priorIds: query.data?.messages.map(m => m.id) || []});
     try {
-      // A correction explicitly stops the previous turn before a new request.
-      // The server's existing cancellation and lease checks own late writes.
-      if (pending && job) { freeze(); await api(`/jobs/${job.id}`, {method: "DELETE", body: JSON.stringify({stream_epoch: job.result?.stream_epoch, stream_sequence: job.result?.stream_sequence || 0})}); }
       const fileIds: string[] = [];
       for (const item of outgoingAttachments) {
         if (stopRequested.current) break;
@@ -439,6 +444,7 @@ export function AssistantWorkspace({
       }
       const payload = {
         message: text,
+        delivery,
         file_ids: fileIds,
         candidate_ids: outgoingCandidates.map(person => person.id),
         locale,
@@ -458,7 +464,9 @@ export function AssistantWorkspace({
         method: "POST",
         body: JSON.stringify({ ...payload, request_key: request.current.key }),
       });
-      setSubmittedJob(result.job);
+      if ((!pending && !stopped) || delivery === "immediate") setSubmittedJob(result.job);
+      else setSubmittedJob(null);
+      setOptimistic(null);
       if (!quickReply) {
         setDraft("");
         mentions.clear();
@@ -479,11 +487,11 @@ export function AssistantWorkspace({
       }
       if (stopRequested.current) {
         try {
-          const stopped = await api<{ job: Job }>(`/jobs/${result.job.id}`, { method: "DELETE" });
-          setSubmittedJob(stopped.job);
+          await api(`/conversations/${result.conversation_id}/control`, {method:"POST",body:JSON.stringify({action:"stop"})});
+          setSubmittedJob(null);
         } catch (cause) {
           unfreeze();
-      setError(cause instanceof Error ? cause.message : "Could not stop");
+          setError(cause instanceof Error ? cause.message : "Could not stop");
         }
       }
       window.dispatchEvent(new Event("hirelix:conversations-changed"));
@@ -506,31 +514,27 @@ export function AssistantWorkspace({
       requestAnimationFrame(() => composer.current?.focus());
     }
   }
-  async function stop() {
-    if (stopping) return;
-    setStopping(true);
-    if (sending) {
-      stopRequested.current = true;
-      return;
-    }
+  async function control(action: string, jobId?: string, message?: string) {
+    if (!conversationId || stopping) return;
+    setStopping(true); setError("");
     try {
-      if (!job) return;
-      freeze();
-      const result = await api<{ job: Job }>(`/jobs/${job.id}`, { method: "DELETE", body: JSON.stringify({stream_epoch: job.result?.stream_epoch, stream_sequence: job.result?.stream_sequence || 0}) });
-      setSubmittedJob(result.job);
-      query.refresh();
-    } catch (cause) {
-      unfreeze();
-      setError(cause instanceof Error ? cause.message : "Could not stop");
-    } finally {
-      setStopping(false);
-      composer.current?.focus({ preventScroll: true });
-    }
+      await api(`/conversations/${conversationId}/control`, {method:"POST",body:JSON.stringify({action,job_id:jobId,message})});
+      setSubmittedJob(null); unfreeze(); query.refresh();
+      window.dispatchEvent(new Event("hirelix:conversations-changed"));
+    } catch(cause) { setError(cause instanceof Error ? cause.message : "Could not update conversation"); throw cause; }
+    finally {setStopping(false);composer.current?.focus({preventScroll:true});}
+  }
+  async function stop() {
+    if(stopping)return;
+    if(sending)stopRequested.current=true;
+    if(conversationId) await control("stop").catch(()=>{});
+    else if(sending)setStopping(true);
   }
   async function retry() {
     if (!job) return;
     try {
-      await api(`/jobs/${job.id}`, { method: "POST" });
+      if(stopped) await control("resume");
+      else await api(`/jobs/${job.id}`, { method: "POST" });
       query.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not retry");
@@ -733,6 +737,7 @@ export function AssistantWorkspace({
               {t("Jump to latest")}
             </button>
           )}
+          <ConversationQueue jobs={queued} stopped={stopped} failed={job?.status === "error"} busy={stopping} onControl={control} />
           <form
             className={`ws-composer ${dragging ? "is-dragging" : ""}`}
             onSubmit={send}
@@ -810,10 +815,10 @@ export function AssistantWorkspace({
               </button>
               <span>
                 {pending
-                  ? t(draft.trim() || attachments.length ? "Enter to stop this reply and send your message" : "Your next message can be drafted while this reply finishes")
-                  : t("Enter to send · Shift + Enter for a new line")}
+                  ? (locale === "zh" ? "发送后加入队列 · 纠正当前要求可选立即处理" : "Send to queue · Send now to redirect current work")
+                  : stopped ? (locale === "zh" ? "已停止 · 新消息会保留在队列中" : "Stopped · New messages will stay queued") : t("Enter to send · Shift + Enter for a new line")}
               </span>
-              {(pending || sending) ? <button
+              {((pending && !stopped) || sending) ? <button
                 type="button"
                 className="ws-button ws-button-primary ws-stop-button"
                 disabled={stopping}
@@ -821,11 +826,12 @@ export function AssistantWorkspace({
                 title={t("Stop response")}
                 onClick={() => void stop()}
               >{stopping ? <Loader2 size={14} className="animate-spin" /> : <Square size={13} fill="currentColor" />}</button> : null}
+              {!sending && (pending || stopped) && (!!draft.trim() || !!attachments.length) && <button type="button" className="ws-link" disabled={stopping || !attachmentsReady} onClick={()=>void send(undefined,undefined,"immediate")}>{locale === "zh" ? "立即处理" : "Send now"}</button>}
               {!sending && (!pending || !!draft.trim() || !!attachments.length) && <button
                 type="submit"
                 className="ws-button ws-button-primary"
-                aria-label={t(pending ? "Stop and send message" : "Send message")}
-                title={t(pending ? "Stop and send message" : "Send message")}
+                aria-label={pending || stopped ? (locale === "zh" ? "加入队列" : "Add to queue") : t("Send message")}
+                title={pending || stopped ? (locale === "zh" ? "加入队列" : "Add to queue") : t("Send message")}
                 disabled={
                   (!draft.trim() && !attachments.length) ||
                   !attachmentsReady || sending ||
