@@ -70,6 +70,8 @@ export default function RolePage({
   const { id } = use(params);
   const paramsQuery = useSearchParams();
   const router = useRouter();
+  const requestedReturn = paramsQuery.get("returnTo") || "";
+  const returnTo = /^\/app\/(roles|submissions)(\?|$)/.test(requestedReturn) ? requestedReturn : "/app/roles";
   function ask(prompt: string, person?: string) { router.push(`/app?role=${id}${person ? `&person=${person}` : ""}&prompt=${encodeURIComponent(prompt)}`); }
   const query = useQuery<Detail>(`/roles/${id}`);
   const requestedTab = paramsQuery.get("tab");
@@ -160,9 +162,9 @@ export default function RolePage({
     <div className="ws-page">
       <header className="ws-page-header">
         <div>
-          <Link className="ws-link mb-4" href="/app/roles">
+          <Link className="ws-link mb-4" href={returnTo} scroll={false}>
             <ArrowLeft size={13} />
-            {t("Roles")}
+            {t(returnTo.startsWith("/app/submissions") ? "Recommendations" : "Roles & JDs")}
           </Link>
           <div className="ws-actions">
             <h1>{role.title}</h1>

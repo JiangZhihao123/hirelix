@@ -2946,3 +2946,15 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-recommendation-delivery { scroll-margin-top: 24px; }
 .ws-rec-document-people { margin-left: 32px; margin-right: 32px; }
 .ws-recommendation-delivery { margin-left: 32px; margin-right: 32px; }
+
+/* Shared list actions keep the records, rather than the CTA, visually prominent. */
+.ws-button.ws-list-create { min-height:36px; padding:7px 12px; gap:6px; border-radius:7px; background:#edf3ef; color:#365b4b; border-color:#dce6df; box-shadow:none; font-weight:500; }
+.ws-button.ws-list-create:hover { background:#e1ece5; border-color:#c4d6ca; }
+.ws-sort-heading { display:inline-flex; align-items:center; justify-content:flex-start; gap:6px; background:transparent; border:0; padding:0; font:inherit; color:inherit; cursor:pointer; text-align:left; }
+.ws-sort-heading span { color:var(--ws-muted); font-size:12px; }
+.ws-sort-heading:hover { color:var(--ws-green); }
+.ws-picker-content { padding:20px; display:grid; gap:14px; }
+.ws-picker-content .ws-rec-role-picker { max-height:360px; overflow:auto; padding:0; }
+.ws-picker-content .ws-detail-link { padding:12px 8px; }
+.ws-picker-content .ws-detail-link > svg:last-child { margin-left:auto; color:var(--ws-muted); }
+.ws-filters input { max-width:150px; }

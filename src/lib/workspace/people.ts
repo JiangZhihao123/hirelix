@@ -32,16 +32,27 @@ export async function listPeople(
   page = 1,
   location = "",
   expertise = "",
+  sort = "updated",
+  direction = "desc",
 ) {
   const match = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
-  const conditions = sql`p.user_id=${userId}::uuid AND (${!query} OR concat_ws(' ',p.name,p.headline,p.email,p.location,p.note,p.skills::text,p.profile::text) ILIKE ${match} OR EXISTS(SELECT 1 FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id AND r.content ILIKE ${match})) AND (${!location} OR p.location=${location}) AND (${!expertise} OR ${expertise}=ANY(p.skills))`;
+  const conditions = sql`p.user_id=${userId}::uuid AND (${!query} OR concat_ws(' ',p.name,p.headline,p.email,p.location,p.note,p.skills::text,p.profile::text) ILIKE ${match} OR EXISTS(SELECT 1 FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id AND r.content ILIKE ${match})) AND (${!location} OR p.location ILIKE ${`%${location.replace(/[\\%_]/g, "\\$&")}%`}) AND (${!expertise} OR EXISTS(SELECT 1 FROM unnest(p.skills) skill WHERE skill ILIKE ${`%${expertise.replace(/[\\%_]/g, "\\$&")}%`}))`;
+  const order = { updated: sql`p.updated_at`, created: sql`p.created_at`, name: sql`lower(p.name)`, contact: sql`last_contact` }[sort] || sql`p.updated_at`;
+  const dir = direction === "asc" ? sql`ASC` : sql`DESC`;
   const [count] = await rows<{ total: number }>(
     sql`SELECT count(*)::int AS total FROM hirelix_agent_people p WHERE ${conditions}`,
   );
   const people = await rows<Person & { last_contact: string | null }>(
-    sql`SELECT p.*,(SELECT max(r.occurred_at) FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id AND r.kind IN ('call','email')) AS last_contact FROM hirelix_agent_people p WHERE ${conditions} ORDER BY p.updated_at DESC,p.id LIMIT 50 OFFSET ${(page - 1) * 50}`,
+    sql`SELECT p.*,(SELECT max(r.occurred_at) FROM hirelix_private_records r WHERE r.user_id=p.user_id AND r.person_id=p.id AND r.kind IN ('call','email')) AS last_contact FROM hirelix_agent_people p WHERE ${conditions} ORDER BY ${order} ${dir} NULLS LAST,p.id LIMIT 50 OFFSET ${(page - 1) * 50}`,
   );
   return { people, total: count.total, page, page_size: 50 };
+}
+export async function peopleFilters(userId: string) {
+  const [locations, skills] = await Promise.all([
+    rows<{ value: string }>(sql`SELECT DISTINCT location value FROM hirelix_agent_people WHERE user_id=${userId}::uuid AND location<>'' ORDER BY value`),
+    rows<{ value: string }>(sql`SELECT DISTINCT unnest(skills) value FROM hirelix_agent_people WHERE user_id=${userId}::uuid ORDER BY value`),
+  ]);
+  return { locations: locations.map(r=>r.value), skills: skills.map(r=>r.value) };
 }
 export async function personDetails(userId: string, id: string) {
   const person = await owned<Person>(userId, "person", id);

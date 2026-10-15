@@ -33,6 +33,20 @@ export async function listRoles(userId: string) {
     sql`SELECT r.*,(SELECT count(*)::int FROM hirelix_private_role_candidates c WHERE c.user_id=r.user_id AND c.role_id=r.id) AS candidate_count,(SELECT count(*)::int FROM hirelix_private_deliverables d WHERE d.user_id=r.user_id AND d.role_id=r.id AND d.kind='submission' AND d.status='submitted') AS submission_count FROM hirelix_private_roles r WHERE r.user_id=${userId}::uuid ORDER BY r.updated_at DESC,r.id`,
   );
 }
+export async function listRolesPage(userId: string, input: import("zod").infer<typeof import("./list-options").roleListOptions>) {
+  const match = `%${input.q.replace(/[\\%_]/g, "\\$&")}%`;
+  const where = sql`r.user_id=${userId}::uuid AND (${input.status}='all' OR r.status=${input.status}) AND (${!input.q} OR concat_ws(' ',r.title,r.client_name) ILIKE ${match})`;
+  const order = { updated: sql`r.updated_at`, created: sql`r.created_at`, title: sql`lower(r.title)`, client: sql`lower(r.client_name)`, candidates: sql`candidate_count` }[input.sort];
+  const direction = input.direction === "asc" ? sql`ASC` : sql`DESC`;
+  const [count, roles] = await Promise.all([
+    rows<{ total: number }>(sql`SELECT count(*)::int total FROM hirelix_private_roles r WHERE ${where}`),
+    rows<Role & {candidate_count: number; submission_count: number}>(sql`SELECT r.*,
+      (SELECT count(*)::int FROM hirelix_private_role_candidates c WHERE c.user_id=r.user_id AND c.role_id=r.id) candidate_count,
+      (SELECT count(*)::int FROM hirelix_private_deliverables d WHERE d.user_id=r.user_id AND d.role_id=r.id AND d.kind='submission' AND d.status='submitted') submission_count
+      FROM hirelix_private_roles r WHERE ${where} ORDER BY ${order} ${direction} NULLS LAST,r.id LIMIT 50 OFFSET ${(input.page-1)*50}`),
+  ]);
+  return { roles, total: count[0].total, page: input.page, page_size: 50 };
+}
 export async function roleDetails(userId: string, id: string) {
   const role = await owned<Role>(userId, "role", id);
   const [people, records, deliverables, schedules, assessments] = await Promise.all([

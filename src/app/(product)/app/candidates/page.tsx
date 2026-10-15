@@ -4,7 +4,7 @@ import { recordLocalDate } from "@/lib/workspace/record-dates";
 import { SourceContent } from "@/components/workspace/source-content";
 
 import { useLanguage, useT } from "@/components/LanguageProvider";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -14,8 +14,6 @@ import {
   ArrowLeft,
   ArrowUpRight,
   History as HistoryIcon,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import {
   api,
@@ -25,6 +23,13 @@ import {
   Loading,
   useQuery,
 } from "@/components/workspace/client";
+import {
+  FilterInput,
+  ListPagination,
+  SortHeading,
+  useListState,
+  useListScroll,
+} from "@/components/workspace/list-controls";
 import { PersonForm, RecordForm } from "@/components/workspace/forms";
 import { History } from "@/components/workspace/history";
 import type {
@@ -71,7 +76,13 @@ function semanticExcerpt(content: string) {
         return detail;
       }
     }
-    return [value.name, value.headline, value.location, value.note, value.profile]
+    return [
+      value.name,
+      value.headline,
+      value.location,
+      value.note,
+      value.profile,
+    ]
       .concat(Array.isArray(value.skills) ? value.skills : [])
       .filter((item) => typeof item === "string" && item.trim())
       .join(" · ");
@@ -98,22 +109,40 @@ export default function Candidates() {
   const selected = params.get("person"),
     task = params.get("task"),
     highlight = params.get("record");
-  const [query, setQuery] = useState(""),
-    [filter, setFilter] = useState(""),
-    [mode, setMode] = useState(task ? "semantic" : "fields"),
-    [location, setLocation] = useState(""),
-    [expertise, setExpertise] = useState(""),
-    [page, setPage] = useState(1),
+  const { update } = useListState();
+  const filter = params.get("q") || "",
+    mode = params.get("mode") || (task ? "semantic" : "fields"),
+    location = params.get("location") || "",
+    expertise = params.get("expertise") || "",
+    page = Math.max(1, Number(params.get("page")) || 1),
+    sort = params.get("sort") || "updated",
+    direction = params.get("direction") || "desc";
+  const [query, setQuery] = useState(filter),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => setQuery(filter), [filter]);
+  const setMode = (mode: string) => update({ mode, task: null });
+  const setPage = (page: number) => update({ page });
+  const onSort = (sort: string, direction: string) =>
+    update({ sort, direction });
   const people = useQuery<PeopleResult>(
-    `/people?${new URLSearchParams({ q: filter, page: String(page), location, expertise })}`,
+    mode === "semantic"
+      ? null
+      : `/people?${new URLSearchParams({ q: filter, page: String(page), location, expertise, sort, direction })}`,
+  );
+  const facets = useQuery<{ locations: string[]; skills: string[] }>(
+    "/people?view=filters",
+  );
+  const listParams = new URLSearchParams(params.toString());
+  for (const key of ["person", "record", "tab"]) listParams.delete(key);
+  const saveScroll = useListScroll(
+    `/app/candidates?${listParams}`,
+    !selected && !people.loading,
   );
   const job = useQuery<{ job: Job }>(task ? `/jobs/${task}` : null);
   useEffect(() => {
     if (!task || job.data?.job.status !== "done") return;
     const result = job.data.job.result as SemanticResult | null;
-    setMode("semantic");
     if (result?.query) setQuery(result.query);
   }, [task, job.data]);
   useEffect(() => {
@@ -126,12 +155,11 @@ export default function Candidates() {
     const timer = setInterval(job.refresh, 1500);
     return () => clearInterval(timer);
   }, [task, job.data, job.refresh]);
-  const listScroll = useRef(0);
-  useEffect(() => {
-    window.scrollTo({ top: selected ? 0 : listScroll.current, behavior: "instant" });
-  }, [selected]);
   function select(id: string | null, recordId?: string) {
-    if (id && !selected) listScroll.current = window.scrollY;
+    if (id && !selected) {
+      saveScroll();
+      window.scrollTo(0, 0);
+    }
     const next = new URLSearchParams(params.toString());
     if (id) next.set("person", id);
     else next.delete("person");
@@ -141,18 +169,15 @@ export default function Candidates() {
       next.set("record", recordId);
       next.set("tab", "records");
     }
-    if (id && id !== selected) window.history.pushState(null, "", `/app/candidates?${next}`);
+    if (id && id !== selected)
+      window.history.pushState(null, "", `/app/candidates?${next}`);
     else window.history.replaceState(null, "", `/app/candidates?${next}`);
   }
   async function search(event: FormEvent) {
     event.preventDefault();
     setError("");
-    setPage(1);
     if (mode === "fields") {
-      setFilter(query);
-      const next = new URLSearchParams(params.toString());
-      next.delete("task");
-      router.replace(`/app/candidates?${next}`, { scroll: false });
+      update({ q: query, task: null });
       return;
     }
     if (!query.trim()) return;
@@ -166,9 +191,7 @@ export default function Candidates() {
           payload: { query, location, expertise, limit: 30 },
         }),
       });
-      router.replace(`/app/candidates?task=${result.job.id}`, {
-        scroll: false,
-      });
+      update({ q: query, task: result.job.id, mode: "semantic" });
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Could not start search",
@@ -186,32 +209,29 @@ export default function Candidates() {
         ...match.person,
         last_contact:
           people.data?.people.find((person) => person.id === match.person_id)
-            ?.last_contact ?? match.last_contact ?? null,
+            ?.last_contact ??
+          match.last_contact ??
+          null,
       }))
     : people.data?.people || [];
-  const displayCount = semantic ? semantic.matches.length : task ? null : people.data?.total;
+  const displayCount = semantic
+    ? semantic.matches.length
+    : task
+      ? null
+      : people.data?.total;
   return (
     <div className="ws-page ws-candidates-page" data-detail={!!selected}>
       <header className="ws-page-header">
         <div>
-          <h1>{t("Candidates")}</h1>
-
+          <h1>{t("Candidates & CVs")}</h1>
         </div>
-        <div className="ws-actions">
-          <Link
-            className="ws-button ws-button-primary"
-            href={`/app?prompt=${encodeURIComponent(t("Help me organize these candidate files into my workspace."))}`}
-          >
-            {t("Give files to AI assistant")}
-          </Link>
-          <button
-            className="ws-button"
-            onClick={() => router.push(`/app?prompt=${encodeURIComponent(t("Save candidate details I provide in this conversation."))}`)}
-          >
-            <Plus size={15} />
-            {t("Add candidate")}
-          </button>
-        </div>
+        <Link
+          className="ws-button ws-list-create"
+          href={`/app?prompt=${encodeURIComponent(t("Help me organize these candidate files into my workspace."))}`}
+        >
+          <Plus size={15} />
+          {t("Add candidate")}
+        </Link>
       </header>
       <form className="ws-toolbar" onSubmit={search}>
         <div className="ws-search">
@@ -237,31 +257,92 @@ export default function Candidates() {
             value={mode}
             onChange={(event) => setMode(event.target.value)}
           >
-            <option value="fields">{t("Names & fields")}</option>
-            <option value="semantic">{t("By meaning")}</option>
+            <option value="fields">
+              {locale === "zh" ? "关键词搜索" : "Keyword search"}
+            </option>
+            <option value="semantic">
+              {locale === "zh" ? "描述经历找人" : "Search by experience"}
+            </option>
           </select>
-          <input
-            aria-label={t("Filter by location")}
+          <FilterInput
+            label={t("Filter by location")}
             placeholder={t("Location")}
+            list="candidate-locations"
             value={location}
-            onChange={(event) => {
-              setLocation(event.target.value);
-              setPage(1);
-            }}
+            onChange={(location) => update({ location, task: null })}
           />
-          <input
-            aria-label={t("Filter by expertise")}
+          <FilterInput
+            label={t("Filter by expertise")}
             placeholder={t("Expertise")}
+            list="candidate-skills"
             value={expertise}
-            onChange={(event) => {
-              setExpertise(event.target.value);
-              setPage(1);
-            }}
+            onChange={(expertise) => update({ expertise, task: null })}
           />
-          {(query || filter || location || expertise || task) && <button type="button" className="ws-link" onClick={() => {
-            setQuery(""); setFilter(""); setLocation(""); setExpertise(""); setPage(1); setMode("fields");
-            router.replace("/app/candidates", { scroll: false });
-          }}>{t("Clear filters")}</button>}
+          <datalist id="candidate-locations">
+            {facets.data?.locations.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+          <datalist id="candidate-skills">
+            {facets.data?.skills.map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+          {mode === "fields" && (
+            <>
+              <select
+                aria-label={locale === "zh" ? "排序字段" : "Sort by"}
+                value={sort}
+                onChange={(e) =>
+                  onSort(
+                    e.target.value,
+                    e.target.value === "name" ? "asc" : "desc",
+                  )
+                }
+              >
+                {[
+                  ["updated", locale === "zh" ? "最近更新" : "Updated"],
+                  ["created", locale === "zh" ? "最近添加" : "Added"],
+                  ["name", locale === "zh" ? "姓名" : "Name"],
+                  ["contact", locale === "zh" ? "最近联系" : "Last contact"],
+                ].map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="ws-button"
+                aria-label={
+                  locale === "zh" ? "切换排序方向" : "Reverse sort order"
+                }
+                onClick={() =>
+                  onSort(sort, direction === "asc" ? "desc" : "asc")
+                }
+              >
+                {direction === "asc" ? "↑" : "↓"}
+              </button>
+            </>
+          )}
+          {(query || filter || location || expertise || task) && (
+            <button
+              type="button"
+              className="ws-link"
+              onClick={() => {
+                setQuery("");
+                update({
+                  q: null,
+                  location: null,
+                  expertise: null,
+                  task: null,
+                  mode: null,
+                });
+              }}
+            >
+              {t("Clear filters")}
+            </button>
+          )}
           <span className="ws-count">
             {displayCount != null
               ? locale === "zh"
@@ -288,30 +369,55 @@ export default function Candidates() {
       {task &&
         (!job.data || ["queued", "running"].includes(job.data.job.status)) && (
           <Loading>
-            {job.data?.job.progress ? t(job.data.job.progress) : t("Loading search…")}
+            {job.data?.job.progress
+              ? t(job.data.job.progress)
+              : t("Loading search…")}
           </Loading>
         )}
       {semantic && (
         <div className="ws-notice">
-          {semantic.matches.length} {t("suggestions from")} {semantic.coverage.indexed}{" "}
-          {t("of")} {semantic.coverage.total} {t("indexed candidates.")}
+          {semantic.matches.length} {t("suggestions from")}{" "}
+          {semantic.coverage.indexed} {t("of")} {semantic.coverage.total}{" "}
+          {t("indexed candidates.")}
           {semantic.coverage.pending > 0
             ? ` ${semantic.coverage.pending} candidates have updates being indexed.`
             : ""}{" "}
           {semantic.coverage.failed > 0
             ? `${semantic.coverage.failed} indexing tasks need attention.`
             : ""}{" "}
-          {t("Open a source to check why a person was found. Similarity does not establish fit for a role.")}
+          {t(
+            "Open a source to check why a person was found. Similarity does not establish fit for a role.",
+          )}
         </div>
       )}
       <div className="ws-split" data-selected={!!selected}>
         <section className="ws-list" aria-label={t("Candidate list")}>
           <div className="ws-table-head">
-            <span>{t("Name / role")}</span>
+            {mode === "semantic" ? (
+              <span>{t("Name / role")}</span>
+            ) : (
+              <SortHeading field="name" {...{ sort, direction, onSort }}>
+                {t("Name / role")}
+              </SortHeading>
+            )}
             <span className="ws-list-location">{t("Location")}</span>
-            <span>{t("Last contact")}</span>
+            {mode === "semantic" ? (
+              <span>{t("Last contact")}</span>
+            ) : (
+              <SortHeading field="contact" {...{ sort, direction, onSort }}>
+                {t("Last contact")}
+              </SortHeading>
+            )}
           </div>
-          {people.loading && !semantic ? (
+          {mode === "semantic" && !semantic ? (
+            <div className="ws-empty">
+              <p>
+                {locale === "zh"
+                  ? "输入经历描述并点击搜索。调整条件后请重新搜索。"
+                  : "Describe experience and run Search. Search again after changing filters."}
+              </p>
+            </div>
+          ) : people.loading && !semantic ? (
             <Loading>{t("Loading candidates…")}</Loading>
           ) : shown.length === 0 ? (
             <div className="ws-empty">
@@ -322,19 +428,24 @@ export default function Candidates() {
               </h2>
               <p>
                 {filter || location || expertise || semantic
-                  ? t("Try another name, or search by meaning for experience and past conversations.")
-                  : t("Give your assistant a CV, conversation notes or candidate details. It will organize and save the supported facts.")}
+                  ? t(
+                      "Try another name, or search by meaning for experience and past conversations.",
+                    )
+                  : t(
+                      "Give your assistant a CV, conversation notes or candidate details. It will organize and save the supported facts.",
+                    )}
               </p>
               <div className="ws-actions">
-                <button className="ws-button" onClick={() => router.push(`/app?prompt=${encodeURIComponent(t("Save candidate details I provide in this conversation."))}`)}>
+                <button
+                  className="ws-button"
+                  onClick={() =>
+                    router.push(
+                      `/app?prompt=${encodeURIComponent(t("Save candidate details I provide in this conversation."))}`,
+                    )
+                  }
+                >
                   {t("Add a candidate")}
                 </button>
-                <Link
-                  className="ws-link"
-                  href={`/app?prompt=${encodeURIComponent(t("Help me organize these candidate files into my workspace."))}`}
-                >
-                  {t("Give files to AI assistant")} <ArrowUpRight size={14} />
-                </Link>
               </div>
             </div>
           ) : (
@@ -370,7 +481,9 @@ export default function Candidates() {
                   </button>
                   {match && (
                     <div className="ws-notice">
-                      <p className="line-clamp-3">{semanticExcerpt(match.content) || t("Open source")}</p>
+                      <p className="line-clamp-3">
+                        {semanticExcerpt(match.content) || t("Open source")}
+                      </p>
                       <button
                         className="ws-link mt-2"
                         onClick={() =>
@@ -385,32 +498,23 @@ export default function Candidates() {
               );
             })
           )}
-          {!semantic && people.data && people.data.total > 50 && (
-            <div className="ws-pagination">
-              <button
-                className="ws-icon"
-                aria-label={t("Previous page")}
-                disabled={page <= 1}
-                onClick={() => setPage((value) => value - 1)}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span>
-                {t("Page")} {page} {t("of")} {Math.ceil(people.data.total / 50)}
-              </span>
-              <button
-                className="ws-icon"
-                aria-label={t("Next page")}
-                disabled={page * 50 >= people.data.total}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
+          {!semantic && (
+            <ListPagination
+              page={page}
+              total={people.data?.total || 0}
+              onPage={setPage}
+            />
           )}
         </section>
-        {selected && <aside className="ws-inspector" aria-label={t("Candidate details")}>
-            <button className="ws-link mb-4 ws-split-back" onClick={() => select(null)}><ArrowLeft size={14} />{t("Back to candidates")}</button>
+        {selected && (
+          <aside className="ws-inspector" aria-label={t("Candidate details")}>
+            <button
+              className="ws-link mb-4 ws-split-back"
+              onClick={() => select(null)}
+            >
+              <ArrowLeft size={14} />
+              {t("Back to candidates")}
+            </button>
             <CandidateDetails
               key={selected}
               id={selected}
@@ -419,9 +523,9 @@ export default function Candidates() {
               onClose={() => select(null)}
               onChanged={people.refresh}
             />
-        </aside>}
+          </aside>
+        )}
       </div>
-
     </div>
   );
 }
@@ -442,13 +546,24 @@ function CandidateDetails({
   const details = useQuery<Details>(`/people/${id}`);
   const router = useRouter();
   const { locale } = useLanguage();
-  function ask(prompt: string) { router.push(`/app?person=${id}&prompt=${encodeURIComponent(prompt)}`); }
+  function ask(prompt: string) {
+    router.push(`/app?person=${id}&prompt=${encodeURIComponent(prompt)}`);
+  }
   const params = useSearchParams();
   const requestedTab = params.get("tab");
-  const highlightedRecord = details.data?.records.find(item => item.id === highlight);
-  const isSource = (item: SourceRecord) => ["cv", "profile", "jd"].includes(item.kind);
-  const tab = highlightedRecord ? (isSource(highlightedRecord) ? "sources" : "records")
-    : requestedTab && ["overview", "records", "sources", "roles"].includes(requestedTab) ? requestedTab : "overview";
+  const highlightedRecord = details.data?.records.find(
+    (item) => item.id === highlight,
+  );
+  const isSource = (item: SourceRecord) =>
+    ["cv", "profile", "jd"].includes(item.kind);
+  const tab = highlightedRecord
+    ? isSource(highlightedRecord)
+      ? "sources"
+      : "records"
+    : requestedTab &&
+        ["overview", "records", "sources", "roles"].includes(requestedTab)
+      ? requestedTab
+      : "overview";
   function setTab(value: string) {
     const next = new URLSearchParams(params.toString());
     next.set("tab", value);
@@ -476,7 +591,9 @@ function CandidateDetails({
     if (
       !details.data ||
       !window.confirm(
-        t("Delete this candidate and their source records? Existing client documents and conversations remain as historical work. This cannot be undone."),
+        t(
+          "Delete this candidate and their source records? Existing client documents and conversations remain as historical work. This cannot be undone.",
+        ),
       )
     )
       return;
@@ -506,10 +623,22 @@ function CandidateDetails({
     );
   const { person, records, roles } = details.data;
   const sources = records.filter(isSource);
-  const communications = records.filter(item => !isSource(item));
+  const communications = records.filter((item) => !isSource(item));
   const conversation = communications[0];
-  const recordKinds = {cv: "CV / resume", jd: "Job description", profile: "Profile", event: "Event", note: "Note", call: "Call", email: "Email", feedback: "Feedback"};
-  const recordTitle = (title: string) => ["Candidate profile update", "Candidate profile source"].includes(title) ? t(title) : title;
+  const recordKinds = {
+    cv: "CV / resume",
+    jd: "Job description",
+    profile: "Profile",
+    event: "Event",
+    note: "Note",
+    call: "Call",
+    email: "Email",
+    feedback: "Feedback",
+  };
+  const recordTitle = (title: string) =>
+    ["Candidate profile update", "Candidate profile source"].includes(title)
+      ? t(title)
+      : title;
   const visibleRecords = tab === "sources" ? sources : communications;
   return (
     <>
@@ -520,11 +649,24 @@ function CandidateDetails({
           <p>{person.location || t("Location not recorded")}</p>
         </div>
         <div className="ws-actions">
-          <button className="ws-button" onClick={() => setEdit(true)}><Pencil size={14} />{t("Edit")}</button>
-          <Link className="ws-button ws-button-primary" href={`/app?person=${id}`}>{t("Ask your AI assistant")}<ArrowUpRight size={14} /></Link>
+          <button className="ws-button" onClick={() => setEdit(true)}>
+            <Pencil size={14} />
+            {t("Edit")}
+          </button>
+          <Link
+            className="ws-button ws-button-primary"
+            href={`/app?person=${id}`}
+          >
+            {t("Ask your AI assistant")}
+            <ArrowUpRight size={14} />
+          </Link>
         </div>
       </div>
-      <div className="ws-tabs" role="tablist" aria-label={t("Candidate sections")}>
+      <div
+        className="ws-tabs"
+        role="tablist"
+        aria-label={t("Candidate sections")}
+      >
         {[
           ["overview", "Overview"],
           ["records", "Communication records"],
@@ -555,8 +697,10 @@ function CandidateDetails({
             {conversation ? (
               <>
                 <small>
-                  {(conversation.occurred_at ? date(conversation.occurred_at) : recordLocalDate(conversation, "UTC") || "—")} ·{" "}
-                  {t(recordKinds[conversation.kind])}
+                  {conversation.occurred_at
+                    ? date(conversation.occurred_at)
+                    : recordLocalDate(conversation, "UTC") || "—"}{" "}
+                  · {t(recordKinds[conversation.kind])}
                 </small>
                 <p className="mt-2">{conversation.content}</p>
                 <button
@@ -616,7 +760,9 @@ function CandidateDetails({
                   }}
                 >
                   <strong>{recordTitle(source.title)}</strong>
-                  <small>{t("Added")} {date(source.created_at)}</small>
+                  <small>
+                    {t("Added")} {date(source.created_at)}
+                  </small>
                 </button>
               ))
             ) : (
@@ -647,7 +793,16 @@ function CandidateDetails({
             </section>
           )}
           <div className="ws-actions mt-5">
-            <button className="ws-button" onClick={() => ask(locale === "zh" ? `记录与 ${person.name} 的沟通：\n` : `Record my conversation with ${person.name}:\n`)}>
+            <button
+              className="ws-button"
+              onClick={() =>
+                ask(
+                  locale === "zh"
+                    ? `记录与 ${person.name} 的沟通：\n`
+                    : `Record my conversation with ${person.name}:\n`,
+                )
+              }
+            >
               <Plus size={14} />
               {t("Add record")}
             </button>
@@ -659,19 +814,35 @@ function CandidateDetails({
               {t("History")}
             </button>
           </div>
-
         </>
       )}
       {(tab === "records" || tab === "sources") && (
         <section className="ws-candidate-records">
           <div className="ws-candidate-records-intro">
-          <p>{t(tab === "sources" ? "Original resumes and profile sources. Open a file to check the evidence." : "Calls, messages, interview notes and feedback about this candidate.")}</p>
-          {tab === "records" && <div className="ws-actions">
-            <button className="ws-button" onClick={() => ask(locale === "zh" ? `记录与 ${person.name} 的沟通：\n` : `Record my conversation with ${person.name}:\n`)}>
-              <Plus size={14} />
-              {t("Add record")}
-            </button>
-          </div>}
+            <p>
+              {t(
+                tab === "sources"
+                  ? "Original resumes and profile sources. Open a file to check the evidence."
+                  : "Calls, messages, interview notes and feedback about this candidate.",
+              )}
+            </p>
+            {tab === "records" && (
+              <div className="ws-actions">
+                <button
+                  className="ws-button"
+                  onClick={() =>
+                    ask(
+                      locale === "zh"
+                        ? `记录与 ${person.name} 的沟通：\n`
+                        : `Record my conversation with ${person.name}:\n`,
+                    )
+                  }
+                >
+                  <Plus size={14} />
+                  {t("Add record")}
+                </button>
+              </div>
+            )}
           </div>
           {visibleRecords.length ? (
             visibleRecords.map((item) => (
@@ -700,10 +871,26 @@ function CandidateDetails({
                   </button>
                 </div>
                 <small>
-                  {tab === "records" && <>{t("Happened")} {(item.occurred_at ? date(item.occurred_at, true) : recordLocalDate(item, "UTC") || t("Date not recorded"))} · </>}
+                  {tab === "records" && (
+                    <>
+                      {t("Happened")}{" "}
+                      {item.occurred_at
+                        ? date(item.occurred_at, true)
+                        : recordLocalDate(item, "UTC") ||
+                          t("Date not recorded")}{" "}
+                      ·{" "}
+                    </>
+                  )}
                   {t("Added")} {date(item.created_at, true)}
                 </small>
-                {tab === "sources" ? <details className="ws-source-extracted"><summary>{t("View extracted text")}</summary><SourceContent content={item.content} /></details> : <SourceContent content={item.content} />}
+                {tab === "sources" ? (
+                  <details className="ws-source-extracted">
+                    <summary>{t("View extracted text")}</summary>
+                    <SourceContent content={item.content} />
+                  </details>
+                ) : (
+                  <SourceContent content={item.content} />
+                )}
                 {item.source_url && (
                   <a
                     className="ws-link mt-3"
@@ -716,15 +903,20 @@ function CandidateDetails({
                 )}
                 {item.file_id && (
                   <div className="ws-actions mt-3">
-                  <a className="ws-link" href={`/api/workspace/files/${item.file_id}?preview=1`} target="_blank" rel="noreferrer">
-                    {t("Open original file")} <ArrowUpRight size={13} />
-                  </a>
-                  <a
-                    className="ws-link"
-                    href={`/api/workspace/files/${item.file_id}`}
-                  >
-                    {t("Download source file")}
-                  </a>
+                    <a
+                      className="ws-link"
+                      href={`/api/workspace/files/${item.file_id}?preview=1`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t("Open original file")} <ArrowUpRight size={13} />
+                    </a>
+                    <a
+                      className="ws-link"
+                      href={`/api/workspace/files/${item.file_id}`}
+                    >
+                      {t("Download source file")}
+                    </a>
                   </div>
                 )}
               </article>
@@ -732,7 +924,11 @@ function CandidateDetails({
           ) : (
             <div className="ws-empty">
               <p>
-                {t(tab === "sources" ? "No CV or profile source added." : "No conversation recorded yet.")}
+                {t(
+                  tab === "sources"
+                    ? "No CV or profile source added."
+                    : "No conversation recorded yet.",
+                )}
               </p>
             </div>
           )}
@@ -741,7 +937,16 @@ function CandidateDetails({
       {tab === "roles" && (
         <>
           <div className="ws-actions mt-5">
-            <button className="ws-button" onClick={() => ask(locale === "zh" ? "帮我把这位候选人关联到一个职位。" : "Help me link this candidate to a role.")}>
+            <button
+              className="ws-button"
+              onClick={() =>
+                ask(
+                  locale === "zh"
+                    ? "帮我把这位候选人关联到一个职位。"
+                    : "Help me link this candidate to a role.",
+                )
+              }
+            >
               <Plus size={14} />
               {t("Link to a role")}
             </button>
@@ -767,7 +972,9 @@ function CandidateDetails({
           ) : (
             <div className="ws-empty">
               <p>
-                {t("This candidate is not linked to a role yet. Their profile stays available between assignments.")}
+                {t(
+                  "This candidate is not linked to a role yet. Their profile stays available between assignments.",
+                )}
               </p>
             </div>
           )}

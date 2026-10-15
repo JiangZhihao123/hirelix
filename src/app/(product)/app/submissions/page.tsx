@@ -1,13 +1,7 @@
 "use client";
 import { useLanguage, useT } from "@/components/LanguageProvider";
-import { useState } from "react";
 import Link from "next/link";
-import {
-  ArrowUpRight,
-  FilePenLine,
-  Search,
-  BriefcaseBusiness,
-} from "lucide-react";
+import { ChevronRight, FilePenLine, BriefcaseBusiness } from "lucide-react";
 import {
   useQuery,
   ErrorNotice,
@@ -15,6 +9,14 @@ import {
   date,
   Dialog,
 } from "@/components/workspace/client";
+import {
+  ListSearch,
+  ListPagination,
+  SortHeading,
+  useListState,
+  useListScroll,
+} from "@/components/workspace/list-controls";
+import type { Role } from "@/lib/workspace/types";
 import type { RecommendationWorkspace } from "@/lib/workspace/recommendations-contract";
 import {
   feedbackLabels,
@@ -24,18 +26,25 @@ export default function Submissions() {
   const t = useT();
   const { locale } = useLanguage();
   const zh = locale === "zh";
-  const query = useQuery<RecommendationWorkspace>("/recommendations");
-  const [search, setSearch] = useState(""),
-    [choose, setChoose] = useState(false),
-    [filter, setFilter] = useState("all");
-  const items = (query.data?.roles || []).filter(
-    (r) =>
-      `${r.role.title} ${r.role.client_name} ${r.people.map((p) => p.name).join(" ")}`
-        .toLowerCase()
-        .includes(search.toLowerCase()) &&
-      (filter !== "recommended" || r.recommended_count > 0) &&
-      (filter !== "preparing" || !r.recommended_count),
+  const { params, update } = useListState();
+  const listParams = new URLSearchParams(params.toString());
+  for (const key of ["choose", "pickq", "pickstatus", "pickpage"]) listParams.delete(key);
+  const href = `/app/submissions${listParams.size ? `?${listParams}` : ""}`;
+  const search = params.get("q") || "",
+    filter = params.get("filter") || "all",
+    sort = params.get("sort") || "delivery",
+    direction = params.get("direction") || "desc",
+    page = Math.max(1, Number(params.get("page")) || 1);
+  const choose = params.get("choose") === "1";
+  const setChoose = (open: boolean) =>
+    update({ choose: open ? "1" : null }, false);
+  const query = useQuery<RecommendationWorkspace & { total: number }>(
+    `/recommendations?${new URLSearchParams({ view: "list", q: search, filter, sort, direction, page: String(page) })}`,
   );
+  const saveScroll = useListScroll(href, !query.loading);
+  const onSort = (sort: string, direction: string) =>
+    update({ sort, direction });
+  const items = query.data?.roles || [];
   return (
     <div className="ws-page">
       <header className="ws-page-header">
@@ -48,29 +57,24 @@ export default function Submissions() {
           </p>
         </div>
         <button
-          className="ws-button ws-button-primary ws-page-create"
+          className="ws-button ws-list-create"
           onClick={() => setChoose(true)}
         >
           <FilePenLine size={17} />
           {t("Prepare submission")}
-          <ArrowUpRight size={15} />
         </button>
       </header>
       <div className="ws-toolbar">
-        <div className="ws-search">
-          <Search size={16} />
-          <input
-            aria-label={t("Search by candidate, client or role")}
-            placeholder={t("Search by candidate, client or role")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <ListSearch
+          value={search}
+          onChange={(q) => update({ q })}
+          placeholder={t("Search by candidate, client or role")}
+        />
         <div className="ws-filters">
           <select
-            aria-label={t("Status")}
+            aria-label={zh ? "推荐情况" : "Recommendation status"}
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => update({ filter: e.target.value })}
           >
             <option value="all">{zh ? "全部职位" : "All roles"}</option>
             <option value="recommended">
@@ -80,8 +84,44 @@ export default function Submissions() {
               {zh ? "尚未推荐" : "Not yet recommended"}
             </option>
           </select>
+          <select
+            aria-label={zh ? "排序字段" : "Sort by"}
+            value={sort}
+            onChange={(e) =>
+              onSort(
+                e.target.value,
+                e.target.value === "title" ? "asc" : "desc",
+              )
+            }
+          >
+            {[
+              ["delivery", zh ? "最近推荐" : "Last delivery"],
+              ["feedback", zh ? "最近反馈" : "Latest feedback"],
+              ["title", zh ? "职位名称" : "Role title"],
+              ["count", zh ? "已推荐人数" : "Recommended count"],
+            ].map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <button
+            className="ws-button"
+            aria-label={zh ? "切换排序方向" : "Reverse sort order"}
+            onClick={() => onSort(sort, direction === "asc" ? "desc" : "asc")}
+          >
+            {direction === "asc" ? "↑" : "↓"}
+          </button>
+          {(search || filter !== "all") && (
+            <button
+              className="ws-link"
+              onClick={() => update({ q: null, filter: null })}
+            >
+              {t("Clear filters")}
+            </button>
+          )}
           <span className="ws-count">
-            {items.length} {zh ? "个职位" : "roles"}
+            {query.data?.total ?? "—"} {zh ? "个职位" : "roles"}
           </span>
         </div>
       </div>
@@ -91,10 +131,18 @@ export default function Submissions() {
       ) : items.length ? (
         <div className="ws-role-grid ws-recommendation-grid">
           <div className="ws-role-table-head">
-            <span>{zh ? "职位 / 客户" : "Role / client"}</span>
-            <span>{zh ? "已推荐人选" : "Recommended"}</span>
-            <span>{zh ? "最新反馈" : "Latest feedback"}</span>
-            <span>{zh ? "最近推荐" : "Last delivery"}</span>
+            <SortHeading field="title" {...{ sort, direction, onSort }}>
+              {zh ? "职位 / 客户" : "Role / client"}
+            </SortHeading>
+            <SortHeading field="count" {...{ sort, direction, onSort }}>
+              {zh ? "已推荐人选" : "Recommended"}
+            </SortHeading>
+            <SortHeading field="feedback" {...{ sort, direction, onSort }}>
+              {zh ? "最新反馈" : "Latest feedback"}
+            </SortHeading>
+            <SortHeading field="delivery" {...{ sort, direction, onSort }}>
+              {zh ? "最近推荐" : "Last delivery"}
+            </SortHeading>
           </div>
           {items.map((item) => {
             const feedback = item.feedback[0];
@@ -104,7 +152,8 @@ export default function Submissions() {
               <Link
                 key={item.role.id}
                 className="ws-role-row"
-                href={`/app/roles/${item.role.id}?tab=submissions`}
+                href={`/app/roles/${item.role.id}?tab=submissions&returnTo=${encodeURIComponent(href)}`}
+                onClick={saveScroll}
               >
                 <div>
                   <h2>{item.role.title}</h2>
@@ -152,43 +201,105 @@ export default function Submissions() {
           <h2>{zh ? "没有符合条件的职位" : "No matching roles"}</h2>
           <p>
             {zh
-              ? "先添加职位，再让助理为这个职位准备推荐人选。"
-              : "Add a role, then ask your assistant to prepare its recommendations."}
+              ? "尝试其他关键词或清除筛选条件。"
+              : "Try another keyword or clear the filters."}
           </p>
-          <Link className="ws-button" href="/app/roles">
-            {t("Roles & JDs")}
-            <ArrowUpRight size={14} />
-          </Link>
+          {search || filter !== "all" ? (
+            <button
+              className="ws-button"
+              onClick={() => update({ q: null, filter: null })}
+            >
+              {t("Clear filters")}
+            </button>
+          ) : (
+            <Link className="ws-button ws-list-create" href="/app/roles">
+              {t("Roles & JDs")}
+            </Link>
+          )}
         </div>
       )}
+      <ListPagination
+        page={page}
+        total={query.data?.total || 0}
+        onPage={(page) => update({ page })}
+      />
       {choose && (
         <Dialog
           title={zh ? "为哪个职位准备推荐？" : "Choose a role"}
           onClose={() => setChoose(false)}
         >
-          <div className="ws-rec-role-picker">
-            {query.data?.roles.map(({ role }) => (
-              <Link
-                className="ws-detail-link"
-                key={role.id}
-                href={`/app?role=${role.id}&prompt=${encodeURIComponent(zh ? "请帮我为这个职位准备候选人推荐材料。" : "Help me prepare candidate recommendations for this role.")}`}
-              >
-                <BriefcaseBusiness size={18} />
-                <div>
-                  <strong>{role.title}</strong>
-                  <small>{role.client_name}</small>
-                </div>
-                <ArrowUpRight size={15} />
-              </Link>
-            ))}
-            {!query.data?.roles.length && (
-              <Link className="ws-link" href="/app/roles">
-                {zh ? "先添加职位" : "Add a role first"}
-              </Link>
-            )}
-          </div>
+          <RecommendationRolePicker />
         </Dialog>
       )}
+    </div>
+  );
+}
+
+function RecommendationRolePicker() {
+  const { locale } = useLanguage(),
+    zh = locale === "zh";
+  const { params, update } = useListState();
+  const q = params.get("pickq") || "",
+    status = params.get("pickstatus") || "active",
+    page = Math.max(1, Number(params.get("pickpage")) || 1);
+  const change = (values: Record<string, string | number | null>) =>
+    update({ pickpage: null, ...values }, false);
+  const query = useQuery<{ roles: Role[]; total: number }>(
+    `/roles?${new URLSearchParams({ view: "list", q, status, page: String(page), sort: "updated", direction: "desc" })}`,
+  );
+  return (
+    <div className="ws-picker-content">
+      <ListSearch
+        value={q}
+        onChange={(pickq) => change({ pickq })}
+        placeholder={zh ? "搜索职位名称或客户" : "Search roles or clients"}
+      />
+      <div className="ws-filters">
+        <select
+          aria-label={zh ? "选择职位状态" : "Choose role status"}
+          value={status}
+          onChange={(e) => change({ pickstatus: e.target.value })}
+        >
+          <option value="active">{zh ? "进行中" : "Active"}</option>
+          <option value="all">{zh ? "全部职位" : "All roles"}</option>
+        </select>
+        <span className="ws-count">
+          {query.data?.total ?? "—"} {zh ? "个职位" : "roles"}
+        </span>
+      </div>
+      <ErrorNotice error={query.error} retry={query.refresh} />
+      <div className="ws-rec-role-picker">
+        {query.loading ? (
+          <Loading />
+        ) : (
+          query.data?.roles.map((role) => (
+            <Link
+              className="ws-detail-link"
+              key={role.id}
+              href={`/app?role=${role.id}&prompt=${encodeURIComponent(zh ? "请帮我为这个职位准备候选人推荐材料。" : "Help me prepare candidate recommendations for this role.")}`}
+            >
+              <BriefcaseBusiness size={16} />
+              <div>
+                <strong>{role.title}</strong>
+                <small>{role.client_name}</small>
+              </div>
+              <ChevronRight size={14} />
+            </Link>
+          ))
+        )}
+        {!query.loading && !query.data?.roles.length && (
+          <p className="ws-empty">
+            {zh
+              ? "没有匹配职位，请调整关键词或选择全部职位。"
+              : "No matching roles. Try another search or choose all roles."}
+          </p>
+        )}
+      </div>
+      <ListPagination
+        page={page}
+        total={query.data?.total || 0}
+        onPage={(pickpage) => change({ pickpage })}
+      />
     </div>
   );
 }
