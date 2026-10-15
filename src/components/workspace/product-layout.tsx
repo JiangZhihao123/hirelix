@@ -41,7 +41,6 @@ import {
   X,
   Settings,
   Bell,
-  CreditCard,
   ChevronUp,
   ChevronRight,
   SquarePen,
@@ -384,7 +383,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 className="ws-credit-status"
                 href="/app/settings?section=billing"
                 title={t("View plan and subscription →")}
-                onClick={() => navigate()}
+                onClick={() => { accountMenuRef.current?.hidePopover(); navigate(); }}
               >
                 <span>{t("{count} AI credits remaining").replace("{count}", formatCredits(billing.agent.remaining, locale))}</span>
                 <ChevronRight size={14} aria-hidden="true" />
@@ -392,11 +391,8 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             )}
           </nav>
             <nav className="ws-nav">
-              <Link href="/app/settings" onClick={() => { accountMenuRef.current?.hidePopover(); navigate(); }}>
+              <Link href="/app/settings?section=account" onClick={() => { accountMenuRef.current?.hidePopover(); navigate(); }}>
                 <Settings size={16} />{t("Settings")}
-              </Link>
-              <Link href="/app/settings?section=billing" onClick={() => { accountMenuRef.current?.hidePopover(); navigate(); }}>
-                <CreditCard size={16} />{t("Billing")}
               </Link>
             </nav>
             <button
