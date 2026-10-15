@@ -1,19 +1,15 @@
 "use client";
 import { useState } from "react";
-import { Play, X, Pencil, Check, CornerUpLeft } from "lucide-react";
+import { ArrowUp, X, Pencil, Check } from "lucide-react";
 import { useLanguage } from "@/components/LanguageProvider";
 import type { Job } from "@/lib/workspace/types";
 
 export function ConversationQueue({
   jobs,
-  stopped,
-  failed,
   busy,
   onControl,
 }: {
   jobs: Job[];
-  stopped: boolean;
-  failed: boolean;
   busy: boolean;
   onControl: (
     action: string,
@@ -25,40 +21,9 @@ export function ConversationQueue({
     zh = locale === "zh";
   const [editing, setEditing] = useState<string | null>(null),
     [draft, setDraft] = useState("");
-  if (!stopped && !jobs.length) return null;
+  if (!jobs.length) return null;
   return (
     <div className="ws-conversation-queue">
-      {stopped && (
-        <div className="ws-conversation-held" role="status">
-          <span>
-            <strong>
-              {failed
-                ? zh
-                  ? "等待重试"
-                  : "Waiting for retry"
-                : zh
-                  ? "已停止"
-                  : "Stopped"}
-            </strong>
-            <small>
-              {zh
-                ? "已完成的工作已保留，待处理消息不会自动开始。"
-                : "Completed work is saved. Queued messages will wait."}
-            </small>
-          </span>
-          {!failed && (
-            <button
-              type="button"
-              className="ws-button"
-              disabled={busy}
-              onClick={() => void onControl("resume").catch(() => {})}
-            >
-              <Play size={13} />
-              {zh ? "继续处理" : "Continue"}
-            </button>
-          )}
-        </div>
-      )}
       {jobs.length > 0 && (
         <details open={jobs.length <= 2}>
           <summary>
@@ -107,20 +72,22 @@ export function ConversationQueue({
                       <p title={text}>{text}</p>
                       <button
                         type="button"
-                        className="ws-link"
+                        className="ws-icon"
+                        aria-label={zh ? "立即处理" : "Send now"}
+                        title={zh ? "立即处理" : "Send now"}
                         disabled={busy}
                         onClick={() =>
                           void onControl("immediate", job.id).catch(() => {})
                         }
                       >
-                        <CornerUpLeft size={12} />
-                        {zh ? "立即处理" : "Send now"}
+                        <ArrowUp size={15} />
                       </button>
                       <button
                         type="button"
                         className="ws-icon"
                         disabled={busy}
                         aria-label={zh ? "编辑排队消息" : "Edit queued message"}
+                        title={zh ? "编辑排队消息" : "Edit queued message"}
                         onClick={() => {
                           setDraft(text);
                           setEditing(job.id);

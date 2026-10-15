@@ -52,3 +52,13 @@
 ## 交付边界
 
 数据库迁移只应用到上述本地 QA 库。没有推送 main、修改生产数据库或重启生产 scheduler。当前 localhost:3000 使用隔离测试库，测试资料与线上资料分开；部署时需要先应用队列迁移，并同时更新 Web 与独立 scheduler。
+
+## 输入区精简验收
+
+- 去掉输入区独立 Send now 文字按钮、长篇快捷键提示和停止卡片。
+- 主按钮按状态显示发送、加入队列、停止、继续；排队消息通过向上箭头立即处理，保留编辑和撤回。
+- Cmd/Ctrl+Enter 立即处理，Esc 停止且保留草稿；停止后输入新要求直接开始，不再陷入暂停队列。
+- 区分 runtime 的 resume 和 immediate_follow_up，后者以最新消息为当前请求，不强制补完已被替换的回复。
+- 本地 Chrome + 官方 DeepSeek + 隔离 PG：对话 `d5cecb72-f618-445d-8f2f-f29a2797661a` 实测发送、排队、停止、刷新后继续、队列箭头立即处理、Cmd+Enter 立即处理。最后成功中断长文并读取 Rowan 的 London/version 2，旧任务 cancelled，新任务 done。
+- 观察边界：要求输出 `COMPACT QUEUE VERIFIED` 的浏览器用例被模型解读为无证据验证声明，未按要求返回短文本；没有将此用例算作成功。新增真实模型回归以中性单词 Hello 验证从真实流式长文切换到新消息，通过。自然语言执行仍可能偏离，UI 生命周期正确不能代替内容正确。
+- 验证：TypeScript、相关 ESLint 通过；10 项 PG 队列回归通过；新增真实模型中断回归通过。截图 `tmp/compact-controls-verified.png`。本次未部署生产。

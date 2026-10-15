@@ -9,11 +9,37 @@ import {rows} from "../../src/lib/workspace/database";
 import {sendMessage,assistantReply,conversationDetails} from "../../src/lib/workspace/conversations";
 import {claimJob,finishJob,heartbeat,cancelJob,liveReplyWriter} from "../../src/lib/workspace/jobs";
 import {initializeGlobalOutboundProxy} from "../../src/lib/server-outbound-proxy";
+import {controlConversation} from "../../src/lib/workspace/conversation-control";
 const url=new URL(process.env.DATABASE_URL || 'postgres://invalid/invalid');
 assert.ok(['localhost','127.0.0.1'].includes(url.hostname)&&url.pathname.startsWith('/hirelix_workspace_qa_'));
 assert.equal(process.env.WORKSPACE_REAL_AI_TEST,'true');
 initializeGlobalOutboundProxy(); after(async()=>{await closeDb();await closeTurnChannel();await getGlobalDispatcher().close();});
 const owner=randomUUID();
+test('real model and PG: promoting a queued message replaces the interrupted task', {timeout:180000}, async()=>{
+  const sent=await sendMessage(owner,{message:'Write a detailed 2000-word general guide to client intake calls. No records, emails or questions.',request_key:randomUUID(),locale:'en'});
+  const active=await claimJob(['chat'],{id:sent.job.id,userId:owner});assert.ok(active);
+  const running=assistantReply(active,()=>heartbeat(active)).then(result=>finishJob(active,result)).catch(error=>error);
+  try {
+    const deadline=Date.now()+90000;
+    let preview='';
+    while(Date.now()<deadline){
+      const [row]=await rows<{result:{live_reply?:string}}>(sql`SELECT result FROM hirelix_private_jobs WHERE id=${active.id}::uuid`);
+      preview=row.result?.live_reply || '';
+      if(preview.length>80)break;
+      await new Promise(resolve=>setTimeout(resolve,150));
+    }
+    assert.ok(preview.length>80,'interrupt a real streamed response');
+    const next=await sendMessage(owner,{conversation_id:sent.conversation_id,message:'Next task: reply with exactly the word Hello and nothing else.',request_key:randomUUID(),locale:'en'});
+    await controlConversation(owner,sent.conversation_id,{action:'immediate',job_id:next.job.id});
+    await running;
+    const job=await claimJob(['chat'],{id:next.job.id,userId:owner});assert.ok(job);
+    await finishJob(job,await assistantReply(job,()=>heartbeat(job)));
+    const detail=await conversationDetails(owner,sent.conversation_id);
+    assert.equal(detail.messages.at(-1)?.content.trim(),'Hello');
+    const [old]=await rows<{status:string}>(sql`SELECT status FROM hirelix_private_jobs WHERE id=${active.id}::uuid`);
+    assert.equal(old.status,'cancelled');
+  } finally {await cancelJob(owner,active.id);await running;}
+});
 test('real model and PG: provider prose appears before the final saved reply, cancellation blocks late writes',{timeout:240000},async()=>{
   const sent=await sendMessage(owner,{message:'Explain in English, in six short paragraphs, how a headhunter can prepare for a first client intake call. General advice only; do not create records, reminders, or save preferences.',request_key:randomUUID(),locale:'en'});
   const job=await claimJob(['chat'],{id:sent.job.id,userId:owner});assert.equal(job?.id,sent.job.id);

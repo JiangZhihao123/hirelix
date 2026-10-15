@@ -25,6 +25,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUp,
   Square,
+  Play,
+  ListPlus,
   ArrowUpRight,
   Paperclip,
   Check,
@@ -406,14 +408,14 @@ export function AssistantWorkspace({
     }
   }
   const sendInFlight = useRef(false);
-  async function send(event?: FormEvent, reply?: string, delivery: "queue" | "immediate" = "queue") {
+  async function send(event?: FormEvent, reply?: string, delivery: "queue" | "immediate" = stopped ? "immediate" : "queue") {
     event?.preventDefault();
     const quickReply = reply !== undefined;
     const text = (reply ?? draft).trim();
     const outgoingAttachments = quickReply ? [] : attachments;
     const outgoingRole = quickReply ? undefined : roles.data?.roles.find(role => role.id === (viewedSource?.kind === "role" ? viewedSource.id : activeRoleId));
     const outgoingCandidates = quickReply ? [] : [...new Map([...(linkedPersonId ? [{id: linkedPersonId, name: person.data?.person.name || t("Candidate")}] : []), ...mentions.references].map(candidate => [candidate.id, candidate])).values()];
-    if (sendInFlight.current || sending || (quickReply && pending) || (!text && !outgoingAttachments.length)) return;
+    if (stopping || sendInFlight.current || sending || (quickReply && pending) || (!text && !outgoingAttachments.length)) return;
     if (!quickReply && (!attachmentsReady || outgoingAttachments.some(item => item.status === "uploading"))) return;
     if (outgoingAttachments.some(item => attachmentError(item.file.name, item.file.size))) return;
     sendInFlight.current = true;
@@ -572,6 +574,11 @@ export function AssistantWorkspace({
   }
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (mentions.onKeyDown(event)) return;
+    if (event.key === "Escape" && !event.nativeEvent.isComposing && (sending || (pending && !stopped))) {
+      event.preventDefault();
+      void stop();
+      return;
+    }
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -579,7 +586,14 @@ export function AssistantWorkspace({
     )
       return;
     event.preventDefault();
-    if (!sending) event.currentTarget.form?.requestSubmit();
+    if (sending || stopping) return;
+    if ((event.metaKey || event.ctrlKey) && pending) {
+      void send(undefined, undefined, "immediate");
+    } else if (stopped && !draft.trim() && !attachments.length) {
+      void control("resume").catch(() => {});
+    } else {
+      event.currentTarget.form?.requestSubmit();
+    }
   }
   return (
     <div className="ws-page ws-assistant-page">
@@ -737,7 +751,7 @@ export function AssistantWorkspace({
               {t("Jump to latest")}
             </button>
           )}
-          <ConversationQueue jobs={queued} stopped={stopped} failed={job?.status === "error"} busy={stopping} onControl={control} />
+          <ConversationQueue jobs={queued} busy={stopping || sending} onControl={control} />
           <form
             className={`ws-composer ${dragging ? "is-dragging" : ""}`}
             onSubmit={send}
@@ -813,34 +827,28 @@ export function AssistantWorkspace({
                 <Paperclip size={14} />
                 {t("Add files")}
               </button>
-              <span>
-                {pending
-                  ? (locale === "zh" ? "发送后加入队列 · 纠正当前要求可选立即处理" : "Send to queue · Send now to redirect current work")
-                  : stopped ? (locale === "zh" ? "已停止 · 新消息会保留在队列中" : "Stopped · New messages will stay queued") : t("Enter to send · Shift + Enter for a new line")}
-              </span>
-              {((pending && !stopped) || sending) ? <button
-                type="button"
-                className="ws-button ws-button-primary ws-stop-button"
-                disabled={stopping}
-                aria-label={t("Stop response")}
-                title={t("Stop response")}
-                onClick={() => void stop()}
-              >{stopping ? <Loader2 size={14} className="animate-spin" /> : <Square size={13} fill="currentColor" />}</button> : null}
-              {!sending && (pending || stopped) && (!!draft.trim() || !!attachments.length) && <button type="button" className="ws-link" disabled={stopping || !attachmentsReady} onClick={()=>void send(undefined,undefined,"immediate")}>{locale === "zh" ? "立即处理" : "Send now"}</button>}
-              {!sending && (!pending || !!draft.trim() || !!attachments.length) && <button
-                type="submit"
-                className="ws-button ws-button-primary"
-                aria-label={pending || stopped ? (locale === "zh" ? "加入队列" : "Add to queue") : t("Send message")}
-                title={pending || stopped ? (locale === "zh" ? "加入队列" : "Add to queue") : t("Send message")}
-                disabled={
-                  (!draft.trim() && !attachments.length) ||
-                  !attachmentsReady || sending ||
-                  attachments.some((item) => item.status === "uploading") ||
-                  attachments.some(item => !!attachmentError(item.file.name, item.file.size))
-                }
-              >
-                <ArrowUp size={16} />
-              </button>}
+              {sending || (pending && !stopped && !draft.trim() && !attachments.length) ? (
+                <button type="button" className="ws-button ws-button-primary ws-composer-action"
+                  disabled={stopping} aria-label={t("Stop response")} title={t("Stop response")}
+                  onClick={() => void stop()}>
+                  {stopping ? <Loader2 size={14} className="animate-spin" /> : <Square size={12} fill="currentColor" />}
+                </button>
+              ) : stopped && !draft.trim() && !attachments.length ? (
+                <button type="button" className="ws-button ws-button-primary ws-composer-action"
+                  disabled={stopping} aria-label={locale === "zh" ? "继续处理" : "Continue"}
+                  title={locale === "zh" ? "继续处理" : "Continue"}
+                  onClick={() => void control("resume").catch(() => {})}>
+                  {stopping ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
+                </button>
+              ) : (
+                <button type="submit" className="ws-button ws-button-primary ws-composer-action"
+                  aria-label={pending && !stopped ? (locale === "zh" ? "加入队列" : "Add to queue") : t("Send message")}
+                  title={pending && !stopped ? (locale === "zh" ? "加入队列 · ⌘/Ctrl+Enter 立即处理" : "Queue · ⌘/Ctrl+Enter to send now") : t("Send message")}
+                  disabled={stopping || (!draft.trim() && !attachments.length) || !attachmentsReady ||
+                    attachments.some(item => item.status === "uploading" || !!attachmentError(item.file.name, item.file.size))}>
+                  {stopping ? <Loader2 size={14} className="animate-spin" /> : pending && !stopped ? <ListPlus size={16} /> : <ArrowUp size={16} />}
+                </button>
+              )}
             </div>
           </form>
         </section>
