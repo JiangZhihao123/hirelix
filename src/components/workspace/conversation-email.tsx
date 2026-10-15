@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { authClient } from "@/lib/auth-client";
+import { connectGmail } from "./connect-gmail";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { api, ErrorNotice, useQuery } from "./client";
 import type { ConversationEmail as Email } from "@/lib/workspace/email-contract";
@@ -14,9 +14,7 @@ export function ConversationEmail({email, conversationId, messageId, onChanged}:
     setBusy(true);setError("");
     try {
       const callbackURL = `/app?conversation=${encodeURIComponent(conversationId)}`;
-      const result = await authClient.linkSocial({provider:"google",scopes:["https://www.googleapis.com/auth/gmail.send"],disableRedirect:true,callbackURL,errorCallbackURL:callbackURL});
-      if(result.error || !result.data?.url) throw new Error(result.error?.message || "Could not connect Gmail");
-      const url = new URL(result.data.url);url.searchParams.set("prompt","consent");window.location.assign(url.href);
+      await connectGmail(callbackURL);
     } catch(cause) {setError(cause instanceof Error ? cause.message : "Could not connect Gmail");setBusy(false);}
   }
   async function respond(cancel = false) {

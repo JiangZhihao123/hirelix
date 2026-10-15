@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
     // shared library from Vercel functions.
     "/api/workspace/**": ["./node_modules/@img/sharp-libvips-*/lib/**/*", "./src/lib/workspace/skills/*.md", "./node_modules/pdfjs-dist/cmaps/**/*", "./node_modules/pdfjs-dist/standard_fonts/**/*", "./node_modules/pdfjs-dist/wasm/**/*"],
     "/api/workspace/deliverables/*/export": ["./src/assets/fonts/*"],
+    "/api/workspace/deliverables/*/package": ["./src/assets/fonts/*"],
+    "/recommendation/*/package": ["./src/assets/fonts/*"],
   },
   async redirects() {
     return [{

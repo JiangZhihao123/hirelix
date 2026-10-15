@@ -1,3 +1,4 @@
+import { recommendationSections } from "@/lib/workspace/recommendation-presentation";
 import type { Metadata } from "next";
 import { readSharedDocument } from "@/lib/workspace/document-sharing";
 import { AgentText } from "@/components/AgentText";
@@ -28,6 +29,7 @@ export default async function Recommendation({
     );
   const doc = share.snapshot,
     zh = doc.language === "zh";
+  const layout = recommendationSections(doc.content, doc.people);
   return (
     <main className="min-h-screen bg-[#f7f8f6] px-5 py-10 text-[#26352d]">
       <div className="mx-auto max-w-3xl">
@@ -44,38 +46,25 @@ export default async function Recommendation({
           <h1 className="mb-7 text-2xl font-semibold leading-relaxed">
             {doc.title}
           </h1>
-          <div className="text-[15px] leading-8">
-            <AgentText content={doc.content} />
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-[#dde3dd] pb-6">
+            <span className="text-sm text-[#67736b]">{zh ? `本次推荐 ${doc.people.length} 位候选人` : `${doc.people.length} candidates in this recommendation`}</span>
+            <a className="rounded-lg border border-[#dde3dd] px-4 py-2 text-sm hover:bg-[#f7f8f6]" href={`/recommendation/${token}/package`}>{zh ? "下载本批材料 · ZIP" : "Download package · ZIP"}</a>
           </div>
-          {!!doc.files.length && (
-            <section className="mt-9 border-t border-[#dde3dd] pt-6">
-              <h2 className="mb-4 font-semibold">
-                {zh ? "候选人简历" : "Candidate CVs"}
-              </h2>
-              <div className="grid gap-3">
-                {doc.files.map((file) => (
-                  <a
-                    className="flex flex-wrap justify-between gap-3 rounded-lg border border-[#dde3dd] p-4 underline underline-offset-4"
-                    key={file.id}
-                    href={`/recommendation/${token}/files/${file.id}`}
-                  >
-                    <span>
-                      {doc.people.find((p) => p.id === file.person_id)?.name}
-                    </span>
-                    <span>{file.name} ↓</span>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-          <section className="mt-9 border-t border-[#dde3dd] pt-6">
-            <h2 className="font-semibold">{zh ? "逐位反馈" : "Feedback on each candidate"}</h2>
-            <p className="mt-2 text-sm text-[#67736b]">{zh ? "反馈仅推荐人可见。希望面试不代表已经安排面试。" : "Your feedback is visible to your recruiter only. An interview request does not book an interview."}</p>
-            <div className="mt-5 grid gap-4">{doc.people.map(person => <section key={person.id} className="rounded-xl border border-[#dde3dd] p-5">
-              <h3 className="font-semibold">{person.name}</h3><p className="mt-1 text-sm text-[#67736b]">{person.headline}</p>
-              <details className="mt-3"><summary className="cursor-pointer text-sm text-[#285542]">{zh ? "填写反馈" : "Leave feedback"}</summary><RecommendationFeedback token={token} personId={person.id} name={person.name} zh={zh} /></details>
-            </section>)}</div>
-          </section>
+          <nav aria-label={zh ? "本次候选人" : "Candidates"} className="mb-8 flex flex-wrap gap-2">{doc.people.map((person,index)=><a key={person.id} href={`#candidate-${person.id}`} className="rounded-full bg-[#eef3ef] px-4 py-2 text-sm text-[#285542]">{index+1}. {person.name}</a>)}</nav>
+          {layout.overview && <div className="mb-9 text-[15px] leading-8"><AgentText content={layout.overview} /></div>}
+          <div className="space-y-8">{doc.people.map((person,index)=><section id={`candidate-${person.id}`} key={person.id} className="scroll-mt-6 rounded-xl border border-[#dde3dd] p-5 sm:p-7">
+            <header className="mb-5 flex items-start gap-4">
+              <span className="rounded-full bg-[#eef3ef] px-3 py-1 text-sm text-[#285542]">{String(index+1).padStart(2,'0')}</span>
+              <div><h2 className="text-xl font-semibold">{person.name}</h2><p className="mt-1 text-sm text-[#67736b]">{[person.headline,person.location].filter(Boolean).join(' · ')}</p></div>
+            </header>
+            {layout.sections[person.id] && <div className="text-[15px] leading-8"><AgentText content={layout.sections[person.id]} /></div>}
+            <div className="mt-5 flex flex-wrap gap-3">{doc.files.filter(file=>file.person_id===person.id).map(file=><a key={file.id} className="rounded-lg border border-[#dde3dd] px-4 py-2 text-sm text-[#285542] hover:bg-[#f7f8f6]" href={`/recommendation/${token}/files/${file.id}`}>{zh ? "下载简历" : "Download CV"} · {file.name} ↓</a>)}</div>
+            <details className="mt-6 border-t border-[#dde3dd] pt-4"><summary className="cursor-pointer text-sm font-medium text-[#285542]">{zh ? `反馈 ${person.name}` : `Feedback on ${person.name}`}</summary>
+              <p className="mb-4 mt-3 text-xs text-[#67736b]">{zh ? "反馈仅推荐人可见。面试意向不会自动安排面试。" : "Only your recruiter sees this feedback. Requesting an interview does not book one."}</p>
+              <RecommendationFeedback token={token} personId={person.id} name={person.name} zh={zh} />
+            </details>
+          </section>)}</div>
+          {layout.closing && <div className="mt-8 border-t border-[#dde3dd] pt-6 text-[15px] leading-8"><AgentText content={layout.closing} /></div>}
         </article>
         <p className="mt-6 text-center text-xs text-[#67736b]">
           {zh

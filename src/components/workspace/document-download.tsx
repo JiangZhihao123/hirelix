@@ -6,8 +6,8 @@ import { ErrorNotice, useQuery } from "./client";
 import { DocumentAttachments } from "./document-attachments";
 import type { Deliverable } from "@/lib/workspace/types";
 
-export async function downloadDocument(document: Pick<Deliverable, "id" | "version" | "title">, format: "pdf" | "docx") {
-  const response = await fetch(`/api/workspace/deliverables/${document.id}/export?format=${format}&version=${document.version}`);
+export async function downloadDocument(document: Pick<Deliverable, "id" | "version" | "title">, format: "pdf" | "docx" | "zip") {
+  const response = await fetch(format === "zip" ? `/api/workspace/deliverables/${document.id}/package?version=${document.version}` : `/api/workspace/deliverables/${document.id}/export?format=${format}&version=${document.version}`);
   if (!response.ok) {
     const body = await response.json();
     throw new Error(body.error || "Could not export this document");

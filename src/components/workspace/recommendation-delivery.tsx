@@ -13,6 +13,8 @@ import Link from "next/link";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { AgentText } from "@/components/AgentText";
 import { api, ErrorNotice, Field, useQuery } from "./client";
+import { connectGmail } from "./connect-gmail";
+import { recommendationCover } from "@/lib/workspace/recommendation-presentation";
 import { downloadDocument } from "./document-download";
 import type { Deliverable } from "@/lib/workspace/types";
 import type { SubmissionCv } from "@/lib/workspace/deliverables";
@@ -48,7 +50,10 @@ export function RecommendationDelivery({
     [error, setError] = useState(""),
     [copied, setCopied] = useState(""),
     [to, setTo] = useState(""),
-    [includeLink, setIncludeLink] = useState(false),
+    [includeLink, setIncludeLink] = useState(true),
+    [attachCvs, setAttachCvs] = useState(true),
+    [subject, setSubject] = useState<string | null>(null),
+    [body, setBody] = useState<string | null>(null),
     [showRecord, setShowRecord] = useState(false),
     [recipient, setRecipient] = useState(""),
     [channel, setChannel] = useState("email"),
@@ -75,6 +80,7 @@ export function RecommendationDelivery({
   const source = document.source_snapshot as {
     files?: SubmissionCv[];
     people?: Array<{ id: string; name: string }>;
+    role?: {title?: string};
   };
   const active = share.data?.share;
   const url =
@@ -82,9 +88,22 @@ export function RecommendationDelivery({
       ? new URL(active.path, window.location.origin).href
       : "";
   const linkText = `${document.source_snapshot.language === "zh" ? "查看推荐与提交反馈" : "View recommendation and share feedback"}: ${url}`;
-  const emailContent =
-    document.content +
-    (includeLink && active?.current_copy ? `\n\n${linkText}` : "");
+  const useLink = includeLink && !!active?.current_copy;
+  const emailSubject = subject ?? document.title;
+  const emailBody = body ?? (useLink ? recommendationCover({language: document.source_snapshot.language === "zh" ? "zh" : "en", role:source.role?.title || "", people:source.people || [], files:source.files || []}) : document.content);
+  const emailContent = emailBody + (useLink ? `\n\n${linkText}` : "");
+  useEffect(() => {
+    const key = `hirelix:gmail-delivery:${document.id}`;
+    const saved = sessionStorage.getItem(key);
+    if (!saved) return;
+    sessionStorage.removeItem(key);
+    try {
+      const draft = JSON.parse(saved);
+      if (draft.version !== document.version) return;
+      setTo(draft.to); setSubject(draft.subject); setBody(draft.body);
+      setIncludeLink(draft.includeLink); setAttachCvs(draft.attachCvs); setMode("gmail");
+    } catch { /* An invalid local draft does not change saved recommendation content. */ }
+  }, [document.id, document.version]);
   const inProgress = receipts.data?.receipts.some(
     (r) => r.status === "sending",
   );
@@ -95,7 +114,7 @@ export function RecommendationDelivery({
   }, [inProgress, receipts.refresh]);
   useEffect(() => {
     sendKey.current = null;
-  }, [to, includeLink, active?.id, document.version]);
+  }, [to, includeLink, attachCvs, subject, body, active?.id, document.version]);
   useEffect(() => {
     recordKey.current = null;
   }, [recipient, channel, occurred, note, active?.id, document.version]);
@@ -154,7 +173,10 @@ export function RecommendationDelivery({
             expected_version: document.version,
             to,
             request_key: sendKey.current,
-            share_id: includeLink ? active?.id : null,
+            share_id: useLink ? active?.id : null,
+            email_subject: emailSubject,
+            email_content: emailBody,
+            attach_cvs: attachCvs,
           }),
         },
       );
@@ -373,12 +395,10 @@ export function RecommendationDelivery({
                     : t("Gmail is not connected")}
                 </p>
                 {!connection.data?.connected && (
-                  <Link
-                    className="ws-link"
-                    href={`/app?document=${document.id}&role=${document.role_id}&prompt=${encodeURIComponent(zh ? "帮我连接 Gmail 发信功能，不发送邮件。" : "Help me connect Gmail for sending. Do not send an email.")}`}
-                  >
-                    {t("Manage Gmail connection")} ↗
-                  </Link>
+                  <button type="button" className="ws-button" disabled={busy} onClick={() => void run(async () => {
+                    sessionStorage.setItem(`hirelix:gmail-delivery:${document.id}`,JSON.stringify({version:document.version,to,subject,body,includeLink,attachCvs}));
+                    await connectGmail(`/app/submissions/${document.id}#recommendation-delivery`);
+                  })}>{t("Connect Gmail")}</button>
                 )}
                 <Field label={zh ? "收件人" : "Recipient"}>
                   <input
@@ -398,13 +418,13 @@ export function RecommendationDelivery({
               </p>
             )}
             <Field label={t("Email subject")}>
-              <input readOnly value={document.title} />
+              <input value={emailSubject} onChange={event=>setSubject(event.target.value)} maxLength={998} disabled={busy} />
             </Field>
             {mode === "copy" && (
               <button
                 className="ws-button"
                 disabled={disabled || busy}
-                onClick={() => void copy(document.title, "subject")}
+                onClick={() => void copy(emailSubject, "subject")}
               >
                 <Copy size={14} />
                 {t(copied === "subject" ? "Subject copied" : "Copy subject")}
@@ -414,7 +434,7 @@ export function RecommendationDelivery({
               <label className="ws-rec-checkbox">
                 <input
                   type="checkbox"
-                  checked={includeLink}
+                  checked={useLink}
                   onChange={(e) => setIncludeLink(e.target.checked)}
                   disabled={busy}
                 />
@@ -429,9 +449,12 @@ export function RecommendationDelivery({
                   : "To include a link, first publish the current version in Share link."}
               </p>
             )}
-            <div className="ws-rec-email-preview" ref={rendered}>
-              <AgentText content={emailContent} />
-            </div>
+            <Field label={zh ? "邮件正文" : "Email body"}>
+              <textarea rows={8} value={emailBody} maxLength={40000} disabled={busy} onChange={event=>setBody(event.target.value)} />
+            </Field>
+            {useLink && <p className="ws-muted">{linkText}</p>}
+            <label className="ws-rec-checkbox"><input type="checkbox" checked={attachCvs} onChange={event=>setAttachCvs(event.target.checked)} disabled={busy || !source.files?.length} />{zh ? "同时附上选定简历" : "Attach selected CVs"} ({source.files?.length || 0})</label>
+            <div hidden ref={rendered}><AgentText content={emailContent} /></div>
             {mode === "gmail" ? (
               <>
                 <button
@@ -441,8 +464,7 @@ export function RecommendationDelivery({
                     busy ||
                     !!inProgress ||
                     !connection.data?.connected ||
-                    !to.trim() ||
-                    !!(includeLink && !active?.current_copy)
+                    !to.trim() || !emailSubject.trim() || !emailBody.trim()
                   }
                   onClick={() => void send()}
                 >
@@ -451,8 +473,8 @@ export function RecommendationDelivery({
                 </button>
                 <p className="ws-muted">
                   {zh
-                    ? "点击后，以上正文和下方选定简历将发送给该收件人。成功后自动记录推荐。"
-                    : "Sends the body above and selected CVs below to this recipient. A successful send records the recommendation."}
+                    ? "点击后，以上正文、链接和勾选的简历将发送给该收件人。成功后自动记录推荐。"
+                    : "Sends this body, included link and checked CV attachments to this recipient. A successful send records the recommendation."}
                 </p>
                 {receipts.data?.receipts.map((r) => (
                   <p key={r.id} className="ws-muted">
@@ -517,6 +539,11 @@ export function RecommendationDelivery({
           </section>
         )}
         <section className="ws-delivery-files">
+          <div className="ws-actions" style={{justifyContent:"space-between"}}>
+            <h3>{zh ? "本批推荐材料" : "Recommendation package"}</h3>
+            <button type="button" className="ws-button" disabled={busy || disabled} onClick={()=>void run(()=>downloadDocument(document,"zip"))}><Download size={14}/>{zh ? "全部下载 · ZIP" : "Download all · ZIP"}</button>
+          </div>
+          <p className="ws-muted">{zh ? "包含推荐报告 PDF 和本次选定的原始简历。自行发邮件时，需手动添加下载的附件。" : "Includes the recommendation PDF and selected original CVs. Add downloaded attachments yourself when sending outside Hirelix."}</p>
           <h3>{t("Selected CV attachments")}</h3>
           {source.files?.length ? (
             source.files.map((file) => (

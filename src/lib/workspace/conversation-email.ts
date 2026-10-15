@@ -1,3 +1,6 @@
+import { recommendationCover } from "./recommendation-presentation";
+import { recommendationEmail, sendRecommendationInput } from "./gmail";
+import { activeDocumentShare } from "./document-sharing";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -93,13 +96,23 @@ export async function prepareEmailReply({job, conversation, question, messages, 
     else {
       try {
         if (plan.use_document && !document) throw new WorkspaceError("Open the saved document in this conversation first.");
-        const reviewed = plan.use_document && document ? clientDocument(document) : null;
+        let reviewed = plan.use_document && document ? clientDocument(document) : null;
+        let recommendationDelivery;
+        if (reviewed && document && (plan.include_link || plan.attach_cvs === false)) {
+          const share = plan.include_link ? await activeDocumentShare(job.user_id,document.id) : null;
+          if (plan.include_link && !share?.current_copy) throw new WorkspaceError("Publish the current recommendation link before preparing this link email.");
+          const input = sendRecommendationInput.parse({expected_version:document.version,to,request_key:randomUUID(),share_id:share?.id || null,attach_cvs:plan.attach_cvs ?? true,email_subject:plan.subject || undefined,email_content:plan.body || undefined});
+          const composed = await recommendationEmail(job.user_id,document,input,process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+          reviewed = composed;
+          // Keep the reviewed cover separately from the server-controlled link.
+          recommendationDelivery = {share_id:input.share_id || null,email_subject:composed.title,email_content:input.email_content ?? (plan.include_link ? recommendationCover(composed) : document.content),attach_cvs:input.attach_cvs};
+        }
         if (reviewed && document) await assertSharingAllowed(job.user_id, document.role_id, reviewed);
         const title = reviewed?.title || plan.subject;
         const content = reviewed?.content || plan.body;
         if (!title || !content) answer = say("What subject and message should this email contain?", "这封邮件的主题和正文是什么？");
         else {
-          email = {status:"review",request_key:randomUUID(),snapshot:emailSnapshotSchema.parse({from:connection.email,to,title,content,files:reviewed?.files || [],document_id:reviewed ? document!.id : null,document_version:reviewed ? document!.version : null})};
+          email = {status:"review",request_key:randomUUID(),snapshot:emailSnapshotSchema.parse({from:connection.email,to,title,content,files:reviewed?.files || [],document_id:reviewed ? document!.id : null,document_version:reviewed ? document!.version : null,...(recommendationDelivery ? {recommendation_delivery:recommendationDelivery} : {})})};
           answer = say("Review the recipient, subject, message and attachments below. Confirm send when they are correct; nothing has been sent yet.","请确认下方收件人、主题、正文和附件。确认无误后点击发送，或在对话中回复确认发送；目前尚未发送。");
         }
       } catch(error) {

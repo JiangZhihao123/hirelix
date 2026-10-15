@@ -10,12 +10,16 @@ import { readFile } from "./files";
 import { markSubmitted } from "./deliverables";
 import { emailSnapshotSchema, type EmailSnapshot } from "./email-contract";
 import type { Deliverable } from "./types";
+import { recommendationCover } from "./recommendation-presentation";
 export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 export const sendRecommendationInput = z.object({
   expected_version: z.number().int().positive(),
   to: z.email().max(320),
   request_key: z.uuid(),
   share_id: z.uuid().nullable().optional(),
+  email_subject: z.string().trim().min(1).max(998).refine(value => !/[\r\n]/.test(value)).optional(),
+  email_content: z.string().trim().min(1).max(40000).optional(),
+  attach_cvs: z.boolean().default(true),
 });
 export type Receipt = {
   id: string;
@@ -83,17 +87,27 @@ export async function emailReceipts(userId: string, id: string) {
     error: string | null;
     created_at: string;
   }>(
-    sql`SELECT id,deliverable_version,(snapshot->>'title'=(SELECT title FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid) AND coalesce(snapshot->>'document_content',snapshot->>'content')=(SELECT content FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid)) AS current_copy,CASE WHEN status='sending' AND created_at<now()-interval '2 minutes' THEN 'unknown' ELSE status END AS status,snapshot->>'to' AS recipient,error,created_at FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid ORDER BY created_at DESC LIMIT 10`,
+    sql`SELECT id,deliverable_version,(coalesce(snapshot->>'document_title',snapshot->>'title')=(SELECT title FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid) AND coalesce(snapshot->>'document_content',snapshot->>'content')=(SELECT content FROM hirelix_private_deliverables WHERE user_id=${userId}::uuid AND id=${id}::uuid)) AS current_copy,CASE WHEN status='sending' AND created_at<now()-interval '2 minutes' THEN 'unknown' ELSE status END AS status,snapshot->>'to' AS recipient,error,created_at FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid ORDER BY created_at DESC LIMIT 10`,
   );
 }
-async function recommendationEmail(userId: string, document: Deliverable, shareId: string | null | undefined, origin: string, runner?: Runner) {
+export async function recommendationEmail(userId: string, document: Deliverable, input: z.infer<typeof sendRecommendationInput>, origin: string, runner?: Runner) {
   const reviewed = clientDocument(document);
-  if (!shareId) return reviewed;
-  const share = await activeDocumentShare(userId, document.id, runner);
-  if (!share || share.id !== shareId || !share.current_copy)
-    throw new WorkspaceError("Publish the current version before including its link", 409);
-  const url = new URL(share.path, origin).href;
-  return {...reviewed, document_content: reviewed.content, content: `${reviewed.content}\n\n${reviewed.language === "zh" ? "查看推荐与提交反馈" : "View recommendation and share feedback"}: ${url}`, share_id: share.id};
+  let link = "";
+  if (input.share_id) {
+    const share = await activeDocumentShare(userId, document.id, runner);
+    if (!share || share.id !== input.share_id || !share.current_copy)
+      throw new WorkspaceError("Publish the current version before including its link", 409);
+    link = `\n\n${reviewed.language === "zh" ? "查看推荐与提交反馈" : "View recommendation and share feedback"}: ${new URL(share.path,origin).href}`;
+  }
+  if (input.share_id && input.email_content && /\{\{[^{}]+\}\}/.test(input.email_content))
+    throw new WorkspaceError("Replace template placeholders with concrete text. Omit link placeholders: the recommendation URL is appended automatically. Prepare the corrected preview without asking the user to fix formatting.",400);
+  const body = input.email_content ?? (input.share_id ? recommendationCover(reviewed) : reviewed.content);
+  return {...reviewed, title: input.email_subject ?? reviewed.title, content: body + link,
+    files: input.attach_cvs ? reviewed.files : [], document_title: reviewed.title, document_content: reviewed.content,
+    share_id: input.share_id || null, delivery_options: deliveryOptions(input)};
+}
+function deliveryOptions(input: z.infer<typeof sendRecommendationInput>) {
+  return {subject: input.email_subject ?? null, content: input.email_content ?? null, attach_cvs: input.attach_cvs};
 }
 
 export async function sendRecommendation(
@@ -111,7 +125,8 @@ export async function sendRecommendation(
       prior.deliverable_id !== id ||
       prior.deliverable_version !== input.expected_version ||
       prior.snapshot.to !== input.to ||
-      (prior.snapshot.share_id || null) !== (input.share_id || null)
+      (prior.snapshot.share_id || null) !== (input.share_id || null) ||
+      JSON.stringify(prior.snapshot.delivery_options ?? {subject:null,content:null,attach_cvs:true}) !== JSON.stringify(deliveryOptions(input))
     )
       throw new WorkspaceError(
         "This send request belongs to another email",
@@ -124,7 +139,7 @@ export async function sendRecommendation(
     throw new WorkspaceError("Connect Gmail before sending", 409);
   const document = await owned<Deliverable>(userId, "deliverable", id);
   expectVersion(document.version, input.expected_version);
-  const reviewed = await recommendationEmail(userId, document, input.share_id, origin);
+  const reviewed = await recommendationEmail(userId, document, input, origin);
   await assertSharingAllowed(userId, document.role_id, reviewed);
   const snapshot = { ...reviewed, from: connection.email!, to: input.to, document_id: id, document_version: input.expected_version };
   const { mime, messageId, accessToken } = await composeGmail(userId, snapshot);
@@ -171,7 +186,7 @@ export async function reserveEmailDelivery(
       true,
     );
     expectVersion(current.version, input.expected_version);
-    const reviewed = await recommendationEmail(userId, current, input.share_id, origin, tx);
+    const reviewed = await recommendationEmail(userId, current, input, origin, tx);
     await assertSharingAllowed(userId, current.role_id, reviewed, tx);
     const fingerprint = createHash("sha256")
       .update(
@@ -224,6 +239,11 @@ async function composeGmail(userId: string, snapshot: EmailSnapshot) {
       409,
     );
   }
+  return {...await buildEmailMime(userId,snapshot),accessToken};
+}
+
+export async function buildEmailMime(userId: string, snapshot: EmailSnapshot) {
+  emailSnapshotSchema.parse(snapshot);
   const attachments = [];
   let bytes = 0;
   for (const selected of snapshot.files) {
@@ -255,7 +275,7 @@ async function composeGmail(userId: string, snapshot: EmailSnapshot) {
   })
     .compile()
     .build();
-  return { mime, messageId, accessToken };
+  return { mime, messageId };
 }
 
 async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string) {
@@ -349,7 +369,9 @@ export async function reserveConversationEmail(userId: string, snapshot: EmailSn
     if (snapshot.document_id) {
       const document = await owned<Deliverable>(userId, "deliverable", snapshot.document_id, tx, true);
       expectVersion(document.version, snapshot.document_version!);
-      const reviewed = clientDocument(document);
+      const reviewed = snapshot.recommendation_delivery
+        ? await recommendationEmail(userId,document,sendRecommendationInput.parse({...snapshot.recommendation_delivery,expected_version:snapshot.document_version,to:snapshot.to,request_key:requestKey}),process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",tx)
+        : clientDocument(document);
       await assertSharingAllowed(userId, document.role_id, reviewed, tx);
       if (reviewed.title !== snapshot.title || reviewed.content !== snapshot.content || JSON.stringify(reviewed.files.map(f => [f.id, f.sha256])) !== JSON.stringify(snapshot.files.map(f => [f.id, f.sha256]))) throw new WorkspaceError("The email changed. Review it again before sending.", 409);
     }

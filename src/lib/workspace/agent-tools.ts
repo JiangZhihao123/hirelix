@@ -1211,7 +1211,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     email: define(
       "email",
-      "Check Gmail, prepare a concrete email preview or cancel it using the existing email service. Sending is available only for an explicit confirmation of the exact current preview.",
+      "Check Gmail, prepare a concrete email preview or cancel it using the existing email service. Sending requires explicit confirmation of the exact current preview. For a recommendation link email use use_document=true and include_link=true after the current recommendation is published with share_document; use a concise cover body, and attach_cvs=false for link-only delivery. Publishing still requires the user to authorize sharing. Traditional document emails remain available with include_link=false. Cover body must be complete text with no template placeholders; the service appends the actual link. A successful prepare already renders the email preview card: briefly acknowledge it without duplicating its body, exposing internal IDs or soliciting another action when the user requested preview only.",
       emailPlanSchema,
       async (input) => {
         if (input.intent === "none") return { status: "no_email_requested" };
