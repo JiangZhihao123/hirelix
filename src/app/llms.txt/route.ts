@@ -12,7 +12,7 @@ Hirelix is operated by YieldMirror. It serves independent headhunters and consul
 
 Hirelix works with the user's own candidate pool. It does not provide paid external candidate sourcing or a talent database. Client drafts require review. Optional Gmail sending requires a connected account with sending permission and an explicit send action.
 
-${AGENT_PLAN.name}: USD ${AGENT_PLAN.monthlyCents / 100}/month or USD ${AGENT_PLAN.annualCents / 100}/year, plus applicable tax. Both include ${AGENT_PLAN.monthlyCredits} AI credits per calendar month (UTC), without rollover. Trial: ${AGENT_PLAN.trialDays} days and ${AGENT_PLAN.trialCredits} credits, no card required, no automatic conversion to paid. Credits measure service usage, not a fixed number of tasks.
+${AGENT_PLAN.name}: USD ${AGENT_PLAN.monthlyCents / 100}/month or USD ${AGENT_PLAN.annualCents / 100}/year, plus applicable tax. Both include ${AGENT_PLAN.monthlyCredits} AI credits per monthly subscription period, without rollover. Monthly credits reset after successful renewal. Annual credits reset on each monthly subscription anniversary; shorter months use the last day. Trial: ${AGENT_PLAN.trialDays} days and ${AGENT_PLAN.trialCredits} credits, no card required, no automatic conversion to paid. Credits measure service usage, not a fixed number of tasks.
 
 ## Public sources
 

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { AGENT_PLAN, isAgentPlan, type AgentAccess, CREDIT_UNITS } from "./agent-plan";
+import { subscriptionCreditPeriod } from "./agent-credit-period";
 import type { Job } from "./workspace/types";
 
 export class AgentCreditError extends Error {
@@ -10,26 +11,47 @@ export class AgentCreditError extends Error {
   }
 }
 
-// Calendar-month allowances are explicit, including for annual subscriptions.
+// Paid allowances come only from completed transactions; subscription updates can precede payment.
 export async function getAgentAccess(userId: string, runner: Pick<typeof db, "execute"> = db): Promise<AgentAccess> {
   const result = await runner.execute(sql`
     SELECT a.trial_started_at, s.subscription_plan, s.subscription_status,
-      s.subscription_renews_at, s.subscription_started_at, now() AS current_time,
-      date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS month_start
+      s.subscription_renews_at, s.subscription_started_at, s.paddle_subscription_id, now() AS current_time,
+      date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS month_start,
+      (SELECT e.payload->'data'->'scheduled_change'->>'action' FROM hirelix_billing_events e
+       WHERE e.event_type LIKE 'subscription.%' AND e.payload->'data'->>'id'=s.paddle_subscription_id
+       ORDER BY e.payload->>'occurred_at' DESC LIMIT 1) AS scheduled_action
     FROM (SELECT ${userId}::uuid AS id) u
     LEFT JOIN hirelix_agent_access a ON a.user_id=u.id
     LEFT JOIN hirelix_user_settings s ON s.user_id=u.id`);
-  const item = result[0] as unknown as { trial_started_at: string | null; subscription_plan: string | null; subscription_status: string | null; subscription_renews_at: string | null; subscription_started_at: string | null; current_time: string; month_start: string };
+  const item = result[0] as unknown as { trial_started_at: string | null; subscription_plan: string | null; subscription_status: string | null; subscription_renews_at: string | null; subscription_started_at: string | null; paddle_subscription_id: string | null; current_time: string; month_start: string; scheduled_action: string | null };
   const now = new Date(item.current_time);
   const active = ["active", "trialing"].includes(item.subscription_status || "") && (!item.subscription_renews_at || new Date(item.subscription_renews_at) > now);
-  const paid = active && isAgentPlan(item.subscription_plan || "");
-  const legacy = active && !!item.subscription_plan && item.subscription_plan !== "free" && !isAgentPlan(item.subscription_plan);
-  let start = paid || legacy ? new Date(item.month_start) : item.trial_started_at ? new Date(item.trial_started_at) : null;
-  const end = start ? new Date(start) : null;
-  if (end) { if (paid || legacy) end.setUTCMonth(end.getUTCMonth() + 1); else end.setUTCDate(end.getUTCDate() + AGENT_PLAN.trialDays); }
-  if (paid && item.subscription_started_at && start && new Date(item.subscription_started_at) > start) start = new Date(item.subscription_started_at);
-  const state = legacy ? "legacy" : paid ? "paid" : !start ? "trial_ready" : end! <= now ? "expired" : "trial";
-  const limit = paid || legacy ? AGENT_PLAN.monthlyCredits : AGENT_PLAN.trialCredits;
+  const agentPlan = isAgentPlan(item.subscription_plan || "");
+  const legacy = active && !!item.subscription_plan && item.subscription_plan !== "free" && !agentPlan;
+  // The subscription id establishes ownership even if a transaction arrived before
+  // subscription.created and could not yet be associated with a user id.
+  const payments = agentPlan && item.paddle_subscription_id ? await runner.execute(sql`
+    SELECT payload->'data'->'billing_period' AS period
+    FROM hirelix_billing_events
+    WHERE event_type='transaction.completed'
+      AND payload->'data'->>'subscription_id'=${item.paddle_subscription_id}
+      AND payload->'data'->>'status'='completed'
+      AND coalesce(payload->'data'->'custom_data'->>'purchase_type','') <> 'test_payment'
+      AND payload->'data'->>'origin' IN ('web','api','subscription_recurring')
+    ORDER BY payload->'data'->'billing_period'->>'starts_at' DESC`) : [];
+  const paidPeriod = payments.map(payment => {
+    const period = payment.period as { starts_at?: string; ends_at?: string } | null;
+    const window = subscriptionCreditPeriod(new Date(period?.starts_at || ""), new Date(period?.ends_at || ""), now, item.subscription_plan === "agent_annual", new Date(item.subscription_started_at || ""));
+    return window ? { ...window, paidThrough: new Date(period!.ends_at!).toISOString() } : null;
+  }).find(Boolean);
+  const paid = agentPlan && !!paidPeriod && item.subscription_status === "active";
+  let start = paid ? paidPeriod!.start : legacy ? new Date(item.month_start) : item.trial_started_at ? new Date(item.trial_started_at) : null;
+  let end = paid ? paidPeriod!.end : start ? new Date(start) : null;
+  if (end && !paid) { if (legacy) end.setUTCMonth(end.getUTCMonth() + 1); else end.setUTCDate(end.getUTCDate() + AGENT_PLAN.trialDays); }
+  // Once a subscription exists, an unpaid/expired period must not revive a trial.
+  const state = legacy ? "legacy" : paid ? "paid" : agentPlan ? "expired" : !start ? "trial_ready" : end! <= now ? "expired" : "trial";
+  if (agentPlan && !paid) { start = null; end = null; }
+  const limit = agentPlan || legacy ? AGENT_PLAN.monthlyCredits : AGENT_PLAN.trialCredits;
   const counts = start ? await runner.execute(sql`
     SELECT coalesce(sum(u.consumed_units) FILTER (WHERE j.status='done'),0)::bigint AS used,
       coalesce(sum(u.reserved_units) FILTER (WHERE j.status IN ('queued','running')),0)::bigint AS reserved
@@ -39,7 +61,7 @@ export async function getAgentAccess(userId: string, runner: Pick<typeof db, "ex
   const used = Number(counts[0]?.used || 0) / CREDIT_UNITS;
   const reserved = Number(counts[0]?.reserved || 0) / CREDIT_UNITS;
   const remaining = Math.max(0, Math.round((limit-used-reserved)*CREDIT_UNITS)) / CREDIT_UNITS;
-  return { state, used, reserved, limit, remaining: state === "expired" ? 0 : remaining, periodStart: start?.toISOString() || null, periodEnd: end?.toISOString() || null };
+  return { state, used, reserved, limit, remaining: state === "expired" ? 0 : remaining, periodStart: start?.toISOString() || null, periodEnd: end?.toISOString() || null, paidThrough: paid ? paidPeriod!.paidThrough : null, autoRenews: paid && !["cancel", "pause"].includes(item.scheduled_action || "") };
 }
 
 export async function reserveAgentCredits(userId: string, jobId: string, runner: Pick<typeof db, "execute">) {

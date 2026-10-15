@@ -52,6 +52,11 @@ test("Agent trial limits and signed webhook lifecycle against local Postgres", {
     }
     const now = new Date().toISOString();
     assert.equal((await webhook(`evt_${userId}`,"active",now)).status,200);
+    assert.equal((await getAgentAccess(userId)).remaining,0,"Subscription update alone cannot grant credits");
+    const paymentBody = JSON.stringify({event_id:`evt_payment_${userId}`,event_type:"transaction.completed",occurred_at:now,data:{id:`txn_${userId}`,subscription_id:`sub_${userId}`,status:"completed",origin:"web",custom_data:{user_id:userId},billing_period:{starts_at:now,ends_at:new Date(Date.now()+365*86400000).toISOString()}}});
+    const paymentTs=String(Math.floor(Date.now()/1000));
+    const paymentSig=createHmac("sha256",process.env.PADDLE_WEBHOOK_SECRET!).update(`${paymentTs}:${paymentBody}`).digest("hex");
+    assert.equal((await POST(new NextRequest("http://localhost/api/paddle/webhook",{method:"POST",body:paymentBody,headers:{"paddle-signature":`ts=${paymentTs};h1=${paymentSig}`}}))).status,200);
     assert.equal((await getAgentAccess(userId)).state,"paid");
     assert.equal((await getAgentAccess(userId)).limit,3000);
     assert.equal((await getAgentAccess(userId)).remaining,3000,"Trial credits do not reduce newly paid allowance");

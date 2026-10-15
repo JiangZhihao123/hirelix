@@ -43,7 +43,7 @@ export default function PricingPage() {
             <p>USD, plus applicable tax.</p>
             <p>
               {AGENT_PLAN.monthlyCredits.toLocaleString("en-US")} AI credits
-              each calendar month.
+              each monthly subscription period.
             </p>
             <Link
               className="ha-button"
@@ -90,7 +90,7 @@ export default function PricingPage() {
           retries, automatic indexing, and follow-on imports are included.
         </p>
         <p>
-          Paid credits reset each calendar month in UTC, with no rollover. Your
+          Monthly credits reset after a successful renewal. Annual plans receive a new allowance each month on the subscription anniversary. Shorter months use their last day, and unused credits do not roll over. Your
           saved work stays available when AI access ends. The trial allowance is{" "}
           {AGENT_PLAN.trialCredits} credits for the {AGENT_PLAN.trialDays}-day
           trial, not the paid monthly allowance.

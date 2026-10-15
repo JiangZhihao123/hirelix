@@ -189,8 +189,9 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
     );
   }
 
+  const agent = await getAgentAccess(userId);
   const summary: BillingSummary = {
-    agent: await getAgentAccess(userId),
+    agent,
     plan,
     subscription: {
       planCode,
@@ -223,7 +224,7 @@ export async function getBillingSummaryForUser(userId: string): Promise<BillingS
             source: "paddle",
             label: "Paid subscription",
             expiresAt: settings?.subscription_renews_at?.toISOString() ?? null,
-            autoRenews: true,
+            autoRenews: agent.state === "legacy" ? true : agent.autoRenews ?? false,
           }
         : {
             source: "free",

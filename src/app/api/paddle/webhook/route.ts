@@ -173,7 +173,7 @@ async function resolveUserId(data: Record<string, unknown>) {
   if (directUserId) return directUserId;
 
   const subscriptionId =
-    typeof data.id === "string" ? data.id : typeof data.subscription_id === "string" ? data.subscription_id : null;
+    typeof data.subscription_id === "string" ? data.subscription_id : typeof data.id === "string" ? data.id : null;
   const customerId =
     typeof data.customer_id === "string"
       ? data.customer_id
@@ -261,7 +261,7 @@ async function updateSubscription(
         : null;
 
   const startedAt =
-    typeof data.started_at === "string" ? new Date(data.started_at) : new Date();
+    typeof data.started_at === "string" ? new Date(data.started_at) : null;
   const renewsAtDate = renewsAt ? new Date(renewsAt) : null;
   const billingCycle = planCode.endsWith("_annual") ? "year" : "month";
   const values = {
@@ -287,7 +287,7 @@ async function updateSubscription(
         billing_cycle: values.billing_cycle,
         paddle_customer_id: values.paddle_customer_id,
         paddle_subscription_id: values.paddle_subscription_id,
-        subscription_started_at: values.subscription_started_at,
+        subscription_started_at: sql`CASE WHEN ${hirelix_user_settings.paddle_subscription_id} = ${subscriptionId} THEN coalesce(${hirelix_user_settings.subscription_started_at}, ${startedAt?.toISOString() ?? null}::timestamptz) ELSE ${startedAt?.toISOString() ?? null}::timestamptz END`,
         subscription_renews_at: values.subscription_renews_at,
         updated_at: values.updated_at,
         paddle_event_at: occurredAt,

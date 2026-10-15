@@ -19,6 +19,8 @@ export type AgentAccess = {
   reserved: number;
   periodStart: string | null;
   periodEnd: string | null;
+  paidThrough?: string | null;
+  autoRenews?: boolean;
 };
 
 // Integer ten-thousandths of a credit keep the ledger exact. Credits are product
