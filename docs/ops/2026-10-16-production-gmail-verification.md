@@ -67,3 +67,22 @@
 - `tmp/gmail-20261016-fixed-custom-preview.png`
 
 截图与下载文件未写入 Git；不包含令牌或认证密钥。
+
+## 后续根因修复与真实发送复验
+
+除附 CV 分支跳过主题/正文覆盖外，模型指导未明确以工具返回的预览为准，可能将请求参数误述为已完成修改。现已明确实际快照为事实来源，显式主题/正文适用于所有文档邮件，精确正文须保留全部句子。真实模型初次预览曾缩短正文；加入逐字保留指导并重启独立 worker 后，新预览一次保留全部三句。
+
+本地隔离库 → 真实模型 → 原文件读取 → Gmail → 本人收件箱已验证：
+
+- 主题：`Hirelix corrected CV final verification 20261016`
+- 正文：`Owner-only fictional QA.`、`The customized subject and body must be sent with the selected original CV.`、`Verification marker: FINAL-CV-20261016.`，三句与预览一致。
+- 附件：`Fictional_Elena_Audit_CV.pdf`，Gmail 收件页显示；本次未重新下载做字节校验。
+- 收件人：本人 Gmail 的 `+hirelix-fixed-20261016` 别名。
+- 回执：`42c9ab15-de03-44da-875e-8e0aa0d1d6db`，状态 `sent`，Gmail ID `1a14338ae17d68a7`；13:39 +08:00 收件页独立核对。
+- 截图：`tmp/gmail-fixed-received.png`。
+
+此前 13:23 的另一封测试请求 `e95229d0-c1a4-418e-b1cc-995871bdc99a` 未获得 Gmail 回执，保留 `unknown`，邮箱搜索未发现该标记；不能由此断言永远未送达。没有自动重发。加入只含回执 ID、错误类型/底层错误码或 HTTP 状态的诊断日志，不记录凭据、正文或收件人。原异常未留底层错误，无法追溯确切网络原因；后续同运行环境的未认证 Gmail 探针 1.9 秒返回预期 401，独立新邮件发送成功，不能把偶发问题宣称为已根治。
+
+验证：隔离 PostgreSQL 集成测试 10/10；单元测试 408 通过、4 跳过、0 失败；生产构建通过；最终 TypeScript 与修改文件 ESLint 通过。构建生成的 tsconfig 改动已移除。
+
+修复仍为本地版本。当前 main 相比 origin/main 积累 44 个未发布提交，包括订阅周期、列表搜索、对话控制、自然对话和推荐交付等。此次未擅自推送整个积累版本，线上仍需发布后复验。

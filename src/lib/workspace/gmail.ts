@@ -3,6 +3,7 @@ import MailComposer from "nodemailer/lib/mail-composer";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { getLogger } from "@/lib/logger";
 import { db } from "@/db/client";
 import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { clientDocument, assertSharingAllowed, activeDocumentShare } from "./document-sharing";
@@ -11,6 +12,7 @@ import { markSubmitted } from "./deliverables";
 import { emailSnapshotSchema, type EmailSnapshot } from "./email-contract";
 import type { Deliverable } from "./types";
 import { recommendationCover } from "./recommendation-presentation";
+const gmailLogger = getLogger({ component: "workspace_gmail" });
 export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 export const sendRecommendationInput = z.object({
   expected_version: z.number().int().positive(),
@@ -293,13 +295,21 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string)
         signal: AbortSignal.timeout(45000),
       },
     );
-  } catch {
+  } catch (error) {
+    const cause = error instanceof Error ? error.cause : null;
+    gmailLogger.warn({
+      event: "gmail_delivery_unconfirmed",
+      receipt_id: receipt.id,
+      error_name: error instanceof Error ? error.name : "UnknownError",
+      cause_code: cause && typeof cause === "object" && "code" in cause ? String(cause.code) : null,
+    });
     await db.execute(
       sql`UPDATE hirelix_private_email_deliveries SET status='unknown',error='Gmail did not confirm delivery. Check Sent in Gmail before trying again.',updated_at=now() WHERE id=${receipt.id}::uuid`,
     );
     return { receipt: receipt.id, status: "unknown" };
   }
   if (!response.ok) {
+    gmailLogger.warn({ event: "gmail_delivery_rejected", receipt_id: receipt.id, http_status: response.status });
     // A timeout or server error can follow acceptance. Never blindly resend it.
     const status =
       response.status >= 500 || response.status === 408 ? "unknown" : "failed";
