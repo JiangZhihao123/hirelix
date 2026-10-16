@@ -200,8 +200,8 @@
   gap: 28px;
 }
 .ha-hero-caption {
-  font-size: 11px;
-  color: #788175;
+  font-size: 13px;
+  color: var(--ha-muted);
   margin: 17px 0 0;
 }
 .ha-preview {
@@ -284,30 +284,6 @@
   background: #e2e5da;
   margin: 22px 8px;
 }
-.ha-context-card {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px;
-  font-size: 10px;
-  line-height: 1.6;
-}
-.ha-context-card > div > span {
-  display: block;
-  font-size: 9px;
-  color: #899085;
-}
-.ha-context-icon {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  background: #ede8db;
-  border-radius: 5px;
-  font-family: Georgia, serif;
-  font-size: 15px;
-  color: #797155;
-}
 .ha-avatar {
   width: 31px;
   height: 31px;
@@ -319,11 +295,6 @@
   font-size: 10px;
   font-weight: 600;
   flex-shrink: 0;
-}
-.ha-context-card .ha-avatar {
-  width: 26px;
-  height: 26px;
-  font-size: 8px;
 }
 .ha-sidebar-bottom {
   margin-top: auto;
@@ -337,13 +308,15 @@
 .ha-preview-chat {
   padding: 24px 42px 22px;
 }
-.ha-chat-context {
+.ha-message-reference {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 9px;
-  color: #758374;
-  margin-bottom: 22px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #dce2d8;
+  font-size: 10px;
+  color: #536650;
 }
 .ha-user-message {
   background: #f0f2ec;
@@ -1003,7 +976,6 @@
     gap: 8px;
   }
   .ha-hero-caption {
-    font-size: 9px;
     margin-top: 16px;
   }
   .ha-preview {
@@ -1036,10 +1008,6 @@
   }
   .ha-preview-chat {
     padding: 18px 16px 15px;
-  }
-  .ha-chat-context {
-    font-size: 8px;
-    margin-bottom: 16px;
   }
   .ha-user-message {
     font-size: 10px;

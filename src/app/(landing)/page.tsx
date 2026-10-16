@@ -17,7 +17,8 @@ import {
   PanelLeft,
   ShieldCheck,
   Download,
-  ChevronDown,
+  Send,
+  Bell,
 } from "lucide-react";
 import {
   buildAttributionQuery,
@@ -202,7 +203,7 @@ export default function Home() {
               <br className="ha-desktop-break" /> for <span>headhunting.</span>
             </h1>
             <p className="ha-lead">
-              An assistant for your recruiting desk, from one conversation to the next. Build on your candidates, client work, and the way you like to work.
+              Start with a JD, a CV, or a question. Tell your agent what you want to do, then build on your saved candidates, roles, and conversations.
             </p>
             <div className="ha-hero-actions">
               <button
@@ -211,14 +212,14 @@ export default function Home() {
                 data-testid="hero-primary-cta"
                 onClick={() => enter("hero")}
               >
-                Meet your agent <ArrowUpRight size={18} />
+                Start free trial <ArrowUpRight size={18} />
               </button>
               <a className="ha-text-link" href="#how-it-works">
                 See it at work <ArrowRight size={16} />
               </a>
             </div>
             <p className="ha-hero-caption">
-              Bring your experience. Build on it every day.
+              {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI credits · No card required
             </p>
           </div>
           <div className="ha-preview" aria-label="Illustrative agent workspace">
@@ -237,44 +238,37 @@ export default function Home() {
                 aria-label="Example workspace context"
               >
                 <p className="ha-mini-label">YOUR WORKSPACE</p>
-                <div className="ha-sidebar-item ha-selected">
-                  <MessageSquare size={15} /> My assistant
+                <div className="ha-sidebar-item">
+                  <MessageSquare size={15} /> New conversation
                 </div>
                 <div className="ha-sidebar-item">
-                  <Users size={15} /> Candidates
+                  <Users size={15} /> <span>Candidates &amp; CVs</span>
                 </div>
                 <div className="ha-sidebar-item">
-                  <BriefcaseBusiness size={15} /> Roles
+                  <BriefcaseBusiness size={15} /> <span>Roles &amp; JDs</span>
                 </div>
                 <div className="ha-sidebar-item">
-                  <FileText size={15} /> Submissions
+                  <Send size={15} /> Recommendations
+                </div>
+                <div className="ha-sidebar-item">
+                  <Bell size={15} /> Reminders
                 </div>
                 <div className="ha-sidebar-rule" />
-                <p className="ha-mini-label">IN CONTEXT</p>
-                <div className="ha-context-card">
-                  <span className="ha-context-icon">N</span>
-                  <div>
-                    Northstar<span>VP Product</span>
-                  </div>
-                </div>
-                <div className="ha-context-card">
-                  <span className="ha-avatar">PS</span>
-                  <div>
-                    Priya Shah<span>Candidate</span>
-                  </div>
+                <p className="ha-mini-label">CONVERSATIONS</p>
+                <div className="ha-sidebar-item ha-selected">
+                  Northstar · VP Product
                 </div>
                 <div className="ha-sidebar-bottom">
                   <span className="ha-tiny-dot" /> Your work, connected.
                 </div>
               </aside>
               <div className="ha-preview-chat">
-                <div className="ha-chat-context">
-                  <BriefcaseBusiness size={13} /> Northstar · VP Product{" "}
-                  <ChevronDown size={12} />
-                </div>
                 <div className="ha-user-message">
                   Who in my candidates should I revisit for Northstar’s VP
                   Product role?
+                  <div className="ha-message-reference">
+                    <BriefcaseBusiness size={13} /> Northstar · VP Product
+                  </div>
                 </div>
                 <div className="ha-agent-response">
                   <AgentMark small />
@@ -539,7 +533,7 @@ export default function Home() {
               <button className="ha-button ha-button-primary" disabled={!hydrated} onClick={() => enter("pricing", false, plan.code)}>Start free trial <ArrowUpRight size={18} /></button>
             </article>)}
           </div>
-          <p className="ha-pricing-terms">USD, plus applicable tax. Subscribe when you’re ready; your trial does not automatically become a paid plan. Subscriptions renew until canceled. AI work uses credits based on the services consumed. Longer or more complex work may use more credits. Only completed work is charged. System retries, automatic indexing and follow-on imports are included. Paid credits reset monthly (UTC), with no rollover. Your saved work stays available when AI access ends. <Link href="/refund-policy">Refund policy</Link>.</p>
+          <p className="ha-pricing-terms">USD, plus applicable tax. Subscribe when you’re ready; your trial does not automatically become a paid plan. Subscriptions renew until canceled. AI work uses credits based on the services consumed. Longer or more complex work may use more credits. Only completed work is charged. System retries, automatic indexing and follow-on imports are included. Monthly credits reset after a successful renewal. Annual plans receive a new allowance each month on the subscription anniversary. Shorter months use their last day, and unused credits do not roll over. Your saved work stays available when AI access ends. <Link href="/refund-policy">Refund policy</Link>.</p>
         </section>
 
         <section
@@ -606,7 +600,7 @@ export default function Home() {
               className="ha-button ha-button-light"
               onClick={() => enter("footer")}
             >
-              Meet your agent <ArrowUpRight size={18} />
+              Start free trial <ArrowUpRight size={18} />
             </button>
           </div>
         </section>

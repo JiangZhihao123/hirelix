@@ -246,8 +246,10 @@ type SessionSummary = {
   sectionViewCount: number;
 };
 
+const START_CLICK_EVENTS = new Set(["hero_submit_attempt", "personal_agent_cta_click"]);
+
 const EFFECTIVE_CLICK_EVENTS = new Set([
-  "hero_submit_attempt",
+  ...START_CLICK_EVENTS,
   "google_signin_click",
   "email_otp_requested",
   "preview_request_click",
@@ -458,11 +460,7 @@ export function buildOpsConversionData(
   const stayed30Seconds = humanSessions.filter((session) => session.pageStaySeconds >= 30).length;
   const stayed60Seconds = humanSessions.filter((session) => session.pageStaySeconds >= 60).length;
   const stayed180Seconds = humanSessions.filter((session) => session.pageStaySeconds >= 180).length;
-  const highInterestNoAction = humanSessions.filter(
-    (session) =>
-      session.pageStaySeconds >= 60 &&
-      !hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click", "email_otp_requested", "search_create_success"])),
-  ).length;
+  const highInterestNoAction = humanSessions.filter(isHighIntentNoAction).length;
 
   return {
     range: {
@@ -723,7 +721,7 @@ function buildSessions(events: GrowthEventRecord[]): SessionSummary[] {
 function buildFunnel(humanSessions: SessionSummary[]): FunnelStep[] {
   const steps = [
     { key: "landing", label: "真人访问首页", count: humanSessions.length },
-    { key: "start", label: "点击开始", count: countSessionsWithEvents(humanSessions, new Set(["hero_submit_attempt"])) },
+    { key: "start", label: "点击开始", count: countSessionsWithEvents(humanSessions, START_CLICK_EVENTS) },
     { key: "signin", label: "打开登录", count: countSessionsWithEvents(humanSessions, new Set(["signin_view", "google_signin_click", "email_otp_requested"])) },
     { key: "login", label: "登录成功", count: countSessionsWithEvents(humanSessions, new Set(["signup_success"])) },
     { key: "new_search", label: "进入新搜索", count: countSessionsWithEvents(humanSessions, new Set(["new_search_view"])) },
@@ -777,7 +775,7 @@ function buildVisitorSegments(humanSessions: SessionSummary[]): VisitorSegment[]
   const seriousNoAction = humanSessions.filter(isHighIntentNoAction).length;
   const clickedNoLogin = humanSessions.filter(
     (session) =>
-        hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click", "email_otp_requested"])) &&
+      hasAnyEvent(session, new Set([...START_CLICK_EVENTS, "signin_view", "google_signin_click", "email_otp_requested"])) &&
       !session.eventTypes.has("signup_success"),
   ).length;
   const productNoSearch = humanSessions.filter(
@@ -842,7 +840,7 @@ function buildActionItems(params: {
   const humanVisits = params.humanSessions.length;
   const clickedNoLogin = params.humanSessions.filter(
     (session) =>
-      hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click", "email_otp_requested"])) &&
+      hasAnyEvent(session, new Set([...START_CLICK_EVENTS, "signin_view", "google_signin_click", "email_otp_requested"])) &&
       !session.eventTypes.has("signup_success"),
   ).length;
   const productNoSearch = params.humanSessions.filter(
@@ -929,7 +927,7 @@ function buildHighIntentSessions(humanSessions: SessionSummary[]): HighIntentSes
       (session) =>
         isHighIntentNoAction(session) ||
         session.eventTypes.has("hero_input_start") ||
-        session.eventTypes.has("hero_submit_attempt") ||
+        hasAnyEvent(session, START_CLICK_EVENTS) ||
         session.eventTypes.has("google_signin_click") ||
         session.eventTypes.has("email_otp_requested") ||
         session.eventTypes.has("search_create_success"),
@@ -1096,7 +1094,7 @@ function isSeriousReader(session: SessionSummary) {
 function isHighIntentNoAction(session: SessionSummary) {
   return (
     session.pageStaySeconds >= 60 &&
-    !hasAnyEvent(session, new Set(["hero_submit_attempt", "signin_view", "google_signin_click", "email_otp_requested", "search_create_success"]))
+    !hasAnyEvent(session, new Set([...START_CLICK_EVENTS, "signin_view", "google_signin_click", "email_otp_requested", "search_create_success"]))
   );
 }
 
@@ -1108,6 +1106,7 @@ function lastMeaningfulAction(session: SessionSummary) {
     "google_signin_click",
     "email_otp_requested",
     "signin_view",
+    "personal_agent_cta_click",
     "hero_submit_attempt",
     "hero_input_start",
     "sample_view",
@@ -1126,7 +1125,7 @@ function highIntentReason(session: SessionSummary) {
   if (session.eventTypes.has("search_create_failed")) return "创建搜索失败";
   if (session.eventTypes.has("google_signin_click") && !session.eventTypes.has("signup_success")) return "点了登录但没成功";
   if (session.eventTypes.has("email_otp_requested") && !session.eventTypes.has("signup_success")) return "请求邮箱验证码但没登录";
-  if (session.eventTypes.has("hero_submit_attempt")) return "点击开始";
+  if (hasAnyEvent(session, START_CLICK_EVENTS)) return "点击开始";
   if (session.eventTypes.has("hero_input_start")) return "输入了 JD";
   if (isHighIntentNoAction(session)) return "停留超过 60 秒但没行动";
   return "有明显兴趣";
@@ -1241,6 +1240,7 @@ function eventLabel(eventType: string) {
     section_view: "看到页面模块",
     hero_input_start: "开始输入 JD",
     hero_submit_attempt: "点击开始",
+    personal_agent_cta_click: "点击开始",
     signin_view: "打开登录",
     google_signin_click: "点击 Google 登录",
     email_otp_requested: "请求邮箱验证码",

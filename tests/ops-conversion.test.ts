@@ -6,6 +6,7 @@ import {
   buildOpsConversionData,
   classifyTraffic,
   isLocalOrPrivateIp,
+  type GrowthEventRecord,
 } from "../src/lib/ops-conversion";
 
 test("classifyTraffic treats non-data-center IP traffic as human", () => {
@@ -564,4 +565,98 @@ test("buildOpsConversionData attaches IP attribution to recent human events", ()
   assert.equal(data.recentHumanEvents[0].ip.country, "Norway");
   assert.equal(data.recentHumanEvents[0].ip.networkType, "residential");
   assert.equal(data.recentHumanEvents[0].ip.org, "Chiron Software LLC");
+});
+
+function buildCtaConversionData({
+  eventTypes = ["personal_agent_cta_click"],
+  staySeconds = 72,
+  ipAddress = "203.0.113.10",
+}: {
+  eventTypes?: string[];
+  staySeconds?: number;
+  ipAddress?: string;
+} = {}) {
+  const events: GrowthEventRecord[] = ["page_view", ...eventTypes, "session_summary"].map((eventType) => ({
+    event_type: eventType,
+    visitor_id: "cta-visitor",
+    session_id: "cta-session",
+    page_url: "https://hirelix.online/",
+    referrer: "",
+    ip_address: ipAddress,
+    user_agent: "Mozilla/5.0 Chrome/149.0",
+    metadata: { traffic_source: "linkedin", page_stay_seconds: staySeconds },
+    created_at: "2026-05-26T01:00:00.000Z",
+  }));
+  return buildOpsConversionData(events, {
+    range: "today",
+    start: new Date("2026-05-26T00:00:00.000Z"),
+    end: new Date("2026-05-27T00:00:00.000Z"),
+  });
+}
+
+for (const staySeconds of [5, 20, 72]) {
+  test(`personal agent CTA counts as action after ${staySeconds}s without implying activation`, () => {
+    const data = buildCtaConversionData({ staySeconds });
+
+    assert.equal(data.summary.effectiveClicks, 1);
+    assert.equal(data.summary.leftWithin10Seconds, 0);
+    assert.equal(data.summary.highInterestNoAction, 0);
+    assert.equal(data.summary.loginAttempts, 0);
+    assert.equal(data.summary.successfulLogins, 0);
+    assert.equal(data.summary.createdSearches, 0);
+    assert.deepEqual(data.funnel.map(({ key, count }) => [key, count]), [
+      ["landing", 1], ["start", 1], ["signin", 0], ["login", 0], ["new_search", 0], ["created", 0],
+    ]);
+    assert.equal(data.betaInvites.activated, 0);
+    assert.equal(data.sources[0]?.effectiveClicks, 1);
+    assert.equal(data.sources[0]?.clickRate, 100);
+    assert.equal(data.sources[0]?.highIntentNoAction, 0);
+    for (const key of ["quick_leave", "skimmed", "serious_no_action"]) {
+      assert.equal(data.visitorSegments.find((segment) => segment.key === key)?.count, 0, key);
+    }
+    assert.equal(data.visitorSegments.find((segment) => segment.key === "clicked_no_login")?.count, 1);
+    assert.equal(data.actionItems.some((item) => item.title === "有人认真看了但没行动"), false);
+    assert.equal(data.actionItems.some((item) => item.detail.includes("1 个访客点击开始/登录")), true);
+    assert.equal(data.highIntentSessions.length, 1);
+    assert.equal(data.highIntentSessions[0]?.lastAction, "点击开始");
+    assert.equal(data.highIntentSessions[0]?.reason, "点击开始");
+    assert.equal(data.recentHumanEvents.filter((event) => event.label === "点击开始").length, 1);
+  });
+}
+
+test("start clicks deduplicate repeated and mixed CTA events by session", () => {
+  for (const eventTypes of [
+    ["personal_agent_cta_click", "personal_agent_cta_click"],
+    ["hero_submit_attempt", "personal_agent_cta_click", "personal_agent_cta_click"],
+    ["hero_submit_attempt"],
+  ]) {
+    const data = buildCtaConversionData({ eventTypes });
+    assert.equal(data.summary.effectiveClicks, 1);
+    assert.equal(data.sources[0]?.effectiveClicks, 1);
+    assert.equal(data.funnel.find((step) => step.key === "start")?.count, 1);
+    assert.equal(data.visitorSegments.find((segment) => segment.key === "clicked_no_login")?.count, 1);
+  }
+});
+
+test("a long visit without CTA remains classified as no action", () => {
+  const data = buildCtaConversionData({ eventTypes: [] });
+  assert.equal(data.summary.effectiveClicks, 0);
+  assert.equal(data.summary.highInterestNoAction, 1);
+  assert.equal(data.sources[0]?.highIntentNoAction, 1);
+  assert.equal(data.visitorSegments.find((segment) => segment.key === "serious_no_action")?.count, 1);
+  assert.equal(data.actionItems.some((item) => item.title === "有人认真看了但没行动"), true);
+  assert.equal(data.highIntentSessions[0]?.reason, "停留超过 60 秒但没行动");
+});
+
+test("local personal agent CTA sessions stay excluded from conversion and activity", () => {
+  const data = buildCtaConversionData({ ipAddress: "127.0.0.1" });
+  assert.equal(data.summary.humanVisits, 0);
+  assert.equal(data.summary.effectiveClicks, 0);
+  assert.equal(data.summary.highInterestNoAction, 0);
+  assert.ok(data.funnel.every((step) => step.count === 0));
+  assert.ok(data.visitorSegments.every((segment) => segment.count === 0));
+  assert.equal(data.sources.length, 0);
+  assert.equal(data.highIntentSessions.length, 0);
+  assert.equal(data.recentHumanEvents.length, 0);
+  assert.equal(data.ipAttribution.length, 0);
 });
