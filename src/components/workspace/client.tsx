@@ -32,10 +32,17 @@ export async function api<T>(
       ...options.headers,
     },
   });
-  const payload = await response.json();
+  const payload = await response.json().catch(() => {
+    throw new ApiError(
+      response.status === 401 ? "Sign in to continue" : "Could not complete this request",
+      response.status,
+    );
+  });
   if (!response.ok)
     throw new ApiError(
-      payload.error || "Could not complete this request",
+      typeof payload?.error === "string" && payload.error.trim()
+        ? payload.error
+        : "Could not complete this request",
       response.status,
     );
   return payload as T;
