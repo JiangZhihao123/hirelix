@@ -2,6 +2,7 @@
 import { semanticExcerpt } from "@/lib/workspace/search-excerpt";
 
 import { recordLocalDate } from "@/lib/workspace/record-dates";
+import { ProfileText } from "@/components/workspace/profile-text";
 import { SourceContent } from "@/components/workspace/source-content";
 
 import { useLanguage, useT } from "@/components/LanguageProvider";
@@ -676,7 +677,7 @@ function CandidateDetails({
           {person.profile?.summary && (
             <section className="ws-section">
               <h3>{t("Profile")}</h3>
-              <p>{person.profile.summary}</p>
+              <ProfileText text={person.profile.summary} />
             </section>
           )}
           <section className="ws-section">
@@ -689,7 +690,7 @@ function CandidateDetails({
                     : recordLocalDate(conversation, "UTC") || "—"}{" "}
                   · {t(recordKinds[conversation.kind])}
                 </small>
-                <p className="mt-2">{conversation.content}</p>
+                <ProfileText text={conversation.content} />
                 <button
                   className="ws-link mt-3"
                   onClick={() => {
@@ -706,7 +707,7 @@ function CandidateDetails({
           {person.note && (
             <section className="ws-section">
               <h3>{t("Your private note")}</h3>
-              <p>{person.note}</p>
+              <ProfileText text={person.note} />
             </section>
           )}
           {(person.skills || []).length > 0 && (
@@ -730,7 +731,12 @@ function CandidateDetails({
                     {item.title} · {item.company}
                   </h4>
                   <small>{item.dates}</small>
-                  <p>{item.description}</p>
+                  {item.description && (
+                    <details className="mt-2">
+                      <summary className="ws-link cursor-pointer">{t("Experience details")}</summary>
+                      <p className="whitespace-pre-line">{item.description}</p>
+                    </details>
+                  )}
                 </div>
               ))}
             </section>

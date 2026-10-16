@@ -23,7 +23,7 @@ export const personInput = z.object({
   note: z.string().max(100000).default(""),
   profile: z
     .object({
-      summary: optionalText(10000),
+      summary: optionalText(10000).describe("Two or three source-grounded sentences summarizing professional experience. Employment details belong in experience; the original source is retained separately."),
       experience: z
         .array(
           z.object({
