@@ -98,7 +98,7 @@ export async function prepareEmailReply({job, conversation, question, messages, 
         if (plan.use_document && !document) throw new WorkspaceError("Open the saved document in this conversation first.");
         let reviewed = plan.use_document && document ? clientDocument(document) : null;
         let recommendationDelivery;
-        if (reviewed && document && (plan.include_link || plan.attach_cvs === false)) {
+        if (reviewed && document) {
           const share = plan.include_link ? await activeDocumentShare(job.user_id,document.id) : null;
           if (plan.include_link && !share?.current_copy) throw new WorkspaceError("Publish the current recommendation link before preparing this link email.");
           const input = sendRecommendationInput.parse({expected_version:document.version,to,request_key:randomUUID(),share_id:share?.id || null,attach_cvs:plan.attach_cvs ?? true,email_subject:plan.subject || undefined,email_content:plan.body || undefined});

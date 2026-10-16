@@ -118,3 +118,38 @@ test('real PG: Agent email preparation joins its turn receipt and failed revisio
  assert.equal((retained.metadata.email as ConversationEmail).status,'review','a failed edit cannot discard the last valid preview');
  await finishJob(job,{result:{}});
 });
+
+test('real PG: document email edits apply with CVs and no link, and confirmation validates the exact preview',async()=>{
+ const {prepareEmailReply}=await import('../../src/lib/workspace/conversation-email');
+ const {claimJob,finishJob}=await import('../../src/lib/workspace/jobs');
+ const {conversationDetails}=await import('../../src/lib/workspace/conversations');
+ const {emailPlanSchema}=await import('../../src/lib/workspace/email-contract');
+ const owner=randomUUID();
+ await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'Fictional QA',${owner+'@example.test'},true,now(),now())`);
+ await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId",scope,"createdAt","updatedAt") VALUES(${randomUUID()},${owner},'google',${owner},'openid email profile',now(),now())`);
+ const role=await createRole(owner,{title:'QA email edits',client_name:'Fictional QA',jd_text:'QA'});
+ const file={id:randomUUID(),person_id:randomUUID(),name:'fictional.pdf',sha256:'a'.repeat(64)};
+ const [doc]=await rows<Deliverable>(sql`INSERT INTO hirelix_private_deliverables(user_id,role_id,kind,title,content,source_snapshot) VALUES(${owner}::uuid,${role.id}::uuid,'submission','Saved recommendation','Saved recommendation body',${json({audience:'client',language:'en',people:[],files:[file]})}) RETURNING *`);
+ const sent=await sendMessage(owner,{message:'Prepare a fictional document email with my edited subject and introduction; retain its CV.',request_key:randomUUID()});
+ const job=await claimJob(['chat'],{id:sent.job.id,userId:owner});assert(job);
+ try {
+  const detail=await conversationDetails(owner,sent.conversation_id),question=detail.messages[0];
+  for (const overrides of [{subject:'Edited subject',body:'Edited introduction and recommendation body'}, {subject:'Subject only',body:null}, {subject:null,body:'Body only'}, {subject:null,body:null}]) {
+   const plan=emailPlanSchema.parse({intent:'prepare',to:'recipient@example.test',...overrides,use_document:true,include_link:false,attach_cvs:true,authorization_quote:question.content});
+   const prepared=await prepareEmailReply({job,conversation:detail.conversation,question,messages:detail.messages,document:doc,plan,locale:'en',inline:true});
+   const applied=await db.transaction(tx=>prepared.apply!(tx));
+   const email=(applied!.metadata as {email:ConversationEmail}).email;assert(email);
+   assert.equal(email.snapshot.title,overrides.subject??doc.title);
+   assert.equal(email.snapshot.content,overrides.body??doc.content);
+   assert.equal(email.snapshot.files[0].id,file.id);
+   assert.equal(email.snapshot.recommendation_delivery?.attach_cvs,true);
+   const reserved=await reserveConversationEmail(owner,email.snapshot,email.request_key,'<qa@test>',async()=>{});
+   assert.equal(reserved.send,true);
+   assert.equal((await reserveConversationEmail(owner,email.snapshot,randomUUID(),'<qa@test>',async()=>{})).send,false);
+   await assert.rejects(()=>reserveConversationEmail(owner,{...email.snapshot,content:'Unreviewed change'},randomUUID(),'<qa@test>',async()=>{}),/changed/);
+  }
+  const [unchanged]=await rows<Deliverable>(sql`SELECT * FROM hirelix_private_deliverables WHERE id=${doc.id}::uuid`);
+  assert.equal(unchanged.content,doc.content);
+  assert.equal(unchanged.version,doc.version);
+ } finally { await finishJob(job,{result:{}}); }
+});
