@@ -6,6 +6,8 @@
 
 这些本地路径通过了实际操作和数据读回。Gmail 授权入口的 callbackURL 错误已修复，但本次 Google 页面仍显示“此应用未经 Google 验证”。没有越过警告或授予新权限，也没有发送邮件。因此不能将本轮结果表述为 Gmail 授权及实际发信通过，或生产发布验收通过。
 
+2026-10-16 补充核对：上述警告来自本地沿用的旧 OAuth 客户端，不能据此判断生产项目未通过审核。Google 控制台的生产项目品牌和数据访问权限均已验证。本地切换到已验证客户端并补齐获用户批准的 localhost 回调后，完成了新授权、推荐页真实发信、Gmail 收件箱读回及附件 SHA-256 一致性校验。详见 [Gmail OAuth 与真实发信复核](2026-10-16-gmail-oauth-verification.md)。
+
 环境：`http://localhost:3000`，页面数据库 `hirelix_workspace_qa_queue_20261015`，自动化回归数据库 `hirelix_workspace_qa_queue_regression_20261015`。两者均为本地隔离数据库。本轮开始时发现本地独立 worker 仅运行聊天和索引，已改为调用正式 `startWorkspaceWorker()`，包含文档生成和提醒调度。临时启动文件为 `tmp/system-audit-worker.ts`，未修改生产配置。
 
 ## 实际操作与结果
