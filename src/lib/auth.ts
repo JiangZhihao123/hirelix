@@ -93,7 +93,8 @@ async function sendEmailOtp({ email, otp }: { email: string; otp: string }) {
   }
 }
 
-export const auth = betterAuth({
+function createAuth() {
+  return betterAuth({
     database: drizzleAdapter(getDb(), {
       provider: "pg",
       schema: {
@@ -150,3 +151,20 @@ export const auth = betterAuth({
       updateAge: 60 * 60 * 24, // refresh sliding window once per day
     },
   });
+}
+
+let instance: ReturnType<typeof createAuth> | undefined;
+function getAuth() {
+  return (instance ??= createAuth());
+}
+
+// Route collection must not require backend credentials. Real requests still
+// initialize the same auth configuration and fail if required settings are absent.
+export const auth = {
+  get api() {
+    return getAuth().api;
+  },
+  handler(request: Request) {
+    return getAuth().handler(request);
+  },
+};
