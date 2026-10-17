@@ -51,9 +51,9 @@ export async function mailboxConnections(userId: string) {
 export async function disconnectMailbox(userId: string, provider: MailboxProvider) {
   await db.execute(sql`UPDATE account SET "accessToken"=NULL,"refreshToken"=NULL,"idToken"=NULL,scope=NULL,"accessTokenExpiresAt"=NULL,"updatedAt"=now() WHERE "userId"=${userId} AND "providerId"=${provider}`);
 }
-export type MailMessage = {id:string;thread_id:string;subject:string;from:string;to:string;date:string;body:string;truncated:boolean;headers:Record<string,string>;source_url:string};
+export type MailMessage = {id:string;thread_id:string;subject:string;from:string;to:string;date:string;body:string;truncated:boolean;headers:Record<string,string>;source_url:string;mailbox_labels?:string[];mailbox_folder?:string;sent_at?:string;is_draft?:boolean};
 type GmailPart = {mimeType?:string;filename?:string;body?:{data?:string};parts?:GmailPart[];headers?:Array<{name:string;value:string}>};
-export function gmailMessage(value: {id:string;threadId?:string;payload?:GmailPart;snippet?:string}): MailMessage {
+export function gmailMessage(value: {id:string;threadId?:string;payload?:GmailPart;snippet?:string;labelIds?:string[]}): MailMessage {
   const headers = Object.fromEntries((value.payload?.headers || []).map(h=>[h.name.toLowerCase(),h.value]));
   function text(part: GmailPart, mime: string): string {
     if (part.filename) return "";
@@ -63,7 +63,7 @@ export function gmailMessage(value: {id:string;threadId?:string;payload?:GmailPa
   const plain = text(value.payload || {},"text/plain");
   const html = plain ? "" : text(value.payload || {},"text/html");
   const body = [plain || (html ? load(html).text() : value.snippet || ""), text(value.payload || {},"message/delivery-status")].filter(Boolean).join("\n");
-  return {id:value.id,thread_id:value.threadId || value.id,subject:headers.subject || "",from:headers.from || "",to:headers.to || "",date:headers.date || "",body:body.slice(0,30000),truncated:body.length>30000,headers,source_url:`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(value.threadId || value.id)}`};
+  return {id:value.id,thread_id:value.threadId || value.id,subject:headers.subject || "",from:headers.from || "",to:headers.to || "",date:headers.date || "",body:body.slice(0,30000),truncated:body.length>30000,headers,mailbox_labels:value.labelIds,source_url:`https://mail.google.com/mail/u/0/#all/${encodeURIComponent(value.threadId || value.id)}`};
 }
 export async function searchMailbox(userId: string, value: unknown) {
   const input=mailboxSearchInput.parse(value), token=await mailboxToken(userId,input.provider,"read");
@@ -86,7 +86,8 @@ export async function readMailboxMessage(userId: string, value: unknown) {
     const email = await mailboxIdentity("google",token);
     return {...message,source_url:`https://mail.google.com/mail/?authuser=${encodeURIComponent(email)}#all/${encodeURIComponent(message.thread_id)}`};
   }
-  const message=await providerJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.message_id)}?$select=id,conversationId,subject,from,toRecipients,receivedDateTime,body,internetMessageHeaders,webLink`,token);
+  const message=await providerJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.message_id)}?$select=id,conversationId,subject,from,toRecipients,receivedDateTime,sentDateTime,isDraft,parentFolderId,body,internetMessageHeaders,webLink`,token);
+  const folder = message.parentFolderId ? await providerJson(`https://graph.microsoft.com/v1.0/me/mailFolders/${encodeURIComponent(message.parentFolderId)}?$select=displayName`,token) : null;
   const body=message.body?.contentType?.toLowerCase()==="html" ? load(message.body.content || "").text() : message.body?.content || "";
-  return {id:message.id,thread_id:message.conversationId,subject:message.subject,from:message.from?.emailAddress?.address || "",to:(message.toRecipients || []).map((r:{emailAddress:{address:string}})=>r.emailAddress.address).join(", "),date:message.receivedDateTime,body:body.slice(0,30000),truncated:body.length>30000,headers:Object.fromEntries((message.internetMessageHeaders || []).map((h:{name:string;value:string})=>[h.name.toLowerCase(),h.value])),source_url:message.webLink} satisfies MailMessage;
+  return {id:message.id,thread_id:message.conversationId,subject:message.subject,from:message.from?.emailAddress?.address || "",to:(message.toRecipients || []).map((r:{emailAddress:{address:string}})=>r.emailAddress.address).join(", "),date:message.receivedDateTime,sent_at:message.sentDateTime,is_draft:message.isDraft,mailbox_folder:folder?.displayName,body:body.slice(0,30000),truncated:body.length>30000,headers:Object.fromEntries((message.internetMessageHeaders || []).map((h:{name:string;value:string})=>[h.name.toLowerCase(),h.value])),source_url:message.webLink} satisfies MailMessage;
 }
