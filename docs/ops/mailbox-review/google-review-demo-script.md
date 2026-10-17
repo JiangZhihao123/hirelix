@@ -1,6 +1,6 @@
 # Google Gmail readonly verification recording script
 
-Status: real demonstration captured locally; no video uploaded and no review submitted. See the latest recording status below.
+Status: an initial real demonstration is uploaded unlisted; verification is not submitted. The final questionnaire exposed a missing complete consent-screen segment, which is being recaptured. See below.
 
 ## Reviewer-visible use case
 
@@ -45,3 +45,9 @@ Official references:
 - Local assembled video: `/tmp/hirelix-google-review-demo-final.mp4` (76.7 seconds). Unrelated conversation history is masked. It combines captured segments; the owner completed the warning/consent while recording was paused, so the permission confirmation clicks are not included. Do not describe it as a continuous complete OAuth recording.
 - YouTube Studio identity verification completed. Upload remains pending action-time acceptance of the terms displayed by YouTube; no video link exists yet. Google submission remains pending.
 - Local Gmail reading is temporarily enabled for this demonstration; production Gmail reading was not enabled.
+
+### Upload and final questionnaire
+
+- Owner approved YouTube upload and its displayed terms. Initial video uploaded as unlisted: https://youtu.be/emOsyxbx1ss . Its description explicitly discloses the missing permission confirmation clicks.
+- Google Data Access saved this URL and the gmail.send justification. Final submission opens a questionnaire requiring confirmation that all verification requirements are met. That confirmation has NOT been checked and the application has NOT been submitted.
+- Official requirements explicitly require a complete English OAuth consent screen. A fresh local reconnect was started to capture it. The owner is asked to pass only the unverified-app warning and stop on the consent page. Local Gmail is temporarily disconnected pending this flow.
