@@ -457,14 +457,6 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
                 >
                   <Search size={17} />
                 </Link>
-                <Link
-                  href="/app"
-                  className="ws-topbar-task"
-                  aria-label={t("AI assistant")}
-                  title={t("AI assistant")}
-                >
-                  <MessageSquare size={17} /><span>{t("AI assistant")}</span>
-                </Link>
               </>
             )}
           </div>

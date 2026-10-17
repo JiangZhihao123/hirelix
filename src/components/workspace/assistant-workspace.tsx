@@ -29,6 +29,8 @@ import {
   ListPlus,
   ArrowUpRight,
   Paperclip,
+  BriefcaseBusiness,
+  UserRound,
   Check,
   Loader2,
   Pencil,
@@ -315,7 +317,7 @@ export function AssistantWorkspace({
       if (
         contextOpen &&
         event.target instanceof Element &&
-        !event.target.closest(".ws-assistant-context, .ws-chat-context-trigger")
+        !event.target.closest(".ws-assistant-context, .ws-composer-role-trigger")
       ) {
         setContextOpen(false);
       }
@@ -656,18 +658,6 @@ export function AssistantWorkspace({
                 </>
               )}
             </div>
-            <div className="ws-chat-header-actions">
-              {(
-                <button
-                  type="button"
-                  className={`ws-chat-context-trigger ${contextOpen ? "is-active" : ""}`}
-                  aria-expanded={contextOpen}
-                  onClick={() => setContextOpen(!contextOpen)}
-                >
-                  {t("Choose role")}
-                </button>
-              )}
-            </div>
           </header>
           <ErrorNotice
             error={error || query.error || roles.error || linkedDocument.error}
@@ -827,6 +817,25 @@ export function AssistantWorkspace({
                 <Paperclip size={14} />
                 {t("Add files")}
               </button>
+              <button
+                type="button"
+                className={`ws-attach-button ws-composer-role-trigger ${contextOpen ? "is-active" : ""}`}
+                disabled={sending || !draftReady}
+                aria-expanded={contextOpen}
+                onClick={() => setContextOpen(!contextOpen)}
+              >
+                <BriefcaseBusiness size={14} />{t("Link role / JD")}
+              </button>
+              <button
+                type="button"
+                className="ws-attach-button"
+                disabled={sending || !draftReady}
+                aria-expanded={mentions.open}
+                aria-controls="candidate-mentions"
+                onClick={() => { setContextOpen(false); mentions.startMention(); }}
+              >
+                <UserRound size={14} />{t("Link candidate")}
+              </button>
               {sending || (pending && !stopped && !draft.trim() && !attachments.length) ? (
                 <button type="button" className="ws-button ws-button-primary ws-composer-action"
                   disabled={stopping} aria-label={t("Stop response")} title={t("Stop response")}
@@ -853,8 +862,8 @@ export function AssistantWorkspace({
           </form>
         </section>
         {source && <ContextPanel source={source} onClose={() => setSource(null)} onTitle={title => setSource(current => current ? {...current, title} : current)} />}
-        {contextOpen && <aside className="ws-assistant-context" aria-label={t("Choose role")}>
-          <div className="ws-context-heading"><strong>{t("Choose role")}</strong><button className="ws-icon" onClick={() => setContextOpen(false)} aria-label={t("Close")}><X size={16} /></button></div>
+        {contextOpen && <aside className="ws-assistant-context" aria-label={t("Link role / JD")}>
+          <div className="ws-context-heading"><strong>{t("Link role / JD")}</strong><button className="ws-icon" onClick={() => setContextOpen(false)} aria-label={t("Close")}><X size={16} /></button></div>
           <button className="ws-button" onClick={() => { setContextOpen(false); router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`); }}>{t("Add role")}</button>
           {roles.data?.roles.map(role => <button className="ws-detail-link" key={role.id} onClick={() => { setRoleId(role.id); setSource(null); setContextOpen(false); }}>{role.client_name} · {role.title}</button>)}
           <Link className="ws-link" href="/app/roles">{t("View all roles")} <ArrowUpRight size={13} /></Link>

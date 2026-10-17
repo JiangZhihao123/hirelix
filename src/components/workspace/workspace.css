@@ -2001,7 +2001,7 @@
 .ws-composer-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   margin-top: 4px;
 }
@@ -2023,7 +2023,8 @@
   color: #667565;
   padding: 5px 7px;
 }
-.ws-attach-button:hover {
+.ws-attach-button:hover,
+.ws-attach-button.is-active {
   background: #f1f5ef;
   color: var(--ws-green);
 }

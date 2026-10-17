@@ -49,6 +49,15 @@ export function useCandidateMentions(storageKey: string, composer: RefObject<HTM
     setLoading(true); setError(""); setMatches([]); setSelected(0);
     setToken(candidateMentionAt(text, caret, next));
   }
+  function startMention() {
+    const value = composer.current?.value || "";
+    const text = value + (value && !/\s$/.test(value) ? " " : "") + "@";
+    update(text, text.length);
+    requestAnimationFrame(() => {
+      composer.current?.focus();
+      composer.current?.setSelectionRange(text.length, text.length);
+    });
+  }
   function choose(person: Match) {
     if (!token || !composer.current) return;
     const value = composer.current.value;
@@ -81,5 +90,5 @@ export function useCandidateMentions(storageKey: string, composer: RefObject<HTM
     setDraft((composer.current?.value || "").replace(`@${person.name}`, person.name));
     composer.current?.focus();
   }} />)}</div>;
-  return { references, picker, tags, update, onKeyDown, open: !!token, selectedId: token && matches[selected] ? `candidate-mention-${selected}` : undefined, clear: () => { setStored({ key, references: [] }); setToken(null); localStorage.removeItem(key); } };
+  return { references, picker, tags, startMention, update, onKeyDown, open: !!token, selectedId: token && matches[selected] ? `candidate-mention-${selected}` : undefined, clear: () => { setStored({ key, references: [] }); setToken(null); localStorage.removeItem(key); } };
 }
