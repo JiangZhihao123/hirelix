@@ -1,6 +1,6 @@
 # Google Gmail readonly verification recording script
 
-Status: preparation only; no video uploaded and no review submitted.
+Status: real demonstration captured locally; no video uploaded and no review submitted. See the latest recording status below.
 
 ## Reviewer-visible use case
 
@@ -37,3 +37,11 @@ Official references:
 - https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
 - https://developers.google.com/workspace/workspace-api-user-data-developer-policy
 - https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html
+
+## Latest recording status — 2026-10-17
+
+- Microsoft production reading is now enabled and verified; the earlier both-flags-off evidence above is historical. Google production reading remains disabled.
+- Local Chrome captured genuine Gmail account selection, the unverified-app warning, successful connection, privacy disclosure, and a fresh Agent search and selected-message read of the owner-approved M2G test.
+- Local assembled video: `/tmp/hirelix-google-review-demo-final.mp4` (76.7 seconds). Unrelated conversation history is masked. It combines captured segments; the owner completed the warning/consent while recording was paused, so the permission confirmation clicks are not included. Do not describe it as a continuous complete OAuth recording.
+- YouTube Studio identity verification completed. Upload remains pending action-time acceptance of the terms displayed by YouTube; no video link exists yet. Google submission remains pending.
+- Local Gmail reading is temporarily enabled for this demonstration; production Gmail reading was not enabled.
