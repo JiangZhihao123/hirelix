@@ -84,3 +84,11 @@ With explicit owner approval, sent exactly one `Hirelix 附件投递验收` from
 Gmail INBOX message `1a1492a9cf1fad0b` has the correct sender, recipient, subject and body snippet. SPF/DKIM/DMARC pass. The attachment was fetched through Gmail and its complete extracted text matches the approved content. This proves real JSON attachment transport and recipient retrieval, not a full UI-to-delivery replay or byte-identical MIME preservation. No extra test message was sent.
 
 Release verification: code commit `3018b2e` passed Actions run `39020788161`; its Vercel commit status is success (deployment `66DY7kgrEFMoJq5jo11dpzF3Ex99`), and VPS readback confirms `3018b2e` with `hirelix-scheduler` active. The evidence-only follow-up commit does not change runtime behavior.
+
+## Production Microsoft reading enabled
+
+On explicit owner instruction, set MICROSOFT_MAIL_READ_ENABLED=true in Vercel production and /etc/hirelix.env, restarted the scheduler (active), and redeployed the existing production web release. Deployment dpl_BS2PJfxwFjV1NcepFvBCwq81xv7Q reached READY. Google production reading remains false. The production settings page shows noah.jiang2@outlook.com can send and read; no new OAuth grant was required.
+
+A real production Agent request searched only the approved G2M test and read it successfully: correct sender, exact body, Inbox and received timestamp 2026-10-17 16:24:33 Asia/Shanghai. Evidence: /tmp/hirelix-production-read-enabled.png and /tmp/hirelix-production-read-verified.png. This is production read evidence, not just an environment change.
+
+Google verification submission page was opened and inspected. Branding is verified; gmail.readonly remains unverified. The console explicitly blocks confirmation because the demonstration video URL is missing. Additional explanatory text was entered but not submitted. Recording capability was checked; the actual Gmail connection had meanwhile been disconnected by another task, and its OAuth tab 1961200840 is owned by that task. No attempt was made to take over or restart that OAuth flow. The incomplete recording is not submission evidence. Local Gmail read flag was restored false. A complete real demonstration video and accessible URL remain required before submission; DeepSeek email reply is not the blocker.
