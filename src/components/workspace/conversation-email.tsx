@@ -10,6 +10,7 @@ import type { ConversationEmail as Email } from "@/lib/workspace/email-contract"
 export function ConversationEmail({email, conversationId, messageId, onChanged}: {email?:Email;conversationId:string;messageId:string;onChanged:()=>void}) {
   const t = useT(), {locale} = useLanguage();
   const connection = useQuery<{connected:boolean;email:string|null}>("/gmail");
+  const [bodyOpen,setBodyOpen] = useState(email?.status === "review");
   const [submitted,setSubmitted] = useState(false);
   const [busy,setBusy] = useState(false),[error,setError] = useState("");
   const key = useRef<string | null>(null);
@@ -49,7 +50,7 @@ export function ConversationEmail({email, conversationId, messageId, onChanged}:
       {status === "unknown" && <p className="ws-email-notice" role="alert">{t("The sending result is unknown. Check Gmail Sent before retrying to avoid a duplicate email.")}</p>}
       {status === "sending" && <p className="ws-email-notice">{t("Waiting for Gmail confirmation. You can stay in this conversation; the result will appear here.")}</p>}
       <div className="ws-email-subject">{email.snapshot.title}</div>
-      <details className="ws-email-body" open={status === "review"}><summary>{t("Email body")}</summary><div>{email.snapshot.content}</div></details>
+      <details className="ws-email-body" open={bodyOpen} onToggle={event=>setBodyOpen(event.currentTarget.open)}><summary>{t("Email body")}</summary><div>{email.snapshot.content}</div></details>
       <div className="ws-email-attachments"><Paperclip size={15} /><span>{t("Attachments")}: {email.snapshot.files.length ? email.snapshot.files.map(file=>file.name).join(", ") : t("No attachments")}</span></div>
       {email.error && <ErrorNotice error={t(email.error)} />}
       {(status === "review" || status === "failed") && <p className="ws-email-help">{t("To change the recipient or message, tell the assistant in this conversation. Review the updated card before sending.")}</p>}
