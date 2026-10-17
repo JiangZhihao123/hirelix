@@ -70,7 +70,7 @@ if (needsTunnel && !(await portReady())) {
 }
 
 if (!stopping) {
-  worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'watch', '--tsconfig', 'scheduler/tsconfig.json', 'scheduler/index.ts'], {
+  worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'watch', '--include', '.env.local', '--include', '.env', '--tsconfig', 'scheduler/tsconfig.json', 'scripts/dev/worker.mjs'], {
     stdio: 'inherit',
     env: { ...process.env, SEARCH_JOB_SCHEDULER_ENABLED: 'false' },
   });
