@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { mailboxConnection, mailboxToken, mailboxIdentity } from "./mailbox";
 import { getLogger } from "@/lib/logger";
 import { db } from "@/db/client";
 import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from "./database";
@@ -15,6 +15,7 @@ import { recommendationCover } from "./recommendation-presentation";
 const gmailLogger = getLogger({ component: "workspace_gmail" });
 export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 export const sendRecommendationInput = z.object({
+  provider: z.enum(["google", "microsoft"]).optional(),
   expected_version: z.number().int().positive(),
   to: z.email().max(320),
   request_key: z.uuid(),
@@ -35,22 +36,8 @@ export type Receipt = {
   created_at: string;
 };
 export async function gmailConnection(userId: string) {
-  const [account] = await rows<{
-    scope: string | null;
-    email: string;
-    access_token: boolean;
-    requires_reconnect: boolean;
-  }>(
-    sql`SELECT a.scope,u.email,(a."accessToken" IS NOT NULL) AS access_token, EXISTS(SELECT 1 FROM hirelix_private_email_deliveries e WHERE e.user_id::text=a."userId" AND e.updated_at>a."updatedAt" AND e.status='failed' AND e.error LIKE 'Gmail declined sending.%') AS requires_reconnect FROM account a JOIN "user" u ON u.id=a."userId" WHERE a."userId"=${userId} AND a."providerId"='google' ORDER BY a."updatedAt" DESC LIMIT 1`,
-  );
-  return {
-    connected:
-      !!account?.access_token &&
-      !account.requires_reconnect &&
-      !!account.scope?.split(/[ ,]+/).includes(GMAIL_SEND_SCOPE),
-    email: account?.email || null,
-    requires_reconnect: account?.requires_reconnect || false,
-  };
+  const connection = await mailboxConnection(userId, "google");
+  return {...connection, requires_reconnect: !!connection.error};
 }
 export async function disconnectGmail(userId: string) {
   // Keep the Google account identity for sign-in; discard provider API credentials.
@@ -127,6 +114,7 @@ export async function sendRecommendation(
       prior.deliverable_id !== id ||
       prior.deliverable_version !== input.expected_version ||
       prior.snapshot.to !== input.to ||
+      (prior.snapshot.provider || "google") !== (input.provider || "google") ||
       (prior.snapshot.share_id || null) !== (input.share_id || null) ||
       JSON.stringify(prior.snapshot.delivery_options ?? {subject:null,content:null,attach_cvs:true}) !== JSON.stringify(deliveryOptions(input))
     )
@@ -136,14 +124,14 @@ export async function sendRecommendation(
       );
     return { receipt: prior.id, status: prior.status };
   }
-  const connection = await gmailConnection(userId);
+  const connection = await mailboxConnection(userId, input.provider || "google");
   if (!connection.connected)
-    throw new WorkspaceError("Connect Gmail before sending", 409);
+    throw new WorkspaceError("Connect the selected mailbox before sending", 409);
   const document = await owned<Deliverable>(userId, "deliverable", id);
   expectVersion(document.version, input.expected_version);
   const reviewed = await recommendationEmail(userId, document, input, origin);
   await assertSharingAllowed(userId, document.role_id, reviewed);
-  const snapshot = { ...reviewed, from: connection.email!, to: input.to, document_id: id, document_version: input.expected_version };
+  const snapshot = { ...reviewed, provider: input.provider || "google" as const, from: connection.email!, to: input.to, document_id: id, document_version: input.expected_version };
   const { mime, messageId, accessToken } = await composeGmail(userId, snapshot);
   const claimed = await reserveEmailDelivery(
     userId,
@@ -161,7 +149,7 @@ export async function sendRecommendation(
     await markSubmitted(userId, id, {
       expected_version: input.expected_version,
       submitted_at: new Date().toISOString(),
-      submission_note: `Sent through Gmail to ${input.to}. Gmail message: ${result.provider_message_id}.`,
+      submission_note: `Accepted by ${input.provider === "microsoft" ? "Microsoft" : "Gmail"} for ${input.to}. Recipient delivery is not confirmed.`,
     });
   } catch (error) {
     if (!(error instanceof WorkspaceError)) throw error;
@@ -193,6 +181,8 @@ export async function reserveEmailDelivery(
     const fingerprint = createHash("sha256")
       .update(
         JSON.stringify([
+          input.provider || "google",
+          from.toLowerCase(),
           id,
           input.to.toLowerCase(),
           reviewed.title,
@@ -219,7 +209,7 @@ export async function reserveEmailDelivery(
     );
     if (existing) return { receipt: existing, send: false };
     const [receipt] = await rows<Receipt>(
-      sql`INSERT INTO hirelix_private_email_deliveries(user_id,deliverable_id,deliverable_version,request_key,fingerprint,status,snapshot) VALUES(${userId}::uuid,${id}::uuid,${input.expected_version},${input.request_key},${fingerprint},'sending',${json({ ...reviewed, to: input.to, from, message_id: messageId })}) RETURNING *`,
+      sql`INSERT INTO hirelix_private_email_deliveries(user_id,deliverable_id,deliverable_version,request_key,fingerprint,status,snapshot) VALUES(${userId}::uuid,${id}::uuid,${input.expected_version},${input.request_key},${fingerprint},'sending',${json({ ...reviewed, provider: input.provider || "google", to: input.to, from, message_id: messageId })}) RETURNING *`,
       tx,
     );
     return { receipt, send: true };
@@ -229,20 +219,10 @@ export async function reserveEmailDelivery(
 async function composeGmail(userId: string, snapshot: EmailSnapshot) {
   const addressError = recipientAddressError(snapshot.to);
   if (addressError) throw new WorkspaceError(addressError, 400);
-  let accessToken: string;
-  try {
-    const token = await auth.api.getAccessToken({
-      body: { providerId: "google", userId },
-    });
-    if (!token.accessToken || !token.scopes.includes(GMAIL_SEND_SCOPE))
-      throw new Error("scope");
-    accessToken = token.accessToken;
-  } catch {
-    throw new WorkspaceError(
-      "Reconnect Gmail to renew sending permission",
-      409,
-    );
-  }
+  const provider = snapshot.provider || "google";
+  const accessToken = await mailboxToken(userId, provider, "send");
+  const sender = await mailboxIdentity(provider, accessToken);
+  if (sender.toLowerCase() !== snapshot.from.toLowerCase()) throw new WorkspaceError("The connected sender changed. Review a new email before sending.", 409);
   return {...await buildEmailMime(userId,snapshot),accessToken};
 }
 
@@ -283,17 +263,19 @@ export async function buildEmailMime(userId: string, snapshot: EmailSnapshot) {
 }
 
 async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string) {
+  const microsoft = receipt.snapshot.provider === "microsoft";
+  const providerName = microsoft ? "Microsoft" : "Gmail";
   let response: Response;
   try {
     response = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+      microsoft ? "https://graph.microsoft.com/v1.0/me/sendMail" : "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
+          "Content-Type": microsoft ? "text/plain" : "application/json",
         },
-        body: JSON.stringify({ raw: mime.toString("base64url") }),
+        body: microsoft ? mime.toString("base64") : JSON.stringify({ raw: mime.toString("base64url") }),
         signal: AbortSignal.timeout(45000),
       },
     );
@@ -306,7 +288,7 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string)
       cause_code: cause && typeof cause === "object" && "code" in cause ? String(cause.code) : null,
     });
     await db.execute(
-      sql`UPDATE hirelix_private_email_deliveries SET status='unknown',error='Gmail did not confirm delivery. Check Sent in Gmail before trying again.',updated_at=now() WHERE id=${receipt.id}::uuid`,
+      sql`UPDATE hirelix_private_email_deliveries SET status='unknown',error=${`${providerName} did not confirm acceptance. Check Sent before trying again.`},updated_at=now() WHERE id=${receipt.id}::uuid`,
     );
     return { receipt: receipt.id, status: "unknown" };
   }
@@ -317,14 +299,18 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string)
       response.status >= 500 || response.status === 408 ? "unknown" : "failed";
     const error =
       status === "unknown"
-        ? "Gmail did not confirm delivery. Check Sent in Gmail before trying again."
+        ? `${providerName} did not confirm acceptance. Check Sent before trying again.`
         : response.status === 401 || response.status === 403
-          ? "Gmail declined sending. Reconnect Gmail and check that the Gmail API is enabled."
-          : "Gmail rejected this email. Check the recipient and attachments before trying again.";
+          ? `${providerName} declined sending. Reconnect the mailbox and check administrator permissions.`
+          : `${providerName} rejected this email. Check the recipient and attachments before trying again.`;
     await db.execute(
       sql`UPDATE hirelix_private_email_deliveries SET status=${status},error=${error},updated_at=now() WHERE id=${receipt.id}::uuid`,
     );
     return { receipt: receipt.id, status };
+  }
+  if (microsoft && response.status === 202) {
+    await db.execute(sql`UPDATE hirelix_private_email_deliveries SET status='sent',updated_at=now() WHERE id=${receipt.id}::uuid`);
+    return {receipt:receipt.id,status:"sent",provider_message_id:undefined};
   }
   const result = (await response.json().catch(() => null)) as {
     id?: string;
@@ -347,12 +333,14 @@ export async function sendConversationEmail(userId: string, snapshot: EmailSnaps
   emailSnapshotSchema.parse(snapshot);
   const [prior] = await rows<Receipt>(sql`SELECT * FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND request_key=${requestKey}`);
   if (prior) {
-    if ((prior.snapshot.to !== snapshot.to || prior.snapshot.title !== snapshot.title || prior.snapshot.content !== snapshot.content || prior.deliverable_id !== snapshot.document_id)) throw new WorkspaceError("This send request belongs to another email",409);
+    if (((prior.snapshot.provider || "google") !== (snapshot.provider || "google") || prior.snapshot.from !== snapshot.from || prior.snapshot.to !== snapshot.to || prior.snapshot.title !== snapshot.title || prior.snapshot.content !== snapshot.content || prior.deliverable_id !== snapshot.document_id)) throw new WorkspaceError("This send request belongs to another email",409);
     await recordConversationSubmission(userId, snapshot, prior);
     return { receipt: prior.id, status: effectiveDeliveryStatus(prior) };
   }
-  const connection = await gmailConnection(userId);
-  if (!connection.connected || connection.email !== snapshot.from) throw new WorkspaceError("Reconnect the reviewed Gmail account before sending", 409);
+  const addressError = recipientAddressError(snapshot.to);
+  if (addressError) throw new WorkspaceError(addressError, 400);
+  const connection = await mailboxConnection(userId, snapshot.provider || "google");
+  if (!connection.connected || connection.email !== snapshot.from) throw new WorkspaceError("Reconnect the reviewed mailbox before sending", 409);
   const {mime, messageId, accessToken} = await composeGmail(userId, snapshot);
   const claimed = await reserveConversationEmail(userId, snapshot, requestKey, messageId, guard);
   if (!claimed.send) {
@@ -366,7 +354,7 @@ export async function sendConversationEmail(userId: string, snapshot: EmailSnaps
 async function recordConversationSubmission(userId: string, snapshot: EmailSnapshot, receipt: {status:string;provider_message_id:string|null}) {
   if (receipt.status !== "sent" || !snapshot.document_id || !snapshot.document_version) return;
   try {
-    await markSubmitted(userId, snapshot.document_id, {expected_version:snapshot.document_version,submitted_at:new Date().toISOString(),submission_note:`Sent through Gmail to ${snapshot.to}. Gmail message: ${receipt.provider_message_id}.`});
+    await markSubmitted(userId, snapshot.document_id, {expected_version:snapshot.document_version,submitted_at:new Date().toISOString(),submission_note:`Accepted by ${snapshot.provider === "microsoft" ? "Microsoft" : "Gmail"} for ${snapshot.to}. Recipient delivery is not confirmed.`});
   } catch(error) {
     if (!(error instanceof WorkspaceError)) throw error;
   }
@@ -387,7 +375,7 @@ export async function reserveConversationEmail(userId: string, snapshot: EmailSn
       await assertSharingAllowed(userId, document.role_id, reviewed, tx);
       if (reviewed.title !== snapshot.title || reviewed.content !== snapshot.content || JSON.stringify(reviewed.files.map(f => [f.id, f.sha256])) !== JSON.stringify(snapshot.files.map(f => [f.id, f.sha256]))) throw new WorkspaceError("The email changed. Review it again before sending.", 409);
     }
-    const fingerprint = createHash("sha256").update(JSON.stringify([snapshot.document_id, snapshot.to.toLowerCase(), snapshot.title, snapshot.content, snapshot.files.map(f => [f.id, f.sha256])])).digest("hex");
+    const fingerprint = createHash("sha256").update(JSON.stringify([snapshot.provider || "google", snapshot.from.toLowerCase(), snapshot.document_id, snapshot.to.toLowerCase(), snapshot.title, snapshot.content, snapshot.files.map(f => [f.id, f.sha256])])).digest("hex");
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + fingerprint},0))`);
     const [prior] = await rows<Receipt & {fingerprint:string}>(sql`SELECT * FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND (request_key=${requestKey} OR (fingerprint=${fingerprint} AND status IN ('sending','sent','unknown'))) ORDER BY created_at LIMIT 1`, tx);
     if (prior) {

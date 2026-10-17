@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const emailPlanSchema = z.object({
+  provider: z.enum(["google", "microsoft"]).optional().describe("Sending mailbox provider. Specify when the user selects it; never silently switch an existing preview."),
   intent: z.enum(["none", "status", "prepare", "confirm", "cancel"]),
   to: z.string().max(320).nullable(),
   subject: z.string().max(998).nullable().describe("Requested email subject. For document emails this overrides the saved title; null uses the saved title."),
@@ -22,6 +23,7 @@ export function recipientAddressError(address: string): string | null {
     : null;
 }
 export const emailSnapshotSchema = z.object({
+  provider: z.enum(["google", "microsoft"]).optional(),
   from: emailAddress,
   to: emailAddress,
   title: z.string().trim().min(1).max(998).refine(value => !/[\r\n]/.test(value)),

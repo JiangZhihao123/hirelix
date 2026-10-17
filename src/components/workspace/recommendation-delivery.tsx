@@ -13,7 +13,8 @@ import Link from "next/link";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { AgentText } from "@/components/AgentText";
 import { api, ErrorNotice, Field, useQuery } from "./client";
-import { connectGmail } from "./connect-gmail";
+import { connectMailbox } from "./mailbox-connections";
+import type { MailboxConnection, MailboxProvider } from "@/lib/workspace/mailbox-contract";
 import { recommendationCover } from "@/lib/workspace/recommendation-presentation";
 import { downloadDocument } from "./document-download";
 import type { Deliverable } from "@/lib/workspace/types";
@@ -45,6 +46,7 @@ export function RecommendationDelivery({
   const t = useT();
   const { locale } = useLanguage();
   const zh = locale === "zh";
+  const [provider, setProvider] = useState<MailboxProvider>("google");
   const [mode, setMode] = useState<"link" | "gmail" | "copy">("link"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -74,9 +76,8 @@ export function RecommendationDelivery({
     receipts = useQuery<{ receipts: Receipt[] }>(
       `/deliverables/${document.id}/email`,
     ),
-    connection = useQuery<{ connected: boolean; email: string | null }>(
-      "/gmail",
-    );
+    mailboxes = useQuery<{connections:MailboxConnection[]}>("/mailboxes");
+  const connection = {...mailboxes,data:mailboxes.data?.connections.find(c=>c.provider===provider)};
   const source = document.source_snapshot as {
     files?: SubmissionCv[];
     people?: Array<{ id: string; name: string }>;
@@ -101,6 +102,7 @@ export function RecommendationDelivery({
       const draft = JSON.parse(saved);
       if (draft.version !== document.version) return;
       setTo(draft.to); setSubject(draft.subject); setBody(draft.body);
+      setProvider(draft.provider === "microsoft" ? "microsoft" : "google");
       setIncludeLink(draft.includeLink); setAttachCvs(draft.attachCvs); setMode("gmail");
     } catch { /* An invalid local draft does not change saved recommendation content. */ }
   }, [document.id, document.version]);
@@ -114,7 +116,7 @@ export function RecommendationDelivery({
   }, [inProgress, receipts.refresh]);
   useEffect(() => {
     sendKey.current = null;
-  }, [to, includeLink, attachCvs, subject, body, active?.id, document.version]);
+  }, [provider, to, includeLink, attachCvs, subject, body, active?.id, document.version]);
   useEffect(() => {
     recordKey.current = null;
   }, [recipient, channel, occurred, note, active?.id, document.version]);
@@ -173,6 +175,7 @@ export function RecommendationDelivery({
             expected_version: document.version,
             to,
             request_key: sendKey.current,
+            provider,
             share_id: useLink ? active?.id : null,
             email_subject: emailSubject,
             email_content: emailBody,
@@ -184,15 +187,15 @@ export function RecommendationDelivery({
       if (result.status === "sent") {
         setMessage(
           zh
-            ? "邮件已发送，推荐记录已保存。"
-            : "Email sent and recommendation recorded.",
+            ? "邮件服务商已接受发送，推荐记录已保存；尚未确认收件人收到。"
+            : "Email provider accepted the message and recommendation was recorded. Recipient delivery is not confirmed.",
         );
         await refreshDocument();
       } else
         setMessage(
           zh
-            ? "请查看下方发送状态。结果未确认时，先检查 Gmail 已发送邮件。"
-            : "Check delivery status below. For an uncertain result, check Gmail Sent first.",
+            ? "请查看下方发送状态。结果未确认时，先检查发件邮箱的已发送邮件。"
+            : "Check delivery status below. For an uncertain result, check the sending mailbox’s Sent folder first.",
         );
     });
   }
@@ -254,7 +257,7 @@ export function RecommendationDelivery({
           {(
             [
               ["link", zh ? "分享链接" : "Share link", LinkIcon],
-              ["gmail", "Gmail", Mail],
+              ["gmail", "Email", Mail],
               ["copy", zh ? "复制与下载" : "Copy & download", Copy],
             ] as const
           ).map(([key, label, Icon]) => (
@@ -389,16 +392,17 @@ export function RecommendationDelivery({
           <section>
             {mode === "gmail" ? (
               <>
+                <Field label={zh ? "发件邮箱服务" : "Email provider"}><select value={provider} disabled={busy} onChange={event=>{setProvider(event.target.value as MailboxProvider);sendKey.current=null;}}><option value="google">Gmail / Google Workspace</option><option value="microsoft">Outlook / Microsoft 365</option></select></Field>
                 <p className="ws-muted">
                   {connection.data?.connected
                     ? `${zh ? "发件人" : "From"}: ${connection.data.email}`
-                    : t("Gmail is not connected")}
+                    : (provider === "google" ? t("Gmail is not connected") : (zh ? "Microsoft 邮箱尚未连接" : "Microsoft mailbox is not connected"))}
                 </p>
                 {!connection.data?.connected && (
-                  <button type="button" className="ws-button" disabled={busy} onClick={() => void run(async () => {
-                    sessionStorage.setItem(`hirelix:gmail-delivery:${document.id}`,JSON.stringify({version:document.version,to,subject,body,includeLink,attachCvs}));
-                    await connectGmail(`/app/submissions/${document.id}#recommendation-delivery`);
-                  })}>{t("Connect Gmail")}</button>
+                  <button type="button" className="ws-button" disabled={busy || !connection.data?.configured} onClick={() => void run(async () => {
+                    sessionStorage.setItem(`hirelix:gmail-delivery:${document.id}`,JSON.stringify({version:document.version,provider,to,subject,body,includeLink,attachCvs}));
+                    await connectMailbox(provider,false,`/app/submissions/${document.id}#recommendation-delivery`);
+                  })}>{provider === "google" ? t("Connect Gmail") : "Connect Outlook"}</button>
                 )}
                 <Field label={zh ? "收件人" : "Recipient"}>
                   <input
@@ -481,9 +485,9 @@ export function RecommendationDelivery({
                     {r.recipient} ·{" "}
                     {t(
                       r.status === "sent"
-                        ? "Sent through Gmail"
+                        ? (zh ? "服务商已接受发送，送达未确认" : "Accepted by provider; delivery unconfirmed")
                         : r.status === "sending"
-                          ? "Sending through Gmail…"
+                          ? (zh ? "正在发送…" : "Sending…")
                           : r.status === "failed"
                             ? "Sending failed"
                             : "Delivery unconfirmed",

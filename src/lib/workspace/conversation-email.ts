@@ -6,7 +6,9 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { clientDocument, assertSharingAllowed } from "./document-sharing";
-import { gmailConnection, sendConversationEmail, effectiveDeliveryStatus, type Receipt } from "./gmail";
+import { mailboxConnection } from "./mailbox";
+import { hasMailboxScope } from "./mailbox-contract";
+import { sendConversationEmail, effectiveDeliveryStatus, type Receipt } from "./gmail";
 import { emailAddress, emailSnapshotSchema, type ConversationEmail, type EmailPlan } from "./email-contract";
 import { quotedAuthorization } from "./assistant-work";
 import type { Conversation, Deliverable, Job, Message } from "./types";
@@ -34,10 +36,11 @@ export async function prepareEmailReply({job, conversation, question, messages, 
 }): Promise<PreparedJob> {
   const zh = locale === "zh";
   const say = (en: string, cn: string) => zh ? cn : en;
-  const connection = await gmailConnection(job.user_id);
   const latest = [...messages].reverse().find(message => message.role === "assistant" && message.metadata.email);
   const pending = latest?.metadata.email as ConversationEmail | undefined;
   const explicit = (job.payload.request as {email_confirmation_message_id?:string})?.email_confirmation_message_id;
+  const provider = plan.intent === "confirm" && pending ? pending.snapshot.provider || "google" : plan.provider || pending?.snapshot.provider || "google";
+  const connection = await mailboxConnection(job.user_id, provider);
   let email: ConversationEmail | undefined, update: ConversationEmail | undefined;
   let answer = "";
   if (plan.intent === "status") {
@@ -73,8 +76,8 @@ export async function prepareEmailReply({job, conversation, question, messages, 
           const [current] = await rows<Message>(sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${job.user_id}::uuid AND conversation_id=${conversation.id}::uuid AND id=${latest.id}::uuid FOR UPDATE`,tx);
           const reviewed = current?.metadata.email as ConversationEmail | undefined;
           if (!reviewed || reviewed.status !== "review" || JSON.stringify(reviewed.snapshot) !== JSON.stringify(pending.snapshot)) throw new WorkspaceError("This email preview is no longer available. Review it again.",409);
-          const [account] = await rows<{scope:string|null;email:string;available:boolean}>(sql`SELECT a.scope,u.email,(a."accessToken" IS NOT NULL) AS available FROM account a JOIN "user" u ON u.id=a."userId" WHERE a."userId"=${job.user_id} AND a."providerId"='google' ORDER BY a."updatedAt" DESC LIMIT 1 FOR UPDATE OF a`,tx);
-          if (!account?.available || account.email !== pending.snapshot.from || !account.scope?.split(/[ ,]+/).includes("https://www.googleapis.com/auth/gmail.send")) throw new WorkspaceError("Reconnect the reviewed Gmail account before sending",409);
+          const [account] = await rows<{scope:string|null;email:string;available:boolean}>(sql`SELECT a.scope,u.email,(a."accessToken" IS NOT NULL) AS available FROM account a JOIN "user" u ON u.id=a."userId" WHERE a."userId"=${job.user_id} AND a."providerId"=${provider} ORDER BY a."updatedAt" DESC LIMIT 1 FOR UPDATE OF a`,tx);
+          if (!account?.available || !hasMailboxScope(account.scope,provider,"send")) throw new WorkspaceError("Reconnect the reviewed Gmail account before sending",409);
           await tx.execute(sql`UPDATE hirelix_agent_messages SET metadata=jsonb_set(metadata,'{email,status}','"sending"'::jsonb) WHERE id=${latest.id}::uuid AND user_id=${job.user_id}::uuid`);
         });
         update = {...pending,status:result.status as ConversationEmail["status"],receipt:result.receipt};
@@ -112,7 +115,7 @@ export async function prepareEmailReply({job, conversation, question, messages, 
         const content = reviewed?.content || plan.body;
         if (!title || !content) answer = say("What subject and message should this email contain?", "这封邮件的主题和正文是什么？");
         else {
-          email = {status:"review",request_key:randomUUID(),snapshot:emailSnapshotSchema.parse({from:connection.email,to,title,content,files:reviewed?.files || [],document_id:reviewed ? document!.id : null,document_version:reviewed ? document!.version : null,...(recommendationDelivery ? {recommendation_delivery:recommendationDelivery} : {})})};
+          email = {status:"review",request_key:randomUUID(),snapshot:emailSnapshotSchema.parse({provider,from:connection.email,to,title,content,files:reviewed?.files || [],document_id:reviewed ? document!.id : null,document_version:reviewed ? document!.version : null,...(recommendationDelivery ? {recommendation_delivery:recommendationDelivery} : {})})};
           answer = say("Review the recipient, subject, message and attachments below. Confirm send when they are correct; nothing has been sent yet.","请确认下方收件人、主题、正文和附件。确认无误后点击发送，或在对话中回复确认发送；目前尚未发送。");
         }
       } catch(error) {
@@ -121,6 +124,7 @@ export async function prepareEmailReply({job, conversation, question, messages, 
       }
     }
   }
+  if (provider === "microsoft") answer = answer.replaceAll("Gmail", "Microsoft Outlook").replaceAll("Google", "Microsoft");
   return {result:{conversation_id:conversation.id},apply:async tx => {
     await owned(job.user_id,"conversation",conversation.id,tx,true);
     if (email || plan.intent === "cancel") await supersedeEmailReviews(job.user_id,conversation.id,tx);

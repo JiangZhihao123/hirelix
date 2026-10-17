@@ -7,6 +7,7 @@ import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useBilling } from "@/lib/use-billing";
 import { useT } from "@/components/LanguageProvider";
+import { MailboxConnections } from "@/components/workspace/mailbox-connections";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
 import { type SettingsSectionId } from "./_components/shared";
@@ -138,7 +139,9 @@ export default function SettingsPage() {
     }
 
     return (
-      <AccountSection
+      <>
+      <MailboxConnections />
+              <AccountSection
         signInMethods={signInMethods}
         onPasswordSet={() => {
           setSignInMethods((prev) =>
@@ -147,6 +150,7 @@ export default function SettingsPage() {
           void fetchSettings();
         }}
       />
+      </>
     );
   })();
 

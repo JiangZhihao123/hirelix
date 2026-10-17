@@ -41,7 +41,7 @@ test("real DB: concurrent clicks and uncertain responses cannot reserve a duplic
   assert.equal((await gmailConnection(owner)).connected, false);
   await assert.rejects(
     () => sendRecommendation(owner, doc.id, input),
-    /Connect Gmail/,
+    /Connect the selected mailbox/,
   );
   for (const to of [
     "recipient@example.test\r\nBcc:other@example.test",

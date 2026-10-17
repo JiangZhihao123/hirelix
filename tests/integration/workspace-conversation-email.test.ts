@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { after, test } from "node:test";
+import { after, before, mock, test } from "node:test";
 import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { rows,json } from "../../src/lib/workspace/database";
@@ -13,6 +13,15 @@ import type { EmailSnapshot,ConversationEmail } from "../../src/lib/workspace/em
 const url = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
 assert.ok(["localhost","127.0.0.1"].includes(url.hostname) && url.pathname.startsWith("/hirelix_workspace_qa_"));
 after(closeDb);
+// Provider identity is mocked; these tests prove DB state, not live OAuth.
+before(() => {
+ const original = globalThis.fetch;
+ mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+  if (String(input) === "https://www.googleapis.com/oauth2/v2/userinfo") return Response.json({email:"sender@example.test"});
+  return original(input, init);
+ });
+});
+after(() => mock.restoreAll());
 const snapshot:EmailSnapshot = {from:"sender@example.test",to:"recipient@example.test",title:"Reviewed email",content:"Only this body is approved.",files:[],document_id:null,document_version:null};
 // Real PostgreSQL reservation/policy tests. No provider-send claim is made here.
 test("real PG: concurrent ordinary email sends and unknown outcomes reserve only once",async()=>{
@@ -100,7 +109,7 @@ test('real PG: Agent email preparation joins its turn receipt and failed revisio
  const {emailPlanSchema}=await import('../../src/lib/workspace/email-contract');
  const owner=randomUUID();
  await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'Fictional QA',${owner+'@example.test'},true,now(),now())`);
- await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId",scope,"createdAt","updatedAt") VALUES(${randomUUID()},${owner},'google',${owner},'openid email profile',now(),now())`);
+ await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId","accessToken",scope,"createdAt","updatedAt") VALUES(${randomUUID()},${owner},'google',${owner},'identity-test-fixture','openid email profile',now(),now())`);
  const sent=await sendMessage(owner,{message:'Prepare a fictional test email, preview only.',request_key:randomUUID()});
  const job=await claimJob(['chat'],{id:sent.job.id,userId:owner});assert(job);
  const detail=await conversationDetails(owner,sent.conversation_id),question=detail.messages[0];
@@ -128,7 +137,7 @@ test('real PG: document email edits apply with CVs and no link, and confirmation
  const {emailPlanSchema}=await import('../../src/lib/workspace/email-contract');
  const owner=randomUUID();
  await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'Fictional QA',${owner+'@example.test'},true,now(),now())`);
- await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId",scope,"createdAt","updatedAt") VALUES(${randomUUID()},${owner},'google',${owner},'openid email profile',now(),now())`);
+ await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId","accessToken",scope,"createdAt","updatedAt") VALUES(${randomUUID()},${owner},'google',${owner},'identity-test-fixture','openid email profile',now(),now())`);
  const role=await createRole(owner,{title:'QA email edits',client_name:'Fictional QA',jd_text:'QA'});
  const file={id:randomUUID(),person_id:randomUUID(),name:'fictional.pdf',sha256:'a'.repeat(64)};
  const [doc]=await rows<Deliverable>(sql`INSERT INTO hirelix_private_deliverables(user_id,role_id,kind,title,content,source_snapshot) VALUES(${owner}::uuid,${role.id}::uuid,'submission','Saved recommendation','Saved recommendation body',${json({audience:'client',language:'en',people:[],files:[file]})}) RETURNING *`);
@@ -158,7 +167,7 @@ test('real PG: document email edits apply with CVs and no link, and confirmation
 
 test("real PG: reserved recipient is rejected before OAuth, send reservation or provider request",async()=>{
  const owner=randomUUID(),accountId=randomUUID(),key=randomUUID();
- await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'QA','sender@gmail.com',true,now(),now())`);
+ await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'QA',${owner+'@gmail.com'},true,now(),now())`);
  await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId","accessToken",scope,"createdAt","updatedAt") VALUES(${accountId},${accountId},'google',${owner},'nonfunctional-policy-fixture','https://www.googleapis.com/auth/gmail.send',now(),now())`);
  await assert.rejects(()=>sendConversationEmail(owner,{...snapshot,from:'sender@gmail.com'},key,async()=>{throw new Error('must not reserve');}),/reserved test or example domain/);
  assert.equal((await rows(sql`SELECT id FROM hirelix_private_email_deliveries WHERE user_id=${owner}::uuid`)).length,0);

@@ -10,6 +10,7 @@
  */
 
 import { betterAuth } from "better-auth";
+import { refreshAccessToken } from "better-auth/oauth2";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { randomUUID } from "node:crypto";
@@ -119,7 +120,11 @@ function createAuth() {
     trustedOrigins: getTrustedOrigins(),
     // Missing/consumed OAuth state must start a fresh flow, never skip validation.
     onAPIError: { errorURL: "/auth/retry" },
+    // Manual linking requires the active Hirelix session and OAuth state. Never
+    // implicitly merge users by email, including Microsoft unverified claims.
+    account: { encryptOAuthTokens: true, accountLinking: { allowDifferentEmails: true, disableImplicitLinking: true, trustedProviders: ["microsoft"] } },
     socialProviders: {
+      ...(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET ? { microsoft: { clientId: process.env.MICROSOFT_CLIENT_ID, clientSecret: process.env.MICROSOFT_CLIENT_SECRET, tenantId: "common", refreshAccessToken: (refreshToken: string) => refreshAccessToken({refreshToken,options:{clientId:process.env.MICROSOFT_CLIENT_ID!,clientSecret:process.env.MICROSOFT_CLIENT_SECRET!},tokenEndpoint:"https://login.microsoftonline.com/common/oauth2/v2.0/token"}) } } : {}),
       google: {
         clientId: readEnv("GOOGLE_CLIENT_ID"),
         clientSecret: readEnv("GOOGLE_CLIENT_SECRET"),
