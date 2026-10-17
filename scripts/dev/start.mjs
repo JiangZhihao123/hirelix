@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import net from 'node:net';
+import { watchFile, unwatchFile } from 'node:fs';
 import dotenv from 'dotenv';
 
 dotenv.config({ path: ['.env.local', '.env'], quiet: true });
@@ -10,6 +11,8 @@ let next;
 let worker;
 let retry;
 let stopping = false;
+let restartingWorker = false;
+const envFiles = ['.env.local', '.env'];
 
 function portReady() {
   return new Promise(resolve => {
@@ -41,6 +44,7 @@ function connectTunnel() {
 function stop(code = 0) {
   if (stopping) return;
   stopping = true;
+  envFiles.forEach(file => unwatchFile(file));
   clearTimeout(retry);
   next?.kill('SIGTERM');
   worker?.kill('SIGTERM');
@@ -69,13 +73,30 @@ if (needsTunnel && !(await portReady())) {
   monitor.unref();
 }
 
-if (!stopping) {
-  worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'watch', '--include', '.env.local', '--include', '.env', '--tsconfig', 'scheduler/tsconfig.json', 'scripts/dev/worker.mjs'], {
+function startWorker() {
+  worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'watch', '--tsconfig', 'scheduler/tsconfig.json', 'scripts/dev/worker.mjs'], {
     stdio: 'inherit',
     env: { ...process.env, SEARCH_JOB_SCHEDULER_ENABLED: 'false' },
   });
   worker.on('error', error => { console.error('[dev] Agent worker could not start:', error.message); stop(1); });
-  worker.once('close', code => { if (!stopping) stop(code || 1); });
+  worker.once('close', code => {
+    if (stopping) return;
+    if (restartingWorker) {
+      restartingWorker = false;
+      startWorker();
+    } else stop(code || 1);
+  });
+}
+
+if (!stopping) {
+  startWorker();
+  // tsx ignores dotfiles even with --include; explicitly watch local env files.
+  envFiles.forEach(file => watchFile(file, { interval: 500 }, (current, previous) => {
+    if (stopping || restartingWorker || current.mtimeMs === previous.mtimeMs) return;
+    console.info('[dev] Environment changed; restarting Agent worker');
+    restartingWorker = true;
+    worker?.kill('SIGTERM');
+  }));
   next = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', ...process.argv.slice(2)], { stdio: 'inherit' });
   next.on('error', error => { console.error('[dev] Next.js could not start:', error.message); stop(1); });
   next.once('close', code => stop(code ?? 1));
