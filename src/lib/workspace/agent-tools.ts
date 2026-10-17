@@ -33,7 +33,7 @@ import { roleDetails, linkPerson } from "./roles";
 import { savedAssessmentsInput, saveAgentAssessments } from "./assessment";
 import { activeDocumentShare, publishDocument, revokeDocumentShare } from "./document-sharing";
 import { recommendationFeedbackContext } from "./recommendation-feedback-contract";
-import { listPeople, personDetails } from "./people";
+import { listPeople, personDetails, deletePerson } from "./people";
 import { retrieveCandidates } from "./retrieval";
 import { retrieveRoles } from "./role-retrieval";
 import { candidateChangesSchema } from "./candidate-changes";
@@ -91,6 +91,7 @@ export const progressLabels: Record<string, string> = {
   find_conversations: "Finding the earlier conversation",
   read_conversation: "Reading the earlier conversation",
   save_candidate: "Saving candidate details",
+  delete_candidate: "Deleting candidate",
   save_role: "Saving the client role",
   update_role: "Updating role requirements",
   save_record: "Saving the communication",
@@ -545,6 +546,27 @@ export function createAgentTools(ctx: AgentToolContext) {
             )
             .slice(-30),
         };
+      },
+    ),
+    delete_candidate: define(
+      "delete_candidate",
+      "Delete a saved candidate only when the current user instruction explicitly authorizes deleting that person or an unambiguous set containing them. Read each candidate first to verify identity and current version. For a keep/delete request, resolve the retained IDs first and never delete them. Ambiguous identity or scope requires clarification. This permanently removes the candidate, their records and role links, and source files not used by other records; existing recommendation snapshots may retain copied content. Return success only from the committed receipt. Do not ask for repeated confirmation of an already explicit deletion request.",
+      z.object({
+        ...authorization,
+        person_id: z.uuid(),
+        expected_version: z.number().int().positive(),
+      }),
+      async (input) => {
+        // Deletion deliberately requires the current instruction, not an older
+        // general authorization to organize or update the workspace.
+        authorized(input.authorization_quote);
+        const result = await commitAgentTool(job, "delete_candidate", input, async (tx) => {
+          const person = await owned<Person>(userId, "person", input.person_id, tx, true);
+          await deletePerson(userId, person.id, input.expected_version, tx);
+          return { output: { deleted: true, person_id: person.id, name: person.name } };
+        });
+        ctx.sources.delete(`/app/candidates?person=${input.person_id}`);
+        return result;
       },
     ),
     save_candidate: define(

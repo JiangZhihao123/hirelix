@@ -139,6 +139,7 @@ export const uiZh: Record<string, string> = {
   "Finding the earlier conversation": "检索历史对话",
   "Reading the earlier conversation": "读取历史对话",
   "Saving candidate details": "保存候选人资料",
+  "Deleting candidate": "删除候选人",
   "Saving the client role": "保存职位",
   "Updating role requirements": "更新职位要求",
   "Saving the communication": "保存沟通记录",

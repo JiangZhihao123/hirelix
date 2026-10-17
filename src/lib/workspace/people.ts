@@ -224,8 +224,9 @@ export async function deletePerson(
   userId: string,
   id: string,
   expectedVersion: number,
+  runner?: Runner,
 ) {
-  return db.transaction(async (tx) => {
+  const run = async (tx: Runner) => {
     const person = await owned<Person>(userId, "person", id, tx, true);
     expectVersion(person.version, expectedVersion);
     await tx.execute(
@@ -268,5 +269,6 @@ export async function deletePerson(
       }
     }
     return { deleted: true };
-  });
+  };
+  return runner ? run(runner) : db.transaction(run);
 }
