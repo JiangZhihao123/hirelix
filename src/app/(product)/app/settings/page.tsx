@@ -140,7 +140,7 @@ export default function SettingsPage() {
 
     return (
       <>
-      <MailboxConnections />
+      <MailboxConnections oauthError={searchParams.get("error")} />
               <AccountSection
         signInMethods={signInMethods}
         onPasswordSet={() => {

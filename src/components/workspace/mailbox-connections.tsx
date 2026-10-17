@@ -13,7 +13,7 @@ export async function connectMailbox(provider: MailboxProvider, read: boolean, c
   if (result.error || !result.data?.url) throw new Error(result.error?.message || "Could not connect this mailbox.");
   const url=new URL(result.data.url);url.searchParams.set("prompt","consent");window.location.assign(url.href);
 }
-export function MailboxConnections({callbackURL="/app/settings"}:{callbackURL?:string}) {
+export function MailboxConnections({callbackURL="/app/settings",oauthError}:{callbackURL?:string;oauthError?:string|null}) {
   const {locale}=useLanguage(),zh=locale==="zh";
   const query=useQuery<{connections:MailboxConnection[]}>("/mailboxes");
   const [busy,setBusy]=useState(false),[error,setError]=useState("");
@@ -33,6 +33,6 @@ export function MailboxConnections({callbackURL="/app/settings"}:{callbackURL?:s
       </>}
       {c.error && <ErrorNotice error={c.error}/>}
     </div>)}
-    <ErrorNotice error={error || query.error}/>
+    <ErrorNotice error={error || query.error || (oauthError ? (zh ? "邮箱连接未完成。授权可能已过期或被另一个登录操作替换，请重新点击连接，并在同一个浏览器中完成授权。" : "Mailbox connection was not completed. Authorization may have expired or been replaced by another sign-in. Connect again and finish in the same browser.") : "")}/>
   </section>;
 }
