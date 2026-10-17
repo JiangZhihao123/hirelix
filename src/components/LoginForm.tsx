@@ -6,6 +6,8 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight, KeyRound, Loader2, Mail, RotateCcw, ShieldCheck } from "lucide-react";
 import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
+import { authUnavailableMessage } from "@/lib/auth-status";
+import { useAuth } from "./AuthProvider";
 import { markGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/growth-client";
 import { GoogleAuthButton } from "./auth/GoogleAuthButton";
 import { getLoginFormStyles } from "./auth/loginStyles";
@@ -28,6 +30,7 @@ export function LoginForm({
   variant = "page",
 }: LoginFormProps) {
   const t = useT();
+  const { unavailable } = useAuth();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +51,8 @@ export function LoginForm({
   const canSendOtp = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail);
   const canVerifyOtp = canSendOtp && otp.trim().length >= 6;
   const canPasswordSignIn = canSendOtp && password.length >= 8;
-  const authBusy = googleLoading || sendingOtp || emailSigningIn;
+  const authBusy = googleLoading || sendingOtp || emailSigningIn || Boolean(unavailable);
+  const displayedError = unavailable || errorMessage;
 
   function redirectAfterEmailSignIn() {
     window.location.assign(nextPath);
@@ -72,10 +76,10 @@ export function LoginForm({
       });
 
       if (result?.error) {
-        throw new Error("Google sign-in failed to start.");
+        throw result.error;
       }
-    } catch {
-      setErrorMessage("We couldn't start Google sign in. Please try again.");
+    } catch (error) {
+      setErrorMessage(authUnavailableMessage(error) || "We couldn't start Google sign in. Please try again.");
       onFailure?.();
     } finally {
       setGoogleLoading(false);
@@ -105,17 +109,17 @@ export function LoginForm({
         type: "sign-in",
       });
       if (result?.error) {
-        throw new Error("Could not send the code.");
+        throw result.error;
       }
       setOtp("");
       setOtpSent(true);
-    } catch {
+    } catch (error) {
       trackEvent(ANALYTICS_EVENTS.emailOtpFailed, {
         ...getAnalyticsContextFromBrowser(),
         auth_method: "email_otp",
         error_reason: "otp_send_failed",
       });
-      setErrorMessage("We couldn't send a sign-in code. Please try again.");
+      setErrorMessage(authUnavailableMessage(error) || "We couldn't send a sign-in code. Please try again.");
     } finally {
       setSendingOtp(false);
     }
@@ -138,7 +142,7 @@ export function LoginForm({
         name: normalizedEmail.split("@")[0],
       });
       if (result?.error) {
-        throw new Error("Invalid code.");
+        throw result.error;
       }
       trackEvent(ANALYTICS_EVENTS.emailOtpVerified, {
         ...getAnalyticsContextFromBrowser(),
@@ -162,13 +166,13 @@ export function LoginForm({
         invite_code: window.__hirelixGrowthIdentity?.invite_code ?? null,
       }, { awaitResponse: true });
       redirectAfterEmailSignIn();
-    } catch {
+    } catch (error) {
       trackEvent(ANALYTICS_EVENTS.emailOtpFailed, {
         ...getAnalyticsContextFromBrowser(),
         auth_method: "email_otp",
         error_reason: "otp_verify_failed",
       });
-      setErrorMessage("That code did not work. Please check the email and try again.");
+      setErrorMessage(authUnavailableMessage(error) || "That code did not work. Please check the email and try again.");
       onFailure?.();
     } finally {
       setEmailSigningIn(false);
@@ -192,7 +196,7 @@ export function LoginForm({
         callbackURL: nextPath,
       });
       if (result?.error) {
-        throw new Error("Invalid password.");
+        throw result.error;
       }
       void trackGrowthEvent("password_signin", {
         auth_method: "password",
@@ -203,8 +207,8 @@ export function LoginForm({
         auth_method: "password",
       });
       redirectAfterEmailSignIn();
-    } catch {
-      setErrorMessage("Email or password is not correct.");
+    } catch (error) {
+      setErrorMessage(authUnavailableMessage(error) || "Email or password is not correct.");
       onFailure?.();
     } finally {
       setEmailSigningIn(false);
@@ -238,7 +242,7 @@ export function LoginForm({
 
       <GoogleAuthButton
         loading={googleLoading}
-        disabled={sendingOtp || emailSigningIn}
+        disabled={sendingOtp || emailSigningIn || Boolean(unavailable)}
         onClick={handleGoogleSignIn}
         className={styles.googleButton}
       />
@@ -403,9 +407,9 @@ export function LoginForm({
         </form>
       )}
 
-      {errorMessage && (
+      {displayedError && (
         <p className="mt-3 text-sm text-red-600" role="alert">
-          {t(errorMessage)}
+          {t(displayedError)}
         </p>
       )}
     </div>

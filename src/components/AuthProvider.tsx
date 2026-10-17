@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 
 import { authClient, useSession } from "@/lib/auth-client";
+import { authUnavailableMessage } from "@/lib/auth-status";
 import {
   ANALYTICS_EVENTS,
   getAnalyticsContextFromBrowser,
@@ -31,17 +32,19 @@ type AppUser = {
 type AuthState = {
   user: AppUser | null;
   loading: boolean;
+  unavailable: string | null;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState>({
   user: null,
   loading: true,
+  unavailable: null,
   signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, isPending } = useSession();
+  const { data, isPending, error } = useSession();
   const trackedUserIdRef = useRef<string | null>(null);
 
   const user: AppUser | null = data?.user
@@ -95,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading: isPending,
+        unavailable: authUnavailableMessage(error),
         signOut,
       }}
     >

@@ -39,10 +39,34 @@ test("real auth API access still rejects missing runtime configuration", () => {
   `);
 });
 
-test("Next auth handler preserves the runtime configuration failure", () => {
+test("Next auth handler reports missing runtime configuration without leaking settings", () => {
   isolatedAuth(`
     const { GET } = require('./src/app/api/auth/[...all]/route.ts');
-    assert.rejects(GET(new Request('http://localhost/api/auth/get-session')), /DATABASE_URL is required/)
+    const { AUTH_UNAVAILABLE_CODE, AUTH_UNAVAILABLE_MESSAGE } = require('./src/lib/auth-status.ts');
+    (async () => {
+      const response = await GET(new Request('http://localhost/api/auth/get-session'));
+      assert.equal(response.status, 503);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(response.headers.get('set-cookie'), null);
+      const body = await response.json();
+      assert.equal(body.code, AUTH_UNAVAILABLE_CODE);
+      assert.equal(body.message, AUTH_UNAVAILABLE_MESSAGE);
+      assert.equal(JSON.stringify(body).includes('DATABASE_URL'), false);
+    })()
       .catch(error => { console.error(error); process.exitCode = 1; });
+  `);
+});
+
+test("workspace routes reject missing auth configuration before their business handler", () => {
+  isolatedAuth(`
+    const { workspaceApi } = require('./src/lib/workspace/http.ts');
+    const { NextRequest } = require('next/server');
+    (async () => {
+      let invoked = false;
+      const response = await workspaceApi(new NextRequest('http://localhost/api/workspace/people'), async () => { invoked = true; });
+      assert.equal(invoked, false);
+      assert.equal(response.status, 503);
+      assert.equal((await response.json()).code, 'AUTH_SERVICE_UNAVAILABLE');
+    })().catch(error => { console.error(error); process.exitCode = 1; });
   `);
 });

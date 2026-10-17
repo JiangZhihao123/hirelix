@@ -1785,4 +1785,6 @@ export const uiZh: Record<string, string> = {
   "The document search service has a configuration problem. Your material is saved. Contact support or retry after service is restored.": "资料检索服务存在配置问题。资料已保留，请联系支持，或在服务恢复后重试。",
   "The document search service is temporarily unavailable. Your material is saved. Try again later.": "资料检索服务暂时不可用。资料已保留，请稍后重试。",
   "The document search service timed out. Your material is saved. Try again later.": "资料检索服务响应超时。资料已保留，请稍后重试。",
+  "Sign-in is temporarily unavailable. Please contact support@hirelix.online or try again later.": "登录服务暂不可用。请联系 support@hirelix.online，或在服务恢复后重试。",
+  "We couldn't connect to sign-in. Check your connection and try again.": "无法连接登录服务。请检查网络后重试。",
 };

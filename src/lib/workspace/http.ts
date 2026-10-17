@@ -3,19 +3,28 @@ import { ZodError } from "zod";
 import { getUserFromApiRequest, type ApiAuthUser } from "@/lib/api-auth";
 import { getLogger } from "@/lib/logger";
 import { WorkspaceError } from "./database";
+import { AuthConfigurationError, AUTH_UNAVAILABLE_PAYLOAD } from "@/lib/auth-status";
 
 const logger = getLogger({ component: "private_workspace_api" });
 export async function workspaceApi(
   req: NextRequest,
   handler: (user: ApiAuthUser) => Promise<unknown>,
 ) {
-  const user = await getUserFromApiRequest(req);
-  if (!user)
-    return NextResponse.json({ error: "Sign in to continue" }, { status: 401 });
+  let user: ApiAuthUser | null = null;
   try {
+    user = await getUserFromApiRequest(req);
+    if (!user)
+      return NextResponse.json({ error: "Sign in to continue" }, { status: 401 });
     const result = await handler(user);
     return result instanceof Response ? result : NextResponse.json(result);
   } catch (error) {
+    if (error instanceof AuthConfigurationError) {
+      logger.error({ missing_settings: error.missing }, "Authentication configuration is incomplete");
+      return NextResponse.json(AUTH_UNAVAILABLE_PAYLOAD, {
+        status: 503,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     if (error instanceof ZodError)
       return NextResponse.json(
         {
@@ -32,7 +41,7 @@ export async function workspaceApi(
       );
     logger.error(
       {
-        user_id: user.id,
+        user_id: user?.id,
         error_type: error instanceof Error ? error.name : "Unknown",
       },
       "Workspace request failed",

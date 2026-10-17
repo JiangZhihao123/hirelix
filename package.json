@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:workspace": "tsx scripts/tools/check-workspace-runtime.ts",
     "billing:create-redemption-codes": "node scripts/tools/create-redemption-codes.mjs",
     "scheduler:start": "tsx --tsconfig scheduler/tsconfig.json scheduler/index.ts",
     "scheduler:dev": "dotenv -e .env.local -e .env -- tsx --tsconfig scheduler/tsconfig.json scheduler/index.ts",

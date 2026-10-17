@@ -16,6 +16,10 @@ import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/db/client";
 import * as schema from "@/db/schema";
+import { AuthConfigurationError, AUTH_UNAVAILABLE_PAYLOAD, missingAuthSettings } from "./auth-status";
+import { getLogger } from "./logger";
+
+const authLogger = getLogger({ component: "auth_configuration" });
 
 function readEnv(name: string): string {
   const v = process.env[name];
@@ -94,6 +98,8 @@ async function sendEmailOtp({ email, otp }: { email: string; otp: string }) {
 }
 
 function createAuth() {
+  const missing = missingAuthSettings(process.env);
+  if (missing.length) throw new AuthConfigurationError(missing);
   return betterAuth({
     database: drizzleAdapter(getDb(), {
       provider: "pg",
@@ -164,7 +170,16 @@ export const auth = {
   get api() {
     return getAuth().api;
   },
-  handler(request: Request) {
-    return getAuth().handler(request);
+  async handler(request: Request) {
+    try {
+      return await getAuth().handler(request);
+    } catch (error) {
+      if (!(error instanceof AuthConfigurationError)) throw error;
+      authLogger.error({ missing_settings: error.missing }, "Authentication configuration is incomplete");
+      return Response.json(AUTH_UNAVAILABLE_PAYLOAD, {
+        status: 503,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
   },
 };
