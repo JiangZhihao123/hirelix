@@ -178,6 +178,13 @@ export default function RolePage({
               ? ` · ${role.client_contact.location}`
               : ""}
           </p>
+          <p className="text-sm">
+            {t("Client contact")}: {role.client_contact?.name || t("Name not recorded")}
+            {" · "}
+            {role.client_contact?.email
+              ? <a className="ws-link" href={`mailto:${role.client_contact.email}`}>{role.client_contact.email}</a>
+              : t("Email not recorded")}
+          </p>
         </div>
         <div className="ws-actions">
           <button className="ws-button" onClick={() => setEdit(true)}>
@@ -282,11 +289,11 @@ export default function RolePage({
                 <p className="ws-muted text-sm mb-3">{t("Reference text. Later clarifications are shown in Current requirements above.")}</p>
                 <p>{role.jd_text}</p>
               </section>
-              {Object.values(role.client_contact || {}).some(Boolean) && (
+              {Object.entries(role.client_contact || {}).some(([key, value]) => !["name", "email"].includes(key) && Boolean(value)) && (
                 <section className="ws-section">
-                  <h3>{t("Client & practical details")}</h3>
+                  <h3>{t("Practical details")}</h3>
                   {Object.entries(role.client_contact)
-                    .filter(([, value]) => value)
+                    .filter(([key, value]) => !["name", "email"].includes(key) && value)
                     .map(([key, value]) => (
                       <p key={key}>
                         <span className="ws-muted">

@@ -51,7 +51,7 @@ export function RecommendationDelivery({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [copied, setCopied] = useState(""),
-    [to, setTo] = useState(""),
+    [recipientOverride, setTo] = useState<string | null>(null),
     [includeLink, setIncludeLink] = useState(true),
     [attachCvs, setAttachCvs] = useState(true),
     [subject, setSubject] = useState<string | null>(null),
@@ -73,10 +73,11 @@ export function RecommendationDelivery({
   const share = useQuery<{ share: Share | null }>(
       `/deliverables/${document.id}/share?version=${document.version}`,
     ),
-    receipts = useQuery<{ receipts: Receipt[] }>(
+    receipts = useQuery<{ receipts: Receipt[]; default_recipient: string | null }>(
       `/deliverables/${document.id}/email`,
     ),
     mailboxes = useQuery<{connections:MailboxConnection[]}>("/mailboxes");
+  const to = recipientOverride ?? receipts.data?.default_recipient ?? "";
   const connection = {...mailboxes,data:mailboxes.data?.connections.find(c=>c.provider===provider)};
   const source = document.source_snapshot as {
     files?: SubmissionCv[];

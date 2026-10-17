@@ -1,3 +1,4 @@
+import { roleRecipient } from "./roles";
 import { recommendationCover } from "./recommendation-presentation";
 import { recommendationEmail, sendRecommendationInput } from "./gmail";
 import { activeDocumentShare } from "./document-sharing";
@@ -9,7 +10,7 @@ import { clientDocument, assertSharingAllowed } from "./document-sharing";
 import { mailboxConnection } from "./mailbox";
 import { hasMailboxScope } from "./mailbox-contract";
 import { sendConversationEmail, effectiveDeliveryStatus, type Receipt } from "./gmail";
-import { emailAddress, emailSnapshotSchema, type ConversationEmail, type EmailPlan } from "./email-contract";
+import { emailRecipient, emailAddress, emailSnapshotSchema, type ConversationEmail, type EmailPlan } from "./email-contract";
 import { quotedAuthorization } from "./assistant-work";
 import type { Conversation, Deliverable, Job, Message } from "./types";
 import type { PreparedJob } from "./jobs";
@@ -93,8 +94,15 @@ export async function prepareEmailReply({job, conversation, question, messages, 
       : update.status === "failed" ? say("Gmail rejected this email. It was not sent. Check the connection and ask for a new preview.","Gmail 拒绝了这封邮件，未发送。请检查连接后重新准备预览。")
       : say("Gmail has not confirmed this send. Check Gmail Sent before trying again; I will not automatically resend it.","Gmail 尚未确认发送结果。请先查看 Gmail 已发送邮件，我不会自动重发。");
   } else {
-    const to = plan.to || (pending?.status === "review" ? pending.snapshot.to : null);
-    if (!to || !emailAddress.safeParse(to).success) answer = say("What exact email address should I send this to?", "请提供准确的收件人邮箱。");
+    // Only reuse a preview belonging to the same document. A prior role's
+    // recipient must never leak into a newly selected recommendation.
+    const documentId = plan.use_document ? document?.id ?? null : null;
+    const clientTo = plan.use_document && document
+      ? await roleRecipient(job.user_id, document.role_id) : null;
+    const to = emailRecipient(plan.to, pending, documentId, clientTo);
+    if (!to || !emailAddress.safeParse(to).success) answer = plan.use_document && document?.role_id
+      ? say("What is the client contact email for this role? I can save it on the role and continue preparing this email. For a one-time recipient, say so.", "这个职位的客户联系人邮箱是什么？补充后我会保存到职位并继续准备这封邮件；如果仅本次使用，请说明。")
+      : say("What exact email address should I send this to?", "请提供准确的收件人邮箱。");
     else if (!connection.email || !emailAddress.safeParse(connection.email).success) answer = say("Connect your Google account before preparing the sender details.","请先连接 Google 账号，以确认发件人。");
     else {
       try {

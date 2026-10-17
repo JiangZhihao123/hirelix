@@ -299,6 +299,14 @@ export function RoleForm({
             />
           </Field>
         </div>
+        <div className="ws-fields">
+          {([ ["name", "Contact name"], ["email", "Contact email"] ] as const).map(([key, label]) => (
+            <Field key={key} label={t(label)} hint={key === "email" ? t("Used for recommendation emails. You can add it later.") : undefined}>
+              <input type={key === "email" ? "email" : "text"} value={fields.client_contact[key] || ""}
+                onChange={event => setFields(current => ({...current, client_contact: {...current.client_contact, [key]: event.target.value}}))} />
+            </Field>
+          ))}
+        </div>
         <Field
           label={t("Original job description")}
           hint={t("Paste the original JD. You can refine the working requirements below.")}
@@ -336,13 +344,11 @@ export function RoleForm({
         ))}
         <details>
           <summary className="ws-link">
-            {t("Client contact and practical details")}
+            {t("Practical details")}
           </summary>
           <div className="ws-fields mt-4">
             {(
               [
-                ["name", "Contact name"],
-                ["email", "Contact email"],
                 ["cooperation", "Cooperation terms"],
                 ["location", "Role location"],
                 ["compensation", "Compensation"],
@@ -350,7 +356,7 @@ export function RoleForm({
             ).map(([key, label]) => (
               <Field label={label} key={key}>
                 <input
-                  type={key === "email" ? "email" : "text"}
+                  type="text"
                   value={fields.client_contact[key]}
                   onChange={(event) =>
                     setFields((current) => ({

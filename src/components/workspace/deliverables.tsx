@@ -436,7 +436,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           </section>
         </aside>
       </div>
-      {document.kind === "submission" && !internalReview && <RecommendationDelivery document={document} disabled={dirty || saving || !!recovery || !!error} onChanged={setDocument} />}
+      {document.kind === "submission" && !internalReview && <RecommendationDelivery key={document.id} document={document} disabled={dirty || saving || !!recovery || !!error} onChanged={setDocument} />}
       {history && (
         <History
           kind="deliverable"
