@@ -132,7 +132,7 @@ export async function sendRecommendation(
   const reviewed = await recommendationEmail(userId, document, input, origin);
   await assertSharingAllowed(userId, document.role_id, reviewed);
   const snapshot = { ...reviewed, provider: input.provider || "google" as const, from: connection.email!, to: input.to, document_id: id, document_version: input.expected_version };
-  const { mime, messageId, accessToken } = await composeGmail(userId, snapshot);
+  const { mime, messageId, accessToken, microsoftBody } = await composeGmail(userId, snapshot);
   const claimed = await reserveEmailDelivery(
     userId,
     id,
@@ -143,7 +143,7 @@ export async function sendRecommendation(
   );
   if (!claimed.send)
     return { receipt: claimed.receipt.id, status: claimed.receipt.status };
-  const result = await deliverGmail(claimed.receipt, mime, accessToken);
+  const result = await deliverGmail(claimed.receipt, mime, accessToken, microsoftBody);
   if (result.status !== "sent") return result;
   try {
     await markSubmitted(userId, id, {
@@ -259,10 +259,35 @@ export async function buildEmailMime(userId: string, snapshot: EmailSnapshot) {
   })
     .compile()
     .build();
-  return { mime, messageId };
+  const microsoftBody = snapshot.provider === "microsoft" ? microsoftSendBody(snapshot, attachments) : undefined;
+  return { mime, messageId, microsoftBody };
 }
 
-async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string) {
+export function microsoftSendBody(
+  snapshot: Pick<EmailSnapshot, "to" | "title" | "content">,
+  attachments: Array<{ filename: string; content: Buffer; contentType: string }>,
+) {
+  const body = JSON.stringify({
+    message: {
+      subject: snapshot.title,
+      body: { contentType: "Text", content: snapshot.content },
+      toRecipients: [{ emailAddress: { address: snapshot.to } }],
+      attachments: attachments.map(file => ({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: file.filename,
+        contentType: file.contentType,
+        contentBytes: file.content.toString("base64"),
+      })),
+    },
+    saveToSentItems: true,
+  });
+  // Large attachments require a draft/upload session and additional mailbox-write permission.
+  if (attachments.some(file => file.content.length >= 3 * 1024 * 1024) || Buffer.byteLength(body) >= 4 * 1024 * 1024)
+    throw new WorkspaceError("The attachments are too large for Microsoft email sending. Use a share link or smaller files instead.", 400);
+  return body;
+}
+
+async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string, microsoftBody?: string) {
   const microsoft = receipt.snapshot.provider === "microsoft";
   const providerName = microsoft ? "Microsoft" : "Gmail";
   let response: Response;
@@ -273,9 +298,9 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string)
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "Content-Type": microsoft ? "text/plain" : "application/json",
+          "Content-Type": "application/json",
         },
-        body: microsoft ? mime.toString("base64") : JSON.stringify({ raw: mime.toString("base64url") }),
+        body: microsoft ? microsoftBody : JSON.stringify({ raw: mime.toString("base64url") }),
         signal: AbortSignal.timeout(45000),
       },
     );
@@ -341,13 +366,13 @@ export async function sendConversationEmail(userId: string, snapshot: EmailSnaps
   if (addressError) throw new WorkspaceError(addressError, 400);
   const connection = await mailboxConnection(userId, snapshot.provider || "google");
   if (!connection.connected || connection.email !== snapshot.from) throw new WorkspaceError("Reconnect the reviewed mailbox before sending", 409);
-  const {mime, messageId, accessToken} = await composeGmail(userId, snapshot);
+  const {mime, messageId, accessToken, microsoftBody} = await composeGmail(userId, snapshot);
   const claimed = await reserveConversationEmail(userId, snapshot, requestKey, messageId, guard);
   if (!claimed.send) {
     await recordConversationSubmission(userId, snapshot, claimed.receipt);
     return {receipt: claimed.receipt.id, status: effectiveDeliveryStatus(claimed.receipt)};
   }
-  const result = await deliverGmail(claimed.receipt, mime, accessToken);
+  const result = await deliverGmail(claimed.receipt, mime, accessToken, microsoftBody);
   await recordConversationSubmission(userId, snapshot, {status:result.status,provider_message_id:result.provider_message_id || null});
   return result;
 }

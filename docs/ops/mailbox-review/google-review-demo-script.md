@@ -28,8 +28,8 @@ Hirelix is a personal AI assistant for independent headhunters. On an explicit u
 ## Remaining review blockers
 
 - A complete real recording covering consent, Gmail matched-message read and disconnect has not been produced.
-- Confirm the configured AI processor's applicable no-training, retention and subprocessors terms. Do not equate an application privacy statement with an upstream contractual guarantee.
-- The owner-approved DeepSeek inquiry has been sent. No response was found during the follow-up check; do not claim an opt-out is effective merely because it was requested.
+- Document the configured AI processor's applicable data-use, retention and subprocessors terms against Google policy. Zero retention is not an assumed universal requirement. Use published applicable terms or an agreement; do not invent a no-training or zero-retention promise.
+- The DeepSeek inquiry is supplementary evidence, not a prerequisite to development or preparation. Continue the demo and submission materials using verifiable published terms; identify any specific unresolved policy requirement separately. Do not claim an opt-out became effective just because it was requested.
 - Initiate and complete Google's required restricted-scope security assessment process as directed by the review team; do not claim certification or pay for an assessment without approval.
 
 Official references:
